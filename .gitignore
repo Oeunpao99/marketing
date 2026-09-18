@@ -1,0 +1,28 @@
+# Secrets — never commit these. (dispatch/backend/.env.example is fine and IS tracked.)
+.env
+.env.*
+!.env.example
+
+# Frontend (dispatch/) — Vite/React
+node_modules/
+dist/
+dispatch/dist/
+*.local
+
+# Backend (dispatch/backend/) — Python / uv
+__pycache__/
+*.py[cod]
+.venv/
+.ruff_cache/
+.pytest_cache/
+
+# Generated/uploaded media — served from the DB now (app/media.py); this
+# folder is just the legacy fallback and local dev scratch space.
+dispatch/backend/media/*
+!dispatch/backend/media/.gitkeep
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+.idea/
+*.swp

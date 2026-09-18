@@ -1,0 +1,300 @@
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { api } from '../api/client'
+import { phnomPenhDate } from '../lib/tz'
+import { useStore } from '../store'
+
+const BRAND_COLORS = { assist: '#3B82F6', chum: '#F59E0B', hub: '#8B5CF6' }
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+const pad = (n) => String(n).padStart(2, '0')
+const ymd = (y, m, d) => `${y}-${pad(m + 1)}-${pad(d)}`
+const daysInMonth = (y, m) => new Date(y, m + 1, 0).getDate()
+
+export default function CalendarPage() {
+  const { brands, showToast } = useStore()
+  const navigate = useNavigate()
+  const today = phnomPenhDate(0) // "YYYY-MM-DD"
+  const [todayY, todayM] = today.split('-').map(Number)
+
+  const [year, setYear] = useState(todayY)
+  const [month, setMonth] = useState(todayM - 1) // 0-indexed
+  const [brandFilter, setBrandFilter] = useState('all')
+  const [items, setItems] = useState(null)
+  const [open, setOpen] = useState(null) // selected draft
+  const [busy, setBusy] = useState(false)
+
+  const monthLabel = new Date(year, month, 1).toLocaleDateString(undefined, {
+    month: 'long',
+    year: 'numeric',
+  })
+
+  const load = () => {
+    const start = ymd(year, month, 1)
+    const end = ymd(year, month, daysInMonth(year, month))
+    api
+      .get(`/views/calendar?start=${start}&end=${end}`)
+      .then(setItems)
+      .catch(() => setItems([]))
+  }
+
+  useEffect(() => {
+    load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [year, month])
+
+  const shiftMonth = (delta) => {
+    let m = month + delta
+    let y = year
+    if (m < 0) { m = 11; y -= 1 }
+    if (m > 11) { m = 0; y += 1 }
+    setMonth(m)
+    setYear(y)
+  }
+
+  const byDay = useMemo(() => {
+    const map = new Map()
+    for (const it of items || []) {
+      if (brandFilter !== 'all' && it.brand_slug !== brandFilter) continue
+      if (!map.has(it.planned_for)) map.set(it.planned_for, [])
+      map.get(it.planned_for).push(it)
+    }
+    return map
+  }, [items, brandFilter])
+
+  const cells = useMemo(() => {
+    const firstWeekday = new Date(year, month, 1).getDay()
+    const total = daysInMonth(year, month)
+    const out = []
+    for (let i = 0; i < firstWeekday; i++) out.push(null)
+    for (let d = 1; d <= total; d++) out.push(ymd(year, month, d))
+    return out
+  }, [year, month])
+
+  const act = async (draft, action) => {
+    if (busy) return
+    setBusy(true)
+    try {
+      await api.post(`/views/drafts/${draft.id}/${action}`)
+      setItems((xs) => xs.map((x) => (x.id === draft.id ? { ...x, status: action === 'approve' ? 'approved' : 'rejected' } : x)))
+      setOpen((o) => (o ? { ...o, status: action === 'approve' ? 'approved' : 'rejected' } : o))
+      showToast(action === 'approve' ? 'Approved' : 'Sent back')
+    } catch (e) {
+      showToast(`Could not update — ${e.message}`)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const useIdea = (draft) => {
+    const brand = brands.find((b) => b.slug === draft.brand_slug)
+    navigate('/ai', {
+      state: {
+        brandSlug: brand?.slug,
+        topic: draft.title,
+        extra: draft.body,
+      },
+    })
+  }
+
+  return (
+    <div className="w-full px-5 lg:px-10 py-8 lg:py-10 animate-fadein">
+      <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="font-display text-[34px] lg:text-[42px] leading-tight tracking-tight text-ink-900">
+            Calendar
+          </h1>
+          <p className="mt-1.5 text-ink-500 max-w-[60ch] text-[15px]">
+            What the AI has planned to post, day by day. Click an idea to read it, approve it, or turn it into a post.
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3 mb-5">
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => shiftMonth(-1)}
+            className="w-8 h-8 rounded-lg border border-ink-200 bg-white text-ink-600 hover:bg-ink-50 grid place-items-center"
+            aria-label="Previous month"
+          >
+            ‹
+          </button>
+          <div className="min-w-[150px] text-center font-bold text-ink-800 text-[14.5px]">{monthLabel}</div>
+          <button
+            type="button"
+            onClick={() => shiftMonth(1)}
+            className="w-8 h-8 rounded-lg border border-ink-200 bg-white text-ink-600 hover:bg-ink-50 grid place-items-center"
+            aria-label="Next month"
+          >
+            ›
+          </button>
+        </div>
+        <button
+          type="button"
+          onClick={() => { setYear(todayY); setMonth(todayM - 1) }}
+          className="px-3 py-1.5 rounded-lg border border-ink-200 bg-white text-ink-600 text-[12.5px] font-semibold hover:bg-ink-50"
+        >
+          Today
+        </button>
+        <span className="mx-1 h-5 w-px bg-ink-200" />
+        <button
+          type="button"
+          onClick={() => setBrandFilter('all')}
+          className={`px-3 py-1.5 rounded-xl border text-[12.5px] font-semibold transition-all duration-150 ${
+            brandFilter === 'all' ? 'border-brand bg-brand/5 text-ink-900' : 'border-ink-200 text-ink-600 hover:border-ink-300'
+          }`}
+        >
+          All brands
+        </button>
+        {brands.map((b) => (
+          <button
+            key={b.id}
+            type="button"
+            onClick={() => setBrandFilter(b.slug)}
+            className={`px-3 py-1.5 rounded-xl border text-[12.5px] font-semibold flex items-center gap-1.5 transition-all duration-150 ${
+              brandFilter === b.slug ? 'border-brand bg-brand/5 text-ink-900' : 'border-ink-200 text-ink-600 hover:border-ink-300'
+            }`}
+          >
+            <span className="w-1.5 h-1.5 rounded-full flex-none" style={{ background: BRAND_COLORS[b.slug] || '#166432' }} />
+            {b.name}
+          </button>
+        ))}
+      </div>
+
+      {items === null ? (
+        <div className="py-20 text-center text-ink-400 text-[13px]">Loading…</div>
+      ) : (
+        <div className="rounded-2xl border border-ink-100 bg-white overflow-hidden shadow-card">
+          <div className="grid grid-cols-7 border-b border-ink-100 bg-ink-50/60">
+            {WEEKDAYS.map((w) => (
+              <div key={w} className="px-2 py-2 text-[11px] font-bold uppercase tracking-wide text-ink-400 text-center">
+                {w}
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7">
+            {cells.map((dateStr, i) => (
+              <div
+                key={dateStr ?? `pad-${i}`}
+                className={`min-h-[104px] border-b border-r border-ink-100 p-1.5 [&:nth-child(7n)]:border-r-0 ${
+                  dateStr === today ? 'bg-brand/5' : ''
+                }`}
+              >
+                {dateStr && (
+                  <>
+                    <div className={`text-[11.5px] font-semibold mb-1 ${dateStr === today ? 'text-brand' : 'text-ink-500'}`}>
+                      {Number(dateStr.slice(-2))}
+                    </div>
+                    <div className="space-y-1">
+                      {(byDay.get(dateStr) || []).slice(0, 3).map((it) => (
+                        <button
+                          key={it.id}
+                          type="button"
+                          onClick={() => setOpen(it)}
+                          className={`w-full text-left px-1.5 py-1 rounded-md text-[10.5px] leading-tight truncate flex items-center gap-1 ${
+                            it.status === 'rejected'
+                              ? 'bg-ink-100 text-ink-400 line-through'
+                              : 'bg-white border border-ink-100 text-ink-700 hover:border-brand/40'
+                          }`}
+                          title={it.title}
+                        >
+                          <span
+                            className="w-1.5 h-1.5 rounded-full flex-none"
+                            style={{ background: BRAND_COLORS[it.brand_slug] || '#94a3b8' }}
+                          />
+                          <span className="truncate">{it.title}</span>
+                        </button>
+                      ))}
+                      {(byDay.get(dateStr) || []).length > 3 && (
+                        <div className="text-[10px] text-ink-400 px-1.5">
+                          +{(byDay.get(dateStr) || []).length - 3} more
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {open && (
+        <div
+          className="fixed inset-0 z-50 bg-ink-950/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fadein"
+          onClick={() => setOpen(null)}
+        >
+          <div
+            className="bg-white rounded-3xl overflow-hidden max-w-lg w-full max-h-[85vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-5 lg:p-6 flex flex-col min-h-0">
+              <div className="flex items-center gap-2 text-[12.5px] text-ink-500 flex-wrap">
+                <span className="w-2 h-2 rounded-full flex-none" style={{ background: BRAND_COLORS[open.brand_slug] || '#94a3b8' }} />
+                <span className="font-semibold text-ink-800">{open.brand_name}</span>
+                <span className="text-ink-300">·</span>
+                <span>{open.planned_for}</span>
+                <span
+                  className={`ml-auto px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide ${
+                    open.status === 'approved'
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : open.status === 'rejected'
+                        ? 'bg-ink-100 text-ink-500'
+                        : 'bg-amber-100 text-amber-700'
+                  }`}
+                >
+                  {open.status}
+                </span>
+              </div>
+              <h2 className="mt-3 font-display text-[22px] leading-tight text-ink-900">{open.title}</h2>
+              {open.insight && (
+                <p className="mt-2 text-[13px] text-ink-500 italic leading-relaxed">{open.insight}</p>
+              )}
+              <div className="mt-3 text-[11px] font-bold uppercase tracking-wide text-ink-400">Caption</div>
+              <p className="mt-1 text-[13.5px] text-ink-700 leading-relaxed overflow-y-auto flex-1 whitespace-pre-line pr-1">
+                {open.body}
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => useIdea(open)}
+                  className="px-4 py-2.5 rounded-xl gradient-brand text-white text-[13px] font-bold hover:shadow-glow-lg transition-all duration-200"
+                >
+                  Use this idea →
+                </button>
+                {open.status === 'waiting' && (
+                  <>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => act(open, 'approve')}
+                      className="px-4 py-2.5 rounded-xl border-2 border-brand text-brand text-[13px] font-bold hover:bg-brand/5 disabled:opacity-50 transition-all duration-150"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => act(open, 'reject')}
+                      className="px-4 py-2.5 rounded-xl border border-ink-200 text-ink-500 text-[13px] font-bold hover:bg-red-50 hover:text-red-600 hover:border-red-200 disabled:opacity-50 transition-all duration-150"
+                    >
+                      Reject
+                    </button>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setOpen(null)}
+                  className="ml-auto px-4 py-2.5 rounded-xl text-ink-500 text-[13px] font-bold hover:bg-ink-100"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
