@@ -144,6 +144,8 @@ export function StoreProvider({ children }) {
               insight: d.insight,
               made: `Written ${phnomPenhClock(d.generated_at)}`,
               source: d.source,
+              videoUrl: d.video_url,
+              fitScore: d.fit_score,
             })),
           ),
         )

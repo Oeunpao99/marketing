@@ -1,9 +1,8 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
+import { colorForBrand } from '../lib/brandColor'
 import { useStore } from '../store'
-
-const BRAND_COLORS = { assist: '#3B82F6', chum: '#F59E0B', hub: '#8B5CF6' }
 
 const TOPIC_SOURCES = [
   'Trending in Cambodia + your topic bank',
@@ -75,7 +74,7 @@ export default function AutoPage() {
       ) : (
         <div className="space-y-4">
           {auto.map((a) => {
-            const color = BRAND_COLORS[a.brand_slug] || '#166432'
+            const color = colorForBrand(a.brand_slug)
             const running = runningId === a.id
             return (
               <div key={a.id} className="bg-white border border-ink-100 rounded-2xl overflow-hidden shadow-card hover:shadow-card-hover transition-all duration-150">
@@ -130,6 +129,12 @@ export default function AutoPage() {
                       </select>
                     </Field>
 
+                    <Field label="Media" hint="Generates an image per idea and finishes the post — costs real image-generation credits every run.">
+                      <div className="flex items-center h-[38px]">
+                        <Toggle on={a.auto_media} onChange={(v) => update(a, { auto_media: v })} />
+                      </div>
+                    </Field>
+
                     <div className="sm:col-span-2 flex items-center">
                       <button
                         type="button"
@@ -145,9 +150,17 @@ export default function AutoPage() {
                     <div className="sm:col-span-3 bg-brand/5 border border-brand/10 rounded-xl px-3.5 py-2.5 text-[13px] text-ink-600 leading-relaxed">
                       {a.videos_per_day} idea{a.videos_per_day === 1 ? '' : 's'} written at{' '}
                       <b className="font-mono text-ink-800">{a.run_at}</b> from{' '}
-                      <b className="text-ink-800">{a.topic_source.toLowerCase()}</b>, then{' '}
+                      <b className="text-ink-800">{a.topic_source.toLowerCase()}</b>, self-checked against your{' '}
+                      <Link to="/products" className="text-brand font-semibold hover:underline">products</Link>
+                      {a.auto_media && <> — weak ideas are dropped automatically, and an image is generated for the rest</>}, then{' '}
                       {a.require_approval ? (
-                        <>held in <Link to="/review" className="text-brand font-semibold hover:underline">Waiting for you</Link> until you approve.</>
+                        a.auto_media ? (
+                          <>held in <Link to="/review" className="text-brand font-semibold hover:underline">Waiting for you</Link> as a finished post — approve schedules it to your connected channels, one click.</>
+                        ) : (
+                          <>held in <Link to="/review" className="text-brand font-semibold hover:underline">Waiting for you</Link> until you approve.</>
+                        )
+                      ) : a.auto_media ? (
+                        <>scheduled straight to your connected channels, no review needed.</>
                       ) : (
                         <>written straight onto the <Link to="/calendar" className="text-brand font-semibold hover:underline">calendar</Link>, no review needed.</>
                       )}

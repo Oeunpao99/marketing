@@ -21,7 +21,7 @@ def redact_config(cfg: dict | None) -> dict:
 ChannelStatus = Literal["live", "soon", "off"]
 PostStatus = Literal["draft", "scheduled", "posted"]
 TargetStatus = Literal["queued", "posted", "failed"]
-DraftStatus = Literal["waiting", "approved", "rejected"]
+DraftStatus = Literal["waiting", "approved", "rejected", "scheduled"]
 
 
 class ORMModel(BaseModel):
@@ -244,6 +244,13 @@ class DraftBase(BaseModel):
     length_seconds: int = 0
     source: str = ""
     status: DraftStatus = "waiting"
+    # Set when auto-generated media (Automation.auto_media) attached an image/
+    # video to this idea — approving a draft with one schedules it as a real
+    # post instead of just flipping its status. Null for a text-only draft.
+    video_id: int | None = None
+    # The AI's own 0-100 self-check of how well this idea is grounded in the
+    # brand's real product facts (app/content_ai.py) — null for hand-made drafts.
+    fit_score: int | None = None
 
 
 class DraftCreate(DraftBase):
@@ -259,6 +266,8 @@ class DraftUpdate(BaseModel):
     length_seconds: int | None = None
     source: str | None = None
     status: DraftStatus | None = None
+    video_id: int | None = None
+    fit_score: int | None = None
 
 
 class DraftOut(TimestampsOut, DraftBase):
@@ -273,6 +282,12 @@ class AutomationBase(BaseModel):
     videos_per_day: int = 1
     topic_source: str = ""
     require_approval: bool = True
+    # Opt-in: after an idea passes its own fit-score check, also generate an
+    # image for it and (once approved, or immediately if require_approval is
+    # off) schedule it as a real post on the brand's connected channels —
+    # see app/content_scheduler.py. Off by default since it spends real image
+    # generation budget every run.
+    auto_media: bool = False
 
 
 class AutomationCreate(AutomationBase):
@@ -286,6 +301,7 @@ class AutomationUpdate(BaseModel):
     videos_per_day: int | None = None
     topic_source: str | None = None
     require_approval: bool | None = None
+    auto_media: bool | None = None
 
 
 class AutomationOut(TimestampsOut, AutomationBase):

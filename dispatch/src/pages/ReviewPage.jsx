@@ -1,9 +1,8 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
+import { colorForBrand } from '../lib/brandColor'
 import { useStore } from '../store'
-
-const BRAND_COLORS = { assist: '#3B82F6', chum: '#F59E0B', hub: '#8B5CF6' }
 
 export default function ReviewPage() {
   const { review, setReview, refreshReview, showToast } = useStore()
@@ -17,11 +16,13 @@ export default function ReviewPage() {
       setReview((r) => (r || []).filter((x) => x.id !== draft.id))
       showToast(
         action === 'approve'
-          ? "Approved — added to today's queue"
-          : "Sent back — write another from Auto-generate",
+          ? draft.videoUrl
+            ? 'Approved — scheduled to your connected channels'
+            : 'Approved — use it from the Calendar to build a post'
+          : 'Sent back — write another from Auto-generate',
       )
     } catch (e) {
-      showToast(`Could not update — ${e.message}`)
+      showToast(`Could not schedule — ${e.message}`)
       refreshReview()
     } finally {
       setBusyId(null)
@@ -54,8 +55,13 @@ export default function ReviewPage() {
       ) : (
         <div className="space-y-3">
           {review.map((r) => {
-            const color = BRAND_COLORS[r.b] || '#166432'
+            const color = colorForBrand(r.b)
             const busy = busyId === r.id
+            const mediaUrl = r.videoUrl
+              ? r.videoUrl.startsWith('http')
+                ? r.videoUrl
+                : `${window.location.port === '5173' ? 'http://localhost:8000' : ''}${r.videoUrl}`
+              : null
             return (
               <div
                 key={r.id}
@@ -65,8 +71,17 @@ export default function ReviewPage() {
                   <span className="w-[3px] h-[22px] rounded-full flex-none" style={{ background: color }} />
                   <div className="min-w-0">
                     <div className="font-semibold text-ink-800 leading-tight">{r.ttl}</div>
-                    <div className="text-[12.5px] text-ink-400">
+                    <div className="text-[12.5px] text-ink-400 flex items-center gap-1.5 flex-wrap">
                       <span className="font-semibold" style={{ color }}>{r.brandName}</span> · {r.made}
+                      {typeof r.fitScore === 'number' && (
+                        <span
+                          className="inline-flex items-center rounded-full px-1.5 py-px text-[10.5px] font-bold"
+                          style={{ color, background: `${color}14` }}
+                          title="AI's own self-check: how grounded this idea is in real product facts"
+                        >
+                          {r.fitScore}% fit
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="ml-auto flex gap-2 flex-none">
@@ -84,17 +99,26 @@ export default function ReviewPage() {
                       onClick={() => act(r, 'approve')}
                       className="px-3.5 py-1.5 rounded-xl gradient-brand text-white text-[13px] font-semibold hover:shadow-glow disabled:opacity-50 transition-all duration-150"
                     >
-                      {busy ? 'Working…' : 'Approve'}
+                      {busy ? 'Working…' : mediaUrl ? 'Approve & schedule' : 'Approve'}
                     </button>
                   </div>
                 </header>
-                <div className="px-4 py-3 space-y-2">
-                  {r.insight && (
-                    <p className="text-[12.5px] text-ink-500 italic leading-relaxed">{r.insight}</p>
+                <div className="px-4 py-3 flex gap-3">
+                  {mediaUrl && (
+                    <img
+                      src={mediaUrl}
+                      alt=""
+                      className="w-20 h-28 flex-none rounded-lg object-cover border border-ink-100"
+                    />
                   )}
-                  {r.body && (
-                    <p className="text-[13px] text-ink-700 whitespace-pre-line leading-relaxed">{r.body}</p>
-                  )}
+                  <div className="min-w-0 flex-1 space-y-2">
+                    {r.insight && (
+                      <p className="text-[12.5px] text-ink-500 italic leading-relaxed">{r.insight}</p>
+                    )}
+                    {r.body && (
+                      <p className="text-[13px] text-ink-700 whitespace-pre-line leading-relaxed">{r.body}</p>
+                    )}
+                  </div>
                 </div>
               </div>
             )

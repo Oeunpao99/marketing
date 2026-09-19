@@ -13,15 +13,15 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.content_ai import ContentAIError, generate_ideas
+from app.content_ai import ContentAIError, generate_ideas, image_prompt_for_idea
 from app.database import SessionLocal
-from app.models import Automation, Brand, Draft, Product
+from app.models import Automation, Brand, Channel, Draft, Post, PostTarget, Product, Video
 
 log = logging.getLogger("app.content_scheduler")
 
@@ -31,6 +31,109 @@ PHNOM_PENH = timezone(timedelta(hours=7))
 
 def _today() -> date:
     return datetime.now(PHNOM_PENH).date()
+
+
+def _default_time_for(platform_slug: str) -> time:
+    """Mirrors the composer's own defaults (NewPostPage.jsx's defaultTimeFor) —
+    same per-platform posting times whether a human or the automation picks them."""
+    if platform_slug == "facebook":
+        return time(19, 30)
+    if platform_slug == "tiktok":
+        return time(20, 0)
+    return time(20, 30)
+
+
+def _next_slot(platform_slug: str, now: datetime) -> datetime:
+    t = _default_time_for(platform_slug)
+    candidate = now.replace(hour=t.hour, minute=t.minute, second=0, microsecond=0)
+    if candidate <= now:
+        candidate += timedelta(days=1)
+    return candidate
+
+
+def _generate_media_for(brand: Brand, idea: dict, products: list[Product]) -> int | None:
+    """Best-effort: render an image for this idea and store it as a Video
+    row, returning its id — or None if generation fails, so the caller falls
+    back to a plain text draft rather than losing the idea entirely."""
+    from app import video as video_gen
+    from app.database import SessionLocal
+    from app.media import store_blob
+
+    prompt = image_prompt_for_idea(brand.name, brand.lang, idea, products)
+    try:
+        _provider, blob, _usage = video_gen.generate_image(prompt, "9:16")
+    except video_gen.VideoGenError as exc:
+        log.warning("auto-media image generation failed for brand %s: %s", brand.id, exc)
+        return None
+
+    db = SessionLocal()
+    try:
+        url = store_blob(db, blob, ".png", "image/png")
+        v = Video(
+            brand_id=brand.id,
+            filename=f"auto-{brand.slug}-{int(datetime.now(PHNOM_PENH).timestamp())}.png",
+            resolution="1024x1536",
+            size_bytes=len(blob),
+            source="ai",
+            tag="ai-auto-image",
+            url=url,
+        )
+        db.add(v)
+        db.commit()
+        db.refresh(v)
+        return v.id
+    finally:
+        db.close()
+
+
+def schedule_draft_as_post(db: Session, draft: Draft) -> Post:
+    """Turn an auto-media draft into a real, queued Post — every channel the
+    brand has actually connected, at that platform's usual posting time
+    (today's slot if it hasn't passed yet, else tomorrow's). Raises
+    ContentAIError if there's no connected channel to actually post it to.
+
+    Flushes but does not commit — callers own the transaction (a single
+    draft approved by hand commits right away; a whole automation batch
+    commits once at the end, after ``last_run_on`` advances, to keep that
+    write atomic — see run_automation)."""
+    from app.media import kind_for
+
+    channels = db.scalars(
+        select(Channel).where(Channel.brand_id == draft.brand_id, Channel.status == "live")
+    ).all()
+
+    video = db.get(Video, draft.video_id) if draft.video_id else None
+    kind = kind_for(video.url, None) if video and video.url else None
+    if kind == "image":
+        # TikTok's publish path rejects an image outright — don't queue a
+        # guaranteed failure there.
+        channels = [c for c in channels if (c.platform.slug if c.platform else "") != "tiktok"]
+
+    if not channels:
+        raise ContentAIError(
+            f"“{draft.title}” has no connected channel to post to "
+            "(or only TikTok, which needs a video, not an image)."
+        )
+
+    post = Post(brand_id=draft.brand_id, video_id=draft.video_id, title=draft.title, status="scheduled")
+    db.add(post)
+    db.flush()
+
+    now = datetime.now(PHNOM_PENH)
+    for ch in channels:
+        slug = ch.platform.slug if ch.platform else ""
+        db.add(
+            PostTarget(
+                post_id=post.id,
+                channel_id=ch.id,
+                caption=draft.body,
+                title=draft.title,
+                scheduled_for=_next_slot(slug, now),
+                status="queued",
+            )
+        )
+    db.flush()
+    return post
 
 
 def run_automation(db: Session, automation_id: int) -> list[Draft] | None:
@@ -69,7 +172,6 @@ def run_automation(db: Session, automation_id: int) -> list[Draft] | None:
         db.commit()  # release the lock even though this attempt failed
         raise
 
-    status = "waiting" if automation.require_approval else "approved"
     drafts = [
         Draft(
             brand_id=brand.id,
@@ -78,11 +180,33 @@ def run_automation(db: Session, automation_id: int) -> list[Draft] | None:
             insight=idea["insight"],
             planned_for=today,
             source="ai-auto",
-            status=status,
+            status="waiting",  # set for real below, once media (if any) is attached
+            fit_score=idea.get("fit_score"),
         )
         for idea in ideas
     ]
     db.add_all(drafts)
+    db.flush()  # assign ids before scheduling can reference them
+
+    for draft, idea in zip(drafts, ideas):
+        if automation.auto_media:
+            draft.video_id = _generate_media_for(brand, idea, list(products))
+
+        if automation.require_approval:
+            draft.status = "waiting"
+            continue
+
+        if draft.video_id is not None:
+            try:
+                schedule_draft_as_post(db, draft)
+                draft.status = "scheduled"
+                continue
+            except ContentAIError as exc:
+                log.warning("auto-media scheduling failed for draft %r: %s", draft.title, exc)
+        # No media, or scheduling failed (e.g. no connected channel) — same
+        # fallback as the plain text-only path: needs a human to build it.
+        draft.status = "approved"
+
     automation.last_run_on = today
     db.commit()
     for d in drafts:

@@ -196,8 +196,16 @@ class Draft(Base, TimestampMixin):
         DateTime(timezone=True), server_default=func.now()
     )
     source: Mapped[str] = mapped_column(String(120), default="")
-    # waiting | approved | rejected
+    # waiting | approved | rejected | scheduled ("scheduled" = auto-media
+    # turned this idea into a real Post automatically — see content_scheduler.py)
     status: Mapped[str] = mapped_column(String(12), default="waiting")
+    # Set when Automation.auto_media generated an image/video for this idea.
+    video_id: Mapped[int | None] = mapped_column(
+        ForeignKey("videos.id", ondelete="SET NULL"), nullable=True
+    )
+    # The AI's own 0-100 self-check of how well this idea is grounded in the
+    # brand's real product facts — null for hand-made drafts.
+    fit_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class GenerationJob(Base, TimestampMixin):
@@ -248,6 +256,9 @@ class Automation(Base, TimestampMixin):
     # Phnom Penh calendar day this automation last generated its batch —
     # app/content_scheduler.py's guard against writing the same day twice.
     last_run_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # Opt-in: also auto-generate media for each idea that passes its fit-score
+    # check, and (once approved) schedule it as a real post automatically.
+    auto_media: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 @event.listens_for(Brand, "after_insert")

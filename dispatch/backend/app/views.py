@@ -186,6 +186,12 @@ def review_view(db: Session = Depends(get_db)):
     drafts = db.scalars(
         select(Draft).where(Draft.status == "waiting").order_by(Draft.generated_at)
     ).all()
+    video_ids = [d.video_id for d in drafts if d.video_id is not None]
+    videos = (
+        {v.id: v for v in db.scalars(select(Video).where(Video.id.in_(video_ids)))}
+        if video_ids
+        else {}
+    )
     return [
         {
             "id": d.id,
@@ -199,6 +205,9 @@ def review_view(db: Session = Depends(get_db)):
             "length_seconds": d.length_seconds,
             "generated_at": d.generated_at,
             "source": d.source,
+            "fit_score": d.fit_score,
+            "video_id": d.video_id,
+            "video_url": videos[d.video_id].url if d.video_id in videos else None,
         }
         for d in drafts
     ]
@@ -253,6 +262,7 @@ def auto_view(db: Session = Depends(get_db)):
             "videos_per_day": a.videos_per_day,
             "topic_source": a.topic_source,
             "require_approval": a.require_approval,
+            "auto_media": a.auto_media,
             "last_run_on": a.last_run_on,
         }
         for a in sorted(autos, key=lambda x: x.brand_id)
@@ -1091,9 +1101,25 @@ def publish_due(payload: PublishDueIn | None = None, db: Session = Depends(get_d
 
 @router.post("/drafts/{draft_id}/approve")
 def approve_draft(draft_id: int, db: Session = Depends(get_db)):
+    """Approving a plain idea just marks it approved — you still build the
+    post yourself from the Calendar. Approving one that already has
+    auto-generated media (Automation.auto_media) goes further: it schedules
+    a real Post to every connected channel right here, one click."""
+    from app.content_scheduler import ContentAIError, schedule_draft_as_post
+
     d = db.get(Draft, draft_id)
     if d is None:
         raise HTTPException(404, "Draft not found.")
+
+    if d.video_id is not None:
+        try:
+            post = schedule_draft_as_post(db, d)
+        except ContentAIError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        d.status = "scheduled"
+        db.commit()
+        return {"id": d.id, "status": d.status, "post_id": post.id}
+
     d.status = "approved"
     db.commit()
     return {"id": d.id, "status": d.status}
