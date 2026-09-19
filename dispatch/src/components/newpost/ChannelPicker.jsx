@@ -1,4 +1,4 @@
-import { BRANDS, PLAT } from '../../data/brands'
+import { PLAT } from '../../data/brands'
 import PlatformIcon from '../ui/PlatformIcon'
 
 const PLAT_COLORS = {
@@ -9,16 +9,18 @@ const PLAT_COLORS = {
   Telegram: 'text-[#229ED9]',
 }
 
-const BRAND_COLORS = { assist: '#3B82F6', chum: '#F59E0B', hub: '#8B5CF6' }
+// Rotating fallback palette — brands come from the live API now, so there's
+// no fixed set of slugs to hardcode colors against.
+const BRAND_COLOR_PALETTE = ['#3B82F6', '#F59E0B', '#8B5CF6', '#166432', '#DB2777', '#0891B2']
 
-export default function ChannelPicker({ channels, selectedChannels, toggle }) {
+export default function ChannelPicker({ brands, channels, selectedChannels, toggle }) {
   return (
     <section className="mb-7">
       <h2 className="mb-2.5 text-[11px] font-bold tracking-[.08em] uppercase text-ink-400">Where it goes</h2>
       <div className="grid sm:grid-cols-3 gap-3">
-        {BRANDS.map((b) => {
-          const channelRows = channels.filter((c) => c.b === b.id)
-          const color = BRAND_COLORS[b.id] || '#166432'
+        {brands.map((b, i) => {
+          const channelRows = channels.filter((c) => c.b === b.slug)
+          const color = BRAND_COLOR_PALETTE[i % BRAND_COLOR_PALETTE.length]
           return (
             <div key={b.id} className="bg-white border border-ink-100 rounded-2xl px-4 py-3.5 shadow-card hover:shadow-card-hover transition-all duration-150">
               <div className="flex items-center gap-2 mb-1">

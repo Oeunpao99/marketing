@@ -17,7 +17,7 @@ function defaultTimeFor(platform) {
 }
 
 export default function NewPostPage() {
-  const { channels, queue, refreshQueue, showToast } = useStore();
+  const { brands, channels, queue, refreshQueue, showToast } = useStore();
   const navigate = useNavigate();
 
   const [video, setVideo] = useState(null);
@@ -266,6 +266,7 @@ export default function NewPostPage() {
       <VideoStep hasVideo={!!video} video={video} onSetVideo={setVideo} />
 
       <ChannelPicker
+        brands={brands}
         channels={channels}
         selectedChannels={selected}
         toggle={toggle}
