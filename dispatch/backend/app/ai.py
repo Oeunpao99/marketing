@@ -8,10 +8,14 @@ local template.
 from __future__ import annotations
 
 import httpx
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from app.config import get_settings
+from app.database import get_db
+from app.models import Product
 
 router = APIRouter(prefix="/ai", tags=["AI"])
 
@@ -46,7 +50,17 @@ SYSTEM_PROMPT = (
     "the brief. If the brief names the brand, feature the brand name as real, "
     "correctly-spelled text where it fits the deliverable.\n"
     "- State the requested aspect ratio explicitly in the ASPECT RATIO section.\n"
-    "- Keep it safe and appropriate for social platforms."
+    "- Keep it safe and appropriate for social platforms.\n"
+    "\n"
+    "PRODUCT ACCURACY — this is the part most briefs get wrong\n"
+    "- If the brief lists this brand's actual products/offers, the scene MUST be "
+    "grounded in those real facts: reference the specific product name, what it "
+    "actually does, and its real selling points — in the SUBJECT, any on-image "
+    "TYPOGRAPHY text, and the props/setting. Do not invent features, numbers, "
+    "pricing, or claims that aren't in the product info given.\n"
+    "- If NO product info is listed, do not invent a specific product either — "
+    "keep the scene brand-appropriate and generic (e.g. a mood/lifestyle shot), "
+    "and don't fabricate product names or claims."
 )
 
 REFINE_PROMPT = (
@@ -69,6 +83,10 @@ REFINE_PROMPT = (
 class PromptRequest(BaseModel):
     brand: str = ""
     brand_language: str = ""
+    # When set, the brief is grounded in this brand's real Products (see
+    # app/models.py's Product) — same idea as app/content_ai.py's daily
+    # content generator, just for the image/video prompt writer instead.
+    brand_id: int | None = None
     type: str = "image"          # image | video
     template: str = ""
     aspect_ratio: str = "1:1"
@@ -91,7 +109,7 @@ class PromptResponse(BaseModel):
     total_tokens: int = 0
 
 
-def _user_brief(r: PromptRequest) -> str:
+def _user_brief(r: PromptRequest, products: list[Product]) -> str:
     lines = [
         f"Brand: {r.brand or 'unnamed brand'}"
         + (f" (audience language: {r.brand_language})" if r.brand_language else ""),
@@ -105,6 +123,15 @@ def _user_brief(r: PromptRequest) -> str:
         lines.append(f"Mood / tone: {r.mood}")
     if r.extra.strip():
         lines.append(f"Extra art direction: {r.extra.strip()}")
+    if products:
+        lines.append("\nThis brand's real products/offers on file (ground the scene in these):")
+        for p in products:
+            entry = f"- {p.name}"
+            if p.description:
+                entry += f": {p.description}"
+            if p.highlights:
+                entry += f" | highlights: {p.highlights}"
+            lines.append(entry)
     if r.has_reference:
         lines.append(
             "IMPORTANT: the user is attaching a REFERENCE IMAGE. Write the prompt as an "
@@ -115,7 +142,7 @@ def _user_brief(r: PromptRequest) -> str:
     return "\n".join(lines)
 
 
-def _messages(req: PromptRequest) -> list[dict]:
+def _messages(req: PromptRequest, products: list[Product]) -> list[dict]:
     if req.prior_prompt.strip() and req.feedback.strip():
         user = (
             f"Existing prompt:\n{req.prior_prompt.strip()}\n\n"
@@ -127,21 +154,27 @@ def _messages(req: PromptRequest) -> list[dict]:
         ]
     return [
         {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": _user_brief(req)},
+        {"role": "user", "content": _user_brief(req, products)},
     ]
 
 
 @router.post("/prompt", response_model=PromptResponse)
-def build_prompt(req: PromptRequest):
+def build_prompt(req: PromptRequest, db: Session = Depends(get_db)):
     cfg = get_settings()
     if not cfg.azure_openai_api_key or not cfg.azure_openai_endpoint:
         raise HTTPException(503, "AI service is not configured.")
+
+    products = (
+        db.scalars(select(Product).where(Product.brand_id == req.brand_id).order_by(Product.name)).all()
+        if req.brand_id is not None
+        else []
+    )
 
     base = cfg.azure_openai_endpoint.rstrip("/")
     url = f"{base}/chat/completions"
     body = {
         "model": cfg.azure_openai_deployment,
-        "messages": _messages(req),
+        "messages": _messages(req, list(products)),
         # Long, sectioned prompts — gpt-5-mini also spends tokens on reasoning.
         "max_completion_tokens": 6000,
     }

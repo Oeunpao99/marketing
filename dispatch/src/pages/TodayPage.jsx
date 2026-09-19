@@ -1,5 +1,8 @@
+import { useMemo, useState } from 'react'
 import { useStore } from '../store'
 import DayView from '../components/today/DayView'
+import TableView from '../components/today/TableView'
+import { phnomPenhDay, dayLabel } from '../lib/tz'
 
 function StatTile({ label, value, accent, busy }) {
   return (
@@ -19,14 +22,28 @@ function StatTile({ label, value, accent, busy }) {
 
 export default function TodayPage() {
   const { queue, channels } = useStore()
+  const [day, setDay] = useState('all')
+  const [view, setView] = useState('timeline')
   const liveCount = channels.filter((c) => c.s !== 'off').length
   const postedCount = queue.filter((q) => q.st === 'posted').length
   const sendingCount = queue.filter((q) => q.st === 'sending').length
   const waitingCount = queue.filter((q) => q.st === 'queued' || q.st === 'sending').length
   const doneRatio = queue.length ? Math.round((postedCount / queue.length) * 100) : 0
 
+  const days = useMemo(() => {
+    const set = new Set()
+    for (const q of queue) {
+      const d = phnomPenhDay(q.scheduledFor)
+      if (d) set.add(d)
+    }
+    return Array.from(set).sort()
+  }, [queue])
+
+  const visibleDays = day === 'all' ? days : days.filter((d) => d === day)
+  const match = (q) => day === 'all' || phnomPenhDay(q.scheduledFor) === day
+
   return (
-    <div className="p-5 lg:p-8 w-full animate-fadein max-w-[920px] mx-auto">
+    <div className="p-5 lg:p-8 w-full animate-fadein">
       <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-ink-950 px-6 pt-8 pb-10 lg:px-10 lg:pt-10 shadow-2xl">
         <div className="pointer-events-none absolute -top-28 -right-20 h-80 w-80 rounded-full bg-violet-500/25 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-36 -left-24 h-80 w-80 rounded-full bg-brand/25 blur-3xl" />
@@ -90,7 +107,67 @@ export default function TodayPage() {
             live
           </span>
         </header>
-        <DayView queue={queue} />
+
+        <div className="px-5 lg:px-7 pb-2 flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setDay('all')}
+              className={`px-2.5 py-1 rounded-lg text-[12px] font-semibold border transition-all duration-150 ${
+                day === 'all'
+                  ? 'border-ink-900 bg-ink-900 text-white'
+                  : 'border-ink-200 bg-white text-ink-600 hover:border-ink-300'
+              }`}
+            >
+              All ({queue.length})
+            </button>
+            {days.map((d) => (
+              <button
+                key={d}
+                type="button"
+                onClick={() => setDay(day === d ? 'all' : d)}
+                className={`px-2.5 py-1 rounded-lg text-[12px] font-semibold border transition-all duration-150 ${
+                  day === d
+                    ? 'border-ink-900 bg-ink-900 text-white'
+                    : 'border-ink-200 bg-white text-ink-600 hover:border-ink-300'
+                }`}
+              >
+                {dayLabel(d)}
+              </button>
+            ))}
+          </div>
+
+          <div className="ml-auto inline-flex items-center gap-0.5 rounded-xl border border-ink-200 bg-ink-50 p-0.5">
+            <button
+              type="button"
+              onClick={() => setView('timeline')}
+              className={`px-3 py-1 rounded-lg text-[12px] font-semibold transition-all duration-150 ${
+                view === 'timeline' ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-500 hover:text-ink-800'
+              }`}
+            >
+              Timeline
+            </button>
+            <button
+              type="button"
+              onClick={() => setView('table')}
+              className={`px-3 py-1 rounded-lg text-[12px] font-semibold transition-all duration-150 ${
+                view === 'table' ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-500 hover:text-ink-800'
+              }`}
+            >
+              Table
+            </button>
+          </div>
+        </div>
+
+        {visibleDays.length === 0 ? (
+          <div className="px-7 py-16 text-center text-[13px] text-ink-400">
+            Nothing scheduled. Create a post and it shows up here.
+          </div>
+        ) : view === 'table' ? (
+          <TableView queue={queue} match={match} />
+        ) : (
+          <DayView queue={queue} match={match} />
+        )}
       </div>
     </div>
   )

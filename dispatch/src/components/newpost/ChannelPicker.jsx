@@ -1,4 +1,13 @@
 import { BRANDS, PLAT } from '../../data/brands'
+import PlatformIcon from '../ui/PlatformIcon'
+
+const PLAT_COLORS = {
+  Facebook: 'text-[#1877F2]',
+  Instagram: 'text-[#E4405F]',
+  TikTok: 'text-[#000000]',
+  YouTube: 'text-[#FF0000]',
+  Telegram: 'text-[#229ED9]',
+}
 
 const BRAND_COLORS = { assist: '#3B82F6', chum: '#F59E0B', hub: '#8B5CF6' }
 
@@ -20,6 +29,7 @@ export default function ChannelPicker({ channels, selectedChannels, toggle }) {
               {channelRows.map((c) => (
                 <CheckRow
                   key={c.id}
+                  platform={c.p}
                   label={PLAT[c.p].name}
                   off={c.s === 'off'}
                   checked={selectedChannels.some((x) => x.id === c.id)}
@@ -34,7 +44,7 @@ export default function ChannelPicker({ channels, selectedChannels, toggle }) {
   )
 }
 
-function CheckRow({ label, off, checked, onChange }) {
+function CheckRow({ platform, label, off, checked, onChange }) {
   return (
     <label
       className={`flex items-center gap-2 py-1.5 text-[13.5px] font-semibold ${off ? 'text-ink-400 cursor-not-allowed' : 'cursor-pointer text-ink-700 hover:text-ink-900 transition-all duration-150'}`}
@@ -46,6 +56,7 @@ function CheckRow({ label, off, checked, onChange }) {
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
       />
+      <PlatformIcon name={PLAT[platform]?.name} className={`flex-none ${off ? 'opacity-40' : ''} ${PLAT_COLORS[PLAT[platform]?.name] || 'text-ink-500'}`} />
       {label}
       {off && <span className="text-[11.5px] text-ink-400">— not connected</span>}
     </label>

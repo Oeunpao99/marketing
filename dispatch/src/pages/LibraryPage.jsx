@@ -26,6 +26,7 @@ export default function LibraryPage() {
   const [brandFilter, setBrandFilter] = useState('all')
   const [kindFilter, setKindFilter] = useState('all')
   const [open, setOpen] = useState(null) // item in the lightbox
+  const [confirmItem, setConfirmItem] = useState(null) // item awaiting delete
 
   const load = () =>
     api.get('/views/library').then(setItems).catch(() => setItems([]))
@@ -64,14 +65,15 @@ export default function LibraryPage() {
   }
 
   const remove = async (it) => {
-    if (!window.confirm('Delete this generation? This cannot be undone.')) return
     try {
       await api.del(`/views/library/${it.id}`)
       setItems((xs) => xs.filter((x) => x.id !== it.id))
       setOpen(null)
+      setConfirmItem(null)
       showToast('Deleted')
     } catch (e) {
       showToast(`Could not delete — ${e.message}`)
+      setConfirmItem(null)
     }
   }
 
@@ -144,25 +146,25 @@ export default function LibraryPage() {
           {filtered.map((it) => (
             <div
               key={it.id}
-              className="group relative rounded-2xl overflow-hidden border border-ink-100 bg-white hover:shadow-card transition-all duration-150"
+              className="group relative rounded-2xl overflow-hidden border border-ink-100 bg-white flex flex-col hover:shadow-card transition-all duration-150"
             >
               <button
                 type="button"
                 onClick={() => setOpen(it)}
-                className="block w-full aspect-square bg-ink-100"
+                className="block w-full aspect-square bg-ink-50 relative grid place-items-center"
               >
                 {it.kind === 'image' ? (
-                  <img src={abs(it.url)} alt="" className="w-full h-full object-cover" loading="lazy" />
+                  <img src={abs(it.url)} alt="" className="w-full h-full object-contain" loading="lazy" />
                 ) : (
-                  <video src={abs(it.url)} className="w-full h-full object-cover" muted preload="metadata" />
+                  <video src={abs(it.url)} className="w-full h-full object-contain" muted preload="metadata" />
                 )}
+
+                <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-ink-900/70 text-white text-[10px] font-bold uppercase tracking-wide">
+                  {it.kind}
+                </span>
               </button>
 
-              <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-ink-900/70 text-white text-[10px] font-bold uppercase tracking-wide">
-                {it.kind}
-              </span>
-
-              <div className="p-2.5">
+              <div className="p-2.5 flex-1">
                 <div className="flex items-center gap-1.5 text-[11.5px] text-ink-500">
                   <span className="w-1.5 h-1.5 rounded-full flex-none" style={{ background: BRAND_COLORS[it.brand_slug] || '#94a3b8' }} />
                   <span className="truncate font-semibold text-ink-700">{it.brand_name}</span>
@@ -176,8 +178,8 @@ export default function LibraryPage() {
                 )}
               </div>
 
-              {/* hover actions */}
-              <div className="absolute inset-x-0 bottom-0 p-2 flex gap-1.5 bg-gradient-to-t from-white via-white/95 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+              {/* actions */}
+              <div className="p-2 flex gap-1.5 border-t border-ink-100 bg-white">
                 <button
                   type="button"
                   onClick={() => usePost(it)}
@@ -194,7 +196,7 @@ export default function LibraryPage() {
                 </a>
                 <button
                   type="button"
-                  onClick={() => remove(it)}
+                  onClick={() => setConfirmItem(it)}
                   className="px-2 py-1.5 rounded-lg border border-ink-200 bg-white text-ink-500 text-[11.5px] font-bold hover:bg-red-50 hover:text-red-600 hover:border-red-200"
                 >
                   ✕
@@ -212,14 +214,14 @@ export default function LibraryPage() {
           onClick={() => setOpen(null)}
         >
           <div
-            className="bg-white rounded-3xl overflow-hidden max-w-4xl w-full max-h-full flex flex-col lg:flex-row"
+            className="bg-white rounded-3xl overflow-hidden max-w-6xl w-full max-h-full flex flex-col lg:flex-row"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="bg-ink-950 flex items-center justify-center lg:w-[58%] p-3">
+            <div className="bg-ink-950 flex items-center justify-center lg:w-[62%] p-3 min-h-0">
               {open.kind === 'image' ? (
-                <img src={abs(open.url)} alt="" className="max-h-[70vh] w-auto rounded-xl animate-media-reveal" />
+                <img src={abs(open.url)} alt="" className="max-h-[75vh] w-auto h-auto max-w-full object-contain rounded-xl animate-media-reveal" />
               ) : (
-                <video src={abs(open.url)} controls autoPlay className="max-h-[70vh] w-auto rounded-xl" />
+                <video src={abs(open.url)} controls autoPlay className="max-h-[75vh] w-auto max-w-full rounded-xl" />
               )}
             </div>
             <div className="flex-1 p-5 lg:p-6 flex flex-col min-w-0">
@@ -257,7 +259,7 @@ export default function LibraryPage() {
                 </a>
                 <button
                   type="button"
-                  onClick={() => remove(open)}
+                  onClick={() => setConfirmItem(open)}
                   className="px-4 py-2.5 rounded-xl border border-ink-200 text-ink-500 text-[13px] font-bold hover:bg-red-50 hover:text-red-600 hover:border-red-200"
                 >
                   Delete
@@ -270,6 +272,44 @@ export default function LibraryPage() {
                   Close
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+    {/* Delete confirmation */}
+      {confirmItem && (
+        <div
+          className="fixed inset-0 z-[60] bg-ink-950/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadein"
+          onClick={() => setConfirmItem(null)}
+        >
+          <div
+            className="bg-white rounded-3xl shadow-dock max-w-sm w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-10 h-10 rounded-full bg-red-100 text-red-600 grid place-items-center mb-3">
+              <svg viewBox="0 0 20 20" className="h-5 w-5" fill="none">
+                <path d="M4 6h12M8 6V4h4v2M6 6l.7 10h6.6L14 6M8.5 9v4M11.5 9v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+            <h3 className="text-[16px] font-display text-ink-900 tracking-tight">Delete this generation?</h3>
+            <p className="mt-1 text-[13px] text-ink-500 leading-relaxed">
+              This cannot be undone. {confirmItem.filename} will be permanently removed from the library.
+            </p>
+            <div className="mt-5 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmItem(null)}
+                className="flex-1 px-4 py-2.5 rounded-xl border border-ink-200 text-ink-600 text-[13px] font-bold hover:bg-ink-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => remove(confirmItem)}
+                className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 text-white text-[13px] font-bold hover:bg-red-700"
+              >
+                Delete
+              </button>
             </div>
           </div>
         </div>

@@ -29,6 +29,12 @@ const RATIOS = [
   { id: '16:9', name: '16:9', sub: 'YouTube / landscape' },
 ]
 
+const STEPS = [
+  { n: 1, label: 'Brief' },
+  { n: 2, label: 'Prompt' },
+  { n: 3, label: 'Create' },
+]
+
 const icons = {
   image: (
     <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]">
@@ -183,6 +189,7 @@ export default function AIPromptPage() {
       const res = await api.post('/ai/prompt', {
         brand: brandObj?.name || '',
         brand_language: brandObj?.lang || '',
+        brand_id: brandId,
         type,
         template: t.name,
         aspect_ratio: t.ratio,
@@ -378,7 +385,7 @@ export default function AIPromptPage() {
   return (
     <div className="w-full px-5 lg:px-10 py-8 lg:py-10 animate-fadein">
       {/* Header + steps */}
-      <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-[34px] lg:text-[42px] leading-tight tracking-tight text-ink-900">
             AI <em className="italic text-brand">agent</em>
@@ -397,21 +404,15 @@ export default function AIPromptPage() {
               {fmtTok(sessionTokens)} tokens this session
             </span>
           )}
-          <div className="hidden sm:flex items-center gap-2.5">
-            <StepDot n={1} label="Brief" state={step > 1 ? 'done' : 'active'} />
-            <span className="w-7 h-px bg-ink-200" />
-            <StepDot n={2} label="Prompt" state={step > 2 ? 'done' : step === 2 ? 'active' : 'idle'} />
-            <span className="w-7 h-px bg-ink-200" />
-            <StepDot n={3} label="Create" state={step === 3 ? 'active' : 'idle'} />
-          </div>
+          <StepIndicator current={step} />
         </div>
       </div>
 
       <div className="space-y-5">
         {/* ── 1 · BRIEF ─────────────────────────────────────────── */}
         {briefOpen ? (
-          <section className="bg-white border border-ink-100 rounded-3xl p-6 lg:p-8">
-            <SectionHead icon={icons.spark} title="Brief" hint="What do you need the agent to make?" />
+          <section className="bg-white border border-ink-100 rounded-2xl shadow-card p-6 lg:p-8 animate-fadein">
+            <StepHead n={1} title="Brief" hint="What do you need the agent to make?" />
 
             <div className="mt-6 grid gap-x-8 gap-y-6 lg:grid-cols-2 xl:grid-cols-3">
               {/* Brand — full width */}
@@ -425,12 +426,18 @@ export default function AIPromptPage() {
                         key={b.id}
                         type="button"
                         onClick={() => setBrand(b.id)}
-                        className={`px-3.5 py-2 rounded-xl border text-[13px] font-semibold flex items-center gap-2 transition-all duration-150 ${
-                          brand === b.id ? 'border-brand bg-brand/5 text-ink-900' : 'border-ink-200 text-ink-600 hover:border-ink-300'
+                        className={`px-4 py-2.5 rounded-xl border-[1.5px] bg-white text-[13.5px] font-bold flex items-center gap-2.5 transition-all duration-150 ${
+                          brand === b.id
+                            ? 'shadow-card text-ink-900'
+                            : 'border-ink-200 text-ink-600 hover:border-ink-300 hover:shadow-card'
                         }`}
+                        style={brand === b.id ? { borderColor: color } : undefined}
                       >
                         <span className="w-2.5 h-2.5 rounded-full flex-none" style={{ background: color }} />
                         {b.name}
+                        {brand === b.id && (
+                          <span className="text-[10px] font-bold uppercase tracking-wide text-ink-400">Selected</span>
+                        )}
                       </button>
                     )
                   })}
@@ -440,7 +447,7 @@ export default function AIPromptPage() {
               {/* Type + template */}
               <div>
                 <Label>Type</Label>
-                <div className="flex gap-2 mb-4">
+                <div className="inline-flex rounded-xl border border-ink-200 bg-ink-50/70 p-1 mb-4">
                   {TEMPLATE_TYPES.map((t) => (
                     <button
                       key={t.id}
@@ -451,14 +458,16 @@ export default function AIPromptPage() {
                         setRatio(t.id === 'image' ? '1:1' : '9:16')
                         resetDownstream()
                       }}
-                      className={`flex-1 px-4 py-2.5 rounded-xl border text-[13px] font-semibold flex items-center justify-center gap-2 transition-all duration-150 ${
-                        type === t.id ? 'gradient-brand text-white border-transparent shadow-glow' : 'border-ink-200 text-ink-600 hover:border-ink-300 hover:bg-white'
+                      className={`px-5 py-2 rounded-lg text-[13px] font-bold flex items-center gap-2 transition-all duration-150 ${
+                        type === t.id ? 'bg-white text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-700'
                       }`}
                     >
-                      <span className={type === t.id ? 'text-white' : 'text-brand'}>{icons[t.id]}</span> {t.name}
+                      <span className={type === t.id ? 'text-brand' : 'text-ink-400'}>{icons[t.id]}</span>
+                      {t.name}
                     </button>
                   ))}
                 </div>
+
                 <Label>Template</Label>
                 <div className="grid grid-cols-2 gap-2">
                   {templates.map((t) => (
@@ -472,14 +481,29 @@ export default function AIPromptPage() {
                         setHistory([])
                         setJob(null)
                       }}
-                      className={`rounded-xl border px-3 py-2.5 text-left transition-all duration-150 ${
-                        templateId === t.id ? 'border-brand ring-2 ring-brand/20 bg-brand/5' : 'border-ink-200 hover:border-ink-300'
+                      className={`rounded-xl border p-3 text-left transition-all duration-150 ${
+                        templateId === t.id
+                          ? 'border-brand ring-2 ring-brand/15 bg-white shadow-card'
+                          : 'border-ink-200 bg-white hover:border-ink-300 hover:shadow-card'
                       }`}
                     >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[12.5px] font-bold text-ink-800">{t.name}</span>
-                        <span className="text-[10px] font-semibold text-ink-400 bg-ink-100/70 px-1.5 py-0.5 rounded-md">{t.ratio}</span>
+                      <div className="flex items-start justify-between gap-2">
+                        <span
+                          className="grid place-items-center rounded-md border border-ink-200 bg-ink-50 font-mono text-[8.5px] font-bold text-ink-500 flex-none"
+                          style={{
+                            width: t.ratio === '16:9' ? 34 : t.ratio === '1:1' ? 26 : 20,
+                            height: t.ratio === '16:9' ? 20 : t.ratio === '1:1' ? 26 : 30,
+                          }}
+                        >
+                          {t.ratio}
+                        </span>
+                        {templateId === t.id && (
+                          <span className="w-5 h-5 rounded-full gradient-brand text-white grid place-items-center text-[11px] font-bold flex-none">
+                            ✓
+                          </span>
+                        )}
                       </div>
+                      <div className="mt-2 text-[12.5px] font-bold text-ink-800 leading-tight">{t.name}</div>
                     </button>
                   ))}
                 </div>
@@ -524,8 +548,10 @@ export default function AIPromptPage() {
                       key={s.id}
                       type="button"
                       onClick={() => setStyle(s.id)}
-                      className={`rounded-xl border px-3 py-2.5 text-[13px] font-semibold text-left transition-all duration-150 ${
-                        style === s.id ? 'border-brand bg-brand/5' : 'border-ink-200 text-ink-600 hover:border-ink-300'
+                      className={`rounded-xl border px-3 py-2.5 text-[13px] font-bold text-left transition-all duration-150 ${
+                        style === s.id
+                          ? 'border-brand ring-2 ring-brand/15 bg-white shadow-card'
+                          : 'border-ink-200 bg-white text-ink-600 hover:border-ink-300 hover:shadow-card'
                       }`}
                     >
                       {s.name}
@@ -575,7 +601,7 @@ export default function AIPromptPage() {
               </div>
             </div>
 
-            <div className="mt-7 flex flex-wrap items-center gap-3">
+            <div className="mt-7 pt-5 border-t border-ink-100 flex flex-wrap items-center gap-3">
               <button
                 type="button"
                 onClick={generate}
@@ -590,7 +616,7 @@ export default function AIPromptPage() {
                 ) : (
                   <>
                     <span className="text-white">{icons.spark}</span>
-                    {prompt ? 'Rewrite the prompt' : 'Write the prompt'}
+                    2 · {prompt ? 'Rewrite the prompt' : 'Write the prompt'}
                   </>
                 )}
               </button>
@@ -609,32 +635,39 @@ export default function AIPromptPage() {
           <button
             type="button"
             onClick={() => setBriefOpen(true)}
-            className="w-full text-left bg-white border border-ink-100 rounded-2xl px-5 py-4 flex items-center gap-3 hover:border-brand/30 hover:shadow-card transition-all duration-150"
+            className="w-full text-left bg-white border border-ink-100 rounded-2xl px-5 py-4 flex items-center gap-3 hover:border-brand/40 hover:shadow-card transition-all duration-150"
           >
-            <span className="w-8 h-8 rounded-lg grid place-items-center bg-brand/8 text-brand flex-none">
-              {icons[type]}
-            </span>
-            <span className="text-[13px] text-ink-600 truncate">
-              <b className="text-ink-900">{brandObj?.name}</b>
-              <span className="text-ink-400"> · </span>
-              {isImage ? 'Image' : 'Video'}
-              <span className="text-ink-400"> · </span>
-              {template.name}
-              <span className="text-ink-400"> · </span>
-              {styleName}
-              {topic ? <span className="text-ink-400"> · “{topic}”</span> : null}
-            </span>
-            <span className="ml-auto text-[12.5px] font-bold text-brand flex-none">Edit brief</span>
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="w-9 h-9 rounded-xl grid place-items-center gradient-brand text-white flex-none">
+                {icons[type]}
+              </span>
+              <div className="min-w-0">
+                <div className="text-[13.5px] font-bold text-ink-900 flex items-center gap-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wide text-ink-400">Step 1 · Brief</span>
+                </div>
+                <div className="text-[12.5px] text-ink-500 truncate">
+                  <b className="text-ink-800">{brandObj?.name}</b>
+                  <span className="text-ink-400"> · </span>
+                  {isImage ? 'Image' : 'Video'}
+                  <span className="text-ink-400"> · </span>
+                  {template.name}
+                  <span className="text-ink-400"> · </span>
+                  {styleName}
+                  {topic ? <span className="text-ink-400"> · “{topic}”</span> : null}
+                </div>
+              </div>
+            </div>
+            <span className="ml-auto flex-none text-[12.5px] font-bold text-brand">Edit brief</span>
           </button>
         )}
 
         {/* ── 2 · PROMPT  +  3 · CREATE — side by side on wide screens ── */}
         {prompt && (
         <div className="grid gap-5 xl:grid-cols-2 items-start">
-          <section className="bg-white border border-ink-100 rounded-3xl p-6 lg:p-8">
-            <div className="flex items-center justify-between gap-3">
-              <SectionHead icon={icons.spark} title="Prompt" hint="Edit directly, or tell the agent what to change" />
-              <div className="flex items-center gap-2 flex-none">
+          <section className="bg-white border border-ink-100 rounded-2xl shadow-card p-6 lg:p-8 animate-fadein">
+            <div className="flex items-start justify-between gap-3">
+              <StepHead n={2} title="Prompt" hint="Edit directly, or tell the agent what to change" />
+              <div className="flex items-center gap-2 flex-none pt-1">
                 {promptTokens > 0 && (
                   <span className="text-[11.5px] font-mono text-ink-400">{fmtTok(promptTokens)} tok</span>
                 )}
@@ -709,14 +742,14 @@ export default function AIPromptPage() {
           {(() => {
           const busy = isImage ? imgBusy : rendering
           return (
-            <section className="bg-white border border-ink-100 rounded-3xl p-6 lg:p-8">
-              <div className="flex items-center justify-between gap-3">
-                <SectionHead
-                  icon={isImage ? icons.image : icons.video}
+            <section className="bg-white border border-ink-100 rounded-2xl shadow-card p-6 lg:p-8 animate-fadein">
+              <div className="flex items-start justify-between gap-3">
+                <StepHead
+                  n={3}
                   title={isImage ? 'Create the image' : 'Create the video'}
                   hint={isImage ? 'Generated here, saved to your library' : 'Rendered here, saved to your library'}
                 />
-                <div className="flex-none flex items-center gap-2">
+                <div className="flex-none flex items-center gap-2 pt-1">
                   {job?.status === 'succeeded' && job?.total_tokens > 0 && (
                     <span className="text-[11.5px] font-mono text-ink-400">
                       {fmtTok(job.total_tokens)} tok
@@ -748,7 +781,7 @@ export default function AIPromptPage() {
                           disabled={busy}
                           onClick={() => setRatio(r.id)}
                           className={`rounded-xl border px-2.5 py-2 text-left transition-all duration-150 disabled:opacity-50 ${
-                            ratio === r.id ? 'border-brand ring-2 ring-brand/20 bg-brand/5' : 'border-ink-200 hover:border-ink-300'
+                            ratio === r.id ? 'border-brand ring-2 ring-brand/20 bg-white shadow-card' : 'border-ink-200 bg-white hover:border-ink-300'
                           }`}
                         >
                           <div className="text-[13px] font-bold text-ink-800">{r.name}</div>
@@ -959,33 +992,51 @@ function Label({ children }) {
   )
 }
 
-function SectionHead({ icon, title, hint }) {
+function StepHead({ n, title, hint }) {
   return (
     <div className="flex items-center gap-3">
-      <span className="w-9 h-9 rounded-xl grid place-items-center bg-brand/8 text-brand flex-none">{icon}</span>
-      <div>
-        <div className="text-[15px] font-bold text-ink-900 leading-tight">{title}</div>
+      <span className="w-9 h-9 rounded-xl grid place-items-center flex-none text-[14px] font-bold gradient-brand text-white shadow-glow">
+        {n}
+      </span>
+      <div className="min-w-0">
+        <div className="text-[15.5px] font-bold text-ink-900 leading-tight">{title}</div>
         <div className="text-[12.5px] text-ink-400">{hint}</div>
       </div>
     </div>
   )
 }
 
-function StepDot({ n, label, state }) {
-  const cls =
-    state === 'done'
-      ? 'bg-brand text-white border-brand'
-      : state === 'active'
-        ? 'bg-brand/10 text-brand border-brand'
-        : 'bg-white text-ink-400 border-ink-200'
+function StepIndicator({ current }) {
   return (
-    <div className="flex items-center gap-1.5">
-      <span className={`w-6 h-6 rounded-full grid place-items-center text-[11px] font-bold border ${cls}`}>
-        {state === 'done' ? '✓' : n}
-      </span>
-      <span className={`text-[12px] font-semibold ${state === 'idle' ? 'text-ink-400' : 'text-ink-700'}`}>
-        {label}
-      </span>
+    <div className="hidden md:flex items-center gap-2">
+      {STEPS.map((s, i) => {
+        const state = current > s.n ? 'done' : current === s.n ? 'active' : 'idle'
+        return (
+          <div key={s.n} className="flex items-center gap-2">
+            {i > 0 && (
+              <span className={`w-8 h-px ${state !== 'idle' ? 'bg-brand' : 'bg-ink-200'} transition-colors duration-200`} />
+            )}
+            <span
+              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 transition-all duration-200 ${
+                state === 'done'
+                  ? 'border-brand/30 bg-brand/5 text-ink-800'
+                  : state === 'active'
+                    ? 'border-brand bg-white text-ink-900 shadow-card'
+                    : 'border-ink-200 bg-white text-ink-400'
+              }`}
+            >
+              <span
+                className={`w-5 h-5 rounded-full grid place-items-center text-[10.5px] font-bold flex-none ${
+                  state === 'done' || state === 'active' ? 'gradient-brand text-white' : 'bg-ink-100 text-ink-500'
+                }`}
+              >
+                {state === 'done' ? '✓' : s.n}
+              </span>
+              <span className="text-[12px] font-semibold">{s.label}</span>
+            </span>
+          </div>
+        )
+      })}
     </div>
   )
 }

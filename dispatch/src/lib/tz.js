@@ -32,3 +32,29 @@ export function phnomPenhClock(iso) {
 export function phnomPenhDate(offsetDays = 0) {
   return dateFmt.format(new Date(Date.now() + offsetDays * 86400000));
 }
+
+/** Any date/ISO -> "YYYY-MM-DD" on a Phnom Penh clock, or "" when unknown. */
+export function phnomPenhDay(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return dateFmt.format(d);
+}
+
+/** "2026-09-04" -> "Thu 4 Sep" (Phnom Penh weekday + short label). */
+export function dayLabel(dateStr) {
+  if (!dateStr) return "";
+  const d = new Date(`${dateStr}T12:00:00+07:00`);
+  if (Number.isNaN(d.getTime())) return dateStr;
+  const wd = d
+    .toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" })
+    .replace(".", "");
+  const md = d
+    .toLocaleDateString("en-US", {
+      day: "numeric",
+      month: "short",
+      timeZone: "UTC",
+    })
+    .replace(".", "");
+  return `${wd} ${md}`;
+}

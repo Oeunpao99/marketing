@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../api/client'
 import { useStore } from '../store'
+import MarkdownText from '../components/ui/MarkdownText'
 
 const BRAND_COLORS = { assist: '#3B82F6', chum: '#F59E0B', hub: '#8B5CF6' }
 const EMPTY_FORM = { name: '', description: '', highlights: '' }
+const PREVIEW_CHARS = 340
 
 export default function ProductsPage() {
   const { brands, showToast } = useStore()
@@ -12,6 +14,8 @@ export default function ProductsPage() {
   const [editingId, setEditingId] = useState(null) // product id, or 'new'
   const [form, setForm] = useState(EMPTY_FORM)
   const [busy, setBusy] = useState(false)
+  const [expanded, setExpanded] = useState({}) // id -> show the full description
+  const [confirmItem, setConfirmItem] = useState(null) // product awaiting delete
 
   const load = () => api.get('/products').then(setItems).catch(() => setItems([]))
 
@@ -66,13 +70,14 @@ export default function ProductsPage() {
   }
 
   const remove = async (p) => {
-    if (!window.confirm(`Delete "${p.name}"? This cannot be undone.`)) return
     try {
       await api.del(`/products/${p.id}`)
       setItems((xs) => (xs || []).filter((x) => x.id !== p.id))
       showToast('Deleted')
     } catch (e) {
       showToast(`Could not delete — ${e.message}`)
+    } finally {
+      setConfirmItem(null)
     }
   }
 
@@ -107,6 +112,9 @@ export default function ProductsPage() {
           }`}
         >
           All
+          <span className={`ml-1.5 font-mono text-[11px] ${brandFilter === 'all' ? 'text-brand' : 'text-ink-400'}`}>
+            {items?.length ?? 0}
+          </span>
         </button>
         {brands.map((b) => (
           <button
@@ -119,6 +127,9 @@ export default function ProductsPage() {
           >
             <span className="w-2 h-2 rounded-full flex-none" style={{ background: BRAND_COLORS[b.slug] || '#166432' }} />
             {b.name}
+            <span className={`font-mono text-[11px] ${brandFilter === b.slug ? 'text-brand' : 'text-ink-400'}`}>
+              {items?.filter((p) => p.brand_id === b.id).length ?? 0}
+            </span>
           </button>
         ))}
       </div>
@@ -159,60 +170,144 @@ export default function ProductsPage() {
                 title="Edit product"
               />
             ) : (
-              <div
+              <ProductCard
                 key={p.id}
-                className="bg-white border border-ink-100 rounded-2xl p-4 shadow-card hover:shadow-card-hover transition-all duration-150"
-              >
-                <div className="flex items-center gap-2 text-[11.5px] text-ink-500 mb-1.5">
-                  <span
-                    className="w-1.5 h-1.5 rounded-full flex-none"
-                    style={{ background: BRAND_COLORS[brandFor(p)?.slug] || '#94a3b8' }}
-                  />
-                  <span className="font-semibold text-ink-700">{brandFor(p)?.name || 'No brand'}</span>
-                </div>
-                <div className="font-bold text-ink-900 text-[14.5px]">{p.name}</div>
-                {p.description && (
-                  <p className="mt-1.5 text-[13px] text-ink-600 leading-relaxed">{p.description}</p>
-                )}
-                {p.highlights && (
-                  <p className="mt-1.5 text-[12.5px] text-ink-400 leading-relaxed">{p.highlights}</p>
-                )}
-                <div className="mt-3 flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => startEdit(p)}
-                    className="px-3 py-1.5 rounded-lg border border-ink-200 bg-white text-ink-600 text-[12px] font-semibold hover:bg-ink-50"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => remove(p)}
-                    className="px-3 py-1.5 rounded-lg border border-ink-200 bg-white text-ink-500 text-[12px] font-semibold hover:bg-red-50 hover:text-red-600 hover:border-red-200"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
+                product={p}
+                brandColor={BRAND_COLORS[brandFor(p)?.slug] || '#94a3b8'}
+                brandName={brandFor(p)?.name || 'No brand'}
+                expanded={!!expanded[p.id]}
+                onToggleExpanded={() => setExpanded((e) => ({ ...e, [p.id]: !e[p.id] }))}
+                onEdit={() => startEdit(p)}
+                onDelete={() => setConfirmItem(p)}
+              />
             ),
           )}
+        </div>
+      )}
+
+      {/* Delete confirmation */}
+      {confirmItem && (
+        <div
+          className="fixed inset-0 z-50 bg-ink-950/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fadein"
+          onClick={() => setConfirmItem(null)}
+        >
+          <div
+            className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-dock animate-fadein"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-[17px] font-display text-ink-900 tracking-tight">Delete this product?</h3>
+            <p className="mt-2 text-[13.5px] text-ink-500 leading-relaxed">
+              “{confirmItem.name}” will be removed and the AI won’t read it anymore. This can’t be undone.
+            </p>
+            <div className="mt-6 flex gap-2 justify-end">
+              <button
+                type="button"
+                onClick={() => setConfirmItem(null)}
+                className="px-4 py-2.5 rounded-xl border border-ink-200 text-ink-600 text-[13px] font-bold hover:bg-ink-50 transition-all duration-150"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => remove(confirmItem)}
+                className="px-4 py-2.5 rounded-xl bg-red-600 text-white text-[13px] font-bold hover:bg-red-700 transition-all duration-150"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
   )
 }
 
+function ProductCard({ product, brandColor, brandName, expanded, onToggleExpanded, onEdit, onDelete }) {
+  const parts = (product.highlights || '').split(/[;\n]+/).map((s) => s.trim()).filter(Boolean)
+  const long = (product.description || '').length > PREVIEW_CHARS
+
+  return (
+    <div className="bg-white border border-ink-100 rounded-2xl overflow-hidden shadow-card hover:shadow-card-hover transition-all duration-150 flex flex-col">
+      <div
+        className="px-4 pt-4 pb-3 flex items-center gap-2 border-b border-ink-100"
+        style={{ background: `${brandColor}08` }}
+      >
+        <span className="w-2 h-2 rounded-full flex-none" style={{ background: brandColor, boxShadow: `0 0 8px ${brandColor}40` }} />
+        <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: brandColor }}>
+          {brandName}
+        </span>
+      </div>
+
+      <div className="px-4 pt-3.5 pb-1 flex-1">
+        <h3 className="font-bold text-ink-900 text-[15px] leading-snug">{product.name}</h3>
+        {product.description && (
+          <div className="mt-2">
+            <div className={long && !expanded ? 'relative max-h-[150px] overflow-hidden' : ''}>
+              <MarkdownText text={product.description} />
+              {long && !expanded && (
+                <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-white via-white/80 to-transparent pointer-events-none" />
+              )}
+            </div>
+            {long && (
+              <button
+                type="button"
+                onClick={onToggleExpanded}
+                className="mt-1.5 text-[12.5px] font-bold text-brand hover:underline"
+              >
+                {expanded ? 'Show less' : 'Show more'}
+              </button>
+            )}
+          </div>
+        )}
+        {parts.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {parts.map((h, i) => (
+              <span
+                key={i}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-ink-200 bg-ink-50/70 px-2 py-1 text-[11.5px] font-semibold text-ink-600"
+              >
+                <span className="w-1 h-1 rounded-full flex-none" style={{ background: brandColor }} />
+                {h}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="mt-3 flex gap-2 border-t border-ink-100 bg-ink-50/40 px-4 py-3">
+        <button
+          type="button"
+          onClick={onEdit}
+          className="px-3.5 py-1.5 rounded-lg border border-ink-200 bg-white text-ink-600 text-[12px] font-bold hover:border-brand/40 hover:text-ink-900 transition-all duration-150"
+        >
+          Edit
+        </button>
+        <button
+          type="button"
+          onClick={onDelete}
+          className="px-3.5 py-1.5 rounded-lg border border-ink-200 bg-white text-ink-500 text-[12px] font-bold hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all duration-150"
+        >
+          Delete
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function ProductForm({ form, setForm, brands, busy, onCancel, onSave, title }) {
   return (
-    <div className="bg-white border-2 border-brand/30 rounded-2xl p-4 mb-4 shadow-card">
-      <div className="text-[12px] font-bold uppercase tracking-wide text-brand mb-3">{title}</div>
-      <div className="space-y-3">
+    <div className="bg-white border-2 border-brand/30 rounded-2xl p-4 mb-4 shadow-card sm:col-span-2 xl:col-span-3">
+      <div className="flex items-center gap-2.5 mb-4">
+        <span className="w-2 h-2 rounded-full bg-brand" />
+        <span className="text-[12px] font-bold uppercase tracking-wide text-brand">{title}</span>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <label className="block text-[11.5px] font-semibold text-ink-600 mb-1">Brand</label>
+          <label className="block text-[11px] font-bold uppercase tracking-[.09em] text-ink-400 mb-2">Brand</label>
           <select
             value={form.brand_id ?? ''}
             onChange={(e) => setForm((f) => ({ ...f, brand_id: +e.target.value }))}
-            className="w-full bg-ink-50 border border-ink-200 rounded-xl px-3 py-2 text-[13.5px] focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+            className="w-full bg-white border border-ink-200 rounded-xl px-3 py-2.5 text-[13.5px] focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
           >
             {brands.map((b) => (
               <option key={b.id} value={b.id}>{b.name}</option>
@@ -220,54 +315,56 @@ function ProductForm({ form, setForm, brands, busy, onCancel, onSave, title }) {
           </select>
         </div>
         <div>
-          <label className="block text-[11.5px] font-semibold text-ink-600 mb-1">Name</label>
+          <label className="block text-[11px] font-bold uppercase tracking-[.09em] text-ink-400 mb-2">Name</label>
           <input
             type="text"
             value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
             placeholder="e.g. Unlimited Data Plan"
-            className="w-full bg-ink-50 border border-ink-200 rounded-xl px-3 py-2 text-[13.5px] focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+            className="w-full bg-white border border-ink-200 rounded-xl px-3 py-2.5 text-[13.5px] focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
           />
         </div>
-        <div>
-          <label className="block text-[11.5px] font-semibold text-ink-600 mb-1">Description</label>
+        <div className="sm:col-span-2">
+          <label className="block text-[11px] font-bold uppercase tracking-[.09em] text-ink-400 mb-2">
+            Description <span className="normal-case tracking-normal font-medium text-ink-400">— markdown: # ## ###, **bold**, - bullets</span>
+          </label>
           <textarea
-            rows={3}
+            rows={4}
             value={form.description}
             onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
             placeholder="What it is, who it's for…"
-            className="w-full bg-ink-50 border border-ink-200 rounded-xl px-3 py-2 text-[13.5px] resize-y focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+            className="w-full bg-white border border-ink-200 rounded-xl px-3 py-2.5 text-[13.5px] resize-y focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
           />
         </div>
-        <div>
-          <label className="block text-[11.5px] font-semibold text-ink-600 mb-1">
-            Highlights <span className="text-ink-400 font-normal">— selling points, pricing, offers</span>
+        <div className="sm:col-span-2">
+          <label className="block text-[11px] font-bold uppercase tracking-[.09em] text-ink-400 mb-2">
+            Highlights <span className="normal-case tracking-normal font-medium text-ink-400">— selling points, pricing, offers</span>
           </label>
           <textarea
             rows={2}
             value={form.highlights}
             onChange={(e) => setForm((f) => ({ ...f, highlights: e.target.value }))}
             placeholder="Cheap; fast; local support…"
-            className="w-full bg-ink-50 border border-ink-200 rounded-xl px-3 py-2 text-[13.5px] resize-y focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+            className="w-full bg-white border border-ink-200 rounded-xl px-3 py-2.5 text-[13.5px] resize-y focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
           />
         </div>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            disabled={busy || !form.name.trim()}
-            onClick={onSave}
-            className="px-4 py-2 rounded-xl gradient-brand text-white text-[13px] font-bold hover:shadow-glow disabled:opacity-50 transition-all duration-150"
-          >
-            {busy ? 'Saving…' : 'Save'}
-          </button>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="px-4 py-2 rounded-xl border border-ink-200 text-ink-600 text-[13px] font-semibold hover:bg-ink-50 transition-all duration-150"
-          >
-            Cancel
-          </button>
-        </div>
+      </div>
+      <div className="mt-4 flex gap-2">
+        <button
+          type="button"
+          disabled={busy || !form.name.trim()}
+          onClick={onSave}
+          className="px-4 py-2 rounded-xl gradient-brand text-white text-[13px] font-bold hover:shadow-glow disabled:opacity-50 transition-all duration-150"
+        >
+          {busy ? 'Saving…' : 'Save'}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-4 py-2 rounded-xl border border-ink-200 text-ink-600 text-[13px] font-semibold hover:bg-ink-50 transition-all duration-150"
+        >
+          Cancel
+        </button>
       </div>
     </div>
   )

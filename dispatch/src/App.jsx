@@ -9,6 +9,7 @@ import CalendarPage from "./pages/CalendarPage";
 import ChannelsPage from "./pages/ChannelsPage";
 import CreateBrandPage from "./pages/CreateBrandPage";
 import InsightsPage from "./pages/InsightsPage";
+import InsightsPostPage from "./pages/InsightsPostPage";
 import LibraryPage from "./pages/LibraryPage";
 import LoginPage from "./pages/LoginPage";
 import NewPostPage from "./pages/NewPostPage";
@@ -41,6 +42,7 @@ function Portal() {
             <Route path="/ai" element={<AIPromptPage />} />
             <Route path="/library" element={<LibraryPage />} />
             <Route path="/insights" element={<InsightsPage />} />
+            <Route path="/insights/:targetId" element={<InsightsPostPage />} />
             <Route path="/post/:index" element={<PostDetailPage />} />
           </Routes>
         </Shell>
