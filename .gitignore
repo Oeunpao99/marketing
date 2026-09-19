@@ -1,7 +1,10 @@
-# Secrets — never commit these. (dispatch/backend/.env.example is fine and IS tracked.)
+# Secrets — never commit these. (The .env.example / .env.prod.example
+# templates are fine and ARE tracked — only real .env / .env.prod files with
+# actual values are excluded.)
 .env
 .env.*
 !.env.example
+!.env.prod.example
 
 # Frontend (dispatch/) — Vite/React
 node_modules/
