@@ -1,14 +1,9 @@
 import { useNavigate } from 'react-router-dom'
-import { BRANDS } from '../../data/brands'
+import { colorForBrand } from '../../lib/brandColor'
 import { phnomPenhDay, dayLabel } from '../../lib/tz'
 import PlatformIcon from '../ui/PlatformIcon'
 import StatusBadge from './StatusBadge'
 
-const BRAND_DOTS = {
-  assist: '#3B82F6',
-  chum: '#F59E0B',
-  hub: '#8B5CF6',
-}
 const isKhmer = (s) => /[\u1780-\u17FF\u19E0-\u19FF]/.test(s)
 
 export default function TableView({ queue, match = () => true }) {
@@ -38,8 +33,7 @@ export default function TableView({ queue, match = () => true }) {
         </thead>
         <tbody className="divide-y divide-ink-100">
           {visible.map(({ q, i }) => {
-            const brand = BRANDS.find((b) => b.id === q.b)
-            const name = brand?.name || q.brandName || q.b
+            const name = q.brandName || q.b
             const day = phnomPenhDay(q.scheduledFor)
             return (
               <tr
@@ -57,7 +51,7 @@ export default function TableView({ queue, match = () => true }) {
                   <span className="inline-flex items-center gap-1.5 font-semibold text-ink-800">
                     <span
                       className="h-1.5 w-1.5 rounded-full flex-none"
-                      style={{ background: BRAND_DOTS[q.b] || '#94a3b8' }}
+                      style={{ background: colorForBrand(q.b) }}
                     />
                     {name}
                   </span>

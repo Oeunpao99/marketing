@@ -2,12 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useStore } from '../store'
 import { api } from '../api/client'
-import { BRANDS } from '../data/brands'
 import Tag from '../components/ui/Tag'
 import DropZone, { humanSize } from '../components/ui/DropZone'
 import { handoff } from '../lib/handoff'
-
-const BRAND_COLORS = { assist: '#3B82F6', chum: '#F59E0B', hub: '#8B5CF6' }
+import { colorForBrand } from '../lib/brandColor'
 
 const mediaBase = window.location.port === '5173' ? 'http://localhost:8000' : ''
 
@@ -85,8 +83,8 @@ const VIDEO_TEMPLATES = [
   { id: 'lofi-broll', name: 'Cinematic B-roll', ratio: '16:9' },
 ]
 
-function localPrompt({ brand, type, template, style, topic, mood, extra }) {
-  const brandName = BRANDS.find((b) => b.id === brand)?.name || 'the brand'
+function localPrompt({ brandName, type, template, style, topic, mood, extra }) {
+  brandName = brandName || 'the brand'
   const styleName = STYLES.find((s) => s.id === style)?.name || 'photorealistic'
   const platformNote =
     template.ratio === '9:16'
@@ -163,7 +161,7 @@ export default function AIPromptPage() {
 
   const templates = type === 'image' ? IMAGE_TEMPLATES : VIDEO_TEMPLATES
   const template = templates.find((t) => t.id === templateId) || templates[0]
-  const brandObj = BRANDS.find((b) => b.id === brand)
+  const brandObj = brands.find((b) => b.slug === brand)
   const brandId = brands.find((b) => b.slug === brand)?.id ?? null
   const styleName = STYLES.find((s) => s.id === style)?.name || 'Photorealistic'
   const rendering = job && (job.status === 'queued' || job.status === 'running')
@@ -207,7 +205,7 @@ export default function AIPromptPage() {
       addTokens(res.total_tokens)
       showToast('Prompt written by AI')
     } catch (e) {
-      const p = localPrompt({ brand, type, template: t, style, topic, mood, extra })
+      const p = localPrompt({ brandName: brandObj?.name, type, template: t, style, topic, mood, extra })
       setPrompt(p)
       pushHistory(p, 'template')
       setAiUsed(false)
@@ -419,23 +417,23 @@ export default function AIPromptPage() {
               <div className="lg:col-span-2 xl:col-span-3">
                 <Label>Brand</Label>
                 <div className="flex gap-2 flex-wrap">
-                  {BRANDS.map((b) => {
-                    const color = BRAND_COLORS[b.id] || '#166432'
+                  {brands.map((b) => {
+                    const color = colorForBrand(b.slug)
                     return (
                       <button
-                        key={b.id}
+                        key={b.slug}
                         type="button"
-                        onClick={() => setBrand(b.id)}
+                        onClick={() => setBrand(b.slug)}
                         className={`px-4 py-2.5 rounded-xl border-[1.5px] bg-white text-[13.5px] font-bold flex items-center gap-2.5 transition-all duration-150 ${
-                          brand === b.id
+                          brand === b.slug
                             ? 'shadow-card text-ink-900'
                             : 'border-ink-200 text-ink-600 hover:border-ink-300 hover:shadow-card'
                         }`}
-                        style={brand === b.id ? { borderColor: color } : undefined}
+                        style={brand === b.slug ? { borderColor: color } : undefined}
                       >
                         <span className="w-2.5 h-2.5 rounded-full flex-none" style={{ background: color }} />
                         {b.name}
-                        {brand === b.id && (
+                        {brand === b.slug && (
                           <span className="text-[10px] font-bold uppercase tracking-wide text-ink-400">Selected</span>
                         )}
                       </button>

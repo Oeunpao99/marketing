@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useStore } from '../store'
 import DayView from '../components/today/DayView'
 import TableView from '../components/today/TableView'
-import { phnomPenhDay, dayLabel } from '../lib/tz'
+import { phnomPenhDay, phnomPenhDate, dayLabel, fullDayLabel } from '../lib/tz'
 
 function StatTile({ label, value, accent, busy }) {
   return (
@@ -29,6 +29,7 @@ export default function TodayPage() {
   const sendingCount = queue.filter((q) => q.st === 'sending').length
   const waitingCount = queue.filter((q) => q.st === 'queued' || q.st === 'sending').length
   const doneRatio = queue.length ? Math.round((postedCount / queue.length) * 100) : 0
+  const { weekday: todayWeekday, rest: todayRest } = fullDayLabel(phnomPenhDate())
 
   const days = useMemo(() => {
     const set = new Set()
@@ -56,9 +57,9 @@ export default function TodayPage() {
           </div>
 
           <h1 className="mt-4 font-display text-[34px] lg:text-[44px] leading-[1.05] tracking-tight text-white">
-            Thursday,{' '}
+            {todayWeekday},{' '}
             <em className="bg-gradient-to-r from-emerald-300 via-violet-300 to-amber-200 bg-clip-text italic text-transparent">
-              4 September
+              {todayRest}
             </em>
           </h1>
           <p className="mt-2.5 text-[14px] text-white/55 max-w-[52ch]">
@@ -68,7 +69,7 @@ export default function TodayPage() {
           <div className="mt-5 flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-[12px] font-semibold text-emerald-300">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse-glow" />
-              {liveCount} of 12 channels live
+              {liveCount} of {channels.length} channels live
             </span>
             <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[12px] text-white/60">
               <span className="h-1.5 w-1.5 rounded-full bg-amber-300" />

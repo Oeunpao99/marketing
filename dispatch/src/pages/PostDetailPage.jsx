@@ -3,11 +3,11 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import PlatformIcon from "../components/ui/PlatformIcon";
 import Tag from "../components/ui/Tag";
-import { BRANDS, PLAT } from "../data/brands";
+import { PLAT } from "../data/brands";
+import { colorForBrand } from "../lib/brandColor";
 import { TZ, TZ_LABEL } from "../lib/tz";
 import { useStore } from "../store";
 
-const BRAND_COLORS = { assist: "#3B82F6", chum: "#F59E0B", hub: "#8B5CF6" };
 const isKhmer = (s) => /[\u1780-\u17FF\u19E0-\u19FF]/.test(s);
 
 export default function PostDetailPage() {
@@ -53,9 +53,8 @@ export default function PostDetailPage() {
     );
   }
 
-  const brand = BRANDS.find((b) => b.id === q.b);
-  const color = BRAND_COLORS[q.b] || "#166432";
-  const name = realPost?.brand_name || brand?.name || q.b;
+  const color = colorForBrand(q.b);
+  const name = realPost?.brand_name || q.brandName || q.b;
   const mediaUrl = realPost?.video_url
     ? realPost.video_url.startsWith("http")
       ? realPost.video_url

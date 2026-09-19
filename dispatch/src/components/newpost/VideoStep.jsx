@@ -1,5 +1,4 @@
 import { useRef, useState } from 'react'
-import { MOCK_UPLOADS } from '../../data/uploads'
 
 function formatSize(bytes) {
   if (!bytes) return ''
@@ -82,32 +81,6 @@ export default function VideoStep({ onSetVideo, hasVideo, video }) {
               e.target.value = ''
             }}
           />
-
-          <div className="mt-4">
-            <div className="mb-2 flex items-center gap-2 text-[12px] font-semibold tracking-wide text-ink-400 uppercase">
-              <span className="w-1.5 h-1.5 rounded-full bg-brand" />
-              Demo uploads — click one to load a sample
-            </div>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-              {MOCK_UPLOADS.map((v) => (
-                <button
-                  key={v.name}
-                  type="button"
-                  onClick={() => pick(v)}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-white border border-ink-100 hover:border-brand/30 hover:shadow-card transition-all duration-150 text-left group"
-                >
-                  <div className="w-10 h-14 rounded-lg flex-none grid place-items-center bg-ink-900 text-ink-500 font-mono text-[9px] group-hover:text-brand transition-colors">
-                    9:16
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[12.5px] font-semibold text-ink-800 truncate">{v.name}</div>
-                    <div className="text-[11px] text-ink-400">{v.dur} · {v.size}</div>
-                    <div className="text-[11px] text-brand font-medium">{v.tag}</div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
         </>
       ) : (
         <div className="bg-white border border-ink-100 rounded-2xl px-4 py-3.5 flex gap-4 items-center shadow-card">

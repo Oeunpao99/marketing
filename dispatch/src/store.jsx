@@ -7,7 +7,6 @@ import {
   useState,
 } from "react";
 import { api } from "./api/client";
-import { CH as seedCh } from "./data/brands";
 import { phnomPenhClock } from "./lib/tz";
 
 const StoreContext = createContext(null);
@@ -69,7 +68,7 @@ function groupTargets(targets) {
 }
 
 export function StoreProvider({ children }) {
-  const [channels, setChannels] = useState(seedCh);
+  const [channels, setChannels] = useState([]);
   const [brands, setBrands] = useState([]);
   const [queue, setQueue] = useState([]);
   const [review, setReview] = useState(null); // null = still loading

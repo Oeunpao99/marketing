@@ -1,17 +1,7 @@
-import { BRANDS } from '../../data/brands'
-
-const BRAND_COLOR = {
-  assist: '#3B82F6',
-  chum: '#F59E0B',
-  hub: '#8B5CF6',
-}
+import { colorForBrand } from '../../lib/brandColor'
 
 export function brandColor(id) {
-  return BRAND_COLOR[id] || '#166432'
-}
-
-export function brandName(id) {
-  return BRANDS.find((b) => b.id === id)?.name || id
+  return colorForBrand(id)
 }
 
 export default function BrandSwatch({ id, size = 8, className = '' }) {

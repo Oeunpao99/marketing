@@ -41,6 +41,16 @@ export function phnomPenhDay(iso) {
   return dateFmt.format(d);
 }
 
+/** "2026-09-04" -> { weekday: "Thursday", rest: "4 September" }. */
+export function fullDayLabel(dateStr) {
+  if (!dateStr) return { weekday: "", rest: "" };
+  const d = new Date(`${dateStr}T12:00:00+07:00`);
+  if (Number.isNaN(d.getTime())) return { weekday: "", rest: dateStr };
+  const weekday = d.toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" });
+  const rest = d.toLocaleDateString("en-US", { day: "numeric", month: "long", timeZone: "UTC" });
+  return { weekday, rest };
+}
+
 /** "2026-09-04" -> "Thu 4 Sep" (Phnom Penh weekday + short label). */
 export function dayLabel(dateStr) {
   if (!dateStr) return "";

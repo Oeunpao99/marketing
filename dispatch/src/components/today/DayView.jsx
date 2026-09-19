@@ -1,15 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BRANDS } from '../../data/brands'
+import { colorForBrand } from '../../lib/brandColor'
 import { phnomPenhDay, dayLabel } from '../../lib/tz'
 import PlatformIcon from '../ui/PlatformIcon'
 import StatusBadge from './StatusBadge'
 
-const BRAND_NOTES = {
-  assist: { color: '#3B82F6', softBg: '#EFF6FF', softText: '#2563EB' },
-  chum: { color: '#F59E0B', softBg: '#FFFBEB', softText: '#D97706' },
-  hub: { color: '#8B5CF6', softBg: '#F5F3FF', softText: '#7C3AED' },
-}
 const isKhmer = (s) => /[\u1780-\u17FF\u19E0-\u19FF]/.test(s)
 
 export default function DayView({ queue, match = () => true }) {
@@ -59,9 +54,8 @@ export default function DayView({ queue, match = () => true }) {
   }
 
   const item = ({ q, i, lastInGroup }) => {
-    const brand = BRANDS.find((b) => b.id === q.b)
-    const note = BRAND_NOTES[q.b] || BRAND_NOTES.chum
-    const name = brand?.name || q.brandName || q.b
+    const color = colorForBrand(q.b)
+    const name = q.brandName || q.b
     const key = q.postId ?? q.targetId ?? i
     const sending = q.st === 'sending'
     const failed = q.st === 'failed'
@@ -111,9 +105,9 @@ export default function DayView({ queue, match = () => true }) {
               <div className="flex gap-3">
                 <span
                   className={`grid w-8 h-12 flex-none place-items-center rounded-lg text-[10px] font-black uppercase tracking-wide ${
-                    sending ? 'bg-violet-100 text-violet-600' : note.softBg
+                    sending ? 'bg-violet-100 text-violet-600' : ''
                   }`}
-                  style={!sending ? { color: note.softText } : undefined}
+                  style={!sending ? { background: `${color}1A`, color } : undefined}
                 >
                   {name.slice(0, 4)}
                 </span>
