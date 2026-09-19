@@ -111,6 +111,20 @@ class Settings(BaseSettings):
     # clear error until this is set.
     public_base_url: str = ""
 
+    # LinkedIn — personal-profile posting only (app/linkedin.py). Create an app
+    # at https://www.linkedin.com/developers/apps, add the "Sign In with
+    # LinkedIn using OpenID Connect" and "Share on LinkedIn" products (both
+    # self-serve, no partner approval needed), and register
+    # linkedin_redirect_uri as an authorized redirect URL — must be a static
+    # https url, so local dev needs a tunnel pointed at this backend, at
+    # "<that https url>/api/views/oauth/linkedin/callback". Posting to a
+    # Company Page instead of a person's own feed needs LinkedIn's Community
+    # Management API, which requires manual partner approval — not supported
+    # here.
+    linkedin_client_id: str = ""
+    linkedin_client_secret: str = ""
+    linkedin_redirect_uri: str = ""
+
     # Auth — CHANGE secret_key in .env for anything real.
     secret_key: str = "dev-insecure-change-me"
     token_ttl_hours: int = 168  # 7 days

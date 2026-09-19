@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { FaLinkedin } from "react-icons/fa";
 import {
   SiFacebook,
   SiInstagram,
@@ -10,6 +11,7 @@ import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import Tag from "../components/ui/Tag";
 import { PLAT } from "../data/brands";
+import { colorForBrand } from "../lib/brandColor";
 import { useStore } from "../store";
 
 /** Strip t.me / telegram.me URLs and a leading @, keep numeric -100… ids as-is. */
@@ -73,9 +75,15 @@ const PLATFORM_META = {
       },
     ],
   },
+  linkedin: {
+    color: "#0A66C2",
+    Icon: FaLinkedin,
+    label: "LinkedIn",
+    desc: "Log into LinkedIn and approve the app — posts to your own feed for real.",
+    live: true,
+    oauth: "linkedin",
+  },
 };
-
-const BRAND_COLORS = { assist: "#3B82F6", chum: "#F59E0B", hub: "#8B5CF6" };
 
 export default function AddChannelPage() {
   const { brands, channels, setChannels, showToast } = useStore();
@@ -238,6 +246,24 @@ export default function AddChannelPage() {
     }
   };
 
+  /* ---- real connect (LinkedIn OAuth → backend → linkedin.com) ---- */
+  const connectLinkedIn = async (brandId) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const brand = brands.find((b) => b.slug === brandId);
+      if (!brand) throw new Error("Brand not found.");
+      const res = await api.get(`/views/oauth/linkedin/start?brand_id=${brand.id}`);
+      if (!res?.url) throw new Error("LinkedIn did not return a connect link.");
+      // Full-page navigation to linkedin.com's consent screen — this
+      // component unmounts here; the callback lands the user back on /channels.
+      window.location.href = res.url;
+    } catch (e) {
+      setError(e.message);
+      setBusy(false);
+    }
+  };
+
   /* ---- real connect (Facebook/Instagram OAuth → backend → facebook.com) ---- */
   const connectMeta = async (brandId, intent) => {
     setBusy(true);
@@ -265,6 +291,8 @@ export default function AddChannelPage() {
       connectTikTok(brandId);
     } else if (meta?.oauth === "meta") {
       connectMeta(brandId, selectedPlatform);
+    } else if (meta?.oauth === "linkedin") {
+      connectLinkedIn(brandId);
     } else if (meta?.fields) {
       setError(null);
       setStep("credentials");
@@ -284,6 +312,7 @@ export default function AddChannelPage() {
     setSelectedBrand(brandSlug);
     if (platformMeta.oauth === "tiktok") connectTikTok(brandSlug);
     else if (platformMeta.oauth === "meta") connectMeta(brandSlug, platformSlug);
+    else if (platformMeta.oauth === "linkedin") connectLinkedIn(brandSlug);
     else if (platformMeta.fields) setStep("credentials");
     else connectMock(brandSlug, platformSlug);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -546,7 +575,7 @@ export default function AddChannelPage() {
           </p>
           {brands.map((b) => {
             const isConnected = connectedForBrand(b.slug);
-            const color = BRAND_COLORS[b.id] || "#166432";
+            const color = colorForBrand(b.slug);
             return (
               <button
                 key={b.id}
@@ -577,7 +606,7 @@ export default function AddChannelPage() {
                   ) : (
                     <span className="text-[12.5px] text-brand font-semibold">
                       {busy
-                        ? "Redirecting to TikTok…"
+                        ? `Redirecting to ${meta.label}…`
                         : meta.fields
                           ? "Set up →"
                           : "Connect →"}
@@ -633,6 +662,8 @@ export default function AddChannelPage() {
                     connectTikTok(selectedBrand);
                   } else if (m.oauth === "meta") {
                     connectMeta(selectedBrand, id);
+                  } else if (m.oauth === "linkedin") {
+                    connectLinkedIn(selectedBrand);
                   } else if (m.fields) {
                     setSelectedPlatform(id);
                     setStep("credentials");

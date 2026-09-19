@@ -7,4 +7,5 @@ export const PLAT = {
   youtube: { id: 'youtube', name: 'YouTube', limit: 5000, title: true, as: 'Posts as a Short' },
   instagram: { id: 'instagram', name: 'Instagram', limit: 2200, title: false, as: 'Posts as a Reel' },
   telegram: { id: 'telegram', name: 'Telegram', limit: 4096, title: false, as: 'Posts to channel' },
+  linkedin: { id: 'linkedin', name: 'LinkedIn', limit: 3000, title: false, as: 'Posts to feed' },
 }

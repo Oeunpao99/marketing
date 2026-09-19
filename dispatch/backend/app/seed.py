@@ -287,17 +287,19 @@ def run() -> None:
                 )
             )
 
+        # Brand's own after_insert hook (app/models.py) already created a
+        # blank Automation row for each brand at the flush above — fill in
+        # the demo settings on those rather than inserting a second row
+        # (brand_id is unique).
         for bslug, enabled, run_at, n, src, approve in AUTOMATIONS:
-            db.add(
-                Automation(
-                    brand_id=brands[bslug].id,
-                    enabled=enabled,
-                    run_at=run_at,
-                    videos_per_day=n,
-                    topic_source=src,
-                    require_approval=approve,
-                )
+            automation = db.scalar(
+                select(Automation).where(Automation.brand_id == brands[bslug].id)
             )
+            automation.enabled = enabled
+            automation.run_at = run_at
+            automation.videos_per_day = n
+            automation.topic_source = src
+            automation.require_approval = approve
 
         from app.config import get_settings
         from app.security import hash_password

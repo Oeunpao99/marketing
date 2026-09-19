@@ -81,6 +81,8 @@ def publish(target: PostTarget, channel: Channel, video: Video | None) -> Publis
         return _publish_facebook(target, channel, video)
     if slug == "instagram" and (channel.config or {}).get("access_token"):
         return _publish_instagram(target, channel, video)
+    if slug == "linkedin" and (channel.config or {}).get("access_token"):
+        return _publish_linkedin(target, channel, video)
     if get_settings().simulate_unimplemented_platforms:
         return PublishResult(detail={"simulated": True, "platform": slug})
     raise PublishError(f"No delivery integration for platform '{slug}'.")
@@ -135,6 +137,28 @@ def _publish_instagram(target: PostTarget, channel: Channel, video: Video | None
     except meta.MetaError as exc:
         raise PublishError(str(exc)) from exc
     return PublishResult(external_id=media_id, detail={"platform": "instagram"})
+
+
+def _publish_linkedin(target: PostTarget, channel: Channel, video: Video | None) -> PublishResult:
+    from app import linkedin
+    from app.media import kind_for, read_media
+
+    cfg = channel.config or {}
+    token, person_sub = cfg.get("access_token"), cfg.get("person_sub")
+    if not token or not person_sub:
+        raise PublishError("LinkedIn channel is missing its connection — reconnect it.")
+
+    caption = target.caption or target.title or ""
+    data = read_media(video.url) if video and video.url else None
+    if video and video.url and data is None:
+        raise PublishError("Could not read the media file to upload.")
+    kind = kind_for(video.url, None) if video and video.url else None
+
+    try:
+        post_urn = linkedin.publish_post(token, person_sub, caption, data, kind)
+    except linkedin.LinkedInError as exc:
+        raise PublishError(str(exc)) from exc
+    return PublishResult(external_id=post_urn, detail={"platform": "linkedin"})
 
 
 def _publish_tiktok(target: PostTarget, channel: Channel, video: Video | None) -> PublishResult:

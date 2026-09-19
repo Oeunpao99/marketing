@@ -19,6 +19,7 @@ from sqlalchemy import (
     String,
     Text,
     Time,
+    event,
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -247,6 +248,19 @@ class Automation(Base, TimestampMixin):
     # Phnom Penh calendar day this automation last generated its batch —
     # app/content_scheduler.py's guard against writing the same day twice.
     last_run_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+
+
+@event.listens_for(Brand, "after_insert")
+def _create_automation_for_new_brand(mapper, connection, target: Brand) -> None:
+    """Every brand needs exactly one Automation row (the Auto-generate page
+    reads Automation rows directly, with no fallback) — this keeps that true
+    no matter how the Brand got created (the generic /brands POST endpoint,
+    app/seed.py, a script, ...), instead of relying on every call site to
+    remember it. Starts disabled — someone still has to opt in and set a
+    schedule on the Auto-generate page."""
+    connection.execute(
+        Automation.__table__.insert().values(brand_id=target.id, enabled=False)
+    )
 
 
 class Product(Base, TimestampMixin):

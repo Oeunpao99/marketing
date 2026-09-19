@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
-from app import meta, tiktok
+from app import linkedin, meta, tiktok
 from app.config import get_settings
 from app.database import get_db
 from app.media import local_path_for
@@ -934,6 +934,73 @@ def meta_pending_confirm(pending_id: str, payload: MetaConfirmIn, db: Session = 
         )
     db.commit()
     return {"connected": connected}
+
+
+# ── LinkedIn OAuth connect ────────────────────────────────────────────────
+# Personal-profile posting only (see app/linkedin.py) — a single LinkedIn
+# login maps to one person's own feed, so like TikTok (and unlike Meta) this
+# needs no "pick a Page" step: /start -> linkedin.com -> /callback stores the
+# token straight onto the brand's Channel and bounces back into the app.
+_LINKEDIN_STATE_TTL_SECONDS = 600
+
+
+@router.get("/oauth/linkedin/start")
+def linkedin_oauth_start(brand_id: int, db: Session = Depends(get_db)):
+    if db.get(Brand, brand_id) is None:
+        raise HTTPException(404, "Brand not found.")
+    state = sign_payload({"brand_id": brand_id}, _LINKEDIN_STATE_TTL_SECONDS)
+    try:
+        return {"url": linkedin.authorize_url(state)}
+    except linkedin.LinkedInError as exc:
+        raise HTTPException(503, str(exc)) from exc
+
+
+@router.get("/oauth/linkedin/callback", include_in_schema=False)
+def linkedin_oauth_callback(
+    code: str = "", state: str = "", error: str = "", db: Session = Depends(get_db)
+):
+    frontend = get_settings().frontend_url.rstrip("/")
+
+    def back(ok: bool, message: str = "") -> RedirectResponse:
+        params = {"linkedin": "connected" if ok else "error"}
+        if message:
+            params["message"] = message[:200]
+        return RedirectResponse(f"{frontend}/channels?{urlencode(params)}")
+
+    if error:
+        return back(False, error)
+
+    try:
+        payload = verify_payload(state)
+    except Exception:
+        return back(False, "That connect link expired — try again.")
+    brand = db.get(Brand, payload.get("brand_id"))
+    if brand is None:
+        return back(False, "Brand not found.")
+
+    try:
+        access_token = linkedin.exchange_code(code)
+        member = linkedin.fetch_member(access_token)
+    except linkedin.LinkedInError as exc:
+        return back(False, str(exc))
+
+    plat = db.scalar(select(Platform).where(Platform.slug == "linkedin"))
+    if plat is None:
+        return back(False, "LinkedIn platform is not set up on the server.")
+
+    channel = db.scalar(
+        select(Channel).where(Channel.brand_id == brand.id, Channel.platform_id == plat.id)
+    )
+    if channel is None:
+        channel = Channel(brand_id=brand.id, platform_id=plat.id)
+        db.add(channel)
+    channel.status = "live"
+    channel.handle = member["name"]
+    channel.token_note = "Connected via LinkedIn login"
+    channel.config = {**(channel.config or {}), "access_token": access_token, "person_sub": member["sub"]}
+    channel.last_post_at = None
+    db.commit()
+    return back(True)
 
 
 # ── publishing ───────────────────────────────────────────────────────────

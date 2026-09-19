@@ -26,6 +26,11 @@ export const PLAT_ICONS = {
       <path d="M17.5 3.2L1.6 9.2c-.8.3-.7 1.4.1 1.6l3.9 1.2 1.6 4.6c.2.6.9.8 1.4.4l2-1.9 3.6 2.6c.6.4 1.4 0 1.5-.7l2-13c.2-.8-.6-1.5-1.2-1.2zM7.5 12.6l7-4.9-5 4.9-.3 2.3-1.7-2.3z" />
     </svg>
   ),
+  LinkedIn: (
+    <svg viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
+      <path d="M5.5 7.5h-3V17h3V7.5zM4 6.2a1.75 1.75 0 100-3.5 1.75 1.75 0 000 3.5zM17.5 17h-3v-5.1c0-1.2-.4-2-1.5-2-.8 0-1.3.6-1.5 1.1-.1.2-.1.5-.1.8V17h-3s.1-8.6 0-9.5h3v1.4c.4-.6 1.1-1.5 2.8-1.5 2 0 3.5 1.3 3.5 4.2V17z" />
+    </svg>
+  ),
 }
 
 export default function PlatformIcon({ name, className }) {

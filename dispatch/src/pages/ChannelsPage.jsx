@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { FaLinkedin } from "react-icons/fa";
 import { FiGrid } from "react-icons/fi";
 import {
   SiFacebook,
@@ -10,9 +11,8 @@ import {
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Tag from "../components/ui/Tag";
 import { PLAT } from "../data/brands";
+import { colorForBrand } from "../lib/brandColor";
 import { useStore } from "../store";
-
-const BRAND_COLORS = { assist: "#3B82F6", chum: "#F59E0B", hub: "#8B5CF6" };
 
 export default function ChannelsPage() {
   const { brands, channels, refreshChannels, showToast } = useStore();
@@ -41,6 +41,20 @@ export default function ChannelsPage() {
     showToast(`Facebook connect failed — ${searchParams.get("message") || "try again"}`);
     setSearchParams({}, { replace: true });
   }, [searchParams, setSearchParams, showToast]);
+
+  // Lands here after the LinkedIn OAuth redirect (same direct-connect shape
+  // as TikTok — no "pick a Page" step, since it's always the person's own feed).
+  useEffect(() => {
+    const linkedin = searchParams.get("linkedin");
+    if (!linkedin) return;
+    if (linkedin === "connected") {
+      showToast("LinkedIn connected");
+      refreshChannels();
+    } else {
+      showToast(`LinkedIn connect failed — ${searchParams.get("message") || "try again"}`);
+    }
+    setSearchParams({}, { replace: true });
+  }, [searchParams, setSearchParams, showToast, refreshChannels]);
 
   return (
     <div className="p-5 lg:p-8 w-full animate-fadein">
@@ -73,7 +87,7 @@ export default function ChannelsPage() {
       <div className="space-y-4">
         {brands.map((b) => {
           const rows = channels.filter((c) => c.b === b.slug);
-          const color = BRAND_COLORS[b.id] || "#166432";
+          const color = colorForBrand(b.slug);
           return (
             <div
               key={b.id}
@@ -158,6 +172,7 @@ function PlatformIcon({ platform }) {
   const icons = {
     facebook: SiFacebook,
     instagram: SiInstagram,
+    linkedin: FaLinkedin,
     telegram: SiTelegram,
     tiktok: SiTiktok,
     youtube: SiYoutube,
