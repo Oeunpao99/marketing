@@ -18,7 +18,7 @@ function when(dateStr) {
 }
 
 export default function AutoPage() {
-  const { auto, setAuto, refreshAuto, refreshReview, showToast } = useStore()
+  const { auto, setAuto, refreshAuto, refreshReview, channels, showToast } = useStore()
   const [runningId, setRunningId] = useState(null)
 
   const update = async (automation, patch) => {
@@ -29,6 +29,23 @@ export default function AutoPage() {
       showToast(`Could not save — ${e.message}`)
       refreshAuto()
     }
+  }
+
+  // null/empty auto_channel_ids means "every connected channel" — resolve
+  // that against this brand's actual live channels before rendering or
+  // toggling, so unchecking the first one starts from the real full set.
+  const liveChannelsFor = (a) => channels.filter((c) => c.b === a.brand_slug && c.s === 'live')
+
+  const isChannelAllowed = (a, liveIds, channelId) =>
+    !a.auto_channel_ids || a.auto_channel_ids.length === 0 || a.auto_channel_ids.includes(channelId)
+
+  const toggleChannel = (a, liveIds, channelId, checked) => {
+    const current = a.auto_channel_ids && a.auto_channel_ids.length ? a.auto_channel_ids : liveIds
+    const next = checked
+      ? [...new Set([...current, channelId])]
+      : current.filter((id) => id !== channelId)
+    const allSelected = liveIds.length > 0 && liveIds.every((id) => next.includes(id))
+    update(a, { auto_channel_ids: allSelected ? null : next })
   }
 
   const runNow = async (automation) => {
@@ -101,10 +118,10 @@ export default function AutoPage() {
                       <input
                         type="number"
                         min={1}
-                        max={5}
+                        max={10}
                         value={a.videos_per_day}
                         className="w-full bg-ink-50 border border-ink-200 rounded-xl px-3 py-2 text-[13.5px] focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-                        onChange={(e) => update(a, { videos_per_day: Math.max(1, Math.min(5, +e.target.value || 1)) })}
+                        onChange={(e) => update(a, { videos_per_day: Math.max(1, Math.min(10, +e.target.value || 1)) })}
                       />
                     </Field>
                     <Field label="Topics from" hint="Where the ideas come from.">
@@ -135,6 +152,66 @@ export default function AutoPage() {
                       </div>
                     </Field>
 
+                    {a.auto_media && (
+                      <Field label="Post at" hint="Leave blank to use each platform's usual time (19:30 Facebook, 20:00 TikTok, 20:30 else).">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="time"
+                            value={a.post_at || ''}
+                            className="w-full bg-ink-50 border border-ink-200 rounded-xl px-3 py-2 text-[13.5px] font-mono focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+                            onChange={(e) => update(a, { post_at: e.target.value || null })}
+                          />
+                          {a.post_at && (
+                            <button
+                              type="button"
+                              onClick={() => update(a, { post_at: null })}
+                              className="flex-none text-[12px] text-ink-400 hover:text-ink-700 font-medium"
+                            >
+                              Clear
+                            </button>
+                          )}
+                        </div>
+                      </Field>
+                    )}
+
+                    {a.auto_media && (() => {
+                      const live = liveChannelsFor(a)
+                      const liveIds = live.map((c) => c.id)
+                      return (
+                        <div className="sm:col-span-3">
+                          <span className="block font-semibold text-[12.5px] text-ink-800 mb-1">Channels allowed to auto-post</span>
+                          {live.length === 0 ? (
+                            <span className="block text-[12px] text-ink-400">No connected channels yet for this brand.</span>
+                          ) : (
+                            <div className="flex flex-wrap gap-2">
+                              {live.map((c) => {
+                                const allowed = isChannelAllowed(a, liveIds, c.id)
+                                return (
+                                  <label
+                                    key={c.id}
+                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[12.5px] font-medium cursor-pointer transition-all duration-150 ${
+                                      allowed
+                                        ? 'border-brand/30 bg-brand/5 text-ink-800'
+                                        : 'border-ink-200 bg-white text-ink-400'
+                                    }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      className="accent-brand"
+                                      checked={allowed}
+                                      onChange={(e) => toggleChannel(a, liveIds, c.id, e.target.checked)}
+                                    />
+                                    <span className="capitalize">{c.p}</span>
+                                    <span className="text-ink-400">· {c.h}</span>
+                                  </label>
+                                )
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })()}
+
                     <div className="sm:col-span-2 flex items-center">
                       <button
                         type="button"
@@ -160,7 +237,11 @@ export default function AutoPage() {
                           <>held in <Link to="/review" className="text-brand font-semibold hover:underline">Waiting for you</Link> until you approve.</>
                         )
                       ) : a.auto_media ? (
-                        <>scheduled straight to your connected channels, no review needed.</>
+                        <>
+                          scheduled straight to{' '}
+                          {a.auto_channel_ids && a.auto_channel_ids.length ? 'your selected channels' : 'your connected channels'}, at{' '}
+                          <b className="font-mono text-ink-800">{a.post_at || 'each platform’s usual time'}</b>, no review needed.
+                        </>
                       ) : (
                         <>written straight onto the <Link to="/calendar" className="text-brand font-semibold hover:underline">calendar</Link>, no review needed.</>
                       )}

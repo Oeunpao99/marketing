@@ -43,8 +43,8 @@ def _default_time_for(platform_slug: str) -> time:
     return time(20, 30)
 
 
-def _next_slot(platform_slug: str, now: datetime) -> datetime:
-    t = _default_time_for(platform_slug)
+def _next_slot(platform_slug: str, now: datetime, override: time | None = None) -> datetime:
+    t = override or _default_time_for(platform_slug)
     candidate = now.replace(hour=t.hour, minute=t.minute, second=0, microsecond=0)
     if candidate <= now:
         candidate += timedelta(days=1)
@@ -98,9 +98,15 @@ def schedule_draft_as_post(db: Session, draft: Draft) -> Post:
     write atomic — see run_automation)."""
     from app.media import kind_for
 
+    automation = db.scalar(select(Automation).where(Automation.brand_id == draft.brand_id))
+
     channels = db.scalars(
         select(Channel).where(Channel.brand_id == draft.brand_id, Channel.status == "live")
     ).all()
+
+    allowed_ids = automation.auto_channel_ids if automation else None
+    if allowed_ids:
+        channels = [c for c in channels if c.id in set(allowed_ids)]
 
     video = db.get(Video, draft.video_id) if draft.video_id else None
     kind = kind_for(video.url, None) if video and video.url else None
@@ -111,8 +117,9 @@ def schedule_draft_as_post(db: Session, draft: Draft) -> Post:
 
     if not channels:
         raise ContentAIError(
-            f"“{draft.title}” has no connected channel to post to "
-            "(or only TikTok, which needs a video, not an image)."
+            f"“{draft.title}” has no allowed, connected channel to post to "
+            "(check the channel picker on Auto-generate, or that TikTok isn't "
+            "the only one — it needs a video, not an image)."
         )
 
     post = Post(brand_id=draft.brand_id, video_id=draft.video_id, title=draft.title, status="scheduled")
@@ -120,6 +127,7 @@ def schedule_draft_as_post(db: Session, draft: Draft) -> Post:
     db.flush()
 
     now = datetime.now(PHNOM_PENH)
+    override_time = automation.post_at if automation else None
     for ch in channels:
         slug = ch.platform.slug if ch.platform else ""
         db.add(
@@ -128,7 +136,7 @@ def schedule_draft_as_post(db: Session, draft: Draft) -> Post:
                 channel_id=ch.id,
                 caption=draft.body,
                 title=draft.title,
-                scheduled_for=_next_slot(slug, now),
+                scheduled_for=_next_slot(slug, now, override_time),
                 status="queued",
             )
         )
@@ -165,7 +173,7 @@ def run_automation(db: Session, automation_id: int) -> list[Draft] | None:
     products = db.scalars(
         select(Product).where(Product.brand_id == brand.id).order_by(Product.name)
     ).all()
-    count = max(1, min(automation.videos_per_day, 5))
+    count = max(1, min(automation.videos_per_day, 10))
     try:
         ideas = generate_ideas(brand.name, brand.lang, list(products), automation.topic_source, count)
     except ContentAIError:

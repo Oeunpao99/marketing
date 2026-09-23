@@ -128,6 +128,7 @@ export default function InsightsPostPage() {
   const resolved = post.status === 'ok' || post.status === 'partial'
   const m = post.metrics || {}
   const caption = post.caption || post.title
+  const isKhmer = /[ក-៿᧠-᧿]/.test(caption || '')
 
   const tiles = [
     { label: 'Views', value: viewsOf(m), avg: avg.views, icon: <FiEye size={16} />, tone: 'bg-blue-500' },
@@ -171,7 +172,9 @@ export default function InsightsPostPage() {
             <span className="text-ink-500">{fmtDate(post.published_at)}</span>
             <StatusChip resolved={resolved} note={post.note} />
           </div>
-          <h1 className="mt-1.5 font-display text-[24px] lg:text-[30px] leading-tight tracking-tight text-ink-900">
+          <h1
+            className={`mt-1.5 text-[14.5px] lg:text-[15px] font-medium leading-relaxed text-ink-800 max-w-[70ch] whitespace-pre-line ${isKhmer ? 'font-khmer' : ''}`}
+          >
             {caption || 'Untitled'}
           </h1>
         </div>

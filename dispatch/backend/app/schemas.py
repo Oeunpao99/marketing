@@ -288,6 +288,12 @@ class AutomationBase(BaseModel):
     # see app/content_scheduler.py. Off by default since it spends real image
     # generation budget every run.
     auto_media: bool = False
+    # Channel ids auto-scheduling may post to. None/empty = every connected
+    # channel.
+    auto_channel_ids: list[int] | None = None
+    # Custom time auto-scheduled posts go out at. None = the built-in
+    # per-platform defaults.
+    post_at: time | None = None
 
 
 class AutomationCreate(AutomationBase):
@@ -302,6 +308,8 @@ class AutomationUpdate(BaseModel):
     topic_source: str | None = None
     require_approval: bool | None = None
     auto_media: bool | None = None
+    auto_channel_ids: list[int] | None = None
+    post_at: time | None = None
 
 
 class AutomationOut(TimestampsOut, AutomationBase):

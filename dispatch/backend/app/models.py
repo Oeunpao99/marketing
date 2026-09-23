@@ -259,6 +259,15 @@ class Automation(Base, TimestampMixin):
     # Opt-in: also auto-generate media for each idea that passes its fit-score
     # check, and (once approved) schedule it as a real post automatically.
     auto_media: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Which of this brand's connected channels auto-scheduling is allowed to
+    # post to — a list of Channel ids. Null/empty = every connected channel
+    # (today's default). Set once the person curates it on the Auto-generate
+    # page; a channel connected *after* that stays excluded until added by hand.
+    auto_channel_ids: Mapped[list[int] | None] = mapped_column(JSONB, nullable=True)
+    # Custom time auto-scheduled posts go out at, overriding the built-in
+    # per-platform defaults (19:30 Facebook / 20:00 TikTok / 20:30 else — see
+    # content_scheduler.py's _default_time_for). Null = keep those defaults.
+    post_at: Mapped[time | None] = mapped_column(Time, nullable=True)
 
 
 @event.listens_for(Brand, "after_insert")

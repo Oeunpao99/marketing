@@ -263,6 +263,8 @@ def auto_view(db: Session = Depends(get_db)):
             "topic_source": a.topic_source,
             "require_approval": a.require_approval,
             "auto_media": a.auto_media,
+            "auto_channel_ids": a.auto_channel_ids,
+            "post_at": a.post_at.strftime("%H:%M") if a.post_at else None,
             "last_run_on": a.last_run_on,
         }
         for a in sorted(autos, key=lambda x: x.brand_id)
