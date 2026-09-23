@@ -2,10 +2,25 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Self-hosted so Khmer text renders the same for every viewer, not just
+   machines that happen to have this font installed locally. Scoped to the
+   Khmer Unicode block via unicode-range, so the browser swaps to it for
+   Khmer characters automatically wherever they appear — Latin text on the
+   same element keeps using whatever font-family is already set. This means
+   Khmer text doesn't need a `.khmer`/`font-khmer` class hunt through every
+   component (a page that forgot one, like the Calendar did, silently fell
+   back to Nunito Sans, which has no Khmer glyphs). */
+@font-face {
+  font-family: 'Khmer OS Siemreap';
+  src: url('/fonts/KhmerOSsiemreap.ttf') format('truetype');
+  unicode-range: U+1780-17FF, U+19E0-19FF, U+200C-200D, U+25CC;
+  font-display: swap;
+}
+
 @layer base {
   html, body {
     @apply m-0 p-0 bg-ink-50 text-ink-900 antialiased;
-    font-family: 'Nunito Sans', system-ui, sans-serif;
+    font-family: 'Khmer OS Siemreap', 'Nunito Sans', system-ui, sans-serif;
   }
   * { @apply box-border; }
   button, input, select, textarea { @apply font-[inherit] text-[inherit]; }

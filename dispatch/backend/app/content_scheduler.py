@@ -54,14 +54,21 @@ def _next_slot(platform_slug: str, now: datetime, override: time | None = None) 
 def _generate_media_for(brand: Brand, idea: dict, products: list[Product]) -> int | None:
     """Best-effort: render an image for this idea and store it as a Video
     row, returning its id — or None if generation fails, so the caller falls
-    back to a plain text draft rather than losing the idea entirely."""
+    back to a plain text draft rather than losing the idea entirely.
+
+    Also records a GenerationJob (kind="image") alongside it, same as the AI
+    agent's own "Generate image" button (app/video.py's create_image) does —
+    the Library page (/views/library) reads GenerationJob rows, not Video
+    rows directly, so skipping this would make an auto-generated image real
+    and usable everywhere except invisible in the Library."""
     from app import video as video_gen
     from app.database import SessionLocal
     from app.media import store_blob
+    from app.models import GenerationJob
 
     prompt = image_prompt_for_idea(brand.name, brand.lang, idea, products)
     try:
-        _provider, blob, _usage = video_gen.generate_image(prompt, "9:16")
+        provider, blob, usage = video_gen.generate_image(prompt, "9:16")
     except video_gen.VideoGenError as exc:
         log.warning("auto-media image generation failed for brand %s: %s", brand.id, exc)
         return None
@@ -69,6 +76,20 @@ def _generate_media_for(brand: Brand, idea: dict, products: list[Product]) -> in
     db = SessionLocal()
     try:
         url = store_blob(db, blob, ".png", "image/png")
+        job = GenerationJob(
+            brand_id=brand.id,
+            kind="image",
+            prompt=prompt,
+            aspect_ratio="9:16",
+            seconds=0,
+            provider=provider,
+            status="succeeded",
+            input_tokens=usage.get("input", 0),
+            output_tokens=usage.get("output", 0),
+            total_tokens=usage.get("total", 0),
+        )
+        db.add(job)
+        db.flush()
         v = Video(
             brand_id=brand.id,
             filename=f"auto-{brand.slug}-{int(datetime.now(PHNOM_PENH).timestamp())}.png",
@@ -79,6 +100,8 @@ def _generate_media_for(brand: Brand, idea: dict, products: list[Product]) -> in
             url=url,
         )
         db.add(v)
+        db.flush()
+        job.video_id = v.id
         db.commit()
         db.refresh(v)
         return v.id
