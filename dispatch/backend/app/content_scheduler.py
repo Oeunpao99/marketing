@@ -144,27 +144,10 @@ def schedule_draft_as_post(db: Session, draft: Draft) -> Post:
     return post
 
 
-def run_automation(db: Session, automation_id: int) -> list[Draft] | None:
-    """Generate + persist one automation's batch of ideas for today.
-
-    Row-locks the ``Automation`` and re-checks ``last_run_on`` before writing,
-    so the minute-by-minute worker tick and a manual "run now" click racing
-    each other can't both write today's batch — the loser just waits for the
-    lock, sees today is already done, and returns ``None``. Raises
-    ``ContentAIError`` on failure; ``last_run_on`` only advances on success, so
-    a failed run is retried on the next tick.
-    """
-    automation = db.execute(
-        select(Automation).where(Automation.id == automation_id).with_for_update()
-    ).scalar_one_or_none()
-    if automation is None:
-        raise ContentAIError(f"Automation {automation_id} not found.")
-
-    today = _today()
-    if automation.last_run_on == today:
-        db.commit()  # release the row lock
-        return None
-
+def _write_batch(db: Session, automation: Automation, today: date) -> list[Draft]:
+    """The actual generate-and-persist work, shared by a normal run and a
+    forced regenerate — caller has already handled the ``last_run_on`` guard
+    (or deliberately bypassed it) and holds the automation row lock."""
     brand = db.get(Brand, automation.brand_id)
     if brand is None:
         db.commit()
@@ -220,6 +203,85 @@ def run_automation(db: Session, automation_id: int) -> list[Draft] | None:
     for d in drafts:
         db.refresh(d)
     return drafts
+
+
+def run_automation(db: Session, automation_id: int) -> list[Draft] | None:
+    """Generate + persist one automation's batch of ideas for today.
+
+    Row-locks the ``Automation`` and re-checks ``last_run_on`` before writing,
+    so the minute-by-minute worker tick and a manual "run now" click racing
+    each other can't both write today's batch — the loser just waits for the
+    lock, sees today is already done, and returns ``None``. Raises
+    ``ContentAIError`` on failure; ``last_run_on`` only advances on success, so
+    a failed run is retried on the next tick.
+    """
+    automation = db.execute(
+        select(Automation).where(Automation.id == automation_id).with_for_update()
+    ).scalar_one_or_none()
+    if automation is None:
+        raise ContentAIError(f"Automation {automation_id} not found.")
+
+    today = _today()
+    if automation.last_run_on == today:
+        db.commit()  # release the row lock
+        return None
+
+    return _write_batch(db, automation, today)
+
+
+def force_regenerate(db: Session, automation_id: int) -> dict:
+    """Discard today's already-written batch and write a fresh one, ignoring
+    the "already ran today" guard — the explicit "Regenerate" action.
+
+    Any of today's ai-auto drafts that already turned into a real, *already
+    published* post are left alone (never silently un-sends something real);
+    everything else today's batch produced — waiting/approved/scheduled-but-
+    not-yet-sent drafts, and their queued (not yet posted) PostTargets/Posts —
+    gets deleted before the new batch is written.
+    """
+    from app.models import PostTarget
+
+    automation = db.execute(
+        select(Automation).where(Automation.id == automation_id).with_for_update()
+    ).scalar_one_or_none()
+    if automation is None:
+        raise ContentAIError(f"Automation {automation_id} not found.")
+
+    today = _today()
+    old_drafts = db.scalars(
+        select(Draft).where(
+            Draft.brand_id == automation.brand_id,
+            Draft.planned_for == today,
+            Draft.source == "ai-auto",
+        )
+    ).all()
+
+    removed, kept_live = 0, 0
+    for draft in old_drafts:
+        post = (
+            db.scalar(select(Post).where(Post.video_id == draft.video_id))
+            if draft.video_id is not None
+            else None
+        )
+        if post is not None:
+            targets = db.scalars(select(PostTarget).where(PostTarget.post_id == post.id)).all()
+            if any(t.status == "posted" for t in targets):
+                # Already went out for real somewhere — don't touch it.
+                kept_live += 1
+                continue
+            for t in targets:
+                db.delete(t)
+            db.delete(post)
+        old_video = db.get(Video, draft.video_id) if draft.video_id is not None else None
+        db.delete(draft)
+        if old_video is not None:
+            db.delete(old_video)
+        removed += 1
+    db.flush()
+
+    automation.last_run_on = None
+    drafts = _write_batch(db, automation, today)
+    return {"removed": removed, "kept_live": kept_live, "drafts": drafts}
 
 
 def _due(automation: Automation, now: datetime) -> bool:

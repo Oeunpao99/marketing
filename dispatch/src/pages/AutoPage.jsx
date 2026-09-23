@@ -20,6 +20,7 @@ function when(dateStr) {
 export default function AutoPage() {
   const { auto, setAuto, refreshAuto, refreshReview, channels, showToast } = useStore()
   const [runningId, setRunningId] = useState(null)
+  const [confirmRegen, setConfirmRegen] = useState(null) // automation awaiting regenerate confirmation
 
   const update = async (automation, patch) => {
     setAuto((list) => (list || []).map((a) => (a.id === automation.id ? { ...a, ...patch } : a)))
@@ -48,22 +49,31 @@ export default function AutoPage() {
     update(a, { auto_channel_ids: allSelected ? null : next })
   }
 
-  const runNow = async (automation) => {
+  const runNow = async (automation, force = false) => {
     if (runningId) return
     setRunningId(automation.id)
     try {
-      const res = await api.post(`/views/auto/${automation.id}/run-now`)
-      showToast(
-        res.already_ran_today
-          ? `Already wrote ${res.count} idea${res.count === 1 ? '' : 's'} for today`
-          : `Wrote ${res.count} new idea${res.count === 1 ? '' : 's'} for today`,
-      )
+      const res = await api.post(`/views/auto/${automation.id}/run-now${force ? '?force=true' : ''}`)
+      if (res.regenerated) {
+        showToast(
+          res.kept_live
+            ? `Regenerated — ${res.removed} old idea${res.removed === 1 ? '' : 's'} replaced, ${res.kept_live} already-posted one${res.kept_live === 1 ? '' : 's'} left alone`
+            : `Regenerated — ${res.removed} old idea${res.removed === 1 ? '' : 's'} replaced with ${res.count} new`,
+        )
+      } else {
+        showToast(
+          res.already_ran_today
+            ? `Already wrote ${res.count} idea${res.count === 1 ? '' : 's'} for today`
+            : `Wrote ${res.count} new idea${res.count === 1 ? '' : 's'} for today`,
+        )
+      }
       refreshReview()
       refreshAuto()
     } catch (e) {
       showToast(`Could not generate — ${e.message}`)
     } finally {
       setRunningId(null)
+      setConfirmRegen(null)
     }
   }
 
@@ -212,16 +222,28 @@ export default function AutoPage() {
                       )
                     })()}
 
-                    <div className="sm:col-span-2 flex items-center">
-                      <button
-                        type="button"
-                        disabled={running}
-                        onClick={() => runNow(a)}
-                        className="px-4 py-2.5 rounded-xl gradient-brand text-white text-[13px] font-bold hover:shadow-glow disabled:opacity-60 transition-all duration-150 flex items-center gap-2"
-                      >
-                        {running && <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />}
-                        {running ? 'Writing…' : "Generate today's ideas now"}
-                      </button>
+                    <div className="sm:col-span-2 flex items-center gap-2">
+                      {when(a.last_run_on) === 'today' ? (
+                        <button
+                          type="button"
+                          disabled={running}
+                          onClick={() => setConfirmRegen(a)}
+                          className="px-4 py-2.5 rounded-xl border-2 border-brand text-brand text-[13px] font-bold hover:bg-brand/5 disabled:opacity-60 transition-all duration-150 flex items-center gap-2"
+                        >
+                          {running && <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand/40 border-t-brand" />}
+                          {running ? 'Regenerating…' : "Regenerate today's ideas"}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={running}
+                          onClick={() => runNow(a)}
+                          className="px-4 py-2.5 rounded-xl gradient-brand text-white text-[13px] font-bold hover:shadow-glow disabled:opacity-60 transition-all duration-150 flex items-center gap-2"
+                        >
+                          {running && <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />}
+                          {running ? 'Writing…' : "Generate today's ideas now"}
+                        </button>
+                      )}
                     </div>
 
                     <div className="sm:col-span-3 bg-brand/5 border border-brand/10 rounded-xl px-3.5 py-2.5 text-[13px] text-ink-600 leading-relaxed">
@@ -251,6 +273,46 @@ export default function AutoPage() {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {confirmRegen && (
+        <div
+          className="fixed inset-0 z-50 bg-ink-950/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fadein"
+          onClick={() => !runningId && setConfirmRegen(null)}
+        >
+          <div
+            className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-dock animate-fadein"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-[17px] font-display text-ink-900 tracking-tight">
+              Regenerate today’s ideas?
+            </h3>
+            <p className="mt-2 text-[13.5px] text-ink-500 leading-relaxed">
+              Today’s batch for <b className="text-ink-800">{confirmRegen.brand_name}</b> will
+              be replaced with a fresh one. Anything from it already
+              <b> posted for real</b> is left alone — only ideas still waiting, approved, or
+              queued (not yet sent) get discarded. This can’t be undone.
+            </p>
+            <div className="mt-6 flex gap-2 justify-end">
+              <button
+                type="button"
+                disabled={!!runningId}
+                onClick={() => setConfirmRegen(null)}
+                className="px-4 py-2.5 rounded-xl border border-ink-200 text-ink-600 text-[13px] font-bold hover:bg-ink-50 disabled:opacity-50 transition-all duration-150"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!!runningId}
+                onClick={() => runNow(confirmRegen, true)}
+                className="px-4 py-2.5 rounded-xl bg-red-600 text-white text-[13px] font-bold hover:bg-red-700 disabled:opacity-50 transition-all duration-150"
+              >
+                {runningId ? 'Regenerating…' : 'Regenerate'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

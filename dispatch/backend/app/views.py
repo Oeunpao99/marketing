@@ -272,16 +272,33 @@ def auto_view(db: Session = Depends(get_db)):
 
 
 @router.post("/auto/{automation_id}/run-now")
-def auto_run_now(automation_id: int, db: Session = Depends(get_db)):
+def auto_run_now(automation_id: int, force: bool = False, db: Session = Depends(get_db)):
     """Write today's batch of ideas for one brand right now, ignoring its
     "write at" time (still guarded by ``last_run_on`` — running twice on the
-    same day just returns the drafts already written today)."""
+    same day just returns the drafts already written today, unless
+    ``force=true``, which discards today's batch and writes a fresh one —
+    see app/content_scheduler.py's ``force_regenerate``)."""
     from app.content_ai import ContentAIError
-    from app.content_scheduler import _today, run_automation
+    from app.content_scheduler import _today, force_regenerate, run_automation
 
     automation = db.get(Automation, automation_id)
     if automation is None:
         raise HTTPException(404, "Automation not found.")
+
+    if force:
+        try:
+            result = force_regenerate(db, automation_id)
+        except ContentAIError as exc:
+            raise HTTPException(503, str(exc)) from exc
+        drafts = result["drafts"]
+        return {
+            "already_ran_today": False,
+            "regenerated": True,
+            "removed": result["removed"],
+            "kept_live": result["kept_live"],
+            "count": len(drafts),
+            "draft_ids": [d.id for d in drafts],
+        }
 
     try:
         drafts = run_automation(db, automation_id)
