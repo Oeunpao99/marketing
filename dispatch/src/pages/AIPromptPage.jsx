@@ -83,7 +83,7 @@ function looksLikeQuestion(raw) {
 }
 
 const fmtTok = (n) => (n || 0).toLocaleString()
-const IMG_ETA = 27
+const IMG_ETA = 30
 const VID_ETA = 150
 const isImageUrl = (url) => /\.(png|jpe?g|webp|gif)$/i.test(url || '')
 
@@ -327,11 +327,23 @@ export default function AIPromptPage() {
   const patchTurn = (id, patch) => setTurns((list) => list.map((t) => (t.id === id ? { ...t, ...patch } : t)))
   const addTokens = (n) => n && setSessionTokens((t) => t + n)
 
-  // Poll running image/video jobs (they render on the server — app/video.py).
+  // Latest turns, read by the poll loop so it doesn't have to restart on every change.
+  const turnsRef = useRef(turns)
   useEffect(() => {
-    const running = turns.filter((t) => t.status === 'working' && t.kind !== 'ask' && t.jobId)
-    if (!running.length) return
-    const id = setTimeout(async () => {
+    turnsRef.current = turns
+  })
+
+  // Poll running image/video jobs (they render on the server — app/video.py).
+  // This must keep checking until every job is done: a one-shot timeout armed
+  // on `turns` change dies after its first response (a still-running job makes
+  // no state change, so nothing re-arms it and the finished image is never
+  // fetched until you leave the page and come back).
+  useEffect(() => {
+    if (!working) return
+    let stopped = false
+    let timer
+    async function poll() {
+      const running = turnsRef.current.filter((t) => t.status === 'working' && t.kind !== 'ask' && t.jobId)
       for (const t of running) {
         try {
           const res = await api.get(`/ai/video/${t.jobId}`)
@@ -343,15 +355,27 @@ export default function AIPromptPage() {
           } else if (res.status === 'failed') {
             untrackJob(t.jobId)
             patchTurn(t.id, { status: 'failed', error: res.error || 'Render failed.' })
+          } else if (t.kind === 'image') {
+            const queuedAhead = res.queued_ahead ?? 0
+            const renderedAt = res.rendered_at ?? null
+            const cur = turnsRef.current.find((x) => x.id === t.id)
+            if (cur && (cur.jobStatus !== res.status || cur.queuedAhead !== queuedAhead || cur.renderedAt !== renderedAt)) {
+              patchTurn(t.id, { jobStatus: res.status, queuedAhead, renderedAt })
+            }
           }
         } catch {
           /* transient — next poll */
         }
       }
-    }, 2500)
-    return () => clearTimeout(id)
+      if (!stopped) timer = setTimeout(poll, 2500)
+    }
+    timer = setTimeout(poll, 2500)
+    return () => {
+      stopped = true
+      clearTimeout(timer)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [turns])
+  }, [working])
 
   const run = async (turn) => {
     patchTurn(turn.id, { status: 'working', error: '', video: null, startedAt: Date.now() })
@@ -1204,14 +1228,29 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary }) {
   const [copied, setCopied] = useState(false)
   const long = t.prompt.length > 320
   const elapsed = t.startedAt ? (Date.now() - t.startedAt) / 1000 : 0
+  const renderElapsed = t.renderedAt ? (Date.now() - new Date(t.renderedAt).getTime()) / 1000 : null
+  // Images get no % back from the provider, so the number is an ETA-anchored
+  // estimate (labeled "~… est"); the queue position shown while waiting is exact.
+  const queued = t.kind === 'image' && t.jobStatus === 'queued'
+  const rendering = t.kind === 'image' && t.jobStatus === 'running'
+  const estimate =
+    t.kind === 'image' && !queued
+      ? Math.min(94, Math.round(100 * (1 - Math.exp(-(renderElapsed ?? elapsed) / (IMG_ETA / 2.3)))))
+      : null
   const pct =
     t.kind === 'image'
-      ? Math.min(92, 100 * (1 - Math.exp(-elapsed / (IMG_ETA / 2.3))))
+      ? queued
+        ? 6
+        : (estimate ?? 0)
       : Math.min(95, (elapsed / VID_ETA) * 100)
   const stage =
-    t.kind === 'image'
-      ? elapsed < 3 ? 'Sending your prompt…' : elapsed < 12 ? 'Composing the image…' : elapsed < 22 ? 'Adding detail and lighting…' : elapsed < 90 ? 'Almost there…' : 'Taking longer than usual — you can leave, we’ll notify you'
-      : t.jobId ? 'Rendering your video… usually 1–3 minutes' : 'Starting the render…'
+    queued
+      ? `In queue — ${t.queuedAhead || 0} image${t.queuedAhead === 1 ? '' : 's'} ahead of yours`
+      : t.kind === 'image'
+        ? (renderElapsed ?? 0) >= 90
+          ? "Still rendering — you can leave, we'll notify you"
+          : 'Rendering the image…'
+        : t.jobId ? 'Rendering your video… usually 1–3 minutes' : 'Starting the render…'
   const shape =
     t.ratio === '16:9' ? 'aspect-video w-full max-w-[560px]' : t.ratio === '1:1' ? 'aspect-square w-full max-w-[400px]' : 'aspect-[9/16] w-full max-w-[280px]'
   const url = t.video ? `${mediaBase}${t.video.url}` : null
@@ -1262,8 +1301,16 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary }) {
               <div className="h-full rounded-full bg-brand transition-[width] duration-300 ease-linear" style={{ width: `${pct}%` }} />
             </div>
             <div className="mt-1.5 flex justify-between text-[11px] text-ink-500">
-              <span className="tabular-nums font-semibold text-ink-700">{Math.round(pct)}%</span>
-              <span className="tabular-nums text-ink-400">{Math.round(elapsed)}s</span>
+              {t.kind === 'image' ? (
+                <span className="tabular-nums font-semibold text-ink-700">
+                  {queued ? `In queue · ${t.queuedAhead || 0} ahead` : `~${Math.round(pct)}% est`}
+                </span>
+              ) : (
+                <span className="tabular-nums font-semibold text-ink-700">{Math.round(pct)}%</span>
+              )}
+              <span className="tabular-nums text-ink-400">
+                {Math.round(rendering && renderElapsed != null ? renderElapsed : elapsed)}s
+              </span>
             </div>
           </div>
         )}

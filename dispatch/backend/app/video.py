@@ -21,12 +21,13 @@ import base64
 import logging
 import threading
 import time
+from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -269,6 +270,23 @@ def fetch_video(provider: str, ref: str) -> bytes:
 _IMG_SIZES = {"1:1": "1024x1024", "9:16": "1024x1536", "16:9": "1536x1024"}
 _IMG_DIMS = {"1:1": (1024, 1024), "9:16": (1024, 1536), "16:9": (1536, 1024)}
 
+# App-wide cap on how many provider image calls run at once. Every render —
+# the agent's "Generate image" button and the auto-media batches — does its
+# provider call inside image_slot(), so a burst of requests (say 500 users at
+# once) queues behind the cap instead of hammering the provider and turning
+# into a wall of 429s + retry. A job's status is "queued" while it waits.
+_IMAGE_SLOTS = threading.BoundedSemaphore(get_settings().image_max_concurrency)
+
+
+@contextmanager
+def image_slot():
+    """Hold one of the global image-render slots for the duration of the `with`."""
+    _IMAGE_SLOTS.acquire()
+    try:
+        yield
+    finally:
+        _IMAGE_SLOTS.release()
+
 
 def _post_with_retry(url: str, headers: dict, tries: int = 3, **kw) -> httpx.Response:
     """POST that waits out a 429 (low-tier image quotas rate-limit hard).
@@ -406,10 +424,16 @@ class VideoJobOut(BaseModel):
     input_tokens: int = 0
     output_tokens: int = 0
     total_tokens: int = 0
+    # Real progress signals while a job renders (images don't get a % from the
+    # provider, so the page shows these instead of guessing):
+    #   queued_ahead — how many image jobs are queued in front of this one.
+    #   rendered_at  — ISO time the provider call actually started (running only).
+    queued_ahead: int = 0
+    rendered_at: str | None = None
     video: VideoRef | None = None
 
 
-def _out(job: GenerationJob, video: Video | None) -> VideoJobOut:
+def _out(job: GenerationJob, video: Video | None, queued_ahead: int = 0) -> VideoJobOut:
     return VideoJobOut(
         id=job.id,
         status=job.status,
@@ -420,6 +444,12 @@ def _out(job: GenerationJob, video: Video | None) -> VideoJobOut:
         input_tokens=job.input_tokens or 0,
         output_tokens=job.output_tokens or 0,
         total_tokens=job.total_tokens or 0,
+        queued_ahead=queued_ahead,
+        rendered_at=(
+            job.updated_at.isoformat()
+            if job.kind == "image" and job.status == "running"
+            else None
+        ),
         video=VideoRef(id=video.id, url=video.url, filename=video.filename) if video else None,
     )
 
@@ -555,7 +585,21 @@ def get_video(job_id: int, db: Session = Depends(get_db), ws: int = Depends(curr
         advance_video(db, job.id)
         db.expire_all()
         job = db.get(GenerationJob, job_id)
-    return _out(job, db.get(Video, job.video_id) if job.video_id else None)
+    queued_ahead = 0
+    if job.kind == "image" and job.status == "queued":
+        queued_ahead = (
+            db.scalar(
+                select(func.count())
+                .select_from(GenerationJob)
+                .where(
+                    GenerationJob.kind == "image",
+                    GenerationJob.status == "queued",
+                    GenerationJob.id < job_id,
+                )
+            )
+            or 0
+        )
+    return _out(job, db.get(Video, job.video_id) if job.video_id else None, queued_ahead)
 
 
 class ImageIn(BaseModel):
@@ -598,7 +642,7 @@ def create_image(
         aspect_ratio=ratio,
         seconds=0,
         provider=s.image_provider,
-        status="running",
+        status="queued",
     )
     db.add(job)
     db.commit()
@@ -614,7 +658,10 @@ def _render_image(job_id: int, reference: bytes | None) -> None:
         if job is None:
             return
         try:
-            provider, blob, usage = generate_image(job.prompt, job.aspect_ratio, reference)
+            with image_slot():
+                job.status = "running"  # commit sets updated_at = render start
+                db.commit()
+                provider, blob, usage = generate_image(job.prompt, job.aspect_ratio, reference)
         except VideoGenError as exc:
             job.status, job.error = "failed", str(exc)
             db.commit()
@@ -656,7 +703,10 @@ def _render_image(job_id: int, reference: bytes | None) -> None:
 # Finishes videos nobody is watching, and cleans up jobs a server restart
 # orphaned (an image thread dies with the process).
 _WORKER_EVERY = 15
-_IMAGE_STALE = timedelta(minutes=8)  # a normal image takes 20–60s; worst retry path < 7 min
+# A render that has actually been in flight this long is hung. Measured from
+# updated_at (set when the slot is acquired and the provider call starts), so a
+# job waiting in the image_slot() queue is never failed just for being slow.
+_IMAGE_STALE = timedelta(minutes=8)
 _VIDEO_STALE = timedelta(hours=3)
 
 
@@ -668,16 +718,20 @@ def _tick() -> None:
             select(GenerationJob).where(GenerationJob.status.in_(("queued", "running")))
         ).all()
         for job in open_jobs:
+            if job.kind == "image":
+                if job.status == "running" and now - job.updated_at > _IMAGE_STALE:
+                    job.status = "failed"
+                    job.error = "The image service never finished this render — try again."
+                    db.commit()
+                    _ready_push(job)
+                continue
             age = now - job.created_at
-            if job.kind == "image" and age > _IMAGE_STALE:
-                job.status, job.error = "failed", "Interrupted (the server restarted) — try again."
+            if age > _VIDEO_STALE:
+                job.status = "failed"
+                job.error = "The video service never finished this render — try again."
                 db.commit()
                 _ready_push(job)
-            elif job.kind == "video" and age > _VIDEO_STALE:
-                job.status, job.error = "failed", "The video service never finished this render — try again."
-                db.commit()
-                _ready_push(job)
-            elif job.kind == "video":
+            else:
                 try:
                     advance_video(db, job.id)
                 except Exception:  # noqa: BLE001 - one bad job mustn't stop the rest

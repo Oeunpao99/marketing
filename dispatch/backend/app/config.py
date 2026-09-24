@@ -69,6 +69,9 @@ class Settings(BaseSettings):
     azure_openai_image_api_key: str = ""
     azure_openai_image_deployment: str = "gpt-image-1"
     gemini_image_model: str = "imagen-3.0-generate-002"
+    # App-wide cap on simultaneous provider image calls. Requests beyond it
+    # wait (job stays "queued") instead of hitting the provider at once.
+    image_max_concurrency: int = 6
 
     # TikTok Content Posting API — "Connect" on the Channels page (app/tiktok.py).
     # Register an app at https://developers.tiktok.com, add it, and request the

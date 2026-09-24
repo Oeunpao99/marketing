@@ -15,7 +15,9 @@ import asyncio
 import logging
 import threading
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, date, datetime, time, timedelta, timezone
+from typing import NamedTuple
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -29,6 +31,11 @@ log = logging.getLogger("app.content_scheduler")
 
 # Same fixed-offset clock every schedule-facing view in this app uses.
 PHNOM_PENH = timezone(timedelta(hours=7))
+
+# Auto-media images render up to this many at a time — each is a 20-60s+
+# provider call, so serializing the whole batch is the dominant cost of a run;
+# a wider cap than this risks hitting the image quota (HTTP 429) harder.
+_MAX_PARALLEL_MEDIA = 3
 
 
 # report(percent, step label, percent expected by the next report) — lets a
@@ -62,7 +69,30 @@ def _next_slot(platform_slug: str, now: datetime, override: time | None = None) 
     return candidate
 
 
-def _generate_media_for(brand: Brand, idea: dict, products: list[Product]) -> int | None:
+class _AutoBrand(NamedTuple):
+    id: int
+    workspace_id: int
+    name: str
+    lang: str
+    slug: str
+
+
+class _AutoProduct(NamedTuple):
+    name: str
+    description: str | None
+
+
+def _brand_snapshot(brand: Brand) -> _AutoBrand:
+    return _AutoBrand(brand.id, brand.workspace_id, brand.name, brand.lang, brand.slug)
+
+
+def _product_snapshot(product: Product) -> _AutoProduct:
+    return _AutoProduct(product.name, product.description)
+
+
+def _generate_media_for(
+    brand: Brand | _AutoBrand, idea: dict, products: list[Product | _AutoProduct]
+) -> int | None:
     """Best-effort: render an image for this idea and store it as a Video
     row, returning its id — or None if generation fails, so the caller falls
     back to a plain text draft rather than losing the idea entirely.
@@ -79,7 +109,8 @@ def _generate_media_for(brand: Brand, idea: dict, products: list[Product]) -> in
 
     prompt = image_prompt_for_idea(brand.name, brand.lang, idea, products)
     try:
-        provider, blob, usage = video_gen.generate_image(prompt, "9:16")
+        with video_gen.image_slot():
+            provider, blob, usage = video_gen.generate_image(prompt, "9:16")
     except video_gen.VideoGenError as exc:
         log.warning("auto-media image generation failed for brand %s: %s", brand.id, exc)
         return None
@@ -228,15 +259,32 @@ def _write_batch(
     db.add_all(drafts)
     db.flush()  # assign ids before scheduling can reference them
 
-    for n, (draft, idea) in enumerate(zip(drafts, ideas)):
+    media_ids: list[int | None] = [None] * len(ideas)
+    if automation.auto_media:
+        span = 95 - check_end
+        brand_args = _brand_snapshot(brand)
+        product_args = [_product_snapshot(p) for p in products]
+        pool = ThreadPoolExecutor(max_workers=_MAX_PARALLEL_MEDIA, thread_name_prefix="auto-media")
+        try:
+            futures = {
+                pool.submit(_generate_media_for, brand_args, idea, product_args): n
+                for n, idea in enumerate(ideas)
+            }
+            done = 0
+            for fut in as_completed(futures):
+                media_ids[futures[fut]] = fut.result()
+                done += 1
+                report(
+                    check_end + span * done // len(ideas),
+                    f"Making image {done} of {len(ideas)}…",
+                    95,
+                )
+        finally:
+            pool.shutdown(wait=False, cancel_futures=True)
+
+    for n, draft in enumerate(drafts):
         if automation.auto_media:
-            span = 95 - check_end
-            report(
-                check_end + span * n // len(ideas),
-                f"Making image {n + 1} of {len(ideas)}…",
-                check_end + span * (n + 1) // len(ideas),
-            )
-            draft.video_id = _generate_media_for(brand, idea, list(products))
+            draft.video_id = media_ids[n]
 
         if automation.require_approval or draft.fact_issues:
             draft.status = "waiting"
