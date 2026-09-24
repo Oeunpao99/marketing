@@ -138,6 +138,8 @@ export default function AIPromptPage() {
   // already has a prompt and wants the image/video straight away.
   const [mode, setMode] = useState('guided')
   const [quickText, setQuickText] = useState('')
+  const [improving, setImproving] = useState(false)
+  const [recent, setRecent] = useState([]) // finished quick generations this session
   const [moreOpen, setMoreOpen] = useState(false)
   const [feedback, setFeedback] = useState('')
   const [refining, setRefining] = useState(false)
@@ -394,7 +396,6 @@ export default function AIPromptPage() {
   const switchMode = (next) => {
     if (next === mode) return
     setMode(next)
-    setBriefOpen(true)
     if (next === 'direct' && !quickText && prompt) setQuickText(prompt)
   }
 
@@ -414,6 +415,7 @@ export default function AIPromptPage() {
       showToast('Write a little more — at least 10 characters')
       return
     }
+    // Also becomes the guided flow's prompt, so switching tabs keeps it.
     setPrompt(text)
     setHistory([{ text, note: 'your prompt' }])
     setAiUsed(false)
@@ -422,6 +424,49 @@ export default function AIPromptPage() {
     if (isImage) generateImage(text)
     else generateVideo(text)
   }
+
+  // Optional one-click polish of the person's own prompt (same refine call
+  // the guided flow uses) — they see the rewrite before anything renders.
+  const improveQuick = async () => {
+    const text = quickText.trim()
+    if (improving || text.length < 10) return
+    setImproving(true)
+    try {
+      const res = await api.post('/ai/prompt', {
+        type,
+        aspect_ratio: ratio,
+        prior_prompt: text,
+        feedback:
+          'Make this a stronger, more specific prompt: add concrete detail on subject, setting, lighting, ' +
+          'camera and style. Keep the same subject and intent. Keep it one compact paragraph.',
+      })
+      setQuickText(res.prompt)
+      addTokens(res.total_tokens)
+      showToast('Prompt improved — review it, then generate')
+    } catch (e) {
+      showToast(`Could not improve (${e.message})`)
+    } finally {
+      setImproving(false)
+    }
+  }
+
+  const attachReference = (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    takeReference({ file, name: file.name, url: URL.createObjectURL(file), kind: file.type.startsWith('image/') ? 'image' : 'other' })
+  }
+
+  // Keep a strip of this session's quick results to flip back to.
+  useEffect(() => {
+    if (mode !== 'direct' || job?.status !== 'succeeded' || !job?.video) return
+    setRecent((list) =>
+      list.some((x) => x.job.id === job.id)
+        ? list
+        : [{ job, kind: isImage ? 'image' : 'video', prompt: quickText.trim() }, ...list].slice(0, 12),
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job?.id, job?.status])
 
   return (
     <div className="w-full px-5 lg:px-10 py-8 lg:py-10 animate-fadein">
@@ -436,25 +481,6 @@ export default function AIPromptPage() {
           </p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="inline-flex rounded-xl border border-ink-200 bg-white p-0.5" role="tablist">
-            {[
-              { id: 'guided', label: 'Guided' },
-              { id: 'direct', label: 'I have a prompt' },
-            ].map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                role="tab"
-                aria-selected={mode === m.id}
-                onClick={() => switchMode(m.id)}
-                className={`px-3.5 py-1.5 rounded-[10px] text-[12px] font-semibold transition-colors duration-150 ${
-                  mode === m.id ? 'bg-brand-soft text-brand' : 'text-ink-600 hover:bg-ink-50'
-                }`}
-              >
-                {m.label}
-              </button>
-            ))}
-          </div>
           {sessionTokens > 0 && (
             <span
               className="inline-flex items-center gap-1.5 rounded-full border border-ink-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-ink-600"
@@ -464,56 +490,100 @@ export default function AIPromptPage() {
               {fmtTok(sessionTokens)} tokens this session
             </span>
           )}
-          <StepIndicator current={step} />
+          {mode === 'guided' && <StepIndicator current={step} />}
         </div>
       </div>
 
+      <div className="mb-5 grid grid-cols-2 gap-2 max-w-[560px]" role="tablist">
+        {[
+          { id: 'guided', title: 'Guided', sub: 'Describe it — the AI writes the prompt', icon: icons.spark },
+          { id: 'direct', title: 'Quick generate', sub: 'Already have a prompt? Go straight to it', icon: '⚡' },
+        ].map((m) => (
+          <button
+            key={m.id}
+            type="button"
+            role="tab"
+            aria-selected={mode === m.id}
+            onClick={() => switchMode(m.id)}
+            className={`flex items-start gap-2.5 rounded-xl border px-3.5 py-2.5 text-left transition-all duration-150 ${
+              mode === m.id
+                ? 'border-brand bg-brand-soft/60 ring-2 ring-brand/15'
+                : 'border-ink-200 bg-white hover:border-ink-300'
+            }`}
+          >
+            <span className={`mt-0.5 flex-none text-[13px] ${mode === m.id ? 'text-brand' : 'text-ink-400'}`}>{m.icon}</span>
+            <span className="min-w-0">
+              <span className={`block text-[12.5px] font-semibold ${mode === m.id ? 'text-brand' : 'text-ink-800'}`}>
+                {m.title}
+              </span>
+              <span className="block text-[11px] text-ink-500 leading-snug">{m.sub}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+
       <div className="space-y-5">
-        {/* ── QUICK GENERATE — already have a prompt ─────────────── */}
-        {briefOpen && mode === 'direct' ? (
-          <section className="bg-white rounded-2xl border border-ink-200/60 shadow-[0_1px_2px_rgba(16,24,40,0.04)] overflow-hidden animate-fadein">
-            <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-ink-100">
-              <div>
-                <h2 className="text-[15px] font-semibold text-ink-900">Quick generate</h2>
-                <p className="text-[12px] text-ink-500">Your prompt goes straight to the {isImage ? 'image' : 'video'} model, as written.</p>
-              </div>
-              {prompt && (
-                <button
-                  type="button"
-                  onClick={() => setBriefOpen(false)}
-                  className="text-[12px] font-medium text-ink-500 hover:text-ink-800"
-                >
-                  Back to result
-                </button>
-              )}
-            </div>
-            <div className="p-6 space-y-5">
-              <div className="grid gap-5 md:grid-cols-2">
-                <div>
-                  <Label>Brand</Label>
-                  <div className="flex gap-2 flex-wrap">
-                    {brands.map((b) => (
-                      <button
-                        key={b.slug}
-                        type="button"
-                        onClick={() => setBrand(b.slug)}
-                        className={`px-3 py-1.5 rounded-xl border text-[12px] font-semibold flex items-center gap-2 transition-colors duration-150 ${pick(brand === b.slug)}`}
-                      >
-                        <span className="w-2 h-2 rounded-full flex-none" style={{ background: colorForBrand(b.slug) }} />
-                        {b.name}
-                      </button>
-                    ))}
-                  </div>
+        {/* ── QUICK GENERATE — prompt in, image/video out ────────── */}
+        {mode === 'direct' ? (() => {
+          const qBusy = isImage ? imgBusy : rendering
+          const canGo = quickText.trim().length >= 10 && !qBusy && !refUploading && !improving
+          const shape =
+            ratio === '16:9' ? 'aspect-video w-full' : ratio === '1:1' ? 'aspect-square w-full max-w-[460px]' : 'aspect-[9/16] w-full max-w-[330px]'
+          const vidPct = Math.min(95, (elapsed / 150) * 100)
+          const chip = (on) =>
+            `h-8 px-2.5 rounded-lg border text-[11.5px] font-semibold inline-flex items-center gap-1.5 transition-colors duration-150 disabled:opacity-50 ${
+              on ? 'border-brand/40 bg-brand-soft text-brand' : 'border-ink-200 bg-white text-ink-600 hover:border-ink-300'
+            }`
+          return (
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] items-start animate-fadein">
+              {/* composer */}
+              <section className="xl:sticky xl:top-5 bg-white rounded-2xl border border-ink-200/70 shadow-card focus-within:border-brand/50 focus-within:ring-4 focus-within:ring-brand/10 transition-shadow">
+                <div className="px-5 pt-4">
+                  <AutoTextarea
+                    autoFocus
+                    minRows={6}
+                    maxRows={18}
+                    value={quickText}
+                    disabled={improving}
+                    onChange={(e) => setQuickText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && canGo) quickGenerate()
+                    }}
+                    placeholder={
+                      isImage
+                        ? 'Paste or write your image prompt…\n\ne.g. A glossy iced latte on a wooden café table in Phnom Penh, soft morning sunlight, shallow depth of field, product photography'
+                        : 'Paste or write your video prompt…\n\ne.g. Slow push-in on a barista pouring latte art, warm café light, handheld feel'
+                    }
+                    className="w-full border-0 bg-transparent p-0 text-[13.5px] leading-relaxed text-ink-900 placeholder:text-ink-400 focus:outline-none focus:ring-0 disabled:opacity-60"
+                  />
                 </div>
-                <div>
-                  <Label>Make a</Label>
-                  <div className="inline-flex rounded-xl border border-ink-200 p-0.5">
+
+                {isImage && (refImg || refUploading) && (
+                  <div className="mx-5 mb-2 inline-flex items-center gap-2 rounded-lg border border-ink-200 bg-ink-50 py-1 pl-1 pr-2 text-[11px] text-ink-600">
+                    {refImg ? (
+                      <img src={refImg.previewUrl} alt="" className="w-7 h-7 rounded object-cover" />
+                    ) : (
+                      <span className="w-7 h-7 rounded skeleton" />
+                    )}
+                    <span className="max-w-[180px] truncate">{refUploading ? 'Uploading reference…' : `Reference · ${refImg.name}`}</span>
+                    {refImg && (
+                      <button type="button" onClick={() => setRefImg(null)} className="text-ink-400 hover:text-ink-800" title="Remove reference">
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* options toolbar */}
+                <div className="flex flex-wrap items-center gap-1.5 border-t border-ink-100 px-3 py-2.5">
+                  <div className="inline-flex h-8 rounded-lg border border-ink-200 p-0.5">
                     {TEMPLATE_TYPES.map((t) => (
                       <button
                         key={t.id}
                         type="button"
+                        disabled={qBusy}
                         onClick={() => quickType(t.id)}
-                        className={`px-4 py-1.5 rounded-[10px] text-[12.5px] font-semibold flex items-center gap-2 transition-colors duration-150 ${
+                        className={`px-2.5 rounded-md text-[11.5px] font-semibold inline-flex items-center gap-1.5 transition-colors ${
                           type === t.id ? 'bg-brand-soft text-brand' : 'text-ink-600 hover:bg-ink-50'
                         }`}
                       >
@@ -522,102 +592,233 @@ export default function AIPromptPage() {
                       </button>
                     ))}
                   </div>
-                </div>
-              </div>
 
-              <div>
-                <Label>Your prompt</Label>
-                <AutoTextarea
-                  autoFocus
-                  minRows={4}
-                  maxRows={16}
-                  value={quickText}
-                  onChange={(e) => setQuickText(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) quickGenerate()
-                  }}
-                  placeholder={
-                    isImage
-                      ? 'e.g. A glossy iced latte on a wooden café table in Phnom Penh, morning sunlight, shallow depth of field, product photography'
-                      : 'e.g. Slow push-in on a barista pouring latte art, warm café light, handheld feel, 9:16 vertical'
-                  }
-                  className="w-full bg-white border border-ink-200 rounded-xl px-3.5 py-3 text-[13px] leading-relaxed focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/15"
-                />
-              </div>
-
-              <div className="grid gap-5 md:grid-cols-2">
-                <div>
-                  <Label>Size</Label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {RATIOS.map((r) => (
-                      <button
-                        key={r.id}
-                        type="button"
-                        onClick={() => setRatio(r.id)}
-                        className={`rounded-xl border px-2.5 py-2 text-left transition-colors duration-150 ${pick(ratio === r.id)}`}
-                      >
-                        <div className="text-[12px] font-bold">{r.name}</div>
-                        <div className="text-[10px] text-ink-400 leading-tight mt-0.5">{r.sub}</div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                {isImage ? (
-                  <div>
-                    <Label>Reference image (optional)</Label>
-                    {refImg ? (
-                      <div className="flex items-center gap-3 bg-white border border-ink-200 rounded-xl p-2.5">
-                        <img src={refImg.previewUrl} alt="" className="w-12 h-12 rounded-lg object-cover flex-none bg-ink-100" />
-                        <div className="flex-1 min-w-0 text-[11.5px] font-semibold text-ink-800 truncate">{refImg.name}</div>
-                        <button
-                          type="button"
-                          onClick={() => setRefImg(null)}
-                          className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-ink-500 hover:bg-ink-100 hover:text-ink-800"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    ) : (
-                      <DropZone
-                        compact
-                        accept="image/*"
-                        onFile={takeReference}
-                        title={refUploading ? 'Uploading…' : 'Drop an image to build on'}
-                        hint="Optional — the prompt says what to change"
+                  {RATIOS.map((r) => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      disabled={qBusy}
+                      onClick={() => setRatio(r.id)}
+                      title={r.sub}
+                      className={chip(ratio === r.id)}
+                    >
+                      <span
+                        className="inline-block rounded-[2px] border-[1.5px] border-current"
+                        style={{
+                          width: r.id === '16:9' ? 14 : r.id === '1:1' ? 10 : 8,
+                          height: r.id === '16:9' ? 8 : r.id === '1:1' ? 10 : 13,
+                        }}
                       />
-                    )}
-                  </div>
-                ) : (
-                  <div>
-                    <Label>Length — {seconds}s</Label>
-                    <input
-                      type="range"
-                      min={3}
-                      max={20}
+                      {r.id}
+                    </button>
+                  ))}
+
+                  {!isImage && (
+                    <select
                       value={seconds}
+                      disabled={qBusy}
                       onChange={(e) => setSeconds(Number(e.target.value))}
-                      className="w-full accent-brand mt-2"
-                    />
+                      className="h-8 rounded-lg border border-ink-200 bg-white px-2 text-[11.5px] font-semibold text-ink-600 focus:outline-none focus:border-brand"
+                      title="Video length"
+                    >
+                      {[4, 5, 8, 10, 12, 15, 20].map((n) => (
+                        <option key={n} value={n}>
+                          {n}s
+                        </option>
+                      ))}
+                    </select>
+                  )}
+
+                  {isImage && (
+                    <label className={`${chip(!!refImg)} cursor-pointer`} title="Build on an image you already have">
+                      <input type="file" accept="image/*" className="hidden" onChange={attachReference} disabled={qBusy} />
+                      📎 Reference
+                    </label>
+                  )}
+
+                  <select
+                    value={brand}
+                    onChange={(e) => setBrand(e.target.value)}
+                    className="h-8 max-w-[150px] rounded-lg border border-ink-200 bg-white px-2 text-[11.5px] font-semibold text-ink-600 focus:outline-none focus:border-brand"
+                    title="Saved to this brand's library"
+                  >
+                    {brands.map((b) => (
+                      <option key={b.slug} value={b.slug}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center justify-between gap-2 border-t border-ink-100 px-3 py-2.5">
+                  <button
+                    type="button"
+                    onClick={improveQuick}
+                    disabled={improving || qBusy || quickText.trim().length < 10}
+                    className="h-9 px-3 rounded-lg text-[12px] font-semibold text-ink-600 hover:bg-ink-50 hover:text-brand inline-flex items-center gap-1.5 disabled:opacity-40"
+                    title="Let the AI add detail to your prompt first (optional)"
+                  >
+                    {improving ? (
+                      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand/30 border-t-brand" />
+                    ) : (
+                      <span className="text-brand">{icons.spark}</span>
+                    )}
+                    {improving ? 'Improving…' : 'Improve prompt'}
+                  </button>
+                  <div className="flex items-center gap-3">
+                    <span className="hidden sm:inline text-[10.5px] text-ink-400">Ctrl + Enter</span>
+                    <button
+                      type="button"
+                      onClick={quickGenerate}
+                      disabled={!canGo}
+                      className="h-10 px-5 rounded-xl gradient-brand text-white text-[13px] font-bold inline-flex items-center gap-2 hover:shadow-glow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                    >
+                      {qBusy ? (
+                        <>
+                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                          {isImage ? 'Generating…' : 'Rendering…'}
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-white">{icons.spark}</span>
+                          Generate {isImage ? 'image' : 'video'}
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </section>
+
+              {/* result */}
+              <section className="bg-white rounded-2xl border border-ink-200/70 shadow-card p-5">
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <h2 className="text-[14px] font-semibold text-ink-900">Result</h2>
+                  <div className="flex items-center gap-2">
+                    {job?.status === 'succeeded' && job?.total_tokens > 0 && (
+                      <span className="text-[10.5px] font-mono text-ink-400">{fmtTok(job.total_tokens)} tok</span>
+                    )}
+                    {job?.status === 'succeeded' && <Tag variant="ok">Ready</Tag>}
+                    {job?.status === 'failed' && <Tag variant="stop">Failed</Tag>}
+                  </div>
+                </div>
+
+                <div className="flex flex-col items-center">
+                  {job?.video ? (
+                    <>
+                      {job.video.url && /\.(png|jpe?g|webp|gif)$/i.test(job.video.url) ? (
+                        <img
+                          key={job.video.id}
+                          src={`${mediaBase}${job.video.url}`}
+                          alt=""
+                          className={`block w-full ${previewMax} h-auto rounded-xl ring-1 ring-ink-900/10 bg-ink-50 animate-media-reveal`}
+                        />
+                      ) : (
+                        <video
+                          key={job.video.id}
+                          src={`${mediaBase}${job.video.url}`}
+                          controls
+                          playsInline
+                          className={`block w-full ${previewMax} h-auto rounded-xl bg-ink-900 ring-1 ring-ink-900/10 animate-media-reveal`}
+                        />
+                      )}
+                      <div className="mt-4 flex flex-wrap justify-center gap-2">
+                        <button type="button" onClick={useGeneratedVideo} className="btn-primary">
+                          Use in a post →
+                        </button>
+                        <button type="button" onClick={quickGenerate} disabled={!canGo} className="btn-outline">
+                          Generate again
+                        </button>
+                        <a href={`${mediaBase}${job.video.url}`} download={job.video.filename} className="btn-outline">
+                          Download
+                        </a>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => navigate('/library')}
+                        className="mt-2 text-[11.5px] font-semibold text-ink-400 hover:text-brand"
+                      >
+                        Saved to your Library →
+                      </button>
+                    </>
+                  ) : qBusy ? (
+                    <>
+                      <div className={`${shape} rounded-xl skeleton`} />
+                      <div className="mt-4 w-full max-w-[460px] space-y-1.5">
+                        <div className="h-2 w-full overflow-hidden rounded-full bg-brand/15">
+                          <div
+                            className="h-full rounded-full bg-brand transition-[width] duration-300 ease-linear"
+                            style={{ width: `${isImage ? imgPct : vidPct}%` }}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between text-[11.5px] text-ink-500">
+                          <span>
+                            {isImage ? imgStage : job?.status === 'queued' ? 'Queued at the video service…' : 'Rendering your video…'}
+                          </span>
+                          <span className="font-mono text-ink-400">
+                            {Math.round(elapsed)}s · {Math.round(isImage ? imgPct : vidPct)}%
+                          </span>
+                        </div>
+                        {!isImage && (
+                          <p className="text-[11px] text-ink-400">
+                            Usually 1–3 minutes. You can leave — it lands in your Library either way.
+                          </p>
+                        )}
+                      </div>
+                    </>
+                  ) : videoErr || job?.status === 'failed' ? (
+                    <div className="w-full rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] text-amber-800">
+                      <b>Couldn’t generate.</b> {videoErr || job?.error}
+                    </div>
+                  ) : (
+                    <div className={`${shape} rounded-xl border-2 border-dashed border-ink-200 grid place-items-center text-center px-6`}>
+                      <div>
+                        <div className="mx-auto mb-2 w-10 h-10 rounded-xl grid place-items-center bg-brand-soft text-brand">
+                          {icons[type]}
+                        </div>
+                        <div className="text-[12.5px] font-semibold text-ink-700">
+                          Your {isImage ? 'image' : 'video'} appears here
+                        </div>
+                        <div className="mt-0.5 text-[11px] text-ink-400">Write a prompt and press Generate</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {recent.length > 1 && (
+                  <div className="mt-5 border-t border-ink-100 pt-4">
+                    <div className="mb-2 text-[10.5px] font-bold uppercase tracking-wide text-ink-400">This session</div>
+                    <div className="flex gap-2 overflow-x-auto pb-1">
+                      {recent.map((r) => (
+                        <button
+                          key={r.job.id}
+                          type="button"
+                          onClick={() => {
+                            setJob(r.job)
+                            setVideoErr(null)
+                            if (r.prompt) setQuickText(r.prompt)
+                          }}
+                          title={r.prompt}
+                          className={`w-16 h-16 flex-none overflow-hidden rounded-lg ring-2 transition ${
+                            job?.id === r.job.id ? 'ring-brand' : 'ring-transparent hover:ring-ink-200'
+                          }`}
+                        >
+                          {r.kind === 'image' ? (
+                            <img src={`${mediaBase}${r.job.video.url}`} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <video src={`${mediaBase}${r.job.video.url}`} muted className="w-full h-full object-cover bg-ink-900" />
+                          )}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
-              </div>
-
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-                <span className="text-[11px] text-ink-400">Ctrl + Enter to generate</span>
-                <button
-                  type="button"
-                  onClick={quickGenerate}
-                  disabled={refUploading || quickText.trim().length < 10}
-                  className="px-6 py-3 rounded-2xl gradient-brand text-white text-[13.5px] font-bold flex items-center gap-2 hover:shadow-glow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-                >
-                  <span className="text-white">{icons.spark}</span>
-                  {isImage ? (refImg ? 'Generate from reference' : 'Generate image now') : 'Generate video now'}
-                </button>
-              </div>
+              </section>
             </div>
-          </section>
-        ) : /* ── 1 · BRIEF ─────────────────────────────────────────── */
-        briefOpen ? (
+          )
+        })() : (
+        <>
+        {/* ── 1 · BRIEF ─────────────────────────────────────────── */}
+        {briefOpen ? (
           <div className="animate-fadein">
             <section className="bg-white rounded-2xl border border-ink-200/60 shadow-[0_1px_2px_rgba(16,24,40,0.04)] overflow-hidden">
               <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-ink-100">
@@ -847,31 +1048,21 @@ export default function AIPromptPage() {
               </span>
               <div className="min-w-0">
                 <div className="text-[12.5px] font-bold text-ink-900 flex items-center gap-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wide text-ink-400">
-                    {mode === 'direct' ? 'Quick generate · your own prompt' : 'Step 1 · Brief'}
-                  </span>
+                  <span className="text-[10px] font-bold uppercase tracking-wide text-ink-400">Step 1 · Brief</span>
                 </div>
                 <div className="text-[11.5px] text-ink-500 truncate">
                   <b className="text-ink-800">{brandObj?.name}</b>
                   <span className="text-ink-400"> · </span>
                   {isImage ? 'Image' : 'Video'}
                   <span className="text-ink-400"> · </span>
-                  {mode === 'direct' ? (
-                    ratio
-                  ) : (
-                    <>
-                      {template.name}
-                      <span className="text-ink-400"> · </span>
-                      {styleName}
-                      {topic ? <span className="text-ink-400"> · “{topic}”</span> : null}
-                    </>
-                  )}
+                  {template.name}
+                  <span className="text-ink-400"> · </span>
+                  {styleName}
+                  {topic ? <span className="text-ink-400"> · “{topic}”</span> : null}
                 </div>
               </div>
             </div>
-            <span className="ml-auto flex-none text-[11.5px] font-bold text-brand">
-              {mode === 'direct' ? 'New prompt' : 'Edit brief'}
-            </span>
+            <span className="ml-auto flex-none text-[11.5px] font-bold text-brand">Edit brief</span>
           </button>
         )}
 
@@ -1194,6 +1385,8 @@ export default function AIPromptPage() {
               )}
             </div>
           </details>
+        )}
+        </>
         )}
       </div>
     </div>
