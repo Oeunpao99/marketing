@@ -6,6 +6,7 @@ import AIAssistant from '../ai/AIAssistant'
 import CreateBrandDrawer from './CreateBrandDrawer'
 import { useStore } from '../../store'
 import { useAutoRunWatcher } from '../../lib/autoRuns'
+import { useGenJobWatcher } from '../../lib/genJobs'
 
 const KEY = 'dispatch.sidebarCollapsed'
 
@@ -47,6 +48,7 @@ function useRunFinishedToast() {
 export default function Shell({ children }) {
   const [collapsed, setCollapsed] = useState(readCollapsed)
   useRunFinishedToast()
+  useGenJobWatcher()
 
   const toggle = () =>
     setCollapsed((v) => {

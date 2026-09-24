@@ -25,6 +25,7 @@ import { api } from '../api/client'
 import AutoTextarea from '../components/ui/AutoTextarea'
 import { handoff } from '../lib/handoff'
 import { colorForBrand } from '../lib/brandColor'
+import { trackJob, untrackJob } from '../lib/genJobs'
 
 // AI Agent — one chat for both asking and creating. A message that reads
 // like a question ("how is my engagement?", "what should I post next?") goes
@@ -87,6 +88,7 @@ const VID_ETA = 150
 const isImageUrl = (url) => /\.(png|jpe?g|webp|gif)$/i.test(url || '')
 
 let turnSeq = 0
+const OPEN_CHAT = 'contentflow.openChat'
 
 // What gets saved per turn (app/chats.py stores it as-is). Blob previews
 // can't outlive the page, so a reference image is kept by its /media url.
@@ -113,11 +115,12 @@ function serializeTurn(t) {
   }
 }
 
-// Reopening a chat: a video still rendering server-side resumes polling;
-// anything else that was mid-flight when the page closed can't be resumed.
+// Reopening a chat: an image/video still rendering on the server resumes
+// polling (they finish server-side even with the page closed); a question
+// that was mid-answer can't be resumed.
 function restoreTurn(t) {
   if (t.status !== 'working') return t
-  if (t.kind === 'video' && t.jobId) return t
+  if ((t.kind === 'video' || t.kind === 'image') && t.jobId) return t
   return { ...t, status: 'failed', error: 'Interrupted when the page closed — try again.' }
 }
 
@@ -247,7 +250,51 @@ export default function AIPromptPage() {
     return () => clearTimeout(id)
   }, [turns])
 
+  // Leaving the page: save anything not yet saved right away (the debounce
+  // above would be cancelled), so a render in flight is still in the chat
+  // when they come back.
+  useEffect(
+    () => () => {
+      const json = latestRef.current
+      if (!json || json === lastSavedRef.current) return
+      if (chatIdRef.current) {
+        api.put(`/ai/chats/${chatIdRef.current}`, { turns: JSON.parse(json) }).catch(() => {})
+      } else if (!creatingRef.current) {
+        api
+          .post('/ai/chats', { turns: JSON.parse(json) })
+          .then((c) => sessionStorage.setItem(OPEN_CHAT, String(c.id)))
+          .catch(() => {})
+      }
+    },
+    [],
+  )
+
+  // The chat that's open survives going to another page and back (and a
+  // reload) — AI Agent reopens it instead of starting blank.
+  useEffect(() => {
+    try {
+      if (chatId) sessionStorage.setItem(OPEN_CHAT, String(chatId))
+    } catch {
+      /* ignore */
+    }
+  }, [chatId])
+  useEffect(() => {
+    let saved = null
+    try {
+      saved = sessionStorage.getItem(OPEN_CHAT)
+    } catch {
+      saved = null
+    }
+    if (saved && !location.state) openChat(Number(saved))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const newChat = () => {
+    try {
+      sessionStorage.removeItem(OPEN_CHAT)
+    } catch {
+      /* ignore */
+    }
     setTurns([])
     setChatId(null)
     chatIdRef.current = null
@@ -280,26 +327,28 @@ export default function AIPromptPage() {
   const patchTurn = (id, patch) => setTurns((list) => list.map((t) => (t.id === id ? { ...t, ...patch } : t)))
   const addTokens = (n) => n && setSessionTokens((t) => t + n)
 
-  // Poll running video jobs.
+  // Poll running image/video jobs (they render on the server — app/video.py).
   useEffect(() => {
-    const running = turns.filter((t) => t.status === 'working' && t.kind === 'video' && t.jobId)
+    const running = turns.filter((t) => t.status === 'working' && t.kind !== 'ask' && t.jobId)
     if (!running.length) return
     const id = setTimeout(async () => {
       for (const t of running) {
         try {
           const res = await api.get(`/ai/video/${t.jobId}`)
           if (res.status === 'succeeded' && res.video) {
+            untrackJob(t.jobId)
             patchTurn(t.id, { status: 'done', video: res.video, tokens: res.total_tokens })
             addTokens(res.total_tokens)
             refreshCounts()
           } else if (res.status === 'failed') {
+            untrackJob(t.jobId)
             patchTurn(t.id, { status: 'failed', error: res.error || 'Render failed.' })
           }
         } catch {
           /* transient — next poll */
         }
       }
-    }, 3000)
+    }, 2500)
     return () => clearTimeout(id)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [turns])
@@ -326,9 +375,16 @@ export default function AIPromptPage() {
           brand_id: turn.brandId,
           reference_url: turn.refUrl || '',
         })
-        patchTurn(turn.id, { status: 'done', video: res.video, tokens: res.total_tokens })
-        addTokens(res.total_tokens)
-        refreshCounts()
+        if (res.video) {
+          patchTurn(turn.id, { status: 'done', video: res.video, tokens: res.total_tokens })
+          addTokens(res.total_tokens)
+          refreshCounts()
+        } else {
+          // Renders on the server; polled below, and still finishes (with a
+          // phone notification) if the person leaves this page.
+          trackJob(res.id, 'image')
+          patchTurn(turn.id, { jobId: res.id })
+        }
       } else {
         const res = await api.post('/ai/video', {
           prompt: turn.prompt,
@@ -336,6 +392,7 @@ export default function AIPromptPage() {
           seconds: turn.seconds,
           brand_id: turn.brandId,
         })
+        trackJob(res.id, 'video')
         patchTurn(turn.id, { jobId: res.id })
       }
     } catch (e) {

@@ -1071,7 +1071,15 @@ export default function InsightsPage() {
             <div className="text-[12px] text-ink-400 mt-1">Once a post goes out in this range, it shows up here.</div>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* phones: one card per post, numbers in a single row */}
+          <div className="sm:hidden divide-y divide-ink-100">
+            {filtered.map((it) => (
+              <MobilePostRow key={it.target_id} it={it} onOpen={() => navigate(`/insights/${it.target_id}`)} />
+            ))}
+          </div>
+
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-left border-collapse min-w-[820px]">
               <thead>
                 <tr className="border-b border-ink-100 text-[11px] font-semibold text-ink-500">
@@ -1194,9 +1202,85 @@ export default function InsightsPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
     </div>
+  )
+}
+
+function MobilePostRow({ it, onOpen }) {
+  const Icon = PLATFORM_ICONS[it.platform_slug] || FiGrid
+  const platColor = PLATFORM_COLORS[it.platform_slug] || '#64748b'
+  const caption = it.caption || it.title || ''
+  const tags = hashtagsOf(caption)
+  const captionText = caption.replace(HASHTAG_RE, '').trim()
+  const resolved = it.status === 'ok' || it.status === 'partial'
+  const m = it.metrics || {}
+  const src = mediaSrc(it.media_url)
+  const stats = [
+    [FiEye, m.views, 'views'],
+    [FiHeart, m.likes, 'likes'],
+    [FiMessageCircle, m.comments, 'comments'],
+    [FiShare2, m.shares, 'shares'],
+  ].filter(([, v]) => v != null)
+
+  return (
+    <button type="button" onClick={onOpen} className="flex w-full gap-3 px-4 py-3.5 text-left active:bg-ink-50">
+      <div className="relative flex-none">
+        <div className="relative isolate h-12 w-12 overflow-hidden rounded-xl bg-ink-100">
+          {src && it.media_kind === 'image' ? (
+            <img src={src} alt="" className="h-full w-full object-cover" />
+          ) : src ? (
+            <>
+              <video src={`${src}#t=0.1`} preload="metadata" muted playsInline className="pointer-events-none h-full w-full object-cover" />
+              <span className="absolute inset-0 grid place-items-center">
+                <span className="grid h-5 w-5 place-items-center rounded-full bg-black/55 text-white">
+                  <FiPlay size={9} className="ml-px" />
+                </span>
+              </span>
+            </>
+          ) : (
+            <span className="grid h-full w-full place-items-center text-ink-300">
+              <FiFileText size={16} />
+            </span>
+          )}
+        </div>
+        <span
+          className="absolute -bottom-1 -right-1 grid place-items-center rounded-full text-white ring-2 ring-white"
+          style={{ background: platColor, width: 18, height: 18 }}
+        >
+          <Icon size={10} />
+        </span>
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <div className={`line-clamp-2 text-[13px] leading-snug text-ink-900 ${isKhmerText(captionText) ? 'font-khmer' : ''}`}>
+          {captionText || <span className="text-ink-400">No caption</span>}
+          {tags.length > 0 && <span className="text-brand"> {tags.join(' ')}</span>}
+        </div>
+        <div className="mt-0.5 flex items-center gap-1.5 text-[11.5px] text-ink-500">
+          <span className="h-1.5 w-1.5 flex-none rounded-full" style={{ background: colorForBrand(it.brand_slug) }} />
+          <span className="truncate">{it.brand_name}</span>
+          <span className="text-ink-300">·</span>
+          <span className="whitespace-nowrap">{fmtDate(it.published_at)}</span>
+        </div>
+        {stats.length > 0 ? (
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-ink-700">
+            {stats.map(([StatIcon, v, label]) => (
+              <span key={label} className="inline-flex items-center gap-1 tabular-nums" title={label}>
+                <StatIcon size={12} className="text-ink-400" />
+                {v.toLocaleString()}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <div className={`mt-1 truncate text-[11.5px] ${resolved ? 'text-ink-400' : 'text-amber-700'}`}>
+            {it.note || (resolved ? 'No numbers from this platform yet' : 'Needs attention')}
+          </div>
+        )}
+      </div>
+    </button>
   )
 }
 

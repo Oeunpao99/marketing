@@ -13,10 +13,11 @@ export const NOTIFY_KINDS = [
   { id: 'failed', label: 'A post failed to publish', desc: 'So you can fix it and send it again.' },
   { id: 'channel', label: 'A channel needs reconnecting', desc: 'Its login is about to expire.' },
   { id: 'published', label: 'A post was published', desc: 'Confirmation when something goes live.' },
+  { id: 'generated', label: 'Your image or video is ready', desc: 'When something you asked the AI Agent to make has finished.', pushOnly: true },
 ]
 
 export function notifyPrefs(user) {
-  return { review: true, failed: true, channel: true, published: true, ...(user?.preferences?.notify || {}) }
+  return { review: true, failed: true, channel: true, published: true, generated: true, ...(user?.preferences?.notify || {}) }
 }
 
 export function useNotifications() {

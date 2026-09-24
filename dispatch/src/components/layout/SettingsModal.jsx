@@ -354,10 +354,16 @@ function NotificationsTab({ showToast }) {
   return (
     <div className="space-y-8">
       <section>
-        <SectionTitle title="Show in the bell" sub="What the bell counts and lists for you." />
+        <SectionTitle title="Tell me when…" sub="Used for the bell and for push notifications below." />
         <div className="mt-3 divide-y divide-ink-100 rounded-2xl border border-ink-200 px-4">
           {NOTIFY_KINDS.map((k) => (
-            <ToggleRow key={k.id} title={k.label} desc={k.desc} on={notify[k.id]} onChange={(v) => setKind(k.id, v)} />
+            <ToggleRow
+              key={k.id}
+              title={k.label}
+              desc={k.pushOnly ? `${k.desc} (push notification only)` : k.desc}
+              on={notify[k.id]}
+              onChange={(v) => setKind(k.id, v)}
+            />
           ))}
         </div>
       </section>
