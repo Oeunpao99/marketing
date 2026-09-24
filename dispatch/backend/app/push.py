@@ -145,6 +145,9 @@ def _send_many(db: Session, subs: list[PushSubscription], message: dict) -> int:
                 vapid_private_key=s.vapid_private_key,
                 vapid_claims={"sub": s.vapid_subject or "https://contentflow.app"},
                 ttl=60 * 60 * 12,
+                # "high" = deliver now and wake a locked/idle phone. Without it
+                # Android (Doze) holds the push until the screen is turned on.
+                headers={"Urgency": "high"},
                 timeout=10,
             )
             sent += 1
