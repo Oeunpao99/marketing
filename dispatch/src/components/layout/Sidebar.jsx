@@ -54,7 +54,9 @@ const SECTIONS = [
   },
 ];
 
-export default function Sidebar() {
+// ``collapsed`` = the slim icon rail (Shell's sidebar toggle): icons only,
+// labels as hover tooltips, counts as dots, menus open beside the rail.
+export default function Sidebar({ collapsed = false }) {
   const { brands, channels, queue, review, activeBrand, switchBrand, showToast } = useStore();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -105,6 +107,25 @@ export default function Sidebar() {
 
   const navItem = ({ to, end, icon: Icon, label, badge, expand }) => {
     const count = badgeFor(badge);
+    if (collapsed) {
+      return (
+        <NavLink
+          key={to + label}
+          to={to}
+          end={end}
+          title={count != null ? `${label} (${count})` : label}
+          aria-label={label}
+          className={({ isActive }) =>
+            `relative mx-auto grid place-items-center w-10 h-10 rounded-xl transition-colors duration-150 ${
+              isActive ? "bg-brand-soft text-brand" : "text-ink-500 hover:bg-ink-100/80 hover:text-ink-800"
+            }`
+          }
+        >
+          <Icon size={18} aria-hidden="true" />
+          {count != null && <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-brand ring-2 ring-[#FAFBFC]" />}
+        </NavLink>
+      );
+    }
     return (
       <div key={to + label}>
         <NavLink
@@ -192,18 +213,37 @@ export default function Sidebar() {
   return (
     <aside className="hidden lg:flex flex-col sticky top-0 h-screen bg-[#FAFBFC] border-r border-ink-200/70 side-scroll">
       {/* App name */}
-      <NavLink to="/" className="flex items-center gap-2.5 px-5 pt-5 pb-3">
+      <NavLink
+        to="/"
+        title="ContentFlow"
+        className={`flex items-center gap-2.5 pt-5 pb-3 ${collapsed ? "justify-center px-0" : "px-5"}`}
+      >
         <span className="w-9 h-9 rounded-xl grid place-items-center flex-none bg-brand text-white text-[15px] font-bold shadow-sm">
           C
         </span>
-        <span className="min-w-0">
-          <span className="block text-[15px] font-bold text-ink-900 tracking-tight leading-tight">ContentFlow</span>
-          <span className="block text-[11px] text-ink-500">AI Marketing Hub</span>
-        </span>
+        {!collapsed && (
+          <span className="min-w-0">
+            <span className="block text-[15px] font-bold text-ink-900 tracking-tight leading-tight">ContentFlow</span>
+            <span className="block text-[11px] text-ink-500">AI Marketing Hub</span>
+          </span>
+        )}
       </NavLink>
 
       {/* Workspace (brand) switcher */}
-      <div className="relative px-3 pb-3">
+      <div className={`relative pb-3 ${collapsed ? "px-0 flex justify-center" : "px-3"}`}>
+        {collapsed ? (
+          <button
+            type="button"
+            onClick={() => setBrandOpen((v) => !v)}
+            title={`${active?.name || "Select a brand"} — switch brand`}
+            className={`w-10 h-10 rounded-xl grid place-items-center text-white text-[13px] font-bold ring-2 transition ${
+              brandOpen ? "ring-brand/40" : "ring-transparent hover:ring-ink-200"
+            }`}
+            style={{ background: active ? colorForBrand(active.slug) : "#94A3B8" }}
+          >
+            {active?.name?.slice(0, 1) || "?"}
+          </button>
+        ) : (
         <button
           type="button"
           onClick={() => setBrandOpen((v) => !v)}
@@ -230,6 +270,7 @@ export default function Sidebar() {
             className={`text-ink-500 flex-none transition-transform duration-200 ${brandOpen ? "rotate-180" : ""}`}
           />
         </button>
+        )}
 
         {brandOpen && (
           <>
@@ -239,7 +280,11 @@ export default function Sidebar() {
               aria-label="Close brand menu"
               onClick={() => setBrandOpen(false)}
             />
-            <div className="absolute left-4 right-4 top-[calc(100%-6px)] z-40 bg-white border border-ink-200 rounded-xl shadow-pop p-2 animate-fadein">
+            <div
+              className={`absolute z-40 bg-white border border-ink-200 rounded-xl shadow-pop p-2 animate-fadein ${
+                collapsed ? "left-[calc(100%-6px)] top-0 w-[260px]" : "left-4 right-4 top-[calc(100%-6px)]"
+              }`}
+            >
               <div className="relative mb-1.5">
                 <FiSearch size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400" />
                 <input
@@ -309,20 +354,34 @@ export default function Sidebar() {
         )}
       </div>
 
-      <nav className="flex-1 overflow-y-auto side-scroll px-3 pb-3">
-        <div className="space-y-0.5">{CORE.map(navItem)}</div>
+      <nav className={`flex-1 overflow-y-auto side-scroll pb-3 ${collapsed ? "px-2" : "px-3"}`}>
+        <div className={collapsed ? "space-y-1" : "space-y-0.5"}>{CORE.map(navItem)}</div>
 
         {SECTIONS.map((section) => (
           <div key={section.label}>
-            <div className="mx-0 my-3 border-t border-ink-200/70" />
-            <div className="px-3 mb-1.5 text-[12px] font-medium text-ink-500">{section.label}</div>
-            <div className="space-y-0.5">{section.items.map(navItem)}</div>
+            <div className={`my-3 border-t border-ink-200/70 ${collapsed ? "mx-2" : "mx-0"}`} />
+            {!collapsed && <div className="px-3 mb-1.5 text-[12px] font-medium text-ink-500">{section.label}</div>}
+            <div className={collapsed ? "space-y-1" : "space-y-0.5"}>{section.items.map(navItem)}</div>
           </div>
         ))}
 
-        <div className="mx-0 my-3 border-t border-ink-200/70" />
+        <div className={`my-3 border-t border-ink-200/70 ${collapsed ? "mx-2" : "mx-0"}`} />
         <div className="space-y-0.5">
           <div className="relative">
+            {collapsed ? (
+              <button
+                type="button"
+                onClick={() => setNotifOpen((v) => !v)}
+                title={notifCount > 0 ? `Inbox (${notifCount})` : "Inbox"}
+                aria-label="Inbox"
+                className="relative mx-auto grid place-items-center w-10 h-10 rounded-xl text-ink-500 hover:bg-ink-100/80 hover:text-ink-800 transition-colors duration-150"
+              >
+                <FiInbox size={18} />
+                {notifCount > 0 && (
+                  <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-red-500 ring-2 ring-[#FAFBFC]" />
+                )}
+              </button>
+            ) : (
             <button
               type="button"
               onClick={() => setNotifOpen((v) => !v)}
@@ -334,20 +393,26 @@ export default function Sidebar() {
                 <span className="text-[11px] font-semibold text-ink-500 tabular-nums">{notifCount}</span>
               )}
             </button>
+            )}
           </div>
         </div>
       </nav>
 
       {/* Footer: settings + user */}
-      <div className="px-3 pb-3">
+      <div className={`pb-3 ${collapsed ? "px-2" : "px-3"}`}>
         <div className="border-t border-ink-200/70 pt-3 mb-2">
           <button
             type="button"
             onClick={() => setSettingsOpen(true)}
-            className="group flex items-center gap-3 w-full px-3 py-[7px] rounded-lg text-[13px] font-medium text-ink-700 hover:bg-ink-100/80 hover:text-ink-900 transition-colors duration-150"
+            title="Settings"
+            className={
+              collapsed
+                ? "mx-auto grid place-items-center w-10 h-10 rounded-xl text-ink-500 hover:bg-ink-100/80 hover:text-ink-800 transition-colors duration-150"
+                : "group flex items-center gap-3 w-full px-3 py-[7px] rounded-lg text-[13px] font-medium text-ink-700 hover:bg-ink-100/80 hover:text-ink-900 transition-colors duration-150"
+            }
           >
-            <FiSettings size={17} className="flex-none text-ink-500 group-hover:text-ink-700" />
-            Settings
+            <FiSettings size={collapsed ? 18 : 17} className="flex-none text-ink-500 group-hover:text-ink-700" />
+            {!collapsed && "Settings"}
           </button>
         </div>
 
@@ -355,21 +420,28 @@ export default function Sidebar() {
           <button
             type="button"
             onClick={() => setUserOpen((v) => !v)}
-            className="w-full flex items-center gap-3 rounded-xl px-2 py-2 text-left hover:bg-ink-100/70 transition-colors duration-150"
+            title={collapsed ? user?.name || "Account" : undefined}
+            className={`w-full flex items-center gap-3 rounded-xl py-2 text-left hover:bg-ink-100/70 transition-colors duration-150 ${
+              collapsed ? "justify-center px-0" : "px-2"
+            }`}
           >
             <span className="w-10 h-10 rounded-full grid place-items-center flex-none bg-brand text-white text-[12px] font-bold">
               {initials}
             </span>
+            {!collapsed && (
             <span className="min-w-0 flex-1">
               <span className="block text-[13px] font-bold text-ink-900 truncate leading-tight">
                 {user?.name || "Account"}
               </span>
               <span className="block text-[11.5px] text-ink-500 truncate">{user?.email || ""}</span>
             </span>
-            <FiChevronDown
-              size={18}
-              className={`text-ink-500 flex-none transition-transform duration-200 ${userOpen ? "rotate-180" : ""}`}
-            />
+            )}
+            {!collapsed && (
+              <FiChevronDown
+                size={18}
+                className={`text-ink-500 flex-none transition-transform duration-200 ${userOpen ? "rotate-180" : ""}`}
+              />
+            )}
           </button>
 
           {userOpen && (
@@ -380,7 +452,11 @@ export default function Sidebar() {
                 aria-label="Close account menu"
                 onClick={() => setUserOpen(false)}
               />
-              <div className="absolute left-0 right-0 bottom-[calc(100%+6px)] z-40 bg-white border border-ink-200 rounded-xl shadow-pop p-1.5 animate-fadein">
+              <div
+                className={`absolute z-40 bg-white border border-ink-200 rounded-xl shadow-pop p-1.5 animate-fadein ${
+                  collapsed ? "left-[calc(100%+8px)] bottom-0 w-[200px]" : "left-0 right-0 bottom-[calc(100%+6px)]"
+                }`}
+              >
                 <button
                   type="button"
                   onClick={() => {
@@ -409,7 +485,7 @@ export default function Sidebar() {
       </div>
 
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} showToast={showToast} />
-      <Notifications open={notifOpen} onClose={() => setNotifOpen(false)} anchor="bottom" />
+      <Notifications open={notifOpen} onClose={() => setNotifOpen(false)} anchor={collapsed ? "rail" : "bottom"} />
       <SearchModal
         open={searchOpen}
         onClose={() => setSearchOpen(false)}

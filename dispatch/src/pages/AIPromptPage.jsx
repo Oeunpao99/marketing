@@ -1,1449 +1,1518 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
+import {
+  FiArrowUp,
+  FiCheck,
+  FiClock,
+  FiCopy,
+  FiDownload,
+  FiEdit2,
+  FiImage,
+  FiMaximize2,
+  FiMessageCircle,
+  FiPaperclip,
+  FiPlus,
+  FiRefreshCw,
+  FiSearch,
+  FiSliders,
+  FiTrash2,
+  FiVideo,
+  FiX,
+} from 'react-icons/fi'
 import { useStore } from '../store'
 import { api } from '../api/client'
-import Tag from '../components/ui/Tag'
-import DropZone, { humanSize } from '../components/ui/DropZone'
 import AutoTextarea from '../components/ui/AutoTextarea'
 import { handoff } from '../lib/handoff'
 import { colorForBrand } from '../lib/brandColor'
 
+// AI Agent — one chat for both asking and creating. A message that reads
+// like a question ("how is my engagement?", "what should I post next?") goes
+// to the marketing advisor (app/advisor.py), which answers from the
+// workspace's own data and suggests posts; anything else is a prompt and is
+// generated as an image/video. The composer shows which one it will do, and
+// one click flips it. The page is a thread of turns and one composer;
+// every option (type, size, length, brand, style) lives behind the settings
+// button, and ✦ "Write it for me" turns a short idea into a full prompt
+// grounded in the brand's products (the old guided brief, in one click).
+
 const mediaBase = window.location.port === '5173' ? 'http://localhost:8000' : ''
 
-const STYLES = [
-  { id: 'photo', name: 'Photorealistic' },
-  { id: 'illustration', name: 'Illustration' },
-  { id: '3d', name: '3D / CGI' },
-  { id: 'anime', name: 'Anime / Manga' },
-]
-
-const TEMPLATE_TYPES = [
-  { id: 'image', name: 'Image' },
-  { id: 'video', name: 'Video' },
-]
-
 const RATIOS = [
-  { id: '9:16', name: '9:16', sub: 'Reels / TikTok / Shorts' },
-  { id: '1:1', name: '1:1', sub: 'Feed square' },
-  { id: '16:9', name: '16:9', sub: 'YouTube / landscape' },
+  { id: '9:16', sub: 'Reels · TikTok · Shorts' },
+  { id: '1:1', sub: 'Feed square' },
+  { id: '16:9', sub: 'YouTube · landscape' },
 ]
-
-const STEPS = [
-  { n: 1, label: 'Brief' },
-  { n: 2, label: 'Prompt' },
-  { n: 3, label: 'Create' },
-]
-
-const icons = {
-  image: (
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]">
-      <rect x="2.5" y="3.5" width="15" height="13" rx="2.5" />
-      <circle cx="7" cy="8" r="1.4" />
-      <path d="M3 15l4.2-4.2 2.6 2.6 3-3 4.2 4.2" />
-    </svg>
-  ),
-  video: (
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]">
-      <rect x="2.5" y="4" width="12" height="12" rx="2.5" />
-      <path d="M14.5 8.5l3-1.8v6.6l-3-1.8" />
-    </svg>
-  ),
-  spark: (
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-      <path d="M10 2l1.6 4.4L16 8l-4.4 1.6L10 14l-1.6-4.4L4 8l4.4-1.6z" />
-    </svg>
-  ),
-  copy: (
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-      <rect x="7" y="7" width="9" height="9" rx="2" />
-      <path d="M13 7V5a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2" />
-    </svg>
-  ),
-  bot: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-11 h-11">
-      <rect x="4" y="8" width="16" height="12" rx="2.5" />
-      <path d="M12 8V4M9 3.5h6" />
-      <circle cx="9" cy="13" r="1" />
-      <circle cx="15" cy="13" r="1" />
-      <path d="M9 17h6" />
-    </svg>
-  ),
+const LENGTHS = [4, 8, 12, 20]
+const STYLES = ['Photorealistic', 'Illustration', '3D / CGI', 'Anime / Manga']
+const TEMPLATES = {
+  image: ['Product hero shot', 'Promo / sale banner', 'Story / Reels cover', 'Tip / quote card'],
+  video: ['Talking-head intro', 'Screen demo tutorial', 'Motion graphic (text)', 'Cinematic B-roll'],
+}
+const SUGGESTIONS = {
+  image: [
+    'A clean product hero shot on a soft pastel background',
+    'A bold promo banner for a weekend sale',
+    'A cozy café scene for an Instagram story cover',
+  ],
+  video: [
+    'A friendly presenter introducing our product in 5 seconds',
+    'Slow cinematic B-roll of our product on a desk',
+    'An energetic motion-graphic teaser for a new launch',
+  ],
 }
 
-const IMAGE_TEMPLATES = [
-  { id: 'product-shot', name: 'Product hero shot', ratio: '1:1' },
-  { id: 'promo-banner', name: 'Promo / sale banner', ratio: '16:9' },
-  { id: 'story-cover', name: 'Story / Reels cover', ratio: '9:16' },
-  { id: 'tip-card', name: 'Tip / quote card', ratio: '1:1' },
+const QUESTIONS = [
+  'How is my engagement going this month?',
+  'What should I post next week?',
+  'Which product needs more attention?',
 ]
 
-const VIDEO_TEMPLATES = [
-  { id: 'talking-head', name: 'Talking-head intro', ratio: '9:16' },
-  { id: 'demo-tutorial', name: 'Screen demo tutorial', ratio: '9:16' },
-  { id: 'motion-graphic', name: 'Motion graphic (text)', ratio: '9:16' },
-  { id: 'lofi-broll', name: 'Cinematic B-roll', ratio: '16:9' },
-]
-
-function localPrompt({ brandName, type, template, style, topic, mood, extra }) {
-  brandName = brandName || 'the brand'
-  const styleName = STYLES.find((s) => s.id === style)?.name || 'photorealistic'
-  const platformNote =
-    template.ratio === '9:16'
-      ? 'vertical 9:16, optimized for Shorts, Reels, and TikTok'
-      : `${template.ratio} format`
-  const lines = [
-    `Create a ${styleName.toLowerCase()} ${type} in ${platformNote} for ${brandName}.`,
-    `Template: ${template.name}.`,
-    `Core message / topic: ${topic || '(fill in your main topic here)'}.`,
-  ]
-  if (mood) lines.push(`Mood: ${mood}.`)
-  if (extra.trim()) lines.push(`Additional direction: ${extra.trim()}`)
-  if (type === 'video') {
-    lines.push(
-      'One continuous shot under 20 seconds, strong hook in the first second, gentle camera push-in, no on-screen text, no captions.',
-    )
-  } else {
-    lines.push('Strong composition, high contrast, clean margin around the subject for live text overlays.')
-  }
-  return lines.join('\n\n')
+// Heuristic router for the composer — shown to the person (Ask / Create
+// toggle) so a wrong guess is one click to fix, never a silent surprise.
+const QUESTION_START =
+  /^(how|what|why|which|who|when|where|should|could|can you|can i|can we|do |does |did |is |are |was |will |would |tell me|give me (some )?(advice|ideas|tips|suggestions|feedback)|suggest|analy[sz]e|review my|help me (decide|understand|plan|improve|grow)|compare|explain|recommend|any (idea|tip|advice))/i
+const KHMER_QUESTION = /(ទេ|អ្វី|យ៉ាងម៉េច|យ៉ាងដូចម្តេច|ដូចម្តេច|ហេតុអ្វី|គួរ|ប៉ុន្មាន|មែនទេ)/
+function looksLikeQuestion(raw) {
+  const t = raw.trim()
+  if (!t) return false
+  if (/[?？]\s*$/.test(t)) return true
+  if (/[\u1780-\u17FF]/.test(t)) return KHMER_QUESTION.test(t)
+  return QUESTION_START.test(t)
 }
-
-const pick = (on) =>
-  on ? 'border-brand bg-brand-soft text-brand' : 'border-ink-200 bg-white text-ink-700 hover:border-ink-300'
 
 const fmtTok = (n) => (n || 0).toLocaleString()
+const IMG_ETA = 27
+const VID_ETA = 150
+const isImageUrl = (url) => /\.(png|jpe?g|webp|gif)$/i.test(url || '')
+
+let turnSeq = 0
+
+// What gets saved per turn (app/chats.py stores it as-is). Blob previews
+// can't outlive the page, so a reference image is kept by its /media url.
+function serializeTurn(t) {
+  return {
+    id: t.id,
+    kind: t.kind,
+    prompt: t.prompt,
+    ratio: t.ratio,
+    seconds: t.seconds,
+    brandId: t.brandId,
+    brandName: t.brandName,
+    refUrl: t.refUrl || '',
+    refPreview: t.refUrl ? `${mediaBase}${t.refUrl}` : '',
+    history: t.history,
+    status: t.status,
+    error: t.error || '',
+    answer: t.answer,
+    suggestions: t.suggestions,
+    video: t.video || null,
+    jobId: t.jobId || null,
+    tokens: t.tokens || 0,
+    startedAt: t.startedAt,
+  }
+}
+
+// Reopening a chat: a video still rendering server-side resumes polling;
+// anything else that was mid-flight when the page closed can't be resumed.
+function restoreTurn(t) {
+  if (t.status !== 'working') return t
+  if (t.kind === 'video' && t.jobId) return t
+  return { ...t, status: 'failed', error: 'Interrupted when the page closed — try again.' }
+}
 
 export default function AIPromptPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const { showToast, brands, refreshCounts } = useStore()
-  const [sessionTokens, setSessionTokens] = useState(0)
-  const [promptTokens, setPromptTokens] = useState(0)
-  const addTokens = (n) => n && setSessionTokens((t) => t + n)
 
-  const [brand, setBrand] = useState('chum')
-  const [type, setType] = useState('video')
-  const [templateId, setTemplateId] = useState('talking-head')
-  const [style, setStyle] = useState('photo')
-  const [topic, setTopic] = useState('')
-  const [mood, setMood] = useState('')
-  const [extra, setExtra] = useState('')
-
-  const [prompt, setPrompt] = useState('')
-  const [history, setHistory] = useState([]) // [{ text, note }]
-  const [aiUsed, setAiUsed] = useState(false)
-  const [generating, setGenerating] = useState(false)
-  const [briefOpen, setBriefOpen] = useState(true)
-  // "guided" = brief → AI-written prompt → create; "direct" = the person
-  // already has a prompt and wants the image/video straight away.
-  const [mode, setMode] = useState('guided')
-  const [quickText, setQuickText] = useState('')
-  const [improving, setImproving] = useState(false)
-  const [recent, setRecent] = useState([]) // finished quick generations this session
-  const [moreOpen, setMoreOpen] = useState(false)
-  const [feedback, setFeedback] = useState('')
-  const [refining, setRefining] = useState(false)
-  const [copied, setCopied] = useState(false)
-
-  const [ratio, setRatio] = useState('9:16')
+  // settings (behind the ⚙ button)
+  const [type, setType] = useState('image')
+  const [ratio, setRatio] = useState('1:1')
   const [seconds, setSeconds] = useState(8)
-  const [job, setJob] = useState(null) // { id, status, error, video }
-  const [videoErr, setVideoErr] = useState(null)
-  const [startedAt, setStartedAt] = useState(0)
+  const [brand, setBrand] = useState(null)
+  const [style, setStyle] = useState(STYLES[0])
+  const [template, setTemplate] = useState(TEMPLATES.image[0])
+  const [settingsOpen, setSettingsOpen] = useState(false)
+
+  // composer
+  const [text, setText] = useState('')
+  const [refImg, setRefImg] = useState(null) // { previewUrl, url, name }
+  const [uploading, setUploading] = useState(false)
+  const [writing, setWriting] = useState(false)
+  const [intentPick, setIntentPick] = useState(null) // null = auto | 'ask' | 'create'
+
+  // thread
+  const [turns, setTurns] = useState([])
+  const [chatId, setChatId] = useState(null)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const chatIdRef = useRef(null)
+  const creatingRef = useRef(null)
+  const [sessionTokens, setSessionTokens] = useState(0)
   const [, tick] = useState(0)
-  const [imgBusy, setImgBusy] = useState(false)
-  const [refImg, setRefImg] = useState(null) // { previewUrl, url, name } once uploaded
-  const [refUploading, setRefUploading] = useState(false)
 
-  const [asset, setAsset] = useState(null)
-  const pollRef = useRef(null)
+  const bottomRef = useRef(null)
+  const composerRef = useRef(null)
+  const settingsRef = useRef(null)
 
-  // Arrived with an idea from the Calendar page ("Use this idea →") — prefill
-  // the brief so the agent writes a prompt grounded in that idea/caption.
+  const brandObj = brands.find((b) => b.slug === brand) || brands[0]
+  const isImage = type === 'image'
+  const working = turns.some((t) => t.status === 'working')
+
   useEffect(() => {
-    const handoffState = location.state
-    if (!handoffState) return
-    if (handoffState.brandSlug) setBrand(handoffState.brandSlug)
-    if (handoffState.topic) setTopic(handoffState.topic)
-    if (handoffState.extra) setExtra(handoffState.extra)
+    if (!brand && brands.length) setBrand(brands[0].slug)
+  }, [brands, brand])
+
+  // An idea handed over from the Calendar ("Use this idea →").
+  useEffect(() => {
+    const s = location.state
+    if (!s) return
+    if (s.brandSlug) setBrand(s.brandSlug)
+    const idea = [s.topic, s.extra].filter(Boolean).join('\n\n')
+    if (idea) {
+      setText(idea)
+      showToast('Idea loaded — press ✦ to turn it into a full prompt, or send it as is')
+    }
     navigate(location.pathname, { replace: true, state: null })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const templates = type === 'image' ? IMAGE_TEMPLATES : VIDEO_TEMPLATES
-  const template = templates.find((t) => t.id === templateId) || templates[0]
-  const brandObj = brands.find((b) => b.slug === brand)
-  const brandId = brands.find((b) => b.slug === brand)?.id ?? null
-  const styleName = STYLES.find((s) => s.id === style)?.name || 'Photorealistic'
-  const rendering = job && (job.status === 'queued' || job.status === 'running')
-  const isImage = type === 'image'
+  // Close the settings popover on an outside click.
+  useEffect(() => {
+    if (!settingsOpen) return
+    const onDown = (e) => {
+      if (!settingsRef.current?.contains(e.target)) setSettingsOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [settingsOpen])
 
-  const pushHistory = (text, note) => setHistory((h) => [...h, { text, note }].slice(-8))
+  // Animate progress while anything renders.
+  useEffect(() => {
+    if (!working) return
+    const id = setInterval(() => tick((n) => n + 1), 400)
+    return () => clearInterval(id)
+  }, [working])
 
-  const resetDownstream = () => {
-    setPrompt('')
-    setHistory([])
-    setJob(null)
-    setVideoErr(null)
-    setBriefOpen(true)
+  // Keep the newest turn in view: jump to the bottom when a message is sent
+  // (or a chat is opened), and follow along when an answer / image lands —
+  // unless the person has scrolled up to read something older.
+  const statusKey = turns.map((t) => t.status).join(',')
+  const prevLenRef = useRef(0)
+  useLayoutEffect(() => {
+    const grew = turns.length > prevLenRef.current
+    prevLenRef.current = turns.length
+    const doc = document.documentElement
+    const nearBottom = () => doc.scrollHeight - (window.scrollY + window.innerHeight) < 360
+    if (!grew && !nearBottom()) return
+    const toBottom = () => window.scrollTo({ top: doc.scrollHeight, behavior: 'smooth' })
+    requestAnimationFrame(toBottom)
+    // Media grows the page once it has loaded — follow it down once more.
+    const id = setTimeout(() => nearBottom() && toBottom(), 700)
+    return () => clearTimeout(id)
+  }, [turns.length, statusKey])
+
+  // Save the thread (debounced) — first save creates the chat, later ones update it.
+  // Skips saves when nothing changed (so just opening an old chat doesn't
+  // bump it to the top of History), and catches up on anything that changed
+  // while the very first save was still creating the chat.
+  const lastSavedRef = useRef('')
+  const latestRef = useRef('')
+  useEffect(() => {
+    if (!turns.length) return
+    const json = JSON.stringify(turns.map(serializeTurn))
+    latestRef.current = json
+    if (json === lastSavedRef.current) return
+    const id = setTimeout(async () => {
+      try {
+        if (chatIdRef.current) {
+          await api.put(`/ai/chats/${chatIdRef.current}`, { turns: JSON.parse(json) })
+          lastSavedRef.current = json
+        } else if (!creatingRef.current) {
+          creatingRef.current = api.post('/ai/chats', { turns: JSON.parse(json) })
+          const created = await creatingRef.current
+          chatIdRef.current = created.id
+          setChatId(created.id)
+          lastSavedRef.current = json
+          creatingRef.current = null
+          if (latestRef.current !== json) {
+            await api.put(`/ai/chats/${created.id}`, { turns: JSON.parse(latestRef.current) })
+            lastSavedRef.current = latestRef.current
+          }
+        }
+      } catch {
+        creatingRef.current = null /* saving is best-effort; the next change retries */
+      }
+    }, 700)
+    return () => clearTimeout(id)
+  }, [turns])
+
+  const newChat = () => {
+    setTurns([])
+    setChatId(null)
+    chatIdRef.current = null
+    creatingRef.current = null
+    lastSavedRef.current = ''
+    setText('')
+    setIntentPick(null)
     setRefImg(null)
+    composerRef.current?.querySelector('textarea')?.focus()
   }
 
-  const generate = async () => {
-    if (generating) return
-    const t = templates.find((x) => x.id === templateId) || templates[0]
-    setGenerating(true)
-    setCopied(false)
+  const openChat = async (id) => {
+    try {
+      const chat = await api.get(`/ai/chats/${id}`)
+      const restored = (chat.turns || []).map(restoreTurn)
+      turnSeq = Math.max(turnSeq, ...restored.map((t) => t.id || 0))
+      chatIdRef.current = chat.id
+      creatingRef.current = null
+      lastSavedRef.current = JSON.stringify(restored.map(serializeTurn))
+      setChatId(chat.id)
+      setTurns(restored)
+      setText('')
+      setIntentPick(null)
+      setHistoryOpen(false)
+    } catch (e) {
+      showToast(`Couldn’t open that chat — ${e.message}`)
+    }
+  }
+
+  const patchTurn = (id, patch) => setTurns((list) => list.map((t) => (t.id === id ? { ...t, ...patch } : t)))
+  const addTokens = (n) => n && setSessionTokens((t) => t + n)
+
+  // Poll running video jobs.
+  useEffect(() => {
+    const running = turns.filter((t) => t.status === 'working' && t.kind === 'video' && t.jobId)
+    if (!running.length) return
+    const id = setTimeout(async () => {
+      for (const t of running) {
+        try {
+          const res = await api.get(`/ai/video/${t.jobId}`)
+          if (res.status === 'succeeded' && res.video) {
+            patchTurn(t.id, { status: 'done', video: res.video, tokens: res.total_tokens })
+            addTokens(res.total_tokens)
+            refreshCounts()
+          } else if (res.status === 'failed') {
+            patchTurn(t.id, { status: 'failed', error: res.error || 'Render failed.' })
+          }
+        } catch {
+          /* transient — next poll */
+        }
+      }
+    }, 3000)
+    return () => clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [turns])
+
+  const run = async (turn) => {
+    patchTurn(turn.id, { status: 'working', error: '', video: null, startedAt: Date.now() })
+    try {
+      if (turn.kind === 'ask') {
+        const res = await api.post('/ai/advisor', {
+          message: turn.prompt,
+          history: turn.history || [],
+          brand_id: turn.brandId,
+        })
+        patchTurn(turn.id, {
+          status: 'done',
+          answer: res.answer,
+          suggestions: res.suggestions || [],
+          remaining: res.remaining_today,
+        })
+      } else if (turn.kind === 'image') {
+        const res = await api.post('/ai/image', {
+          prompt: turn.prompt,
+          aspect_ratio: turn.ratio,
+          brand_id: turn.brandId,
+          reference_url: turn.refUrl || '',
+        })
+        patchTurn(turn.id, { status: 'done', video: res.video, tokens: res.total_tokens })
+        addTokens(res.total_tokens)
+        refreshCounts()
+      } else {
+        const res = await api.post('/ai/video', {
+          prompt: turn.prompt,
+          aspect_ratio: turn.ratio,
+          seconds: turn.seconds,
+          brand_id: turn.brandId,
+        })
+        patchTurn(turn.id, { jobId: res.id })
+      }
+    } catch (e) {
+      patchTurn(turn.id, { status: 'failed', error: e.message })
+    }
+  }
+
+  const intent = intentPick || (looksLikeQuestion(text) ? 'ask' : 'create')
+
+  const ask = (message) => {
+    // The last few Q&A pairs, so follow-ups ("and on TikTok?") make sense.
+    const history = turns
+      .filter((t) => t.kind === 'ask' && t.status === 'done')
+      .slice(-4)
+      .flatMap((t) => [
+        { role: 'user', content: t.prompt },
+        { role: 'assistant', content: t.answer },
+      ])
+    const turn = {
+      id: ++turnSeq,
+      kind: 'ask',
+      prompt: message,
+      history,
+      brandId: brandObj?.id ?? null,
+      status: 'working',
+      startedAt: Date.now(),
+    }
+    setTurns((list) => [...list, turn])
+    run(turn)
+  }
+
+  const generateSuggestion = (sug) => {
+    const kind = sug.type === 'video' ? 'video' : 'image'
+    const turn = {
+      id: ++turnSeq,
+      prompt: sug.prompt,
+      kind,
+      ratio: kind === 'video' ? '9:16' : isImage ? ratio : '1:1',
+      seconds,
+      brandId: brandObj?.id ?? null,
+      brandName: brandObj?.name || '',
+      status: 'working',
+      startedAt: Date.now(),
+    }
+    setTurns((list) => [...list, turn])
+    run(turn)
+  }
+
+  const send = () => {
+    const prompt = text.trim()
+    if (uploading || writing || !prompt) return
+    if (intent === 'ask') {
+      setText('')
+      setIntentPick(null)
+      ask(prompt)
+      return
+    }
+    if (prompt.length < 10) {
+      showToast('Write a little more — at least 10 characters')
+      return
+    }
+    setIntentPick(null)
+    const turn = {
+      id: ++turnSeq,
+      prompt,
+      kind: type,
+      ratio,
+      seconds,
+      brandId: brandObj?.id ?? null,
+      brandName: brandObj?.name || '',
+      refUrl: refImg?.url || '',
+      refPreview: refImg?.previewUrl || '',
+      status: 'working',
+      startedAt: Date.now(),
+    }
+    setTurns((list) => [...list, turn])
+    setText('')
+    setRefImg(null)
+    run(turn)
+  }
+
+  const writeForMe = async () => {
+    const idea = text.trim()
+    if (!idea || writing) return
+    setWriting(true)
     try {
       const res = await api.post('/ai/prompt', {
         brand: brandObj?.name || '',
         brand_language: brandObj?.lang || '',
-        brand_id: brandId,
+        brand_id: brandObj?.id ?? null,
         type,
-        template: t.name,
-        aspect_ratio: t.ratio,
-        style: styleName,
-        topic,
-        mood,
-        extra,
-        has_reference: isImage && !!refImg?.url,
-      })
-      setPrompt(res.prompt)
-      pushHistory(res.prompt, 'first draft')
-      setAiUsed(true)
-      setBriefOpen(false)
-      setPromptTokens(res.total_tokens || 0)
-      addTokens(res.total_tokens)
-      showToast('Prompt written by AI')
-    } catch (e) {
-      const p = localPrompt({ brandName: brandObj?.name, type, template: t, style, topic, mood, extra })
-      setPrompt(p)
-      pushHistory(p, 'template')
-      setAiUsed(false)
-      setBriefOpen(false)
-      showToast(`AI unavailable (${e.message}) — used the template`)
-    } finally {
-      setGenerating(false)
-    }
-  }
-
-  const refine = async () => {
-    if (refining || !prompt || !feedback.trim()) return
-    setRefining(true)
-    setCopied(false)
-    try {
-      const res = await api.post('/ai/prompt', {
-        type,
-        aspect_ratio: template.ratio,
-        prior_prompt: prompt,
-        feedback: feedback.trim(),
-      })
-      setPrompt(res.prompt)
-      pushHistory(res.prompt, feedback.trim())
-      setAiUsed(true)
-      setFeedback('')
-      setPromptTokens((p) => p + (res.total_tokens || 0))
-      addTokens(res.total_tokens)
-      showToast('Prompt refined')
-    } catch (e) {
-      showToast(`Could not refine (${e.message})`)
-    } finally {
-      setRefining(false)
-    }
-  }
-
-  const copy = async () => {
-    if (!prompt) return
-    try {
-      await navigator.clipboard.writeText(prompt)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch {
-      showToast('Could not copy — select the text and copy manually')
-    }
-  }
-
-  const generateVideo = async (text) => {
-    const p = typeof text === 'string' ? text : prompt
-    if (rendering || !p) return
-    setVideoErr(null)
-    setJob(null)
-    try {
-      const res = await api.post('/ai/video', {
-        prompt: p,
+        template,
         aspect_ratio: ratio,
-        seconds,
-        brand_id: brandId,
+        style,
+        topic: idea,
+        has_reference: isImage && !!refImg,
       })
-      setJob(res)
-      setStartedAt(Date.now())
-      showToast('Rendering your video…')
-    } catch (e) {
-      setVideoErr(e.message)
-    }
-  }
-
-  const generateImage = async (text) => {
-    const p = typeof text === 'string' ? text : prompt
-    if (imgBusy || !p) return
-    setVideoErr(null)
-    setJob(null)
-    setImgBusy(true)
-    setStartedAt(Date.now())
-    try {
-      const res = await api.post('/ai/image', {
-        prompt: p,
-        aspect_ratio: ratio,
-        brand_id: brandId,
-        reference_url: refImg?.url || '',
-      })
-      setJob(res)
+      setText(res.prompt)
       addTokens(res.total_tokens)
-      refreshCounts()
-      showToast('Image ready')
+      showToast('Prompt written — review it, then send')
     } catch (e) {
-      setVideoErr(e.message)
+      showToast(`Couldn’t write the prompt — ${e.message}`)
     } finally {
-      setImgBusy(false)
+      setWriting(false)
+      composerRef.current?.querySelector('textarea')?.focus()
     }
   }
 
-  // Poll the render job while it runs.
-  useEffect(() => {
-    clearTimeout(pollRef.current)
-    if (!job || (job.status !== 'queued' && job.status !== 'running')) return
-    pollRef.current = setTimeout(async () => {
-      try {
-        const res = await api.get(`/ai/video/${job.id}`)
-        setJob(res)
-        if (res.status === 'succeeded') {
-          addTokens(res.total_tokens)
-          refreshCounts()
-          showToast('Video ready')
-        }
-        if (res.status === 'failed') showToast(`Render failed: ${res.error}`)
-      } catch (e) {
-        setJob((j) => ({ ...j, error: e.message }))
-      }
-    }, 3000)
-    return () => clearTimeout(pollRef.current)
-  }, [job])
+  // A reference image from the 📎 button, a paste (Ctrl+V a screenshot) or a
+  // drop onto the composer. Shown straight away from the local file while it
+  // uploads; references only drive *image* generation, so attaching one
+  // switches the composer to Create · Image.
+  const [dragging, setDragging] = useState(false)
+  const attachFile = async (file) => {
+    if (!file) return
+    if (!file.type.startsWith('image/')) return showToast('Reference must be an image')
+    if (type !== 'image') {
+      chooseType('image')
+      showToast('Reference images work with image generation — switched to Image')
+    }
+    setIntentPick('create')
+    const name = file.name && file.name !== 'image.png' ? file.name : `pasted-${Date.now()}.png`
+    const previewUrl = URL.createObjectURL(file)
+    setRefImg({ previewUrl, url: null, name })
+    setUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file, name)
+      const up = await api.upload('/media/upload', fd)
+      setRefImg((cur) => (cur?.previewUrl === previewUrl ? { ...cur, url: up.url } : cur))
+    } catch (err) {
+      setRefImg((cur) => (cur?.previewUrl === previewUrl ? null : cur))
+      showToast(`Upload failed — ${err.message}`)
+    } finally {
+      setUploading(false)
+    }
+  }
 
-  // Re-render often while a job runs, to animate elapsed time + progress bar.
-  const working = rendering || imgBusy
-  useEffect(() => {
-    if (!working) return
-    const id = setInterval(() => tick((n) => n + 1), 250)
-    return () => clearInterval(id)
-  }, [working])
+  const attach = (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    attachFile(file)
+  }
 
-  const elapsed = working && startedAt ? (Date.now() - startedAt) / 1000 : 0
-  const imgEta = 27
-  const imgPct = Math.min(92, 100 * (1 - Math.exp(-elapsed / (imgEta / 2.3))))
-  const imgStage =
-    elapsed < 2
-      ? 'Sending your prompt…'
-      : elapsed < 10
-        ? 'Composing the image…'
-        : elapsed < 22
-          ? 'Adding detail and lighting…'
-          : 'Almost there…'
-  // Ticking token estimate while an image renders (gpt-image low ≈ 200-260 tok).
-  const imgTokEst = 12 + Math.round(Math.min(1, elapsed / imgEta) * 220)
+  const onPaste = (e) => {
+    const item = [...(e.clipboardData?.items || [])].find((i) => i.kind === 'file' && i.type.startsWith('image/'))
+    if (!item) return // plain text paste — leave it alone
+    e.preventDefault()
+    attachFile(item.getAsFile())
+  }
 
-  const useGeneratedVideo = () => {
-    if (!job?.video) return
+  const onDrop = (e) => {
+    e.preventDefault()
+    setDragging(false)
+    const file = [...(e.dataTransfer?.files || [])].find((f) => f.type.startsWith('image/'))
+    if (file) attachFile(file)
+    else if (e.dataTransfer?.files?.length) showToast('Reference must be an image')
+  }
+
+  const chooseType = (t) => {
+    setType(t)
+    setRatio(t === 'image' ? '1:1' : '9:16')
+    setTemplate(TEMPLATES[t][0])
+    if (t === 'video') setRefImg(null)
+  }
+
+  const useInPost = (turn) => {
     handoff.set({
-      name: job.video.filename,
+      name: turn.video.filename,
       size: 0,
-      kind: isImage ? 'image' : 'video',
-      url: `${mediaBase}${job.video.url}`,
-      videoId: job.video.id,
+      kind: isImageUrl(turn.video.url) ? 'image' : 'video',
+      url: `${mediaBase}${turn.video.url}`,
+      videoId: turn.video.id,
     })
     navigate('/new')
   }
 
-  const useDroppedAsset = () => {
-    if (asset) handoff.set(asset)
-    navigate('/new')
+  const editPrompt = (turn) => {
+    setText(turn.prompt)
+    chooseType(turn.kind)
+    setRatio(turn.ratio)
+    composerRef.current?.querySelector('textarea')?.focus()
   }
 
-  const takeReference = async (meta) => {
-    if (meta.kind !== 'image') {
-      showToast('Reference must be an image')
-      return
-    }
-    setRefUploading(true)
-    try {
-      const fd = new FormData()
-      fd.append('file', meta.file, meta.name || 'reference')
-      const up = await api.upload('/media/upload', fd)
-      setRefImg({ previewUrl: meta.url, url: up.url, name: meta.name })
-    } catch (e) {
-      showToast(`Upload failed — ${e.message}`)
-    } finally {
-      setRefUploading(false)
-    }
+  const regenerate = (turn) => {
+    const again = { ...turn, id: ++turnSeq, status: 'working', video: null, jobId: null, startedAt: Date.now() }
+    setTurns((list) => [...list, again])
+    run(again)
   }
 
-  // gpt-image sizes are 1:1 / 2:3 / 3:2 — the preview just shows the image at
-  // its true shape, capped so portrait doesn't run off the screen.
-  const previewMax =
-    ratio === '16:9' ? 'max-w-[720px]' : ratio === '1:1' ? 'max-w-[520px]' : 'max-w-[400px]'
-
-  const step = job?.video ? 3 : prompt ? 2 : 1
-
-  const switchMode = (next) => {
-    if (next === mode) return
-    setMode(next)
-    if (next === 'direct' && !quickText && prompt) setQuickText(prompt)
-  }
-
-  const quickType = (t) => {
-    if (t === type) return
-    setType(t)
-    setTemplateId(t === 'image' ? 'product-shot' : 'talking-head')
-    setRatio(t === 'image' ? '1:1' : '9:16')
-    setRefImg(null)
-    setJob(null)
-    setVideoErr(null)
-  }
-
-  const quickGenerate = () => {
-    const text = quickText.trim()
-    if (text.length < 10) {
-      showToast('Write a little more — at least 10 characters')
-      return
-    }
-    // Also becomes the guided flow's prompt, so switching tabs keeps it.
-    setPrompt(text)
-    setHistory([{ text, note: 'your prompt' }])
-    setAiUsed(false)
-    setPromptTokens(0)
-    setBriefOpen(false)
-    if (isImage) generateImage(text)
-    else generateVideo(text)
-  }
-
-  // Optional one-click polish of the person's own prompt (same refine call
-  // the guided flow uses) — they see the rewrite before anything renders.
-  const improveQuick = async () => {
-    const text = quickText.trim()
-    if (improving || text.length < 10) return
-    setImproving(true)
-    try {
-      const res = await api.post('/ai/prompt', {
-        type,
-        aspect_ratio: ratio,
-        prior_prompt: text,
-        feedback:
-          'Make this a stronger, more specific prompt: add concrete detail on subject, setting, lighting, ' +
-          'camera and style. Keep the same subject and intent. Keep it one compact paragraph.',
-      })
-      setQuickText(res.prompt)
-      addTokens(res.total_tokens)
-      showToast('Prompt improved — review it, then generate')
-    } catch (e) {
-      showToast(`Could not improve (${e.message})`)
-    } finally {
-      setImproving(false)
-    }
-  }
-
-  const attachReference = (e) => {
-    const file = e.target.files?.[0]
-    e.target.value = ''
-    if (!file) return
-    takeReference({ file, name: file.name, url: URL.createObjectURL(file), kind: file.type.startsWith('image/') ? 'image' : 'other' })
-  }
-
-  // Keep a strip of this session's quick results to flip back to.
-  useEffect(() => {
-    if (mode !== 'direct' || job?.status !== 'succeeded' || !job?.video) return
-    setRecent((list) =>
-      list.some((x) => x.job.id === job.id)
-        ? list
-        : [{ job, kind: isImage ? 'image' : 'video', prompt: quickText.trim() }, ...list].slice(0, 12),
-    )
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [job?.id, job?.status])
+  const canSend = (intent === 'ask' ? text.trim().length >= 2 : text.trim().length >= 10) && !uploading && !writing
 
   return (
-    <div className="w-full px-5 lg:px-10 py-8 lg:py-10 animate-fadein">
-      {/* Header + steps */}
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-[24px] font-bold text-ink-900 tracking-tight leading-tight">AI Agent</h1>
-          <p className="mt-1 text-[13px] text-ink-600">
-            {mode === 'direct'
-              ? 'Paste your prompt and generate — no brief needed.'
-              : 'Brief, prompt, then the image or video — one focused flow.'}
-          </p>
-        </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          {sessionTokens > 0 && (
-            <span
-              className="inline-flex items-center gap-1.5 rounded-full border border-ink-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-ink-600"
-              title="Total provider tokens used on this page since you opened it"
-            >
-              <span className="text-brand">◈</span>
-              {fmtTok(sessionTokens)} tokens this session
-            </span>
-          )}
-          {mode === 'guided' && <StepIndicator current={step} />}
-        </div>
-      </div>
-
-      <div className="mb-5 grid grid-cols-2 gap-2 max-w-[560px]" role="tablist">
-        {[
-          { id: 'guided', title: 'Guided', sub: 'Describe it — the AI writes the prompt', icon: icons.spark },
-          { id: 'direct', title: 'Quick generate', sub: 'Already have a prompt? Go straight to it', icon: '⚡' },
-        ].map((m) => (
-          <button
-            key={m.id}
-            type="button"
-            role="tab"
-            aria-selected={mode === m.id}
-            onClick={() => switchMode(m.id)}
-            className={`flex items-start gap-2.5 rounded-xl border px-3.5 py-2.5 text-left transition-all duration-150 ${
-              mode === m.id
-                ? 'border-brand bg-brand-soft/60 ring-2 ring-brand/15'
-                : 'border-ink-200 bg-white hover:border-ink-300'
-            }`}
-          >
-            <span className={`mt-0.5 flex-none text-[13px] ${mode === m.id ? 'text-brand' : 'text-ink-400'}`}>{m.icon}</span>
-            <span className="min-w-0">
-              <span className={`block text-[12.5px] font-semibold ${mode === m.id ? 'text-brand' : 'text-ink-800'}`}>
-                {m.title}
-              </span>
-              <span className="block text-[11px] text-ink-500 leading-snug">{m.sub}</span>
-            </span>
-          </button>
-        ))}
-      </div>
-
-      <div className="space-y-5">
-        {/* ── QUICK GENERATE — prompt in, image/video out ────────── */}
-        {mode === 'direct' ? (() => {
-          const qBusy = isImage ? imgBusy : rendering
-          const canGo = quickText.trim().length >= 10 && !qBusy && !refUploading && !improving
-          const shape =
-            ratio === '16:9' ? 'aspect-video w-full' : ratio === '1:1' ? 'aspect-square w-full max-w-[460px]' : 'aspect-[9/16] w-full max-w-[330px]'
-          const vidPct = Math.min(95, (elapsed / 150) * 100)
-          const chip = (on) =>
-            `h-8 px-2.5 rounded-lg border text-[11.5px] font-semibold inline-flex items-center gap-1.5 transition-colors duration-150 disabled:opacity-50 ${
-              on ? 'border-brand/40 bg-brand-soft text-brand' : 'border-ink-200 bg-white text-ink-600 hover:border-ink-300'
-            }`
-          return (
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] items-start animate-fadein">
-              {/* composer */}
-              <section className="xl:sticky xl:top-5 bg-white rounded-2xl border border-ink-200/70 shadow-card focus-within:border-brand/50 focus-within:ring-4 focus-within:ring-brand/10 transition-shadow">
-                <div className="px-5 pt-4">
-                  <AutoTextarea
-                    autoFocus
-                    minRows={6}
-                    maxRows={18}
-                    value={quickText}
-                    disabled={improving}
-                    onChange={(e) => setQuickText(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && canGo) quickGenerate()
-                    }}
-                    placeholder={
-                      isImage
-                        ? 'Paste or write your image prompt…\n\ne.g. A glossy iced latte on a wooden café table in Phnom Penh, soft morning sunlight, shallow depth of field, product photography'
-                        : 'Paste or write your video prompt…\n\ne.g. Slow push-in on a barista pouring latte art, warm café light, handheld feel'
-                    }
-                    className="w-full border-0 bg-transparent p-0 text-[13.5px] leading-relaxed text-ink-900 placeholder:text-ink-400 focus:outline-none focus:ring-0 disabled:opacity-60"
-                  />
-                </div>
-
-                {isImage && (refImg || refUploading) && (
-                  <div className="mx-5 mb-2 inline-flex items-center gap-2 rounded-lg border border-ink-200 bg-ink-50 py-1 pl-1 pr-2 text-[11px] text-ink-600">
-                    {refImg ? (
-                      <img src={refImg.previewUrl} alt="" className="w-7 h-7 rounded object-cover" />
-                    ) : (
-                      <span className="w-7 h-7 rounded skeleton" />
-                    )}
-                    <span className="max-w-[180px] truncate">{refUploading ? 'Uploading reference…' : `Reference · ${refImg.name}`}</span>
-                    {refImg && (
-                      <button type="button" onClick={() => setRefImg(null)} className="text-ink-400 hover:text-ink-800" title="Remove reference">
-                        ✕
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                {/* options toolbar */}
-                <div className="flex flex-wrap items-center gap-1.5 border-t border-ink-100 px-3 py-2.5">
-                  <div className="inline-flex h-8 rounded-lg border border-ink-200 p-0.5">
-                    {TEMPLATE_TYPES.map((t) => (
-                      <button
-                        key={t.id}
-                        type="button"
-                        disabled={qBusy}
-                        onClick={() => quickType(t.id)}
-                        className={`px-2.5 rounded-md text-[11.5px] font-semibold inline-flex items-center gap-1.5 transition-colors ${
-                          type === t.id ? 'bg-brand-soft text-brand' : 'text-ink-600 hover:bg-ink-50'
-                        }`}
-                      >
-                        {icons[t.id]}
-                        {t.name}
-                      </button>
-                    ))}
-                  </div>
-
-                  {RATIOS.map((r) => (
-                    <button
-                      key={r.id}
-                      type="button"
-                      disabled={qBusy}
-                      onClick={() => setRatio(r.id)}
-                      title={r.sub}
-                      className={chip(ratio === r.id)}
-                    >
-                      <span
-                        className="inline-block rounded-[2px] border-[1.5px] border-current"
-                        style={{
-                          width: r.id === '16:9' ? 14 : r.id === '1:1' ? 10 : 8,
-                          height: r.id === '16:9' ? 8 : r.id === '1:1' ? 10 : 13,
-                        }}
-                      />
-                      {r.id}
-                    </button>
-                  ))}
-
-                  {!isImage && (
-                    <select
-                      value={seconds}
-                      disabled={qBusy}
-                      onChange={(e) => setSeconds(Number(e.target.value))}
-                      className="h-8 rounded-lg border border-ink-200 bg-white px-2 text-[11.5px] font-semibold text-ink-600 focus:outline-none focus:border-brand"
-                      title="Video length"
-                    >
-                      {[4, 5, 8, 10, 12, 15, 20].map((n) => (
-                        <option key={n} value={n}>
-                          {n}s
-                        </option>
-                      ))}
-                    </select>
-                  )}
-
-                  {isImage && (
-                    <label className={`${chip(!!refImg)} cursor-pointer`} title="Build on an image you already have">
-                      <input type="file" accept="image/*" className="hidden" onChange={attachReference} disabled={qBusy} />
-                      📎 Reference
-                    </label>
-                  )}
-
-                  <select
-                    value={brand}
-                    onChange={(e) => setBrand(e.target.value)}
-                    className="h-8 max-w-[150px] rounded-lg border border-ink-200 bg-white px-2 text-[11.5px] font-semibold text-ink-600 focus:outline-none focus:border-brand"
-                    title="Saved to this brand's library"
-                  >
-                    {brands.map((b) => (
-                      <option key={b.slug} value={b.slug}>
-                        {b.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="flex items-center justify-between gap-2 border-t border-ink-100 px-3 py-2.5">
-                  <button
-                    type="button"
-                    onClick={improveQuick}
-                    disabled={improving || qBusy || quickText.trim().length < 10}
-                    className="h-9 px-3 rounded-lg text-[12px] font-semibold text-ink-600 hover:bg-ink-50 hover:text-brand inline-flex items-center gap-1.5 disabled:opacity-40"
-                    title="Let the AI add detail to your prompt first (optional)"
-                  >
-                    {improving ? (
-                      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand/30 border-t-brand" />
-                    ) : (
-                      <span className="text-brand">{icons.spark}</span>
-                    )}
-                    {improving ? 'Improving…' : 'Improve prompt'}
-                  </button>
-                  <div className="flex items-center gap-3">
-                    <span className="hidden sm:inline text-[10.5px] text-ink-400">Ctrl + Enter</span>
-                    <button
-                      type="button"
-                      onClick={quickGenerate}
-                      disabled={!canGo}
-                      className="h-10 px-5 rounded-xl gradient-brand text-white text-[13px] font-bold inline-flex items-center gap-2 hover:shadow-glow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-                    >
-                      {qBusy ? (
-                        <>
-                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-                          {isImage ? 'Generating…' : 'Rendering…'}
-                        </>
-                      ) : (
-                        <>
-                          <span className="text-white">{icons.spark}</span>
-                          Generate {isImage ? 'image' : 'video'}
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </section>
-
-              {/* result */}
-              <section className="bg-white rounded-2xl border border-ink-200/70 shadow-card p-5">
-                <div className="flex items-center justify-between gap-3 mb-4">
-                  <h2 className="text-[14px] font-semibold text-ink-900">Result</h2>
-                  <div className="flex items-center gap-2">
-                    {job?.status === 'succeeded' && job?.total_tokens > 0 && (
-                      <span className="text-[10.5px] font-mono text-ink-400">{fmtTok(job.total_tokens)} tok</span>
-                    )}
-                    {job?.status === 'succeeded' && <Tag variant="ok">Ready</Tag>}
-                    {job?.status === 'failed' && <Tag variant="stop">Failed</Tag>}
-                  </div>
-                </div>
-
-                <div className="flex flex-col items-center">
-                  {job?.video ? (
-                    <>
-                      {job.video.url && /\.(png|jpe?g|webp|gif)$/i.test(job.video.url) ? (
-                        <img
-                          key={job.video.id}
-                          src={`${mediaBase}${job.video.url}`}
-                          alt=""
-                          className={`block w-full ${previewMax} h-auto rounded-xl ring-1 ring-ink-900/10 bg-ink-50 animate-media-reveal`}
-                        />
-                      ) : (
-                        <video
-                          key={job.video.id}
-                          src={`${mediaBase}${job.video.url}`}
-                          controls
-                          playsInline
-                          className={`block w-full ${previewMax} h-auto rounded-xl bg-ink-900 ring-1 ring-ink-900/10 animate-media-reveal`}
-                        />
-                      )}
-                      <div className="mt-4 flex flex-wrap justify-center gap-2">
-                        <button type="button" onClick={useGeneratedVideo} className="btn-primary">
-                          Use in a post →
-                        </button>
-                        <button type="button" onClick={quickGenerate} disabled={!canGo} className="btn-outline">
-                          Generate again
-                        </button>
-                        <a href={`${mediaBase}${job.video.url}`} download={job.video.filename} className="btn-outline">
-                          Download
-                        </a>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => navigate('/library')}
-                        className="mt-2 text-[11.5px] font-semibold text-ink-400 hover:text-brand"
-                      >
-                        Saved to your Library →
-                      </button>
-                    </>
-                  ) : qBusy ? (
-                    <>
-                      <div className={`${shape} rounded-xl skeleton`} />
-                      <div className="mt-4 w-full max-w-[460px] space-y-1.5">
-                        <div className="h-2 w-full overflow-hidden rounded-full bg-brand/15">
-                          <div
-                            className="h-full rounded-full bg-brand transition-[width] duration-300 ease-linear"
-                            style={{ width: `${isImage ? imgPct : vidPct}%` }}
-                          />
-                        </div>
-                        <div className="flex items-center justify-between text-[11.5px] text-ink-500">
-                          <span>
-                            {isImage ? imgStage : job?.status === 'queued' ? 'Queued at the video service…' : 'Rendering your video…'}
-                          </span>
-                          <span className="font-mono text-ink-400">
-                            {Math.round(elapsed)}s · {Math.round(isImage ? imgPct : vidPct)}%
-                          </span>
-                        </div>
-                        {!isImage && (
-                          <p className="text-[11px] text-ink-400">
-                            Usually 1–3 minutes. You can leave — it lands in your Library either way.
-                          </p>
-                        )}
-                      </div>
-                    </>
-                  ) : videoErr || job?.status === 'failed' ? (
-                    <div className="w-full rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] text-amber-800">
-                      <b>Couldn’t generate.</b> {videoErr || job?.error}
-                    </div>
-                  ) : (
-                    <div className={`${shape} rounded-xl border-2 border-dashed border-ink-200 grid place-items-center text-center px-6`}>
-                      <div>
-                        <div className="mx-auto mb-2 w-10 h-10 rounded-xl grid place-items-center bg-brand-soft text-brand">
-                          {icons[type]}
-                        </div>
-                        <div className="text-[12.5px] font-semibold text-ink-700">
-                          Your {isImage ? 'image' : 'video'} appears here
-                        </div>
-                        <div className="mt-0.5 text-[11px] text-ink-400">Write a prompt and press Generate</div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {recent.length > 1 && (
-                  <div className="mt-5 border-t border-ink-100 pt-4">
-                    <div className="mb-2 text-[10.5px] font-bold uppercase tracking-wide text-ink-400">This session</div>
-                    <div className="flex gap-2 overflow-x-auto pb-1">
-                      {recent.map((r) => (
-                        <button
-                          key={r.job.id}
-                          type="button"
-                          onClick={() => {
-                            setJob(r.job)
-                            setVideoErr(null)
-                            if (r.prompt) setQuickText(r.prompt)
-                          }}
-                          title={r.prompt}
-                          className={`w-16 h-16 flex-none overflow-hidden rounded-lg ring-2 transition ${
-                            job?.id === r.job.id ? 'ring-brand' : 'ring-transparent hover:ring-ink-200'
-                          }`}
-                        >
-                          {r.kind === 'image' ? (
-                            <img src={`${mediaBase}${r.job.video.url}`} alt="" className="w-full h-full object-cover" />
-                          ) : (
-                            <video src={`${mediaBase}${r.job.video.url}`} muted className="w-full h-full object-cover bg-ink-900" />
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </section>
-            </div>
-          )
-        })() : (
-        <>
-        {/* ── 1 · BRIEF ─────────────────────────────────────────── */}
-        {briefOpen ? (
-          <div className="animate-fadein">
-            <section className="bg-white rounded-2xl border border-ink-200/60 shadow-[0_1px_2px_rgba(16,24,40,0.04)] overflow-hidden">
-              <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-ink-100">
-                <div>
-                  <h2 className="text-[15px] font-semibold text-ink-900">Brief</h2>
-                  <p className="text-[12px] text-ink-500">What should the agent make?</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  {prompt && (
-                    <button
-                      type="button"
-                      onClick={() => setBriefOpen(false)}
-                      className="text-[12px] font-medium text-ink-500 hover:text-ink-800"
-                    >
-                      Keep current prompt
-                    </button>
-                  )}
-                  <button type="button" onClick={generate} disabled={generating} className="btn-primary">
-                    {generating ? (
-                      <>
-                        <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-                        Writing your prompt…
-                      </>
-                    ) : (
-                      <>
-                        {icons.spark}
-                        {prompt ? 'Rewrite the prompt' : 'Write the prompt'} →
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-              <div className="p-6 space-y-6">
-              <div>
-                <Label>Brand</Label>
-                <div className="flex gap-2 flex-wrap">
-                  {brands.map((b) => (
-                    <button
-                      key={b.slug}
-                      type="button"
-                      onClick={() => setBrand(b.slug)}
-                      className={`px-3.5 py-2 rounded-xl border text-[12.5px] font-semibold flex items-center gap-2 transition-colors duration-150 ${pick(brand === b.slug)}`}
-                    >
-                      <span className="w-2 h-2 rounded-full flex-none" style={{ background: colorForBrand(b.slug) }} />
-                      {b.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <Label>What's it about</Label>
-                <AutoTextarea
-                  autoFocus
-                  minRows={2}
-                  maxRows={8}
-                  value={topic}
-                  onChange={(e) => setTopic(e.target.value)}
-                  placeholder="The main message — e.g. Three ways to save phone data"
-                  className="w-full bg-white border border-ink-200 rounded-xl px-3.5 py-3 text-[13px] leading-relaxed focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/15"
-                />
-              </div>
-
-              <div>
-                <Label>Format</Label>
-                <div className="inline-flex rounded-xl border border-ink-200 p-0.5">
-                  {TEMPLATE_TYPES.map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => {
-                        setType(t.id)
-                        setTemplateId(t.id === 'image' ? 'product-shot' : 'talking-head')
-                        setRatio(t.id === 'image' ? '1:1' : '9:16')
-                        resetDownstream()
-                      }}
-                      className={`px-4 py-1.5 rounded-[10px] text-[12.5px] font-semibold flex items-center gap-2 transition-colors duration-150 ${
-                        type === t.id ? 'bg-brand-soft text-brand' : 'text-ink-600 hover:bg-ink-50'
-                      }`}
-                    >
-                      {icons[t.id]}
-                      {t.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <Label>Template</Label>
-                <div className="grid sm:grid-cols-2 gap-2">
-                  {templates.map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => {
-                        setTemplateId(t.id)
-                        setRatio(t.ratio)
-                        setPrompt('')
-                        setHistory([])
-                        setJob(null)
-                      }}
-                      className={`rounded-xl border px-3 py-2.5 text-left flex items-center gap-3 transition-colors duration-150 ${pick(templateId === t.id)}`}
-                    >
-                      <span
-                        className={`grid place-items-center rounded border flex-none font-mono text-[9px] font-bold ${
-                          templateId === t.id ? 'border-brand/40 text-brand' : 'border-ink-300 text-ink-500'
-                        }`}
-                        style={{
-                          width: t.ratio === '16:9' ? 28 : t.ratio === '1:1' ? 22 : 16,
-                          height: t.ratio === '16:9' ? 16 : t.ratio === '1:1' ? 22 : 26,
-                        }}
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-[12.5px] font-semibold leading-tight">{t.name}</span>
-                        <span className="block text-[11px] text-ink-500 font-mono">{t.ratio}</span>
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {isImage && (
-                <div>
-                  <Label>Reference image (optional)</Label>
-                  {refImg ? (
-                    <div className="flex items-center gap-3 bg-white border border-ink-200 rounded-xl p-2.5">
-                      <img src={refImg.previewUrl} alt="" className="w-14 h-14 rounded-lg object-cover flex-none bg-ink-100" />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-[11.5px] font-semibold text-ink-800 truncate">{refImg.name}</div>
-                        <div className="text-[10.5px] text-ink-400">The agent edits / builds on this image</div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setRefImg(null)}
-                        className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-ink-500 hover:bg-ink-100 hover:text-ink-800"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ) : (
-                    <DropZone
-                      compact
-                      accept="image/*"
-                      onFile={takeReference}
-                      title={refUploading ? 'Uploading…' : 'Drop an image to enhance or build on'}
-                      hint="Keep the parts you like, change the rest via the prompt"
-                    />
-                  )}
-                </div>
-              )}
-
-              <div>
-                <Label>Style</Label>
-                <div className="flex gap-2 flex-wrap">
-                  {STYLES.map((s) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => setStyle(s.id)}
-                      className={`px-3.5 py-2 rounded-xl border text-[12.5px] font-semibold transition-colors duration-150 ${pick(style === s.id)}`}
-                    >
-                      {s.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="border-t border-ink-100 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setMoreOpen((v) => !v)}
-                  className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-ink-700 hover:text-ink-900"
-                >
-                  <span className={`transition-transform duration-200 ${moreOpen ? 'rotate-90' : ''}`}>›</span>
-                  More options
-                  {(mood || extra.trim()) && !moreOpen && (
-                    <span className="ml-1 text-[11px] font-normal text-ink-500">
-                      · {[mood, extra.trim() && 'extra direction'].filter(Boolean).join(', ')}
-                    </span>
-                  )}
-                </button>
-                {moreOpen && (
-                  <div className="mt-4 grid sm:grid-cols-2 gap-4">
-                    <div>
-                      <Label>Mood / tone</Label>
-                      <select
-                        value={mood}
-                        onChange={(e) => setMood(e.target.value)}
-                        className="w-full bg-white border border-ink-200 rounded-xl px-3 py-2.5 text-[12.5px] focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/15"
-                      >
-                        <option value="">No preference</option>
-                        <option>Friendly & warm</option>
-                        <option>Bold & energetic</option>
-                        <option>Minimal & clean</option>
-                        <option>Luxury & premium</option>
-                        <option>Playful & fun</option>
-                        <option>Professional & trustworthy</option>
-                      </select>
-                    </div>
-                    <div>
-                      <Label>Extra direction</Label>
-                      <AutoTextarea
-                        value={extra}
-                        onChange={(e) => setExtra(e.target.value)}
-                        minRows={2}
-                        maxRows={6}
-                        placeholder="Colours, props, camera angle, references…"
-                        className="w-full bg-white border border-ink-200 rounded-xl px-3 py-2.5 text-[12.5px] focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/15"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-              </div>
-            </section>
-
+    // Fills the screen below the top bar, so the composer always sits at the
+    // bottom — even when the thread is short or empty.
+    <div className="w-full px-5 lg:px-10 animate-fadein flex flex-col min-h-[calc(100dvh-7.5rem)] lg:min-h-[calc(100dvh-3.5rem)]">
+      {/* Page header — pinned under the top bar while the thread scrolls. */}
+      <div className="sticky top-14 z-20 -mx-5 lg:-mx-10 px-5 lg:px-10 bg-[#F4F6F9]/90 backdrop-blur-md">
+        <div className="mx-auto w-full lg:w-4/5 flex items-center justify-between gap-3 py-4">
+          <div>
+            <h1 className="text-[22px] font-bold text-ink-900 tracking-tight leading-tight">AI Agent</h1>
+            <p className="mt-0.5 text-[12.5px] text-ink-500">
+              Ask about your marketing, or describe an image or video to create.
+            </p>
           </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setBriefOpen(true)}
-            className="w-full text-left bg-white border border-ink-100 rounded-2xl px-5 py-4 flex items-center gap-3 hover:border-brand/40 hover:shadow-card transition-all duration-150"
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <span className="w-9 h-9 rounded-xl grid place-items-center gradient-brand text-white flex-none">
-                {icons[type]}
+          <div className="flex items-center gap-1">
+            {sessionTokens > 0 && (
+              <span className="mr-2 hidden sm:inline text-[11px] text-ink-400" title="Provider tokens used on this page since you opened it">
+                {fmtTok(sessionTokens)} tokens this session
               </span>
-              <div className="min-w-0">
-                <div className="text-[12.5px] font-bold text-ink-900 flex items-center gap-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wide text-ink-400">Step 1 · Brief</span>
-                </div>
-                <div className="text-[11.5px] text-ink-500 truncate">
-                  <b className="text-ink-800">{brandObj?.name}</b>
-                  <span className="text-ink-400"> · </span>
-                  {isImage ? 'Image' : 'Video'}
-                  <span className="text-ink-400"> · </span>
-                  {template.name}
-                  <span className="text-ink-400"> · </span>
-                  {styleName}
-                  {topic ? <span className="text-ink-400"> · “{topic}”</span> : null}
-                </div>
-              </div>
-            </div>
-            <span className="ml-auto flex-none text-[11.5px] font-bold text-brand">Edit brief</span>
-          </button>
-        )}
+            )}
+            <button
+              type="button"
+              onClick={newChat}
+              disabled={!turns.length}
+              title="New chat"
+              aria-label="New chat"
+              className="h-9 w-9 rounded-xl grid place-items-center text-ink-600 hover:bg-white hover:shadow-sm hover:text-brand disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:shadow-none transition"
+            >
+              <FiPlus size={18} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setHistoryOpen(true)}
+              title="History"
+              aria-label="History"
+              className={`h-9 w-9 rounded-xl grid place-items-center transition ${
+                historyOpen ? 'bg-brand-soft text-brand' : 'text-ink-600 hover:bg-white hover:shadow-sm hover:text-brand'
+              }`}
+            >
+              <FiClock size={17} />
+            </button>
+          </div>
+        </div>
+      </div>
 
-        {/* ── 2 · PROMPT  +  3 · CREATE — side by side on wide screens ── */}
-        {prompt && (
-        <div className="grid gap-5 xl:grid-cols-2 items-start">
-          <section className="bg-white border border-ink-100 rounded-2xl shadow-card p-6 lg:p-8 animate-fadein">
-            <div className="flex items-start justify-between gap-3">
-              <StepHead n={2} title="Prompt" hint="Edit directly, or tell the agent what to change" />
-              <div className="flex items-center gap-2 flex-none pt-1">
-                {promptTokens > 0 && (
-                  <span className="text-[10.5px] font-mono text-ink-400">{fmtTok(promptTokens)} tok</span>
-                )}
-                <Tag variant={aiUsed ? 'lime' : 'idle'}>{aiUsed ? 'AI-written' : 'Template'}</Tag>
-                {copied && <Tag variant="ok">Copied</Tag>}
-              </div>
-            </div>
-
-            <textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              rows={16}
-              className="mt-5 w-full min-h-[340px] max-h-[62vh] font-sans text-[12.5px] text-ink-800 bg-ink-50/60 border border-ink-200/80 rounded-2xl p-4 lg:p-5 leading-[1.65] resize-y focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-            />
-            <div className="mt-1.5 text-right text-[10px] text-ink-400 font-mono">
-              {prompt.trim().split(/\s+/).filter(Boolean).length} words
-            </div>
-
-            <div className="mt-3 flex flex-col sm:flex-row gap-2">
-              <input
-                type="text"
-                value={feedback}
-                onChange={(e) => setFeedback(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && refine()}
-                placeholder="e.g. more cinematic, add a product close-up, warmer light"
-                className="flex-1 bg-white border border-ink-200 rounded-xl px-3.5 py-2.5 text-[12.5px] focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-              />
-              <button
-                type="button"
-                onClick={refine}
-                disabled={refining || !feedback.trim()}
-                className="px-5 py-2.5 rounded-xl border-2 border-brand text-brand text-[12px] font-bold hover:bg-brand/5 disabled:opacity-50 transition-all duration-150 flex items-center justify-center gap-2"
-              >
-                {refining && (
-                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand/30 border-t-brand" />
-                )}
-                {refining ? 'Refining…' : 'Refine'}
-              </button>
-            </div>
-
-            {history.length > 1 && (
-              <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                <span className="text-[10px] font-semibold text-ink-400 uppercase tracking-wide mr-1">Versions</span>
-                {history.map((h, i) => (
+      {/* The chat column — 80% of the page on desktop, centred. */}
+      <div className="mx-auto w-full lg:w-4/5 flex-1">
+        <div className="mt-2 space-y-8 pb-6">
+          {turns.length === 0 && (
+            <div className="pt-[14vh] pb-4 text-center">
+              <h2 className="text-[22px] font-semibold text-ink-900 tracking-tight">How can I help?</h2>
+              <div className="mt-6 flex flex-nowrap justify-center gap-2 overflow-x-auto side-scroll pb-1">
+                {[
+                  { label: 'How’s my engagement?', text: QUESTIONS[0], pick: 'ask' },
+                  { label: 'What to post next week?', text: QUESTIONS[1], pick: 'ask' },
+                  { label: isImage ? 'Product hero shot' : 'Product intro video', text: SUGGESTIONS[type][0], pick: 'create' },
+                  { label: isImage ? 'Weekend sale banner' : 'Cinematic B-roll', text: SUGGESTIONS[type][1], pick: 'create' },
+                ].map((s) => (
                   <button
-                    key={i}
+                    key={s.text}
                     type="button"
-                    title={h.note}
-                    onClick={() => setPrompt(h.text)}
-                    className={`px-2 py-1 rounded-lg text-[10.5px] font-semibold border transition-all duration-150 ${
-                      h.text === prompt ? 'border-brand bg-brand/5 text-ink-800' : 'border-ink-200 text-ink-500 hover:border-ink-300'
-                    }`}
+                    onClick={() => {
+                      setText(s.text)
+                      setIntentPick(s.pick)
+                      composerRef.current?.querySelector('textarea')?.focus()
+                    }}
+                    title={s.text}
+                    className="flex-none inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-ink-200 bg-white px-3.5 py-1.5 text-[12px] text-ink-600 hover:border-brand/40 hover:text-brand transition-colors"
                   >
-                    v{i + 1}
+                    {s.pick === 'ask' ? (
+                      <FiMessageCircle size={12} className="flex-none text-ink-400" />
+                    ) : (
+                      <span className="flex-none text-brand text-[11px] leading-none">✦</span>
+                    )}
+                    {s.label}
                   </button>
                 ))}
               </div>
-            )}
+            </div>
+          )}
 
-            <div className="mt-5 flex flex-wrap gap-2">
+          {turns.map((t) =>
+            t.kind === 'ask' ? (
+              <AskTurn
+                key={t.id}
+                t={t}
+                onRetry={() => regenerate(t)}
+                onGenerate={generateSuggestion}
+                onEdit={() => {
+                  setText(t.prompt)
+                  setIntentPick('ask')
+                  composerRef.current?.querySelector('textarea')?.focus()
+                }}
+              />
+            ) : (
+            <Turn
+              key={t.id}
+              t={t}
+              onUse={() => useInPost(t)}
+              onEdit={() => editPrompt(t)}
+              onRegenerate={() => regenerate(t)}
+              onLibrary={() => navigate('/library')}
+            />
+            ),
+          )}
+          <div ref={bottomRef} />
+        </div>
+      </div>
+
+      {/* composer */}
+      <div className="sticky bottom-16 lg:bottom-0 z-20 -mx-5 lg:-mx-10 px-5 lg:px-10 pb-5 pt-6 bg-gradient-to-t from-[#F4F6F9] via-[#F4F6F9] to-transparent">
+        <div
+          ref={composerRef}
+          onDragOver={(e) => {
+            if ([...(e.dataTransfer?.items || [])].some((i) => i.kind === 'file')) {
+              e.preventDefault()
+              setDragging(true)
+            }
+          }}
+          onDragLeave={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget)) setDragging(false)
+          }}
+          onDrop={onDrop}
+          className={`relative mx-auto w-full lg:w-4/5 rounded-3xl border bg-white shadow-[0_8px_30px_rgba(16,24,40,0.08)] transition-colors ${
+            dragging ? 'border-brand ring-4 ring-brand/15' : 'border-ink-200 focus-within:border-brand/40'
+          }`}
+        >
+          {dragging && (
+            <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center rounded-3xl bg-brand-soft/80 text-[13px] font-semibold text-brand">
+              Drop the image to use it as a reference
+            </div>
+          )}
+
+          {refImg && (
+            <div className="px-4 pt-4">
+              <div className="group relative w-[104px] h-[104px] overflow-hidden rounded-2xl bg-ink-100 ring-1 ring-ink-200">
+                <img src={refImg.previewUrl} alt="Reference" className="h-full w-full object-cover" />
+                {uploading && !refImg.url && (
+                  <div className="absolute inset-0 grid place-items-center bg-white/60 backdrop-blur-[1px]">
+                    <span className="h-5 w-5 animate-spin rounded-full border-2 border-brand/30 border-t-brand" />
+                  </div>
+                )}
+                <span className="absolute bottom-1.5 left-1.5 rounded-md bg-black/55 px-1.5 py-0.5 text-[9.5px] font-semibold text-white">
+                  Reference
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setRefImg(null)}
+                  title="Remove reference"
+                  aria-label="Remove reference"
+                  className="absolute right-1.5 top-1.5 h-6 w-6 rounded-full grid place-items-center bg-black/60 text-white sm:opacity-0 sm:group-hover:opacity-100 hover:bg-black/80 transition"
+                >
+                  <FiX size={13} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          <AutoTextarea
+            autoFocus
+            minRows={1}
+            maxRows={10}
+            value={text}
+            disabled={writing}
+            onChange={(e) => setText(e.target.value)}
+            onPaste={onPaste}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                if (canSend) send()
+              }
+            }}
+            placeholder={
+              writing
+                ? 'Writing your prompt…'
+                : `Ask about your marketing, or describe the ${isImage ? 'image' : 'video'} you want…`
+            }
+            className="block w-full border-0 bg-transparent px-5 pt-4 pb-2 text-[13.5px] leading-relaxed text-ink-900 placeholder:text-ink-400 focus:outline-none focus:ring-0 disabled:opacity-60"
+          />
+
+          <div className="flex items-center gap-1 px-2.5 pb-2.5">
+            {/* settings */}
+            <div className="relative" ref={settingsRef}>
               <button
                 type="button"
-                onClick={copy}
-                className="px-4 py-2 rounded-xl border border-ink-300 text-ink-700 text-[12px] font-bold flex items-center gap-2 hover:bg-ink-50 transition-all duration-150"
+                onClick={() => setSettingsOpen((v) => !v)}
+                className={`h-9 pl-2.5 pr-3 rounded-full inline-flex items-center gap-2 text-[12px] font-medium transition-colors ${
+                  settingsOpen ? 'bg-brand-soft text-brand' : 'text-ink-600 hover:bg-ink-100'
+                }`}
+                title="Settings"
               >
-                {icons.copy} {copied ? 'Copied' : 'Copy'}
+                <FiSliders size={15} />
+                <span className="hidden sm:inline">
+                  {isImage ? 'Image' : `Video · ${seconds}s`} · {ratio}
+                </span>
+              </button>
+              {settingsOpen && (
+                <SettingsPopover
+                  type={type}
+                  setType={chooseType}
+                  ratio={ratio}
+                  setRatio={setRatio}
+                  seconds={seconds}
+                  setSeconds={setSeconds}
+                  brands={brands}
+                  brand={brandObj?.slug}
+                  setBrand={setBrand}
+                  style={style}
+                  setStyle={setStyle}
+                  template={template}
+                  setTemplate={setTemplate}
+                />
+              )}
+            </div>
+
+            {intent === 'create' && (
+              <label
+                className="h-9 w-9 rounded-full grid place-items-center text-ink-600 hover:bg-ink-100 cursor-pointer"
+                title="Attach a reference image — or paste / drop one into the box"
+              >
+                <input type="file" accept="image/*" className="hidden" onChange={attach} />
+                <FiPaperclip size={15} />
+              </label>
+            )}
+
+            {intent === 'create' && (
+            <button
+              type="button"
+              onClick={writeForMe}
+              disabled={!text.trim() || writing}
+              className="h-9 px-3 rounded-full inline-flex items-center gap-1.5 text-[12px] font-medium text-ink-600 hover:bg-brand-soft hover:text-brand disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-600"
+              title="Turn your idea into a detailed prompt using this brand's products"
+            >
+              {writing ? (
+                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand/30 border-t-brand" />
+              ) : (
+                <span className="text-brand">✦</span>
+              )}
+              <span className="hidden sm:inline">{writing ? 'Writing…' : 'Write it for me'}</span>
+            </button>
+            )}
+
+            <div className="ml-auto flex items-center gap-2">
+              <div
+                className="inline-flex h-8 rounded-full bg-ink-100 p-0.5"
+                role="radiogroup"
+                aria-label="Ask a question or create media"
+                title={intentPick ? 'Chosen by you' : 'Picked automatically from what you typed — click to switch'}
+              >
+                {[
+                  { id: 'ask', label: 'Ask', icon: <FiMessageCircle size={12} /> },
+                  { id: 'create', label: 'Create', icon: <span className="text-[11px] leading-none">✦</span> },
+                ].map((o) => (
+                  <button
+                    key={o.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={intent === o.id}
+                    onClick={() => setIntentPick(o.id)}
+                    className={`px-2.5 rounded-full inline-flex items-center gap-1 text-[11.5px] font-semibold transition-colors ${
+                      intent === o.id ? 'bg-white text-brand shadow-sm' : 'text-ink-500 hover:text-ink-800'
+                    }`}
+                  >
+                    {o.icon}
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={send}
+                disabled={!canSend}
+                className="h-9 w-9 rounded-full grid place-items-center bg-brand text-white hover:bg-brand-dark disabled:bg-ink-200 disabled:text-ink-400 transition-colors"
+                title={intent === 'ask' ? 'Ask (Enter)' : 'Generate (Enter)'}
+                aria-label={intent === 'ask' ? 'Ask' : 'Generate'}
+              >
+                <FiArrowUp size={17} />
               </button>
             </div>
-          </section>
+          </div>
+        </div>
+        <p className="mt-2 text-center text-[10.5px] text-ink-400">
+          Enter to send · Shift + Enter for a new line · answers use your own brands, products and post numbers
+        </p>
+      </div>
 
-          {/* ── 3 · CREATE ────────────────────────────────────────── */}
-          {(() => {
-          const busy = isImage ? imgBusy : rendering
-          return (
-            <section className="bg-white border border-ink-100 rounded-2xl shadow-card p-6 lg:p-8 animate-fadein">
-              <div className="flex items-start justify-between gap-3">
-                <StepHead
-                  n={3}
-                  title={isImage ? 'Create the image' : 'Create the video'}
-                  hint={isImage ? 'Generated here, saved to your library' : 'Rendered here, saved to your library'}
-                />
-                <div className="flex-none flex items-center gap-2 pt-1">
-                  {job?.status === 'succeeded' && job?.total_tokens > 0 && (
-                    <span className="text-[10.5px] font-mono text-ink-400">
-                      {fmtTok(job.total_tokens)} tok
+      {historyOpen && (
+        <HistoryDrawer
+          currentId={chatId}
+          onOpen={openChat}
+          onClose={() => setHistoryOpen(false)}
+          onDeleted={(id) => {
+            if (id === chatIdRef.current) newChat()
+          }}
+          showToast={showToast}
+        />
+      )}
+    </div>
+  )
+}
+
+function dayGroup(iso) {
+  const d = new Date(iso)
+  const start = new Date()
+  start.setHours(0, 0, 0, 0)
+  const diff = (start - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000
+  if (diff <= 0) return 'Today'
+  if (diff === 1) return 'Yesterday'
+  if (diff < 7) return 'Previous 7 days'
+  if (diff < 30) return 'Previous 30 days'
+  return 'Older'
+}
+
+function HistoryDrawer({ currentId, onOpen, onClose, onDeleted, showToast }) {
+  const [chats, setChats] = useState(null)
+  const [q, setQ] = useState('')
+
+  useEffect(() => {
+    const id = setTimeout(() => {
+      api
+        .get(`/ai/chats${q.trim() ? `?q=${encodeURIComponent(q.trim())}` : ''}`)
+        .then(setChats)
+        .catch(() => setChats([]))
+    }, q ? 250 : 0)
+    return () => clearTimeout(id)
+  }, [q])
+
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  const remove = async (chat) => {
+    setChats((list) => (list || []).filter((c) => c.id !== chat.id))
+    try {
+      await api.del(`/ai/chats/${chat.id}`)
+      onDeleted(chat.id)
+      showToast('Chat deleted')
+    } catch (e) {
+      showToast(`Couldn’t delete — ${e.message}`)
+    }
+  }
+
+  const groups = []
+  for (const c of chats || []) {
+    const label = dayGroup(c.updated_at)
+    const g = groups.find((x) => x.label === label)
+    if (g) g.items.push(c)
+    else groups.push({ label, items: [c] })
+  }
+
+  return createPortal(
+    <div className="fixed inset-0 z-[90]">
+      <div className="absolute inset-0 bg-ink-950/20" onClick={onClose} />
+      <aside className="absolute right-0 top-0 h-full w-[360px] max-w-[92vw] bg-white shadow-drawer animate-drawer-in flex flex-col">
+        <header className="flex items-center justify-between px-5 pt-5 pb-3">
+          <h2 className="text-[15px] font-semibold text-ink-900">History</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close history"
+            className="h-8 w-8 rounded-lg grid place-items-center text-ink-500 hover:bg-ink-100 hover:text-ink-800"
+          >
+            <FiX size={16} />
+          </button>
+        </header>
+        <div className="px-5 pb-3">
+          <div className="relative">
+            <FiSearch size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
+            <input
+              autoFocus
+              type="search"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search chats"
+              className="w-full h-9 rounded-xl border border-ink-200 bg-ink-50/60 pl-9 pr-3 text-[12.5px] focus:outline-none focus:border-brand/40 focus:bg-white"
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-3 pb-5">
+          {chats === null ? (
+            <div className="space-y-2 px-2 pt-2">
+              {[0, 1, 2, 3].map((n) => (
+                <div key={n} className="h-9 rounded-lg skeleton" />
+              ))}
+            </div>
+          ) : chats.length === 0 ? (
+            <div className="px-4 pt-10 text-center text-[12.5px] text-ink-400">
+              {q ? `No chats match “${q}”` : 'No chats yet — your conversations will show up here.'}
+            </div>
+          ) : (
+            groups.map((g) => (
+              <div key={g.label} className="mt-3 first:mt-1">
+                <div className="px-2 pb-1 text-[11px] font-medium text-ink-400">{g.label}</div>
+                {g.items.map((c) => (
+                  <div
+                    key={c.id}
+                    className={`group flex items-center gap-2 rounded-lg px-2 py-2 cursor-pointer transition-colors ${
+                      c.id === currentId ? 'bg-brand-soft' : 'hover:bg-ink-50'
+                    }`}
+                    onClick={() => onOpen(c.id)}
+                  >
+                    <span className="flex-none text-ink-400">
+                      {c.has_media ? <FiImage size={14} /> : <FiMessageCircle size={14} />}
                     </span>
-                  )}
-                  {job?.status === 'succeeded' && <Tag variant="ok">Ready</Tag>}
-                  {job?.status === 'failed' && <Tag variant="stop">Failed</Tag>}
-                </div>
+                    <span
+                      className={`min-w-0 flex-1 truncate text-[12.5px] ${
+                        c.id === currentId ? 'font-semibold text-brand' : 'text-ink-800'
+                      } ${/[\u1780-\u17FF]/.test(c.title) ? 'font-khmer' : ''}`}
+                    >
+                      {c.title}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        remove(c)
+                      }}
+                      title="Delete chat"
+                      aria-label="Delete chat"
+                      className="flex-none h-7 w-7 rounded-md grid place-items-center text-ink-400 opacity-0 group-hover:opacity-100 hover:bg-red-50 hover:text-red-600 transition"
+                    >
+                      <FiTrash2 size={13} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ))
+          )}
+        </div>
+      </aside>
+    </div>,
+    document.body,
+  )
+}
+
+const ASK_STAGES = [
+  [4, 'Reading your brands and products…'],
+  [10, 'Pulling your latest post numbers…'],
+  [18, 'Looking for what works…'],
+  [Infinity, 'Writing your advice…'],
+]
+
+function AskTurn({ t, onRetry, onGenerate, onEdit }) {
+  const [copied, setCopied] = useState(false)
+  const elapsed = t.startedAt ? (Date.now() - t.startedAt) / 1000 : 0
+  const stage = ASK_STAGES.find(([s]) => elapsed < s)[1]
+  const khmer = (x) => (/[\u1780-\u17FF]/.test(x || '') ? 'font-khmer' : '')
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(t.answer || '')
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return (
+    <div className="space-y-4 animate-fadein">
+      <div className="flex flex-col items-end">
+        <div className={`max-w-[70%] rounded-2xl rounded-br-md bg-brand-soft/70 px-4 py-2.5 text-[13px] leading-relaxed text-ink-900 whitespace-pre-wrap ${khmer(t.prompt)}`}>
+          {t.prompt}
+        </div>
+        <div className="mt-1 flex items-center text-ink-400">
+          <IconBtn title="Edit question" onClick={onEdit}>
+            <FiEdit2 size={13} />
+          </IconBtn>
+        </div>
+      </div>
+
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 w-8 h-8 flex-none rounded-xl grid place-items-center bg-brand text-white text-[13px] font-bold shadow-sm">
+          C
+        </span>
+        <div className="min-w-0 flex-1 max-w-[860px]">
+          {t.status === 'working' && (
+            <div className="inline-flex items-center gap-2.5 pt-1.5 text-[12.5px] text-ink-500">
+              <span className="flex gap-1">
+                {[0, 1, 2].map((i) => (
+                  <span
+                    key={i}
+                    className="w-1.5 h-1.5 rounded-full bg-brand animate-bounce"
+                    style={{ animationDelay: `${i * 0.15}s` }}
+                  />
+                ))}
+              </span>
+              {stage}
+            </div>
+          )}
+
+          {t.status === 'failed' && (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12.5px] text-amber-900">
+              <b>Couldn’t answer.</b> {t.error}
+              <button type="button" onClick={onRetry} className="ml-2 font-semibold text-brand hover:underline">
+                Try again
+              </button>
+            </div>
+          )}
+
+          {t.status === 'done' && (
+            <>
+              <div className={`pt-1 ${khmer(t.answer)}`}>
+                <Markdown text={t.answer} />
               </div>
 
-              {!job?.video ? (
-                <div className="mt-6 space-y-4">
-                  {isImage && refImg && (
-                    <div className="flex items-center gap-2.5 rounded-xl border border-brand/20 bg-brand/5 px-3 py-2 text-[11px] text-ink-600">
-                      <img src={refImg.previewUrl} alt="" className="w-9 h-9 rounded-lg object-cover flex-none" />
-                      <span className="flex-1 min-w-0 truncate">
-                        Building on <b className="text-ink-800">{refImg.name}</b>
-                      </span>
-                    </div>
-                  )}
-
-                  <div>
-                    <Label>Aspect ratio{isImage ? ' (image renders square / portrait / landscape)' : ''}</Label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {RATIOS.map((r) => (
-                        <button
-                          key={r.id}
-                          type="button"
-                          disabled={busy}
-                          onClick={() => setRatio(r.id)}
-                          className={`rounded-xl border px-2.5 py-2 text-left transition-all duration-150 disabled:opacity-50 ${
-                            ratio === r.id ? 'border-brand ring-2 ring-brand/20 bg-white shadow-card' : 'border-ink-200 bg-white hover:border-ink-300'
-                          }`}
-                        >
-                          <div className="text-[12px] font-bold text-ink-800">{r.name}</div>
-                          <div className="text-[10px] text-ink-400 leading-tight mt-0.5">{r.sub}</div>
-                        </button>
-                      ))}
-                    </div>
+              {t.suggestions?.length > 0 && (
+                <div className="mt-3">
+                  <div className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-ink-400">
+                    Make one of these now
                   </div>
-
-                  {!isImage && (
-                    <div>
-                      <Label>Length — {seconds}s</Label>
-                      <input
-                        type="range"
-                        min={3}
-                        max={20}
-                        value={seconds}
-                        disabled={busy}
-                        onChange={(e) => setSeconds(Number(e.target.value))}
-                        className="w-full accent-brand"
-                      />
-                    </div>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={isImage ? generateImage : generateVideo}
-                    disabled={busy}
-                    className="w-full px-7 py-3.5 rounded-2xl gradient-brand text-white text-[14px] font-bold flex items-center justify-center gap-2.5 hover:shadow-glow-lg disabled:opacity-80 disabled:cursor-not-allowed transition-all duration-200"
-                  >
-                    {busy ? (
-                      <>
-                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-                        {isImage
-                          ? `Generating… ${Math.round(elapsed)}s`
-                          : `${job?.status === 'queued' ? 'Queued…' : 'Rendering…'} ${Math.round(elapsed)}s`}
-                      </>
-                    ) : (
-                      <>
-                        <span className="text-white">{icons.spark}</span>
-                        {isImage ? (refImg ? 'Generate from reference' : 'Generate image') : 'Generate video'}
-                      </>
-                    )}
-                  </button>
-                </div>
-              ) : null}
-
-              {/* progress + notices */}
-              {!job?.video && (
-                <div className="mt-5 space-y-3">
-                  {isImage && imgBusy && (
-                    <div className="space-y-1.5">
-                      <div className="h-2.5 w-full overflow-hidden rounded-full bg-brand/15">
-                        <div
-                          className="h-full rounded-full bg-brand transition-[width] duration-300 ease-linear"
-                          style={{ width: `${imgPct}%` }}
-                        />
-                      </div>
-                      <div className="flex items-center justify-between text-[11.5px] text-ink-500">
-                        <span>{imgStage}</span>
-                        <span className="font-mono text-ink-400">
-                          ~{fmtTok(imgTokEst)} tok · {Math.round(imgPct)}%
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
-                  {rendering && !isImage && (
-                    <p className="text-[11.5px] text-ink-400">
-                      This usually takes 1–3 minutes. You can leave this page — the video lands in
-                      your library either way.
-                    </p>
-                  )}
-
-                  {job?.status === 'failed' && (
-                    <p className="text-[11.5px] text-red-600">{job.error}</p>
-                  )}
-
-                  {videoErr && (
-                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-[11.5px] text-amber-800">
-                      <b>{isImage ? 'Image' : 'Video'} generation isn't ready.</b> {videoErr}
-                      <div className="mt-1 text-amber-700">
-                        {isImage
-                          ? 'Deploy an image model (gpt-image-1 / -2 / dall-e-3) in Azure and set '
-                          : 'Set up a video provider ('}
-                        <code className="mx-1">{isImage ? 'AZURE_OPENAI_IMAGE_*' : 'VIDEO_PROVIDER'}</code>
-                        {isImage ? '.' : ' = azure_sora or gemini_veo).'} You can still bring your own
-                        file below.
-                      </div>
-                    </div>
-                  )}
+                  <div className="flex flex-wrap gap-2">
+                    {t.suggestions.map((sug) => (
+                      <button
+                        key={sug.label}
+                        type="button"
+                        onClick={() => onGenerate(sug)}
+                        title={sug.prompt}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-brand/30 bg-white px-3.5 py-1.5 text-[12px] font-medium text-brand hover:bg-brand-soft transition-colors"
+                      >
+                        <span>✦</span>
+                        {sug.type === 'video' ? <FiVideo size={12} /> : <FiImage size={12} />}
+                        {sug.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
 
-              {/* result */}
-              {job?.video && (
-                <div className="mt-6 flex flex-col items-center">
-                  {isImage ? (
-                    <img
-                      key={job.video.id}
-                      src={`${mediaBase}${job.video.url}`}
-                      alt=""
-                      className={`block w-full ${previewMax} h-auto rounded-2xl ring-1 ring-ink-900/10 shadow-dock bg-ink-50 animate-media-reveal`}
-                    />
-                  ) : (
-                    <div
-                      key={job.video.id}
-                      className={`w-full ${previewMax} overflow-hidden rounded-2xl bg-ink-900 ring-1 ring-ink-900/10 shadow-dock animate-media-reveal`}
-                    >
-                      <video
-                        src={`${mediaBase}${job.video.url}`}
-                        controls
-                        playsInline
-                        className="block w-full h-auto"
-                      />
-                    </div>
-                  )}
-                  <div className="mt-5 flex flex-wrap justify-center gap-2 animate-fadein">
-                    <button
-                      type="button"
-                      onClick={useGeneratedVideo}
-                      className="px-6 py-3 rounded-2xl gradient-brand text-white text-[13px] font-bold hover:shadow-glow-lg transition-all duration-200"
-                    >
-                      Use this {isImage ? 'image' : 'video'} → create a post
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setJob(null)
-                        setVideoErr(null)
-                      }}
-                      className="px-5 py-3 rounded-2xl border border-ink-300 text-ink-600 text-[13px] font-bold hover:bg-ink-50 transition-all duration-150"
-                    >
-                      {isImage ? 'Generate again' : 'Render again'}
-                    </button>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => navigate('/library')}
-                    className="mt-2 text-[11.5px] font-semibold text-ink-400 hover:text-brand"
-                  >
-                    Saved to your Library →
-                  </button>
-                </div>
-              )}
-            </section>
-          )
-          })()}
+              <div className="mt-1.5 flex items-center gap-1 text-ink-400">
+                <IconBtn title={copied ? 'Copied' : 'Copy answer'} onClick={copy}>
+                  {copied ? <FiCheck size={13} /> : <FiCopy size={13} />}
+                </IconBtn>
+                <IconBtn title="Ask again" onClick={onRetry}>
+                  <FiRefreshCw size={13} />
+                </IconBtn>
+                {typeof t.remaining === 'number' && t.remaining <= 10 && (
+                  <span className="ml-1 text-[10.5px]">{t.remaining} questions left today</span>
+                )}
+              </div>
+            </>
+          )}
         </div>
-        )}
+      </div>
+    </div>
+  )
+}
 
-        {/* Bring your own — tucked away */}
-        {prompt && !job?.video && (
-          <details className="group bg-white border border-ink-100 rounded-2xl px-5 py-4">
-            <summary className="cursor-pointer list-none text-[11.5px] font-bold tracking-wide uppercase text-ink-400 flex items-center justify-between">
-              Or bring your own file
-              <span className="text-ink-300 group-open:rotate-180 transition-transform">⌄</span>
-            </summary>
-            <div className="mt-4">
-              {asset ? (
-                <div className="flex items-center gap-3 bg-white border border-ink-200 rounded-xl p-3">
-                  {asset.kind === 'image' ? (
-                    <img src={asset.url} alt="" className="w-14 h-14 rounded-lg object-cover flex-none bg-ink-100" />
-                  ) : (
-                    <video src={asset.url} className="w-14 h-14 rounded-lg object-cover flex-none bg-ink-900" muted />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[12px] font-semibold text-ink-800 truncate">{asset.name}</div>
-                    <div className="text-[11px] text-ink-400">{asset.kind} · {humanSize(asset.size)}</div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={useDroppedAsset}
-                    className="px-3 py-1.5 rounded-lg gradient-brand text-white text-[11.5px] font-bold"
-                  >
-                    Use it →
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      URL.revokeObjectURL(asset.url)
-                      setAsset(null)
-                    }}
-                    className="px-2.5 py-1.5 rounded-lg text-[11.5px] font-medium text-ink-500 hover:bg-ink-100 hover:text-ink-800 transition-all duration-150"
-                  >
-                    Remove
-                  </button>
-                </div>
-              ) : (
-                <DropZone
-                  compact
-                  onFile={setAsset}
-                  title="Drop an image or video"
-                  hint="Use a file you already have — it travels to the new post"
-                />
-              )}
+// Just enough markdown for the advisor's answers: ## headings, - / 1.
+// bullets, **bold**, paragraphs. Rendered as React nodes — never as HTML.
+function inline(text) {
+  return text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
+    part.startsWith('**') && part.endsWith('**') ? (
+      <strong key={i} className="font-semibold text-ink-900">
+        {part.slice(2, -2)}
+      </strong>
+    ) : (
+      part
+    ),
+  )
+}
+
+function Markdown({ text }) {
+  const blocks = []
+  let list = null
+  const flush = () => {
+    if (list) blocks.push(list)
+    list = null
+  }
+  ;(text || '').split('\n').forEach((raw, i) => {
+    const line = raw.trimEnd()
+    const bullet = line.match(/^\s*(?:[-*•]|\d+[.)])\s+(.*)$/)
+    if (bullet) {
+      if (!list) list = { type: 'list', ordered: /^\s*\d/.test(line), items: [], key: i }
+      list.items.push(bullet[1])
+      return
+    }
+    flush()
+    if (!line.trim()) return
+    const heading = line.match(/^#{1,4}\s+(.*)$/)
+    blocks.push(heading ? { type: 'h', text: heading[1], key: i } : { type: 'p', text: line, key: i })
+  })
+  flush()
+
+  return (
+    <div className="space-y-2.5 text-[13px] leading-relaxed text-ink-700">
+      {blocks.map((b) =>
+        b.type === 'h' ? (
+          <h3 key={b.key} className="pt-1 text-[13.5px] font-semibold text-ink-900">
+            {inline(b.text)}
+          </h3>
+        ) : b.type === 'p' ? (
+          <p key={b.key}>{inline(b.text)}</p>
+        ) : b.ordered ? (
+          <ol key={b.key} className="list-decimal space-y-1 pl-5 marker:text-ink-400">
+            {b.items.map((item, j) => (
+              <li key={j}>{inline(item)}</li>
+            ))}
+          </ol>
+        ) : (
+          <ul key={b.key} className="list-disc space-y-1 pl-5 marker:text-brand/60">
+            {b.items.map((item, j) => (
+              <li key={j}>{inline(item)}</li>
+            ))}
+          </ul>
+        ),
+      )}
+    </div>
+  )
+}
+
+function Turn({ t, onUse, onEdit, onRegenerate, onLibrary }) {
+  const [expanded, setExpanded] = useState(false)
+  const [viewing, setViewing] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const long = t.prompt.length > 320
+  const elapsed = t.startedAt ? (Date.now() - t.startedAt) / 1000 : 0
+  const pct =
+    t.kind === 'image'
+      ? Math.min(92, 100 * (1 - Math.exp(-elapsed / (IMG_ETA / 2.3))))
+      : Math.min(95, (elapsed / VID_ETA) * 100)
+  const stage =
+    t.kind === 'image'
+      ? elapsed < 3 ? 'Sending your prompt…' : elapsed < 12 ? 'Composing the image…' : elapsed < 22 ? 'Adding detail and lighting…' : 'Almost there…'
+      : t.jobId ? 'Rendering your video… usually 1–3 minutes' : 'Starting the render…'
+  const shape =
+    t.ratio === '16:9' ? 'aspect-video w-full max-w-[560px]' : t.ratio === '1:1' ? 'aspect-square w-full max-w-[400px]' : 'aspect-[9/16] w-full max-w-[280px]'
+  const url = t.video ? `${mediaBase}${t.video.url}` : null
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(t.prompt)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return (
+    <div className="space-y-4 animate-fadein">
+      {/* your prompt */}
+      <div className="flex flex-col items-end">
+        <div className="max-w-[70%] rounded-2xl rounded-br-md bg-brand-soft/70 px-4 py-2.5 text-[13px] leading-relaxed text-ink-900 whitespace-pre-wrap">
+          {t.refPreview && <img src={t.refPreview} alt="" className="mb-2 w-20 h-20 rounded-lg object-cover" />}
+          {long && !expanded ? `${t.prompt.slice(0, 320).trimEnd()}…` : t.prompt}
+          {long && (
+            <button type="button" onClick={() => setExpanded((v) => !v)} className="ml-1 text-[12px] font-semibold text-brand">
+              {expanded ? 'Show less' : 'Show more'}
+            </button>
+          )}
+        </div>
+        <div className="mt-1 flex items-center gap-0.5 text-ink-400">
+          <span className="mr-1.5 text-[10.5px]">
+            {t.kind === 'image' ? 'Image' : `Video · ${t.seconds}s`} · {t.ratio}
+            {t.brandName ? ` · ${t.brandName}` : ''}
+          </span>
+          <IconBtn title={copied ? 'Copied' : 'Copy prompt'} onClick={copy}>
+            {copied ? <FiCheck size={13} /> : <FiCopy size={13} />}
+          </IconBtn>
+          <IconBtn title="Edit prompt" onClick={onEdit}>
+            <FiEdit2 size={13} />
+          </IconBtn>
+        </div>
+      </div>
+
+      {/* result */}
+      <div className="flex flex-col items-start">
+        {t.status === 'working' && (
+          <div className={shape}>
+            <GeneratingCanvas kind={t.kind} stage={stage} />
+            <div className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-brand/15">
+              <div className="h-full rounded-full bg-brand transition-[width] duration-300 ease-linear" style={{ width: `${pct}%` }} />
             </div>
-          </details>
+            <div className="mt-1.5 flex justify-between text-[11px] text-ink-500">
+              <span className="tabular-nums font-semibold text-ink-700">{Math.round(pct)}%</span>
+              <span className="tabular-nums text-ink-400">{Math.round(elapsed)}s</span>
+            </div>
+          </div>
         )}
-        </>
+
+        {t.status === 'failed' && (
+          <div className="max-w-[85%] rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12.5px] text-amber-900">
+            <b>Couldn’t generate.</b> {t.error}
+            <button type="button" onClick={onRegenerate} className="ml-2 font-semibold text-brand hover:underline">
+              Try again
+            </button>
+          </div>
         )}
-      </div>
-    </div>
-  )
-}
 
-function Label({ children }) {
-  return (
-    <label className="block text-[10px] font-bold tracking-[.09em] uppercase text-ink-400 mb-2">{children}</label>
-  )
-}
-
-function StepHead({ n, title, hint }) {
-  return (
-    <div className="flex items-center gap-3">
-      <span className="w-9 h-9 rounded-xl grid place-items-center flex-none text-[13px] font-bold gradient-brand text-white shadow-glow">
-        {n}
-      </span>
-      <div className="min-w-0">
-        <div className="text-[14.5px] font-bold text-ink-900 leading-tight">{title}</div>
-        <div className="text-[11.5px] text-ink-400">{hint}</div>
-      </div>
-    </div>
-  )
-}
-
-function StepIndicator({ current }) {
-  return (
-    <div className="hidden md:flex items-center gap-2">
-      {STEPS.map((s, i) => {
-        const state = current > s.n ? 'done' : current === s.n ? 'active' : 'idle'
-        return (
-          <div key={s.n} className="flex items-center gap-2">
-            {i > 0 && (
-              <span className={`w-8 h-px ${state !== 'idle' ? 'bg-brand' : 'bg-ink-200'} transition-colors duration-200`} />
-            )}
-            <span
-              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 transition-all duration-200 ${
-                state === 'done'
-                  ? 'border-brand/30 bg-brand/5 text-ink-800'
-                  : state === 'active'
-                    ? 'border-brand bg-white text-ink-900 shadow-card'
-                    : 'border-ink-200 bg-white text-ink-400'
-              }`}
-            >
-              <span
-                className={`w-5 h-5 rounded-full grid place-items-center text-[10px] font-bold flex-none ${
-                  state === 'done' || state === 'active' ? 'gradient-brand text-white' : 'bg-ink-100 text-ink-500'
-                }`}
+        {t.status === 'done' && url && (
+          <>
+            {isImageUrl(t.video.url) ? (
+              <button
+                type="button"
+                onClick={() => setViewing(true)}
+                title="View full size"
+                className={`group relative block ${shape.replace(/aspect-\S+/, '')} cursor-zoom-in rounded-2xl`}
               >
-                {state === 'done' ? '✓' : s.n}
-              </span>
-              <span className="text-[11px] font-semibold">{s.label}</span>
+                <img
+                  src={url}
+                  alt=""
+                  className="block w-full h-auto rounded-2xl ring-1 ring-ink-900/10 bg-ink-50 animate-media-reveal transition group-hover:brightness-95"
+                />
+                <span className="absolute right-2.5 top-2.5 h-8 w-8 rounded-full grid place-items-center bg-black/45 text-white opacity-0 group-hover:opacity-100 transition">
+                  <FiMaximize2 size={14} />
+                </span>
+              </button>
+            ) : (
+              <div className={`group relative ${shape.replace(/aspect-\S+/, '')}`}>
+                <video
+                  src={url}
+                  controls
+                  playsInline
+                  className="block w-full h-auto rounded-2xl bg-ink-900 ring-1 ring-ink-900/10 animate-media-reveal"
+                />
+                <button
+                  type="button"
+                  onClick={() => setViewing(true)}
+                  title="View full size"
+                  aria-label="View full size"
+                  className="absolute right-2.5 top-2.5 h-8 w-8 rounded-full grid place-items-center bg-black/45 text-white opacity-0 group-hover:opacity-100 transition"
+                >
+                  <FiMaximize2 size={14} />
+                </button>
+              </div>
+            )}
+            {viewing && (
+              <MediaViewer
+                url={url}
+                isImage={isImageUrl(t.video.url)}
+                filename={t.video.filename}
+                onUse={() => {
+                  setViewing(false)
+                  onUse()
+                }}
+                onClose={() => setViewing(false)}
+              />
+            )}
+            <div className="mt-2 flex flex-wrap items-center gap-1">
+              <button
+                type="button"
+                onClick={onUse}
+                className="h-8 px-3 rounded-full bg-brand text-white text-[12px] font-semibold hover:bg-brand-dark transition-colors"
+              >
+                Use in a post →
+              </button>
+              <IconBtn title="Regenerate" onClick={onRegenerate}>
+                <FiRefreshCw size={14} />
+              </IconBtn>
+              <a
+                href={url}
+                download={t.video.filename}
+                title="Download"
+                className="h-8 w-8 rounded-full grid place-items-center text-ink-500 hover:bg-ink-100 hover:text-ink-800"
+              >
+                <FiDownload size={14} />
+              </a>
+              <button type="button" onClick={onLibrary} className="ml-1 text-[11px] text-ink-400 hover:text-brand">
+                Saved to Library
+                {t.tokens ? ` · ${fmtTok(t.tokens)} tok` : ''}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// The placeholder while a render runs: drifting brand-colour smoke, the
+// ContentFlow mark floating in the middle with puffs rising off it, and a
+// shimmer sweep (keyframes: index.css, "cf-*").
+const PUFFS = [
+  { delay: '0s', drift: '-26px' },
+  { delay: '0.9s', drift: '18px' },
+  { delay: '1.8s', drift: '-8px' },
+  { delay: '2.7s', drift: '30px' },
+]
+
+function GeneratingCanvas({ kind, stage }) {
+  return (
+    <div className="relative h-full w-full overflow-hidden rounded-2xl bg-[#E8F1FB] ring-1 ring-brand/10">
+      <div className="cf-smoke cf-smoke-a" />
+      <div className="cf-smoke cf-smoke-b" />
+      <div className="cf-smoke cf-smoke-c" />
+      <div className="cf-sweep" />
+
+      {PUFFS.map((p) => (
+        <span key={p.delay} className="cf-puff" style={{ animationDelay: p.delay, '--drift': p.drift }} />
+      ))}
+
+      <div className="absolute inset-0 grid place-items-center">
+        <div className="cf-float flex flex-col items-center">
+          <div className="relative">
+            <span className="cf-halo absolute -inset-4 rounded-[28px] bg-white/70 blur-md" />
+            <span className="relative w-14 h-14 rounded-2xl grid place-items-center bg-brand text-white text-[22px] font-bold shadow-[0_10px_30px_rgba(26,111,196,.45)]">
+              C
             </span>
           </div>
-        )
-      })}
+          <span className="mt-3 text-[14px] font-bold tracking-tight text-ink-900/80">ContentFlow</span>
+        </div>
+      </div>
+
+      <div className="absolute inset-x-0 bottom-0 p-3">
+        <div className="mx-auto w-fit max-w-full truncate rounded-full bg-white/70 px-3 py-1 text-[11px] font-medium text-ink-700 backdrop-blur-sm">
+          {kind === 'image' ? '✦ ' : '▶ '}
+          {stage}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Full-size view of a generated image/video: dark backdrop, media fitted to
+// the screen, and the same actions as the chat row.
+function MediaViewer({ url, isImage, filename, onUse, onClose }) {
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prev
+    }
+  }, [onClose])
+
+  return createPortal(
+    <div className="fixed inset-0 z-[120] bg-ink-950/90 animate-fadein" onClick={onClose}>
+      <div className="absolute right-4 top-4 z-10 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+        <button
+          type="button"
+          onClick={onUse}
+          className="h-9 px-4 rounded-full bg-brand text-white text-[12.5px] font-semibold hover:bg-brand-dark transition-colors"
+        >
+          Use in a post →
+        </button>
+        <a
+          href={url}
+          download={filename}
+          title="Download"
+          aria-label="Download"
+          className="h-9 w-9 rounded-full grid place-items-center bg-white/10 text-white hover:bg-white/20"
+        >
+          <FiDownload size={16} />
+        </a>
+        <button
+          type="button"
+          onClick={onClose}
+          title="Close (Esc)"
+          aria-label="Close"
+          className="h-9 w-9 rounded-full grid place-items-center bg-white/10 text-white hover:bg-white/20"
+        >
+          <FiX size={18} />
+        </button>
+      </div>
+      <div className="absolute inset-0 flex items-center justify-center p-6 sm:p-16">
+        {isImage ? (
+          <img
+            src={url}
+            alt=""
+            onClick={(e) => e.stopPropagation()}
+            className="max-h-full max-w-full rounded-xl object-contain shadow-2xl animate-media-reveal"
+          />
+        ) : (
+          <video
+            src={url}
+            controls
+            autoPlay
+            playsInline
+            onClick={(e) => e.stopPropagation()}
+            className="max-h-full max-w-full rounded-xl shadow-2xl"
+          />
+        )}
+      </div>
+    </div>,
+    document.body,
+  )
+}
+
+function IconBtn({ title, onClick, children }) {
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      onClick={onClick}
+      className="h-8 w-8 rounded-full grid place-items-center text-ink-500 hover:bg-ink-100 hover:text-ink-800"
+    >
+      {children}
+    </button>
+  )
+}
+
+function SettingsPopover({
+  type, setType, ratio, setRatio, seconds, setSeconds, brands, brand, setBrand, style, setStyle, template, setTemplate,
+}) {
+  const seg = (on) =>
+    `flex-1 h-8 rounded-lg text-[12px] font-semibold inline-flex items-center justify-center gap-1.5 transition-colors ${
+      on ? 'bg-white text-brand shadow-sm' : 'text-ink-600 hover:text-ink-900'
+    }`
+  const chip = (on) =>
+    `h-8 px-2.5 rounded-lg border text-[11.5px] font-medium transition-colors ${
+      on ? 'border-brand/40 bg-brand-soft text-brand' : 'border-ink-200 text-ink-600 hover:border-ink-300'
+    }`
+  return (
+    <div className="absolute bottom-full left-0 mb-2 w-[330px] max-w-[calc(100vw-40px)] rounded-2xl border border-ink-200 bg-white p-4 shadow-pop animate-fadein space-y-4">
+      <div className="flex rounded-xl bg-ink-100 p-1">
+        <button type="button" className={seg(type === 'image')} onClick={() => setType('image')}>
+          <FiImage size={14} /> Image
+        </button>
+        <button type="button" className={seg(type === 'video')} onClick={() => setType('video')}>
+          <FiVideo size={14} /> Video
+        </button>
+      </div>
+
+      <Setting label="Size">
+        <div className="grid grid-cols-3 gap-1.5">
+          {RATIOS.map((r) => (
+            <button key={r.id} type="button" onClick={() => setRatio(r.id)} className={`${chip(ratio === r.id)} h-auto py-1.5 text-left`}>
+              <div className="font-semibold">{r.id}</div>
+              <div className="text-[10px] text-ink-400 leading-tight">{r.sub}</div>
+            </button>
+          ))}
+        </div>
+      </Setting>
+
+      {type === 'video' && (
+        <Setting label="Length">
+          <div className="flex gap-1.5">
+            {LENGTHS.map((n) => (
+              <button key={n} type="button" onClick={() => setSeconds(n)} className={chip(seconds === n)}>
+                {n}s
+              </button>
+            ))}
+          </div>
+        </Setting>
+      )}
+
+      <Setting label="Brand">
+        <div className="flex flex-wrap gap-1.5">
+          {brands.map((b) => (
+            <button key={b.slug} type="button" onClick={() => setBrand(b.slug)} className={`${chip(brand === b.slug)} inline-flex items-center gap-1.5`}>
+              <span className="w-2 h-2 rounded-full" style={{ background: colorForBrand(b.slug) }} />
+              {b.name}
+            </button>
+          ))}
+        </div>
+      </Setting>
+
+      <div className="border-t border-ink-100 pt-3">
+        <div className="mb-2 text-[10.5px] text-ink-400">Used when ✦ writes the prompt for you</div>
+        <div className="grid grid-cols-2 gap-2">
+          <select
+            value={template}
+            onChange={(e) => setTemplate(e.target.value)}
+            className="h-8 rounded-lg border border-ink-200 bg-white px-2 text-[11.5px] text-ink-700 focus:outline-none focus:border-brand"
+          >
+            {TEMPLATES[type].map((x) => (
+              <option key={x}>{x}</option>
+            ))}
+          </select>
+          <select
+            value={style}
+            onChange={(e) => setStyle(e.target.value)}
+            className="h-8 rounded-lg border border-ink-200 bg-white px-2 text-[11.5px] text-ink-700 focus:outline-none focus:border-brand"
+          >
+            {STYLES.map((x) => (
+              <option key={x}>{x}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Setting({ label, children }) {
+  return (
+    <div>
+      <div className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-ink-400">{label}</div>
+      {children}
     </div>
   )
 }

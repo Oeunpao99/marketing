@@ -61,10 +61,10 @@ export default function Shell({ children }) {
   return (
     <div
       className={`min-h-screen bg-canvas grid ${
-        collapsed ? 'lg:grid-cols-[minmax(0,1fr)]' : 'lg:grid-cols-[252px_minmax(0,1fr)]'
+        collapsed ? 'lg:grid-cols-[72px_minmax(0,1fr)]' : 'lg:grid-cols-[252px_minmax(0,1fr)]'
       }`}
     >
-      {!collapsed && <Sidebar />}
+      <Sidebar collapsed={collapsed} />
       <div className="min-w-0 flex flex-col pb-16 lg:pb-0">
         <Topbar onToggleSidebar={toggle} />
         <main className="min-w-0 mx-auto w-full max-w-[1480px]">{children}</main>

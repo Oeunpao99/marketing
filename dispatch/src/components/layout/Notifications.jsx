@@ -90,7 +90,9 @@ export default function Notifications({ open, onClose, anchor = "header" }) {
         className={`fixed ${
           anchor === "header"
             ? "right-4 top-[64px] w-[min(360px,calc(100vw-2rem))]"
-            : "left-[264px] bottom-4 w-[min(340px,calc(100vw-2rem))]"
+            : anchor === "rail"
+              ? "left-[84px] bottom-4 w-[min(340px,calc(100vw-2rem))]"
+              : "left-[264px] bottom-4 w-[min(340px,calc(100vw-2rem))]"
         }`}
       >
         <div className="w-full overflow-hidden rounded-2xl bg-white border border-ink-200 shadow-pop animate-fadein">

@@ -125,6 +125,10 @@ class Settings(BaseSettings):
     # Company Page instead of a person's own feed needs LinkedIn's Community
     # Management API, which requires manual partner approval — not supported
     # here.
+    # Marketing advisor chat (app/advisor.py): questions per workspace per day
+    # — every question is one AI call, so this caps the bill per account.
+    advisor_daily_limit: int = 60
+
     linkedin_client_id: str = ""
     linkedin_client_secret: str = ""
     linkedin_redirect_uri: str = ""

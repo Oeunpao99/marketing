@@ -327,6 +327,27 @@ class Product(Base, TimestampMixin):
     highlights: Mapped[str] = mapped_column(Text, default="")
 
 
+class AgentChat(Base, TimestampMixin):
+    """One saved AI Agent conversation (app/chats.py) — private to the person
+    who had it. ``turns`` is the page's own thread (questions + answers,
+    prompts + the generated media refs) stored as-is, so reopening it from
+    History restores exactly what they saw."""
+
+    __tablename__ = "agent_chats"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(
+        ForeignKey("workspaces.id", ondelete="CASCADE"), index=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("team_members.id", ondelete="CASCADE"), index=True
+    )
+    title: Mapped[str] = mapped_column(String(200), default="New chat")
+    turns: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, default=list, server_default="[]", nullable=False
+    )
+
+
 class TeamMember(Base, TimestampMixin):
     __tablename__ = "team_members"
 

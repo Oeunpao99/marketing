@@ -1,4 +1,4 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import {
   FiCalendar,
   FiEdit3,
@@ -7,7 +7,6 @@ import {
   FiZap,
 } from "react-icons/fi";
 import { useStore } from "../../store";
-import { openAIAssistant } from "../ai/openAssistant";
 
 const TABS = [
   { to: "/", end: true, icon: FiSun, label: "Today" },
@@ -16,6 +15,7 @@ const TABS = [
 
 export default function MobileBar() {
   const { review } = useStore();
+  const navigate = useNavigate();
   const reviewCount = (review || []).length;
 
   return (
@@ -44,9 +44,9 @@ export default function MobileBar() {
         <div className="flex items-center justify-center -mt-5">
           <button
             type="button"
-            onClick={openAIAssistant}
+            onClick={() => navigate("/ai")}
             className="w-11 h-11 rounded-2xl gradient-brand text-white grid place-items-center shadow-glow-lg animate-ai-pulse"
-            aria-label="Ask AI"
+            aria-label="AI Agent"
           >
             <FiZap size={19} />
           </button>

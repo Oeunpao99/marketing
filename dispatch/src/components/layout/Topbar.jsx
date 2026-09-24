@@ -2,7 +2,6 @@ import { Link, useLocation } from "react-router-dom";
 import { FiBell, FiChevronRight, FiEdit, FiSearch, FiSidebar, FiZap } from "react-icons/fi";
 import { useState } from "react";
 import Notifications from "./Notifications";
-import { openAIAssistant } from "../ai/openAssistant";
 import { useAuth } from "../../auth";
 import { useStore } from "../../store";
 
@@ -106,15 +105,14 @@ export default function Topbar({ onToggleSidebar }) {
         <span className="hidden sm:inline">Compose</span>
       </Link>
 
-      <button
-        type="button"
-        onClick={openAIAssistant}
+      <Link
+        to="/ai"
         className="hidden sm:grid w-9 h-9 place-items-center rounded-lg text-ink-600 hover:bg-ink-100"
-        aria-label="Ask AI"
-        title="Ask AI"
+        aria-label="AI Agent"
+        title="AI Agent — ask or create"
       >
         <FiZap size={18} />
-      </button>
+      </Link>
 
       <span className="hidden sm:block h-6 w-px bg-ink-200" />
       <span
