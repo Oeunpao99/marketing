@@ -15,7 +15,8 @@ import {
 } from 'react-icons/fi'
 import { api } from '../../api/client'
 import { useAuth } from '../../auth'
-import { desktopSupported, NOTIFY_KINDS, notifyPrefs } from '../../lib/notifications'
+import { NOTIFY_KINDS, notifyPrefs } from '../../lib/notifications'
+import { disablePush, enablePush, pushStatus, sendTestPush } from '../../lib/push'
 import { ACCENTS, applyAccent, DEFAULT_ACCENT, normalizeAccent } from '../../lib/theme'
 import { promptInstall, useInstallState } from '../../lib/pwa'
 
@@ -58,10 +59,10 @@ export default function SettingsModal({ open, onClose, showToast }) {
 
   return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-fadein">
-      <div className="fixed inset-0 bg-ink-950/40" onClick={onClose} />
-      <div className="relative flex h-[min(620px,90vh)] w-full max-w-[820px] overflow-hidden rounded-2xl border border-ink-200 bg-white shadow-pop">
+      <div className="fixed inset-0 glass-overlay" onClick={onClose} />
+      <div className="relative flex h-[min(620px,90vh)] w-full max-w-[820px] overflow-hidden rounded-3xl glass-panel">
         {/* tabs */}
-        <nav className="hidden sm:flex w-[200px] flex-none flex-col gap-0.5 border-r border-ink-100 bg-[#FAFBFC] p-3">
+        <nav className="hidden sm:flex w-[200px] flex-none flex-col gap-0.5 border-r border-white/60 bg-white/40 p-3">
           <div className="px-2.5 pb-3 pt-1 text-[15px] font-bold text-ink-900">Settings</div>
           {TABS.map((t) => (
             <button
@@ -79,21 +80,10 @@ export default function SettingsModal({ open, onClose, showToast }) {
         </nav>
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="flex items-center justify-between gap-3 border-b border-ink-100 px-6 py-4">
-            {/* mobile: tabs as a select */}
-            <select
-              value={tab}
-              onChange={(e) => setTab(e.target.value)}
-              className="sm:hidden h-9 rounded-lg border border-ink-200 px-2 text-[13px] font-semibold"
-            >
-              {TABS.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
-            <h2 className="hidden sm:block text-[15px] font-semibold text-ink-900">
-              {TABS.find((t) => t.id === tab)?.label}
+          <header className="flex items-center justify-between gap-3 border-b border-ink-100 px-5 sm:px-6 py-3.5 sm:py-4">
+            <h2 className="text-[15px] font-semibold text-ink-900">
+              <span className="sm:hidden">Settings</span>
+              <span className="hidden sm:inline">{TABS.find((t) => t.id === tab)?.label}</span>
             </h2>
             <button
               type="button"
@@ -105,7 +95,29 @@ export default function SettingsModal({ open, onClose, showToast }) {
             </button>
           </header>
 
-          <div className="flex-1 overflow-y-auto px-6 py-5">
+          {/* mobile: the sections as a sideways-scrolling tab row */}
+          <div className="sm:hidden border-b border-ink-100">
+            <div className="flex gap-1.5 overflow-x-auto px-4 py-2.5 side-scroll" role="tablist">
+              {TABS.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === t.id}
+                  ref={(el) => tab === t.id && el?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' })}
+                  onClick={() => setTab(t.id)}
+                  className={`flex flex-none items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-1.5 text-[12.5px] font-semibold transition-colors ${
+                    tab === t.id ? 'bg-brand text-white shadow-sm' : 'bg-white/70 text-ink-600 ring-1 ring-ink-200'
+                  }`}
+                >
+                  <t.icon size={13} />
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-5">
             {tab === 'profile' && <ProfileTab showToast={showToast} />}
             {tab === 'appearance' && <AppearanceTab showToast={showToast} />}
             {tab === 'notifications' && <NotificationsTab showToast={showToast} />}
@@ -180,6 +192,10 @@ function AppearanceTab({ showToast }) {
   const { user, updatePrefs } = useAuth()
   const prefs = user?.preferences || {}
   const saved = (prefs.accent || DEFAULT_ACCENT).toUpperCase()
+  // The colour input fires continuously while dragging — preview instantly,
+  // save once the person settles on a colour.
+  const saveTimer = useRef(null)
+  const [draft, setDraft] = useState(null)
 
   const current = draft || saved
   const isPreset = ACCENTS.some((a) => a.hex === current)
@@ -189,10 +205,6 @@ function AppearanceTab({ showToast }) {
       .then(() => msg && showToast(msg))
       .catch((e) => showToast(`Couldn’t save — ${e.message}`))
 
-  // The colour input fires continuously while dragging — preview instantly,
-  // save once the person settles on a colour.
-  const saveTimer = useRef(null)
-  const [draft, setDraft] = useState(null)
   const pickCustom = (hex) => {
     const safe = normalizeAccent(hex)
     applyAccent(safe)
@@ -339,39 +351,6 @@ function InstallApp({ showToast }) {
 function NotificationsTab({ showToast }) {
   const { user, updatePrefs } = useAuth()
   const notify = notifyPrefs(user)
-  const desktopOn = !!user?.preferences?.desktop_alerts
-  const supported = desktopSupported()
-  const [permission, setPermission] = useState(supported ? Notification.permission : 'unsupported')
-
-  const setKind = (id, v) =>
-    updatePrefs({ notify: { ...notify, [id]: v } }).catch((e) => showToast(`Couldn’t save — ${e.message}`))
-
-  const toggleDesktop = async (v) => {
-    if (v && supported && Notification.permission !== 'granted') {
-      const result = await Notification.requestPermission()
-      setPermission(result)
-      if (result !== 'granted') {
-        showToast('Your browser blocked notifications — allow them in the site settings (lock icon in the address bar)')
-        return
-      }
-    }
-    updatePrefs({ desktop_alerts: v })
-      .then(() => {
-        if (v) {
-          try {
-            new Notification('Desktop alerts are on', {
-              body: 'You’ll get a pop-up like this when something needs you.',
-              icon: '/brand/favicon-64.png',
-            })
-          } catch {
-            /* ignore */
-          }
-        }
-        showToast(v ? 'Desktop alerts on' : 'Desktop alerts off')
-      })
-      .catch((e) => showToast(`Couldn’t save — ${e.message}`))
-  }
-
   return (
     <div className="space-y-8">
       <section>
@@ -383,30 +362,101 @@ function NotificationsTab({ showToast }) {
         </div>
       </section>
 
-      <section>
-        <SectionTitle
-          title="Desktop alerts"
-          sub="A pop-up from your browser when one of the things above happens while ContentFlow is in another tab."
-        />
-        <div className="mt-3 rounded-2xl border border-ink-200 px-4">
-          <ToggleRow
-            title="Browser notifications"
-            desc={
-              !supported
-                ? 'This browser doesn’t support notifications.'
-                : permission === 'denied'
-                  ? 'Blocked by your browser — allow notifications for this site (lock icon in the address bar), then turn this on.'
-                  : 'Works while ContentFlow is open in a tab.'
-            }
-            on={desktopOn && permission === 'granted'}
-            disabled={!supported || permission === 'denied'}
-            onChange={toggleDesktop}
-          />
-        </div>
-      </section>
+      <PushSection showToast={showToast} />
 
       <p className="text-[11.5px] text-ink-400">Email and Telegram summaries aren’t available yet.</p>
     </div>
+  )
+}
+
+// Phone lock-screen / desktop notifications via Web Push (app/push.py).
+const PUSH_HELP = {
+  'ios-install':
+    'On iPhone, add ContentFlow to your Home Screen first (Share → Add to Home Screen), open it from there, then turn this on.',
+  insecure: 'Needs a secure (https://) address — it works on your live site, not on a local Wi-Fi preview.',
+  unsupported: 'This browser can’t receive push notifications. Try Chrome, Edge, or the installed app.',
+  denied: 'Notifications are blocked for this site — allow them in your browser or phone settings, then come back.',
+  'server-off': 'Push isn’t set up on the server yet (VAPID keys missing in the backend .env).',
+}
+
+function PushSection({ showToast }) {
+  const { user, updatePrefs } = useAuth()
+  const [status, setStatus] = useState('checking')
+  const [busy, setBusy] = useState(false)
+  const wanted = !!user?.preferences?.push_alerts
+  const on = status === 'on' && wanted
+
+  useEffect(() => {
+    pushStatus().then(setStatus)
+  }, [])
+
+  const toggle = async (v) => {
+    setBusy(true)
+    try {
+      if (v) {
+        await enablePush()
+        await updatePrefs({ push_alerts: true })
+        setStatus('on')
+        await sendTestPush().catch(() => {})
+        showToast('Push notifications on — a test one is on its way')
+      } else {
+        await disablePush()
+        setStatus('ready')
+        showToast('Push notifications off on this device')
+      }
+    } catch (e) {
+      showToast(e.message)
+      setStatus(await pushStatus())
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const test = async () => {
+    setBusy(true)
+    try {
+      const r = await sendTestPush()
+      showToast(`Test sent to ${r.sent} device${r.sent === 1 ? '' : 's'}`)
+    } catch (e) {
+      showToast(e.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const blocked = PUSH_HELP[status]
+  return (
+    <section>
+      <SectionTitle
+        title="Push notifications"
+        sub="Alerts on your phone’s lock screen or your computer — even when ContentFlow is closed."
+      />
+      <div className="mt-3 rounded-2xl border border-ink-200 px-4">
+        <ToggleRow
+          title="On this device"
+          desc={
+            status === 'checking'
+              ? 'Checking this device…'
+              : blocked
+                ? blocked
+                : on
+                  ? 'You’ll get the alerts you switched on above.'
+                  : 'Turn on to get the alerts you switched on above.'
+          }
+          on={on}
+          disabled={busy || status === 'checking' || !!blocked}
+          onChange={toggle}
+        />
+        {on && (
+          <div className="flex items-center justify-between gap-3 border-t border-ink-100 py-3">
+            <span className="text-[11.5px] text-ink-500">Each phone or computer turns this on separately.</span>
+            <button type="button" onClick={test} disabled={busy} className="btn-outline flex-none">
+              Send test
+            </button>
+          </div>
+        )}
+      </div>
+    </section>
   )
 }
 
@@ -509,10 +559,14 @@ function WorkspaceTab({ showToast }) {
       </Row>
       {canManage && <SaveBar dirty={!!dirty} saving={saving} onSave={save} onReset={() => setName(user?.workspace_name || '')} />}
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <Stat label="Brands" value={info?.brands} />
         <Stat label="Members" value={info?.members} />
-        <Stat label="Created" value={info ? new Date(info.created_at).toLocaleDateString() : null} />
+        <Stat
+          label="Created"
+          value={info ? new Date(info.created_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : null}
+          sub={info ? new Date(info.created_at).getFullYear() : null}
+        />
       </div>
 
       <p className="rounded-xl bg-brand-soft/50 px-4 py-3 text-[12px] leading-relaxed text-ink-600">
@@ -557,7 +611,7 @@ function TeamTab({ showToast }) {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <SectionTitle
           title="People in this workspace"
           sub={canManage ? 'Add teammates and choose what they can do.' : 'Only an owner or admin can manage the team.'}
@@ -592,11 +646,11 @@ function TeamTab({ showToast }) {
               const isMe = m.id === user?.id
               const locked = !canManage || isMe || m.role === 'owner'
               return (
-                <div key={m.id} className={`flex items-center gap-3 px-4 py-3 ${m.is_active ? '' : 'opacity-60'}`}>
+                <div key={m.id} className={`flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 ${m.is_active ? '' : 'opacity-60'}`}>
                   <span className="h-9 w-9 flex-none rounded-full grid place-items-center bg-brand-soft text-brand text-[12px] font-bold">
                     {m.initials}
                   </span>
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0 flex-1 basis-[150px]">
                     <div className="truncate text-[13px] font-semibold text-ink-900">
                       {m.name}
                       {isMe && <span className="ml-1.5 text-[11px] font-medium text-ink-400">(you)</span>}
@@ -604,6 +658,7 @@ function TeamTab({ showToast }) {
                     </div>
                     <div className="truncate text-[12px] text-ink-500">{m.email || 'No email'}</div>
                   </div>
+                  <div className="ml-auto flex items-center gap-1">
                   {locked ? (
                     <span className="text-[12px] font-medium text-ink-500" title={ROLE_HINT[m.role]}>
                       {ROLE_LABEL[m.role] || m.role}
@@ -639,6 +694,7 @@ function TeamTab({ showToast }) {
                       </button>
                     </div>
                   )}
+                  </div>
                 </div>
               )
             })}
@@ -770,11 +826,14 @@ function SaveBar({ dirty, saving, onSave, onReset }) {
   )
 }
 
-function Stat({ label, value }) {
+function Stat({ label, value, sub }) {
   return (
-    <div className="rounded-xl border border-ink-200 px-4 py-3">
+    <div className="min-w-0 rounded-xl border border-ink-200 bg-white/60 px-3 py-3 sm:px-4">
       <div className="text-[11px] text-ink-500">{label}</div>
-      <div className="mt-0.5 text-[17px] font-bold text-ink-900">{value ?? '—'}</div>
+      <div className="mt-0.5 truncate text-[16px] sm:text-[17px] font-bold text-ink-900">
+        {value ?? '—'}
+        {sub != null && <span className="ml-1 text-[11px] font-medium text-ink-400">{sub}</span>}
+      </div>
     </div>
   )
 }

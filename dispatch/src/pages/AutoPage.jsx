@@ -222,10 +222,10 @@ export default function AutoPage() {
       {confirmRegen &&
         createPortal(
           <div
-            className="fixed inset-0 z-[110] bg-ink-950/40 flex items-center justify-center p-4 animate-fadein"
+            className="fixed inset-0 z-[110] glass-overlay flex items-center justify-center p-4 animate-fadein"
             onClick={() => setConfirmRegen(null)}
           >
-            <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-pop" onClick={(e) => e.stopPropagation()}>
+            <div className="glass-panel rounded-3xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
               <h3 className="text-[15.5px] font-bold text-ink-900 tracking-tight">Regenerate today’s ideas?</h3>
               <p className="mt-2 text-[12.5px] text-ink-500 leading-relaxed">
                 Today’s batch for <b className="text-ink-800">{confirmRegen.brand_name}</b> is replaced with a fresh
@@ -297,11 +297,11 @@ function SettingsDrawer({ a, channels, run, running, onUpdate, onBrandUpdate, on
 
   return createPortal(
     <div className="fixed inset-0 z-[95]">
-      <button type="button" aria-label="Close" className="absolute inset-0 bg-ink-950/35 animate-fadein cursor-default" onClick={onClose} />
+      <button type="button" aria-label="Close" className="absolute inset-0 glass-overlay animate-fadein cursor-default" onClick={onClose} />
       <aside
         role="dialog"
         aria-modal="true"
-        className="absolute right-0 top-0 h-full w-full max-w-[440px] bg-white shadow-drawer animate-drawer-in flex flex-col"
+        className="absolute right-0 top-0 h-full w-full max-w-[440px] glass-drawer animate-drawer-in flex flex-col"
       >
         <header className="flex items-center gap-3 px-6 py-5 border-b border-ink-100">
           <span className="w-2.5 h-2.5 rounded-full flex-none" style={{ background: colorForBrand(a.brand_slug) }} />

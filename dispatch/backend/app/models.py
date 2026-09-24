@@ -252,6 +252,10 @@ class GenerationJob(Base, TimestampMixin):
         ForeignKey("brands.id", ondelete="SET NULL"), nullable=True, index=True
     )
     kind: Mapped[str] = mapped_column(String(12), default="video")
+    # Who asked for it — they get the "your image/video is ready" push.
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("team_members.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     prompt: Mapped[str] = mapped_column(Text, default="")
     aspect_ratio: Mapped[str] = mapped_column(String(8), default="9:16")
     seconds: Mapped[int] = mapped_column(Integer, default=8)

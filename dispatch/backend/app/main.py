@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import APIRouter, Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app import content_scheduler, scheduler
+from app import content_scheduler, scheduler, video
 from app.advisor import router as advisor_router
 from app.chats import router as chats_router
 from app.push import router as push_router
@@ -28,9 +28,11 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     scheduler.start(app)
     content_scheduler.start(app)
+    video.start_worker(app)
     try:
         yield
     finally:
+        await video.stop_worker(app)
         await content_scheduler.stop(app)
         await scheduler.stop(app)
 

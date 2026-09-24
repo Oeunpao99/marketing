@@ -189,6 +189,30 @@ def notify_workspace(workspace_id: int | None, kind: str, title: str, body: str,
     threading.Thread(target=_deliver, args=(workspace_id, kind, message), daemon=True).start()
 
 
+def _deliver_user(user_id: int, kind: str, message: dict) -> None:
+    db = SessionLocal()
+    try:
+        m = db.get(TeamMember, user_id)
+        if m is None or not m.is_active:
+            return
+        prefs = m.preferences or {}
+        if not prefs.get("push_alerts") or not (prefs.get("notify") or {}).get(kind, True):
+            return
+        subs = db.scalars(select(PushSubscription).where(PushSubscription.user_id == user_id)).all()
+        if subs:
+            _send_many(db, list(subs), message)
+    finally:
+        db.close()
+
+
+def notify_user(user_id: int | None, kind: str, title: str, body: str, url: str = "/", tag: str = "") -> None:
+    """Fire-and-forget push to one person (e.g. "your image is ready")."""
+    if not user_id or not enabled():
+        return
+    message = {"title": title, "body": body[:240], "url": url, "tag": tag or kind}
+    threading.Thread(target=_deliver_user, args=(user_id, kind, message), daemon=True).start()
+
+
 if __name__ == "__main__":  # python -m app.push keys
     import sys
 

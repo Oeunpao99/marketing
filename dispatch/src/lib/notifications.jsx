@@ -1,7 +1,7 @@
 // What the bell shows, in one place — used by the Notifications panel and the
-// Topbar / Sidebar counts, filtered by Settings → Notifications — plus the
-// optional desktop (browser) alerts that watch the same data.
-import { useEffect, useMemo, useRef } from 'react'
+// Topbar / Sidebar counts, filtered by Settings → Notifications. (Phone and
+// desktop pop-ups are server-sent Web Push — see lib/push.js, app/push.py.)
+import { useMemo } from 'react'
 import { FiAlertTriangle, FiCheckCircle, FiInbox } from 'react-icons/fi'
 import { useAuth } from '../auth'
 import { PLAT } from '../data/brands'
@@ -95,53 +95,4 @@ export function useNotifications() {
     return { items, count: out.filter((i) => i.urgent).length }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [review, queue, channels, key])
-}
-
-// ── desktop alerts ─────────────────────────────────────────────────────────
-export const desktopSupported = () => typeof window !== 'undefined' && 'Notification' in window
-
-function alert(title, body, tag) {
-  try {
-    const n = new Notification(title, { body, tag, icon: '/brand/favicon-64.png' })
-    n.onclick = () => {
-      window.focus()
-      n.close()
-    }
-  } catch {
-    /* some browsers only allow notifications from a service worker */
-  }
-}
-
-/** Mounted once (Shell). Pops a browser notification when something the
- *  person opted into happens while ContentFlow isn't the tab they're on. */
-export function useDesktopAlerts() {
-  const { queue, review } = useStore()
-  const { user } = useAuth()
-  const prev = useRef(null)
-  const enabled = !!user?.preferences?.desktop_alerts
-  const prefs = notifyPrefs(user)
-
-  useEffect(() => {
-    const snap = {
-      st: Object.fromEntries((queue || []).map((p) => [p.postId ?? p.targetId, p.st])),
-      review: (review || []).length,
-    }
-    const before = prev.current
-    prev.current = snap
-    if (!before || !enabled || !desktopSupported() || Notification.permission !== 'granted') return
-    if (!document.hidden) return // they're looking at the app — the bell is enough
-
-    for (const p of queue || []) {
-      const k = p.postId ?? p.targetId
-      const was = before.st[k]
-      if (!was || was === p.st) continue
-      if (p.st === 'failed' && prefs.failed) alert('A post failed to publish', `${p.ttl} — ${p.error || 'open ContentFlow to retry'}`, `failed-${k}`)
-      if (p.st === 'posted' && prefs.published) alert('Posted ✓', `${p.ttl} is live on ${p.c.join(', ')}`, `posted-${k}`)
-    }
-    if (prefs.review && review !== null && before.review !== null && snap.review > before.review) {
-      const n = snap.review - before.review
-      alert(`${n} new idea${n === 1 ? '' : 's'} waiting for you`, 'Open ContentFlow to review and approve.', 'review')
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queue, review])
 }

@@ -578,7 +578,7 @@ export default function AIPromptPage() {
           {turns.length === 0 && (
             <div className="pt-[14vh] pb-4 text-center">
               <h2 className="text-[22px] font-semibold text-ink-900 tracking-tight">How can I help?</h2>
-              <div className="mt-6 flex flex-nowrap justify-center gap-2 overflow-x-auto side-scroll pb-1">
+              <div className="mt-6 grid grid-cols-2 gap-2 sm:flex sm:flex-nowrap sm:justify-center">
                 {[
                   { label: 'How’s my engagement?', text: QUESTIONS[0], pick: 'ask' },
                   { label: 'What to post next week?', text: QUESTIONS[1], pick: 'ask' },
@@ -594,14 +594,14 @@ export default function AIPromptPage() {
                       composerRef.current?.querySelector('textarea')?.focus()
                     }}
                     title={s.text}
-                    className="flex-none inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-ink-200 bg-white px-3.5 py-1.5 text-[12px] text-ink-600 hover:border-brand/40 hover:text-brand transition-colors"
+                    className="min-w-0 sm:flex-none inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-full border border-ink-200 bg-white px-3 py-2 sm:px-3.5 sm:py-1.5 text-[12px] text-ink-600 hover:border-brand/40 hover:text-brand transition-colors"
                   >
                     {s.pick === 'ask' ? (
                       <FiMessageCircle size={12} className="flex-none text-ink-400" />
                     ) : (
                       <span className="flex-none text-brand text-[11px] leading-none">✦</span>
                     )}
-                    {s.label}
+                    <span className="truncate">{s.label}</span>
                   </button>
                 ))}
               </div>
@@ -881,8 +881,8 @@ function HistoryDrawer({ currentId, onOpen, onClose, onDeleted, showToast }) {
 
   return createPortal(
     <div className="fixed inset-0 z-[90]">
-      <div className="absolute inset-0 bg-ink-950/20" onClick={onClose} />
-      <aside className="absolute right-0 top-0 h-full w-[360px] max-w-[92vw] bg-white shadow-drawer animate-drawer-in flex flex-col">
+      <div className="absolute inset-0 glass-overlay animate-fadein" onClick={onClose} />
+      <aside className="absolute right-0 top-0 h-full w-[360px] max-w-[92vw] glass-drawer animate-drawer-in flex flex-col">
         <header className="flex items-center justify-between px-5 pt-5 pb-3">
           <h2 className="text-[15px] font-semibold text-ink-900">History</h2>
           <button
@@ -1437,7 +1437,7 @@ function SettingsPopover({
       on ? 'border-brand/40 bg-brand-soft text-brand' : 'border-ink-200 text-ink-600 hover:border-ink-300'
     }`
   return (
-    <div className="absolute bottom-full left-0 mb-2 w-[330px] max-w-[calc(100vw-40px)] rounded-2xl border border-ink-200 bg-white p-4 shadow-pop animate-fadein space-y-4">
+    <div className="absolute bottom-full left-0 mb-2 w-[330px] max-w-[calc(100vw-40px)] rounded-2xl glass-panel p-4 animate-fadein space-y-4">
       <div className="flex rounded-xl bg-ink-100 p-1">
         <button type="button" className={seg(type === 'image')} onClick={() => setType('image')}>
           <FiImage size={14} /> Image

@@ -132,14 +132,14 @@ export default function ChannelsPage() {
               className="bg-white border border-ink-100 rounded-2xl overflow-hidden shadow-card hover:shadow-card-hover transition-all duration-150"
             >
               <header
-                className="px-4 py-3.5 flex items-center gap-3 border-b border-ink-100"
+                className="px-4 py-3.5 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-ink-100"
                 style={{ background: `${color}08` }}
               >
                 <span
-                  className="w-2.5 h-2.5 rounded-full"
+                  className="w-2.5 h-2.5 flex-none rounded-full"
                   style={{ background: color, boxShadow: `0 0 8px ${color}30` }}
                 />
-                <div className="flex-1">
+                <div className="min-w-0 flex-1">
                   <div className="font-bold text-ink-800" style={{ color }}>
                     {b.name}
                   </div>
@@ -147,7 +147,7 @@ export default function ChannelsPage() {
                     {b.lang} · {b.note}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="ml-auto flex items-center gap-2">
                   <Tag variant="idle">{rows.length} channels</Tag>
                   <button
                     type="button"
@@ -162,51 +162,53 @@ export default function ChannelsPage() {
                   </button>
                 </div>
               </header>
-              {rows.map((c) => (
-                <div
-                  key={c.id}
-                  className="grid grid-cols-[140px_1fr_auto] gap-4 items-center px-4 py-3 border-t border-ink-100 first:border-t-0"
-                >
-                  <div className="flex items-center gap-2 font-bold text-ink-800 text-[12.5px]">
-                    <PlatformIcon platform={c.p} />
-                    {PLAT[c.p]?.name || c.p}
-                  </div>
-                  <div className="text-[12px] text-ink-700">
-                    {c.h}
-                    {" · "}
-                    {c.m}
-                    <div className="text-[11px] text-ink-600">
-                      Last post: {c.l}
+              {rows.map((c) => {
+                const detail = [c.h, c.m].filter(Boolean).join(" · ");
+                return (
+                  <div key={c.id} className="flex items-center gap-3 px-4 py-3.5 border-t border-ink-100 first:border-t-0">
+                    <span className="grid h-10 w-10 flex-none place-items-center rounded-xl bg-ink-50 text-ink-700">
+                      <PlatformIcon platform={c.p} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                        <span className="text-[13px] font-semibold text-ink-900">{PLAT[c.p]?.name || c.p}</span>
+                        {c.s === "live" && <Tag variant="ok">Connected</Tag>}
+                        {c.s === "soon" && <Tag variant="warn">Reconnect soon</Tag>}
+                        {c.s === "off" && <Tag variant="idle">Not connected</Tag>}
+                      </div>
+                      {detail && (
+                        <div className="truncate text-[12px] text-ink-600" title={detail}>
+                          {detail}
+                        </div>
+                      )}
+                      <div className="text-[11px] text-ink-400">Last post: {lastPost(c.l)}</div>
+                    </div>
+                    <div className="flex-none">
+                      {c.s === "off" ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            navigate("/channels/add", {
+                              state: { brandSlug: c.b, platformSlug: c.p },
+                            })
+                          }
+                          className="px-3 py-1.5 rounded-xl border border-brand-line bg-white text-brand text-[11.5px] font-semibold hover:bg-brand-soft transition-all duration-150"
+                        >
+                          Connect
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => askDisconnect(c)}
+                          className="px-3 py-1.5 rounded-xl border border-ink-200 bg-white text-ink-600 text-[11.5px] font-semibold hover:border-red-200 hover:bg-red-50 hover:text-red-600 transition-all duration-150"
+                        >
+                          Disconnect
+                        </button>
+                      )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    {c.s === "live" && <Tag variant="ok">Connected</Tag>}
-                    {c.s === "soon" && <Tag variant="warn">Reconnect soon</Tag>}
-                    {(c.s === "live" || c.s === "soon") && (
-                      <button
-                        type="button"
-                        onClick={() => askDisconnect(c)}
-                        className="px-3 py-1.5 rounded-xl border border-ink-200 bg-white text-ink-600 text-[11.5px] font-semibold hover:border-red-200 hover:bg-red-50 hover:text-red-600 transition-all duration-150"
-                      >
-                        Disconnect
-                      </button>
-                    )}
-                    {c.s === "off" && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          navigate("/channels/add", {
-                            state: { brandSlug: c.b, platformSlug: c.p },
-                          })
-                        }
-                        className="px-3 py-1.5 rounded-xl border border-brand-line bg-white text-brand text-[11.5px] font-semibold hover:bg-brand-soft transition-all duration-150"
-                      >
-                        Connect
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           );
         })}
@@ -215,11 +217,11 @@ export default function ChannelsPage() {
       {confirming &&
         createPortal(
           <div
-            className="fixed inset-0 z-[110] grid place-items-center bg-ink-950/40 p-4"
+            className="fixed inset-0 z-[110] grid place-items-center glass-overlay p-4 animate-fadein"
             onClick={() => !disconnecting && setConfirming(null)}
           >
             <div
-              className="w-full max-w-[420px] rounded-2xl bg-white p-5 shadow-drawer"
+              className="w-full max-w-[420px] rounded-3xl glass-panel p-5"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center gap-2 text-[14px] font-bold text-ink-800">
@@ -262,6 +264,22 @@ export default function ChannelsPage() {
         )}
     </div>
   );
+}
+
+// "3 days ago" / "12 Aug 2026" instead of a raw ISO timestamp.
+function lastPost(value) {
+  if (!value || value === "—") return "never";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  const mins = Math.round((Date.now() - d.getTime()) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours} h ago`;
+  const days = Math.round(hours / 24);
+  if (days < 7) return `${days} day${days === 1 ? "" : "s"} ago`;
+  if (days < 30) return `${Math.round(days / 7)} week${days < 14 ? "" : "s"} ago`;
+  return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 }
 
 function PlatformIcon({ platform }) {

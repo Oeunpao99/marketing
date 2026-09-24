@@ -22,6 +22,8 @@ export default function CalendarPage() {
   const [brandFilter, setBrandFilter] = useState('all')
   const [items, setItems] = useState(null)
   const [open, setOpen] = useState(null) // selected draft
+  // Phone layout: the day whose ideas are listed under the compact month grid.
+  const [picked, setPicked] = useState(today)
   const [busy, setBusy] = useState(false)
 
   const monthLabel = new Date(year, month, 1).toLocaleDateString(undefined, {
@@ -40,6 +42,10 @@ export default function CalendarPage() {
 
   useEffect(() => {
     load()
+    // Keep the picked day inside the month on screen: today if it's this
+    // month, otherwise the 1st.
+    const prefix = `${year}-${pad(month + 1)}`
+    setPicked((p) => (p.startsWith(prefix) ? p : today.startsWith(prefix) ? today : `${prefix}-01`))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [year, month])
 
@@ -133,11 +139,12 @@ export default function CalendarPage() {
         >
           Today
         </button>
-        <span className="mx-1 h-5 w-px bg-ink-200" />
+        <span className="mx-1 h-5 w-px bg-ink-200 hidden sm:block" />
+        <div className="-mx-5 flex w-[calc(100%+2.5rem)] gap-2 overflow-x-auto px-5 pb-0.5 side-scroll sm:mx-0 sm:w-auto sm:flex-wrap sm:overflow-visible sm:px-0">
         <button
           type="button"
           onClick={() => setBrandFilter('all')}
-          className={`px-3 py-1.5 rounded-xl border text-[11.5px] font-semibold transition-all duration-150 ${
+          className={`flex-none px-3 py-1.5 rounded-xl border text-[11.5px] font-semibold transition-all duration-150 ${
             brandFilter === 'all' ? 'border-brand-line bg-brand-soft text-brand' : 'border-ink-200 text-ink-600 hover:border-brand-line'
           }`}
         >
@@ -148,7 +155,7 @@ export default function CalendarPage() {
             key={b.id}
             type="button"
             onClick={() => setBrandFilter(b.slug)}
-            className={`px-3 py-1.5 rounded-xl border text-[11.5px] font-semibold flex items-center gap-1.5 transition-all duration-150 ${
+            className={`flex-none whitespace-nowrap px-3 py-1.5 rounded-xl border text-[11.5px] font-semibold flex items-center gap-1.5 transition-all duration-150 ${
               brandFilter === b.slug ? 'border-brand-line bg-brand-soft text-brand' : 'border-ink-200 text-ink-600 hover:border-brand-line'
             }`}
           >
@@ -156,10 +163,22 @@ export default function CalendarPage() {
             {b.name}
           </button>
         ))}
+        </div>
       </div>
 
+      {items !== null && (
+        <MobileMonth
+          cells={cells}
+          byDay={byDay}
+          today={today}
+          picked={picked}
+          onPick={setPicked}
+          onOpen={setOpen}
+        />
+      )}
+
       {items === null ? (
-        <div className="rounded-2xl border border-ink-100 bg-white overflow-hidden shadow-card">
+        <div className="hidden sm:block rounded-2xl border border-ink-100 bg-white overflow-hidden shadow-card">
           <div className="grid grid-cols-7 border-b border-ink-100 bg-ink-50/60">
             {WEEKDAYS.map((w) => (
               <div key={w} className="px-2 py-2 text-[10px] font-bold uppercase tracking-wide text-ink-400 text-center">
@@ -178,7 +197,7 @@ export default function CalendarPage() {
           </div>
         </div>
       ) : (
-        <div className="rounded-2xl border border-ink-100 bg-white overflow-hidden shadow-card">
+        <div className="hidden sm:block rounded-2xl border border-ink-100 bg-white overflow-hidden shadow-card">
           <div className="grid grid-cols-7 border-b border-ink-100 bg-ink-50/60">
             {WEEKDAYS.map((w) => (
               <div key={w} className="px-2 py-2 text-[10px] font-bold uppercase tracking-wide text-ink-400 text-center">
@@ -335,6 +354,128 @@ export default function CalendarPage() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+
+// ── phone layout ────────────────────────────────────────────────────────────
+// A compact month (date + coloured dots per idea) and, under it, a readable
+// list of the picked day's ideas — the usual phone-calendar pattern. The
+// desktop grid above is hidden below the `sm` breakpoint.
+const STATUS = {
+  waiting: ['Waiting', 'bg-amber-400'],
+  approved: ['Approved', 'bg-emerald-500'],
+  scheduled: ['Scheduled', 'bg-brand'],
+  rejected: ['Sent back', 'bg-ink-300'],
+}
+const khmer = (t) => (/[\u1780-\u17FF]/.test(t || '') ? 'font-khmer' : '')
+
+function MobileMonth({ cells, byDay, today, picked, onPick, onOpen }) {
+  const list = byDay.get(picked) || []
+  const label = new Date(`${picked}T00:00:00`).toLocaleDateString(undefined, {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  })
+
+  return (
+    <div className="sm:hidden space-y-4">
+      <div className="rounded-2xl border border-ink-100 bg-white p-2 shadow-card">
+        <div className="grid grid-cols-7 pb-1">
+          {WEEKDAYS.map((w) => (
+            <div key={w} className="py-1 text-center text-[10.5px] font-semibold text-ink-400">
+              {w.charAt(0)}
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-y-1">
+          {cells.map((dateStr, i) => {
+            if (!dateStr) return <div key={`pad-${i}`} />
+            const dayItems = byDay.get(dateStr) || []
+            const isPicked = dateStr === picked
+            const isToday = dateStr === today
+            return (
+              <button
+                key={dateStr}
+                type="button"
+                onClick={() => onPick(dateStr)}
+                className="flex h-12 flex-col items-center justify-start gap-1 rounded-xl pt-1"
+                aria-label={`${dateStr}, ${dayItems.length} idea${dayItems.length === 1 ? '' : 's'}`}
+              >
+                <span
+                  className={`grid h-7 w-7 place-items-center rounded-full text-[12.5px] font-semibold ${
+                    isPicked
+                      ? 'bg-brand text-white'
+                      : isToday
+                        ? 'text-brand ring-1 ring-brand/40'
+                        : 'text-ink-700'
+                  }`}
+                >
+                  {Number(dateStr.slice(-2))}
+                </span>
+                <span className="flex h-1.5 items-center gap-0.5">
+                  {dayItems.slice(0, 3).map((it) => (
+                    <span
+                      key={it.id}
+                      className="h-1.5 w-1.5 rounded-full"
+                      style={{ background: it.status === 'rejected' ? '#CBD2D9' : colorForBrand(it.brand_slug) }}
+                    />
+                  ))}
+                  {dayItems.length > 3 && <span className="text-[8px] font-bold leading-none text-ink-400">+</span>}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      <div>
+        <div className="mb-2 flex items-baseline justify-between">
+          <div className="text-[14px] font-semibold text-ink-900">{label}</div>
+          <div className="text-[11.5px] text-ink-400">
+            {list.length} idea{list.length === 1 ? '' : 's'}
+          </div>
+        </div>
+        {list.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-ink-200 px-4 py-8 text-center text-[12.5px] text-ink-400">
+            Nothing planned this day
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {list.map((it) => {
+              const [statusLabel, statusDot] = STATUS[it.status] || [it.status, 'bg-ink-300']
+              return (
+                <button
+                  key={it.id}
+                  type="button"
+                  onClick={() => onOpen(it)}
+                  className={`w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-left shadow-card active:bg-ink-50 ${
+                    it.status === 'rejected' ? 'opacity-60' : ''
+                  }`}
+                >
+                  <div className="flex items-center gap-2 text-[11.5px]">
+                    <span className="h-2 w-2 flex-none rounded-full" style={{ background: colorForBrand(it.brand_slug) }} />
+                    <span className="truncate font-semibold text-ink-700">{it.brand_name}</span>
+                    <span className="ml-auto inline-flex flex-none items-center gap-1.5 text-ink-500">
+                      <span className={`h-1.5 w-1.5 rounded-full ${statusDot}`} />
+                      {statusLabel}
+                    </span>
+                  </div>
+                  <div className={`mt-1 line-clamp-2 text-[13.5px] font-semibold leading-snug text-ink-900 ${khmer(it.title)}`}>
+                    {it.title}
+                  </div>
+                  {it.body && (
+                    <div className={`mt-0.5 line-clamp-2 text-[12px] leading-relaxed text-ink-500 ${khmer(it.body)}`}>
+                      {it.body}
+                    </div>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

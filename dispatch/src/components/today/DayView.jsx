@@ -134,7 +134,7 @@ export default function DayView({ queue, match = () => true }) {
                       </span>
                     ))}
                   </div>
-                  <div className="mt-0.5 text-[12.5px] font-semibold text-ink-800 leading-snug">{q.ttl}</div>
+                  <div className="mt-0.5 text-[12.5px] font-semibold text-ink-800 leading-snug break-words [overflow-wrap:anywhere] line-clamp-2" title={q.ttl}>{q.ttl}</div>
                   <div className={`text-[11.5px] text-ink-500 truncate max-w-[52ch] ${isKhmer(q.cap) ? 'font-khmer' : ''}`}>
                     {q.cap}
                   </div>

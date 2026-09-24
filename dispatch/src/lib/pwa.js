@@ -9,8 +9,10 @@ const listeners = new Set()
 const emit = () => listeners.forEach((fn) => fn())
 
 export function initPWA() {
+  // Not preventDefault()-ed: on phones Chrome then shows its own "Install app"
+  // banner, which is how most people discover it. We still keep the event so
+  // Settings → Appearance can offer an Install button too.
   window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault()
     deferred = e
     emit()
   })
@@ -18,9 +20,9 @@ export function initPWA() {
     deferred = null
     emit()
   })
-  // Only in real builds — in `vite dev` a service worker would just cache the
-  // dev server and get in the way.
-  if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  // Also in `vite dev`: the worker only caches /assets, /brand and /fonts (dev
+  // serves code from /src, so nothing stale) and it's needed for push.
+  if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('/sw.js').catch(() => {})
     })

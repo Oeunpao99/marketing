@@ -80,6 +80,7 @@ export default function Sidebar({ collapsed = false }) {
 
   useEffect(() => {
     const open = () => setSearchOpen(true);
+    const openSettings = () => setSettingsOpen(true);
     const onKeyDown = (event) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
@@ -94,9 +95,11 @@ export default function Sidebar({ collapsed = false }) {
     };
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("dispatch:open-search", open);
+    window.addEventListener("dispatch:open-settings", openSettings);
     return () => {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("dispatch:open-search", open);
+    window.removeEventListener("dispatch:open-settings", openSettings);
     };
   }, []);
 
@@ -280,7 +283,7 @@ export default function Sidebar({ collapsed = false }) {
               onClick={() => setBrandOpen(false)}
             />
             <div
-              className={`absolute z-40 bg-white border border-ink-200 rounded-xl shadow-pop p-2 animate-fadein ${
+              className={`absolute z-40 glass-panel rounded-xl p-2 animate-fadein ${
                 collapsed ? "left-[calc(100%-6px)] top-0 w-[260px]" : "left-4 right-4 top-[calc(100%-6px)]"
               }`}
             >
@@ -452,7 +455,7 @@ export default function Sidebar({ collapsed = false }) {
                 onClick={() => setUserOpen(false)}
               />
               <div
-                className={`absolute z-40 bg-white border border-ink-200 rounded-xl shadow-pop p-1.5 animate-fadein ${
+                className={`absolute z-40 glass-panel rounded-xl p-1.5 animate-fadein ${
                   collapsed ? "left-[calc(100%+8px)] bottom-0 w-[200px]" : "left-0 right-0 bottom-[calc(100%+6px)]"
                 }`}
               >
@@ -559,11 +562,11 @@ function SearchModal({ open, onClose, channels, queue, review, brands, navigate 
     >
       <button
         type="button"
-        className="fixed inset-0 bg-ink-950/25 backdrop-blur-sm"
+        className="fixed inset-0 glass-overlay"
         onClick={onClose}
         aria-label="Close search"
       />
-      <div className="relative w-full max-w-lg overflow-hidden rounded-2xl bg-white border border-ink-200 shadow-pop animate-fadein">
+      <div className="relative w-full max-w-lg overflow-hidden rounded-2xl glass-panel animate-fadein">
         <div className="flex items-center gap-3 border-b border-ink-100 px-4">
           <FiSearch size={16} className="text-ink-400" aria-hidden="true" />
           <input

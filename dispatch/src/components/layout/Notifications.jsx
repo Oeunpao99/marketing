@@ -47,7 +47,7 @@ export default function Notifications({ open, onClose, anchor = "header" }) {
               : "left-[264px] bottom-4 w-[min(340px,calc(100vw-2rem))]"
         }`}
       >
-        <div className="w-full overflow-hidden rounded-2xl bg-white border border-ink-200 shadow-pop animate-fadein">
+        <div className="w-full overflow-hidden rounded-2xl glass-panel animate-fadein">
           <div className="flex items-center gap-3 border-b border-ink-100 px-4 py-3">
             <div className="flex-1">
               <div className="text-[12.5px] font-bold text-ink-900">Notifications</div>

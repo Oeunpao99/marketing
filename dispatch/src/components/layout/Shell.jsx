@@ -6,7 +6,6 @@ import AIAssistant from '../ai/AIAssistant'
 import CreateBrandDrawer from './CreateBrandDrawer'
 import { useStore } from '../../store'
 import { useAutoRunWatcher } from '../../lib/autoRuns'
-import { useDesktopAlerts } from '../../lib/notifications'
 
 const KEY = 'dispatch.sidebarCollapsed'
 
@@ -48,7 +47,6 @@ function useRunFinishedToast() {
 export default function Shell({ children }) {
   const [collapsed, setCollapsed] = useState(readCollapsed)
   useRunFinishedToast()
-  useDesktopAlerts()
 
   const toggle = () =>
     setCollapsed((v) => {

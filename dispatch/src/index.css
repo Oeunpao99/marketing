@@ -120,6 +120,19 @@ select {
   .glass-glow {
     @apply bg-white/70 backdrop-blur-2xl border border-white/60 shadow-pop;
   }
+  /* Every popup uses these three (modals, sheets, drawers, dropdowns):
+     a blurred dim backdrop, and frosted translucent panels on top of it. */
+  .glass-overlay {
+    @apply bg-ink-950/25 backdrop-blur-md;
+  }
+  .glass-panel {
+    @apply bg-white/80 backdrop-blur-2xl backdrop-saturate-150 border border-white/70;
+    box-shadow: 0 24px 60px -16px rgba(16, 24, 40, 0.28), 0 2px 8px rgba(16, 24, 40, 0.06);
+  }
+  .glass-drawer {
+    @apply bg-white/85 backdrop-blur-2xl backdrop-saturate-150 border-l border-white/70;
+    box-shadow: -18px 0 50px -16px rgba(16, 24, 40, 0.28);
+  }
   /* Flat, cool light-gray app canvas — white cards sit on it. */
   .bg-canvas {
     background: #F4F6F9;

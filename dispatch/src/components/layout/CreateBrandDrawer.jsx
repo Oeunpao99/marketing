@@ -78,14 +78,14 @@ export default function CreateBrandDrawer() {
       <button
         type="button"
         aria-label="Close"
-        className="absolute inset-0 bg-ink-950/35 animate-fadein cursor-default"
+        className="absolute inset-0 glass-overlay animate-fadein cursor-default"
         onClick={() => setOpen(false)}
       />
       <aside
         role="dialog"
         aria-modal="true"
         aria-labelledby="create-brand-title"
-        className="absolute right-0 top-0 h-full w-full max-w-[440px] bg-white shadow-drawer animate-drawer-in flex flex-col"
+        className="absolute right-0 top-0 h-full w-full max-w-[440px] glass-drawer animate-drawer-in flex flex-col"
       >
         <header className="flex items-start justify-between gap-3 px-6 pt-6 pb-4 border-b border-ink-100">
           <div>

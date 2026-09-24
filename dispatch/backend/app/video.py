@@ -16,19 +16,26 @@ to "bring your own file".
 
 from __future__ import annotations
 
+import asyncio
 import base64
+import logging
+import threading
 import time
+from datetime import UTC, datetime, timedelta
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.database import get_db
+from app.database import SessionLocal, get_db
 from app.media import read_media, store_blob
-from app.models import Brand, GenerationJob, Video
-from app.tenancy import current_workspace_id, owned
+from app.models import Brand, GenerationJob, TeamMember, Video
+from app.tenancy import current_workspace_id, get_current_user, owned
+
+log = logging.getLogger("app.video")
 
 router = APIRouter(prefix="/ai", tags=["AI"])
 
@@ -417,69 +424,66 @@ def _out(job: GenerationJob, video: Video | None) -> VideoJobOut:
     )
 
 
-@router.post("/video", response_model=VideoJobOut, status_code=201)
-def create_video(payload: VideoJobIn, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
-    if payload.brand_id is not None:
-        owned(db, Brand, payload.brand_id, ws)
-    s = get_settings()
-    seconds = max(3, min(payload.seconds, s.video_max_seconds))
-    ratio = payload.aspect_ratio if payload.aspect_ratio in _DIMS else "9:16"
-    try:
-        provider, provider_job_id = start_job(payload.prompt, ratio, seconds)
-    except VideoGenError as exc:
-        raise HTTPException(503, str(exc)) from exc
-
-    job = GenerationJob(
-        workspace_id=ws,
-        brand_id=payload.brand_id,
-        kind="video",
-        prompt=payload.prompt,
-        aspect_ratio=ratio,
-        seconds=seconds,
-        provider=provider,
-        provider_job_id=provider_job_id,
-        status="running",
-    )
-    db.add(job)
-    db.commit()
-    db.refresh(job)
-    return _out(job, None)
+def _clip(text: str, n: int = 110) -> str:
+    text = " ".join((text or "").split())
+    return text if len(text) <= n else text[: n - 1] + "…"
 
 
-@router.get("/video/{job_id}", response_model=VideoJobOut)
-def get_video(job_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
-    job = owned(db, GenerationJob, job_id, ws, "Generation job")
+def _ready_push(job: GenerationJob) -> None:
+    """Tell the person who asked that their image/video finished (or failed)
+    — shows in the phone's notification bar even with the app closed."""
+    from app.push import notify_user
 
-    if job.status in {"succeeded", "failed"}:
-        return _out(job, db.get(Video, job.video_id) if job.video_id else None)
+    what = "image" if job.kind == "image" else "video"
+    if job.status == "succeeded":
+        notify_user(job.user_id, "generated", f"Your {what} is ready ✨", _clip(job.prompt), "/ai", f"gen-{job.id}")
+    elif job.status == "failed":
+        notify_user(
+            job.user_id, "generated", f"Your {what} couldn’t be made", _clip(job.error or "Try again."), "/ai", f"gen-{job.id}"
+        )
+
+
+def advance_video(db: Session, job_id: int) -> GenerationJob | None:
+    """Move a running video job forward: ask the provider, and once it's done
+    download it, store it as a Video and notify the requester. Shared by the
+    page's polling (GET /ai/video/{id}) and the background worker below, so a
+    video finishes even if nobody is watching. Row-locked — whoever gets there
+    first does the work; the other just skips (returns None)."""
+    job = db.execute(
+        select(GenerationJob).where(GenerationJob.id == job_id).with_for_update(skip_locked=True)
+    ).scalar_one_or_none()
+    if job is None:
+        db.rollback()
+        return None
+    if job.kind != "video" or job.status in {"succeeded", "failed"}:
+        db.commit()
+        return job
 
     try:
         state = poll_job(job.provider, job.provider_job_id)
     except VideoGenError as exc:
-        # Transient — keep the job open, report the reason.
-        job.error = str(exc)
+        job.error = str(exc)  # transient — keep the job open
         db.commit()
-        return _out(job, None)
+        return job
 
     if state["status"] in {"queued", "running"}:
-        if job.status != state["status"]:
-            job.status = state["status"]
-            db.commit()
-        return _out(job, None)
+        job.status = state["status"]
+        db.commit()
+        return job
 
     if state["status"] == "failed":
         job.status = "failed"
         job.error = state["error"] or "Render failed."
         db.commit()
-        return _out(job, None)
+        _ready_push(job)
+        return job
 
-    # succeeded → fetch bytes, store as a Video
     try:
         blob = fetch_video(job.provider, state["ref"])
     except VideoGenError as exc:
         job.error = str(exc)
         db.commit()
-        return _out(job, None)
+        return job
 
     url = store_blob(db, blob, ".mp4", "video/mp4")
     width, height = _DIMS.get(job.aspect_ratio, _DIMS["9:16"])
@@ -504,8 +508,54 @@ def get_video(job_id: int, db: Session = Depends(get_db), ws: int = Depends(curr
     job.output_tokens = usage.get("output", 0)
     job.total_tokens = usage.get("total", 0)
     db.commit()
-    db.refresh(video)
-    return _out(job, video)
+    _ready_push(job)
+    return job
+
+
+@router.post("/video", response_model=VideoJobOut, status_code=201)
+def create_video(
+    payload: VideoJobIn,
+    db: Session = Depends(get_db),
+    ws: int = Depends(current_workspace_id),
+    user: TeamMember = Depends(get_current_user),
+):
+    if payload.brand_id is not None:
+        owned(db, Brand, payload.brand_id, ws)
+    s = get_settings()
+    seconds = max(3, min(payload.seconds, s.video_max_seconds))
+    ratio = payload.aspect_ratio if payload.aspect_ratio in _DIMS else "9:16"
+    try:
+        provider, provider_job_id = start_job(payload.prompt, ratio, seconds)
+    except VideoGenError as exc:
+        raise HTTPException(503, str(exc)) from exc
+
+    job = GenerationJob(
+        workspace_id=ws,
+        user_id=user.id,
+        brand_id=payload.brand_id,
+        kind="video",
+        prompt=payload.prompt,
+        aspect_ratio=ratio,
+        seconds=seconds,
+        provider=provider,
+        provider_job_id=provider_job_id,
+        status="running",
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    return _out(job, None)
+
+
+@router.get("/video/{job_id}", response_model=VideoJobOut)
+def get_video(job_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    """Status of any generation job (image or video) — the page polls this."""
+    job = owned(db, GenerationJob, job_id, ws, "Generation job")
+    if job.kind == "video" and job.status not in {"succeeded", "failed"}:
+        advance_video(db, job.id)
+        db.expire_all()
+        job = db.get(GenerationJob, job_id)
+    return _out(job, db.get(Video, job.video_id) if job.video_id else None)
 
 
 class ImageIn(BaseModel):
@@ -517,11 +567,21 @@ class ImageIn(BaseModel):
 
 
 @router.post("/image", response_model=VideoJobOut, status_code=201)
-def create_image(payload: ImageIn, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
-    """Generate an image synchronously and store it as a Video row (kind=image)."""
+def create_image(
+    payload: ImageIn,
+    db: Session = Depends(get_db),
+    ws: int = Depends(current_workspace_id),
+    user: TeamMember = Depends(get_current_user),
+):
+    """Start an image in the background and return its job at once — the
+    page polls GET /ai/video/{id}; the image finishes (and the requester gets a
+    push) even if they leave the page or close the app."""
     if payload.brand_id is not None:
         owned(db, Brand, payload.brand_id, ws)
     ratio = payload.aspect_ratio if payload.aspect_ratio in _DIMS else "1:1"
+    s = get_settings()
+    if not s.image_generation_enabled:
+        raise HTTPException(503, "Image generation is turned off (IMAGE_GENERATION_ENABLED=false).")
 
     reference: bytes | None = None
     if payload.reference_url:
@@ -529,42 +589,125 @@ def create_image(payload: ImageIn, db: Session = Depends(get_db), ws: int = Depe
         if reference is None:
             raise HTTPException(400, "Reference image not found.")
 
-    try:
-        provider, blob, usage = generate_image(payload.prompt, ratio, reference)
-    except VideoGenError as exc:
-        raise HTTPException(503, str(exc)) from exc
-
-    url = store_blob(db, blob, ".png", "image/png")
-    width, height = _IMG_DIMS.get(ratio, _IMG_DIMS["1:1"])
-
     job = GenerationJob(
         workspace_id=ws,
+        user_id=user.id,
         brand_id=payload.brand_id,
         kind="image",
         prompt=payload.prompt,
         aspect_ratio=ratio,
         seconds=0,
-        provider=provider,
-        status="succeeded",
-        input_tokens=usage["input"],
-        output_tokens=usage["output"],
-        total_tokens=usage["total"],
+        provider=s.image_provider,
+        status="running",
     )
     db.add(job)
-    db.flush()
-    video = Video(
-        workspace_id=ws,
-        brand_id=payload.brand_id,
-        filename=f"ai-{job.id}.png",
-        resolution=f"{width}x{height}",
-        size_bytes=len(blob),
-        source="ai",
-        tag="ai-image",
-        url=url,
-    )
-    db.add(video)
-    db.flush()
-    job.video_id = video.id
     db.commit()
-    db.refresh(video)
-    return _out(job, video)
+    db.refresh(job)
+    threading.Thread(target=_render_image, args=(job.id, reference), daemon=True, name=f"image-{job.id}").start()
+    return _out(job, None)
+
+
+def _render_image(job_id: int, reference: bytes | None) -> None:
+    db = SessionLocal()
+    try:
+        job = db.get(GenerationJob, job_id)
+        if job is None:
+            return
+        try:
+            provider, blob, usage = generate_image(job.prompt, job.aspect_ratio, reference)
+        except VideoGenError as exc:
+            job.status, job.error = "failed", str(exc)
+            db.commit()
+            _ready_push(job)
+            return
+        except Exception:  # noqa: BLE001 - surface it on the job, not just the log
+            log.exception("image generation crashed for job %s", job_id)
+            job.status, job.error = "failed", "Unexpected error while generating — try again."
+            db.commit()
+            _ready_push(job)
+            return
+
+        url = store_blob(db, blob, ".png", "image/png")
+        width, height = _IMG_DIMS.get(job.aspect_ratio, _IMG_DIMS["1:1"])
+        video = Video(
+            workspace_id=job.workspace_id,
+            brand_id=job.brand_id,
+            filename=f"ai-{job.id}.png",
+            resolution=f"{width}x{height}",
+            size_bytes=len(blob),
+            source="ai",
+            tag="ai-image",
+            url=url,
+        )
+        db.add(video)
+        db.flush()
+        job.video_id = video.id
+        job.provider = provider
+        job.status = "succeeded"
+        job.error = ""
+        job.input_tokens, job.output_tokens, job.total_tokens = usage["input"], usage["output"], usage["total"]
+        db.commit()
+        _ready_push(job)
+    finally:
+        db.close()
+
+
+# ── background worker ─────────────────────────────────────────────────────
+# Finishes videos nobody is watching, and cleans up jobs a server restart
+# orphaned (an image thread dies with the process).
+_WORKER_EVERY = 15
+_IMAGE_STALE = timedelta(minutes=15)
+_VIDEO_STALE = timedelta(hours=3)
+
+
+def _tick() -> None:
+    db = SessionLocal()
+    try:
+        now = datetime.now(UTC)
+        open_jobs = db.scalars(
+            select(GenerationJob).where(GenerationJob.status.in_(("queued", "running")))
+        ).all()
+        for job in open_jobs:
+            age = now - job.created_at
+            if job.kind == "image" and age > _IMAGE_STALE:
+                job.status, job.error = "failed", "Interrupted (the server restarted) — try again."
+                db.commit()
+                _ready_push(job)
+            elif job.kind == "video" and age > _VIDEO_STALE:
+                job.status, job.error = "failed", "The video service never finished this render — try again."
+                db.commit()
+                _ready_push(job)
+            elif job.kind == "video":
+                try:
+                    advance_video(db, job.id)
+                except Exception:  # noqa: BLE001 - one bad job mustn't stop the rest
+                    db.rollback()
+                    log.exception("advancing video job %s failed", job.id)
+    finally:
+        db.close()
+
+
+async def _run() -> None:
+    while True:
+        try:
+            await asyncio.to_thread(_tick)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001 - keep the loop alive
+            log.exception("generation worker tick failed")
+        await asyncio.sleep(_WORKER_EVERY)
+
+
+def start_worker(app) -> None:
+    app.state.generation_worker = asyncio.create_task(_run())
+
+
+async def stop_worker(app) -> None:
+    task = getattr(app.state, "generation_worker", None)
+    if task is None:
+        return
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass

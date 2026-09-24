@@ -1,6 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
-import { FiBell, FiChevronRight, FiEdit, FiSearch, FiSidebar, FiZap } from "react-icons/fi";
-import { useState } from "react";
+import { FiBell, FiChevronRight, FiEdit, FiMenu, FiSearch, FiSidebar, FiZap } from "react-icons/fi";
+import { openMoreSheet } from "./MobileBar";
+import { useEffect, useState } from "react";
 import Notifications from "./Notifications";
 import { useAuth } from "../../auth";
 import { useStore } from "../../store";
@@ -33,6 +34,13 @@ export default function Topbar({ onToggleSidebar }) {
   const { user } = useAuth();
   const [notifOpen, setNotifOpen] = useState(false);
 
+  // The mobile "More" sheet opens the inbox through this event.
+  useEffect(() => {
+    const open = () => setNotifOpen(true);
+    window.addEventListener("dispatch:open-notifications", open);
+    return () => window.removeEventListener("dispatch:open-notifications", open);
+  }, []);
+
   const label = labelFor(pathname);
   const { count: notifCount } = useNotifications();
   const initials =
@@ -46,7 +54,15 @@ export default function Topbar({ onToggleSidebar }) {
     "U";
 
   return (
-    <header className="sticky top-0 z-20 h-14 flex items-center gap-3 px-4 sm:px-6 bg-[#FAFBFC]/95 backdrop-blur border-b border-ink-200/70">
+    <header className="sticky top-0 z-20 h-14 flex items-center gap-3 px-4 sm:px-6 bg-white/60 backdrop-blur-2xl backdrop-saturate-150 border-b border-white/70 shadow-[0_1px_0_rgba(16,24,40,0.05)]">
+      <button
+        type="button"
+        onClick={openMoreSheet}
+        className="lg:hidden grid w-9 h-9 -ml-1 place-items-center rounded-lg text-ink-600 hover:bg-ink-100"
+        aria-label="Open menu"
+      >
+        <FiMenu size={19} />
+      </button>
       <button
         type="button"
         onClick={onToggleSidebar}

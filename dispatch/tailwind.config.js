@@ -80,6 +80,10 @@ export default {
           from: { transform: 'translateX(28px)', opacity: '0' },
           to: { transform: 'translateX(0)', opacity: '1' },
         },
+        'sheet-up': {
+          from: { transform: 'translateY(100%)' },
+          to: { transform: 'translateY(0)' },
+        },
         'drawer-in': {
           from: { transform: 'translateX(100%)' },
           to: { transform: 'translateX(0)' },
@@ -131,6 +135,7 @@ export default {
         'slide-up': 'slide-up .3s cubic-bezier(.2,.7,.2,1)',
         'slide-in-right': 'slide-in-right .3s cubic-bezier(.2,.7,.2,1)',
         'drawer-in': 'drawer-in .32s cubic-bezier(.2,.7,.2,1)',
+        'sheet-up': 'sheet-up .3s cubic-bezier(.2,.8,.2,1)',
         'pulse-glow': 'pulse-glow 2s ease-in-out infinite',
         'ai-dot': 'ai-dot 1.2s ease-in-out infinite',
         'ai-pulse': 'ai-pulse 2.4s ease-out infinite',
