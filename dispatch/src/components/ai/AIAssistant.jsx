@@ -156,7 +156,7 @@ const [open, setOpen] = useState(false);
                   Ask AI Assistant
                 </div>
                 <div className="text-[10px] text-ink-400">
-                  {greeting()} — Ti P'sa is listening
+                  {greeting()} — ContentFlow is listening
                 </div>
               </div>
               <button

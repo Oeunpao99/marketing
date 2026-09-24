@@ -194,10 +194,10 @@ export default function Sidebar() {
       {/* App name */}
       <NavLink to="/" className="flex items-center gap-2.5 px-5 pt-5 pb-3">
         <span className="w-9 h-9 rounded-xl grid place-items-center flex-none bg-brand text-white text-[15px] font-bold shadow-sm">
-          T
+          C
         </span>
         <span className="min-w-0">
-          <span className="block text-[15px] font-bold text-ink-900 tracking-tight leading-tight">Ti P'sa</span>
+          <span className="block text-[15px] font-bold text-ink-900 tracking-tight leading-tight">ContentFlow</span>
           <span className="block text-[11px] text-ink-500">AI Marketing Hub</span>
         </span>
       </NavLink>

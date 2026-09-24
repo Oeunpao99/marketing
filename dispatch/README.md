@@ -1,4 +1,4 @@
-# Dispatch / Ti P'sa — social content portal
+# ContentFlow — AI social content portal
 
 A portal for scheduling short-form video across three brands and their
 Facebook / TikTok / YouTube channels.

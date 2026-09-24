@@ -33,9 +33,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Dispatch API",
+    title="ContentFlow API",
     version="0.1.0",
-    description="Backend for the Ti P'sa / Dispatch social content portal.",
+    description="Backend for ContentFlow, the AI social content portal.",
     lifespan=lifespan,
 )
 

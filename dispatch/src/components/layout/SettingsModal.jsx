@@ -50,7 +50,7 @@ export default function SettingsModal({ open, onClose, showToast }) {
     }
   }
   const [name, setName] = useState(user?.name || 'Sokha R.')
-  const [email, setEmail] = useState(user?.email || 'sokha@tip-sa.com')
+  const [email, setEmail] = useState(user?.email || '')
   const [theme, setTheme] = useState('blue')
   const [accent, setAccent] = useState('lime')
   const [prefs, setPrefs] = useState({

@@ -39,10 +39,10 @@ export default function LoginPage() {
 
         <div className="relative flex items-center gap-3">
           <div className="w-11 h-11 rounded-xl grid place-items-center gradient-brand text-white font-display text-2xl leading-none shadow-glow">
-            T
+            C
           </div>
           <div>
-            <div className="text-white text-[14px] font-bold tracking-tight">Ti P'sa</div>
+            <div className="text-white text-[14px] font-bold tracking-tight">ContentFlow</div>
             <div className="text-[10.5px] text-ink-400">AI Marketing Hub</div>
           </div>
         </div>
@@ -77,9 +77,9 @@ export default function LoginPage() {
         <div className="w-full max-w-sm">
           <div className="lg:hidden flex items-center gap-3 mb-8">
             <div className="w-10 h-10 rounded-xl grid place-items-center gradient-brand text-white font-display text-xl shadow-glow">
-              T
+              C
             </div>
-            <div className="font-bold text-ink-900">Ti P'sa</div>
+            <div className="font-bold text-ink-900">ContentFlow</div>
           </div>
 
           <h1 className="font-display text-[29.5px] leading-tight text-ink-900">
