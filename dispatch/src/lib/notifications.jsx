@@ -1,7 +1,7 @@
 // What the bell shows, in one place — used by the Notifications panel and the
 // Topbar / Sidebar counts, filtered by Settings → Notifications. (Phone and
 // desktop pop-ups are server-sent Web Push — see lib/push.js, app/push.py.)
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { FiAlertTriangle, FiCheckCircle, FiInbox } from 'react-icons/fi'
 import { useAuth } from '../auth'
 import { PLAT } from '../data/brands'
@@ -96,4 +96,14 @@ export function useNotifications() {
     return { items, count: out.filter((i) => i.urgent).length }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [review, queue, channels, key])
+}
+
+/** Keeps the installed app's icon badge equal to the bell's count while the
+ *  app is open (the service worker updates it from pushes while it's closed). */
+export function useAppBadge() {
+  const { count } = useNotifications()
+  useEffect(() => {
+    if (!('setAppBadge' in navigator)) return
+    ;(count > 0 ? navigator.setAppBadge(count) : navigator.clearAppBadge()).catch(() => {})
+  }, [count])
 }

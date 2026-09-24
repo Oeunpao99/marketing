@@ -1210,7 +1210,7 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary }) {
       : Math.min(95, (elapsed / VID_ETA) * 100)
   const stage =
     t.kind === 'image'
-      ? elapsed < 3 ? 'Sending your prompt…' : elapsed < 12 ? 'Composing the image…' : elapsed < 22 ? 'Adding detail and lighting…' : 'Almost there…'
+      ? elapsed < 3 ? 'Sending your prompt…' : elapsed < 12 ? 'Composing the image…' : elapsed < 22 ? 'Adding detail and lighting…' : elapsed < 90 ? 'Almost there…' : 'Taking longer than usual — you can leave, we’ll notify you'
       : t.jobId ? 'Rendering your video… usually 1–3 minutes' : 'Starting the render…'
   const shape =
     t.ratio === '16:9' ? 'aspect-video w-full max-w-[560px]' : t.ratio === '1:1' ? 'aspect-square w-full max-w-[400px]' : 'aspect-[9/16] w-full max-w-[280px]'

@@ -8,6 +8,7 @@ import AppUpdate from './AppUpdate'
 import { useStore } from '../../store'
 import { useAutoRunWatcher } from '../../lib/autoRuns'
 import { useGenJobWatcher } from '../../lib/genJobs'
+import { useAppBadge } from '../../lib/notifications'
 
 const KEY = 'dispatch.sidebarCollapsed'
 
@@ -50,6 +51,7 @@ export default function Shell({ children }) {
   const [collapsed, setCollapsed] = useState(readCollapsed)
   useRunFinishedToast()
   useGenJobWatcher()
+  useAppBadge()
 
   const toggle = () =>
     setCollapsed((v) => {

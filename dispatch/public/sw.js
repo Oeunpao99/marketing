@@ -9,7 +9,7 @@
 //   • /assets/* (Vite's hashed JS/CSS) and /brand/* icons: cache first — a
 //     new build has new file names, so these can never go stale.
 // Bump VERSION to drop old caches.
-const VERSION = 'cf-v2'
+const VERSION = 'cf-v3'
 const SHELL = ['/', '/manifest.webmanifest', '/brand/icon-192.png', '/brand/logo-mark.png']
 
 self.addEventListener('install', (event) => {
@@ -72,15 +72,24 @@ self.addEventListener('push', (event) => {
   } catch {
     msg = { title: 'ContentFlow', body: event.data ? event.data.text() : '' }
   }
+  // The number on the app icon (iPhone / Android / desktop installed app) —
+  // the server sends the person's current "needs you" count with each push.
+  const badge =
+    typeof msg.badge === 'number' && 'setAppBadge' in self.navigator
+      ? (msg.badge > 0 ? self.navigator.setAppBadge(msg.badge) : self.navigator.clearAppBadge()).catch(() => {})
+      : Promise.resolve()
   event.waitUntil(
-    self.registration.showNotification(msg.title || 'ContentFlow', {
-      body: msg.body || '',
-      icon: '/brand/icon-192.png',
-      badge: '/brand/favicon-64.png',
-      tag: msg.tag || undefined,
-      renotify: !!msg.tag,
-      data: { url: msg.url || '/' },
-    }),
+    Promise.all([
+      badge,
+      self.registration.showNotification(msg.title || 'ContentFlow', {
+        body: msg.body || '',
+        icon: '/brand/icon-192.png',
+        badge: '/brand/favicon-64.png',
+        tag: msg.tag || undefined,
+        renotify: !!msg.tag,
+        data: { url: msg.url || '/' },
+      }),
+    ]),
   )
 })
 

@@ -21,7 +21,7 @@ import threading
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -125,6 +125,7 @@ def test_push(user: TeamMember = Depends(get_current_user), db: Session = Depend
             "body": "This is how you’ll hear about posts going live, failures and new ideas.",
             "url": "/",
             "tag": "test",
+            "badge": badge_count(db, user),
         },
     )
     return {"sent": sent, "devices": len(subs)}
@@ -159,23 +160,47 @@ def _send_many(db: Session, subs: list[PushSubscription], message: dict) -> int:
     return sent
 
 
+def badge_count(db: Session, member: TeamMember) -> int:
+    """The number on the app icon — the same "needs you" items the bell counts
+    (ideas to review, failed posts, channels to reconnect), limited to the
+    kinds this person switched on in Settings → Notifications."""
+    from app.models import Channel, Draft, PostTarget
+    from app.tenancy import scope
+
+    ws = member.workspace_id
+    notify = (member.preferences or {}).get("notify") or {}
+    total = 0
+    if notify.get("review", True):
+        total += db.scalar(select(func.count()).select_from(Draft).where(scope(Draft, ws), Draft.status == "waiting")) or 0
+    if notify.get("failed", True):
+        total += db.scalar(
+            select(func.count()).select_from(PostTarget).where(scope(PostTarget, ws), PostTarget.status == "failed")
+        ) or 0
+    if notify.get("channel", True):
+        total += db.scalar(select(func.count()).select_from(Channel).where(scope(Channel, ws), Channel.status == "soon")) or 0
+    return total
+
+
+def _send_to_member(db: Session, member: TeamMember, message: dict) -> None:
+    subs = db.scalars(select(PushSubscription).where(PushSubscription.user_id == member.id)).all()
+    if subs:
+        _send_many(db, list(subs), {**message, "badge": badge_count(db, member)})
+
+
+def _wants(member: TeamMember, kind: str) -> bool:
+    prefs = member.preferences or {}
+    return bool(prefs.get("push_alerts")) and (prefs.get("notify") or {}).get(kind, True)
+
+
 def _deliver(workspace_id: int, kind: str, message: dict) -> None:
     db = SessionLocal()
     try:
         members = db.scalars(
             select(TeamMember).where(TeamMember.workspace_id == workspace_id, TeamMember.is_active.is_(True))
         ).all()
-        wanted = [
-            m.id
-            for m in members
-            if (m.preferences or {}).get("push_alerts")
-            and ((m.preferences or {}).get("notify") or {}).get(kind, True)
-        ]
-        if not wanted:
-            return
-        subs = db.scalars(select(PushSubscription).where(PushSubscription.user_id.in_(wanted))).all()
-        if subs:
-            _send_many(db, list(subs), message)
+        for m in members:
+            if _wants(m, kind):
+                _send_to_member(db, m, message)
     finally:
         db.close()
 
@@ -193,14 +218,9 @@ def _deliver_user(user_id: int, kind: str, message: dict) -> None:
     db = SessionLocal()
     try:
         m = db.get(TeamMember, user_id)
-        if m is None or not m.is_active:
+        if m is None or not m.is_active or not _wants(m, kind):
             return
-        prefs = m.preferences or {}
-        if not prefs.get("push_alerts") or not (prefs.get("notify") or {}).get(kind, True):
-            return
-        subs = db.scalars(select(PushSubscription).where(PushSubscription.user_id == user_id)).all()
-        if subs:
-            _send_many(db, list(subs), message)
+        _send_to_member(db, m, message)
     finally:
         db.close()
 

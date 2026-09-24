@@ -53,6 +53,7 @@ export function AuthProvider({ children }) {
     [],
   )
   const logout = useCallback(() => {
+    navigator.clearAppBadge?.().catch?.(() => {})
     tokenStore.set(null)
     setUser(null)
   }, [])

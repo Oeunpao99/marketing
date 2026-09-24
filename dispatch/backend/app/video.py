@@ -656,7 +656,7 @@ def _render_image(job_id: int, reference: bytes | None) -> None:
 # Finishes videos nobody is watching, and cleans up jobs a server restart
 # orphaned (an image thread dies with the process).
 _WORKER_EVERY = 15
-_IMAGE_STALE = timedelta(minutes=15)
+_IMAGE_STALE = timedelta(minutes=8)  # a normal image takes 20–60s; worst retry path < 7 min
 _VIDEO_STALE = timedelta(hours=3)
 
 
@@ -698,7 +698,36 @@ async def _run() -> None:
         await asyncio.sleep(_WORKER_EVERY)
 
 
+def fail_orphaned_images() -> int:
+    """Images render in a thread of *this* process, so any image still
+    "running" when the server starts was cut off by the restart (a deploy, or
+    auto-reload in dev) and can never finish — fail it now with a clear reason
+    instead of leaving the page spinning until the stale check."""
+    db = SessionLocal()
+    try:
+        orphans = db.scalars(
+            select(GenerationJob).where(
+                GenerationJob.kind == "image", GenerationJob.status.in_(("queued", "running"))
+            )
+        ).all()
+        for job in orphans:
+            job.status = "failed"
+            job.error = "Interrupted — the server restarted while this was rendering. Try again."
+        db.commit()
+        for job in orphans:
+            _ready_push(job)
+        return len(orphans)
+    finally:
+        db.close()
+
+
 def start_worker(app) -> None:
+    try:
+        n = fail_orphaned_images()
+        if n:
+            log.info("marked %d interrupted image job(s) as failed", n)
+    except Exception:  # noqa: BLE001 - never block startup on this
+        log.exception("orphaned image cleanup failed")
     app.state.generation_worker = asyncio.create_task(_run())
 
 
