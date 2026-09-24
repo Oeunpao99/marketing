@@ -1,246 +1,201 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { FiArrowLeft, FiBarChart2, FiCalendar, FiFileText, FiImage } from "react-icons/fi";
 import { api } from "../api/client";
 import PlatformIcon from "../components/ui/PlatformIcon";
-import Tag from "../components/ui/Tag";
+import StatusBadge from "../components/today/StatusBadge";
 import { PLAT } from "../data/brands";
 import { colorForBrand } from "../lib/brandColor";
-import { TZ, TZ_LABEL } from "../lib/tz";
+import { TZ } from "../lib/tz";
 import { useStore } from "../store";
 
-const isKhmer = (s) => /[\u1780-\u17FF\u19E0-\u19FF]/.test(s);
+const isKhmer = (s) => /[ក-៿᧠-᧿]/.test(s || "");
+const card = "bg-white rounded-2xl border border-ink-200/60 shadow-[0_1px_2px_rgba(16,24,40,0.04)]";
+
+const mediaSrc = (url) =>
+  !url ? null : url.startsWith("http") ? url : `${window.location.port === "5173" ? "http://localhost:8000" : ""}${url}`;
+
+// Target statuses from the API → the queue's own status words.
+const targetStatus = (s) => (s === "posting" ? "sending" : s === "queued" ? "waiting" : s);
 
 export default function PostDetailPage() {
   const { queue } = useStore();
   const { index } = useParams();
   const navigate = useNavigate();
   const q = queue[Number(index)];
-  const [realPost, setRealPost] = useState(null);
+  const [targets, setTargets] = useState(null); // every channel this post went to
+  const [zoom, setZoom] = useState(false);
 
   useEffect(() => {
     if (!q) return;
     api
       .get("/views/today")
-      .then((posts) => {
-        const match = posts.find((post) =>
+      .then((rows) => {
+        const mine = rows.filter((r) =>
           q.postId != null
-            ? post.post_id === q.postId
-            : q.targetId
-              ? post.id === q.targetId
-              : post.title === q.ttl && post.caption === q.cap,
+            ? r.post_id === q.postId
+            : q.targetIds?.length
+              ? q.targetIds.includes(r.id)
+              : r.title === q.ttl && r.caption === q.cap,
         );
-        if (match) setRealPost(match);
+        setTargets(mine);
       })
-      .catch(() => {});
-  }, [q?.postId, q?.targetId, q?.ttl, q?.cap]);
+      .catch(() => setTargets([]));
+  }, [q?.postId, q?.ttl, q?.cap]);
 
   if (!q) {
     return (
-      <div className="p-5 lg:p-8 w-full animate-fadein">
-        <div className="max-w-lg text-center py-16 mx-auto">
-          <div className="text-[15px] font-semibold text-ink-700 mb-2">
-            Post not found
-          </div>
-          <button
-            type="button"
-            onClick={() => navigate("/")}
-            className="px-4 py-2 rounded-xl gradient-brand text-white text-[13px] font-semibold"
-          >
-            Back to Today
+      <div className="w-full px-5 lg:px-8 py-7 animate-fadein">
+        <div className="max-w-lg mx-auto text-center py-16">
+          <div className="text-[14px] font-semibold text-ink-700 mb-3">Post not found</div>
+          <button type="button" onClick={() => navigate("/")} className="btn-primary">
+            Back to Dashboard
           </button>
         </div>
       </div>
     );
   }
 
-  const color = colorForBrand(q.b);
-  const name = realPost?.brand_name || q.brandName || q.b;
-  const mediaUrl = realPost?.video_url
-    ? realPost.video_url.startsWith("http")
-      ? realPost.video_url
-      : `${window.location.port === "5173" ? "http://localhost:8000" : ""}${realPost.video_url}`
-    : null;
-  const isImage = realPost?.video_filename
-    ? /\.(jpe?g|png|gif|webp)$/i.test(realPost.video_filename)
-    : false;
-  const scheduledIso = realPost?.scheduled_for || q.scheduledFor;
-  const scheduledDate = scheduledIso
-    ? new Date(scheduledIso).toLocaleDateString("en-GB", {
+  const first = targets?.[0];
+  const src = mediaSrc(first?.video_url);
+  const isImage = first?.video_filename ? /\.(jpe?g|png|gif|webp)$/i.test(first.video_filename) : false;
+  const when = q.scheduledFor
+    ? new Date(q.scheduledFor).toLocaleString("en-GB", {
         day: "numeric",
-        month: "long",
+        month: "short",
         year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
         timeZone: TZ,
       })
-    : "";
+    : "Not scheduled";
+  const postedTarget = targets?.find((t) => t.status === "posted");
+  const brandName = first?.brand_name || q.brandName || q.b;
+  const title = q.ttl && q.ttl !== q.cap ? q.ttl : null;
 
   return (
-    <div className="min-h-[calc(100vh-56px)] bg-ink-50 p-5 lg:p-8 animate-fadein">
-      <div className="w-full">
-        <Link
-          to="/"
-          className="mb-6 inline-flex items-center gap-1.5 text-[13px] font-semibold text-ink-500 transition-all duration-150 hover:text-ink-900"
-        >
-          ← Back to Today
-        </Link>
+    <div className="w-full px-5 lg:px-8 py-7 animate-fadein">
+      <Link
+        to="/"
+        className="mb-5 inline-flex items-center gap-1.5 text-[13px] font-medium text-ink-600 hover:text-ink-900"
+      >
+        <FiArrowLeft size={16} /> Back to Dashboard
+      </Link>
 
-        <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <div className="mb-2 flex items-center gap-2.5">
-              <span
-                className="w-3 h-3 rounded-full"
-                style={{ background: color, boxShadow: `0 0 8px ${color}30` }}
-              />
-              <span className="font-bold text-sm" style={{ color }}>
-                {name}
-              </span>
-            </div>
-            <h1 className="max-w-3xl font-display text-[32px] leading-tight tracking-tight text-ink-900 lg:text-[42px]">
-              {q.ttl}
-            </h1>
-            <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-ink-500">
-              <span className="font-mono font-semibold text-ink-700">
-                {q.t}
-              </span>
-              <span>·</span>
-              <span>{scheduledDate}</span>
-              <span>·</span>
-              <span>{TZ_LABEL}</span>
-            </div>
-          </div>
-          <Tag
-            variant={
-              q.st === "posted"
-                ? "ok"
-                : q.st === "failed"
-                  ? "stop"
-                  : "idle"
-            }
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px] items-start">
+        {/* Post */}
+        <section className={`${card} p-5 flex flex-col md:flex-row gap-5`}>
+          <button
+            type="button"
+            onClick={() => src && setZoom(true)}
+            className="relative flex-none w-full md:w-56 aspect-[4/5] md:aspect-auto md:h-72 rounded-xl overflow-hidden bg-ink-100 grid place-items-center"
+            title={src ? "View full size" : ""}
           >
-            {q.st === "posted"
-              ? "Published"
-              : q.st === "sending"
-                ? "Posting…"
-                : q.st === "failed"
-                  ? "Failed"
-                  : "Scheduled"}
-          </Tag>
-        </div>
-
-        <div className="grid items-start gap-6 lg:grid-cols-[minmax(280px,360px)_minmax(0,1fr)]">
-          <section>
-            <div className="mb-3 flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-[.08em] text-ink-400">
-                Published asset
+            {src && isImage ? (
+              <img src={src} alt="" className="w-full h-full object-cover" />
+            ) : src ? (
+              <video src={`${src}#t=0.1`} preload="metadata" muted playsInline className="w-full h-full object-cover pointer-events-none" />
+            ) : (
+              <span className="text-center text-ink-400">
+                <FiFileText size={22} className="mx-auto mb-1" />
+                <span className="text-[11px]">Text only</span>
               </span>
-              <span className="font-mono text-[11px] text-ink-400">9:16</span>
-            </div>
-            <div className="mx-auto aspect-[9/16] max-w-[360px] overflow-hidden rounded-2xl bg-ink-900 shadow-dock ring-1 ring-ink-900/10">
-              {mediaUrl ? (
-                isImage ? (
-                  <img
-                    src={mediaUrl}
-                    alt={realPost.video_filename || q.ttl}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <video
-                    src={mediaUrl}
-                    controls
-                    playsInline
-                    preload="metadata"
-                    className="h-full w-full object-contain"
-                  />
-                )
-              ) : (
-                <span className="px-4 text-center font-mono text-[12px] text-white/50">
-                  No uploaded media attached
-                </span>
-              )}
-            </div>
-            {realPost?.video_filename && (
-              <div className="mt-3 truncate text-center text-[12px] text-ink-500">
-                {realPost.video_filename}
-              </div>
             )}
-          </section>
+          </button>
 
-          <div className="min-w-0 space-y-5">
-            <section className="rounded-2xl border border-ink-100 bg-white p-5 shadow-card lg:p-6">
-              <div className="mb-3 flex items-center justify-between">
-                <span className="text-[11px] font-bold uppercase tracking-[.08em] text-ink-400">
-                  Distribution
-                </span>
-                <span className="text-[12px] text-ink-400">
-                  {q.c.length} channel{q.c.length === 1 ? "" : "s"}
-                </span>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {q.c.map((ch) => (
-                  <span
-                    key={ch}
-                    className="inline-flex items-center gap-2 rounded-xl border border-ink-200 bg-ink-50 px-3 py-2 text-[13px] font-bold text-ink-700"
-                  >
-                    <PlatformIcon name={ch} className="text-ink-500" />
-                    {ch}
-                  </span>
-                ))}
-              </div>
-            </section>
-
-            <section className="rounded-2xl border border-ink-100 bg-white p-5 shadow-card lg:p-6">
-              <div className="mb-3 flex items-center justify-between">
-                <span className="text-[11px] font-bold uppercase tracking-[.08em] text-ink-400">
-                  Caption
-                </span>
-                <span className="font-mono text-[11.5px] text-ink-400">
-                  {q.cap.length.toLocaleString()} characters
-                </span>
-              </div>
-              <div
-                className={`rounded-xl border border-ink-100 bg-ink-50 px-4 py-4 text-[15px] leading-7 text-ink-800 ${isKhmer(q.cap) ? "font-khmer" : ""}`}
-              >
-                {q.cap}
-              </div>
-            </section>
-
-            <div className="rounded-xl border border-brand/10 bg-brand/5 px-4 py-3 text-[13px] leading-relaxed text-ink-600">
-              {q.c.length === 1 ? (
-                <>
-                  Posting as a{" "}
-                  <b className="text-ink-800">
-                    {PLAT[q.c[0]?.toLowerCase()]?.as || q.c[0]}
-                  </b>{" "}
-                  to {q.c[0]}.
-                </>
-              ) : (
-                <>
-                  Posting to <b className="text-ink-800">{q.c.join(" and ")}</b>
-                  . Content will be adapted per platform.
-                </>
-              )}
-            </div>
-
-            <div className="flex flex-wrap items-center justify-between gap-4 border-t border-ink-200 pt-5">
-              <span className="text-[13px] text-ink-500">
-                {q.st === "posted"
-                  ? "This post has been published."
-                  : q.st === "sending"
-                    ? "Sending to the channel now…"
-                    : q.st === "failed"
-                      ? q.error || "Delivery failed. It will retry."
-                      : "Waiting to be published."}
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px]">
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: colorForBrand(q.b) }} />
+              <span className="font-semibold text-ink-900">{brandName}</span>
+              <span className="text-ink-300">·</span>
+              <span className="inline-flex items-center gap-1 text-ink-500">
+                <FiCalendar size={12} /> {when}
               </span>
-              <button
-                type="button"
-                onClick={() => navigate("/")}
-                className="px-4 py-1.5 rounded-xl gradient-brand text-white text-[13px] font-semibold hover:shadow-glow-lg transition-all duration-200"
-              >
-                Done
-              </button>
+              <span className="ml-1">
+                <StatusBadge status={q.st === "queued" ? "waiting" : q.st} compact />
+              </span>
             </div>
+            {title && <h1 className="mt-2 text-[16px] font-semibold text-ink-900 leading-snug">{title}</h1>}
+            <p
+              className={`mt-2 text-[13px] text-ink-800 leading-relaxed whitespace-pre-line ${isKhmer(q.cap) ? "font-khmer" : ""}`}
+            >
+              {q.cap || <span className="text-ink-400 italic">No caption</span>}
+            </p>
+            <div className="mt-2 text-[11px] text-ink-400">{(q.cap || "").length.toLocaleString()} characters</div>
           </div>
+
+          <div className="flex md:hidden gap-2">
+            {postedTarget && (
+              <Link to={`/insights/${postedTarget.id}`} className="btn-primary flex-1">
+                <FiBarChart2 size={14} /> View analytics
+              </Link>
+            )}
+            <button type="button" onClick={() => navigate("/")} className="btn-outline flex-1">
+              Done
+            </button>
+          </div>
+        </section>
+
+        {/* Where it went */}
+        <div className="space-y-4 xl:sticky xl:top-20">
+        <section className={`${card} overflow-hidden`}>
+          <div className="px-5 py-3.5 border-b border-ink-100 flex items-center justify-between">
+            <h2 className="text-[14.5px] font-semibold text-ink-900">Channels</h2>
+            <span className="text-[12px] text-ink-500">
+              {q.c.length} channel{q.c.length === 1 ? "" : "s"}
+            </span>
+          </div>
+          {targets === null ? (
+            <div className="p-5 space-y-3">
+              <div className="h-4 w-1/2 rounded skeleton" />
+              <div className="h-4 w-1/3 rounded skeleton" />
+            </div>
+          ) : (
+            <ul className="divide-y divide-ink-100">
+              {(targets.length ? targets : q.c.map((c, i) => ({ id: i, channel: c, status: q.st }))).map((t) => {
+                const name = t.channel || "";
+                const plat = PLAT[name.toLowerCase()];
+                return (
+                  <li key={t.id} className="px-5 py-3.5 flex items-start gap-3">
+                    <span className="w-8 h-8 rounded-lg bg-ink-50 border border-ink-100 grid place-items-center flex-none">
+                      <PlatformIcon name={plat?.name || name} className="text-ink-600" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[13px] font-semibold text-ink-900">{plat?.name || name}</div>
+                      <div className="text-[11.5px] text-ink-500">{plat?.as || "Post"}</div>
+                      {t.error && t.status === "failed" && (
+                        <div className="mt-1 text-[11.5px] text-red-600">{t.error}</div>
+                      )}
+                    </div>
+                    <StatusBadge status={targetStatus(t.status)} compact />
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+        <div className="hidden md:flex gap-2">
+          {postedTarget && (
+            <Link to={`/insights/${postedTarget.id}`} className="btn-primary flex-1">
+              <FiBarChart2 size={14} /> View analytics
+            </Link>
+          )}
+          <button type="button" onClick={() => navigate("/")} className="btn-outline flex-1">
+            Done
+          </button>
+        </div>
         </div>
       </div>
+
+      {zoom && src && (
+        <div className="fixed inset-0 z-[100] bg-ink-950/80 grid place-items-center p-6 animate-fadein" onClick={() => setZoom(false)}>
+          {isImage ? (
+            <img src={src} alt="" className="max-h-[85vh] max-w-full rounded-xl object-contain" />
+          ) : (
+            <video src={src} className="max-h-[85vh] max-w-full rounded-xl" controls autoPlay onClick={(e) => e.stopPropagation()} />
+          )}
+        </div>
+      )}
     </div>
   );
 }

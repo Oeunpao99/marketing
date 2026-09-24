@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
+import { colorForBrand } from '../lib/brandColor'
 import { useStore } from '../store'
 import { handoff } from '../lib/handoff'
 
-const BRAND_COLORS = { assist: '#3B82F6', chum: '#F59E0B', hub: '#8B5CF6' }
 const mediaBase = window.location.port === '5173' ? 'http://localhost:8000' : ''
 const abs = (u) => `${mediaBase}${u}`
 
@@ -86,10 +86,8 @@ export default function LibraryPage() {
   return (
     <div className="w-full px-5 lg:px-10 py-8 lg:py-10 animate-fadein">
       <div className="mb-6">
-        <h1 className="font-display text-[34px] lg:text-[42px] leading-tight tracking-tight text-ink-900">
-          Library
-        </h1>
-        <p className="mt-1.5 text-ink-500 text-[15px]">
+        <h1 className="page-title">Library</h1>
+        <p className="page-sub mt-1">
           Every image and video the AI agent has made, newest first.
         </p>
       </div>
@@ -101,12 +99,12 @@ export default function LibraryPage() {
             key={t.id}
             type="button"
             onClick={() => setBrandFilter(t.id)}
-            className={`px-3.5 py-2 rounded-xl border text-[13px] font-semibold flex items-center gap-2 transition-all duration-150 ${
-              brandFilter === t.id ? 'border-brand bg-brand/5 text-ink-900' : 'border-ink-200 text-ink-600 hover:border-ink-300'
+            className={`px-3.5 py-2 rounded-xl border text-[12px] font-semibold flex items-center gap-2 transition-all duration-150 ${
+              brandFilter === t.id ? 'border-brand-line bg-brand-soft text-brand' : 'border-ink-200 text-ink-600 hover:border-brand-line'
             }`}
           >
             {t.id !== 'all' && t.id !== 'none' && (
-              <span className="w-2 h-2 rounded-full flex-none" style={{ background: BRAND_COLORS[t.id] || '#166432' }} />
+              <span className="w-2 h-2 rounded-full flex-none" style={{ background: colorForBrand(t.id) }} />
             )}
             {t.name}
             {counts[t.id] != null && <span className="text-ink-400 font-medium">{counts[t.id]}</span>}
@@ -118,8 +116,8 @@ export default function LibraryPage() {
             key={k}
             type="button"
             onClick={() => setKindFilter(k)}
-            className={`px-3 py-2 rounded-xl border text-[13px] font-semibold capitalize transition-all duration-150 ${
-              kindFilter === k ? 'border-brand bg-brand/5 text-ink-900' : 'border-ink-200 text-ink-600 hover:border-ink-300'
+            className={`px-3 py-2 rounded-xl border text-[12px] font-semibold capitalize transition-all duration-150 ${
+              kindFilter === k ? 'border-brand-line bg-brand-soft text-brand' : 'border-ink-200 text-ink-600 hover:border-brand-line'
             }`}
           >
             {k === 'all' ? 'All types' : `${k}s`}
@@ -129,17 +127,32 @@ export default function LibraryPage() {
 
       {/* Grid */}
       {items === null ? (
-        <div className="py-20 text-center text-ink-400 text-[13px]">Loading…</div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          {Array.from({ length: 10 }).map((_, i) => (
+            <div key={i} className="rounded-2xl border border-ink-100 bg-white overflow-hidden">
+              <div className="aspect-square bg-ink-50 flex items-center justify-center">
+                <div className="h-3 w-24 rounded skeleton" />
+              </div>
+              <div className="p-2.5 space-y-2">
+                <div className="h-3 w-2/3 rounded skeleton" />
+                <div className="h-3 w-full rounded skeleton" />
+              </div>
+            </div>
+          ))}
+        </div>
       ) : filtered.length === 0 ? (
         <div className="py-20 text-center">
-          <div className="text-[15px] font-semibold text-ink-700">Nothing here yet</div>
-          <div className="text-[13px] text-ink-400 mt-1">
-            Generate an image or video in the{' '}
-            <button type="button" onClick={() => navigate('/ai')} className="text-brand font-semibold hover:underline">
-              AI agent
-            </button>{' '}
-            and it lands here.
+          <div className="text-[14px] font-semibold text-ink-700">Nothing here yet</div>
+          <div className="text-[12px] text-ink-400 mt-1">
+            Generate an image or video in the AI agent and it lands here.
           </div>
+          <button
+            type="button"
+            onClick={() => navigate('/ai')}
+            className="btn-primary mt-4"
+          >
+            Open the AI agent
+          </button>
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
@@ -165,14 +178,14 @@ export default function LibraryPage() {
               </button>
 
               <div className="p-2.5 flex-1">
-                <div className="flex items-center gap-1.5 text-[11.5px] text-ink-500">
-                  <span className="w-1.5 h-1.5 rounded-full flex-none" style={{ background: BRAND_COLORS[it.brand_slug] || '#94a3b8' }} />
+                <div className="flex items-center gap-1.5 text-[10.5px] text-ink-500">
+                  <span className="w-1.5 h-1.5 rounded-full flex-none" style={{ background: colorForBrand(it.brand_slug) }} />
                   <span className="truncate font-semibold text-ink-700">{it.brand_name}</span>
                   <span className="ml-auto flex-none text-ink-400">{when(it.created_at)}</span>
                 </div>
-                <p className="mt-1 text-[11.5px] text-ink-400 line-clamp-2 leading-snug">{it.prompt}</p>
+                <p className="mt-1 text-[10.5px] text-ink-400 line-clamp-2 leading-snug">{it.prompt}</p>
                 {it.total_tokens > 0 && (
-                  <div className="mt-1 text-[10.5px] font-mono text-ink-300">
+                  <div className="mt-1 text-[10px] font-mono text-ink-300">
                     {it.total_tokens.toLocaleString()} tokens
                   </div>
                 )}
@@ -183,21 +196,21 @@ export default function LibraryPage() {
                 <button
                   type="button"
                   onClick={() => usePost(it)}
-                  className="flex-1 px-2 py-1.5 rounded-lg gradient-brand text-white text-[11.5px] font-bold"
+                  className="flex-1 px-2 py-1.5 rounded-lg gradient-brand text-white text-[10.5px] font-bold"
                 >
                   Use →
                 </button>
                 <a
                   href={abs(it.url)}
                   download={it.filename}
-                  className="px-2 py-1.5 rounded-lg border border-ink-200 bg-white text-ink-600 text-[11.5px] font-bold hover:bg-ink-50"
+                  className="px-2 py-1.5 rounded-lg border border-ink-200 bg-white text-ink-600 text-[10.5px] font-bold hover:bg-ink-50"
                 >
                   ↓
                 </a>
                 <button
                   type="button"
                   onClick={() => setConfirmItem(it)}
-                  className="px-2 py-1.5 rounded-lg border border-ink-200 bg-white text-ink-500 text-[11.5px] font-bold hover:bg-red-50 hover:text-red-600 hover:border-red-200"
+                  className="px-2 py-1.5 rounded-lg border border-ink-200 bg-white text-ink-500 text-[10.5px] font-bold hover:bg-red-50 hover:text-red-600 hover:border-red-200"
                 >
                   ✕
                 </button>
@@ -210,11 +223,11 @@ export default function LibraryPage() {
       {/* Lightbox */}
       {open && (
         <div
-          className="fixed inset-0 z-50 bg-ink-950/70 backdrop-blur-sm flex items-center justify-center p-4 lg:p-10 animate-fadein"
+          className="fixed inset-0 z-50 bg-ink-950/70 backdrop-blur-md flex items-center justify-center p-4 lg:p-10 animate-fadein"
           onClick={() => setOpen(null)}
         >
           <div
-            className="bg-white rounded-3xl overflow-hidden max-w-6xl w-full max-h-full flex flex-col lg:flex-row"
+            className="glass-strong rounded-3xl overflow-hidden max-w-6xl w-full max-h-full flex flex-col lg:flex-row"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="bg-ink-950 flex items-center justify-center lg:w-[62%] p-3 min-h-0">
@@ -225,8 +238,8 @@ export default function LibraryPage() {
               )}
             </div>
             <div className="flex-1 p-5 lg:p-6 flex flex-col min-w-0">
-              <div className="flex items-center gap-2 text-[12.5px] text-ink-500">
-                <span className="w-2 h-2 rounded-full flex-none" style={{ background: BRAND_COLORS[open.brand_slug] || '#94a3b8' }} />
+              <div className="flex items-center gap-2 text-[11.5px] text-ink-500">
+                <span className="w-2 h-2 rounded-full flex-none" style={{ background: colorForBrand(open.brand_slug) }} />
                 <span className="font-semibold text-ink-800">{open.brand_name}</span>
                 <span className="text-ink-300">·</span>
                 <span className="capitalize">{open.kind}</span>
@@ -238,36 +251,36 @@ export default function LibraryPage() {
                 )}
                 <span className="ml-auto text-ink-400">{when(open.created_at)}</span>
               </div>
-              <div className="mt-3 text-[11px] font-bold uppercase tracking-wide text-ink-400">Prompt</div>
-              <p className="mt-1 text-[13px] text-ink-700 leading-relaxed overflow-y-auto flex-1 pr-1">
+              <div className="mt-3 text-[10px] font-bold uppercase tracking-wide text-ink-400">Prompt</div>
+              <p className="mt-1 text-[12px] text-ink-700 leading-relaxed overflow-y-auto flex-1 pr-1">
                 {open.prompt}
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={() => usePost(open)}
-                  className="px-4 py-2.5 rounded-xl gradient-brand text-white text-[13px] font-bold hover:shadow-glow-lg transition-all duration-200"
+                  className="px-4 py-2.5 rounded-xl gradient-brand text-white text-[12px] font-bold hover:shadow-glow-lg transition-all duration-200"
                 >
                   Use → create a post
                 </button>
                 <a
                   href={abs(open.url)}
                   download={open.filename}
-                  className="px-4 py-2.5 rounded-xl border border-ink-300 text-ink-700 text-[13px] font-bold hover:bg-ink-50"
+                  className="px-4 py-2.5 rounded-xl border border-ink-300 text-ink-700 text-[12px] font-bold hover:bg-ink-50"
                 >
                   Download
                 </a>
                 <button
                   type="button"
                   onClick={() => setConfirmItem(open)}
-                  className="px-4 py-2.5 rounded-xl border border-ink-200 text-ink-500 text-[13px] font-bold hover:bg-red-50 hover:text-red-600 hover:border-red-200"
+                  className="px-4 py-2.5 rounded-xl border border-ink-200 text-ink-500 text-[12px] font-bold hover:bg-red-50 hover:text-red-600 hover:border-red-200"
                 >
                   Delete
                 </button>
                 <button
                   type="button"
                   onClick={() => setOpen(null)}
-                  className="ml-auto px-4 py-2.5 rounded-xl text-ink-500 text-[13px] font-bold hover:bg-ink-100"
+                  className="ml-auto px-4 py-2.5 rounded-xl text-ink-500 text-[12px] font-bold hover:bg-ink-100"
                 >
                   Close
                 </button>
@@ -279,11 +292,11 @@ export default function LibraryPage() {
     {/* Delete confirmation */}
       {confirmItem && (
         <div
-          className="fixed inset-0 z-[60] bg-ink-950/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadein"
+          className="fixed inset-0 z-[60] bg-ink-950/25 backdrop-blur-md flex items-center justify-center p-4 animate-fadein"
           onClick={() => setConfirmItem(null)}
         >
           <div
-            className="bg-white rounded-3xl shadow-dock max-w-sm w-full p-6"
+            className="glass-strong rounded-3xl shadow-dock max-w-sm w-full p-6"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="w-10 h-10 rounded-full bg-red-100 text-red-600 grid place-items-center mb-3">
@@ -291,22 +304,22 @@ export default function LibraryPage() {
                 <path d="M4 6h12M8 6V4h4v2M6 6l.7 10h6.6L14 6M8.5 9v4M11.5 9v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
-            <h3 className="text-[16px] font-display text-ink-900 tracking-tight">Delete this generation?</h3>
-            <p className="mt-1 text-[13px] text-ink-500 leading-relaxed">
+            <h3 className="text-[14.5px] font-display text-ink-900 tracking-tight">Delete this generation?</h3>
+            <p className="mt-1 text-[12px] text-ink-500 leading-relaxed">
               This cannot be undone. {confirmItem.filename} will be permanently removed from the library.
             </p>
             <div className="mt-5 flex gap-2">
               <button
                 type="button"
                 onClick={() => setConfirmItem(null)}
-                className="flex-1 px-4 py-2.5 rounded-xl border border-ink-200 text-ink-600 text-[13px] font-bold hover:bg-ink-50"
+                className="flex-1 px-4 py-2.5 rounded-xl border border-ink-200 text-ink-600 text-[12px] font-bold hover:bg-ink-50"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={() => remove(confirmItem)}
-                className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 text-white text-[13px] font-bold hover:bg-red-700"
+                className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 text-white text-[12px] font-bold hover:bg-red-700"
               >
                 Delete
               </button>

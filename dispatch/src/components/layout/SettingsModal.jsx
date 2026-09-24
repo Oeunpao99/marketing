@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useAuth } from '../../auth'
 
 const THEMES = [
@@ -33,7 +34,7 @@ export default function SettingsModal({ open, onClose, showToast }) {
   const { user, logout } = useAuth()
   const [name, setName] = useState(user?.name || 'Sokha R.')
   const [email, setEmail] = useState(user?.email || 'sokha@tip-sa.com')
-  const [theme, setTheme] = useState('green')
+  const [theme, setTheme] = useState('blue')
   const [accent, setAccent] = useState('lime')
   const [prefs, setPrefs] = useState({
     dailyDigest: true,
@@ -48,14 +49,10 @@ export default function SettingsModal({ open, onClose, showToast }) {
     showToast(v ? 'Enabled' : 'Disabled')
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fadein">
-      <div
-        className="fixed inset-0 bg-ink-950/70 backdrop-blur-lg"
-        style={{ WebkitBackdropFilter: 'blur(16px)', backdropFilter: 'blur(16px)' }}
-        onClick={onClose}
-      />
-      <div className="relative bg-white rounded-2xl border border-ink-100 w-full max-w-lg max-h-[88vh] overflow-hidden flex flex-col">
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-fadein">
+      <div className="fixed inset-0 bg-ink-950/40" onClick={onClose} />
+      <div className="relative bg-white border border-ink-200 shadow-pop rounded-2xl w-full max-w-lg max-h-[88vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="px-5 pt-5 pb-4 gradient-brand text-white flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -64,7 +61,7 @@ export default function SettingsModal({ open, onClose, showToast }) {
             </div>
             <div>
               <h2 className="font-display text-2xl leading-none">Account settings</h2>
-              <p className="text-[12.5px] text-white/80 mt-1">Manage your profile, theme and preferences</p>
+              <p className="text-[11.5px] text-white/80 mt-1">Manage your profile, theme and preferences</p>
             </div>
           </div>
           <button
@@ -83,21 +80,21 @@ export default function SettingsModal({ open, onClose, showToast }) {
             <SectionTitle>Account</SectionTitle>
             <div className="space-y-3">
               <div>
-                <label className="text-[12px] font-semibold text-ink-700 mb-1 block">Full name</label>
+                <label className="text-[11px] font-semibold text-ink-700 mb-1 block">Full name</label>
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full bg-ink-50 border border-ink-200 rounded-xl px-3 py-2 text-[13.5px] focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+                  className="w-full bg-ink-50 border border-ink-200 rounded-xl px-3 py-2 text-[12.5px] focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
                 />
               </div>
               <div>
-                <label className="text-[12px] font-semibold text-ink-700 mb-1 block">Email</label>
+                <label className="text-[11px] font-semibold text-ink-700 mb-1 block">Email</label>
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-ink-50 border border-ink-200 rounded-xl px-3 py-2 text-[13.5px] focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+                  className="w-full bg-ink-50 border border-ink-200 rounded-xl px-3 py-2 text-[12.5px] focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
                 />
               </div>
             </div>
@@ -122,8 +119,8 @@ export default function SettingsModal({ open, onClose, showToast }) {
                   }`}
                 >
                   <div className="w-8 h-8 rounded-lg mb-2" style={{ background: t.swatch }} />
-                  <div className="text-[13px] font-semibold text-ink-800">{t.name}</div>
-                  <div className="text-[11.5px] text-ink-400">{t.desc}</div>
+                  <div className="text-[12px] font-semibold text-ink-800">{t.name}</div>
+                  <div className="text-[10.5px] text-ink-400">{t.desc}</div>
                 </button>
               ))}
             </div>
@@ -150,7 +147,7 @@ export default function SettingsModal({ open, onClose, showToast }) {
                   {accent === a.id && <span className="text-white text-sm font-bold">✓</span>}
                 </button>
               ))}
-              <span className="self-center text-[12.5px] text-ink-400 ml-1">
+              <span className="self-center text-[11.5px] text-ink-400 ml-1">
                 {ACCENTS.find((a) => a.id === accent)?.name}
               </span>
             </div>
@@ -171,10 +168,10 @@ export default function SettingsModal({ open, onClose, showToast }) {
             <SectionTitle>Session</SectionTitle>
             <div className="flex items-center gap-3 border border-ink-200 rounded-2xl px-4 py-3">
               <div className="flex-1 min-w-0">
-                <div className="text-[13.5px] font-semibold text-ink-800">
+                <div className="text-[12.5px] font-semibold text-ink-800">
                   Signed in as {user?.name || 'you'}
                 </div>
-                <div className="text-[12px] text-ink-400 truncate">
+                <div className="text-[11px] text-ink-400 truncate">
                   {user?.email}{user?.role ? ` · ${user.role}` : ''}
                 </div>
               </div>
@@ -185,7 +182,7 @@ export default function SettingsModal({ open, onClose, showToast }) {
                   logout()
                   showToast('Signed out')
                 }}
-                className="flex-none px-3.5 py-1.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-[13px] font-semibold hover:bg-red-100 transition-all duration-150"
+                className="flex-none px-3.5 py-1.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-[12px] font-semibold hover:bg-red-100 transition-all duration-150"
               >
                 Log out
               </button>
@@ -198,7 +195,7 @@ export default function SettingsModal({ open, onClose, showToast }) {
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-1.5 rounded-xl bg-ink-50 border border-ink-200 text-ink-600 text-[13px] font-medium hover:bg-ink-100 transition-all duration-150"
+            className="px-4 py-1.5 rounded-xl bg-ink-50 border border-ink-200 text-ink-600 text-[12px] font-medium hover:bg-ink-100 transition-all duration-150"
           >
             Close
           </button>
@@ -208,19 +205,20 @@ export default function SettingsModal({ open, onClose, showToast }) {
               showToast('Settings saved')
               onClose()
             }}
-            className="px-4 py-1.5 rounded-xl gradient-brand text-white text-[13px] font-semibold hover:shadow-glow transition-all duration-200"
+            className="px-4 py-1.5 rounded-xl gradient-brand text-white text-[12px] font-semibold hover:shadow-glow transition-all duration-200"
           >
             Save changes
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
 function SectionTitle({ children }) {
   return (
-    <h3 className="text-[11px] font-bold tracking-[.09em] uppercase text-ink-400 mb-2.5">{children}</h3>
+    <h3 className="text-[10px] font-bold tracking-[.09em] uppercase text-ink-400 mb-2.5">{children}</h3>
   )
 }
 
@@ -228,8 +226,8 @@ function PrefRow({ label, desc, toggled, onToggle }) {
   return (
     <div className="flex items-center gap-3 px-4 py-3">
       <div className="flex-1 min-w-0">
-        <div className="text-[13.5px] font-semibold text-ink-800">{label}</div>
-        <div className="text-[12px] text-ink-400">{desc}</div>
+        <div className="text-[12.5px] font-semibold text-ink-800">{label}</div>
+        <div className="text-[11px] text-ink-400">{desc}</div>
       </div>
       <Toggle on={toggled} onChange={onToggle} />
     </div>

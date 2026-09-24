@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { FiX } from 'react-icons/fi'
 import { api } from '../api/client'
+import { colorForBrand } from '../lib/brandColor'
 import { useStore } from '../store'
 import MarkdownText from '../components/ui/MarkdownText'
 
-const BRAND_COLORS = { assist: '#3B82F6', chum: '#F59E0B', hub: '#8B5CF6' }
 const EMPTY_FORM = { name: '', description: '', highlights: '' }
 const PREVIEW_CHARS = 340
 
@@ -85,10 +87,8 @@ export default function ProductsPage() {
     <div className="w-full px-5 lg:px-10 py-8 lg:py-10 animate-fadein">
       <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="font-display text-[34px] lg:text-[42px] leading-tight tracking-tight text-ink-900">
-            Products
-          </h1>
-          <p className="mt-1.5 text-ink-500 max-w-[60ch] text-[15px]">
+          <h1 className="page-title">Products</h1>
+          <p className="page-sub mt-1">
             What each brand sells or offers — the AI reads this in{' '}
             <span className="font-semibold text-ink-700">Auto-generate</span> to write ideas grounded in real facts instead of guessing.
           </p>
@@ -97,7 +97,7 @@ export default function ProductsPage() {
           type="button"
           onClick={startNew}
           disabled={!brands.length}
-          className="px-4 py-2.5 rounded-xl gradient-brand text-white text-[13.5px] font-bold hover:shadow-glow-lg disabled:opacity-50 transition-all duration-200 flex-none"
+          className="btn-primary flex-none"
         >
           + Add product
         </button>
@@ -107,12 +107,12 @@ export default function ProductsPage() {
         <button
           type="button"
           onClick={() => setBrandFilter('all')}
-          className={`px-3.5 py-2 rounded-xl border text-[13px] font-semibold transition-all duration-150 ${
-            brandFilter === 'all' ? 'border-brand bg-brand/5 text-ink-900' : 'border-ink-200 text-ink-600 hover:border-ink-300'
+          className={`px-3.5 py-2 rounded-xl border text-[12px] font-semibold transition-all duration-150 ${
+            brandFilter === 'all' ? 'border-brand-line bg-brand-soft text-brand' : 'border-ink-200 text-ink-600 hover:border-brand-line'
           }`}
         >
           All
-          <span className={`ml-1.5 font-mono text-[11px] ${brandFilter === 'all' ? 'text-brand' : 'text-ink-400'}`}>
+          <span className={`ml-1.5 font-mono text-[10px] ${brandFilter === 'all' ? 'text-brand' : 'text-ink-400'}`}>
             {items?.length ?? 0}
           </span>
         </button>
@@ -121,20 +121,20 @@ export default function ProductsPage() {
             key={b.id}
             type="button"
             onClick={() => setBrandFilter(b.slug)}
-            className={`px-3.5 py-2 rounded-xl border text-[13px] font-semibold flex items-center gap-2 transition-all duration-150 ${
-              brandFilter === b.slug ? 'border-brand bg-brand/5 text-ink-900' : 'border-ink-200 text-ink-600 hover:border-ink-300'
+            className={`px-3.5 py-2 rounded-xl border text-[12px] font-semibold flex items-center gap-2 transition-all duration-150 ${
+              brandFilter === b.slug ? 'border-brand-line bg-brand-soft text-brand' : 'border-ink-200 text-ink-600 hover:border-brand-line'
             }`}
           >
-            <span className="w-2 h-2 rounded-full flex-none" style={{ background: BRAND_COLORS[b.slug] || '#166432' }} />
+            <span className="w-2 h-2 rounded-full flex-none" style={{ background: colorForBrand(b.slug) }} />
             {b.name}
-            <span className={`font-mono text-[11px] ${brandFilter === b.slug ? 'text-brand' : 'text-ink-400'}`}>
+            <span className={`font-mono text-[10px] ${brandFilter === b.slug ? 'text-brand' : 'text-ink-400'}`}>
               {items?.filter((p) => p.brand_id === b.id).length ?? 0}
             </span>
           </button>
         ))}
       </div>
 
-      {editingId === 'new' && (
+      {editingId != null && (
         <ProductForm
           form={form}
           setForm={setForm}
@@ -142,75 +142,73 @@ export default function ProductsPage() {
           busy={busy}
           onCancel={cancel}
           onSave={save}
-          title="New product"
+          title={editingId === 'new' ? 'New product' : 'Edit product'}
         />
       )}
 
       {items === null ? (
-        <div className="py-20 text-center text-ink-400 text-[13px]">Loading…</div>
-      ) : filtered.length === 0 && editingId !== 'new' ? (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="rounded-2xl border border-ink-100 bg-white p-5 space-y-3">
+              <div className="h-3 w-24 rounded skeleton" />
+              <div className="h-4 w-full rounded skeleton" />
+              <div className="h-3 w-4/5 rounded skeleton" />
+            </div>
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
         <div className="py-20 text-center">
-          <div className="text-[15px] font-semibold text-ink-700">No products yet</div>
-          <div className="text-[13px] text-ink-400 mt-1">
+          <div className="text-[14px] font-semibold text-ink-700">No products yet</div>
+          <div className="text-[12px] text-ink-400 mt-1">
             Add what this brand sells or offers so the AI has something real to write about.
           </div>
+          <button type="button" onClick={startNew} disabled={!brands.length} className="btn-primary mt-4">
+            + Add your first product
+          </button>
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {filtered.map((p) =>
-            editingId === p.id ? (
-              <ProductForm
-                key={p.id}
-                form={form}
-                setForm={setForm}
-                brands={brands}
-                busy={busy}
-                onCancel={cancel}
-                onSave={save}
-                title="Edit product"
-              />
-            ) : (
-              <ProductCard
-                key={p.id}
-                product={p}
-                brandColor={BRAND_COLORS[brandFor(p)?.slug] || '#94a3b8'}
-                brandName={brandFor(p)?.name || 'No brand'}
-                expanded={!!expanded[p.id]}
-                onToggleExpanded={() => setExpanded((e) => ({ ...e, [p.id]: !e[p.id] }))}
-                onEdit={() => startEdit(p)}
-                onDelete={() => setConfirmItem(p)}
-              />
-            ),
-          )}
+          {filtered.map((p) => (
+            <ProductCard
+              key={p.id}
+              product={p}
+              brandColor={colorForBrand(brandFor(p)?.slug)}
+              brandName={brandFor(p)?.name || 'No brand'}
+              expanded={!!expanded[p.id]}
+              onToggleExpanded={() => setExpanded((e) => ({ ...e, [p.id]: !e[p.id] }))}
+              onEdit={() => startEdit(p)}
+              onDelete={() => setConfirmItem(p)}
+            />
+          ))}
         </div>
       )}
 
       {/* Delete confirmation */}
       {confirmItem && (
         <div
-          className="fixed inset-0 z-50 bg-ink-950/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fadein"
+          className="fixed inset-0 z-50 bg-ink-950/25 backdrop-blur-md flex items-center justify-center p-4 animate-fadein"
           onClick={() => setConfirmItem(null)}
         >
           <div
-            className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-dock animate-fadein"
+            className="glass-strong rounded-3xl w-full max-w-sm p-6 shadow-dock animate-fadein"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-[17px] font-display text-ink-900 tracking-tight">Delete this product?</h3>
-            <p className="mt-2 text-[13.5px] text-ink-500 leading-relaxed">
+            <h3 className="text-[15.5px] font-display text-ink-900 tracking-tight">Delete this product?</h3>
+            <p className="mt-2 text-[12.5px] text-ink-500 leading-relaxed">
               “{confirmItem.name}” will be removed and the AI won’t read it anymore. This can’t be undone.
             </p>
             <div className="mt-6 flex gap-2 justify-end">
               <button
                 type="button"
                 onClick={() => setConfirmItem(null)}
-                className="px-4 py-2.5 rounded-xl border border-ink-200 text-ink-600 text-[13px] font-bold hover:bg-ink-50 transition-all duration-150"
+                className="px-4 py-2.5 rounded-xl border border-ink-200 text-ink-600 text-[12px] font-bold hover:bg-ink-50 transition-all duration-150"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={() => remove(confirmItem)}
-                className="px-4 py-2.5 rounded-xl bg-red-600 text-white text-[13px] font-bold hover:bg-red-700 transition-all duration-150"
+                className="px-4 py-2.5 rounded-xl bg-red-600 text-white text-[12px] font-bold hover:bg-red-700 transition-all duration-150"
               >
                 Delete
               </button>
@@ -233,13 +231,13 @@ function ProductCard({ product, brandColor, brandName, expanded, onToggleExpande
         style={{ background: `${brandColor}08` }}
       >
         <span className="w-2 h-2 rounded-full flex-none" style={{ background: brandColor, boxShadow: `0 0 8px ${brandColor}40` }} />
-        <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: brandColor }}>
+        <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: brandColor }}>
           {brandName}
         </span>
       </div>
 
       <div className="px-4 pt-3.5 pb-1 flex-1">
-        <h3 className="font-bold text-ink-900 text-[15px] leading-snug">{product.name}</h3>
+        <h3 className="font-bold text-ink-900 text-[14px] leading-snug">{product.name}</h3>
         {product.description && (
           <div className="mt-2">
             <div className={long && !expanded ? 'relative max-h-[150px] overflow-hidden' : ''}>
@@ -252,7 +250,7 @@ function ProductCard({ product, brandColor, brandName, expanded, onToggleExpande
               <button
                 type="button"
                 onClick={onToggleExpanded}
-                className="mt-1.5 text-[12.5px] font-bold text-brand hover:underline"
+                className="mt-1.5 text-[11.5px] font-bold text-brand hover:underline"
               >
                 {expanded ? 'Show less' : 'Show more'}
               </button>
@@ -264,7 +262,7 @@ function ProductCard({ product, brandColor, brandName, expanded, onToggleExpande
             {parts.map((h, i) => (
               <span
                 key={i}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-ink-200 bg-ink-50/70 px-2 py-1 text-[11.5px] font-semibold text-ink-600"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-ink-200 bg-ink-50/70 px-2 py-1 text-[10.5px] font-semibold text-ink-600"
               >
                 <span className="w-1 h-1 rounded-full flex-none" style={{ background: brandColor }} />
                 {h}
@@ -278,14 +276,14 @@ function ProductCard({ product, brandColor, brandName, expanded, onToggleExpande
         <button
           type="button"
           onClick={onEdit}
-          className="px-3.5 py-1.5 rounded-lg border border-ink-200 bg-white text-ink-600 text-[12px] font-bold hover:border-brand/40 hover:text-ink-900 transition-all duration-150"
+          className="px-3.5 py-1.5 rounded-lg border border-ink-200 bg-white text-ink-600 text-[11px] font-bold hover:border-brand/40 hover:text-ink-900 transition-all duration-150"
         >
           Edit
         </button>
         <button
           type="button"
           onClick={onDelete}
-          className="px-3.5 py-1.5 rounded-lg border border-ink-200 bg-white text-ink-500 text-[12px] font-bold hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all duration-150"
+          className="px-3.5 py-1.5 rounded-lg border border-ink-200 bg-white text-ink-500 text-[11px] font-bold hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all duration-150"
         >
           Delete
         </button>
@@ -294,78 +292,119 @@ function ProductCard({ product, brandColor, brandName, expanded, onToggleExpande
   )
 }
 
+const fieldClass =
+  'w-full bg-white border border-ink-200 rounded-xl px-3.5 py-2.5 text-[13px] text-ink-800 placeholder:text-ink-300 focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/15'
+
+/** Right-hand slide-over for adding or editing a product — same pattern as
+ * Create brand, so the product grid stays put underneath. */
 function ProductForm({ form, setForm, brands, busy, onCancel, onSave, title }) {
-  return (
-    <div className="bg-white border-2 border-brand/30 rounded-2xl p-4 mb-4 shadow-card sm:col-span-2 xl:col-span-3">
-      <div className="flex items-center gap-2.5 mb-4">
-        <span className="w-2 h-2 rounded-full bg-brand" />
-        <span className="text-[12px] font-bold uppercase tracking-wide text-brand">{title}</span>
-      </div>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label className="block text-[11px] font-bold uppercase tracking-[.09em] text-ink-400 mb-2">Brand</label>
-          <select
-            value={form.brand_id ?? ''}
-            onChange={(e) => setForm((f) => ({ ...f, brand_id: +e.target.value }))}
-            className="w-full bg-white border border-ink-200 rounded-xl px-3 py-2.5 text-[13.5px] focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onCancel()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onCancel])
+
+  return createPortal(
+    <div className="fixed inset-0 z-[95]">
+      <button
+        type="button"
+        aria-label="Close"
+        className="absolute inset-0 bg-ink-950/35 animate-fadein cursor-default"
+        onClick={onCancel}
+      />
+      <aside
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="product-form-title"
+        className="absolute right-0 top-0 h-full w-full max-w-[480px] bg-white shadow-drawer animate-drawer-in flex flex-col"
+      >
+        <header className="flex items-start justify-between gap-3 px-6 pt-6 pb-4 border-b border-ink-100">
+          <div>
+            <h2 id="product-form-title" className="text-[17.5px] font-bold text-ink-900 tracking-tight">
+              {title}
+            </h2>
+            <p className="mt-1 text-[12.5px] text-ink-500">The AI reads this to write accurate posts for the brand.</p>
+          </div>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="w-9 h-9 grid place-items-center rounded-lg text-ink-500 hover:bg-ink-100 flex-none"
+            aria-label="Close"
           >
-            {brands.map((b) => (
-              <option key={b.id} value={b.id}>{b.name}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-[11px] font-bold uppercase tracking-[.09em] text-ink-400 mb-2">Name</label>
-          <input
-            type="text"
-            value={form.name}
-            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-            placeholder="e.g. Unlimited Data Plan"
-            className="w-full bg-white border border-ink-200 rounded-xl px-3 py-2.5 text-[13.5px] focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-          />
-        </div>
-        <div className="sm:col-span-2">
-          <label className="block text-[11px] font-bold uppercase tracking-[.09em] text-ink-400 mb-2">
-            Description <span className="normal-case tracking-normal font-medium text-ink-400">— markdown: # ## ###, **bold**, - bullets</span>
-          </label>
-          <textarea
-            rows={4}
-            value={form.description}
-            onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-            placeholder="What it is, who it's for…"
-            className="w-full bg-white border border-ink-200 rounded-xl px-3 py-2.5 text-[13.5px] resize-y focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-          />
-        </div>
-        <div className="sm:col-span-2">
-          <label className="block text-[11px] font-bold uppercase tracking-[.09em] text-ink-400 mb-2">
-            Highlights <span className="normal-case tracking-normal font-medium text-ink-400">— selling points, pricing, offers</span>
-          </label>
-          <textarea
-            rows={2}
-            value={form.highlights}
-            onChange={(e) => setForm((f) => ({ ...f, highlights: e.target.value }))}
-            placeholder="Cheap; fast; local support…"
-            className="w-full bg-white border border-ink-200 rounded-xl px-3 py-2.5 text-[13.5px] resize-y focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-          />
-        </div>
-      </div>
-      <div className="mt-4 flex gap-2">
-        <button
-          type="button"
-          disabled={busy || !form.name.trim()}
-          onClick={onSave}
-          className="px-4 py-2 rounded-xl gradient-brand text-white text-[13px] font-bold hover:shadow-glow disabled:opacity-50 transition-all duration-150"
+            <FiX size={18} />
+          </button>
+        </header>
+
+        <form
+          className="flex-1 flex flex-col min-h-0"
+          onSubmit={(e) => {
+            e.preventDefault()
+            onSave()
+          }}
         >
-          {busy ? 'Saving…' : 'Save'}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-4 py-2 rounded-xl border border-ink-200 text-ink-600 text-[13px] font-semibold hover:bg-ink-50 transition-all duration-150"
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
+          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+            <label className="block">
+              <span className="mb-1.5 block text-[12px] font-semibold text-ink-800">Brand</span>
+              <select
+                value={form.brand_id ?? ''}
+                onChange={(e) => setForm((f) => ({ ...f, brand_id: +e.target.value }))}
+                className={fieldClass}
+              >
+                {brands.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-[12px] font-semibold text-ink-800">
+                Name <span className="text-red-500">*</span>
+              </span>
+              <input
+                autoFocus
+                type="text"
+                value={form.name}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                placeholder="e.g. Unlimited Data Plan"
+                className={fieldClass}
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-[12px] font-semibold text-ink-800">Description</span>
+              <textarea
+                rows={8}
+                value={form.description}
+                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                placeholder="What it is, who it's for…"
+                className={`${fieldClass} resize-y`}
+              />
+              <span className="mt-1.5 block text-[11px] text-ink-400">Markdown works: # headings, **bold**, - bullets</span>
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-[12px] font-semibold text-ink-800">Highlights</span>
+              <textarea
+                rows={3}
+                value={form.highlights}
+                onChange={(e) => setForm((f) => ({ ...f, highlights: e.target.value }))}
+                placeholder="Cheap; fast; local support…"
+                className={`${fieldClass} resize-y`}
+              />
+              <span className="mt-1.5 block text-[11px] text-ink-400">Selling points, pricing, offers — separate with ; or new lines</span>
+            </label>
+          </div>
+
+          <footer className="px-6 py-4 border-t border-ink-100 flex justify-end gap-2">
+            <button type="button" onClick={onCancel} className="btn-outline">
+              Cancel
+            </button>
+            <button type="submit" disabled={busy || !form.name.trim()} className="btn-primary">
+              {busy ? 'Saving…' : 'Save product'}
+            </button>
+          </footer>
+        </form>
+      </aside>
+    </div>,
+    document.body,
   )
 }

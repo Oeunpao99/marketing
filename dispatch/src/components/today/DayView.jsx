@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { FiCalendar } from 'react-icons/fi'
 import { colorForBrand } from '../../lib/brandColor'
 import { phnomPenhDay, dayLabel } from '../../lib/tz'
 import PlatformIcon from '../ui/PlatformIcon'
@@ -39,8 +40,12 @@ export default function DayView({ queue, match = () => true }) {
 
   if (!visible.length) {
     return (
-      <div className="px-7 py-16 text-center text-[13px] text-ink-400">
-        Nothing on this day. Pick another date above.
+      <div className="px-7 py-14 text-center">
+        <div className="mx-auto mb-3 w-12 h-12 rounded-2xl grid place-items-center bg-brand-soft text-brand">
+          <FiCalendar size={20} />
+        </div>
+        <div className="text-[12.5px] font-semibold text-ink-700">Nothing on this day</div>
+        <div className="mt-1 text-[11.5px] text-ink-400">Pick another date above, or head to New Post.</div>
       </div>
     )
   }
@@ -60,6 +65,7 @@ export default function DayView({ queue, match = () => true }) {
     const sending = q.st === 'sending'
     const failed = q.st === 'failed'
     const posted = q.st === 'posted'
+    const queued = q.st === 'queued'
     return (
       <div key={key} className="relative">
         {!lastInGroup && <span className="absolute left-[22px] bottom-0 top-11 w-px bg-ink-100" />}
@@ -72,21 +78,24 @@ export default function DayView({ queue, match = () => true }) {
                   : failed
                     ? 'border-red-400 bg-red-50'
                     : sending
-                      ? 'border-violet-400 bg-violet-50 animate-pulse-glow'
-                      : 'border-ink-300 bg-white'
+                      ? 'border-brand bg-brand-soft animate-pulse-glow'
+                      : queued
+                        ? 'border-amber-300 bg-white'
+                        : 'border-ink-300 bg-white'
               }`}
             >
-              {posted && (
+              {(posted || sending) && (
                 <svg viewBox="0 0 12 12" className="h-2.5 w-2.5 text-white" fill="none">
                   <path d="M2.5 6.5l2.2 2.2 4.8-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               )}
+              {queued && <span className="h-1.5 w-1.5 rounded-full bg-amber-300" />}
             </span>
           </div>
 
           <div className="min-w-0 flex-1 py-2.5">
             <div className="mb-1.5 flex items-baseline justify-between gap-3">
-              <span className="font-mono text-[12.5px] font-bold text-ink-500 tabular-nums">{q.t}</span>
+              <span className="font-mono text-[11.5px] font-bold text-ink-500 tabular-nums">{q.t}</span>
               <StatusBadge status={q.st} />
             </div>
             <button
@@ -94,18 +103,18 @@ export default function DayView({ queue, match = () => true }) {
               onClick={() => navigate(`/post/${i}`)}
               className={`w-full text-left rounded-2xl border px-4 py-3 transition-all duration-150 cursor-pointer hover:-translate-y-0.5 hover:shadow-card ${
                 sending
-                  ? 'border-violet-200 bg-violet-50/50'
+                  ? 'border-brand-line bg-brand-softer'
                   : failed
                     ? 'border-red-200 bg-red-50/40 hover:border-red-300'
                     : posted
                       ? 'border-ink-100 bg-white hover:border-emerald-200'
-                      : 'border-ink-100 bg-white hover:border-ink-200'
+                      : 'border-ink-100 bg-white hover:border-brand-line'
               } ${justPosted[key] ? 'animate-post-pop' : ''}`}
             >
               <div className="flex gap-3">
                 <span
-                  className={`grid w-8 h-12 flex-none place-items-center rounded-lg text-[10px] font-black uppercase tracking-wide ${
-                    sending ? 'bg-violet-100 text-violet-600' : ''
+                  className={`grid w-8 h-12 flex-none place-items-center rounded-lg text-[10px] font-black uppercase tracking-wide border ${
+                    sending ? 'border-brand-line bg-brand-soft text-brand' : 'border-transparent'
                   }`}
                   style={!sending ? { background: `${color}1A`, color } : undefined}
                 >
@@ -113,33 +122,33 @@ export default function DayView({ queue, match = () => true }) {
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[13px] font-display text-ink-900 tracking-tight">{name}</span>
+                    <span className="text-[12px] font-display text-ink-900 tracking-tight">{name}</span>
                     {q.c.map((ch) => (
                       <span
                         key={ch}
-                        className="inline-flex items-center gap-1 rounded-md px-1.5 py-px text-[10.5px] font-semibold text-ink-500 bg-ink-50 border border-ink-200"
+                        className="inline-flex items-center gap-1 rounded-md px-1.5 py-px text-[10px] font-semibold text-ink-500 bg-ink-50 border border-ink-200"
                       >
                         <PlatformIcon name={ch} className="text-ink-400" />
                         {ch}
                       </span>
                     ))}
                   </div>
-                  <div className="mt-0.5 text-[13.5px] font-semibold text-ink-800 leading-snug">{q.ttl}</div>
-                  <div className={`text-[12.5px] text-ink-500 truncate max-w-[52ch] ${isKhmer(q.cap) ? 'font-khmer' : ''}`}>
+                  <div className="mt-0.5 text-[12.5px] font-semibold text-ink-800 leading-snug">{q.ttl}</div>
+                  <div className={`text-[11.5px] text-ink-500 truncate max-w-[52ch] ${isKhmer(q.cap) ? 'font-khmer' : ''}`}>
                     {q.cap}
                   </div>
                   {sending && (
                     <div className="mt-2 flex items-center gap-2">
-                      <div className="relative h-1 flex-1 overflow-hidden rounded-full bg-violet-100">
-                        <span className="absolute top-0 h-full rounded-full bg-violet-500 animate-indeterminate" />
+                      <div className="relative h-1 flex-1 overflow-hidden rounded-full bg-brand-line">
+                        <span className="absolute top-0 h-full rounded-full bg-brand animate-indeterminate" />
                       </div>
-                      <span className="text-[10.5px] font-semibold text-violet-500 whitespace-nowrap">
+                      <span className="text-[10px] font-semibold text-brand whitespace-nowrap">
                         sending to {q.c.length === 1 ? q.c[0] : `${q.c.length} channels`}…
                       </span>
                     </div>
                   )}
                   {failed && q.error && (
-                    <div className="mt-1 text-[12px] text-red-600 truncate max-w-[52ch]">{q.error}</div>
+                    <div className="mt-1 text-[11px] text-red-600 truncate max-w-[52ch]">{q.error}</div>
                   )}
                 </div>
               </div>
@@ -155,11 +164,11 @@ export default function DayView({ queue, match = () => true }) {
       {groups.map((group, gi) => (
         <div key={group.day} className={gi > 0 ? 'mt-6' : ''}>
           <div className="mb-1.5 flex items-center gap-2">
-            <span className="rounded-md bg-ink-950 px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wide text-white">
+            <span className="rounded-md bg-brand-soft border border-brand-line px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-brand">
               {group.day === 'unscheduled' ? 'Unscheduled' : dayLabel(group.day)}
             </span>
             <span className="h-px flex-1 bg-ink-100" />
-            <span className="text-[11px] font-semibold text-ink-400">{group.entries.length}</span>
+            <span className="text-[10px] font-semibold text-ink-400">{group.entries.length}</span>
           </div>
           {group.entries.map((entry, ei) =>
             item({ ...entry, lastInGroup: ei === group.entries.length - 1 }),

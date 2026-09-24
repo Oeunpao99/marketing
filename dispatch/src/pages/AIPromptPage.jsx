@@ -4,6 +4,7 @@ import { useStore } from '../store'
 import { api } from '../api/client'
 import Tag from '../components/ui/Tag'
 import DropZone, { humanSize } from '../components/ui/DropZone'
+import AutoTextarea from '../components/ui/AutoTextarea'
 import { handoff } from '../lib/handoff'
 import { colorForBrand } from '../lib/brandColor'
 
@@ -107,6 +108,9 @@ function localPrompt({ brandName, type, template, style, topic, mood, extra }) {
   return lines.join('\n\n')
 }
 
+const pick = (on) =>
+  on ? 'border-brand bg-brand-soft text-brand' : 'border-ink-200 bg-white text-ink-700 hover:border-ink-300'
+
 const fmtTok = (n) => (n || 0).toLocaleString()
 
 export default function AIPromptPage() {
@@ -130,6 +134,7 @@ export default function AIPromptPage() {
   const [aiUsed, setAiUsed] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [briefOpen, setBriefOpen] = useState(true)
+  const [moreOpen, setMoreOpen] = useState(false)
   const [feedback, setFeedback] = useState('')
   const [refining, setRefining] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -383,19 +388,15 @@ export default function AIPromptPage() {
   return (
     <div className="w-full px-5 lg:px-10 py-8 lg:py-10 animate-fadein">
       {/* Header + steps */}
-      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-[34px] lg:text-[42px] leading-tight tracking-tight text-ink-900">
-            AI <em className="italic text-brand">agent</em>
-          </h1>
-          <p className="mt-1.5 text-ink-500 max-w-[58ch] text-[15px]">
-            Brief, prompt, then the image or video — one focused flow.
-          </p>
+          <h1 className="text-[24px] font-bold text-ink-900 tracking-tight leading-tight">AI Agent</h1>
+          <p className="mt-1 text-[13px] text-ink-600">Brief, prompt, then the image or video — one focused flow.</p>
         </div>
         <div className="flex items-center gap-3">
           {sessionTokens > 0 && (
             <span
-              className="inline-flex items-center gap-1.5 rounded-full border border-ink-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-ink-600"
+              className="inline-flex items-center gap-1.5 rounded-full border border-ink-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-ink-600"
               title="Total provider tokens used on this page since you opened it"
             >
               <span className="text-brand">◈</span>
@@ -409,43 +410,72 @@ export default function AIPromptPage() {
       <div className="space-y-5">
         {/* ── 1 · BRIEF ─────────────────────────────────────────── */}
         {briefOpen ? (
-          <section className="bg-white border border-ink-100 rounded-2xl shadow-card p-6 lg:p-8 animate-fadein">
-            <StepHead n={1} title="Brief" hint="What do you need the agent to make?" />
-
-            <div className="mt-6 grid gap-x-8 gap-y-6 lg:grid-cols-2 xl:grid-cols-3">
-              {/* Brand — full width */}
-              <div className="lg:col-span-2 xl:col-span-3">
+          <div className="animate-fadein">
+            <section className="bg-white rounded-2xl border border-ink-200/60 shadow-[0_1px_2px_rgba(16,24,40,0.04)] overflow-hidden">
+              <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-ink-100">
+                <div>
+                  <h2 className="text-[15px] font-semibold text-ink-900">Brief</h2>
+                  <p className="text-[12px] text-ink-500">What should the agent make?</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  {prompt && (
+                    <button
+                      type="button"
+                      onClick={() => setBriefOpen(false)}
+                      className="text-[12px] font-medium text-ink-500 hover:text-ink-800"
+                    >
+                      Keep current prompt
+                    </button>
+                  )}
+                  <button type="button" onClick={generate} disabled={generating} className="btn-primary">
+                    {generating ? (
+                      <>
+                        <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                        Writing your prompt…
+                      </>
+                    ) : (
+                      <>
+                        {icons.spark}
+                        {prompt ? 'Rewrite the prompt' : 'Write the prompt'} →
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+              <div className="p-6 space-y-6">
+              <div>
                 <Label>Brand</Label>
                 <div className="flex gap-2 flex-wrap">
-                  {brands.map((b) => {
-                    const color = colorForBrand(b.slug)
-                    return (
-                      <button
-                        key={b.slug}
-                        type="button"
-                        onClick={() => setBrand(b.slug)}
-                        className={`px-4 py-2.5 rounded-xl border-[1.5px] bg-white text-[13.5px] font-bold flex items-center gap-2.5 transition-all duration-150 ${
-                          brand === b.slug
-                            ? 'shadow-card text-ink-900'
-                            : 'border-ink-200 text-ink-600 hover:border-ink-300 hover:shadow-card'
-                        }`}
-                        style={brand === b.slug ? { borderColor: color } : undefined}
-                      >
-                        <span className="w-2.5 h-2.5 rounded-full flex-none" style={{ background: color }} />
-                        {b.name}
-                        {brand === b.slug && (
-                          <span className="text-[10px] font-bold uppercase tracking-wide text-ink-400">Selected</span>
-                        )}
-                      </button>
-                    )
-                  })}
+                  {brands.map((b) => (
+                    <button
+                      key={b.slug}
+                      type="button"
+                      onClick={() => setBrand(b.slug)}
+                      className={`px-3.5 py-2 rounded-xl border text-[12.5px] font-semibold flex items-center gap-2 transition-colors duration-150 ${pick(brand === b.slug)}`}
+                    >
+                      <span className="w-2 h-2 rounded-full flex-none" style={{ background: colorForBrand(b.slug) }} />
+                      {b.name}
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              {/* Type + template */}
               <div>
-                <Label>Type</Label>
-                <div className="inline-flex rounded-xl border border-ink-200 bg-ink-50/70 p-1 mb-4">
+                <Label>What's it about</Label>
+                <AutoTextarea
+                  autoFocus
+                  minRows={2}
+                  maxRows={8}
+                  value={topic}
+                  onChange={(e) => setTopic(e.target.value)}
+                  placeholder="The main message — e.g. Three ways to save phone data"
+                  className="w-full bg-white border border-ink-200 rounded-xl px-3.5 py-3 text-[13px] leading-relaxed focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/15"
+                />
+              </div>
+
+              <div>
+                <Label>Format</Label>
+                <div className="inline-flex rounded-xl border border-ink-200 p-0.5">
                   {TEMPLATE_TYPES.map((t) => (
                     <button
                       key={t.id}
@@ -456,18 +486,20 @@ export default function AIPromptPage() {
                         setRatio(t.id === 'image' ? '1:1' : '9:16')
                         resetDownstream()
                       }}
-                      className={`px-5 py-2 rounded-lg text-[13px] font-bold flex items-center gap-2 transition-all duration-150 ${
-                        type === t.id ? 'bg-white text-ink-900 shadow-card' : 'text-ink-500 hover:text-ink-700'
+                      className={`px-4 py-1.5 rounded-[10px] text-[12.5px] font-semibold flex items-center gap-2 transition-colors duration-150 ${
+                        type === t.id ? 'bg-brand-soft text-brand' : 'text-ink-600 hover:bg-ink-50'
                       }`}
                     >
-                      <span className={type === t.id ? 'text-brand' : 'text-ink-400'}>{icons[t.id]}</span>
+                      {icons[t.id]}
                       {t.name}
                     </button>
                   ))}
                 </div>
+              </div>
 
+              <div>
                 <Label>Template</Label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid sm:grid-cols-2 gap-2">
                   {templates.map((t) => (
                     <button
                       key={t.id}
@@ -479,156 +511,122 @@ export default function AIPromptPage() {
                         setHistory([])
                         setJob(null)
                       }}
-                      className={`rounded-xl border p-3 text-left transition-all duration-150 ${
-                        templateId === t.id
-                          ? 'border-brand ring-2 ring-brand/15 bg-white shadow-card'
-                          : 'border-ink-200 bg-white hover:border-ink-300 hover:shadow-card'
-                      }`}
+                      className={`rounded-xl border px-3 py-2.5 text-left flex items-center gap-3 transition-colors duration-150 ${pick(templateId === t.id)}`}
                     >
-                      <div className="flex items-start justify-between gap-2">
-                        <span
-                          className="grid place-items-center rounded-md border border-ink-200 bg-ink-50 font-mono text-[8.5px] font-bold text-ink-500 flex-none"
-                          style={{
-                            width: t.ratio === '16:9' ? 34 : t.ratio === '1:1' ? 26 : 20,
-                            height: t.ratio === '16:9' ? 20 : t.ratio === '1:1' ? 26 : 30,
-                          }}
-                        >
-                          {t.ratio}
-                        </span>
-                        {templateId === t.id && (
-                          <span className="w-5 h-5 rounded-full gradient-brand text-white grid place-items-center text-[11px] font-bold flex-none">
-                            ✓
-                          </span>
-                        )}
-                      </div>
-                      <div className="mt-2 text-[12.5px] font-bold text-ink-800 leading-tight">{t.name}</div>
+                      <span
+                        className={`grid place-items-center rounded border flex-none font-mono text-[9px] font-bold ${
+                          templateId === t.id ? 'border-brand/40 text-brand' : 'border-ink-300 text-ink-500'
+                        }`}
+                        style={{
+                          width: t.ratio === '16:9' ? 28 : t.ratio === '1:1' ? 22 : 16,
+                          height: t.ratio === '16:9' ? 16 : t.ratio === '1:1' ? 22 : 26,
+                        }}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[12.5px] font-semibold leading-tight">{t.name}</span>
+                        <span className="block text-[11px] text-ink-500 font-mono">{t.ratio}</span>
+                      </span>
                     </button>
                   ))}
                 </div>
-
-                {isImage && (
-                  <div className="mt-4">
-                    <Label>Reference image (optional)</Label>
-                    {refImg ? (
-                      <div className="flex items-center gap-3 bg-white border border-ink-200 rounded-xl p-2.5">
-                        <img src={refImg.previewUrl} alt="" className="w-14 h-14 rounded-lg object-cover flex-none bg-ink-100" />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-[12.5px] font-semibold text-ink-800 truncate">{refImg.name}</div>
-                          <div className="text-[11.5px] text-ink-400">The agent edits / builds on this image</div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setRefImg(null)}
-                          className="px-2.5 py-1.5 rounded-lg text-[12px] font-medium text-ink-500 hover:bg-ink-100 hover:text-ink-800"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    ) : (
-                      <DropZone
-                        compact
-                        accept="image/*"
-                        onFile={takeReference}
-                        title={refUploading ? 'Uploading…' : 'Drop an image to enhance or build on'}
-                        hint="Keep the parts you like, change the rest via the prompt"
-                      />
-                    )}
-                  </div>
-                )}
               </div>
 
-              {/* Style + mood */}
+              {isImage && (
+                <div>
+                  <Label>Reference image (optional)</Label>
+                  {refImg ? (
+                    <div className="flex items-center gap-3 bg-white border border-ink-200 rounded-xl p-2.5">
+                      <img src={refImg.previewUrl} alt="" className="w-14 h-14 rounded-lg object-cover flex-none bg-ink-100" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[11.5px] font-semibold text-ink-800 truncate">{refImg.name}</div>
+                        <div className="text-[10.5px] text-ink-400">The agent edits / builds on this image</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setRefImg(null)}
+                        className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-ink-500 hover:bg-ink-100 hover:text-ink-800"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <DropZone
+                      compact
+                      accept="image/*"
+                      onFile={takeReference}
+                      title={refUploading ? 'Uploading…' : 'Drop an image to enhance or build on'}
+                      hint="Keep the parts you like, change the rest via the prompt"
+                    />
+                  )}
+                </div>
+              )}
+
               <div>
                 <Label>Style</Label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="flex gap-2 flex-wrap">
                   {STYLES.map((s) => (
                     <button
                       key={s.id}
                       type="button"
                       onClick={() => setStyle(s.id)}
-                      className={`rounded-xl border px-3 py-2.5 text-[13px] font-bold text-left transition-all duration-150 ${
-                        style === s.id
-                          ? 'border-brand ring-2 ring-brand/15 bg-white shadow-card'
-                          : 'border-ink-200 bg-white text-ink-600 hover:border-ink-300 hover:shadow-card'
-                      }`}
+                      className={`px-3.5 py-2 rounded-xl border text-[12.5px] font-semibold transition-colors duration-150 ${pick(style === s.id)}`}
                     >
                       {s.name}
                     </button>
                   ))}
                 </div>
-                <div className="mt-4">
-                  <Label>Mood / tone</Label>
-                  <select
-                    value={mood}
-                    onChange={(e) => setMood(e.target.value)}
-                    className="w-full bg-white border border-ink-200 rounded-xl px-3 py-2.5 text-[13.5px] focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-                  >
-                    <option value="">Optional</option>
-                    <option>Friendly & warm</option>
-                    <option>Bold & energetic</option>
-                    <option>Minimal & clean</option>
-                    <option>Luxury & premium</option>
-                    <option>Playful & fun</option>
-                    <option>Professional & trustworthy</option>
-                  </select>
-                </div>
               </div>
 
-              {/* Topic + extra */}
-              <div className="lg:col-span-2 xl:col-span-1 space-y-4">
-                <div>
-                  <Label>What's it about</Label>
-                  <input
-                    type="text"
-                    value={topic}
-                    onChange={(e) => setTopic(e.target.value)}
-                    placeholder="Main message — e.g. Three ways to save phone data"
-                    className="w-full bg-white border border-ink-200 rounded-xl px-3.5 py-3 text-[14px] focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-                  />
-                </div>
-                <div>
-                  <Label>Extra direction</Label>
-                  <textarea
-                    value={extra}
-                    onChange={(e) => setExtra(e.target.value)}
-                    rows={2}
-                    placeholder="Colours, props, camera angle, references… (optional)"
-                    className="w-full bg-white border border-ink-200 rounded-xl px-3.5 py-3 text-[14px] resize-y focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-7 pt-5 border-t border-ink-100 flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={generate}
-                disabled={generating}
-                className="px-7 py-3.5 rounded-2xl gradient-brand text-white text-[15px] font-bold flex items-center justify-center gap-2.5 hover:shadow-glow-lg disabled:opacity-80 disabled:cursor-not-allowed transition-all duration-200"
-              >
-                {generating ? (
-                  <>
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-                    Writing your prompt…
-                  </>
-                ) : (
-                  <>
-                    <span className="text-white">{icons.spark}</span>
-                    2 · {prompt ? 'Rewrite the prompt' : 'Write the prompt'}
-                  </>
-                )}
-              </button>
-              {prompt && (
+              <div className="border-t border-ink-100 pt-4">
                 <button
                   type="button"
-                  onClick={() => setBriefOpen(false)}
-                  className="text-[13px] font-semibold text-ink-500 hover:text-ink-800"
+                  onClick={() => setMoreOpen((v) => !v)}
+                  className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-ink-700 hover:text-ink-900"
                 >
-                  Keep current prompt
+                  <span className={`transition-transform duration-200 ${moreOpen ? 'rotate-90' : ''}`}>›</span>
+                  More options
+                  {(mood || extra.trim()) && !moreOpen && (
+                    <span className="ml-1 text-[11px] font-normal text-ink-500">
+                      · {[mood, extra.trim() && 'extra direction'].filter(Boolean).join(', ')}
+                    </span>
+                  )}
                 </button>
-              )}
-            </div>
-          </section>
+                {moreOpen && (
+                  <div className="mt-4 grid sm:grid-cols-2 gap-4">
+                    <div>
+                      <Label>Mood / tone</Label>
+                      <select
+                        value={mood}
+                        onChange={(e) => setMood(e.target.value)}
+                        className="w-full bg-white border border-ink-200 rounded-xl px-3 py-2.5 text-[12.5px] focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/15"
+                      >
+                        <option value="">No preference</option>
+                        <option>Friendly & warm</option>
+                        <option>Bold & energetic</option>
+                        <option>Minimal & clean</option>
+                        <option>Luxury & premium</option>
+                        <option>Playful & fun</option>
+                        <option>Professional & trustworthy</option>
+                      </select>
+                    </div>
+                    <div>
+                      <Label>Extra direction</Label>
+                      <AutoTextarea
+                        value={extra}
+                        onChange={(e) => setExtra(e.target.value)}
+                        minRows={2}
+                        maxRows={6}
+                        placeholder="Colours, props, camera angle, references…"
+                        className="w-full bg-white border border-ink-200 rounded-xl px-3 py-2.5 text-[12.5px] focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/15"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+              </div>
+            </section>
+
+          </div>
         ) : (
           <button
             type="button"
@@ -640,10 +638,10 @@ export default function AIPromptPage() {
                 {icons[type]}
               </span>
               <div className="min-w-0">
-                <div className="text-[13.5px] font-bold text-ink-900 flex items-center gap-2">
+                <div className="text-[12.5px] font-bold text-ink-900 flex items-center gap-2">
                   <span className="text-[10px] font-bold uppercase tracking-wide text-ink-400">Step 1 · Brief</span>
                 </div>
-                <div className="text-[12.5px] text-ink-500 truncate">
+                <div className="text-[11.5px] text-ink-500 truncate">
                   <b className="text-ink-800">{brandObj?.name}</b>
                   <span className="text-ink-400"> · </span>
                   {isImage ? 'Image' : 'Video'}
@@ -655,7 +653,7 @@ export default function AIPromptPage() {
                 </div>
               </div>
             </div>
-            <span className="ml-auto flex-none text-[12.5px] font-bold text-brand">Edit brief</span>
+            <span className="ml-auto flex-none text-[11.5px] font-bold text-brand">Edit brief</span>
           </button>
         )}
 
@@ -667,7 +665,7 @@ export default function AIPromptPage() {
               <StepHead n={2} title="Prompt" hint="Edit directly, or tell the agent what to change" />
               <div className="flex items-center gap-2 flex-none pt-1">
                 {promptTokens > 0 && (
-                  <span className="text-[11.5px] font-mono text-ink-400">{fmtTok(promptTokens)} tok</span>
+                  <span className="text-[10.5px] font-mono text-ink-400">{fmtTok(promptTokens)} tok</span>
                 )}
                 <Tag variant={aiUsed ? 'lime' : 'idle'}>{aiUsed ? 'AI-written' : 'Template'}</Tag>
                 {copied && <Tag variant="ok">Copied</Tag>}
@@ -678,9 +676,9 @@ export default function AIPromptPage() {
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               rows={16}
-              className="mt-5 w-full min-h-[340px] max-h-[62vh] font-sans text-[13.5px] text-ink-800 bg-ink-50/60 border border-ink-200/80 rounded-2xl p-4 lg:p-5 leading-[1.65] resize-y focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+              className="mt-5 w-full min-h-[340px] max-h-[62vh] font-sans text-[12.5px] text-ink-800 bg-ink-50/60 border border-ink-200/80 rounded-2xl p-4 lg:p-5 leading-[1.65] resize-y focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
             />
-            <div className="mt-1.5 text-right text-[11px] text-ink-400 font-mono">
+            <div className="mt-1.5 text-right text-[10px] text-ink-400 font-mono">
               {prompt.trim().split(/\s+/).filter(Boolean).length} words
             </div>
 
@@ -691,13 +689,13 @@ export default function AIPromptPage() {
                 onChange={(e) => setFeedback(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && refine()}
                 placeholder="e.g. more cinematic, add a product close-up, warmer light"
-                className="flex-1 bg-white border border-ink-200 rounded-xl px-3.5 py-2.5 text-[13.5px] focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+                className="flex-1 bg-white border border-ink-200 rounded-xl px-3.5 py-2.5 text-[12.5px] focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
               />
               <button
                 type="button"
                 onClick={refine}
                 disabled={refining || !feedback.trim()}
-                className="px-5 py-2.5 rounded-xl border-2 border-brand text-brand text-[13px] font-bold hover:bg-brand/5 disabled:opacity-50 transition-all duration-150 flex items-center justify-center gap-2"
+                className="px-5 py-2.5 rounded-xl border-2 border-brand text-brand text-[12px] font-bold hover:bg-brand/5 disabled:opacity-50 transition-all duration-150 flex items-center justify-center gap-2"
               >
                 {refining && (
                   <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand/30 border-t-brand" />
@@ -708,14 +706,14 @@ export default function AIPromptPage() {
 
             {history.length > 1 && (
               <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                <span className="text-[11px] font-semibold text-ink-400 uppercase tracking-wide mr-1">Versions</span>
+                <span className="text-[10px] font-semibold text-ink-400 uppercase tracking-wide mr-1">Versions</span>
                 {history.map((h, i) => (
                   <button
                     key={i}
                     type="button"
                     title={h.note}
                     onClick={() => setPrompt(h.text)}
-                    className={`px-2 py-1 rounded-lg text-[11.5px] font-semibold border transition-all duration-150 ${
+                    className={`px-2 py-1 rounded-lg text-[10.5px] font-semibold border transition-all duration-150 ${
                       h.text === prompt ? 'border-brand bg-brand/5 text-ink-800' : 'border-ink-200 text-ink-500 hover:border-ink-300'
                     }`}
                   >
@@ -729,7 +727,7 @@ export default function AIPromptPage() {
               <button
                 type="button"
                 onClick={copy}
-                className="px-4 py-2 rounded-xl border border-ink-300 text-ink-700 text-[13px] font-bold flex items-center gap-2 hover:bg-ink-50 transition-all duration-150"
+                className="px-4 py-2 rounded-xl border border-ink-300 text-ink-700 text-[12px] font-bold flex items-center gap-2 hover:bg-ink-50 transition-all duration-150"
               >
                 {icons.copy} {copied ? 'Copied' : 'Copy'}
               </button>
@@ -749,7 +747,7 @@ export default function AIPromptPage() {
                 />
                 <div className="flex-none flex items-center gap-2 pt-1">
                   {job?.status === 'succeeded' && job?.total_tokens > 0 && (
-                    <span className="text-[11.5px] font-mono text-ink-400">
+                    <span className="text-[10.5px] font-mono text-ink-400">
                       {fmtTok(job.total_tokens)} tok
                     </span>
                   )}
@@ -761,7 +759,7 @@ export default function AIPromptPage() {
               {!job?.video ? (
                 <div className="mt-6 space-y-4">
                   {isImage && refImg && (
-                    <div className="flex items-center gap-2.5 rounded-xl border border-brand/20 bg-brand/5 px-3 py-2 text-[12px] text-ink-600">
+                    <div className="flex items-center gap-2.5 rounded-xl border border-brand/20 bg-brand/5 px-3 py-2 text-[11px] text-ink-600">
                       <img src={refImg.previewUrl} alt="" className="w-9 h-9 rounded-lg object-cover flex-none" />
                       <span className="flex-1 min-w-0 truncate">
                         Building on <b className="text-ink-800">{refImg.name}</b>
@@ -782,8 +780,8 @@ export default function AIPromptPage() {
                             ratio === r.id ? 'border-brand ring-2 ring-brand/20 bg-white shadow-card' : 'border-ink-200 bg-white hover:border-ink-300'
                           }`}
                         >
-                          <div className="text-[13px] font-bold text-ink-800">{r.name}</div>
-                          <div className="text-[10.5px] text-ink-400 leading-tight mt-0.5">{r.sub}</div>
+                          <div className="text-[12px] font-bold text-ink-800">{r.name}</div>
+                          <div className="text-[10px] text-ink-400 leading-tight mt-0.5">{r.sub}</div>
                         </button>
                       ))}
                     </div>
@@ -808,7 +806,7 @@ export default function AIPromptPage() {
                     type="button"
                     onClick={isImage ? generateImage : generateVideo}
                     disabled={busy}
-                    className="w-full px-7 py-3.5 rounded-2xl gradient-brand text-white text-[15px] font-bold flex items-center justify-center gap-2.5 hover:shadow-glow-lg disabled:opacity-80 disabled:cursor-not-allowed transition-all duration-200"
+                    className="w-full px-7 py-3.5 rounded-2xl gradient-brand text-white text-[14px] font-bold flex items-center justify-center gap-2.5 hover:shadow-glow-lg disabled:opacity-80 disabled:cursor-not-allowed transition-all duration-200"
                   >
                     {busy ? (
                       <>
@@ -838,7 +836,7 @@ export default function AIPromptPage() {
                           style={{ width: `${imgPct}%` }}
                         />
                       </div>
-                      <div className="flex items-center justify-between text-[12.5px] text-ink-500">
+                      <div className="flex items-center justify-between text-[11.5px] text-ink-500">
                         <span>{imgStage}</span>
                         <span className="font-mono text-ink-400">
                           ~{fmtTok(imgTokEst)} tok · {Math.round(imgPct)}%
@@ -848,18 +846,18 @@ export default function AIPromptPage() {
                   )}
 
                   {rendering && !isImage && (
-                    <p className="text-[12.5px] text-ink-400">
+                    <p className="text-[11.5px] text-ink-400">
                       This usually takes 1–3 minutes. You can leave this page — the video lands in
                       your library either way.
                     </p>
                   )}
 
                   {job?.status === 'failed' && (
-                    <p className="text-[12.5px] text-red-600">{job.error}</p>
+                    <p className="text-[11.5px] text-red-600">{job.error}</p>
                   )}
 
                   {videoErr && (
-                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-[12.5px] text-amber-800">
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-[11.5px] text-amber-800">
                       <b>{isImage ? 'Image' : 'Video'} generation isn't ready.</b> {videoErr}
                       <div className="mt-1 text-amber-700">
                         {isImage
@@ -901,7 +899,7 @@ export default function AIPromptPage() {
                     <button
                       type="button"
                       onClick={useGeneratedVideo}
-                      className="px-6 py-3 rounded-2xl gradient-brand text-white text-[14px] font-bold hover:shadow-glow-lg transition-all duration-200"
+                      className="px-6 py-3 rounded-2xl gradient-brand text-white text-[13px] font-bold hover:shadow-glow-lg transition-all duration-200"
                     >
                       Use this {isImage ? 'image' : 'video'} → create a post
                     </button>
@@ -911,7 +909,7 @@ export default function AIPromptPage() {
                         setJob(null)
                         setVideoErr(null)
                       }}
-                      className="px-5 py-3 rounded-2xl border border-ink-300 text-ink-600 text-[14px] font-bold hover:bg-ink-50 transition-all duration-150"
+                      className="px-5 py-3 rounded-2xl border border-ink-300 text-ink-600 text-[13px] font-bold hover:bg-ink-50 transition-all duration-150"
                     >
                       {isImage ? 'Generate again' : 'Render again'}
                     </button>
@@ -919,7 +917,7 @@ export default function AIPromptPage() {
                   <button
                     type="button"
                     onClick={() => navigate('/library')}
-                    className="mt-2 text-[12.5px] font-semibold text-ink-400 hover:text-brand"
+                    className="mt-2 text-[11.5px] font-semibold text-ink-400 hover:text-brand"
                   >
                     Saved to your Library →
                   </button>
@@ -934,7 +932,7 @@ export default function AIPromptPage() {
         {/* Bring your own — tucked away */}
         {prompt && !job?.video && (
           <details className="group bg-white border border-ink-100 rounded-2xl px-5 py-4">
-            <summary className="cursor-pointer list-none text-[12.5px] font-bold tracking-wide uppercase text-ink-400 flex items-center justify-between">
+            <summary className="cursor-pointer list-none text-[11.5px] font-bold tracking-wide uppercase text-ink-400 flex items-center justify-between">
               Or bring your own file
               <span className="text-ink-300 group-open:rotate-180 transition-transform">⌄</span>
             </summary>
@@ -947,13 +945,13 @@ export default function AIPromptPage() {
                     <video src={asset.url} className="w-14 h-14 rounded-lg object-cover flex-none bg-ink-900" muted />
                   )}
                   <div className="flex-1 min-w-0">
-                    <div className="text-[13px] font-semibold text-ink-800 truncate">{asset.name}</div>
-                    <div className="text-[12px] text-ink-400">{asset.kind} · {humanSize(asset.size)}</div>
+                    <div className="text-[12px] font-semibold text-ink-800 truncate">{asset.name}</div>
+                    <div className="text-[11px] text-ink-400">{asset.kind} · {humanSize(asset.size)}</div>
                   </div>
                   <button
                     type="button"
                     onClick={useDroppedAsset}
-                    className="px-3 py-1.5 rounded-lg gradient-brand text-white text-[12.5px] font-bold"
+                    className="px-3 py-1.5 rounded-lg gradient-brand text-white text-[11.5px] font-bold"
                   >
                     Use it →
                   </button>
@@ -963,7 +961,7 @@ export default function AIPromptPage() {
                       URL.revokeObjectURL(asset.url)
                       setAsset(null)
                     }}
-                    className="px-2.5 py-1.5 rounded-lg text-[12.5px] font-medium text-ink-500 hover:bg-ink-100 hover:text-ink-800 transition-all duration-150"
+                    className="px-2.5 py-1.5 rounded-lg text-[11.5px] font-medium text-ink-500 hover:bg-ink-100 hover:text-ink-800 transition-all duration-150"
                   >
                     Remove
                   </button>
@@ -986,19 +984,19 @@ export default function AIPromptPage() {
 
 function Label({ children }) {
   return (
-    <label className="block text-[11px] font-bold tracking-[.09em] uppercase text-ink-400 mb-2">{children}</label>
+    <label className="block text-[10px] font-bold tracking-[.09em] uppercase text-ink-400 mb-2">{children}</label>
   )
 }
 
 function StepHead({ n, title, hint }) {
   return (
     <div className="flex items-center gap-3">
-      <span className="w-9 h-9 rounded-xl grid place-items-center flex-none text-[14px] font-bold gradient-brand text-white shadow-glow">
+      <span className="w-9 h-9 rounded-xl grid place-items-center flex-none text-[13px] font-bold gradient-brand text-white shadow-glow">
         {n}
       </span>
       <div className="min-w-0">
-        <div className="text-[15.5px] font-bold text-ink-900 leading-tight">{title}</div>
-        <div className="text-[12.5px] text-ink-400">{hint}</div>
+        <div className="text-[14.5px] font-bold text-ink-900 leading-tight">{title}</div>
+        <div className="text-[11.5px] text-ink-400">{hint}</div>
       </div>
     </div>
   )
@@ -1024,13 +1022,13 @@ function StepIndicator({ current }) {
               }`}
             >
               <span
-                className={`w-5 h-5 rounded-full grid place-items-center text-[10.5px] font-bold flex-none ${
+                className={`w-5 h-5 rounded-full grid place-items-center text-[10px] font-bold flex-none ${
                   state === 'done' || state === 'active' ? 'gradient-brand text-white' : 'bg-ink-100 text-ink-500'
                 }`}
               >
                 {state === 'done' ? '✓' : s.n}
               </span>
-              <span className="text-[12px] font-semibold">{s.label}</span>
+              <span className="text-[11px] font-semibold">{s.label}</span>
             </span>
           </div>
         )

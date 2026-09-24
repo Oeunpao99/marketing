@@ -81,10 +81,10 @@ export default function DropZone({
             : 'border-ink-200 hover:border-brand/40 hover:bg-brand/3'
         }`}
       >
-        <span className={`block font-semibold text-ink-800 ${compact ? 'text-[13.5px]' : 'text-[15px]'}`}>
+        <span className={`block font-semibold text-ink-800 ${compact ? 'text-[12.5px]' : 'text-[14px]'}`}>
           {drag ? 'Drop to attach' : title}
         </span>
-        <span className="mt-0.5 block text-[12.5px] text-ink-500">{hint}</span>
+        <span className="mt-0.5 block text-[11.5px] text-ink-500">{hint}</span>
       </button>
       <input
         ref={inputRef}
@@ -96,7 +96,7 @@ export default function DropZone({
           e.target.value = ''
         }}
       />
-      {err && <div className="mt-1.5 text-[12px] text-red-600">{err}</div>}
+      {err && <div className="mt-1.5 text-[11px] text-red-600">{err}</div>}
     </div>
   )
 }

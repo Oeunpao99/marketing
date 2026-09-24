@@ -19,7 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.content_ai import ContentAIError, generate_ideas, image_prompt_for_idea
+from app.content_ai import ContentAIError, fact_check, generate_ideas, image_prompt_for_idea
 from app.database import SessionLocal
 from app.models import Automation, Brand, Channel, Draft, Post, PostTarget, Product, Video
 
@@ -181,10 +181,14 @@ def _write_batch(db: Session, automation: Automation, today: date) -> list[Draft
     ).all()
     count = max(1, min(automation.videos_per_day, 10))
     try:
-        ideas = generate_ideas(brand.name, brand.lang, list(products), automation.topic_source, count)
+        ideas = generate_ideas(
+            brand.name, brand.lang, list(products), automation.topic_source, count, brand.voice_examples or ""
+        )
     except ContentAIError:
         db.commit()  # release the lock even though this attempt failed
         raise
+
+    checks = fact_check([i["caption"] for i in ideas], list(products))
 
     drafts = [
         Draft(
@@ -196,8 +200,9 @@ def _write_batch(db: Session, automation: Automation, today: date) -> list[Draft
             source="ai-auto",
             status="waiting",  # set for real below, once media (if any) is attached
             fit_score=idea.get("fit_score"),
+            fact_issues=checks[n] if checks is not None else None,
         )
-        for idea in ideas
+        for n, idea in enumerate(ideas)
     ]
     db.add_all(drafts)
     db.flush()  # assign ids before scheduling can reference them
@@ -206,7 +211,7 @@ def _write_batch(db: Session, automation: Automation, today: date) -> list[Draft
         if automation.auto_media:
             draft.video_id = _generate_media_for(brand, idea, list(products))
 
-        if automation.require_approval:
+        if automation.require_approval or draft.fact_issues:
             draft.status = "waiting"
             continue
 

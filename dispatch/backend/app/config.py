@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     azure_openai_endpoint: str = ""  # e.g. https://<res>.services.ai.azure.com/openai/v1/
     azure_openai_deployment: str = "gpt-5-mini"
     azure_openai_vision_deployment: str = "gpt-5-mini"
+    # Optional: a separate (stronger) chat deployment used only for brands that
+    # post in Khmer — small models write noticeably stiffer, less natural
+    # Khmer. Blank = use azure_openai_deployment for everything.
+    azure_openai_khmer_deployment: str = ""
 
     # In-portal video generation (AI agent → "Generate video").
     # Provider: "azure_sora" or "gemini_veo".

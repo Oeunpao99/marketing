@@ -6,10 +6,7 @@
    machines that happen to have this font installed locally. Scoped to the
    Khmer Unicode block via unicode-range, so the browser swaps to it for
    Khmer characters automatically wherever they appear — Latin text on the
-   same element keeps using whatever font-family is already set. This means
-   Khmer text doesn't need a `.khmer`/`font-khmer` class hunt through every
-   component (a page that forgot one, like the Calendar did, silently fell
-   back to Nunito Sans, which has no Khmer glyphs). */
+   same element keeps using whatever font-family is already set. */
 @font-face {
   font-family: 'Khmer OS Siemreap';
   src: url('/fonts/KhmerOSsiemreap.ttf') format('truetype');
@@ -20,31 +17,33 @@
 @layer base {
   html, body {
     @apply m-0 p-0 bg-ink-50 text-ink-900 antialiased;
-    font-family: 'Khmer OS Siemreap', 'Nunito Sans', system-ui, sans-serif;
+    font-family: 'Inter', 'Khmer OS Siemreap', system-ui, sans-serif;
   }
   * { @apply box-border; }
   button, input, select, textarea { @apply font-[inherit] text-[inherit]; }
+  /* No drag-to-resize corner anywhere — text boxes grow with their content
+     (see components/ui/AutoTextarea) or scroll inside a fixed height. */
+  textarea { resize: none; }
   :focus-visible { @apply outline-2 outline-offset-2 outline-brand/50 rounded; }
 }
 
 /* Ultra-thin scrollbars everywhere */
 * {
-  scrollbar-width: thin; /* Firefox — 1px isn't possible here, "thin" is the min */
-  scrollbar-color: rgba(100, 110, 125, 0.35) transparent;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 110, 125, 0.28) transparent;
 }
 *::-webkit-scrollbar { width: 1px; height: 1px; }
 *::-webkit-scrollbar-track { background: transparent; }
-*::-webkit-scrollbar-thumb { background: rgba(100, 110, 125, 0.4); border-radius: 1px; }
-*::-webkit-scrollbar-thumb:hover { background: rgba(100, 110, 125, 0.65); }
+*::-webkit-scrollbar-thumb { background: rgba(100, 110, 125, 0.3); border-radius: 1px; }
+*::-webkit-scrollbar-thumb:hover { background: rgba(100, 110, 125, 0.55); }
 *::-webkit-scrollbar-corner { background: transparent; }
 
-/* Sidebar keeps its fully hidden scrollbar */
 .side-scroll { scrollbar-width: none; }
 .side-scroll::-webkit-scrollbar { width: 0; height: 0; }
 
 select {
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5L6 7.5 9 4.5' stroke='%23636E7B' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5L6 7.5 9 4.5' stroke='%236B7683' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 10px center;
   padding-right: 30px;
@@ -53,33 +52,133 @@ select {
 .toast-enter { @apply transition-all duration-200 ease-out; }
 
 .khmer, [lang="km"], textarea[data-khmer], .km-text {
-  font-family: 'Khmer OS Siemreap', 'Nunito Sans', system-ui, sans-serif;
+  font-family: 'Khmer OS Siemreap', 'Inter', system-ui, sans-serif;
 }
 @supports (font-family: 'Khmer OS Siemreap') {
-  .auto-khmer { font-family: 'Khmer OS Siemreap', 'Nunito Sans', sans-serif; }
+  .auto-khmer { font-family: 'Khmer OS Siemreap', 'Inter', sans-serif; }
+}
+
+@layer components {
+  /* ————— buttons ————— */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-[12px] font-semibold transition-all duration-150 whitespace-nowrap select-none disabled:opacity-45 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply btn bg-brand text-white hover:bg-brand-light hover:shadow-glow active:scale-[.98];
+  }
+  .btn-primary-lg {
+    @apply btn bg-brand text-white px-6 py-3 rounded-2xl text-[13px] hover:bg-brand-light hover:shadow-glow-lg active:scale-[.98];
+  }
+  .btn-outline {
+    @apply btn bg-white text-ink-700 border border-ink-200 hover:border-brand-light hover:text-brand hover:bg-brand-soft active:scale-[.98];
+  }
+  .btn-ghost {
+    @apply btn bg-transparent text-ink-500 hover:bg-ink-100 hover:text-ink-800;
+  }
+  .btn-danger {
+    @apply btn bg-red-50 text-red-700 border border-red-200 hover:bg-red-100;
+  }
+
+  /* ————— cards ————— */
+  .card {
+    @apply bg-white/65 backdrop-blur-xl border border-white/60 rounded-2xl shadow-card;
+  }
+  .card-hover {
+    @apply hover:shadow-card-hover hover:bg-white/80 transition-all duration-200;
+  }
+
+  /* ————— frosted glass ————— */
+  .glass {
+    @apply bg-white/60 backdrop-blur-2xl border border-white/60 shadow-card;
+  }
+  .glass-strong {
+    @apply bg-white/80 backdrop-blur-2xl border border-white/70 shadow-card;
+  }
+  .glass-glow {
+    @apply bg-white/70 backdrop-blur-2xl border border-white/60 shadow-pop;
+  }
+  /* Flat, cool light-gray app canvas — white cards sit on it. */
+  .bg-canvas {
+    background: #F4F6F9;
+  }
+
+  /* ————— forms ————— */
+  .input {
+    @apply w-full bg-white border border-ink-200 rounded-xl px-3.5 py-2.5 text-[12.5px] placeholder:text-ink-300 focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/15 transition-all duration-150;
+  }
+  .label {
+    @apply block text-[10px] font-semibold tracking-[.06em] uppercase text-ink-400 mb-1.5;
+  }
+
+  /* ————— pills / chips ————— */
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10.5px] font-semibold;
+  }
+  /* Status chips: dot + plain text, no filled background. */
+  .chip-ok, .chip-warn, .chip-stop, .chip-idle {
+    @apply chip px-0 font-medium text-ink-700;
+  }
+  .chip-ok::before, .chip-warn::before, .chip-stop::before, .chip-idle::before {
+    content: '';
+    @apply w-2 h-2 rounded-full flex-none;
+  }
+  .chip-ok::before   { @apply bg-emerald-500; }
+  .chip-warn::before { @apply bg-amber-400; }
+  .chip-stop::before { @apply bg-red-500; }
+  .chip-idle::before { @apply bg-ink-300; }
+  .chip-brand { @apply chip bg-brand-soft text-brand border border-brand-line; }
+
+  /* ————— page headings ————— */
+  .page-title {
+    @apply font-display text-[26px] lg:text-[31.5px] leading-[1.1] tracking-[-0.02em] text-ink-900;
+  }
+  .page-sub {
+    @apply mt-1.5 text-[12.5px] text-ink-500 max-w-[62ch] leading-relaxed;
+  }
+
+  /* ————— AI thinking dots ————— */
+  .ai-dots span {
+    @apply inline-block w-1.5 h-1.5 rounded-full bg-brand animate-ai-dot;
+  }
+  .ai-dots span:nth-child(2) { animation-delay: .15s; }
+  .ai-dots span:nth-child(3) { animation-delay: .3s; }
+
+  /* ————— skeleton loader ————— */
+  .skeleton {
+    @apply relative overflow-hidden rounded-lg bg-ink-100;
+    background-image: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.7) 50%, transparent 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.6s linear infinite;
+  }
 }
 
 @layer utilities {
   .font-display {
-    font-weight: 800;
+    font-weight: 700;
     letter-spacing: -0.02em;
   }
+  /* Used sparingly — primary CTA + special AI moments only */
   .gradient-brand {
-    background: linear-gradient(135deg, #166432 0%, #22853E 50%, #2EA44F 100%);
-  }
-  .gradient-sidebar {
-    background: linear-gradient(180deg, #12141A 0%, #1A2332 50%, #161D28 100%);
-  }
-  .gradient-warm {
-    background: linear-gradient(135deg, #FF6B5A 0%, #F59E0B 100%);
-  }
-  .gradient-cool {
-    background: linear-gradient(135deg, #8B5CF6 0%, #3B82F6 100%);
+    background: linear-gradient(135deg, #135696 0%, #1A6FC4 55%, #2B84D6 100%);
   }
   .text-gradient-brand {
-    background: linear-gradient(135deg, #22853E, #2EA44F);
+    background: linear-gradient(135deg, #1A6FC4, #2B84D6);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+  }
+  /* Deep blue panel used behind login/onboarding side art */
+  .gradient-sidebar {
+    background:
+      radial-gradient(70% 55% at 85% 0%, rgba(90,160,225,0.22), transparent 60%),
+      radial-gradient(45% 50% at 0% 100%, rgba(26,111,196,0.35), transparent 60%),
+      linear-gradient(150deg, #0C2F55 0%, #11457A 55%, #135696 100%);
+  }
+  /* Soft blue wash for hero moments / AI states */
+  .hero-tint {
+    background:
+      radial-gradient(54% 70% at 82% 0%, rgba(26,111,196,0.10), transparent 60%),
+      radial-gradient(40% 60% at 8% 100%, rgba(43,132,214,0.08), transparent 55%),
+      linear-gradient(180deg, #FFFFFF 0%, #F2F7FC 100%);
   }
 }

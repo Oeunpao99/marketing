@@ -70,9 +70,16 @@ function groupTargets(targets) {
 export function StoreProvider({ children }) {
   const [channels, setChannels] = useState([]);
   const [brands, setBrands] = useState([]);
+  const [activeBrand, setActiveBrand] = useState(
+    () => localStorage.getItem("tipsa_brand") || null,
+  );
   const [queue, setQueue] = useState([]);
+  const [queueReady, setQueueReady] = useState(false);
   const [review, setReview] = useState(null); // null = still loading
+  const [reviewReady, setReviewReady] = useState(false);
   const [auto, setAuto] = useState(null); // null = still loading
+  const [autoReady, setAutoReady] = useState(false);
+  const [channelsReady, setChannelsReady] = useState(false);
   const [libraryCount, setLibraryCount] = useState(0);
   const [toast, setToast] = useState(null);
   const pollRef = useRef(null);
@@ -81,7 +88,10 @@ export function StoreProvider({ children }) {
     () =>
       api
         .get("/views/today")
-        .then((targets) => setQueue(groupTargets(targets || [])))
+        .then((targets) => {
+          setQueue(groupTargets(targets || []));
+          setQueueReady(true);
+        })
         .catch(() => {}),
     [],
   );
@@ -124,6 +134,7 @@ export function StoreProvider({ children }) {
               })),
             ),
           );
+          setChannelsReady(true);
         })
         .catch(() => {}),
     [],
@@ -133,7 +144,7 @@ export function StoreProvider({ children }) {
     () =>
       api
         .get("/views/review")
-        .then((drafts) =>
+        .then((drafts) => {
           setReview(
             drafts.map((d) => ({
               id: d.id,
@@ -146,15 +157,24 @@ export function StoreProvider({ children }) {
               source: d.source,
               videoUrl: d.video_url,
               fitScore: d.fit_score,
+              factIssues: d.fact_issues,
             })),
-          ),
-        )
+          );
+          setReviewReady(true);
+        })
         .catch(() => {}),
     [],
   );
 
   const refreshAuto = useCallback(
-    () => api.get("/views/auto").then(setAuto).catch(() => {}),
+    () =>
+      api
+        .get("/views/auto")
+        .then((value) => {
+          setAuto(value);
+          setAutoReady(true);
+        })
+        .catch(() => {}),
     [],
   );
 
@@ -163,6 +183,17 @@ export function StoreProvider({ children }) {
     refreshReview();
     refreshAuto();
   }, [refreshChannels, refreshReview, refreshAuto]);
+
+  // The brand selector drives "active brand". Default to the first brand, and
+  // fall back gracefully if the stored one no longer exists.
+  useEffect(() => {
+    if (!brands.length) return;
+    const exists = brands.some((b) => b.slug === activeBrand);
+    if (!exists) {
+      setActiveBrand(brands[0].slug);
+      localStorage.setItem("tipsa_brand", brands[0].slug);
+    }
+  }, [brands, activeBrand]);
 
   useEffect(() => {
     refreshQueue();
@@ -180,6 +211,15 @@ export function StoreProvider({ children }) {
     toastTimer = setTimeout(() => setToast(null), 2600);
   };
 
+  const switchBrand = (slug) => {
+    setActiveBrand(slug);
+    try {
+      localStorage.setItem("tipsa_brand", slug);
+    } catch {
+      /* ignore */
+    }
+  };
+
   return (
     <StoreContext.Provider
       value={{
@@ -188,17 +228,23 @@ export function StoreProvider({ children }) {
         brands,
         setBrands,
         refreshChannels,
+        channelsReady,
+        activeBrand,
+        switchBrand,
         queue,
         setQueue,
         refreshQueue,
+        queueReady,
         libraryCount,
         refreshCounts,
         review,
         setReview,
         refreshReview,
+        reviewReady,
         auto,
         setAuto,
         refreshAuto,
+        autoReady,
         toast,
         showToast,
       }}

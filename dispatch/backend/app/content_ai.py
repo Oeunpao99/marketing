@@ -55,7 +55,142 @@ class ContentAIError(RuntimeError):
     pass
 
 
-def _brief(brand_name: str, brand_lang: str, products: list[Product], topic_source: str, count: int) -> str:
+KHMER_GUIDE = (
+    "\n\nKHMER LANGUAGE — this brand posts in Khmer for a Cambodian audience:\n"
+    "- Write the way a Cambodian brand's social media admin actually talks to "
+    "followers on Facebook, TikTok and Telegram: natural, everyday spoken Khmer, "
+    "warm and polite — not formal, literary, news-style or government language.\n"
+    "- Think and compose directly in Khmer. Never translate an English sentence "
+    "word by word; if a phrase would sound odd said out loud in Phnom Penh, rephrase it.\n"
+    "- Keep brand names, product names and app/tech words (Facebook, Telegram, "
+    "TikTok, Messenger, AI, chatbot, app, link, inbox, page) in the Latin form "
+    "Cambodians normally write them in — don't force Khmer transliterations of them.\n"
+    "- Short sentences and short paragraphs; line breaks between ideas; emoji "
+    "sparingly, the way local pages use them.\n"
+    "- Correct Khmer spelling. Khmer doesn't put spaces between every word — only "
+    "between phrases/clauses.\n"
+    "- Prices and numbers the way local posts write them (e.g. $5, 20,000 ៛, 24/7).\n"
+    "- End with a natural local call to action (e.g. inviting people to inbox the "
+    "page or send a message), not a stiff translated one.\n"
+    "- The title and insight are for the internal team: write the title in Khmer "
+    "too, but the insight may be in English."
+)
+
+MIXED_GUIDE = (
+    "\n\nLANGUAGE — this brand's audience mixes Khmer and English: write the caption "
+    "mainly in natural spoken Khmer, with English only for the terms Cambodians "
+    "normally say in English (app names, tech words, product names)."
+)
+
+
+def _fix_khmer_punctuation(text: str) -> str:
+    """Models sometimes emit the Devanagari danda (। ॥) where Khmer uses its
+    own khan (។ ៕) — visually close, but wrong to a Khmer reader."""
+    return text.replace("।", "។").replace("॥", "៕")
+
+
+def _is_khmer(brand_lang: str) -> bool:
+    return "khmer" in (brand_lang or "").lower() or any("ក" <= ch <= "៿" for ch in brand_lang or "")
+
+
+def _system_prompt(brand_lang: str) -> str:
+    if not _is_khmer(brand_lang):
+        return SYSTEM_PROMPT
+    mixed = "english" in (brand_lang or "").lower()
+    return SYSTEM_PROMPT + (MIXED_GUIDE if mixed else KHMER_GUIDE)
+
+
+def _chat(messages: list[dict], model: str, max_tokens: int = 4000) -> dict:
+    """One JSON-mode chat completion against Azure OpenAI; returns the parsed
+    JSON object the model replied with."""
+    cfg = get_settings()
+    if not cfg.azure_openai_api_key or not cfg.azure_openai_endpoint:
+        raise ContentAIError("AI service is not configured.")
+    url = f"{cfg.azure_openai_endpoint.rstrip('/')}/chat/completions"
+    try:
+        resp = httpx.post(
+            url,
+            headers={
+                "api-key": cfg.azure_openai_api_key,
+                "Authorization": f"Bearer {cfg.azure_openai_api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": model,
+                "messages": messages,
+                "response_format": {"type": "json_object"},
+                "max_completion_tokens": max_tokens,
+            },
+            timeout=120.0,
+        )
+    except httpx.HTTPError as exc:
+        raise ContentAIError(f"Could not reach the AI service: {exc}") from exc
+    if resp.status_code >= 400:
+        detail = resp.text[:300]
+        try:
+            detail = resp.json().get("error", {}).get("message", detail)
+        except ValueError:
+            pass
+        raise ContentAIError(f"AI service error: {detail}")
+    try:
+        content = resp.json()["choices"][0]["message"]["content"].strip()
+        return json.loads(content)
+    except (KeyError, IndexError, AttributeError, ValueError) as exc:
+        raise ContentAIError("AI service returned an unexpected response.") from exc
+
+
+POLISH_PROMPT = (
+    "You are a native Cambodian copy editor who runs social media pages for local "
+    "brands. You'll get Khmer social media captions written by another writer. "
+    "Rewrite each one so it reads like a real Cambodian page admin wrote it: "
+    "natural everyday spoken Khmer, correct spelling, no word-by-word translation "
+    "feel, no stiff formal/literary wording. Keep every fact, product name, price, "
+    "number, link and hashtag exactly as given — don't add claims. Keep brand, "
+    "product and app names (Facebook, Telegram, TikTok, AI, …) in Latin script. "
+    "Keep roughly the same length and structure (line breaks, call to action).\n"
+    'Respond with ONLY a JSON object: {"captions": ["...", ...]} — same count and '
+    "order as the input."
+)
+
+
+def _polish_khmer(captions: list[str], model: str, voice_examples: str = "") -> list[str]:
+    """Second pass for Khmer: a separate 'native editor' call that rewrites the
+    captions for natural local phrasing. Best-effort — on any failure the
+    original captions are kept rather than losing the batch."""
+    try:
+        data = _chat(
+            [
+                {
+                    "role": "system",
+                    "content": POLISH_PROMPT
+                    + (
+                        "\n\nThis brand's real captions, for voice reference only:\n---\n"
+                        + voice_examples.strip()[:3000]
+                        + "\n---"
+                        if voice_examples and voice_examples.strip()
+                        else ""
+                    ),
+                },
+                {"role": "user", "content": json.dumps({"captions": captions}, ensure_ascii=False)},
+            ],
+            model,
+        )
+        out = data.get("captions") if isinstance(data, dict) else None
+        if isinstance(out, list) and len(out) == len(captions) and all(isinstance(c, str) and c.strip() for c in out):
+            return [c.strip() for c in out]
+    except ContentAIError:
+        pass
+    return captions
+
+
+def _brief(
+    brand_name: str,
+    brand_lang: str,
+    products: list[Product],
+    topic_source: str,
+    count: int,
+    voice_examples: str = "",
+) -> str:
     lines = [
         f"Brand: {brand_name}" + (f" (write in: {brand_lang})" if brand_lang else ""),
         f"How many ideas: {count}",
@@ -75,6 +210,13 @@ def _brief(brand_name: str, brand_lang: str, products: list[Product], topic_sour
             "\nNo product info on file yet — write general brand-appropriate ideas "
             "and note in each insight that adding product details would sharpen it."
         )
+    if voice_examples and voice_examples.strip():
+        lines.append(
+            "\nReal captions this brand has posted — match their voice, wording, "
+            "length and tone closely. Use them ONLY as a style reference: never "
+            "copy facts, prices or claims from them unless they also appear in "
+            "the product info above.\n---\n" + voice_examples.strip()[:3000] + "\n---"
+        )
     return "\n".join(lines)
 
 
@@ -84,54 +226,20 @@ def generate_ideas(
     products: list[Product],
     topic_source: str,
     count: int,
+    voice_examples: str = "",
 ) -> list[dict]:
     cfg = get_settings()
-    if not cfg.azure_openai_api_key or not cfg.azure_openai_endpoint:
-        raise ContentAIError("AI service is not configured.")
-
-    base = cfg.azure_openai_endpoint.rstrip("/")
-    url = f"{base}/chat/completions"
-    body = {
-        "model": cfg.azure_openai_deployment,
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": _brief(brand_name, brand_lang, products, topic_source, count)},
+    khmer = _is_khmer(brand_lang)
+    # Khmer quality depends heavily on the model — a Khmer brand can use its own
+    # (stronger) deployment via AZURE_OPENAI_KHMER_DEPLOYMENT.
+    model = (cfg.azure_openai_khmer_deployment if khmer else "") or cfg.azure_openai_deployment
+    parsed = _chat(
+        [
+            {"role": "system", "content": _system_prompt(brand_lang)},
+            {"role": "user", "content": _brief(brand_name, brand_lang, products, topic_source, count, voice_examples)},
         ],
-        "response_format": {"type": "json_object"},
-        "max_completion_tokens": 4000,
-    }
-    try:
-        resp = httpx.post(
-            url,
-            headers={
-                "api-key": cfg.azure_openai_api_key,
-                "Authorization": f"Bearer {cfg.azure_openai_api_key}",
-                "Content-Type": "application/json",
-            },
-            json=body,
-            timeout=120.0,
-        )
-    except httpx.HTTPError as exc:
-        raise ContentAIError(f"Could not reach the AI service: {exc}") from exc
-
-    if resp.status_code >= 400:
-        detail = resp.text[:300]
-        try:
-            detail = resp.json().get("error", {}).get("message", detail)
-        except ValueError:
-            pass
-        raise ContentAIError(f"AI service error: {detail}")
-
-    data = resp.json()
-    try:
-        content = data["choices"][0]["message"]["content"].strip()
-    except (KeyError, IndexError, AttributeError) as exc:
-        raise ContentAIError("AI service returned an unexpected response.") from exc
-
-    try:
-        parsed = json.loads(content)
-    except json.JSONDecodeError as exc:
-        raise ContentAIError("AI service returned malformed JSON.") from exc
+        model,
+    )
 
     ideas = parsed.get("ideas") if isinstance(parsed, dict) else None
     if not isinstance(ideas, list) or not ideas:
@@ -164,7 +272,14 @@ def generate_ideas(
     # Draft. If every idea in this batch fails the bar, keep the single
     # best-scoring one anyway rather than silently writing nothing today.
     survivors = [i for i in cleaned if i["fit_score"] >= MIN_FIT_SCORE]
-    return survivors or [max(cleaned, key=lambda i: i["fit_score"])]
+    result = survivors or [max(cleaned, key=lambda i: i["fit_score"])]
+
+    if khmer:
+        polished = _polish_khmer([i["caption"] for i in result], model, voice_examples)
+        for idea, caption in zip(result, polished):
+            idea["caption"] = _fix_khmer_punctuation(caption)
+            idea["title"] = _fix_khmer_punctuation(idea["title"])
+    return result
 
 
 def image_prompt_for_idea(brand_name: str, brand_lang: str, idea: dict, products: list[Product]) -> str:
@@ -190,3 +305,65 @@ def image_prompt_for_idea(brand_name: str, brand_lang: str, idea: dict, products
         "for live text overlays. No on-image text or logos."
     )
     return "\n".join(lines)
+
+
+FACT_CHECK_PROMPT = (
+    "You fact-check social media captions for a brand before they're posted. "
+    "You get the brand's product information (the ONLY source of truth) and a "
+    "list of captions, which may be in Khmer, English or both. For each caption, "
+    "list every specific factual claim that is NOT supported by the product "
+    "information: prices, discounts, numbers, features, integrations, guarantees, "
+    "results, availability, awards or comparisons. Ignore tone, opinions, "
+    "greetings, calls to action and general benefits that follow directly from a "
+    "listed feature. Write each issue in short plain English, quoting the claim.\n"
+    'Respond with ONLY a JSON object: {"results": [["issue", ...], ...]} — one '
+    "list per caption, same order; an empty list means nothing unsupported."
+)
+
+
+def _product_facts(products: list[Product]) -> str:
+    if not products:
+        return "(no product information on file)"
+    out = []
+    for p in products:
+        entry = f"- {p.name}"
+        if p.description:
+            entry += f": {p.description}"
+        if p.highlights:
+            entry += f" | highlights: {p.highlights}"
+        out.append(entry)
+    return "\n".join(out)
+
+
+def fact_check(captions: list[str], products: list[Product], model: str | None = None) -> list[list[str]] | None:
+    """For each caption, the claims that aren't backed by the product info.
+    Returns None when the check itself couldn't run — callers treat that as
+    "not checked", never as "all clear"."""
+    if not captions:
+        return []
+    cfg = get_settings()
+    try:
+        data = _chat(
+            [
+                {"role": "system", "content": FACT_CHECK_PROMPT},
+                {
+                    "role": "user",
+                    "content": json.dumps(
+                        {"product_information": _product_facts(products), "captions": captions},
+                        ensure_ascii=False,
+                    ),
+                },
+            ],
+            model or cfg.azure_openai_deployment,
+            max_tokens=2000,
+        )
+    except ContentAIError:
+        return None
+    results = data.get("results") if isinstance(data, dict) else None
+    if not isinstance(results, list) or len(results) != len(captions):
+        return None
+    cleaned = []
+    for r in results:
+        items = r if isinstance(r, list) else []
+        cleaned.append([str(x).strip()[:300] for x in items if str(x).strip()][:6])
+    return cleaned

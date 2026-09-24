@@ -57,7 +57,7 @@ function Gate() {
 
   if (loading) {
     return (
-      <div className="min-h-screen grid place-items-center bg-ink-50 text-ink-400 text-[13px]">
+      <div className="min-h-screen grid place-items-center bg-ink-50 text-ink-400 text-[12px]">
         Loading…
       </div>
     );

@@ -6,7 +6,7 @@ export default function Toast({ message }) {
       }`}
     >
       {message && (
-        <div className="bg-ink-900 text-white text-[13.5px] font-medium px-5 py-2.5 rounded-xl shadow-dock border border-white/10">
+        <div className="bg-ink-900 text-white text-[12.5px] font-medium px-5 py-2.5 rounded-xl shadow-dock border border-white/10">
           {message}
         </div>
       )}

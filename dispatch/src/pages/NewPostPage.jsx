@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { FiCheck, FiEdit3, FiSend, FiUsers } from "react-icons/fi";
 import { api } from "../api/client";
 import CaptionComps from "../components/newpost/CaptionComps";
 import ChannelPicker from "../components/newpost/ChannelPicker";
@@ -7,7 +8,7 @@ import VideoStep from "../components/newpost/VideoStep";
 import CircularProgress from "../components/ui/CircularProgress";
 import { PLAT } from "../data/brands";
 import { handoff } from "../lib/handoff";
-import { phnomPenhDate, phnomPenhToISO } from "../lib/tz";
+import { phnomPenhDate, phnomPenhToISO, fullDayLabel } from "../lib/tz";
 import { useStore } from "../store";
 
 function defaultTimeFor(platform) {
@@ -119,18 +120,20 @@ export default function NewPostPage() {
     video && ids.length > 0 && emptyCount === 0 && overCount === 0;
 
   const summary = !video
-    ? "Still needed: no video yet."
+    ? "Still needed: add a video or image first."
     : ids.length === 0
-      ? "Still needed: no channel picked."
+      ? "Still needed: pick where it goes."
       : emptyCount > 0
         ? `Still needed: ${emptyCount} caption${emptyCount === 1 ? " is empty" : "s are empty"}.`
         : overCount > 0
           ? `Still needed: ${overCount} over the character limit.`
           : (() => {
               const ts = ids.map((i) => comps[i]?.time).sort();
+              const d = ids.map((i) => comps[i]?.date).find(Boolean);
+              const { rest: when } = fullDayLabel(d || phnomPenhDate());
               return `${ids.length} post${ids.length === 1 ? "" : "s"} · ${ts[0]}${
                 ts.length > 1 ? ` to ${ts[ts.length - 1]}` : ""
-              } on 4 September`;
+              } on ${when}`;
             })();
 
   /** Resolve the picked (mock) channels to real backend channel ids and send. */
@@ -255,12 +258,47 @@ export default function NewPostPage() {
     }
   };
 
+  const steps = [
+  { n: 1, label: "Asset", icon: FiEdit3, done: !!video },
+  { n: 2, label: "Channels", icon: FiUsers, done: ids.length > 0 },
+  { n: 3, label: "Captions", icon: FiCheck, done: emptyCount === 0 && ids.length > 0 },
+];
+
   return (
-    <div className="p-5 lg:p-8 w-full animate-fadein">
-      <div className="mb-6">
-        <h1 className="font-display text-[38px] leading-tight tracking-tight text-ink-900">
-          New <em className="italic text-brand">post</em>
-        </h1>
+    <div className="w-full px-5 lg:px-10 py-8 lg:py-10 animate-fadein">
+      <div className="mb-5 flex items-end justify-between gap-4 flex-wrap">
+        <div className="min-w-0">
+          <h1 className="page-title">
+            Create a{" "}
+            <span className="text-gradient-brand">post</span>
+          </h1>
+          <p className="page-sub">
+            Drop an asset, pick the channels, then fine-tune each caption before it goes out.
+          </p>
+        </div>
+
+        {/* Stepper */}
+        <ol className="flex items-center gap-2 shrink-0">
+          {steps.map((s, i) => (
+            <li key={s.n} className="flex items-center gap-2">
+              {i > 0 && <span className="w-5 h-px bg-ink-200" />}
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10.5px] font-semibold border transition-all duration-200 ${
+                  s.done
+                    ? "border-brand-line bg-brand-soft text-brand"
+                    : "border-ink-200 bg-white text-ink-400"
+                }`}
+              >
+                {s.done ? (
+                  <FiCheck size={12} className="text-brand" />
+                ) : (
+                  <span className="text-[10px] font-bold text-ink-400">{s.n}</span>
+                )}
+                {s.label}
+              </span>
+            </li>
+          ))}
+        </ol>
       </div>
 
       <VideoStep hasVideo={!!video} video={video} onSetVideo={setVideo} />
@@ -279,13 +317,13 @@ export default function NewPostPage() {
       />
 
       {error && (
-        <div className="mt-4 bg-red-50 border border-red-200 rounded-xl px-3.5 py-2.5 text-[13px] text-red-700">
+        <div className="mt-4 bg-red-50 border border-red-200 rounded-xl px-3.5 py-2.5 text-[12px] text-red-700">
           {error}
         </div>
       )}
 
-      <div className="mt-5 flex items-center justify-between gap-4 flex-wrap">
-        <div className="text-[13px] text-ink-500">
+      <div className="mt-5 card px-5 py-4 flex items-center justify-between gap-4 flex-wrap">
+        <div className="text-[12px] text-ink-500 min-w-0">
           {summary.startsWith("Still needed") ? (
             <span role="status">{summary}</span>
           ) : (
@@ -296,7 +334,7 @@ export default function NewPostPage() {
           <button
             type="button"
             onClick={() => showToast("Saved as draft")}
-            className="px-3.5 py-1.5 rounded-xl bg-ink-50 border border-ink-200 text-ink-600 text-[13.5px] font-medium hover:bg-ink-100 transition-all duration-150"
+            className="btn-ghost"
           >
             Save draft
           </button>
@@ -304,7 +342,7 @@ export default function NewPostPage() {
             type="button"
             onClick={() => send(false)}
             disabled={!canSchedule || busy}
-            className="px-3.5 py-1.5 rounded-xl bg-white border border-brand text-brand text-[13.5px] font-semibold hover:bg-brand/5 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150"
+            className="btn-outline"
           >
             {busy
               ? "Working…"
@@ -314,30 +352,31 @@ export default function NewPostPage() {
             type="button"
             onClick={() => send(true)}
             disabled={!canSchedule || busy}
-            className="px-3.5 py-1.5 rounded-xl gradient-brand text-white text-[13.5px] font-semibold hover:shadow-glow-lg disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
+            className="btn-primary"
           >
+            <FiSend size={14} />
             {busy ? "Posting…" : "Post now"}
           </button>
         </div>
       </div>
 
       {postMode === "post" && (
-        <div className="fixed inset-0 z-50 bg-ink-950/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fadein">
-          <div className="bg-white rounded-3xl p-8 flex flex-col items-center gap-4 max-w-xs w-full text-center">
+        <div className="fixed inset-0 z-50 bg-ink-950/25 backdrop-blur-md flex items-center justify-center p-4 animate-fadein">
+          <div className="glass-strong rounded-3xl p-8 flex flex-col items-center gap-4 max-w-xs w-full text-center">
             <CircularProgress percent={postPct} size={128} stroke={11}>
               {postDone ? (
-                <span className="text-4xl text-brand animate-fadein">✓</span>
+                <span className="text-4xl text-brand animate-check-pop">✓</span>
               ) : (
-                <span className="font-display text-[26px] text-ink-900 font-mono">
+                <span className="font-display text-[24px] text-ink-900 font-mono">
                   {Math.round(postPct)}%
                 </span>
               )}
             </CircularProgress>
             <div>
-              <div className="font-bold text-ink-900 text-[15px]">
+              <div className="font-bold text-ink-900 text-[14px]">
                 {postDone ? "Sent!" : "Posting…"}
               </div>
-              <div className="mt-1 text-[12.5px] text-ink-400">
+              <div className="mt-1 text-[11.5px] text-ink-400">
                 {postDone
                   ? "Taking you to the post…"
                   : `Sending to ${selected.length} channel${selected.length === 1 ? "" : "s"}`}

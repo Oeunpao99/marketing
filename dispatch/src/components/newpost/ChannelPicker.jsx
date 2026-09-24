@@ -13,7 +13,7 @@ const PLAT_COLORS = {
 export default function ChannelPicker({ brands, channels, selectedChannels, toggle }) {
   return (
     <section className="mb-7">
-      <h2 className="mb-2.5 text-[11px] font-bold tracking-[.08em] uppercase text-ink-400">Where it goes</h2>
+      <h2 className="mb-2.5 text-[10px] font-bold tracking-[.08em] uppercase text-ink-400">Where it goes</h2>
       <div className="grid sm:grid-cols-3 gap-3">
         {brands.map((b) => {
           const channelRows = channels.filter((c) => c.b === b.slug)
@@ -24,7 +24,7 @@ export default function ChannelPicker({ brands, channels, selectedChannels, togg
                 <span className="w-2 h-2 rounded-full" style={{ background: color, boxShadow: `0 0 6px ${color}30` }} />
                 <span className="text-sm font-bold text-ink-800">{b.name}</span>
               </div>
-              <div className="text-[12px] text-ink-400 mb-2">{b.lang}</div>
+              <div className="text-[11px] text-ink-400 mb-2">{b.lang}</div>
               {channelRows.map((c) => (
                 <CheckRow
                   key={c.id}
@@ -46,7 +46,7 @@ export default function ChannelPicker({ brands, channels, selectedChannels, togg
 function CheckRow({ platform, label, off, checked, onChange }) {
   return (
     <label
-      className={`flex items-center gap-2 py-1.5 text-[13.5px] font-semibold ${off ? 'text-ink-400 cursor-not-allowed' : 'cursor-pointer text-ink-700 hover:text-ink-900 transition-all duration-150'}`}
+      className={`flex items-center gap-2 py-1.5 text-[12.5px] font-semibold ${off ? 'text-ink-400 cursor-not-allowed' : 'cursor-pointer text-ink-700 hover:text-ink-900 transition-all duration-150'}`}
     >
       <input
         type="checkbox"
@@ -57,7 +57,7 @@ function CheckRow({ platform, label, off, checked, onChange }) {
       />
       <PlatformIcon name={PLAT[platform]?.name} className={`flex-none ${off ? 'opacity-40' : ''} ${PLAT_COLORS[PLAT[platform]?.name] || 'text-ink-500'}`} />
       {label}
-      {off && <span className="text-[11.5px] text-ink-400">— not connected</span>}
+      {off && <span className="text-[10.5px] text-ink-400">— not connected</span>}
     </label>
   )
 }

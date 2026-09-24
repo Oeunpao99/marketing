@@ -361,7 +361,7 @@ export default function AddChannelPage() {
   /* ═══════════ SUCCESS ═══════════ */
   if (step === "success") {
     return (
-      <div className="p-5 lg:p-8 w-full animate-fadein">
+      <div className="w-full px-5 lg:px-10 py-8 lg:py-10 animate-fadein">
         <div className="max-w-lg mx-auto text-center py-16">
           <div className="w-16 h-16 rounded-2xl gradient-brand flex items-center justify-center mx-auto mb-4 shadow-glow-lg">
             <span className="text-2xl text-white">✓</span>
@@ -370,7 +370,7 @@ export default function AddChannelPage() {
             Connected!
           </h1>
           {connected?.name ? (
-            <p className="text-ink-500 mb-6 text-[15px]">
+            <p className="text-ink-500 mb-6 text-[14px]">
               <b className="text-ink-800">{connected.name}</b> is now linked to{" "}
               {connected.brandName ||
                 brands.find((b) => b.slug === selectedBrand)?.name}
@@ -378,7 +378,7 @@ export default function AddChannelPage() {
                 <>
                   {" "}
                   via{" "}
-                  <span className="font-mono text-[13px]">
+                  <span className="font-mono text-[12px]">
                     @{connected.bot}
                   </span>
                 </>
@@ -388,7 +388,7 @@ export default function AddChannelPage() {
                 " Posts scheduled to it will be published for real."}
             </p>
           ) : (
-            <p className="text-ink-500 mb-6 text-[15px]">
+            <p className="text-ink-500 mb-6 text-[14px]">
               {PLAT[selectedPlatform].name} is now linked to{" "}
               {brands.find((b) => b.slug === selectedBrand)?.name}.
               {meta?.live &&
@@ -398,13 +398,13 @@ export default function AddChannelPage() {
           <div className="flex gap-3 justify-center">
             <button
               onClick={resetFlow}
-              className="px-4 py-2 rounded-xl bg-ink-50 border border-ink-200 text-ink-700 font-medium hover:bg-ink-100 transition-all duration-150"
+              className="btn-outline"
             >
               Add another
             </button>
             <button
               onClick={() => navigate("/channels")}
-              className="px-4 py-2 rounded-xl gradient-brand text-white font-semibold hover:shadow-glow-lg transition-all duration-200"
+              className="btn-primary"
             >
               Back to Channels
             </button>
@@ -417,7 +417,7 @@ export default function AddChannelPage() {
   /* ═══════════ PICK A PAGE (Facebook/Instagram) ═══════════ */
   if (step === "meta-pages") {
     return (
-      <div className="p-5 lg:p-8 w-full animate-fadein">
+      <div className="w-full px-5 lg:px-10 py-8 lg:py-10 animate-fadein">
         <button
           onClick={resetFlow}
           className="text-sm text-ink-500 hover:text-ink-700 mb-4 transition-all duration-150"
@@ -426,10 +426,10 @@ export default function AddChannelPage() {
         </button>
 
         <div className="mb-6">
-          <h1 className="font-display text-[38px] leading-tight tracking-tight text-ink-900">
+          <h1 className="page-title">
             Pick a <em className="italic text-brand">Page</em>
           </h1>
-          <p className="mt-1.5 text-ink-500 max-w-[56ch] text-[15px]">
+          <p className="page-sub mt-1">
             {pending && (
               <>
                 For <b className="text-ink-700">{pending.brand_name}</b>. Facebook returned every
@@ -440,9 +440,18 @@ export default function AddChannelPage() {
         </div>
 
         {pendingLoading ? (
-          <div className="text-ink-400 text-[13px]">Loading…</div>
+          <div className="space-y-3 max-w-lg">
+            {Array.from({ length: 2 }).map((_, i) => (
+              <div key={i} className="card p-4 space-y-2">
+                <div className="h-3 w-40 rounded skeleton" />
+                <div className="h-3 w-56 rounded skeleton" />
+              </div>
+            ))}
+          </div>
         ) : !pending?.pages?.length ? (
-          <div className="text-ink-400 text-[13px]">No Pages to show.</div>
+          <div className="card px-5 py-10 text-center text-ink-400 text-[12px]">
+            No Pages to show.
+          </div>
         ) : (
           <div className="space-y-3 max-w-lg">
             {pending.pages.map((p) => (
@@ -458,7 +467,7 @@ export default function AddChannelPage() {
         )}
 
         {error && (
-          <div className="mt-4 max-w-lg bg-red-50 border border-red-200 rounded-xl px-3.5 py-2.5 text-[13px] text-red-700">
+          <div className="mt-4 max-w-lg bg-red-50 border border-red-200 rounded-xl px-3.5 py-2.5 text-[12px] text-red-700">
             {error}
           </div>
         )}
@@ -470,7 +479,7 @@ export default function AddChannelPage() {
   if (step === "credentials" && meta?.fields) {
     const brand = brands.find((b) => b.slug === selectedBrand);
     return (
-      <div className="p-5 lg:p-8 w-full animate-fadein">
+      <div className="w-full px-5 lg:px-10 py-8 lg:py-10 animate-fadein">
         <button
           onClick={() => {
             setStep("connect");
@@ -482,10 +491,10 @@ export default function AddChannelPage() {
         </button>
 
         <div className="mb-6">
-          <h1 className="font-display text-[38px] leading-tight tracking-tight text-ink-900">
+          <h1 className="page-title">
             Connect <em className="italic text-brand">{meta.label}</em>
           </h1>
-          <p className="mt-1.5 text-ink-500 max-w-[56ch] text-[15px]">
+          <p className="page-sub mt-1">
             For <b className="text-ink-700">{brand?.name}</b>. Create a bot with{" "}
             <a
               href="https://t.me/BotFather"
@@ -503,10 +512,10 @@ export default function AddChannelPage() {
         <div className="space-y-4 max-w-lg">
           {meta.fields.map((f) => (
             <label key={f.key} className="block">
-              <span className="block font-semibold text-[12.5px] text-ink-800 mb-1">
+              <span className="block font-semibold text-[11.5px] text-ink-800 mb-1">
                 {f.label}
               </span>
-              <span className="block text-[12px] text-ink-400 mb-1.5 leading-snug">
+              <span className="block text-[11px] text-ink-400 mb-1.5 leading-snug">
                 {f.hint}
               </span>
               <input
@@ -517,13 +526,13 @@ export default function AddChannelPage() {
                 onChange={(e) =>
                   setCreds((c) => ({ ...c, [f.key]: e.target.value }))
                 }
-                className="w-full bg-ink-50 border border-ink-200 rounded-xl px-3 py-2 text-[13.5px] font-mono focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+                className="input font-mono"
               />
             </label>
           ))}
 
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-xl px-3.5 py-2.5 text-[13px] text-red-700">
+            <div className="bg-red-50 border border-red-200 rounded-xl px-3.5 py-2.5 text-[12px] text-red-700">
               {error}
             </div>
           )}
@@ -533,11 +542,11 @@ export default function AddChannelPage() {
               type="button"
               disabled={busy}
               onClick={connectTelegram}
-              className="px-4 py-2 rounded-xl gradient-brand text-white text-[13.5px] font-semibold hover:shadow-glow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+              className="btn-primary"
             >
               {busy ? "Connecting…" : "Connect channel"}
             </button>
-            <span className="text-[12px] text-ink-400">
+            <span className="text-[11px] text-ink-400">
               The bot token is stored server-side and never shown again.
             </span>
           </div>
@@ -552,7 +561,7 @@ export default function AddChannelPage() {
       channels.some((c) => c.b === brandId && c.p === selectedPlatform);
 
     return (
-      <div className="p-5 lg:p-8 w-full animate-fadein">
+      <div className="w-full px-5 lg:px-10 py-8 lg:py-10 animate-fadein">
         <button
           onClick={() => setStep("pick")}
           className="text-sm text-ink-500 hover:text-ink-700 mb-4 transition-all duration-150"
@@ -561,16 +570,16 @@ export default function AddChannelPage() {
         </button>
 
         <div className="mb-6">
-          <h1 className="font-display text-[38px] leading-tight tracking-tight text-ink-900">
+          <h1 className="page-title">
             Connect <em className="italic text-brand">{meta.label}</em>
           </h1>
-          <p className="mt-1.5 text-ink-500 max-w-[56ch] text-[15px]">
+          <p className="page-sub mt-1">
             {meta.desc}
           </p>
         </div>
 
         <div className="space-y-3 max-w-lg">
-          <p className="text-[12.5px] font-bold text-ink-400 uppercase tracking-wide">
+          <p className="text-[11.5px] font-bold text-ink-400 uppercase tracking-wide">
             Choose a brand
           </p>
           {brands.map((b) => {
@@ -599,12 +608,12 @@ export default function AddChannelPage() {
                     <div className="font-semibold text-ink-800 text-sm">
                       {b.name}
                     </div>
-                    <div className="text-[12.5px] text-ink-400">{b.lang}</div>
+                    <div className="text-[11.5px] text-ink-400">{b.lang}</div>
                   </div>
                   {isConnected ? (
                     <Tag variant="ok">Connected</Tag>
                   ) : (
-                    <span className="text-[12.5px] text-brand font-semibold">
+                    <span className="text-[11.5px] text-brand font-semibold">
                       {busy
                         ? `Redirecting to ${meta.label}…`
                         : meta.fields
@@ -617,7 +626,7 @@ export default function AddChannelPage() {
             );
           })}
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-xl px-3.5 py-2.5 text-[13px] text-red-700">
+            <div className="bg-red-50 border border-red-200 rounded-xl px-3.5 py-2.5 text-[12px] text-red-700">
               {error}
             </div>
           )}
@@ -627,77 +636,87 @@ export default function AddChannelPage() {
   }
 
   /* ═══════════ PICK PLATFORM ═══════════ */
+  const choosePlatform = (id, m) => {
+    setSelectedPlatform(id);
+    setCreds({});
+    setError(null);
+    if (!selectedBrand) return setStep("connect");
+    if (m.oauth === "tiktok") connectTikTok(selectedBrand);
+    else if (m.oauth === "meta") connectMeta(selectedBrand, id);
+    else if (m.oauth === "linkedin") connectLinkedIn(selectedBrand);
+    else if (m.fields) setStep("credentials");
+    else connectMock(selectedBrand, id);
+  };
+
   return (
-    <div className="p-5 lg:p-8 w-full animate-fadein">
-      <div className="mb-6">
-        <h1 className="font-display text-[38px] leading-tight tracking-tight text-ink-900">
-          Add a <em className="italic text-brand">platform</em>
-        </h1>
-        <p className="mt-1.5 text-ink-500 max-w-[56ch] text-[15px]">
-          Pick a social platform below to connect it to one of your brands.
-        </p>
+    <div className="w-full px-5 lg:px-8 py-7 animate-fadein">
+      <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-[24px] font-bold text-ink-900 tracking-tight leading-tight">Add a platform</h1>
+          <p className="mt-1 text-[13px] text-ink-600">
+            {selectedBrand ? (
+              <>
+                Connecting to{" "}
+                <span className="font-semibold text-ink-900">
+                  {brands.find((b) => b.slug === selectedBrand)?.name}
+                </span>{" "}
+                — pick a platform.
+              </>
+            ) : (
+              "Pick a platform, then choose which brand it belongs to."
+            )}
+          </p>
+        </div>
+        <button type="button" onClick={() => navigate("/channels")} className="btn-outline">
+          Back to Platforms
+        </button>
       </div>
 
-      {selectedBrand && (
-        <div className="mb-4 rounded-xl border border-brand/20 bg-brand/5 px-3.5 py-2.5 text-[13px] text-ink-700">
-          Adding a platform to{" "}
-          <b>{brands.find((b) => b.slug === selectedBrand)?.name}</b>
-        </div>
-      )}
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-3xl">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {Object.entries(PLATFORM_META).map(([id, m]) => {
-          const isConnectedToAny = brands.some((b) =>
-            channels.some((c) => c.b === b.slug && c.p === id),
+          // Only channels that are actually connected — every brand has an
+          // "off" placeholder row per platform, which isn't a connection.
+          const liveBrands = brands.filter((b) =>
+            channels.some((c) => c.b === b.slug && c.p === id && c.s === "live"),
           );
+          const connectedHere =
+            selectedBrand && liveBrands.some((b) => b.slug === selectedBrand);
+          const desc = m.desc.replace(/\s*[—-]\s*this one publishes for real\.?/i, ".").replace(/\.\.$/, ".");
           return (
             <button
               key={id}
-              onClick={() => {
-                setSelectedPlatform(id);
-                if (!selectedBrand) setSelectedBrand(null);
-                setCreds({});
-                setError(null);
-                if (selectedBrand) {
-                  if (m.oauth === "tiktok") {
-                    connectTikTok(selectedBrand);
-                  } else if (m.oauth === "meta") {
-                    connectMeta(selectedBrand, id);
-                  } else if (m.oauth === "linkedin") {
-                    connectLinkedIn(selectedBrand);
-                  } else if (m.fields) {
-                    setSelectedPlatform(id);
-                    setStep("credentials");
-                  } else {
-                    connectMock(selectedBrand, id);
-                  }
-                } else {
-                  setStep("connect");
-                }
-              }}
-              className="group bg-white border border-ink-100 rounded-2xl p-5 text-left hover:border-brand/30 hover:shadow-card transition-all duration-150"
+              type="button"
+              onClick={() => choosePlatform(id, m)}
+              className="group bg-white rounded-2xl border border-ink-200/60 shadow-[0_1px_2px_rgba(16,24,40,0.04)] p-5 text-left flex flex-col hover:border-brand-line hover:shadow-card transition-all duration-150"
             >
-              <div
-                className="w-11 h-11 rounded-xl flex items-center justify-center text-white mb-3 shadow-sm"
-                style={{ background: m.color }}
-              >
-                <m.Icon className="w-5 h-5" aria-hidden="true" />
-              </div>
-              <div className="font-bold text-ink-800 text-sm mb-1 flex items-center gap-1.5">
-                {m.label}
-                {m.live && (
-                  <span className="text-[10px] font-bold text-brand uppercase tracking-wide">
-                    Live
-                  </span>
-                )}
-              </div>
-              <div className="text-[12px] text-ink-400 leading-snug">
-                {m.desc}
-              </div>
-              {isConnectedToAny && (
-                <div className="mt-2">
-                  <Tag variant="ok">Active</Tag>
+              <div className="flex items-start gap-3">
+                <span
+                  className="w-11 h-11 rounded-xl grid place-items-center text-white flex-none"
+                  style={{ background: m.color }}
+                >
+                  <m.Icon className="w-5 h-5" aria-hidden="true" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[14px] font-semibold text-ink-900">{m.label}</div>
+                  <div className="mt-0.5 inline-flex items-center gap-1.5 text-[11.5px] text-ink-500">
+                    <span className={`w-1.5 h-1.5 rounded-full ${m.live ? "bg-emerald-500" : "bg-ink-300"}`} />
+                    {m.live ? "Publishes for real" : "Coming soon — simulated only"}
+                  </div>
                 </div>
-              )}
+              </div>
+
+              <p className="mt-3 text-[12.5px] text-ink-600 leading-relaxed flex-1">{desc}</p>
+
+              <div className="mt-4 pt-3 border-t border-ink-100 flex items-center justify-between gap-2">
+                <span className="text-[11.5px] text-ink-500 truncate">
+                  {liveBrands.length === 0
+                    ? "Not connected yet"
+                    : `Connected · ${liveBrands.map((b) => b.name).join(", ")}`}
+                </span>
+                <span className="text-[12px] font-semibold text-brand whitespace-nowrap group-hover:translate-x-0.5 transition-transform">
+                  {connectedHere ? "Reconnect →" : "Connect →"}
+                </span>
+              </div>
             </button>
           );
         })}
@@ -717,24 +736,24 @@ function MetaPageRow({ page, defaultIntent, busy, onConnect }) {
     <div className="bg-white border border-ink-100 rounded-2xl p-4">
       <div className="font-semibold text-ink-800 text-sm">{page.name}</div>
       <div className="mt-2.5 space-y-1.5">
-        <label className="flex items-center gap-2 text-[13px] text-ink-700">
+        <label className="flex items-center gap-2 text-[12px] text-ink-700">
           <input type="checkbox" checked={fb} onChange={(e) => setFb(e.target.checked)} />
           Connect Facebook
         </label>
         {page.has_instagram ? (
-          <label className="flex items-center gap-2 text-[13px] text-ink-700">
+          <label className="flex items-center gap-2 text-[12px] text-ink-700">
             <input type="checkbox" checked={ig} onChange={(e) => setIg(e.target.checked)} />
             Connect Instagram <span className="text-ink-400">@{page.instagram_username}</span>
           </label>
         ) : (
-          <div className="text-[12px] text-ink-400">No Instagram account linked to this Page.</div>
+          <div className="text-[11px] text-ink-400">No Instagram account linked to this Page.</div>
         )}
       </div>
       <button
         type="button"
         disabled={busy || (!fb && !ig)}
         onClick={() => onConnect(page.id, fb, ig)}
-        className="mt-3 px-4 py-1.5 rounded-xl gradient-brand text-white text-[12.5px] font-bold hover:shadow-glow disabled:opacity-50 transition-all duration-150"
+        className="btn-primary text-[11.5px]"
       >
         {busy ? "Connecting…" : "Connect"}
       </button>

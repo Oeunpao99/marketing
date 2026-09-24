@@ -5,7 +5,7 @@ export default function CircularProgress({
   percent,
   size = 120,
   stroke = 10,
-  color = '#166432',
+  color = '#1A6FC4',
   trackColor = '#E5E9E6',
   children,
 }) {

@@ -48,6 +48,9 @@ class Brand(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(120))
     lang: Mapped[str] = mapped_column(String(60), default="")
     note: Mapped[str] = mapped_column(String(200), default="")
+    # A few real captions in this brand's voice — content_ai.py shows them to
+    # the model as a style reference (style only, never a source of facts).
+    voice_examples: Mapped[str] = mapped_column(Text, default="", server_default="")
 
     channels: Mapped[list[Channel]] = relationship(
         back_populates="brand", cascade="all, delete-orphan"
@@ -206,6 +209,10 @@ class Draft(Base, TimestampMixin):
     # The AI's own 0-100 self-check of how well this idea is grounded in the
     # brand's real product facts — null for hand-made drafts.
     fit_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Claims the automatic fact-check couldn't find in the brand's product
+    # info (content_ai.fact_check). Empty list = checked, nothing flagged;
+    # null = not checked (hand-made draft, or the check itself failed).
+    fact_issues: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
 
 
 class GenerationJob(Base, TimestampMixin):

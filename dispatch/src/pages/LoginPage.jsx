@@ -42,34 +42,34 @@ export default function LoginPage() {
             T
           </div>
           <div>
-            <div className="text-white text-[15px] font-bold tracking-tight">Ti P'sa</div>
-            <div className="text-[11.5px] text-ink-400">AI Marketing Hub</div>
+            <div className="text-white text-[14px] font-bold tracking-tight">Ti P'sa</div>
+            <div className="text-[10.5px] text-ink-400">AI Marketing Hub</div>
           </div>
         </div>
 
         <div className="relative max-w-md">
-          <h2 className="font-display text-[40px] leading-[1.1] text-white mb-3">
+          <h2 className="font-display text-[37px] leading-[1.1] text-white mb-3">
             Your content desk,<br /><em className="italic text-brand-light">on schedule</em>.
           </h2>
-          <p className="text-[14px] text-ink-400 leading-relaxed mb-8">
+          <p className="text-[13px] text-ink-400 leading-relaxed mb-8">
             Plan, review and publish short-form video for every brand and channel from one place.
           </p>
           <ul className="space-y-4">
             {PERKS.map(([icon, title, body]) => (
               <li key={title} className="flex gap-3">
-                <span className="mt-0.5 w-7 h-7 flex-none grid place-items-center rounded-lg bg-white/10 text-brand-light text-[13px]">
+                <span className="mt-0.5 w-7 h-7 flex-none grid place-items-center rounded-lg bg-white/10 text-brand-light text-[12px]">
                   {icon}
                 </span>
                 <div>
-                  <div className="text-[13.5px] font-semibold text-ink-100">{title}</div>
-                  <div className="text-[12.5px] text-ink-400 leading-snug">{body}</div>
+                  <div className="text-[12.5px] font-semibold text-ink-100">{title}</div>
+                  <div className="text-[11.5px] text-ink-400 leading-snug">{body}</div>
                 </div>
               </li>
             ))}
           </ul>
         </div>
 
-        <div className="relative text-[11.5px] text-ink-500">Phnom Penh · UTC+7</div>
+        <div className="relative text-[10.5px] text-ink-500">Phnom Penh · UTC+7</div>
       </aside>
 
       {/* ── form panel ── */}
@@ -82,10 +82,10 @@ export default function LoginPage() {
             <div className="font-bold text-ink-900">Ti P'sa</div>
           </div>
 
-          <h1 className="font-display text-[32px] leading-tight text-ink-900">
+          <h1 className="font-display text-[29.5px] leading-tight text-ink-900">
             {isRegister ? 'Create your account' : 'Welcome back'}
           </h1>
-          <p className="mt-1 text-[14px] text-ink-500">
+          <p className="mt-1 text-[13px] text-ink-500">
             {isRegister
               ? 'The first account becomes the admin.'
               : 'Sign in to the content portal.'}
@@ -131,7 +131,7 @@ export default function LoginPage() {
             </Field>
 
             {error && (
-              <div className="bg-red-50 border border-red-200 rounded-xl px-3.5 py-2.5 text-[13px] text-red-700">
+              <div className="bg-red-50 border border-red-200 rounded-xl px-3.5 py-2.5 text-[12px] text-red-700">
                 {error}
               </div>
             )}
@@ -139,13 +139,13 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={busy}
-              className="w-full py-2.5 rounded-xl gradient-brand text-white text-[14px] font-semibold hover:shadow-glow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+              className="w-full btn-primary"
             >
               {busy ? 'One moment…' : isRegister ? 'Create account' : 'Sign in'}
             </button>
           </form>
 
-          <p className="mt-6 text-[13px] text-ink-500">
+          <p className="mt-6 text-[12px] text-ink-500">
             {isRegister ? 'Already have an account?' : 'No account yet?'}{' '}
             <button
               type="button"
@@ -165,13 +165,13 @@ export default function LoginPage() {
 }
 
 const inputCls =
-  'w-full bg-ink-50 border border-ink-200 rounded-xl px-3.5 py-2.5 text-[14px] ' +
-  'focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition-all duration-150'
+  'w-full bg-white border border-ink-200 rounded-xl px-3.5 py-2.5 text-[13px] text-ink-800 placeholder:text-ink-300 ' +
+  'focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/10 transition-all duration-150'
 
 function Field({ label, children }) {
   return (
     <label className="block">
-      <span className="block font-semibold text-[12.5px] text-ink-700 mb-1.5">{label}</span>
+      <span className="block font-semibold text-[11.5px] text-ink-700 mb-1.5">{label}</span>
       {children}
     </label>
   )

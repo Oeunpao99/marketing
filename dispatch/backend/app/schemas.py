@@ -40,6 +40,8 @@ class BrandBase(BaseModel):
     name: str
     lang: str = ""
     note: str = ""
+    # A few real captions in this brand's voice — the AI matches their style.
+    voice_examples: str = ""
 
 
 class BrandCreate(BrandBase):
@@ -51,6 +53,7 @@ class BrandUpdate(BaseModel):
     name: str | None = None
     lang: str | None = None
     note: str | None = None
+    voice_examples: str | None = None
 
 
 class BrandOut(TimestampsOut, BrandBase):
@@ -251,6 +254,8 @@ class DraftBase(BaseModel):
     # The AI's own 0-100 self-check of how well this idea is grounded in the
     # brand's real product facts (app/content_ai.py) — null for hand-made drafts.
     fit_score: int | None = None
+    # Claims in the caption the fact-check couldn't find in the product info.
+    fact_issues: list[str] | None = None
 
 
 class DraftCreate(DraftBase):

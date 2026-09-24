@@ -12,7 +12,7 @@ export default function TableView({ queue, match = () => true }) {
 
   if (!visible.length) {
     return (
-      <div className="px-7 py-16 text-center text-[13px] text-ink-400">
+      <div className="px-7 py-16 text-center text-[12px] text-ink-400">
         Nothing on this day. Pick another date above.
       </div>
     )
@@ -20,9 +20,9 @@ export default function TableView({ queue, match = () => true }) {
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-left text-[12.5px]">
+      <table className="w-full text-left text-[11.5px]">
         <thead>
-          <tr className="border-b border-ink-100 text-[10.5px] uppercase tracking-wide text-ink-400">
+          <tr className="border-b border-ink-100 bg-ink-50/60 text-[10px] uppercase tracking-wide text-ink-400">
             <th className="px-7 py-2.5 font-bold">Day</th>
             <th className="px-3 py-2.5 font-bold">Time</th>
             <th className="px-3 py-2.5 font-bold">Brand</th>
@@ -39,7 +39,7 @@ export default function TableView({ queue, match = () => true }) {
               <tr
                 key={q.postId ?? q.targetId ?? i}
                 onClick={() => navigate(`/post/${i}`)}
-                className="cursor-pointer transition-colors duration-100 hover:bg-brand/[0.03]"
+                className="cursor-pointer transition-colors duration-100 hover:bg-brand/[0.04]"
               >
                 <td className="px-7 py-2.5 whitespace-nowrap font-semibold text-ink-600">
                   {day ? dayLabel(day) : '—'}
@@ -59,12 +59,12 @@ export default function TableView({ queue, match = () => true }) {
                 <td className="px-3 py-2.5 min-w-[220px] max-w-[340px]">
                   <div className="truncate font-semibold text-ink-800">{q.ttl}</div>
                   {q.cap && (
-                    <div className={`truncate text-[11.5px] text-ink-500 ${isKhmer(q.cap) ? 'font-khmer' : ''}`}>
+                    <div className={`truncate text-[10.5px] text-ink-500 ${isKhmer(q.cap) ? 'font-khmer' : ''}`}>
                       {q.cap}
                     </div>
                   )}
                   {q.st === 'failed' && q.error && (
-                    <div className="truncate text-[11px] text-red-600">{q.error}</div>
+                    <div className="truncate text-[10px] text-red-600">{q.error}</div>
                   )}
                 </td>
                 <td className="px-3 py-2.5">
@@ -72,7 +72,7 @@ export default function TableView({ queue, match = () => true }) {
                     {q.c.map((ch) => (
                       <span
                         key={ch}
-                        className="inline-flex items-center gap-1 rounded-md px-1.5 py-px text-[10.5px] font-semibold text-ink-500 bg-ink-50 border border-ink-200"
+                        className="inline-flex items-center gap-1 rounded-md px-1.5 py-px text-[10px] font-semibold text-ink-500 bg-ink-50 border border-ink-200"
                       >
                         <PlatformIcon name={ch} className="text-ink-400" />
                         {ch}

@@ -55,10 +55,10 @@ export default function MarkdownText({ text }) {
               key={i}
               className={
                 b.level === 1
-                  ? 'text-[15px] font-bold text-ink-900 leading-snug'
+                  ? 'text-[14px] font-bold text-ink-900 leading-snug'
                   : b.level === 2
-                    ? 'text-[13.5px] font-bold text-ink-900 leading-snug'
-                    : 'text-[12.5px] font-bold text-ink-800 leading-snug'
+                    ? 'text-[12.5px] font-bold text-ink-900 leading-snug'
+                    : 'text-[11.5px] font-bold text-ink-800 leading-snug'
               }
             >
               <Inline text={b.text} />
@@ -69,7 +69,7 @@ export default function MarkdownText({ text }) {
           return (
             <ul key={i} className="space-y-1">
               {b.items.map((item, j) => (
-                <li key={j} className="flex items-start gap-2 text-[13px] text-ink-600 leading-relaxed">
+                <li key={j} className="flex items-start gap-2 text-[12px] text-ink-600 leading-relaxed">
                   <span className="mt-[8px] h-1 w-1 rounded-full bg-brand flex-none" />
                   <span>
                     <Inline text={item} />
@@ -80,7 +80,7 @@ export default function MarkdownText({ text }) {
           )
         }
         return (
-          <p key={i} className="text-[13px] text-ink-600 leading-relaxed">
+          <p key={i} className="text-[12px] text-ink-600 leading-relaxed">
             <Inline text={b.text} />
           </p>
         )

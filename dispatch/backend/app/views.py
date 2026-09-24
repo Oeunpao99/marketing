@@ -125,6 +125,7 @@ def today(db: Session = Depends(get_db)):
                 "title": t.title or (t.post.title if t.post else ""),
                 "caption": t.caption,
                 "status": t.status,
+                "error": t.error or "",
                 "video_id": video.id if video else None,
                 "video_filename": video.filename if video else None,
                 "video_url": video.url if video else None,
@@ -206,6 +207,7 @@ def review_view(db: Session = Depends(get_db)):
             "generated_at": d.generated_at,
             "source": d.source,
             "fit_score": d.fit_score,
+            "fact_issues": d.fact_issues,
             "video_id": d.video_id,
             "video_url": videos[d.video_id].url if d.video_id in videos else None,
         }
@@ -257,6 +259,7 @@ def auto_view(db: Session = Depends(get_db)):
             "brand_slug": brands[a.brand_id].slug if a.brand_id in brands else None,
             "brand_name": brands[a.brand_id].name if a.brand_id in brands else "?",
             "brand_lang": brands[a.brand_id].lang if a.brand_id in brands else "",
+            "brand_voice": brands[a.brand_id].voice_examples if a.brand_id in brands else "",
             "enabled": a.enabled,
             "run_at": a.run_at.strftime("%H:%M"),
             "videos_per_day": a.videos_per_day,

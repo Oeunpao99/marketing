@@ -13,6 +13,7 @@ import Tag from "../components/ui/Tag";
 import { PLAT } from "../data/brands";
 import { colorForBrand } from "../lib/brandColor";
 import { useStore } from "../store";
+import { openCreateBrand } from "../components/layout/CreateBrandDrawer";
 
 export default function ChannelsPage() {
   const { brands, channels, refreshChannels, showToast } = useStore();
@@ -57,27 +58,27 @@ export default function ChannelsPage() {
   }, [searchParams, setSearchParams, showToast, refreshChannels]);
 
   return (
-    <div className="p-5 lg:p-8 w-full animate-fadein">
+    <div className="w-full px-5 lg:px-10 py-8 lg:py-10 animate-fadein">
       <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="font-display text-[38px] leading-tight tracking-tight text-ink-900">
-            <em className="italic text-brand">Channels</em>
+          <h1 className="page-title">
+            Channels
           </h1>
-          <p className="mt-1.5 text-ink-500 max-w-[56ch] text-[15px]">
+          <p className="page-sub mt-1">
             Connect each account once. Facebook Page tokens don't expire; TikTok
             and YouTube do, and the portal warns you before they lapse.
           </p>
         </div>
         <div className="flex gap-2">
           <button
-            onClick={() => navigate("/brands/new")}
-            className="px-4 py-2 rounded-xl bg-white border border-ink-200 text-ink-700 text-[13.5px] font-semibold hover:border-brand transition-all duration-200"
+            onClick={openCreateBrand}
+            className="btn-outline"
           >
             + Create Brand
           </button>
           <button
             onClick={() => navigate("/channels/add")}
-            className="px-4 py-2 rounded-xl gradient-brand text-white text-[13.5px] font-semibold hover:shadow-glow-lg transition-all duration-200"
+            className="btn-primary"
           >
             + Add Platform
           </button>
@@ -105,7 +106,7 @@ export default function ChannelsPage() {
                   <div className="font-bold text-ink-800" style={{ color }}>
                     {b.name}
                   </div>
-                  <div className="text-[12.5px] text-ink-600">
+                  <div className="text-[11.5px] text-ink-600">
                     {b.lang} · {b.note}
                   </div>
                 </div>
@@ -118,7 +119,7 @@ export default function ChannelsPage() {
                         state: { brandSlug: b.slug },
                       })
                     }
-                    className="rounded-lg border border-brand/20 px-2 py-1 text-[11.5px] font-semibold text-brand hover:bg-brand/5"
+                    className="rounded-lg border border-brand/20 px-2 py-1 text-[10.5px] font-semibold text-brand hover:bg-brand/5"
                   >
                     + Add platform
                   </button>
@@ -129,15 +130,15 @@ export default function ChannelsPage() {
                   key={c.id}
                   className="grid grid-cols-[140px_1fr_auto] gap-4 items-center px-4 py-3 border-t border-ink-100 first:border-t-0"
                 >
-                  <div className="flex items-center gap-2 font-bold text-ink-800 text-[13.5px]">
+                  <div className="flex items-center gap-2 font-bold text-ink-800 text-[12.5px]">
                     <PlatformIcon platform={c.p} />
                     {PLAT[c.p]?.name || c.p}
                   </div>
-                  <div className="text-[13px] text-ink-700">
+                  <div className="text-[12px] text-ink-700">
                     {c.h}
                     {" · "}
                     {c.m}
-                    <div className="text-[12px] text-ink-600">
+                    <div className="text-[11px] text-ink-600">
                       Last post: {c.l}
                     </div>
                   </div>
@@ -152,7 +153,7 @@ export default function ChannelsPage() {
                             state: { brandSlug: c.b, platformSlug: c.p },
                           })
                         }
-                        className="px-3 py-1.5 rounded-xl bg-ink-50 border border-ink-200 text-ink-700 text-[12.5px] font-medium hover:bg-brand hover:text-white hover:border-brand transition-all duration-150"
+                        className="px-3 py-1.5 rounded-xl border border-brand-line bg-white text-brand text-[11.5px] font-semibold hover:bg-brand-soft transition-all duration-150"
                       >
                         Connect
                       </button>
