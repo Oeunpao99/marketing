@@ -8,6 +8,7 @@ import { useStore } from '../store'
 import { PLAT } from '../data/brands'
 import PlatformIcon from '../components/ui/PlatformIcon'
 import AutoTextarea from '../components/ui/AutoTextarea'
+import { seedRuns, startRun, useAutoRuns, useSmoothProgress } from '../lib/autoRuns'
 
 const TOPIC_SOURCES = [
   { value: 'Trending in Cambodia + your topic bank', short: 'Trending + topic bank' },
@@ -33,11 +34,15 @@ function modeOf(a) {
 
 export default function AutoPage() {
   const { auto, setAuto, refreshAuto, refreshReview, channels, showToast } = useStore()
-  const [runningId, setRunningId] = useState(null)
+  const runs = useAutoRuns()
+  const [starting, setStarting] = useState(null)
   const [confirmRegen, setConfirmRegen] = useState(null)
   const [editId, setEditId] = useState(null)
 
   const editing = (auto || []).find((a) => a.id === editId) || null
+
+  // A run started before a reload (or by someone else) — keep showing it.
+  useEffect(() => seedRuns(auto), [auto])
 
   const update = async (automation, patch) => {
     setAuto((list) => (list || []).map((a) => (a.id === automation.id ? { ...a, ...patch } : a)))
@@ -63,31 +68,20 @@ export default function AutoPage() {
     }
   }
 
+  // Starts the run in the background and returns right away — progress
+  // shows on the brand's row (and in its settings drawer); a toast says when
+  // it's done, even from another page (see Shell's useRunFinishedToast).
   const runNow = async (automation, force = false) => {
-    if (runningId) return
-    setRunningId(automation.id)
+    if (starting || runs[automation.id]) return
+    setStarting(automation.id)
+    setConfirmRegen(null)
     try {
-      const res = await api.post(`/views/auto/${automation.id}/run-now${force ? '?force=true' : ''}`)
-      if (res.regenerated) {
-        showToast(
-          res.kept_live
-            ? `Regenerated — ${res.removed} replaced, ${res.kept_live} already-posted left alone`
-            : `Regenerated — ${res.removed} old idea${res.removed === 1 ? '' : 's'} replaced with ${res.count} new`,
-        )
-      } else {
-        showToast(
-          res.already_ran_today
-            ? `Already wrote ${res.count} idea${res.count === 1 ? '' : 's'} for today`
-            : `Wrote ${res.count} new idea${res.count === 1 ? '' : 's'} for today`,
-        )
-      }
-      refreshReview()
-      refreshAuto()
+      await startRun(automation.id, force)
+      showToast(`${force ? 'Regenerating' : 'Generating'} in the background — you can keep working`)
     } catch (e) {
-      showToast(`Could not generate — ${e.message}`)
+      showToast(`Could not start — ${e.message}`)
     } finally {
-      setRunningId(null)
-      setConfirmRegen(null)
+      setStarting(null)
     }
   }
 
@@ -133,7 +127,8 @@ export default function AutoPage() {
                   ))
                 : auto.map((a) => {
                     const color = colorForBrand(a.brand_slug)
-                    const running = runningId === a.id
+                    const active = runs[a.id]
+                    const running = !!active || starting === a.id
                     const topic = TOPIC_SOURCES.find((t) => t.value === a.topic_source)?.short || a.topic_source || '—'
                     return (
                       <tr
@@ -146,9 +141,13 @@ export default function AutoPage() {
                             <span className="w-2.5 h-2.5 rounded-full flex-none" style={{ background: color }} />
                             <div className="min-w-0">
                               <div className="text-[13px] font-semibold text-ink-900 truncate">{a.brand_name}</div>
-                              <div className="text-[11.5px] text-ink-500">
-                                {a.brand_lang || 'No language set'} · wrote {when(a.last_run_on)}
-                              </div>
+                              {active ? (
+                                <RunProgress run={active} />
+                              ) : (
+                                <div className="text-[11.5px] text-ink-500">
+                                  {a.brand_lang || 'No language set'} · wrote {when(a.last_run_on)}
+                                </div>
+                              )}
                             </div>
                           </div>
                         </td>
@@ -211,7 +210,8 @@ export default function AutoPage() {
         <SettingsDrawer
           a={editing}
           channels={channels}
-          running={runningId === editing.id}
+          run={runs[editing.id]}
+          running={!!runs[editing.id] || starting === editing.id}
           onUpdate={(patch) => update(editing, patch)}
           onBrandUpdate={(patch) => updateBrand(editing, patch)}
           onRun={() => run(editing)}
@@ -223,7 +223,7 @@ export default function AutoPage() {
         createPortal(
           <div
             className="fixed inset-0 z-[110] bg-ink-950/40 flex items-center justify-center p-4 animate-fadein"
-            onClick={() => !runningId && setConfirmRegen(null)}
+            onClick={() => setConfirmRegen(null)}
           >
             <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-pop" onClick={(e) => e.stopPropagation()}>
               <h3 className="text-[15.5px] font-bold text-ink-900 tracking-tight">Regenerate today’s ideas?</h3>
@@ -231,17 +231,19 @@ export default function AutoPage() {
                 Today’s batch for <b className="text-ink-800">{confirmRegen.brand_name}</b> is replaced with a fresh
                 one. Anything already <b>posted for real</b> is left alone. This can’t be undone.
               </p>
+              <p className="mt-2 text-[12px] text-ink-400">
+                It runs in the background — you’ll see the progress on the brand’s row and can keep working.
+              </p>
               <div className="mt-6 flex gap-2 justify-end">
-                <button type="button" disabled={!!runningId} onClick={() => setConfirmRegen(null)} className="btn-outline">
+                <button type="button" onClick={() => setConfirmRegen(null)} className="btn-outline">
                   Cancel
                 </button>
                 <button
                   type="button"
-                  disabled={!!runningId}
                   onClick={() => runNow(confirmRegen, true)}
                   className="btn bg-red-600 text-white hover:bg-red-700"
                 >
-                  {runningId ? 'Regenerating…' : 'Regenerate'}
+                  Regenerate
                 </button>
               </div>
             </div>
@@ -252,9 +254,27 @@ export default function AutoPage() {
   )
 }
 
+function RunProgress({ run, className = '' }) {
+  const pct = useSmoothProgress(run)
+  return (
+    <div className={`mt-1 w-full max-w-[280px] ${className}`}>
+      <div className="flex items-center justify-between gap-2 text-[11px]">
+        <span className="text-brand font-medium truncate">{run.step || 'Working…'}</span>
+        <span className="tabular-nums font-semibold text-ink-700 flex-none">{pct}%</span>
+      </div>
+      <div className="mt-1 h-1.5 rounded-full bg-brand-soft overflow-hidden">
+        <div
+          className="h-full rounded-full bg-brand transition-[width] duration-300 ease-out"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  )
+}
+
 const LANGUAGES = ['English', 'Khmer', 'Khmer + English']
 
-function SettingsDrawer({ a, channels, running, onUpdate, onBrandUpdate, onRun, onClose }) {
+function SettingsDrawer({ a, channels, run, running, onUpdate, onBrandUpdate, onRun, onClose }) {
   const [voice, setVoice] = useState(a.brand_voice || '')
   useEffect(() => setVoice(a.brand_voice || ''), [a.brand_id]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -436,7 +456,10 @@ function SettingsDrawer({ a, channels, running, onUpdate, onBrandUpdate, onRun, 
           </Section>
         </div>
 
-        <footer className="px-6 py-4 border-t border-ink-100 flex items-center justify-between gap-2">
+        <footer className="px-6 py-4 border-t border-ink-100 flex items-center justify-between gap-3">
+          {run ? (
+            <RunProgress run={run} className="mt-0 flex-1" />
+          ) : (
           <button type="button" disabled={running || !a.enabled} onClick={onRun} className="btn-outline">
             {running ? (
               <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand/30 border-t-brand" />
@@ -447,6 +470,7 @@ function SettingsDrawer({ a, channels, running, onUpdate, onBrandUpdate, onRun, 
             )}
             {ranToday ? 'Regenerate today' : 'Generate now'}
           </button>
+          )}
           <button type="button" onClick={onClose} className="btn-primary">
             Done
           </button>

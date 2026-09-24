@@ -221,7 +221,9 @@ export default function Sidebar() {
             <span className="block text-[12.5px] font-semibold text-ink-900 truncate leading-tight">
               {active?.name || "Select a brand"}
             </span>
-            <span className="block text-[10.5px] text-ink-500">Workspace</span>
+            <span className="block text-[10.5px] text-ink-500 truncate">
+              {user?.workspace_name || "Brand"}
+            </span>
           </span>
           <FiChevronDown
             size={16}

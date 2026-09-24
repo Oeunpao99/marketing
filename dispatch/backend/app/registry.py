@@ -25,6 +25,10 @@ class Resource:
     update_schema: type[BaseModel]
     order_by: str = "id"
     list_columns: list[str] = field(default_factory=list)
+    # Shared, server-managed table (Platform): readable by everyone, no writes.
+    read_only: bool = False
+    # Only a workspace owner/admin may create/update/delete (team members).
+    manager_only: bool = False
 
 
 REGISTRY: list[Resource] = [
@@ -39,6 +43,7 @@ REGISTRY: list[Resource] = [
         model=models.Platform, out_schema=schemas.PlatformOut,
         create_schema=schemas.PlatformCreate, update_schema=schemas.PlatformUpdate,
         order_by="name", list_columns=["name", "slug", "char_limit", "supports_title", "post_as"],
+        read_only=True,
     ),
     Resource(
         name="channels", label="Channels", singular="Channel", icon="⇄", group="Content",
@@ -104,6 +109,7 @@ REGISTRY: list[Resource] = [
         create_schema=schemas.TeamMemberCreate, update_schema=schemas.TeamMemberUpdate,
         order_by="name",
         list_columns=["name", "initials", "email", "location", "timezone", "role"],
+        manager_only=True,
     ),
 ]
 

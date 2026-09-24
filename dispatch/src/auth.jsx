@@ -22,6 +22,12 @@ export function AuthProvider({ children }) {
       .finally(() => setLoading(false))
   }, [])
 
+  useEffect(() => {
+    const onSignedOut = () => setUser(null)
+    window.addEventListener('dispatch:signed-out', onSignedOut)
+    return () => window.removeEventListener('dispatch:signed-out', onSignedOut)
+  }, [])
+
   const finish = ({ token, user: u }) => {
     tokenStore.set(token)
     setUser(u)
@@ -33,8 +39,10 @@ export function AuthProvider({ children }) {
     [],
   )
   const register = useCallback(
-    (name, email, password) =>
-      api.post('/auth/register', { name, email, password }).then(finish),
+    (name, email, password, workspaceName = '') =>
+      api
+        .post('/auth/register', { name, email, password, workspace_name: workspaceName })
+        .then(finish),
     [],
   )
   const logout = useCallback(() => {
@@ -42,8 +50,13 @@ export function AuthProvider({ children }) {
     setUser(null)
   }, [])
 
+  const renameWorkspace = useCallback(
+    (name) => api.patch('/auth/workspace', { name }).then((u) => (setUser(u), u)),
+    [],
+  )
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, renameWorkspace }}>
       {children}
     </AuthContext.Provider>
   )

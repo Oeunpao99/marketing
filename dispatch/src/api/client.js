@@ -44,6 +44,7 @@ async function request(method, path, body) {
   if (!res.ok) {
     if (res.status === 401 && path !== '/auth/login' && path !== '/auth/register') {
       tokenStore.set(null)
+      window.dispatchEvent(new Event('dispatch:signed-out'))
     }
     const detail = data?.detail
     const message =

@@ -32,8 +32,14 @@ from app.models import (
 )
 from app.publishers import PublishError, publish, verify_telegram
 from app.security import sign_payload, verify_payload
+from app.tenancy import current_workspace_id, owned, scope
 
+# Every route here is workspace-scoped (app/tenancy.py) and mounted behind
+# login in app/main.py — except ``public_router``: the OAuth callbacks, which
+# the platforms redirect a bare browser to (no Authorization header). Those
+# trust the signed ``state`` minted by the authed /start route instead.
 router = APIRouter(prefix="/views", tags=["Views"])
+public_router = APIRouter(prefix="/views", tags=["Views"])
 
 # The portal presents every time on a Phnom Penh clock (UTC+7, no DST),
 # regardless of where the server or the viewer sits.
@@ -87,8 +93,12 @@ def _run_publish(db: Session, target: PostTarget) -> dict:
     }
 
 
-def _brand_map(db: Session) -> dict[int, Brand]:
-    return {b.id: b for b in db.scalars(select(Brand)).all()}
+def _brand_map(db: Session, ws: int) -> dict[int, Brand]:
+    return {b.id: b for b in db.scalars(select(Brand).where(scope(Brand, ws))).all()}
+
+
+def _scoped(db: Session, model, ws: int):
+    return db.scalars(select(model).where(scope(model, ws))).all()
 
 
 def _platform_map(db: Session) -> dict[int, Platform]:
@@ -96,14 +106,15 @@ def _platform_map(db: Session) -> dict[int, Platform]:
 
 
 @router.get("/today")
-def today(db: Session = Depends(get_db)):
-    brands = _brand_map(db)
+def today(db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    brands = _brand_map(db, ws)
     plats = _platform_map(db)
-    chans = {c.id: c for c in db.scalars(select(Channel)).all()}
-    videos = {v.id: v for v in db.scalars(select(Video)).all()}
+    chans = {c.id: c for c in _scoped(db, Channel, ws)}
+    videos = {v.id: v for v in _scoped(db, Video, ws)}
     targets = db.scalars(
         select(PostTarget)
         .options(selectinload(PostTarget.post))
+        .where(scope(PostTarget, ws))
         .order_by(PostTarget.scheduled_for.nulls_last(), PostTarget.id)
     ).all()
     out = []
@@ -135,10 +146,10 @@ def today(db: Session = Depends(get_db)):
 
 
 @router.get("/channels")
-def channels_view(db: Session = Depends(get_db)):
+def channels_view(db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
     plats = _platform_map(db)
-    brands = db.scalars(select(Brand).order_by(Brand.name)).all()
-    chans = db.scalars(select(Channel)).all()
+    brands = db.scalars(select(Brand).where(scope(Brand, ws)).order_by(Brand.name)).all()
+    chans = _scoped(db, Channel, ws)
     result = []
     for b in brands:
         rows = []
@@ -182,10 +193,12 @@ def channels_view(db: Session = Depends(get_db)):
 
 
 @router.get("/review")
-def review_view(db: Session = Depends(get_db)):
-    brands = _brand_map(db)
+def review_view(db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    brands = _brand_map(db, ws)
     drafts = db.scalars(
-        select(Draft).where(Draft.status == "waiting").order_by(Draft.generated_at)
+        select(Draft)
+        .where(scope(Draft, ws), Draft.status == "waiting")
+        .order_by(Draft.generated_at)
     ).all()
     video_ids = [d.video_id for d in drafts if d.video_id is not None]
     videos = (
@@ -217,17 +230,25 @@ def review_view(db: Session = Depends(get_db)):
 
 @router.get("/calendar")
 def calendar_view(
-    start: date | None = None, end: date | None = None, db: Session = Depends(get_db)
+    start: date | None = None,
+    end: date | None = None,
+    db: Session = Depends(get_db),
+    ws: int = Depends(current_workspace_id),
 ):
     """Every planned idea (any status) with a calendar slot, for the Calendar page."""
     from app.content_scheduler import _today  # local import avoids a module cycle
 
     start = start or _today() - timedelta(days=7)
     end = end or _today() + timedelta(days=30)
-    brands = _brand_map(db)
+    brands = _brand_map(db, ws)
     drafts = db.scalars(
         select(Draft)
-        .where(Draft.planned_for.is_not(None), Draft.planned_for >= start, Draft.planned_for <= end)
+        .where(
+            scope(Draft, ws),
+            Draft.planned_for.is_not(None),
+            Draft.planned_for >= start,
+            Draft.planned_for <= end,
+        )
         .order_by(Draft.planned_for, Draft.brand_id)
     ).all()
     return [
@@ -249,9 +270,11 @@ def calendar_view(
 
 
 @router.get("/auto")
-def auto_view(db: Session = Depends(get_db)):
-    brands = _brand_map(db)
-    autos = db.scalars(select(Automation)).all()
+def auto_view(db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    from app.content_scheduler import run_status  # local import avoids a module cycle
+
+    brands = _brand_map(db, ws)
+    autos = _scoped(db, Automation, ws)
     return [
         {
             "id": a.id,
@@ -269,64 +292,46 @@ def auto_view(db: Session = Depends(get_db)):
             "auto_channel_ids": a.auto_channel_ids,
             "post_at": a.post_at.strftime("%H:%M") if a.post_at else None,
             "last_run_on": a.last_run_on,
+            "run": run_status(a.id),
         }
         for a in sorted(autos, key=lambda x: x.brand_id)
     ]
 
 
-@router.post("/auto/{automation_id}/run-now")
-def auto_run_now(automation_id: int, force: bool = False, db: Session = Depends(get_db)):
-    """Write today's batch of ideas for one brand right now, ignoring its
-    "write at" time (still guarded by ``last_run_on`` — running twice on the
-    same day just returns the drafts already written today, unless
-    ``force=true``, which discards today's batch and writes a fresh one —
-    see app/content_scheduler.py's ``force_regenerate``)."""
-    from app.content_ai import ContentAIError
-    from app.content_scheduler import _today, force_regenerate, run_automation
+@router.post("/auto/{automation_id}/run-now", status_code=202)
+def auto_run_now(
+    automation_id: int, force: bool = False, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)
+):
+    """Start writing today's batch for one brand right now, in the
+    background, ignoring its "write at" time. Returns at once with a status
+    the page polls at ``GET .../run`` (percent, current step, and the result
+    when done). ``force=true`` discards today's batch and writes a fresh one
+    (app/content_scheduler.py's ``force_regenerate``); without it, a brand
+    that already ran today just reports the ideas it already has."""
+    from app.content_scheduler import start_background_run
 
-    automation = db.get(Automation, automation_id)
-    if automation is None:
-        raise HTTPException(404, "Automation not found.")
+    owned(db, Automation, automation_id, ws)
+    return start_background_run(automation_id, force)
 
-    if force:
-        try:
-            result = force_regenerate(db, automation_id)
-        except ContentAIError as exc:
-            raise HTTPException(503, str(exc)) from exc
-        drafts = result["drafts"]
-        return {
-            "already_ran_today": False,
-            "regenerated": True,
-            "removed": result["removed"],
-            "kept_live": result["kept_live"],
-            "count": len(drafts),
-            "draft_ids": [d.id for d in drafts],
-        }
 
-    try:
-        drafts = run_automation(db, automation_id)
-    except ContentAIError as exc:
-        raise HTTPException(503, str(exc)) from exc
+@router.get("/auto/{automation_id}/run")
+def auto_run_status(
+    automation_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)
+):
+    from app.content_scheduler import run_status
 
-    if drafts is None:
-        # Someone else (the worker tick, or a double-click) already wrote today's batch.
-        drafts = db.scalars(
-            select(Draft).where(
-                Draft.brand_id == automation.brand_id, Draft.planned_for == _today()
-            )
-        ).all()
-        return {"already_ran_today": True, "count": len(drafts), "draft_ids": [d.id for d in drafts]}
-    return {"already_ran_today": False, "count": len(drafts), "draft_ids": [d.id for d in drafts]}
+    owned(db, Automation, automation_id, ws)
+    return run_status(automation_id) or {"automation_id": automation_id, "status": "idle"}
 
 
 @router.get("/library")
-def library_view(db: Session = Depends(get_db)):
+def library_view(db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
     """Every AI-generated image / video, newest first — the generation gallery."""
-    brands = _brand_map(db)
-    videos = {v.id: v for v in db.scalars(select(Video)).all()}
+    brands = _brand_map(db, ws)
+    videos = {v.id: v for v in _scoped(db, Video, ws)}
     jobs = db.scalars(
         select(GenerationJob)
-        .where(GenerationJob.video_id.is_not(None))
+        .where(scope(GenerationJob, ws), GenerationJob.video_id.is_not(None))
         .order_by(GenerationJob.created_at.desc(), GenerationJob.id.desc())
     ).all()
     out = []
@@ -360,11 +365,9 @@ def library_view(db: Session = Depends(get_db)):
 
 
 @router.delete("/library/{job_id}", status_code=204)
-def library_delete(job_id: int, db: Session = Depends(get_db)):
+def library_delete(job_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
     """Remove a generation and its file — unless a post already uses the asset."""
-    job = db.get(GenerationJob, job_id)
-    if job is None:
-        raise HTTPException(404, "Generation not found.")
+    job = owned(db, GenerationJob, job_id, ws, "Generation")
     if job.video_id:
         video = db.get(Video, job.video_id)
         if video is not None:
@@ -473,21 +476,24 @@ def _post_metrics(platform_slug: str, config: dict, external_id: str, cache: "_M
 
 @router.get("/insights")
 def insights_view(
-    brand_id: int | None = None, limit: int = _INSIGHTS_DEFAULT_LIMIT, db: Session = Depends(get_db)
+    brand_id: int | None = None,
+    limit: int = _INSIGHTS_DEFAULT_LIMIT,
+    db: Session = Depends(get_db),
+    ws: int = Depends(current_workspace_id),
 ):
     from concurrent.futures import ThreadPoolExecutor
 
     from app.media import kind_for
 
-    brands = _brand_map(db)
+    brands = _brand_map(db, ws)
     plats = _platform_map(db)
-    chans = {c.id: c for c in db.scalars(select(Channel)).all()}
-    videos = {v.id: v for v in db.scalars(select(Video)).all()}
+    chans = {c.id: c for c in _scoped(db, Channel, ws)}
+    videos = {v.id: v for v in _scoped(db, Video, ws)}
 
     q = (
         select(PostTarget)
         .options(selectinload(PostTarget.post))
-        .where(PostTarget.status == "posted", PostTarget.external_id != "")
+        .where(scope(PostTarget, ws), PostTarget.status == "posted", PostTarget.external_id != "")
         .order_by(PostTarget.published_at.desc())
     )
     rows = []
@@ -533,22 +539,26 @@ def insights_view(
 
 
 @router.get("/sidebar")
-def sidebar_counts(db: Session = Depends(get_db)):
-    live = db.scalar(select(func.count()).select_from(Channel).where(Channel.status != "off"))
-    total = db.scalar(select(func.count()).select_from(Channel))
-    queued = db.scalar(select(func.count()).select_from(PostTarget))
-    waiting = db.scalar(select(func.count()).select_from(Draft).where(Draft.status == "waiting"))
-    library = db.scalar(
-        select(func.count()).select_from(GenerationJob).where(GenerationJob.video_id.is_not(None))
-    )
+def sidebar_counts(db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    def count(model, *where):
+        return db.scalar(
+            select(func.count()).select_from(model).where(scope(model, ws), *where)
+        )
+
+    live = count(Channel, Channel.status != "off")
+    total = count(Channel)
+    queued = count(PostTarget)
+    waiting = count(Draft, Draft.status == "waiting")
+    library = count(GenerationJob, GenerationJob.video_id.is_not(None))
     per_brand = dict(
         db.execute(
             select(Post.brand_id, func.count(PostTarget.id))
             .join(PostTarget, PostTarget.post_id == Post.id)
+            .where(scope(Post, ws))
             .group_by(Post.brand_id)
         ).all()
     )
-    brands = db.scalars(select(Brand).order_by(Brand.name)).all()
+    brands = db.scalars(select(Brand).where(scope(Brand, ws)).order_by(Brand.name)).all()
     return {
         "channels_live": live or 0,
         "channels_total": total or 0,
@@ -582,13 +592,14 @@ class ScheduleIn(BaseModel):
 
 
 @router.post("/schedule", status_code=201)
-def schedule(payload: ScheduleIn, db: Session = Depends(get_db)):
+def schedule(payload: ScheduleIn, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
     if not payload.targets:
         raise HTTPException(422, "At least one target channel is required.")
-    if db.get(Brand, payload.brand_id) is None:
-        raise HTTPException(404, "Brand not found.")
-    if payload.video_id is not None and db.get(Video, payload.video_id) is None:
-        raise HTTPException(404, "Video not found.")
+    owned(db, Brand, payload.brand_id, ws)
+    if payload.video_id is not None:
+        owned(db, Video, payload.video_id, ws)
+    for t in payload.targets:
+        owned(db, Channel, t.channel_id, ws, f"Channel {t.channel_id}")
 
     post = Post(
         brand_id=payload.brand_id,
@@ -600,8 +611,6 @@ def schedule(payload: ScheduleIn, db: Session = Depends(get_db)):
     db.flush()
     created: list[PostTarget] = []
     for t in payload.targets:
-        if db.get(Channel, t.channel_id) is None:
-            raise HTTPException(404, f"Channel {t.channel_id} not found.")
         pt = PostTarget(
             post_id=post.id,
             channel_id=t.channel_id,
@@ -641,10 +650,9 @@ def connect_channel(
     channel_id: int,
     payload: ConnectIn | None = None,
     db: Session = Depends(get_db),
+    ws: int = Depends(current_workspace_id),
 ):
-    ch = db.get(Channel, channel_id)
-    if ch is None:
-        raise HTTPException(404, "Channel not found.")
+    ch = owned(db, Channel, channel_id, ws)
     merged_config = {**(ch.config or {}), **(payload.config if payload and payload.config else {})}
     verified = _verify_channel_config(ch.platform.slug if ch.platform else "", merged_config)
 
@@ -664,6 +672,47 @@ def connect_channel(
         "config_keys": sorted((ch.config or {}).keys()),
         "verified": verified,
     }
+
+
+@router.get("/channels/{channel_id}/pending")
+def channel_pending(channel_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    """How many not-yet-sent posts are queued for this channel — shown in the
+    disconnect confirmation so nobody cancels them by surprise."""
+    owned(db, Channel, channel_id, ws)
+    count = db.scalar(
+        select(func.count())
+        .select_from(PostTarget)
+        .where(PostTarget.channel_id == channel_id, PostTarget.status.in_(("queued", "posting")))
+    )
+    return {"queued": count or 0}
+
+
+@router.post("/channels/{channel_id}/disconnect")
+def disconnect_channel(channel_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    """Forget this channel's credentials so the app can no longer post to it.
+
+    The Channel row itself stays (status "off") so its post history and
+    Insights still resolve, and "Connect" can bring it back later. Posts still
+    queued for it are marked failed with a clear reason — the delivery worker
+    skips "off" channels, so otherwise they'd sit in the queue forever.
+    Already-published posts are untouched."""
+    ch = owned(db, Channel, channel_id, ws)
+
+    pending = db.scalars(
+        select(PostTarget).where(
+            PostTarget.channel_id == ch.id, PostTarget.status.in_(("queued", "posting"))
+        )
+    ).all()
+    for t in pending:
+        t.status = "failed"
+        t.error = "Channel was disconnected before this went out."
+
+    ch.status = "off"
+    ch.config = {}
+    ch.token_note = "Not connected"
+    ch.last_post_at = None
+    db.commit()
+    return {"id": ch.id, "status": ch.status, "cancelled": len(pending)}
 
 
 def _connect_note(verified: dict | None, payload) -> str:
@@ -696,15 +745,14 @@ class AddChannelIn(BaseModel):
 
 
 @router.post("/channels", status_code=201)
-def create_channel_for_brand(payload: AddChannelIn, db: Session = Depends(get_db)):
+def create_channel_for_brand(payload: AddChannelIn, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
     """The 'Add platform' flow: connect a brand to a platform.
 
     For Telegram, pass ``config`` with a ``bot_token`` and a ``chat_id``
     (the ``@channelusername`` or numeric id). The bot must be an admin of the
     channel.
     """
-    if db.get(Brand, payload.brand_id) is None:
-        raise HTTPException(404, "Brand not found.")
+    owned(db, Brand, payload.brand_id, ws)
     plat = db.scalar(select(Platform).where(Platform.slug == payload.platform_slug))
     if plat is None:
         raise HTTPException(404, f"Unknown platform '{payload.platform_slug}'.")
@@ -741,9 +789,8 @@ _TIKTOK_STATE_TTL_SECONDS = 600
 
 
 @router.get("/oauth/tiktok/start")
-def tiktok_oauth_start(brand_id: int, db: Session = Depends(get_db)):
-    if db.get(Brand, brand_id) is None:
-        raise HTTPException(404, "Brand not found.")
+def tiktok_oauth_start(brand_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    owned(db, Brand, brand_id, ws)
     state = sign_payload({"brand_id": brand_id}, _TIKTOK_STATE_TTL_SECONDS)
     try:
         return {"url": tiktok.authorize_url(state)}
@@ -751,7 +798,7 @@ def tiktok_oauth_start(brand_id: int, db: Session = Depends(get_db)):
         raise HTTPException(503, str(exc)) from exc
 
 
-@router.get("/oauth/tiktok/callback", include_in_schema=False)
+@public_router.get("/oauth/tiktok/callback", include_in_schema=False)
 def tiktok_oauth_callback(
     code: str = "", state: str = "", error: str = "", db: Session = Depends(get_db)
 ):
@@ -800,15 +847,13 @@ def tiktok_oauth_callback(
 
 
 @router.get("/channels/{channel_id}/tiktok/creator-info")
-def tiktok_creator_info_view(channel_id: int, db: Session = Depends(get_db)):
+def tiktok_creator_info_view(channel_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
     """Feeds the Direct Post picker in the composer — allowed privacy levels
     and the account's duet/comment/stitch defaults. Only meaningful for a
     channel whose token actually carries video.publish (see /views/channels'
     ``tiktok_direct_post`` flag); calling it on an Upload-only channel just
     503s with TikTok's own "scope not authorized" message."""
-    channel = db.get(Channel, channel_id)
-    if channel is None:
-        raise HTTPException(404, "Channel not found.")
+    channel = owned(db, Channel, channel_id, ws)
     try:
         access_token, updated_config = tiktok.ensure_access_token(channel.config or {})
     except tiktok.TikTokError as exc:
@@ -839,9 +884,10 @@ _META_STATE_TTL_SECONDS = 600
 
 
 @router.get("/oauth/meta/start")
-def meta_oauth_start(brand_id: int, intent: str = "facebook", db: Session = Depends(get_db)):
-    if db.get(Brand, brand_id) is None:
-        raise HTTPException(404, "Brand not found.")
+def meta_oauth_start(
+    brand_id: int, intent: str = "facebook", db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)
+):
+    owned(db, Brand, brand_id, ws)
     state = sign_payload({"brand_id": brand_id, "intent": intent}, _META_STATE_TTL_SECONDS)
     try:
         return {"url": meta.authorize_url(state)}
@@ -849,7 +895,7 @@ def meta_oauth_start(brand_id: int, intent: str = "facebook", db: Session = Depe
         raise HTTPException(503, str(exc)) from exc
 
 
-@router.get("/oauth/meta/callback", include_in_schema=False)
+@public_router.get("/oauth/meta/callback", include_in_schema=False)
 def meta_oauth_callback(
     code: str = "", state: str = "", error: str = "", db: Session = Depends(get_db)
 ):
@@ -887,11 +933,11 @@ def meta_oauth_callback(
 
 
 @router.get("/oauth/meta/pending/{pending_id}")
-def meta_pending_view(pending_id: str, db: Session = Depends(get_db)):
+def meta_pending_view(pending_id: str, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
     record = meta.peek_pending(pending_id)
     if record is None:
         raise HTTPException(404, "That connect session expired — start again.")
-    brand = db.get(Brand, record["brand_id"])
+    brand = owned(db, Brand, record["brand_id"], ws)
     return {
         "brand_id": record["brand_id"],
         "brand_name": brand.name if brand else "?",
@@ -915,10 +961,14 @@ class MetaConfirmIn(BaseModel):
 
 
 @router.post("/oauth/meta/pending/{pending_id}/confirm")
-def meta_pending_confirm(pending_id: str, payload: MetaConfirmIn, db: Session = Depends(get_db)):
-    record = meta.pop_pending(pending_id)
+def meta_pending_confirm(
+    pending_id: str, payload: MetaConfirmIn, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)
+):
+    record = meta.peek_pending(pending_id)
     if record is None:
         raise HTTPException(404, "That connect session expired — start again.")
+    owned(db, Brand, record["brand_id"], ws)
+    meta.pop_pending(pending_id)
     page = next((p for p in record["pages"] if p["id"] == payload.page_id), None)
     if page is None:
         raise HTTPException(404, "That Page was not in the list you connected.")
@@ -977,9 +1027,8 @@ _LINKEDIN_STATE_TTL_SECONDS = 600
 
 
 @router.get("/oauth/linkedin/start")
-def linkedin_oauth_start(brand_id: int, db: Session = Depends(get_db)):
-    if db.get(Brand, brand_id) is None:
-        raise HTTPException(404, "Brand not found.")
+def linkedin_oauth_start(brand_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    owned(db, Brand, brand_id, ws)
     state = sign_payload({"brand_id": brand_id}, _LINKEDIN_STATE_TTL_SECONDS)
     try:
         return {"url": linkedin.authorize_url(state)}
@@ -987,7 +1036,7 @@ def linkedin_oauth_start(brand_id: int, db: Session = Depends(get_db)):
         raise HTTPException(503, str(exc)) from exc
 
 
-@router.get("/oauth/linkedin/callback", include_in_schema=False)
+@public_router.get("/oauth/linkedin/callback", include_in_schema=False)
 def linkedin_oauth_callback(
     code: str = "", state: str = "", error: str = "", db: Session = Depends(get_db)
 ):
@@ -1037,11 +1086,9 @@ def linkedin_oauth_callback(
 
 # ── publishing ───────────────────────────────────────────────────────────
 @router.post("/post-targets/{target_id}/publish")
-def publish_target(target_id: int, db: Session = Depends(get_db)):
+def publish_target(target_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
     """Send one queued post to its channel right now (Telegram goes live)."""
-    target = db.get(PostTarget, target_id)
-    if target is None:
-        raise HTTPException(404, "Post target not found.")
+    target = owned(db, PostTarget, target_id, ws, "Post target")
     return _run_publish(db, target)
 
 
@@ -1066,21 +1113,24 @@ def publish_due_targets(
     limit: int = 50,
     dry_run: bool = False,
     dwell: bool = False,
+    workspace_id: int | None = None,
 ) -> dict:
     """Deliver every queued target whose scheduled time has passed.
 
     Shared by the ``/publish-due`` endpoint and the in-process delivery worker
     (``app.scheduler``). ``dwell`` inserts a short pause between marking posts
     "posting" and sending them, so the UI can show progress — the worker passes
-    it, request handlers do not.
+    it, request handlers do not. ``workspace_id`` limits it to one tenant
+    (the endpoint); the worker passes None and serves every workspace.
     """
     now = datetime.now(UTC)
     cutoff = until or now
     stale_before = now - _STALE_POSTING
+    q = select(PostTarget).join(Channel, Channel.id == PostTarget.channel_id)
+    if workspace_id is not None:
+        q = q.where(scope(PostTarget, workspace_id))
     rows = db.scalars(
-        select(PostTarget)
-        .join(Channel, Channel.id == PostTarget.channel_id)
-        .where(
+        q.where(
             PostTarget.scheduled_for.is_not(None),
             PostTarget.scheduled_for <= cutoff,
             Channel.status != "off",
@@ -1109,7 +1159,9 @@ def publish_due_targets(
 
 
 @router.post("/publish-due")
-def publish_due(payload: PublishDueIn | None = None, db: Session = Depends(get_db)):
+def publish_due(
+    payload: PublishDueIn | None = None, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)
+):
     """Publish every queued target whose scheduled time has passed.
 
     Runs automatically in-process (see ``app.scheduler``); this endpoint lets you
@@ -1117,21 +1169,19 @@ def publish_due(payload: PublishDueIn | None = None, db: Session = Depends(get_d
     """
     payload = payload or PublishDueIn()
     return publish_due_targets(
-        db, until=payload.until, limit=payload.limit, dry_run=payload.dry_run
+        db, until=payload.until, limit=payload.limit, dry_run=payload.dry_run, workspace_id=ws
     )
 
 
 @router.post("/drafts/{draft_id}/approve")
-def approve_draft(draft_id: int, db: Session = Depends(get_db)):
+def approve_draft(draft_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
     """Approving a plain idea just marks it approved — you still build the
     post yourself from the Calendar. Approving one that already has
     auto-generated media (Automation.auto_media) goes further: it schedules
     a real Post to every connected channel right here, one click."""
     from app.content_scheduler import ContentAIError, schedule_draft_as_post
 
-    d = db.get(Draft, draft_id)
-    if d is None:
-        raise HTTPException(404, "Draft not found.")
+    d = owned(db, Draft, draft_id, ws)
 
     if d.video_id is not None:
         try:
@@ -1148,10 +1198,8 @@ def approve_draft(draft_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/drafts/{draft_id}/reject")
-def reject_draft(draft_id: int, db: Session = Depends(get_db)):
-    d = db.get(Draft, draft_id)
-    if d is None:
-        raise HTTPException(404, "Draft not found.")
+def reject_draft(draft_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    d = owned(db, Draft, draft_id, ws)
     d.status = "rejected"
     db.commit()
     return {"id": d.id, "status": d.status}

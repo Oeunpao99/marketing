@@ -13,7 +13,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import date, datetime, time, timedelta, timezone
+import threading
+from collections.abc import Callable
+from datetime import UTC, date, datetime, time, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -27,6 +29,15 @@ log = logging.getLogger("app.content_scheduler")
 
 # Same fixed-offset clock every schedule-facing view in this app uses.
 PHNOM_PENH = timezone(timedelta(hours=7))
+
+
+# report(percent, step label, percent expected by the next report) — lets a
+# background run show live progress (see start_background_run below).
+Report = Callable[[int, str, int], None]
+
+
+def _no_report(_pct: int, _step: str, _upto: int) -> None:
+    pass
 
 
 def _today() -> date:
@@ -77,6 +88,7 @@ def _generate_media_for(brand: Brand, idea: dict, products: list[Product]) -> in
     try:
         url = store_blob(db, blob, ".png", "image/png")
         job = GenerationJob(
+            workspace_id=brand.workspace_id,
             brand_id=brand.id,
             kind="image",
             prompt=prompt,
@@ -91,6 +103,7 @@ def _generate_media_for(brand: Brand, idea: dict, products: list[Product]) -> in
         db.add(job)
         db.flush()
         v = Video(
+            workspace_id=brand.workspace_id,
             brand_id=brand.id,
             filename=f"auto-{brand.slug}-{int(datetime.now(PHNOM_PENH).timestamp())}.png",
             resolution="1024x1536",
@@ -167,7 +180,9 @@ def schedule_draft_as_post(db: Session, draft: Draft) -> Post:
     return post
 
 
-def _write_batch(db: Session, automation: Automation, today: date) -> list[Draft]:
+def _write_batch(
+    db: Session, automation: Automation, today: date, report: Report = _no_report
+) -> list[Draft]:
     """The actual generate-and-persist work, shared by a normal run and a
     forced regenerate — caller has already handled the ``last_run_on`` guard
     (or deliberately bypassed it) and holds the automation row lock."""
@@ -180,6 +195,11 @@ def _write_batch(db: Session, automation: Automation, today: date) -> list[Draft
         select(Product).where(Product.brand_id == brand.id).order_by(Product.name)
     ).all()
     count = max(1, min(automation.videos_per_day, 10))
+    # Images dominate the run time when auto-media is on, so they get the
+    # biggest share of the bar; otherwise writing the ideas does.
+    media = automation.auto_media
+    ideas_end, check_end = (45, 55) if media else (70, 95)
+    report(5, f"Writing {count} idea{'s' if count != 1 else ''}…", ideas_end)
     try:
         ideas = generate_ideas(
             brand.name, brand.lang, list(products), automation.topic_source, count, brand.voice_examples or ""
@@ -188,6 +208,7 @@ def _write_batch(db: Session, automation: Automation, today: date) -> list[Draft
         db.commit()  # release the lock even though this attempt failed
         raise
 
+    report(ideas_end, "Fact-checking against your products…", check_end)
     checks = fact_check([i["caption"] for i in ideas], list(products))
 
     drafts = [
@@ -207,8 +228,14 @@ def _write_batch(db: Session, automation: Automation, today: date) -> list[Draft
     db.add_all(drafts)
     db.flush()  # assign ids before scheduling can reference them
 
-    for draft, idea in zip(drafts, ideas):
+    for n, (draft, idea) in enumerate(zip(drafts, ideas)):
         if automation.auto_media:
+            span = 95 - check_end
+            report(
+                check_end + span * n // len(ideas),
+                f"Making image {n + 1} of {len(ideas)}…",
+                check_end + span * (n + 1) // len(ideas),
+            )
             draft.video_id = _generate_media_for(brand, idea, list(products))
 
         if automation.require_approval or draft.fact_issues:
@@ -226,6 +253,7 @@ def _write_batch(db: Session, automation: Automation, today: date) -> list[Draft
         # fallback as the plain text-only path: needs a human to build it.
         draft.status = "approved"
 
+    report(97, "Saving…", 100)
     automation.last_run_on = today
     db.commit()
     for d in drafts:
@@ -233,7 +261,9 @@ def _write_batch(db: Session, automation: Automation, today: date) -> list[Draft
     return drafts
 
 
-def run_automation(db: Session, automation_id: int) -> list[Draft] | None:
+def run_automation(
+    db: Session, automation_id: int, report: Report = _no_report
+) -> list[Draft] | None:
     """Generate + persist one automation's batch of ideas for today.
 
     Row-locks the ``Automation`` and re-checks ``last_run_on`` before writing,
@@ -254,10 +284,10 @@ def run_automation(db: Session, automation_id: int) -> list[Draft] | None:
         db.commit()  # release the row lock
         return None
 
-    return _write_batch(db, automation, today)
+    return _write_batch(db, automation, today, report)
 
 
-def force_regenerate(db: Session, automation_id: int) -> dict:
+def force_regenerate(db: Session, automation_id: int, report: Report = _no_report) -> dict:
     """Discard today's already-written batch and write a fresh one, ignoring
     the "already ran today" guard — the explicit "Regenerate" action.
 
@@ -275,6 +305,7 @@ def force_regenerate(db: Session, automation_id: int) -> dict:
     if automation is None:
         raise ContentAIError(f"Automation {automation_id} not found.")
 
+    report(2, "Clearing today's old batch…", 5)
     today = _today()
     old_drafts = db.scalars(
         select(Draft).where(
@@ -308,8 +339,105 @@ def force_regenerate(db: Session, automation_id: int) -> dict:
     db.flush()
 
     automation.last_run_on = None
-    drafts = _write_batch(db, automation, today)
+    drafts = _write_batch(db, automation, today, report)
     return {"removed": removed, "kept_live": kept_live, "drafts": drafts}
+
+
+# ── on-demand runs in the background ─────────────────────────────────────
+# "Generate now" / "Regenerate" can take minutes (AI writing + one image per
+# idea), so the button just starts a thread and the page polls its progress —
+# the person can close the dialog, keep working, or leave the page. State is
+# in process memory (single uvicorn process); a finished run is remembered
+# for a while so the page can still show "done" when someone comes back.
+_RUN_MEMORY = timedelta(minutes=15)
+_runs: dict[int, dict] = {}
+_runs_lock = threading.Lock()
+
+
+def run_status(automation_id: int) -> dict | None:
+    with _runs_lock:
+        state = _runs.get(automation_id)
+        if state is None:
+            return None
+        if state["status"] != "running" and datetime.now(UTC) - state["_finished"] > _RUN_MEMORY:
+            _runs.pop(automation_id, None)
+            return None
+        return {k: v for k, v in state.items() if not k.startswith("_")}
+
+
+def start_background_run(automation_id: int, force: bool) -> dict:
+    """Kick off a run (or regenerate) for one automation in a worker thread
+    and return its initial status. If one is already running for it, return
+    that instead of starting a second."""
+    with _runs_lock:
+        current = _runs.get(automation_id)
+        if current is not None and current["status"] == "running":
+            return {k: v for k, v in current.items() if not k.startswith("_")}
+        _runs[automation_id] = {
+            "automation_id": automation_id,
+            "force": force,
+            "status": "running",
+            "progress": 0,
+            "upto": 2,
+            "step": "Starting…",
+            "started_at": datetime.now(UTC).isoformat(),
+            "finished_at": None,
+            "error": "",
+            "result": None,
+        }
+    threading.Thread(
+        target=_background_run, args=(automation_id, force), daemon=True,
+        name=f"auto-run-{automation_id}",
+    ).start()
+    return run_status(automation_id)
+
+
+def _update_run(automation_id: int, **fields) -> None:
+    with _runs_lock:
+        state = _runs.get(automation_id)
+        if state is not None:
+            state.update(fields)
+            if fields.get("status") in ("done", "failed"):
+                state["_finished"] = datetime.now(UTC)
+                state["finished_at"] = state["_finished"].isoformat()
+
+
+def _background_run(automation_id: int, force: bool) -> None:
+    def report(pct: int, step: str, upto: int) -> None:
+        _update_run(automation_id, progress=pct, step=step, upto=upto)
+
+    db = SessionLocal()
+    try:
+        if force:
+            out = force_regenerate(db, automation_id, report)
+            drafts = out["drafts"]
+            result = {
+                "regenerated": True,
+                "removed": out["removed"],
+                "kept_live": out["kept_live"],
+                "count": len(drafts),
+            }
+        else:
+            drafts = run_automation(db, automation_id, report)
+            already = drafts is None
+            if already:
+                automation = db.get(Automation, automation_id)
+                drafts = db.scalars(
+                    select(Draft).where(
+                        Draft.brand_id == automation.brand_id, Draft.planned_for == _today()
+                    )
+                ).all()
+            result = {"regenerated": False, "already_ran_today": already, "count": len(drafts)}
+        _update_run(automation_id, status="done", progress=100, upto=100, step="Done", result=result)
+    except ContentAIError as exc:
+        db.rollback()
+        _update_run(automation_id, status="failed", step="Failed", error=str(exc))
+    except Exception:  # noqa: BLE001 - surface any crash to the page, not just the log
+        db.rollback()
+        log.exception("background run crashed for automation %s", automation_id)
+        _update_run(automation_id, status="failed", step="Failed", error="Unexpected error — check the server log.")
+    finally:
+        db.close()
 
 
 def _due(automation: Automation, now: datetime) -> bool:

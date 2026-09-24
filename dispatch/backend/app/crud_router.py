@@ -1,5 +1,10 @@
 """Builds a full CRUD APIRouter for a single Resource in the registry.
 
+Every route is workspace-scoped (app/tenancy.py): lists only return the
+caller's rows, single-row routes 404 on another tenant's id, and any
+``brand_id`` / ``video_id`` / ``post_id`` / ``channel_id`` in a payload must
+point at a row the caller owns.
+
 NOTE: this module deliberately does NOT use ``from __future__ import annotations``
 -- FastAPI reads the runtime ``__annotations__`` of the endpoint callables, and we
 inject the per-resource Pydantic schemas as real class objects below.
@@ -11,7 +16,16 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.models import Brand, TeamMember
 from app.registry import Resource
+from app.tenancy import (
+    MANAGER_ROLES,
+    check_refs,
+    get_current_user,
+    owned,
+    scope,
+    unique_brand_slug,
+)
 
 
 def build_router(r: Resource) -> APIRouter:
@@ -22,31 +36,49 @@ def build_router(r: Resource) -> APIRouter:
     UpdateSchema = r.update_schema
     order_col = getattr(Model, r.order_by, Model.id)
 
-    def get_or_404(db: Session, item_id: int):
-        obj = db.get(Model, item_id)
-        if obj is None:
-            raise HTTPException(404, f"{r.singular} {item_id} not found")
-        return obj
+    def can_write(user: TeamMember) -> None:
+        if r.read_only:
+            raise HTTPException(403, f"{r.label} are managed by the server.")
+        if r.manager_only and user.role not in MANAGER_ROLES:
+            raise HTTPException(403, "Only a workspace owner or admin can do that.")
 
     def list_items(
         db: Session = Depends(get_db),
+        user: TeamMember = Depends(get_current_user),
         limit: int = Query(200, le=500),
         offset: int = Query(0, ge=0),
     ):
-        rows = db.scalars(
-            select(Model).order_by(order_col, Model.id).limit(limit).offset(offset)
-        ).all()
+        q = select(Model)
+        clause = scope(Model, user.workspace_id)
+        if clause is not None:
+            q = q.where(clause)
+        rows = db.scalars(q.order_by(order_col, Model.id).limit(limit).offset(offset)).all()
         return list(rows)
 
     list_items.__annotations__["return"] = list[OutSchema]
 
-    def get_item(item_id: int, db: Session = Depends(get_db)):
-        return get_or_404(db, item_id)
+    def get_item(
+        item_id: int,
+        db: Session = Depends(get_db),
+        user: TeamMember = Depends(get_current_user),
+    ):
+        return owned(db, Model, item_id, user.workspace_id, r.singular)
 
     get_item.__annotations__["return"] = OutSchema
 
-    def create_item(payload, db: Session = Depends(get_db)):
-        obj = Model(**payload.model_dump(exclude_unset=True))
+    def create_item(
+        payload,
+        db: Session = Depends(get_db),
+        user: TeamMember = Depends(get_current_user),
+    ):
+        can_write(user)
+        data = payload.model_dump(exclude_unset=True)
+        check_refs(db, data, user.workspace_id)
+        if Model is Brand:
+            data["slug"] = unique_brand_slug(db, data.get("slug", ""))
+        if hasattr(Model, "workspace_id"):
+            data["workspace_id"] = user.workspace_id
+        obj = Model(**data)
         db.add(obj)
         try:
             db.commit()
@@ -59,9 +91,19 @@ def build_router(r: Resource) -> APIRouter:
     create_item.__annotations__["payload"] = CreateSchema
     create_item.__annotations__["return"] = OutSchema
 
-    def update_item(item_id: int, payload, db: Session = Depends(get_db)):
-        obj = get_or_404(db, item_id)
-        for key, value in payload.model_dump(exclude_unset=True).items():
+    def update_item(
+        item_id: int,
+        payload,
+        db: Session = Depends(get_db),
+        user: TeamMember = Depends(get_current_user),
+    ):
+        can_write(user)
+        obj = owned(db, Model, item_id, user.workspace_id, r.singular)
+        data = payload.model_dump(exclude_unset=True)
+        check_refs(db, data, user.workspace_id)
+        if Model is TeamMember and obj.id == user.id and data.get("role", user.role) != user.role:
+            raise HTTPException(400, "You can't change your own role.")
+        for key, value in data.items():
             setattr(obj, key, value)
         try:
             db.commit()
@@ -74,8 +116,15 @@ def build_router(r: Resource) -> APIRouter:
     update_item.__annotations__["payload"] = UpdateSchema
     update_item.__annotations__["return"] = OutSchema
 
-    def delete_item(item_id: int, db: Session = Depends(get_db)):
-        obj = get_or_404(db, item_id)
+    def delete_item(
+        item_id: int,
+        db: Session = Depends(get_db),
+        user: TeamMember = Depends(get_current_user),
+    ):
+        can_write(user)
+        obj = owned(db, Model, item_id, user.workspace_id, r.singular)
+        if Model is TeamMember and obj.id == user.id:
+            raise HTTPException(400, "You can't remove yourself.")
         db.delete(obj)
         db.commit()
         return None

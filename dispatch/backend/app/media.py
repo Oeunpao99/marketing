@@ -17,7 +17,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal, get_db
-from app.models import MediaBlob, Video
+from app.models import Brand, MediaBlob, Video
+from app.tenancy import current_workspace_id, owned
 
 MEDIA_DIR = Path(__file__).resolve().parent.parent / "media"
 MEDIA_DIR.mkdir(exist_ok=True)
@@ -124,7 +125,10 @@ def upload(
     brand_id: int | None = Form(default=None),
     tag: str = Form(default=""),
     db: Session = Depends(get_db),
+    ws: int = Depends(current_workspace_id),
 ):
+    if brand_id is not None:
+        owned(db, Brand, brand_id, ws)
     original = file.filename or "asset"
     ext = (
         Path(original).suffix.lower()
@@ -141,6 +145,7 @@ def upload(
     kind = kind_for(original, file.content_type)
     url = store_blob(db, bytes(data), ext, file.content_type)
     row = Video(
+        workspace_id=ws,
         brand_id=brand_id,
         filename=original,
         size_bytes=len(data),

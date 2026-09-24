@@ -27,7 +27,8 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.database import get_db
 from app.media import read_media, store_blob
-from app.models import GenerationJob, Video
+from app.models import Brand, GenerationJob, Video
+from app.tenancy import current_workspace_id, owned
 
 router = APIRouter(prefix="/ai", tags=["AI"])
 
@@ -417,7 +418,9 @@ def _out(job: GenerationJob, video: Video | None) -> VideoJobOut:
 
 
 @router.post("/video", response_model=VideoJobOut, status_code=201)
-def create_video(payload: VideoJobIn, db: Session = Depends(get_db)):
+def create_video(payload: VideoJobIn, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    if payload.brand_id is not None:
+        owned(db, Brand, payload.brand_id, ws)
     s = get_settings()
     seconds = max(3, min(payload.seconds, s.video_max_seconds))
     ratio = payload.aspect_ratio if payload.aspect_ratio in _DIMS else "9:16"
@@ -427,6 +430,7 @@ def create_video(payload: VideoJobIn, db: Session = Depends(get_db)):
         raise HTTPException(503, str(exc)) from exc
 
     job = GenerationJob(
+        workspace_id=ws,
         brand_id=payload.brand_id,
         kind="video",
         prompt=payload.prompt,
@@ -443,10 +447,8 @@ def create_video(payload: VideoJobIn, db: Session = Depends(get_db)):
 
 
 @router.get("/video/{job_id}", response_model=VideoJobOut)
-def get_video(job_id: int, db: Session = Depends(get_db)):
-    job = db.get(GenerationJob, job_id)
-    if job is None:
-        raise HTTPException(404, "Generation job not found.")
+def get_video(job_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    job = owned(db, GenerationJob, job_id, ws, "Generation job")
 
     if job.status in {"succeeded", "failed"}:
         return _out(job, db.get(Video, job.video_id) if job.video_id else None)
@@ -482,6 +484,7 @@ def get_video(job_id: int, db: Session = Depends(get_db)):
     url = store_blob(db, blob, ".mp4", "video/mp4")
     width, height = _DIMS.get(job.aspect_ratio, _DIMS["9:16"])
     video = Video(
+        workspace_id=job.workspace_id,
         brand_id=job.brand_id,
         filename=f"ai-{job.id}.mp4",
         duration_seconds=job.seconds,
@@ -514,8 +517,10 @@ class ImageIn(BaseModel):
 
 
 @router.post("/image", response_model=VideoJobOut, status_code=201)
-def create_image(payload: ImageIn, db: Session = Depends(get_db)):
+def create_image(payload: ImageIn, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
     """Generate an image synchronously and store it as a Video row (kind=image)."""
+    if payload.brand_id is not None:
+        owned(db, Brand, payload.brand_id, ws)
     ratio = payload.aspect_ratio if payload.aspect_ratio in _DIMS else "1:1"
 
     reference: bytes | None = None
@@ -533,6 +538,7 @@ def create_image(payload: ImageIn, db: Session = Depends(get_db)):
     width, height = _IMG_DIMS.get(ratio, _IMG_DIMS["1:1"])
 
     job = GenerationJob(
+        workspace_id=ws,
         brand_id=payload.brand_id,
         kind="image",
         prompt=payload.prompt,
@@ -547,6 +553,7 @@ def create_image(payload: ImageIn, db: Session = Depends(get_db)):
     db.add(job)
     db.flush()
     video = Video(
+        workspace_id=ws,
         brand_id=payload.brand_id,
         filename=f"ai-{job.id}.png",
         resolution=f"{width}x{height}",

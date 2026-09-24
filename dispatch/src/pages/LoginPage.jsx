@@ -10,7 +10,7 @@ const PERKS = [
 export default function LoginPage() {
   const { login, register } = useAuth()
   const [mode, setMode] = useState('signin') // signin | register
-  const [form, setForm] = useState({ name: '', email: '', password: '' })
+  const [form, setForm] = useState({ name: '', company: '', email: '', password: '' })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
 
@@ -22,7 +22,7 @@ export default function LoginPage() {
     setBusy(true)
     setError(null)
     try {
-      if (isRegister) await register(form.name.trim(), form.email.trim(), form.password)
+      if (isRegister) await register(form.name.trim(), form.email.trim(), form.password, form.company.trim())
       else await login(form.email.trim(), form.password)
     } catch (err) {
       setError(err.message)
@@ -87,7 +87,7 @@ export default function LoginPage() {
           </h1>
           <p className="mt-1 text-[13px] text-ink-500">
             {isRegister
-              ? 'The first account becomes the admin.'
+              ? 'Your own private workspace — only people you invite can see it.'
               : 'Sign in to the content portal.'}
           </p>
 
@@ -101,6 +101,17 @@ export default function LoginPage() {
                   value={form.name}
                   onChange={set('name')}
                   placeholder="Sokha R."
+                  className={inputCls}
+                />
+              </Field>
+            )}
+            {isRegister && (
+              <Field label="Company or workspace name">
+                <input
+                  type="text"
+                  value={form.company}
+                  onChange={set('company')}
+                  placeholder="e.g. Sokha Coffee Co."
                   className={inputCls}
                 />
               </Field>

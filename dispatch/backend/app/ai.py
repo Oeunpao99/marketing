@@ -15,7 +15,8 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.database import get_db
-from app.models import Product
+from app.models import Brand, Product
+from app.tenancy import current_workspace_id, owned
 
 router = APIRouter(prefix="/ai", tags=["AI"])
 
@@ -159,7 +160,9 @@ def _messages(req: PromptRequest, products: list[Product]) -> list[dict]:
 
 
 @router.post("/prompt", response_model=PromptResponse)
-def build_prompt(req: PromptRequest, db: Session = Depends(get_db)):
+def build_prompt(req: PromptRequest, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    if req.brand_id is not None:
+        owned(db, Brand, req.brand_id, ws)
     cfg = get_settings()
     if not cfg.azure_openai_api_key or not cfg.azure_openai_endpoint:
         raise HTTPException(503, "AI service is not configured.")

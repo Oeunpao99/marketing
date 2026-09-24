@@ -219,7 +219,12 @@ def run() -> None:
             print("Seed data already present -- nothing to do.")
             return
 
-        brands = {b["slug"]: Brand(**b) for b in BRANDS}
+        from app.models import Workspace
+
+        workspace = Workspace(name="Demo workspace")
+        db.add(workspace)
+        db.flush()
+        brands = {b["slug"]: Brand(**b, workspace_id=workspace.id) for b in BRANDS}
         platforms = {p["slug"]: Platform(**p) for p in PLATFORMS}
         db.add_all([*brands.values(), *platforms.values()])
         db.flush()
@@ -239,6 +244,7 @@ def run() -> None:
         videos: dict[str, Video] = {}
         for fname, bslug, dur, res, mb, src, tag in VIDEOS:
             v = Video(
+                workspace_id=workspace.id,
                 brand_id=brands[bslug].id,
                 filename=fname,
                 duration_seconds=dur,
@@ -307,12 +313,13 @@ def run() -> None:
         cfg = get_settings()
         db.add(
             TeamMember(
+                workspace_id=workspace.id,
                 name="Sokha R.",
                 initials="SR",
                 email=cfg.seed_admin_email,
                 location="Phnom Penh",
                 timezone="UTC+7",
-                role="admin",
+                role="owner",
                 is_active=True,
                 password_hash=(
                     hash_password(cfg.seed_admin_password) if cfg.seed_admin_password else ""

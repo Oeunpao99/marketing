@@ -374,6 +374,9 @@ class TeamMemberOut(TimestampsOut, TeamMemberBase):
 # ── Auth ─────────────────────────────────────────────────────────────────
 class RegisterIn(BaseModel):
     name: str = Field(min_length=1, max_length=120)
+    # The new account's workspace (company / agency) name — defaults to
+    # "<name>'s workspace" when left blank.
+    workspace_name: str = Field(default="", max_length=120)
     email: str = Field(min_length=3, max_length=160)
     password: str = Field(min_length=8, max_length=128)
 
@@ -385,6 +388,8 @@ class LoginIn(BaseModel):
 
 class UserOut(ORMModel):
     id: int
+    workspace_id: int
+    workspace_name: str = ""
     name: str
     email: str
     initials: str = ""
@@ -392,6 +397,10 @@ class UserOut(ORMModel):
     timezone: str = "UTC+7"
     role: str = "editor"
     is_active: bool = True
+
+
+class WorkspaceUpdate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
 
 
 class AuthOut(BaseModel):

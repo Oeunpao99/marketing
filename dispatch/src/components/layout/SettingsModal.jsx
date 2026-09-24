@@ -31,7 +31,24 @@ function Toggle({ on, onChange }) {
 }
 
 export default function SettingsModal({ open, onClose, showToast }) {
-  const { user, logout } = useAuth()
+  const { user, logout, renameWorkspace } = useAuth()
+  const [wsName, setWsName] = useState(user?.workspace_name || '')
+  const [wsSaving, setWsSaving] = useState(false)
+  const canManage = user?.role === 'owner' || user?.role === 'admin'
+
+  const saveWorkspace = async () => {
+    const next = wsName.trim()
+    if (!next || next === user?.workspace_name) return
+    setWsSaving(true)
+    try {
+      await renameWorkspace(next)
+      showToast('Workspace renamed')
+    } catch (e) {
+      showToast(`Could not rename — ${e.message}`)
+    } finally {
+      setWsSaving(false)
+    }
+  }
   const [name, setName] = useState(user?.name || 'Sokha R.')
   const [email, setEmail] = useState(user?.email || 'sokha@tip-sa.com')
   const [theme, setTheme] = useState('blue')
@@ -98,6 +115,38 @@ export default function SettingsModal({ open, onClose, showToast }) {
                 />
               </div>
             </div>
+          </section>
+
+          {/* Workspace */}
+          <section>
+            <SectionTitle>Workspace</SectionTitle>
+            <div className="flex items-end gap-2">
+              <div className="flex-1">
+                <label className="text-[11px] font-semibold text-ink-700 mb-1 block">Company / workspace name</label>
+                <input
+                  type="text"
+                  value={wsName}
+                  disabled={!canManage}
+                  onChange={(e) => setWsName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && saveWorkspace()}
+                  className="w-full bg-ink-50 border border-ink-200 rounded-xl px-3 py-2 text-[12.5px] focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 disabled:opacity-60"
+                />
+              </div>
+              {canManage && (
+                <button
+                  type="button"
+                  onClick={saveWorkspace}
+                  disabled={wsSaving || !wsName.trim() || wsName.trim() === user?.workspace_name}
+                  className="btn-primary px-3.5 py-2 disabled:opacity-50"
+                >
+                  {wsSaving ? 'Saving…' : 'Save'}
+                </button>
+              )}
+            </div>
+            <p className="mt-1.5 text-[11px] text-ink-400">
+              Everything in the portal — brands, channels, posts, media — belongs to this workspace
+              and is invisible to other accounts.
+            </p>
           </section>
 
           {/* Theme */}

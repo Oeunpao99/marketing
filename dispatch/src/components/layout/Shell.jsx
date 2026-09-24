@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import Sidebar from './Sidebar'
 import Topbar from './Topbar'
 import MobileBar from './MobileBar'
 import AIAssistant from '../ai/AIAssistant'
 import CreateBrandDrawer from './CreateBrandDrawer'
+import { useStore } from '../../store'
+import { useAutoRunWatcher } from '../../lib/autoRuns'
 
 const KEY = 'dispatch.sidebarCollapsed'
 
@@ -15,8 +17,36 @@ function readCollapsed() {
   }
 }
 
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`
+
+// Mounted once for the whole app, so a background Auto-generate run still
+// announces itself when it finishes even if the person left that page.
+function useRunFinishedToast() {
+  const { auto, showToast, refreshReview, refreshAuto } = useStore()
+  const onFinish = useCallback(
+    (run) => {
+      refreshAuto()
+      if (run.status === 'idle') return
+      const name = (auto || []).find((a) => a.id === run.automation_id)?.brand_name || 'Auto-generate'
+      const r = run.result || {}
+      if (run.status === 'failed') showToast(`${name}: could not generate — ${run.error}`)
+      else if (r.regenerated)
+        showToast(
+          `${name}: regenerated — ${plural(r.count, 'new idea')}` +
+            (r.kept_live ? `, ${r.kept_live} already-posted left alone` : ''),
+        )
+      else if (r.already_ran_today) showToast(`${name}: already wrote ${plural(r.count, 'idea')} for today`)
+      else showToast(`${name}: wrote ${plural(r.count, 'new idea')} for today`)
+      refreshReview()
+    },
+    [auto, showToast, refreshReview, refreshAuto],
+  )
+  useAutoRunWatcher(onFinish)
+}
+
 export default function Shell({ children }) {
   const [collapsed, setCollapsed] = useState(readCollapsed)
+  useRunFinishedToast()
 
   const toggle = () =>
     setCollapsed((v) => {

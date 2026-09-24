@@ -40,10 +40,27 @@ class TimestampMixin:
     )
 
 
+class Workspace(Base, TimestampMixin):
+    """One customer account (a company / agency) — the tenant boundary.
+
+    Every brand, uploaded or generated asset, and login belongs to exactly one
+    workspace; everything else (channels, posts, drafts, products,
+    automations) is scoped through its brand. See app/tenancy.py for the
+    checks every endpoint runs against this."""
+
+    __tablename__ = "workspaces"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(120))
+
+
 class Brand(Base, TimestampMixin):
     __tablename__ = "brands"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(
+        ForeignKey("workspaces.id", ondelete="CASCADE"), index=True
+    )
     slug: Mapped[str] = mapped_column(String(40), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(120))
     lang: Mapped[str] = mapped_column(String(60), default="")
@@ -97,6 +114,9 @@ class Video(Base, TimestampMixin):
     __tablename__ = "videos"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(
+        ForeignKey("workspaces.id", ondelete="CASCADE"), index=True
+    )
     brand_id: Mapped[int | None] = mapped_column(
         ForeignKey("brands.id", ondelete="SET NULL"), nullable=True, index=True
     )
@@ -225,6 +245,9 @@ class GenerationJob(Base, TimestampMixin):
     __tablename__ = "generation_jobs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(
+        ForeignKey("workspaces.id", ondelete="CASCADE"), index=True
+    )
     brand_id: Mapped[int | None] = mapped_column(
         ForeignKey("brands.id", ondelete="SET NULL"), nullable=True, index=True
     )
@@ -308,6 +331,9 @@ class TeamMember(Base, TimestampMixin):
     __tablename__ = "team_members"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(
+        ForeignKey("workspaces.id", ondelete="CASCADE"), index=True
+    )
     name: Mapped[str] = mapped_column(String(120))
     initials: Mapped[str] = mapped_column(String(4), default="")
     email: Mapped[str] = mapped_column(String(160), default="", index=True)
