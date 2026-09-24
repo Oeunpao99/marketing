@@ -134,6 +134,10 @@ export default function AIPromptPage() {
   const [aiUsed, setAiUsed] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [briefOpen, setBriefOpen] = useState(true)
+  // "guided" = brief → AI-written prompt → create; "direct" = the person
+  // already has a prompt and wants the image/video straight away.
+  const [mode, setMode] = useState('guided')
+  const [quickText, setQuickText] = useState('')
   const [moreOpen, setMoreOpen] = useState(false)
   const [feedback, setFeedback] = useState('')
   const [refining, setRefining] = useState(false)
@@ -257,13 +261,14 @@ export default function AIPromptPage() {
     }
   }
 
-  const generateVideo = async () => {
-    if (rendering || !prompt) return
+  const generateVideo = async (text) => {
+    const p = typeof text === 'string' ? text : prompt
+    if (rendering || !p) return
     setVideoErr(null)
     setJob(null)
     try {
       const res = await api.post('/ai/video', {
-        prompt,
+        prompt: p,
         aspect_ratio: ratio,
         seconds,
         brand_id: brandId,
@@ -276,15 +281,16 @@ export default function AIPromptPage() {
     }
   }
 
-  const generateImage = async () => {
-    if (imgBusy || !prompt) return
+  const generateImage = async (text) => {
+    const p = typeof text === 'string' ? text : prompt
+    if (imgBusy || !p) return
     setVideoErr(null)
     setJob(null)
     setImgBusy(true)
     setStartedAt(Date.now())
     try {
       const res = await api.post('/ai/image', {
-        prompt,
+        prompt: p,
         aspect_ratio: ratio,
         brand_id: brandId,
         reference_url: refImg?.url || '',
@@ -385,15 +391,70 @@ export default function AIPromptPage() {
 
   const step = job?.video ? 3 : prompt ? 2 : 1
 
+  const switchMode = (next) => {
+    if (next === mode) return
+    setMode(next)
+    setBriefOpen(true)
+    if (next === 'direct' && !quickText && prompt) setQuickText(prompt)
+  }
+
+  const quickType = (t) => {
+    if (t === type) return
+    setType(t)
+    setTemplateId(t === 'image' ? 'product-shot' : 'talking-head')
+    setRatio(t === 'image' ? '1:1' : '9:16')
+    setRefImg(null)
+    setJob(null)
+    setVideoErr(null)
+  }
+
+  const quickGenerate = () => {
+    const text = quickText.trim()
+    if (text.length < 10) {
+      showToast('Write a little more — at least 10 characters')
+      return
+    }
+    setPrompt(text)
+    setHistory([{ text, note: 'your prompt' }])
+    setAiUsed(false)
+    setPromptTokens(0)
+    setBriefOpen(false)
+    if (isImage) generateImage(text)
+    else generateVideo(text)
+  }
+
   return (
     <div className="w-full px-5 lg:px-10 py-8 lg:py-10 animate-fadein">
       {/* Header + steps */}
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-[24px] font-bold text-ink-900 tracking-tight leading-tight">AI Agent</h1>
-          <p className="mt-1 text-[13px] text-ink-600">Brief, prompt, then the image or video — one focused flow.</p>
+          <p className="mt-1 text-[13px] text-ink-600">
+            {mode === 'direct'
+              ? 'Paste your prompt and generate — no brief needed.'
+              : 'Brief, prompt, then the image or video — one focused flow.'}
+          </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="inline-flex rounded-xl border border-ink-200 bg-white p-0.5" role="tablist">
+            {[
+              { id: 'guided', label: 'Guided' },
+              { id: 'direct', label: 'I have a prompt' },
+            ].map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                role="tab"
+                aria-selected={mode === m.id}
+                onClick={() => switchMode(m.id)}
+                className={`px-3.5 py-1.5 rounded-[10px] text-[12px] font-semibold transition-colors duration-150 ${
+                  mode === m.id ? 'bg-brand-soft text-brand' : 'text-ink-600 hover:bg-ink-50'
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
           {sessionTokens > 0 && (
             <span
               className="inline-flex items-center gap-1.5 rounded-full border border-ink-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-ink-600"
@@ -408,8 +469,155 @@ export default function AIPromptPage() {
       </div>
 
       <div className="space-y-5">
-        {/* ── 1 · BRIEF ─────────────────────────────────────────── */}
-        {briefOpen ? (
+        {/* ── QUICK GENERATE — already have a prompt ─────────────── */}
+        {briefOpen && mode === 'direct' ? (
+          <section className="bg-white rounded-2xl border border-ink-200/60 shadow-[0_1px_2px_rgba(16,24,40,0.04)] overflow-hidden animate-fadein">
+            <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-ink-100">
+              <div>
+                <h2 className="text-[15px] font-semibold text-ink-900">Quick generate</h2>
+                <p className="text-[12px] text-ink-500">Your prompt goes straight to the {isImage ? 'image' : 'video'} model, as written.</p>
+              </div>
+              {prompt && (
+                <button
+                  type="button"
+                  onClick={() => setBriefOpen(false)}
+                  className="text-[12px] font-medium text-ink-500 hover:text-ink-800"
+                >
+                  Back to result
+                </button>
+              )}
+            </div>
+            <div className="p-6 space-y-5">
+              <div className="grid gap-5 md:grid-cols-2">
+                <div>
+                  <Label>Brand</Label>
+                  <div className="flex gap-2 flex-wrap">
+                    {brands.map((b) => (
+                      <button
+                        key={b.slug}
+                        type="button"
+                        onClick={() => setBrand(b.slug)}
+                        className={`px-3 py-1.5 rounded-xl border text-[12px] font-semibold flex items-center gap-2 transition-colors duration-150 ${pick(brand === b.slug)}`}
+                      >
+                        <span className="w-2 h-2 rounded-full flex-none" style={{ background: colorForBrand(b.slug) }} />
+                        {b.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <Label>Make a</Label>
+                  <div className="inline-flex rounded-xl border border-ink-200 p-0.5">
+                    {TEMPLATE_TYPES.map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => quickType(t.id)}
+                        className={`px-4 py-1.5 rounded-[10px] text-[12.5px] font-semibold flex items-center gap-2 transition-colors duration-150 ${
+                          type === t.id ? 'bg-brand-soft text-brand' : 'text-ink-600 hover:bg-ink-50'
+                        }`}
+                      >
+                        {icons[t.id]}
+                        {t.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <Label>Your prompt</Label>
+                <AutoTextarea
+                  autoFocus
+                  minRows={4}
+                  maxRows={16}
+                  value={quickText}
+                  onChange={(e) => setQuickText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) quickGenerate()
+                  }}
+                  placeholder={
+                    isImage
+                      ? 'e.g. A glossy iced latte on a wooden café table in Phnom Penh, morning sunlight, shallow depth of field, product photography'
+                      : 'e.g. Slow push-in on a barista pouring latte art, warm café light, handheld feel, 9:16 vertical'
+                  }
+                  className="w-full bg-white border border-ink-200 rounded-xl px-3.5 py-3 text-[13px] leading-relaxed focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/15"
+                />
+              </div>
+
+              <div className="grid gap-5 md:grid-cols-2">
+                <div>
+                  <Label>Size</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {RATIOS.map((r) => (
+                      <button
+                        key={r.id}
+                        type="button"
+                        onClick={() => setRatio(r.id)}
+                        className={`rounded-xl border px-2.5 py-2 text-left transition-colors duration-150 ${pick(ratio === r.id)}`}
+                      >
+                        <div className="text-[12px] font-bold">{r.name}</div>
+                        <div className="text-[10px] text-ink-400 leading-tight mt-0.5">{r.sub}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {isImage ? (
+                  <div>
+                    <Label>Reference image (optional)</Label>
+                    {refImg ? (
+                      <div className="flex items-center gap-3 bg-white border border-ink-200 rounded-xl p-2.5">
+                        <img src={refImg.previewUrl} alt="" className="w-12 h-12 rounded-lg object-cover flex-none bg-ink-100" />
+                        <div className="flex-1 min-w-0 text-[11.5px] font-semibold text-ink-800 truncate">{refImg.name}</div>
+                        <button
+                          type="button"
+                          onClick={() => setRefImg(null)}
+                          className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-ink-500 hover:bg-ink-100 hover:text-ink-800"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ) : (
+                      <DropZone
+                        compact
+                        accept="image/*"
+                        onFile={takeReference}
+                        title={refUploading ? 'Uploading…' : 'Drop an image to build on'}
+                        hint="Optional — the prompt says what to change"
+                      />
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    <Label>Length — {seconds}s</Label>
+                    <input
+                      type="range"
+                      min={3}
+                      max={20}
+                      value={seconds}
+                      onChange={(e) => setSeconds(Number(e.target.value))}
+                      className="w-full accent-brand mt-2"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                <span className="text-[11px] text-ink-400">Ctrl + Enter to generate</span>
+                <button
+                  type="button"
+                  onClick={quickGenerate}
+                  disabled={refUploading || quickText.trim().length < 10}
+                  className="px-6 py-3 rounded-2xl gradient-brand text-white text-[13.5px] font-bold flex items-center gap-2 hover:shadow-glow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                >
+                  <span className="text-white">{icons.spark}</span>
+                  {isImage ? (refImg ? 'Generate from reference' : 'Generate image now') : 'Generate video now'}
+                </button>
+              </div>
+            </div>
+          </section>
+        ) : /* ── 1 · BRIEF ─────────────────────────────────────────── */
+        briefOpen ? (
           <div className="animate-fadein">
             <section className="bg-white rounded-2xl border border-ink-200/60 shadow-[0_1px_2px_rgba(16,24,40,0.04)] overflow-hidden">
               <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-ink-100">
@@ -639,21 +847,31 @@ export default function AIPromptPage() {
               </span>
               <div className="min-w-0">
                 <div className="text-[12.5px] font-bold text-ink-900 flex items-center gap-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wide text-ink-400">Step 1 · Brief</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wide text-ink-400">
+                    {mode === 'direct' ? 'Quick generate · your own prompt' : 'Step 1 · Brief'}
+                  </span>
                 </div>
                 <div className="text-[11.5px] text-ink-500 truncate">
                   <b className="text-ink-800">{brandObj?.name}</b>
                   <span className="text-ink-400"> · </span>
                   {isImage ? 'Image' : 'Video'}
                   <span className="text-ink-400"> · </span>
-                  {template.name}
-                  <span className="text-ink-400"> · </span>
-                  {styleName}
-                  {topic ? <span className="text-ink-400"> · “{topic}”</span> : null}
+                  {mode === 'direct' ? (
+                    ratio
+                  ) : (
+                    <>
+                      {template.name}
+                      <span className="text-ink-400"> · </span>
+                      {styleName}
+                      {topic ? <span className="text-ink-400"> · “{topic}”</span> : null}
+                    </>
+                  )}
                 </div>
               </div>
             </div>
-            <span className="ml-auto flex-none text-[11.5px] font-bold text-brand">Edit brief</span>
+            <span className="ml-auto flex-none text-[11.5px] font-bold text-brand">
+              {mode === 'direct' ? 'New prompt' : 'Edit brief'}
+            </span>
           </button>
         )}
 
