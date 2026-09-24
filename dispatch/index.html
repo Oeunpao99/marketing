@@ -21,8 +21,52 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Poppins:wght@500;600;700;800&display=swap"
       rel="stylesheet"
     />
+    <!-- Launch splash (phones + the installed app): plain HTML/CSS so it shows
+         instantly, before any JS loads; src/lib/splash.js fades it out once
+         the app is ready. Desktop browsers skip it. -->
+    <style>
+      #splash {
+        position: fixed; inset: 0; z-index: 9999;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        background: #F7F9FC;
+        font-family: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+        transition: opacity .5s ease .45s;
+      }
+      /* exit: words drift up, logo zooms toward you, then the
+         background dissolves into the app */
+      #splash.cf-hide { opacity: 0; pointer-events: none; }
+      #splash.cf-hide .cf-name { animation: cf-out-up .4s ease forwards; }
+      #splash.cf-hide .cf-tag { animation: cf-out-up .35s ease forwards; }
+      #splash.cf-hide .cf-mark { animation: cf-zoom-out .65s cubic-bezier(.5,0,.75,0) .1s forwards; }
+
+      #splash .cf-mark { position: relative; width: 96px; height: 96px; animation: cf-pop .7s cubic-bezier(.2,.9,.25,1.25) both; }
+      #splash .cf-mark img { position: relative; width: 100%; height: 100%; object-fit: contain;
+        filter: drop-shadow(0 8px 14px rgba(16, 24, 40, .10)); animation: cf-bob 2.6s ease-in-out .7s infinite; }
+      #splash .cf-name { margin-top: 20px; font-size: 30px; letter-spacing: -0.02em; line-height: 1; color: #16191E;
+        opacity: 0; animation: cf-rise .6s ease .35s forwards; }
+      #splash .cf-name b { font-weight: 800; }
+      #splash .cf-name span { font-weight: 600; color: #1A6FC4; }
+      #splash .cf-tag { margin-top: 10px; font-size: 13px; color: #6B7683; opacity: 0; animation: cf-rise .6s ease .6s forwards; }
+      @keyframes cf-pop { 0% { opacity: 0; transform: scale(.5) rotate(-12deg); } 70% { opacity: 1; transform: scale(1.08) rotate(3deg); } 100% { opacity: 1; transform: scale(1) rotate(0); } }
+      @keyframes cf-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+      @keyframes cf-out-up { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-14px); } }
+      @keyframes cf-zoom-out { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(1.6); } }
+      @keyframes cf-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+      @media (min-width: 1024px) and (display-mode: browser) { #splash { display: none; } }
+      @media (prefers-reduced-motion: reduce) {
+        #splash *, #splash { animation: none !important; transition: none !important; }
+        #splash .cf-name, #splash .cf-tag { opacity: 1; }
+      }
+    </style>
   </head>
   <body>
+    <div id="splash" aria-hidden="true">
+      <div class="cf-mark">
+        <img src="/brand/logo-mark.png" alt="" />
+      </div>
+      <div class="cf-name"><b>Content</b><span>Flow</span></div>
+      <div class="cf-tag">Content that flows · by AI</div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

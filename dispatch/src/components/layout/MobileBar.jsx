@@ -14,6 +14,7 @@ import {
   FiMenu,
   FiPackage,
   FiPlus,
+  FiRefreshCw,
   FiRepeat,
   FiSettings,
   FiSmartphone,
@@ -26,6 +27,7 @@ import { colorForBrand } from "../../lib/brandColor";
 import { useNotifications } from "../../lib/notifications";
 import { useStore } from "../../store";
 import { openCreateBrand } from "./CreateBrandDrawer";
+import { applyUpdate } from "../../lib/update";
 
 // Phone navigation: four everyday tabs + the AI button, and "More" — a bottom
 // sheet with every module, the brand switcher, Inbox, Settings and sign-out,
@@ -260,6 +262,16 @@ function MoreSheet({ onClose }) {
               <FiSettings size={18} />
             </span>
             Settings
+          </button>
+          <button
+            type="button"
+            onClick={applyUpdate}
+            className="flex flex-col items-center gap-1.5 rounded-2xl px-1 py-3 text-[11px] font-medium text-ink-700 active:bg-ink-100"
+          >
+            <span className="grid h-10 w-10 place-items-center rounded-xl bg-ink-50 text-ink-600">
+              <FiRefreshCw size={18} />
+            </span>
+            Refresh
           </button>
         </div>
 

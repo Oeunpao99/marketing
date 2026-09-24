@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+import { hideSplash } from "./lib/splash";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./auth";
 import Shell from "./components/layout/Shell";
@@ -54,6 +56,11 @@ function Portal() {
 
 function Gate() {
   const { user, loading } = useAuth();
+
+  // Launch splash (index.html) fades out once we know who's signed in.
+  useEffect(() => {
+    if (!loading) hideSplash();
+  }, [loading]);
 
   if (loading) {
     return (

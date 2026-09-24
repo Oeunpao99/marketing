@@ -19,6 +19,7 @@ import { NOTIFY_KINDS, notifyPrefs } from '../../lib/notifications'
 import { disablePush, enablePush, pushStatus, sendTestPush } from '../../lib/push'
 import { ACCENTS, applyAccent, DEFAULT_ACCENT, normalizeAccent } from '../../lib/theme'
 import { promptInstall, useInstallState } from '../../lib/pwa'
+import { APP_VERSION, applyUpdate, latestVersion } from '../../lib/update'
 
 // Settings — every control here is real and saves to the backend
 // (app/auth.py): profile, password, workspace name, and the team (add people
@@ -306,7 +307,20 @@ function AppearanceTab({ showToast }) {
 
 function InstallApp({ showToast }) {
   const state = useInstallState()
+  const [checking, setChecking] = useState(false)
+  const checkUpdates = async () => {
+    setChecking(true)
+    const v = await latestVersion()
+    setChecking(false)
+    if (v && v !== APP_VERSION) {
+      showToast('Updating to the newest version…')
+      applyUpdate()
+    } else {
+      showToast(v ? 'You’re on the newest version ✓' : 'Couldn’t check right now — try again')
+    }
+  }
   return (
+    <>
     <section className="flex items-start gap-4 rounded-2xl border border-ink-200 p-4">
       <img src="/brand/icon-192.png" alt="" className="h-12 w-12 flex-none rounded-xl ring-1 ring-ink-200" />
       <div className="min-w-0 flex-1">
@@ -344,6 +358,16 @@ function InstallApp({ showToast }) {
         </button>
       )}
     </section>
+    <section className="flex items-center gap-3 rounded-2xl border border-ink-200 px-4 py-3">
+      <div className="min-w-0 flex-1">
+        <div className="text-[13px] font-medium text-ink-800">Version</div>
+        <div className="font-mono text-[11.5px] text-ink-500">{APP_VERSION}</div>
+      </div>
+      <button type="button" onClick={checkUpdates} disabled={checking} className="btn-outline flex-none">
+        {checking ? 'Checking…' : 'Check for updates'}
+      </button>
+    </section>
+    </>
   )
 }
 

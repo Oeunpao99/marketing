@@ -4,6 +4,7 @@ import Topbar from './Topbar'
 import MobileBar from './MobileBar'
 import AIAssistant from '../ai/AIAssistant'
 import CreateBrandDrawer from './CreateBrandDrawer'
+import AppUpdate from './AppUpdate'
 import { useStore } from '../../store'
 import { useAutoRunWatcher } from '../../lib/autoRuns'
 import { useGenJobWatcher } from '../../lib/genJobs'
@@ -74,6 +75,7 @@ export default function Shell({ children }) {
       <MobileBar />
       <AIAssistant />
       <CreateBrandDrawer />
+      <AppUpdate />
     </div>
   )
 }
