@@ -1,4 +1,4 @@
-export const BRAND_COLOR = '#1A6FC4'
+export const BRAND_COLOR = 'rgb(var(--brand))'
 
 export const isKhmer = (s) => /[ក-៿᧠-᧿]/.test(s || '')
 

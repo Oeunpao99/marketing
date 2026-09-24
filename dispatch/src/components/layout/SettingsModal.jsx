@@ -1,263 +1,118 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import {
+  FiBell,
+  FiBriefcase,
+  FiCheck,
+  FiDroplet,
+  FiLock,
+  FiLogOut,
+  FiTrash2,
+  FiUser,
+  FiUserPlus,
+  FiUsers,
+  FiX,
+} from 'react-icons/fi'
+import { api } from '../../api/client'
 import { useAuth } from '../../auth'
+import { desktopSupported, NOTIFY_KINDS, notifyPrefs } from '../../lib/notifications'
+import { ACCENTS, applyAccent, DEFAULT_ACCENT, normalizeAccent } from '../../lib/theme'
+import { promptInstall, useInstallState } from '../../lib/pwa'
 
-const THEMES = [
-  { id: 'green', name: 'Forest', swatch: '#166432', desc: 'Signature green' },
-  { id: 'blue', name: 'Ocean', swatch: '#3B82F6', desc: 'Cool & focused' },
-  { id: 'violet', name: 'Royal', swatch: '#8B5CF6', desc: 'Bold & premium' },
+// Settings — every control here is real and saves to the backend
+// (app/auth.py): profile, password, workspace name, and the team (add people
+// with a temporary password, change roles, deactivate, remove). Workspace and
+// Team edits are owner/admin only; editors see them read-only.
+
+const TABS = [
+  { id: 'profile', label: 'Profile', icon: FiUser },
+  { id: 'appearance', label: 'Appearance', icon: FiDroplet },
+  { id: 'notifications', label: 'Notifications', icon: FiBell },
+  { id: 'security', label: 'Security', icon: FiLock },
+  { id: 'workspace', label: 'Workspace', icon: FiBriefcase },
+  { id: 'team', label: 'Team', icon: FiUsers },
 ]
 
-const ACCENTS = [
-  { id: 'lime', name: 'Lime', swatch: '#86C63B' },
-  { id: 'amber', name: 'Amber', swatch: '#F59E0B' },
-  { id: 'coral', name: 'Coral', swatch: '#FF6B5A' },
-]
-
-function Toggle({ on, onChange }) {
-  return (
-    <button
-      type="button"
-      onClick={() => onChange(!on)}
-      role="switch"
-      aria-checked={on}
-      className={`relative w-[38px] h-[22px] rounded-full transition-colors duration-200 flex-none ${on ? 'bg-brand' : 'bg-ink-300'}`}
-    >
-      <span
-        className={`absolute top-[2px] left-[2px] w-[18px] h-[18px] rounded-full bg-white shadow-sm transition-transform duration-200 ${on ? 'translate-x-[16px]' : ''}`}
-      />
-    </button>
-  )
+const TIMEZONES = ['UTC+7', 'UTC+8', 'UTC+9', 'UTC+0', 'UTC-5', 'UTC-8']
+const ROLE_LABEL = { owner: 'Owner', admin: 'Admin', editor: 'Editor' }
+const ROLE_HINT = {
+  owner: 'Full control, including the workspace itself',
+  admin: 'Manages the workspace and team, and everything else',
+  editor: 'Creates, schedules and publishes content',
 }
 
-export default function SettingsModal({ open, onClose, showToast }) {
-  const { user, logout, renameWorkspace } = useAuth()
-  const [wsName, setWsName] = useState(user?.workspace_name || '')
-  const [wsSaving, setWsSaving] = useState(false)
-  const canManage = user?.role === 'owner' || user?.role === 'admin'
+const input =
+  'w-full h-10 rounded-xl border border-ink-200 bg-white px-3 text-[13px] text-ink-800 placeholder:text-ink-300 focus:outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 disabled:bg-ink-50 disabled:text-ink-500'
 
-  const saveWorkspace = async () => {
-    const next = wsName.trim()
-    if (!next || next === user?.workspace_name) return
-    setWsSaving(true)
-    try {
-      await renameWorkspace(next)
-      showToast('Workspace renamed')
-    } catch (e) {
-      showToast(`Could not rename — ${e.message}`)
-    } finally {
-      setWsSaving(false)
-    }
-  }
-  const [name, setName] = useState(user?.name || 'Sokha R.')
-  const [email, setEmail] = useState(user?.email || '')
-  const [theme, setTheme] = useState('blue')
-  const [accent, setAccent] = useState('lime')
-  const [prefs, setPrefs] = useState({
-    dailyDigest: true,
-    approveNotif: true,
-    autoPost: false,
-  })
+export default function SettingsModal({ open, onClose, showToast }) {
+  const [tab, setTab] = useState('profile')
+
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, onClose])
 
   if (!open) return null
-
-  const setPref = (k) => (v) => {
-    setPrefs((p) => ({ ...p, [k]: v }))
-    showToast(v ? 'Enabled' : 'Disabled')
-  }
 
   return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-fadein">
       <div className="fixed inset-0 bg-ink-950/40" onClick={onClose} />
-      <div className="relative bg-white border border-ink-200 shadow-pop rounded-2xl w-full max-w-lg max-h-[88vh] overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="px-5 pt-5 pb-4 gradient-brand text-white flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl flex-none grid place-items-center bg-white/15 font-display text-xl font-bold border border-white/20">
-              {user?.initials || 'SR'}
-            </div>
-            <div>
-              <h2 className="font-display text-2xl leading-none">Account settings</h2>
-              <p className="text-[11.5px] text-white/80 mt-1">Manage your profile, theme and preferences</p>
-            </div>
+      <div className="relative flex h-[min(620px,90vh)] w-full max-w-[820px] overflow-hidden rounded-2xl border border-ink-200 bg-white shadow-pop">
+        {/* tabs */}
+        <nav className="hidden sm:flex w-[200px] flex-none flex-col gap-0.5 border-r border-ink-100 bg-[#FAFBFC] p-3">
+          <div className="px-2.5 pb-3 pt-1 text-[15px] font-bold text-ink-900">Settings</div>
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTab(t.id)}
+              className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] transition-colors ${
+                tab === t.id ? 'bg-brand-soft font-semibold text-brand' : 'font-medium text-ink-600 hover:bg-ink-100/70 hover:text-ink-900'
+              }`}
+            >
+              <t.icon size={15} />
+              {t.label}
+            </button>
+          ))}
+        </nav>
+
+        <div className="flex min-w-0 flex-1 flex-col">
+          <header className="flex items-center justify-between gap-3 border-b border-ink-100 px-6 py-4">
+            {/* mobile: tabs as a select */}
+            <select
+              value={tab}
+              onChange={(e) => setTab(e.target.value)}
+              className="sm:hidden h-9 rounded-lg border border-ink-200 px-2 text-[13px] font-semibold"
+            >
+              {TABS.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+            <h2 className="hidden sm:block text-[15px] font-semibold text-ink-900">
+              {TABS.find((t) => t.id === tab)?.label}
+            </h2>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close settings"
+              className="h-8 w-8 rounded-lg grid place-items-center text-ink-500 hover:bg-ink-100 hover:text-ink-800"
+            >
+              <FiX size={16} />
+            </button>
+          </header>
+
+          <div className="flex-1 overflow-y-auto px-6 py-5">
+            {tab === 'profile' && <ProfileTab showToast={showToast} />}
+            {tab === 'appearance' && <AppearanceTab showToast={showToast} />}
+            {tab === 'notifications' && <NotificationsTab showToast={showToast} />}
+            {tab === 'security' && <SecurityTab showToast={showToast} onClose={onClose} />}
+            {tab === 'workspace' && <WorkspaceTab showToast={showToast} />}
+            {tab === 'team' && <TeamTab showToast={showToast} />}
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-white/80 hover:bg-white/20 transition-all duration-150"
-          >
-            ✕
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
-          {/* Account */}
-          <section>
-            <SectionTitle>Account</SectionTitle>
-            <div className="space-y-3">
-              <div>
-                <label className="text-[11px] font-semibold text-ink-700 mb-1 block">Full name</label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full bg-ink-50 border border-ink-200 rounded-xl px-3 py-2 text-[12.5px] focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-                />
-              </div>
-              <div>
-                <label className="text-[11px] font-semibold text-ink-700 mb-1 block">Email</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-ink-50 border border-ink-200 rounded-xl px-3 py-2 text-[12.5px] focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-                />
-              </div>
-            </div>
-          </section>
-
-          {/* Workspace */}
-          <section>
-            <SectionTitle>Workspace</SectionTitle>
-            <div className="flex items-end gap-2">
-              <div className="flex-1">
-                <label className="text-[11px] font-semibold text-ink-700 mb-1 block">Company / workspace name</label>
-                <input
-                  type="text"
-                  value={wsName}
-                  disabled={!canManage}
-                  onChange={(e) => setWsName(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && saveWorkspace()}
-                  className="w-full bg-ink-50 border border-ink-200 rounded-xl px-3 py-2 text-[12.5px] focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 disabled:opacity-60"
-                />
-              </div>
-              {canManage && (
-                <button
-                  type="button"
-                  onClick={saveWorkspace}
-                  disabled={wsSaving || !wsName.trim() || wsName.trim() === user?.workspace_name}
-                  className="btn-primary px-3.5 py-2 disabled:opacity-50"
-                >
-                  {wsSaving ? 'Saving…' : 'Save'}
-                </button>
-              )}
-            </div>
-            <p className="mt-1.5 text-[11px] text-ink-400">
-              Everything in the portal — brands, channels, posts, media — belongs to this workspace
-              and is invisible to other accounts.
-            </p>
-          </section>
-
-          {/* Theme */}
-          <section>
-            <SectionTitle>Theme</SectionTitle>
-            <div className="grid grid-cols-3 gap-2.5">
-              {THEMES.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => {
-                    setTheme(t.id)
-                    showToast(`${t.name} theme selected`)
-                  }}
-                  className={`rounded-2xl border p-3 text-left transition-all duration-150 ${
-                    theme === t.id
-                      ? 'border-brand ring-2 ring-brand/20 bg-brand/5'
-                      : 'border-ink-200 hover:border-ink-300'
-                  }`}
-                >
-                  <div className="w-8 h-8 rounded-lg mb-2" style={{ background: t.swatch }} />
-                  <div className="text-[12px] font-semibold text-ink-800">{t.name}</div>
-                  <div className="text-[10.5px] text-ink-400">{t.desc}</div>
-                </button>
-              ))}
-            </div>
-          </section>
-
-          {/* Accent */}
-          <section>
-            <SectionTitle>Accent color</SectionTitle>
-            <div className="flex gap-2.5">
-              {ACCENTS.map((a) => (
-                <button
-                  key={a.id}
-                  type="button"
-                  onClick={() => {
-                    setAccent(a.id)
-                    showToast(`${a.name} accent applied`)
-                  }}
-                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-150 ${
-                    accent === a.id ? 'ring-2 ring-offset-2 ring-ink-800' : 'hover:scale-110'
-                  }`}
-                  style={{ background: a.swatch }}
-                  title={a.name}
-                >
-                  {accent === a.id && <span className="text-white text-sm font-bold">✓</span>}
-                </button>
-              ))}
-              <span className="self-center text-[11.5px] text-ink-400 ml-1">
-                {ACCENTS.find((a) => a.id === accent)?.name}
-              </span>
-            </div>
-          </section>
-
-          {/* Preferences */}
-          <section>
-            <SectionTitle>Preferences</SectionTitle>
-            <div className="divide-y divide-ink-100 border border-ink-200 rounded-2xl">
-              <PrefRow label="Daily digest" desc="Receive a morning summary of scheduled posts" toggled={prefs.dailyDigest} onToggle={setPref('dailyDigest')} />
-              <PrefRow label="Approval notifications" desc="Get notified when new posts await your review" toggled={prefs.approveNotif} onToggle={setPref('approveNotif')} />
-              <PrefRow label="Auto-post without review" desc="Skip manual approval and publish automatically" toggled={prefs.autoPost} onToggle={setPref('autoPost')} />
-            </div>
-          </section>
-
-          {/* Session */}
-          <section>
-            <SectionTitle>Session</SectionTitle>
-            <div className="flex items-center gap-3 border border-ink-200 rounded-2xl px-4 py-3">
-              <div className="flex-1 min-w-0">
-                <div className="text-[12.5px] font-semibold text-ink-800">
-                  Signed in as {user?.name || 'you'}
-                </div>
-                <div className="text-[11px] text-ink-400 truncate">
-                  {user?.email}{user?.role ? ` · ${user.role}` : ''}
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  onClose()
-                  logout()
-                  showToast('Signed out')
-                }}
-                className="flex-none px-3.5 py-1.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-[12px] font-semibold hover:bg-red-100 transition-all duration-150"
-              >
-                Log out
-              </button>
-            </div>
-          </section>
-        </div>
-
-        {/* Footer */}
-        <div className="px-5 py-3 border-t border-ink-100 flex items-center justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-1.5 rounded-xl bg-ink-50 border border-ink-200 text-ink-600 text-[12px] font-medium hover:bg-ink-100 transition-all duration-150"
-          >
-            Close
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              showToast('Settings saved')
-              onClose()
-            }}
-            className="px-4 py-1.5 rounded-xl gradient-brand text-white text-[12px] font-semibold hover:shadow-glow transition-all duration-200"
-          >
-            Save changes
-          </button>
         </div>
       </div>
     </div>,
@@ -265,20 +120,661 @@ export default function SettingsModal({ open, onClose, showToast }) {
   )
 }
 
-function SectionTitle({ children }) {
+// ── Profile ───────────────────────────────────────────────────────────────
+function ProfileTab({ showToast }) {
+  const { user, updateMe } = useAuth()
+  const initial = { name: user?.name || '', email: user?.email || '', timezone: user?.timezone || 'UTC+7' }
+  const [form, setForm] = useState(initial)
+  const [saving, setSaving] = useState(false)
+  const dirty = Object.keys(initial).some((k) => form[k].trim() !== initial[k])
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
+
+  const save = async () => {
+    if (!form.name.trim()) return showToast('Name can’t be empty')
+    setSaving(true)
+    try {
+      await updateMe({ name: form.name.trim(), email: form.email.trim(), timezone: form.timezone })
+      showToast('Profile saved')
+    } catch (e) {
+      showToast(`Couldn’t save — ${e.message}`)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
-    <h3 className="text-[10px] font-bold tracking-[.09em] uppercase text-ink-400 mb-2.5">{children}</h3>
+    <div className="space-y-6">
+      <div className="flex items-center gap-4">
+        <span className="h-14 w-14 rounded-full grid place-items-center bg-brand text-white text-[17px] font-bold">
+          {(form.name.trim().split(/\s+/).filter(Boolean).map((w) => w[0]).join('').slice(0, 2) || '?').toUpperCase()}
+        </span>
+        <div>
+          <div className="text-[14px] font-semibold text-ink-900">{user?.name}</div>
+          <div className="text-[12px] text-ink-500">
+            {ROLE_LABEL[user?.role] || user?.role} · {user?.workspace_name}
+          </div>
+        </div>
+      </div>
+
+      <Row label="Full name">
+        <input value={form.name} onChange={set('name')} className={input} />
+      </Row>
+      <Row label="Email" hint="You sign in with this.">
+        <input type="email" value={form.email} onChange={set('email')} className={input} />
+      </Row>
+      <Row label="Timezone" hint="Used for times shown to you.">
+        <select value={form.timezone} onChange={set('timezone')} className={input}>
+          {[...new Set([form.timezone, ...TIMEZONES])].map((tz) => (
+            <option key={tz}>{tz}</option>
+          ))}
+        </select>
+      </Row>
+
+      <SaveBar dirty={dirty} saving={saving} onSave={save} onReset={() => setForm(initial)} />
+    </div>
   )
 }
 
-function PrefRow({ label, desc, toggled, onToggle }) {
+// ── Appearance ────────────────────────────────────────────────────────────
+function AppearanceTab({ showToast }) {
+  const { user, updatePrefs } = useAuth()
+  const prefs = user?.preferences || {}
+  const saved = (prefs.accent || DEFAULT_ACCENT).toUpperCase()
+
+  const current = draft || saved
+  const isPreset = ACCENTS.some((a) => a.hex === current)
+
+  const save = (patch, msg) =>
+    updatePrefs(patch)
+      .then(() => msg && showToast(msg))
+      .catch((e) => showToast(`Couldn’t save — ${e.message}`))
+
+  // The colour input fires continuously while dragging — preview instantly,
+  // save once the person settles on a colour.
+  const saveTimer = useRef(null)
+  const [draft, setDraft] = useState(null)
+  const pickCustom = (hex) => {
+    const safe = normalizeAccent(hex)
+    applyAccent(safe)
+    setDraft(safe)
+    clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(() => {
+      save({ accent: safe }, safe !== hex.toUpperCase() ? 'Darkened a little so white text stays readable' : 'Custom colour applied')
+      setDraft(null)
+    }, 450)
+  }
+  useEffect(() => () => clearTimeout(saveTimer.current), [])
+
   return (
-    <div className="flex items-center gap-3 px-4 py-3">
-      <div className="flex-1 min-w-0">
-        <div className="text-[12.5px] font-semibold text-ink-800">{label}</div>
-        <div className="text-[11px] text-ink-400">{desc}</div>
+    <div className="space-y-8">
+      <section className="space-y-4">
+        <SectionTitle title="Accent colour" sub="Buttons, links, highlights and the sidebar — across the whole app." />
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {ACCENTS.map((a) => {
+            const on = a.hex === current
+            return (
+              <button
+                key={a.hex}
+                type="button"
+                onClick={() => save({ accent: a.hex }, `${a.name} applied`)}
+                className={`flex items-center gap-2.5 rounded-xl border p-2.5 text-left transition ${
+                  on ? 'border-brand ring-4 ring-brand/10' : 'border-ink-200 hover:border-ink-300'
+                }`}
+              >
+                <span className="h-8 w-8 flex-none rounded-lg grid place-items-center text-white" style={{ background: a.hex }}>
+                  {on && <FiCheck size={15} />}
+                </span>
+                <span className="text-[12.5px] font-semibold text-ink-800">{a.name}</span>
+              </button>
+            )
+          })}
+          <label
+            className={`flex cursor-pointer items-center gap-2.5 rounded-xl border p-2.5 transition ${
+              !isPreset ? 'border-brand ring-4 ring-brand/10' : 'border-ink-200 hover:border-ink-300'
+            }`}
+          >
+            <span
+              className="relative h-8 w-8 flex-none overflow-hidden rounded-lg"
+              style={{
+                background: isPreset
+                  ? 'conic-gradient(#E11D48,#EA580C,#EAB308,#15803D,#0F766E,#1A6FC4,#6D28D9,#E11D48)'
+                  : current,
+              }}
+            >
+              <input
+                type="color"
+                value={current.toLowerCase()}
+                onChange={(e) => pickCustom(e.target.value)}
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                aria-label="Custom colour"
+              />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-[12.5px] font-semibold text-ink-800">Custom</span>
+              <span className="block font-mono text-[10.5px] text-ink-400">{isPreset ? 'Pick any' : current}</span>
+            </span>
+          </label>
+        </div>
+
+        {/* live preview */}
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-ink-200 bg-brand-softer/60 p-4">
+          <span className="btn-primary pointer-events-none">Primary button</span>
+          <span className="rounded-full bg-brand-soft px-2.5 py-1 text-[11.5px] font-semibold text-brand">Selected</span>
+          <span className="text-[12.5px] font-semibold text-brand">A link</span>
+          <span className="h-2 w-24 overflow-hidden rounded-full bg-brand/15">
+            <span className="block h-full w-2/3 rounded-full bg-brand" />
+          </span>
+        </div>
+        {current !== DEFAULT_ACCENT && (
+          <button
+            type="button"
+            onClick={() => save({ accent: DEFAULT_ACCENT }, 'Back to Ocean')}
+            className="text-[12px] font-medium text-ink-500 hover:text-brand"
+          >
+            Reset to default
+          </button>
+        )}
+      </section>
+
+      <section className="rounded-2xl border border-ink-200 px-4">
+        <ToggleRow
+          title="Reduce motion"
+          desc="Turn off animations like the floating logo, smoke and slide-ins."
+          on={!!prefs.reduce_motion}
+          onChange={(v) => save({ reduce_motion: v }, v ? 'Animations off' : 'Animations on')}
+        />
+      </section>
+
+      <InstallApp showToast={showToast} />
+
+      <p className="text-[11.5px] text-ink-400">Saved to your account — it follows you to any device.</p>
+    </div>
+  )
+}
+
+function InstallApp({ showToast }) {
+  const state = useInstallState()
+  return (
+    <section className="flex items-start gap-4 rounded-2xl border border-ink-200 p-4">
+      <img src="/brand/icon-192.png" alt="" className="h-12 w-12 flex-none rounded-xl ring-1 ring-ink-200" />
+      <div className="min-w-0 flex-1">
+        <div className="text-[13px] font-semibold text-ink-900">ContentFlow app</div>
+        {state === 'installed' && (
+          <div className="text-[12px] text-emerald-700">Installed — you’re using the app right now.</div>
+        )}
+        {state === 'available' && (
+          <div className="text-[12px] text-ink-500">Add it to your home screen or desktop — opens full-screen, like a native app.</div>
+        )}
+        {state === 'ios' && (
+          <ol className="mt-1 space-y-0.5 text-[12px] text-ink-600">
+            <li>1. Tap the <b>Share</b> button in Safari (the square with the arrow).</li>
+            <li>2. Scroll down and tap <b>Add to Home Screen</b>.</li>
+            <li>3. Tap <b>Add</b> — ContentFlow appears with your other apps.</li>
+          </ol>
+        )}
+        {state === 'unsupported' && (
+          <div className="text-[12px] text-ink-500">
+            Open ContentFlow in Chrome, Edge or Safari on your phone, then use <b>Install app</b> / <b>Add to Home Screen</b>{' '}
+            from the browser menu.
+          </div>
+        )}
       </div>
-      <Toggle on={toggled} onChange={onToggle} />
+      {state === 'available' && (
+        <button
+          type="button"
+          onClick={async () => {
+            const r = await promptInstall()
+            if (r === 'accepted') showToast('Installed — find ContentFlow on your home screen')
+          }}
+          className="btn-primary flex-none"
+        >
+          Install app
+        </button>
+      )}
+    </section>
+  )
+}
+
+// ── Notifications ─────────────────────────────────────────────────────────
+function NotificationsTab({ showToast }) {
+  const { user, updatePrefs } = useAuth()
+  const notify = notifyPrefs(user)
+  const desktopOn = !!user?.preferences?.desktop_alerts
+  const supported = desktopSupported()
+  const [permission, setPermission] = useState(supported ? Notification.permission : 'unsupported')
+
+  const setKind = (id, v) =>
+    updatePrefs({ notify: { ...notify, [id]: v } }).catch((e) => showToast(`Couldn’t save — ${e.message}`))
+
+  const toggleDesktop = async (v) => {
+    if (v && supported && Notification.permission !== 'granted') {
+      const result = await Notification.requestPermission()
+      setPermission(result)
+      if (result !== 'granted') {
+        showToast('Your browser blocked notifications — allow them in the site settings (lock icon in the address bar)')
+        return
+      }
+    }
+    updatePrefs({ desktop_alerts: v })
+      .then(() => {
+        if (v) {
+          try {
+            new Notification('Desktop alerts are on', {
+              body: 'You’ll get a pop-up like this when something needs you.',
+              icon: '/brand/favicon-64.png',
+            })
+          } catch {
+            /* ignore */
+          }
+        }
+        showToast(v ? 'Desktop alerts on' : 'Desktop alerts off')
+      })
+      .catch((e) => showToast(`Couldn’t save — ${e.message}`))
+  }
+
+  return (
+    <div className="space-y-8">
+      <section>
+        <SectionTitle title="Show in the bell" sub="What the bell counts and lists for you." />
+        <div className="mt-3 divide-y divide-ink-100 rounded-2xl border border-ink-200 px-4">
+          {NOTIFY_KINDS.map((k) => (
+            <ToggleRow key={k.id} title={k.label} desc={k.desc} on={notify[k.id]} onChange={(v) => setKind(k.id, v)} />
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <SectionTitle
+          title="Desktop alerts"
+          sub="A pop-up from your browser when one of the things above happens while ContentFlow is in another tab."
+        />
+        <div className="mt-3 rounded-2xl border border-ink-200 px-4">
+          <ToggleRow
+            title="Browser notifications"
+            desc={
+              !supported
+                ? 'This browser doesn’t support notifications.'
+                : permission === 'denied'
+                  ? 'Blocked by your browser — allow notifications for this site (lock icon in the address bar), then turn this on.'
+                  : 'Works while ContentFlow is open in a tab.'
+            }
+            on={desktopOn && permission === 'granted'}
+            disabled={!supported || permission === 'denied'}
+            onChange={toggleDesktop}
+          />
+        </div>
+      </section>
+
+      <p className="text-[11.5px] text-ink-400">Email and Telegram summaries aren’t available yet.</p>
+    </div>
+  )
+}
+
+// ── Security ──────────────────────────────────────────────────────────────
+function SecurityTab({ showToast, onClose }) {
+  const { user, logout } = useAuth()
+  const [form, setForm] = useState({ current: '', next: '', confirm: '' })
+  const [saving, setSaving] = useState(false)
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
+  const mismatch = form.confirm && form.next !== form.confirm
+  const ready = form.current && form.next.length >= 8 && form.next === form.confirm
+
+  const save = async () => {
+    if (!ready) return
+    setSaving(true)
+    try {
+      await api.post('/auth/password', { current_password: form.current, new_password: form.next })
+      setForm({ current: '', next: '', confirm: '' })
+      showToast('Password changed')
+    } catch (e) {
+      showToast(e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="space-y-8">
+      <section className="space-y-4">
+        <SectionTitle title="Change password" sub="At least 8 characters." />
+        <Row label="Current password">
+          <input type="password" autoComplete="current-password" value={form.current} onChange={set('current')} className={input} />
+        </Row>
+        <Row label="New password">
+          <input type="password" autoComplete="new-password" value={form.next} onChange={set('next')} className={input} />
+        </Row>
+        <Row label="Confirm new password" hint={mismatch ? <span className="text-red-600">Passwords don’t match</span> : null}>
+          <input type="password" autoComplete="new-password" value={form.confirm} onChange={set('confirm')} className={input} />
+        </Row>
+        <div className="flex justify-end">
+          <button type="button" onClick={save} disabled={!ready || saving} className="btn-primary disabled:opacity-50">
+            {saving ? 'Saving…' : 'Change password'}
+          </button>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-ink-200 p-4 flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="text-[13px] font-semibold text-ink-800">Signed in as {user?.name}</div>
+          <div className="truncate text-[12px] text-ink-500">{user?.email}</div>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            onClose()
+            logout()
+            showToast('Signed out')
+          }}
+          className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2 text-[12.5px] font-semibold text-red-700 hover:bg-red-100"
+        >
+          <FiLogOut size={14} /> Sign out
+        </button>
+      </section>
+    </div>
+  )
+}
+
+// ── Workspace ─────────────────────────────────────────────────────────────
+function WorkspaceTab({ showToast }) {
+  const { user, renameWorkspace } = useAuth()
+  const canManage = user?.role === 'owner' || user?.role === 'admin'
+  const [info, setInfo] = useState(null)
+  const [name, setName] = useState(user?.workspace_name || '')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    api.get('/auth/workspace').then(setInfo).catch(() => setInfo(null))
+  }, [])
+
+  const dirty = name.trim() && name.trim() !== user?.workspace_name
+  const save = async () => {
+    setSaving(true)
+    try {
+      await renameWorkspace(name.trim())
+      showToast('Workspace renamed')
+    } catch (e) {
+      showToast(`Couldn’t rename — ${e.message}`)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <Row
+        label="Workspace name"
+        hint={canManage ? 'Your company or agency — shown in the sidebar.' : 'Only an owner or admin can rename it.'}
+      >
+        <input value={name} disabled={!canManage} onChange={(e) => setName(e.target.value)} className={input} />
+      </Row>
+      {canManage && <SaveBar dirty={!!dirty} saving={saving} onSave={save} onReset={() => setName(user?.workspace_name || '')} />}
+
+      <div className="grid grid-cols-3 gap-3">
+        <Stat label="Brands" value={info?.brands} />
+        <Stat label="Members" value={info?.members} />
+        <Stat label="Created" value={info ? new Date(info.created_at).toLocaleDateString() : null} />
+      </div>
+
+      <p className="rounded-xl bg-brand-soft/50 px-4 py-3 text-[12px] leading-relaxed text-ink-600">
+        Everything in ContentFlow — brands, channels, posts, media and AI chats — belongs to this workspace and is
+        invisible to every other account.
+      </p>
+    </div>
+  )
+}
+
+// ── Team ──────────────────────────────────────────────────────────────────
+function TeamTab({ showToast }) {
+  const { user } = useAuth()
+  const canManage = user?.role === 'owner' || user?.role === 'admin'
+  const [members, setMembers] = useState(null)
+  const [adding, setAdding] = useState(false)
+
+  useEffect(() => {
+    api.get('/auth/members').then(setMembers).catch(() => setMembers([]))
+  }, [])
+
+  const update = async (m, patch) => {
+    try {
+      const next = await api.patch(`/auth/members/${m.id}`, patch)
+      setMembers((list) => list.map((x) => (x.id === m.id ? next : x)))
+      showToast('Member updated')
+    } catch (e) {
+      showToast(e.message)
+    }
+  }
+
+  const remove = async (m) => {
+    if (!window.confirm(`Remove ${m.name} from the workspace? They won’t be able to sign in.`)) return
+    try {
+      await api.del(`/auth/members/${m.id}`)
+      setMembers((list) => list.filter((x) => x.id !== m.id))
+      showToast(`${m.name} removed`)
+    } catch (e) {
+      showToast(e.message)
+    }
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between gap-3">
+        <SectionTitle
+          title="People in this workspace"
+          sub={canManage ? 'Add teammates and choose what they can do.' : 'Only an owner or admin can manage the team.'}
+        />
+        {canManage && !adding && (
+          <button type="button" onClick={() => setAdding(true)} className="btn-primary flex-none">
+            <FiUserPlus size={14} /> Add member
+          </button>
+        )}
+      </div>
+
+      {adding && (
+        <AddMember
+          onCancel={() => setAdding(false)}
+          onAdded={(m) => {
+            setMembers((list) => [...(list || []), m])
+            setAdding(false)
+            showToast(`${m.name} added — login details copied, share them with ${m.name.split(' ')[0]}`)
+          }}
+          showToast={showToast}
+        />
+      )}
+
+      <div className="divide-y divide-ink-100 rounded-2xl border border-ink-200">
+        {members === null
+          ? [0, 1].map((n) => (
+              <div key={n} className="p-4">
+                <div className="h-8 rounded-lg skeleton" />
+              </div>
+            ))
+          : members.map((m) => {
+              const isMe = m.id === user?.id
+              const locked = !canManage || isMe || m.role === 'owner'
+              return (
+                <div key={m.id} className={`flex items-center gap-3 px-4 py-3 ${m.is_active ? '' : 'opacity-60'}`}>
+                  <span className="h-9 w-9 flex-none rounded-full grid place-items-center bg-brand-soft text-brand text-[12px] font-bold">
+                    {m.initials}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[13px] font-semibold text-ink-900">
+                      {m.name}
+                      {isMe && <span className="ml-1.5 text-[11px] font-medium text-ink-400">(you)</span>}
+                      {!m.is_active && <span className="ml-1.5 text-[11px] font-medium text-amber-600">Deactivated</span>}
+                    </div>
+                    <div className="truncate text-[12px] text-ink-500">{m.email || 'No email'}</div>
+                  </div>
+                  {locked ? (
+                    <span className="text-[12px] font-medium text-ink-500" title={ROLE_HINT[m.role]}>
+                      {ROLE_LABEL[m.role] || m.role}
+                    </span>
+                  ) : (
+                    <select
+                      value={m.role}
+                      onChange={(e) => update(m, { role: e.target.value })}
+                      title={ROLE_HINT[m.role]}
+                      className="h-8 rounded-lg border border-ink-200 bg-white px-2 text-[12px] font-medium text-ink-700 focus:outline-none focus:border-brand"
+                    >
+                      <option value="admin">Admin</option>
+                      <option value="editor">Editor</option>
+                    </select>
+                  )}
+                  {!locked && (
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => update(m, { is_active: !m.is_active })}
+                        className="h-8 rounded-lg px-2.5 text-[12px] font-medium text-ink-600 hover:bg-ink-100"
+                      >
+                        {m.is_active ? 'Deactivate' : 'Reactivate'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => remove(m)}
+                        title="Remove"
+                        aria-label={`Remove ${m.name}`}
+                        className="h-8 w-8 rounded-lg grid place-items-center text-ink-400 hover:bg-red-50 hover:text-red-600"
+                      >
+                        <FiTrash2 size={14} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+      </div>
+
+      <ul className="space-y-1 text-[11.5px] text-ink-500">
+        {Object.entries(ROLE_HINT).map(([role, hint]) => (
+          <li key={role}>
+            <b className="text-ink-700">{ROLE_LABEL[role]}</b> — {hint}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function AddMember({ onCancel, onAdded, showToast }) {
+  const suggest = () =>
+    `${Math.random().toString(36).slice(2, 6)}-${Math.random().toString(36).slice(2, 6)}-${Math.floor(10 + Math.random() * 89)}`
+  const [form, setForm] = useState(() => ({ name: '', email: '', role: 'editor', password: suggest() }))
+  const [saving, setSaving] = useState(false)
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
+  const ready = form.name.trim() && form.email.includes('@') && form.password.length >= 8
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      const m = await api.post('/auth/members', { ...form, name: form.name.trim(), email: form.email.trim() })
+      try {
+        await navigator.clipboard.writeText(
+          `ContentFlow login\n${window.location.origin}\nEmail: ${m.email}\nTemporary password: ${form.password}`,
+        )
+      } catch {
+        /* clipboard is a nicety */
+      }
+      onAdded(m)
+    } catch (e) {
+      showToast(e.message)
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-brand/25 bg-brand-soft/30 p-4 space-y-3 animate-fadein">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <input autoFocus placeholder="Full name" value={form.name} onChange={set('name')} className={input} />
+        <input type="email" placeholder="Email" value={form.email} onChange={set('email')} className={input} />
+        <select value={form.role} onChange={set('role')} className={input}>
+          <option value="editor">Editor — creates & publishes</option>
+          <option value="admin">Admin — also manages the team</option>
+        </select>
+        <input value={form.password} onChange={set('password')} className={`${input} font-mono`} aria-label="Temporary password" />
+      </div>
+      <p className="text-[11.5px] text-ink-500">
+        They sign in with this email and temporary password — both are copied for you when you add them — then change
+        the password under Settings → Security.
+      </p>
+      <div className="flex justify-end gap-2">
+        <button type="button" onClick={onCancel} className="btn-ghost">
+          Cancel
+        </button>
+        <button type="button" onClick={save} disabled={!ready || saving} className="btn-primary disabled:opacity-50">
+          {saving ? 'Adding…' : 'Add member'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── small pieces ──────────────────────────────────────────────────────────
+function ToggleRow({ title, desc, on, onChange, disabled = false }) {
+  return (
+    <div className={`flex items-center gap-4 py-3.5 ${disabled ? 'opacity-60' : ''}`}>
+      <div className="min-w-0 flex-1">
+        <div className="text-[13px] font-medium text-ink-800">{title}</div>
+        {desc && <div className="text-[11.5px] text-ink-500">{desc}</div>}
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={!!on}
+        disabled={disabled}
+        onClick={() => onChange(!on)}
+        className={`relative h-[22px] w-[38px] flex-none rounded-full transition-colors ${on ? 'bg-brand' : 'bg-ink-300'}`}
+      >
+        <span
+          className={`absolute left-[2px] top-[2px] h-[18px] w-[18px] rounded-full bg-white shadow-sm transition-transform ${
+            on ? 'translate-x-[16px]' : ''
+          }`}
+        />
+      </button>
+    </div>
+  )
+}
+
+function Row({ label, hint, children }) {
+  return (
+    <label className="grid gap-1.5 sm:grid-cols-[170px_1fr] sm:items-center sm:gap-4">
+      <span className="text-[12.5px] font-medium text-ink-700">{label}</span>
+      <span>
+        {children}
+        {hint && <span className="mt-1 block text-[11.5px] text-ink-400">{hint}</span>}
+      </span>
+    </label>
+  )
+}
+
+function SectionTitle({ title, sub }) {
+  return (
+    <div>
+      <div className="text-[13.5px] font-semibold text-ink-900">{title}</div>
+      {sub && <div className="text-[12px] text-ink-500">{sub}</div>}
+    </div>
+  )
+}
+
+function SaveBar({ dirty, saving, onSave, onReset }) {
+  return (
+    <div className="flex items-center justify-end gap-2 border-t border-ink-100 pt-4">
+      {dirty && (
+        <button type="button" onClick={onReset} className="btn-ghost">
+          Cancel
+        </button>
+      )}
+      <button type="button" onClick={onSave} disabled={!dirty || saving} className="btn-primary disabled:opacity-50">
+        {saving ? 'Saving…' : 'Save changes'}
+      </button>
+    </div>
+  )
+}
+
+function Stat({ label, value }) {
+  return (
+    <div className="rounded-xl border border-ink-200 px-4 py-3">
+      <div className="text-[11px] text-ink-500">{label}</div>
+      <div className="mt-0.5 text-[17px] font-bold text-ink-900">{value ?? '—'}</div>
     </div>
   )
 }

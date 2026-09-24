@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { api, tokenStore } from './api/client'
+import { applyPreferences } from './lib/theme'
 
 const AuthContext = createContext(null)
 
@@ -21,6 +22,12 @@ export function AuthProvider({ children }) {
       })
       .finally(() => setLoading(false))
   }, [])
+
+  // Apply the person's saved accent colour / motion setting whenever we learn
+  // who they are (or they change it in Settings).
+  useEffect(() => {
+    if (user) applyPreferences(user.preferences || {})
+  }, [user])
 
   useEffect(() => {
     const onSignedOut = () => setUser(null)
@@ -55,8 +62,22 @@ export function AuthProvider({ children }) {
     [],
   )
 
+  const updateMe = useCallback(
+    (patch) => api.patch('/auth/me', patch).then((u) => (setUser(u), u)),
+    [],
+  )
+
+  // Save part of the preferences (merged server-side). Applied optimistically
+  // so a colour swatch click feels instant.
+  const updatePrefs = useCallback((patch) => {
+    setUser((u) => (u ? { ...u, preferences: { ...(u.preferences || {}), ...patch } } : u))
+    return api.patch('/auth/me', { preferences: patch }).then((u) => (setUser(u), u))
+  }, [])
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, renameWorkspace }}>
+    <AuthContext.Provider
+      value={{ user, loading, login, register, logout, renameWorkspace, updateMe, updatePrefs }}
+    >
       {children}
     </AuthContext.Provider>
   )

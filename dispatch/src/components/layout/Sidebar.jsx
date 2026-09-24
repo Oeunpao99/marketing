@@ -27,6 +27,7 @@ import PlatformIcon from "../ui/PlatformIcon";
 import SettingsModal from "./SettingsModal";
 import { openCreateBrand } from "./CreateBrandDrawer";
 import Notifications from "./Notifications";
+import { useNotifications } from "../../lib/notifications";
 
 // Same two-tier shape as the reference: a flat core nav up top, then labeled
 // sections. Every entry is a real page — nothing here points nowhere.
@@ -74,7 +75,7 @@ export default function Sidebar({ collapsed = false }) {
     b.name.toLowerCase().includes(brandQuery.trim().toLowerCase()),
   );
   const reviewCount = (review || []).length;
-  const notifCount = reviewCount + channels.filter((c) => c.s === "soon").length;
+  const { count: notifCount } = useNotifications();
   const brandChannels = channels.filter((c) => c.b === active?.slug);
 
   useEffect(() => {
@@ -218,9 +219,7 @@ export default function Sidebar({ collapsed = false }) {
         title="ContentFlow"
         className={`flex items-center gap-2.5 pt-5 pb-3 ${collapsed ? "justify-center px-0" : "px-5"}`}
       >
-        <span className="w-9 h-9 rounded-xl grid place-items-center flex-none bg-brand text-white text-[15px] font-bold shadow-sm">
-          C
-        </span>
+        <img src="/brand/logo-mark.png" alt="ContentFlow" className="w-9 h-9 flex-none object-contain" />
         {!collapsed && (
           <span className="min-w-0">
             <span className="block text-[15px] font-bold text-ink-900 tracking-tight leading-tight">ContentFlow</span>

@@ -5,7 +5,7 @@ export default function CircularProgress({
   percent,
   size = 120,
   stroke = 10,
-  color = '#1A6FC4',
+  color = 'rgb(var(--brand))',
   trackColor = '#E5E9E6',
   children,
 }) {
@@ -22,7 +22,7 @@ export default function CircularProgress({
           cx={size / 2}
           cy={size / 2}
           r={r}
-          stroke={color}
+          style={{ stroke: color }}
           strokeWidth={stroke}
           fill="none"
           strokeDasharray={c}

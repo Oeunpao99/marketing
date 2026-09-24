@@ -531,7 +531,7 @@ export default function AIPromptPage() {
   return (
     // Fills the screen below the top bar, so the composer always sits at the
     // bottom — even when the thread is short or empty.
-    <div className="w-full px-5 lg:px-10 animate-fadein flex flex-col min-h-[calc(100dvh-7.5rem)] lg:min-h-[calc(100dvh-3.5rem)]">
+    <div className="w-full px-5 lg:px-10 animate-fadein flex flex-col min-h-[calc(100dvh-7.5rem-env(safe-area-inset-bottom))] lg:min-h-[calc(100dvh-3.5rem)]">
       {/* Page header — pinned under the top bar while the thread scrolls. */}
       <div className="sticky top-14 z-20 -mx-5 lg:-mx-10 px-5 lg:px-10 bg-[#F4F6F9]/90 backdrop-blur-md">
         <div className="mx-auto w-full lg:w-4/5 flex items-center justify-between gap-3 py-4">
@@ -637,7 +637,7 @@ export default function AIPromptPage() {
       </div>
 
       {/* composer */}
-      <div className="sticky bottom-16 lg:bottom-0 z-20 -mx-5 lg:-mx-10 px-5 lg:px-10 pb-5 pt-6 bg-gradient-to-t from-[#F4F6F9] via-[#F4F6F9] to-transparent">
+      <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] lg:bottom-0 z-20 -mx-5 lg:-mx-10 px-5 lg:px-10 pb-5 pt-6 bg-gradient-to-t from-[#F4F6F9] via-[#F4F6F9] to-transparent">
         <div
           ref={composerRef}
           onDragOver={(e) => {
@@ -1002,8 +1002,8 @@ function AskTurn({ t, onRetry, onGenerate, onEdit }) {
       </div>
 
       <div className="flex items-start gap-3">
-        <span className="mt-0.5 w-8 h-8 flex-none rounded-xl grid place-items-center bg-brand text-white text-[13px] font-bold shadow-sm">
-          C
+        <span className="mt-0.5 w-8 h-8 flex-none rounded-xl grid place-items-center bg-white ring-1 ring-ink-200/80 shadow-sm">
+          <img src="/brand/logo-mark.png" alt="ContentFlow" className="w-6 h-6 object-contain" />
         </span>
         <div className="min-w-0 flex-1 max-w-[860px]">
           {t.status === 'working' && (
@@ -1326,8 +1326,8 @@ function GeneratingCanvas({ kind, stage }) {
         <div className="cf-float flex flex-col items-center">
           <div className="relative">
             <span className="cf-halo absolute -inset-4 rounded-[28px] bg-white/70 blur-md" />
-            <span className="relative w-14 h-14 rounded-2xl grid place-items-center bg-brand text-white text-[22px] font-bold shadow-[0_10px_30px_rgba(26,111,196,.45)]">
-              C
+            <span className="relative w-16 h-16 rounded-2xl grid place-items-center bg-white shadow-[0_10px_30px_rgb(var(--brand)/0.35)]">
+              <img src="/brand/logo-mark.png" alt="" className="w-12 h-12 object-contain" />
             </span>
           </div>
           <span className="mt-3 text-[14px] font-bold tracking-tight text-ink-900/80">ContentFlow</span>

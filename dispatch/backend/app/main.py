@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app import content_scheduler, scheduler
 from app.advisor import router as advisor_router
 from app.chats import router as chats_router
+from app.push import router as push_router
 from app.ai import router as ai_router
 from app.auth import router as auth_router
 from app.config import get_settings
@@ -74,6 +75,7 @@ api.include_router(auth_router)
 api.include_router(ai_router, dependencies=authed)
 api.include_router(advisor_router, dependencies=authed)
 api.include_router(chats_router, dependencies=authed)
+api.include_router(push_router, dependencies=authed)
 api.include_router(video_gen_router, dependencies=authed)
 api.include_router(media_router, dependencies=authed)
 api.include_router(views_router, dependencies=authed)

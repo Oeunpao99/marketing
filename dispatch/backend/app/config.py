@@ -129,6 +129,12 @@ class Settings(BaseSettings):
     # — every question is one AI call, so this caps the bill per account.
     advisor_daily_limit: int = 60
 
+    # Web Push (app/push.py) — lock-screen / desktop notifications. Generate a
+    # pair with `python -m app.push keys`; empty = push turned off.
+    vapid_public_key: str = ""
+    vapid_private_key: str = ""
+    vapid_subject: str = ""
+
     linkedin_client_id: str = ""
     linkedin_client_secret: str = ""
     linkedin_redirect_uri: str = ""

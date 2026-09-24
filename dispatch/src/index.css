@@ -2,6 +2,29 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Brand accent as RGB triplets — rewritten at runtime by src/lib/theme.js when
+   someone picks a colour in Settings → Appearance. These are the Ocean default. */
+:root {
+  --brand: 26 111 196;
+  --brand-light: 43 132 214;
+  --brand-dark: 19 86 150;
+  --brand-deep: 10 42 75;
+  --brand-soft: 228 239 250;
+  --brand-softer: 242 247 252;
+  --brand-line: 211 227 244;
+}
+
+/* Settings → Appearance → Reduce motion */
+[data-reduce-motion] *,
+[data-reduce-motion] *::before,
+[data-reduce-motion] *::after {
+  animation-duration: 0.001ms !important;
+  animation-delay: 0s !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
 /* Self-hosted so Khmer text renders the same for every viewer, not just
    machines that happen to have this font installed locally. Scoped to the
    Khmer Unicode block via unicode-range, so the browser swaps to it for
@@ -159,10 +182,10 @@ select {
   }
   /* Used sparingly — primary CTA + special AI moments only */
   .gradient-brand {
-    background: linear-gradient(135deg, #135696 0%, #1A6FC4 55%, #2B84D6 100%);
+    background: linear-gradient(135deg, rgb(var(--brand-dark)) 0%, rgb(var(--brand)) 55%, rgb(var(--brand-light)) 100%);
   }
   .text-gradient-brand {
-    background: linear-gradient(135deg, #1A6FC4, #2B84D6);
+    background: linear-gradient(135deg, rgb(var(--brand)), rgb(var(--brand-light)));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -170,16 +193,16 @@ select {
   /* Deep blue panel used behind login/onboarding side art */
   .gradient-sidebar {
     background:
-      radial-gradient(70% 55% at 85% 0%, rgba(90,160,225,0.22), transparent 60%),
-      radial-gradient(45% 50% at 0% 100%, rgba(26,111,196,0.35), transparent 60%),
-      linear-gradient(150deg, #0C2F55 0%, #11457A 55%, #135696 100%);
+      radial-gradient(70% 55% at 85% 0%, rgb(var(--brand-light) / 0.22), transparent 60%),
+      radial-gradient(45% 50% at 0% 100%, rgb(var(--brand) / 0.35), transparent 60%),
+      linear-gradient(150deg, rgb(var(--brand-deep)) 0%, rgb(var(--brand-dark)) 100%);
   }
   /* Soft blue wash for hero moments / AI states */
   .hero-tint {
     background:
-      radial-gradient(54% 70% at 82% 0%, rgba(26,111,196,0.10), transparent 60%),
-      radial-gradient(40% 60% at 8% 100%, rgba(43,132,214,0.08), transparent 55%),
-      linear-gradient(180deg, #FFFFFF 0%, #F2F7FC 100%);
+      radial-gradient(54% 70% at 82% 0%, rgb(var(--brand) / 0.10), transparent 60%),
+      radial-gradient(40% 60% at 8% 100%, rgb(var(--brand-light) / 0.08), transparent 55%),
+      linear-gradient(180deg, #FFFFFF 0%, rgb(var(--brand-softer)) 100%);
   }
 }
 /* ── AI Agent "generating" canvas (AIPromptPage's GeneratingCanvas) ──────
@@ -218,7 +241,7 @@ select {
   to   { transform: translateX(220%) skewX(-18deg); }
 }
 .cf-smoke { position: absolute; width: 75%; aspect-ratio: 1; border-radius: 9999px; filter: blur(38px); }
-.cf-smoke-a { left: 0; top: 0; background: radial-gradient(circle, rgba(43,132,214,.75), transparent 65%); animation: cf-smoke-a 9s ease-in-out infinite alternate; }
+.cf-smoke-a { left: 0; top: 0; background: radial-gradient(circle, rgb(var(--brand-light) / .75), transparent 65%); animation: cf-smoke-a 9s ease-in-out infinite alternate; }
 .cf-smoke-b { right: 0; bottom: 0; background: radial-gradient(circle, rgba(92,200,240,.7), transparent 65%); animation: cf-smoke-b 11s ease-in-out infinite alternate; }
 .cf-smoke-c { left: 15%; top: 20%; background: radial-gradient(circle, rgba(139,124,246,.55), transparent 65%); animation: cf-smoke-c 13s ease-in-out infinite alternate; }
 .cf-float { animation: cf-float 3.2s ease-in-out infinite; }
@@ -232,4 +255,27 @@ select {
 @media (prefers-reduced-motion: reduce) {
   .cf-smoke, .cf-float, .cf-halo, .cf-puff, .cf-sweep { animation: none !important; }
   .cf-puff, .cf-sweep { display: none; }
+}
+
+/* ── Login brand lockup (LoginPage's BrandLockup) ─────────────────────── */
+@keyframes cf-mark-in {
+  0%   { opacity: 0; transform: scale(.55) rotate(-14deg); }
+  60%  { opacity: 1; transform: scale(1.08) rotate(3deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0); }
+}
+@keyframes cf-letter-in {
+  from { opacity: 0; transform: translateY(14px); filter: blur(4px); }
+  to   { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+@keyframes cf-word-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes cf-fade-in { from { opacity: 0; } to { opacity: 1; } }
+.cf-mark-in { animation: cf-mark-in .8s cubic-bezier(.2,.8,.2,1) both; }
+.cf-letter  { opacity: 0; animation: cf-letter-in .5s cubic-bezier(.2,.8,.2,1) forwards; }
+.cf-word    { animation: cf-word-in .45s cubic-bezier(.2,.8,.2,1) both; }
+.cf-fade-late { opacity: 0; animation: cf-fade-in .6s ease 1.1s forwards; }
+@media (prefers-reduced-motion: reduce) {
+  .cf-mark-in, .cf-letter, .cf-word, .cf-fade-late { animation: none !important; opacity: 1 !important; }
 }

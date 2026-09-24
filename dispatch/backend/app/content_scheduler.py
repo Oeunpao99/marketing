@@ -258,6 +258,17 @@ def _write_batch(
     db.commit()
     for d in drafts:
         db.refresh(d)
+
+    waiting = sum(1 for d in drafts if d.status == "waiting")
+    if waiting:
+        from app.push import notify_workspace
+
+        notify_workspace(
+            brand.workspace_id, "review",
+            f"{waiting} new idea{'s' if waiting != 1 else ''} for {brand.name}",
+            "Waiting for your review — approve, edit or send back.",
+            "/review", f"review-{brand.id}",
+        )
     return drafts
 
 

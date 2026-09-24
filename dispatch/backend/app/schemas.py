@@ -397,6 +397,7 @@ class UserOut(ORMModel):
     timezone: str = "UTC+7"
     role: str = "editor"
     is_active: bool = True
+    preferences: dict[str, Any] = Field(default_factory=dict)
 
 
 class WorkspaceUpdate(BaseModel):

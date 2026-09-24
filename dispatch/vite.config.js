@@ -10,6 +10,15 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': { target: API_TARGET, changeOrigin: true },
+      '/media': { target: API_TARGET, changeOrigin: true },
+    },
+  },
+  // `npm run build && npx vite preview --host` — the production build on your
+  // network, e.g. to install the app on a phone. Same proxies as dev.
+  preview: {
+    proxy: {
+      '/api': { target: API_TARGET, changeOrigin: true },
+      '/media': { target: API_TARGET, changeOrigin: true },
     },
   },
 })

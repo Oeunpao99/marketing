@@ -348,6 +348,25 @@ class AgentChat(Base, TimestampMixin):
     )
 
 
+class PushSubscription(Base, TimestampMixin):
+    """One browser / installed app that turned on push notifications
+    (app/push.py). ``endpoint`` is the push service URL the browser gave us."""
+
+    __tablename__ = "push_subscriptions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(
+        ForeignKey("workspaces.id", ondelete="CASCADE"), index=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("team_members.id", ondelete="CASCADE"), index=True
+    )
+    endpoint: Mapped[str] = mapped_column(Text, unique=True)
+    p256dh: Mapped[str] = mapped_column(String(200))
+    auth: Mapped[str] = mapped_column(String(100))
+    user_agent: Mapped[str] = mapped_column(String(300), default="", server_default="")
+
+
 class TeamMember(Base, TimestampMixin):
     __tablename__ = "team_members"
 
@@ -361,6 +380,12 @@ class TeamMember(Base, TimestampMixin):
     location: Mapped[str] = mapped_column(String(120), default="")
     timezone: Mapped[str] = mapped_column(String(40), default="UTC+7")
     role: Mapped[str] = mapped_column(String(60), default="editor")
+    # Per-person UI settings from Settings → Appearance / Notifications, e.g.
+    # {"accent": "#1A6FC4", "reduce_motion": false, "notify": {"failed": true, ...},
+    #  "desktop_alerts": true}. Free-form; the frontend owns the keys.
+    preferences: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, default=dict, server_default="{}", nullable=False
+    )
     # Auth: this table doubles as the login principal.
     password_hash: Mapped[str] = mapped_column(String(255), default="", server_default="")
     is_active: Mapped[bool] = mapped_column(

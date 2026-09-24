@@ -325,11 +325,11 @@ export default function CaptionComps({ comps, selectedChannels, onUpdate }) {
           const c = selectedChannels.find((x) => x.id === id)
           if (!c) return null
           const P = PLAT[c.p]
-          const color = '#1A6FC4'
+          const color = 'rgb(var(--brand))'
           const d = comps[id]
           return (
             <div key={id} className="bg-white border border-ink-100 rounded-2xl overflow-hidden shadow-card hover:shadow-card-hover transition-all duration-150">
-              <header className="px-4 py-3 border-b border-ink-100 flex items-center gap-3 flex-wrap" style={{ background: `${color}05` }}>
+              <header className="px-4 py-3 border-b border-ink-100 flex items-center gap-3 flex-wrap" style={{ background: 'rgb(var(--brand) / 0.03)' }}>
                 <span className="w-[3px] h-[22px] rounded-full flex-none" style={{ background: color }} />
                 <span className="text-[12.5px] font-bold text-ink-800">{P.name}</span>
                 <span className="text-[11.5px] text-ink-500">{c.h}</span>

@@ -113,12 +113,13 @@ export default function DayView({ queue, match = () => true }) {
             >
               <div className="flex gap-3">
                 <span
-                  className={`grid w-8 h-12 flex-none place-items-center rounded-lg text-[10px] font-black uppercase tracking-wide border ${
+                  className={`grid w-9 h-9 flex-none place-items-center rounded-xl text-[15px] font-bold uppercase border ${
                     sending ? 'border-brand-line bg-brand-soft text-brand' : 'border-transparent'
                   }`}
                   style={!sending ? { background: `${color}1A`, color } : undefined}
+                  title={name}
                 >
-                  {name.slice(0, 4)}
+                  {name.trim().charAt(0) || '?'}
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">

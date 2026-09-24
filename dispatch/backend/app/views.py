@@ -74,6 +74,7 @@ def _run_publish(db: Session, target: PostTarget) -> dict:
         target.status = "failed"
         target.error = str(exc)
         db.commit()
+        _push_outcome(db, target, channel, failed=str(exc))
         return {"id": target.id, "status": "failed", "error": str(exc)}
 
     now = datetime.now(UTC)
@@ -85,12 +86,37 @@ def _run_publish(db: Session, target: PostTarget) -> dict:
     if target.post and all(t.status == "posted" for t in target.post.targets):
         target.post.status = "posted"
     db.commit()
+    _push_outcome(db, target, channel)
     return {
         "id": target.id,
         "status": "posted",
         "external_id": result.external_id,
         "detail": result.detail,
     }
+
+
+def _push_outcome(db: Session, target: PostTarget, channel: Channel, failed: str | None = None) -> None:
+    """Phone / desktop push for a delivery result (app/push.py). One
+    notification per post (``tag``), so a post going to 3 channels updates the
+    same notification instead of stacking three."""
+    from app.push import notify_workspace
+
+    post = target.post
+    brand = db.get(Brand, post.brand_id) if post else None
+    if brand is None:
+        return
+    title_text = target.title or (post.title if post else "") or "Your post"
+    platform = channel.platform.name if channel.platform else "your channel"
+    if failed:
+        notify_workspace(
+            brand.workspace_id, "failed", f"Couldn’t post to {platform}",
+            f"{brand.name} · {title_text} — {failed}", "/", f"post-{target.post_id}",
+        )
+    else:
+        notify_workspace(
+            brand.workspace_id, "published", f"Posted to {platform} ✓",
+            f"{brand.name} · {title_text}", "/", f"post-{target.post_id}",
+        )
 
 
 def _brand_map(db: Session, ws: int) -> dict[int, Brand]:

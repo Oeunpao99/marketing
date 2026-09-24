@@ -6,6 +6,7 @@ import AIAssistant from '../ai/AIAssistant'
 import CreateBrandDrawer from './CreateBrandDrawer'
 import { useStore } from '../../store'
 import { useAutoRunWatcher } from '../../lib/autoRuns'
+import { useDesktopAlerts } from '../../lib/notifications'
 
 const KEY = 'dispatch.sidebarCollapsed'
 
@@ -47,6 +48,7 @@ function useRunFinishedToast() {
 export default function Shell({ children }) {
   const [collapsed, setCollapsed] = useState(readCollapsed)
   useRunFinishedToast()
+  useDesktopAlerts()
 
   const toggle = () =>
     setCollapsed((v) => {
@@ -65,7 +67,7 @@ export default function Shell({ children }) {
       }`}
     >
       <Sidebar collapsed={collapsed} />
-      <div className="min-w-0 flex flex-col pb-16 lg:pb-0">
+      <div className="min-w-0 flex flex-col pb-[calc(4rem+env(safe-area-inset-bottom))] lg:pb-0">
         <Topbar onToggleSidebar={toggle} />
         <main className="min-w-0 mx-auto w-full max-w-[1480px]">{children}</main>
       </div>

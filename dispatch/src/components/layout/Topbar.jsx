@@ -4,6 +4,7 @@ import { useState } from "react";
 import Notifications from "./Notifications";
 import { useAuth } from "../../auth";
 import { useStore } from "../../store";
+import { useNotifications } from "../../lib/notifications";
 
 const LABELS = {
   "/new": "Compose",
@@ -33,7 +34,7 @@ export default function Topbar({ onToggleSidebar }) {
   const [notifOpen, setNotifOpen] = useState(false);
 
   const label = labelFor(pathname);
-  const notifCount = (review || []).length + channels.filter((c) => c.s === "soon").length;
+  const { count: notifCount } = useNotifications();
   const initials =
     user?.initials ||
     (user?.name || "")

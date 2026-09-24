@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import { FiCheckCircle, FiInbox, FiX } from "react-icons/fi";
+import { FiX } from "react-icons/fi";
 import { useStore } from "../../store";
-import PlatformIcon from "../ui/PlatformIcon";
-import { PLAT } from "../../data/brands";
+import { useNotifications } from "../../lib/notifications";
 
 /**
  * Notifications — a bell dropdown for threads needing attention.
@@ -12,58 +11,11 @@ import { PLAT } from "../../data/brands";
  * anchor="bottom" renders it above the sidebar footer bell.
  */
 export default function Notifications({ open, onClose, anchor = "header" }) {
-  const { review, queue, channels } = useStore();
+  const { review } = useStore();
   const navigate = useNavigate();
   const [seen, setSeen] = useState(false);
 
-  const items = useMemo(() => {
-    const out = [];
-    (review || []).forEach((draft) => {
-      out.push({
-        id: `review-${draft.ttl}`,
-        kind: "review",
-        icon: <FiInbox size={14} className="text-brand" />,
-        tag: "Ready for review",
-        dot: "bg-brand",
-        title: draft.ttl || "New post draft",
-        body: `${draft.brandName || draft.b} · ${draft.made || "Written recently"}`,
-        to: "/review",
-        urgent: true,
-      });
-    });
-    (channels || [])
-      .filter((c) => c.s === "soon")
-      .forEach((c) => {
-        out.push({
-          id: `channel-${c.id}`,
-          kind: "channel",
-          icon: <PlatformIcon name={PLAT[c.p]?.name} className="text-ink-400" />,
-          tag: "Token expiring",
-          dot: "bg-amber-400",
-          title: `${c.h || c.b}`,
-          body: `${c.b} · ${c.p} · re-authorise soon`,
-          to: "/channels",
-          urgent: true,
-        });
-      });
-    (queue || [])
-      .filter((p) => p.st === "posting" || p.st === "posted")
-      .slice(0, 3)
-      .forEach((p) => {
-        out.push({
-          id: `queue-${p.ttl}-${p.st}`,
-          kind: "queue",
-          icon: <FiCheckCircle size={14} className="text-emerald-500" />,
-          tag: p.st === "posted" ? "Posted" : "Now posting",
-          dot: p.st === "posted" ? "bg-emerald-500" : "bg-brand animate-pulse-glow",
-          title: p.ttl || "Untitled",
-          body: `${p.b} · ${p.t} · ${p.k || "photo"}`,
-          to: "/calendar",
-          urgent: p.st === "posting",
-        });
-      });
-    return out.slice(0, 7);
-  }, [review, queue, channels]);
+  const { items } = useNotifications();
 
   useEffect(() => {
     if (open) setSeen(true);
@@ -71,7 +23,7 @@ export default function Notifications({ open, onClose, anchor = "header" }) {
 
   if (!open) return null;
 
-  const count = items.length;
+  const count = items.filter((i) => i.urgent).length;
 
   const go = (to) => {
     onClose();
@@ -122,7 +74,7 @@ export default function Notifications({ open, onClose, anchor = "header" }) {
               </div>
               <div className="text-[12px] font-semibold text-ink-700">You're all caught up</div>
               <div className="mt-1 text-[11px] text-ink-400">
-                Review queues and expiring tokens will show up here.
+                Ideas to review, failed posts and expiring logins show up here — choose which in Settings → Notifications.
               </div>
             </div>
           ) : (

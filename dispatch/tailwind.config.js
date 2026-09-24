@@ -4,13 +4,15 @@ export default {
   theme: {
     extend: {
       colors: {
+        // Driven by CSS variables so the accent is user-selectable
+        // (Settings → Appearance; see src/lib/theme.js). Defaults in index.css.
         brand: {
-          DEFAULT: '#1A6FC4',
-          light: '#2B84D6',
-          dark: '#135696',
-          soft: '#E4EFFA',
-          softer: '#F2F7FC',
-          line: '#D3E3F4',
+          DEFAULT: 'rgb(var(--brand) / <alpha-value>)',
+          light: 'rgb(var(--brand-light) / <alpha-value>)',
+          dark: 'rgb(var(--brand-dark) / <alpha-value>)',
+          soft: 'rgb(var(--brand-soft) / <alpha-value>)',
+          softer: 'rgb(var(--brand-softer) / <alpha-value>)',
+          line: 'rgb(var(--brand-line) / <alpha-value>)',
         },
         coral: {
           300: '#FFB5A7',
@@ -57,9 +59,9 @@ export default {
         pop: '0 12px 32px -8px rgba(22, 25, 29, 0.18), 0 2px 8px rgba(22, 25, 29, 0.06)',
         dock: '0 2px 8px rgba(0,0,0,0.08), 0 20px 48px -16px rgba(0,0,0,0.2)',
         drawer: '-12px 0 40px -12px rgba(22, 25, 29, 0.22)',
-        glow: '0 0 20px rgba(26,111,196,0.18)',
-        'glow-lg': '0 6px 28px -6px rgba(26,111,196,0.4)',
-        ring: '0 0 0 3px rgba(26,111,196,0.12)',
+        glow: '0 0 20px rgb(var(--brand) / 0.18)',
+        'glow-lg': '0 6px 28px -6px rgb(var(--brand) / 0.4)',
+        ring: '0 0 0 3px rgb(var(--brand) / 0.12)',
       },
       borderRadius: {
         xl2: '14px',
