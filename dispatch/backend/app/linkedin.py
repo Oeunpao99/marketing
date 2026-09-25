@@ -41,10 +41,6 @@ AUTH_URL = "https://www.linkedin.com/oauth/v2/authorization"
 TOKEN_URL = "https://www.linkedin.com/oauth/v2/accessToken"
 USERINFO_URL = "https://api.linkedin.com/v2/userinfo"
 API_BASE = "https://api.linkedin.com/rest"
-# LinkedIn versions its REST API by calendar month; pin one so responses
-# don't shift under us. Bump periodically per LinkedIn's changelog.
-API_VERSION = "202501"
-
 SCOPES = "openid profile w_member_social"
 
 
@@ -73,7 +69,9 @@ def _explain(resp: httpx.Response) -> str:
 def _rest_headers(access_token: str) -> dict:
     return {
         "Authorization": f"Bearer {access_token}",
-        "LinkedIn-Version": API_VERSION,
+        # LinkedIn versions its REST API by calendar month and retires each one
+        # after ~a year — pinned via settings (LINKEDIN_API_VERSION).
+        "LinkedIn-Version": get_settings().linkedin_api_version,
         "X-Restli-Protocol-Version": "2.0.0",
     }
 

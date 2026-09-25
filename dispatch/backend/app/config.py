@@ -141,6 +141,10 @@ class Settings(BaseSettings):
     linkedin_client_id: str = ""
     linkedin_client_secret: str = ""
     linkedin_redirect_uri: str = ""
+    # LinkedIn REST API version (YYYYMM). LinkedIn retires each monthly version
+    # about a year after release ("Requested version … is not active") — bump
+    # this in .env when that happens, no code change needed.
+    linkedin_api_version: str = "202606"
 
     # Auth — CHANGE secret_key in .env for anything real.
     secret_key: str = "dev-insecure-change-me"
