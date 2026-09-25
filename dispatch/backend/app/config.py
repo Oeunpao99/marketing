@@ -117,7 +117,9 @@ class Settings(BaseSettings):
     meta_app_id: str = ""
     meta_app_secret: str = ""
     meta_redirect_uri: str = ""
-    meta_graph_version: str = "v21.0"
+    # Meta retires each Graph API version ~2 years after release (v21.0 ends
+    # 21 Jan 2027). Override with META_GRAPH_VERSION in .env when bumping.
+    meta_graph_version: str = "v26.0"
     # This backend's own publicly reachable base url, no trailing slash (e.g.
     # https://api.yourdomain.com). Facebook Page posts upload bytes directly
     # and don't need this; Instagram's Content Publishing API always fetches

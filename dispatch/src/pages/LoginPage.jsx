@@ -130,6 +130,18 @@ export default function LoginPage() {
               {isRegister ? 'Sign in' : 'Create one — it’s free'}
             </button>
           </p>
+
+          <p className="mt-8 text-center text-[11.5px] text-ink-400">
+            {isRegister ? 'By creating an account you agree to our ' : ''}
+            <a href="/terms" className="hover:text-ink-700 underline-offset-2 hover:underline">
+              {isRegister ? 'Terms' : 'Terms of Service'}
+            </a>
+            {isRegister ? ' and ' : ' · '}
+            <a href="/privacy" className="hover:text-ink-700 underline-offset-2 hover:underline">
+              Privacy Policy
+            </a>
+            {isRegister ? '.' : ''}
+          </p>
         </div>
       </main>
     </div>

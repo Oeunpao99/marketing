@@ -13,6 +13,7 @@ import ChannelsPage from "./pages/ChannelsPage";
 import CreateBrandPage from "./pages/CreateBrandPage";
 import InsightsPage from "./pages/InsightsPage";
 import InsightsPostPage from "./pages/InsightsPostPage";
+import LegalPage from "./pages/LegalPage";
 import LibraryPage from "./pages/LibraryPage";
 import LoginPage from "./pages/LoginPage";
 import NewPostPage from "./pages/NewPostPage";
@@ -73,7 +74,12 @@ function Gate() {
   return user ? <Portal /> : <LoginPage />;
 }
 
+// Public pages anyone can open without signing in (reviewers, search engines).
+const PUBLIC_PAGES = { "/privacy": "privacy", "/terms": "terms" };
+
 export default function App() {
+  const publicPage = PUBLIC_PAGES[window.location.pathname.replace(/\/+$/, "")];
+  if (publicPage) return <LegalPage kind={publicPage} />;
   return (
     <AuthProvider>
       <Gate />
