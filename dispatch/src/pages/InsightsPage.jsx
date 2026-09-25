@@ -1,5 +1,19 @@
 ﻿import { useEffect, useId, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { buildFunnel, buildInsights } from '../lib/insightsEngine'
+import {
+  ActionCards,
+  bucket,
+  cardCls,
+  Chips,
+  Funnel,
+  InsightCards,
+  PlatformBars,
+  StatTile,
+  TabBar,
+  TopContentGrid,
+  WeekCompare,
+} from '../components/insights/Tabs'
 import { FaLinkedin } from 'react-icons/fa'
 import {
   SiFacebook,
@@ -8,10 +22,36 @@ import {
   SiTiktok,
   SiYoutube,
 } from 'react-icons/si'
-import { FiActivity, FiBarChart2, FiChevronDown, FiDownload, FiEye, FiFileText, FiGrid, FiHeart, FiImage, FiMessageCircle, FiPlay, FiRefreshCw, FiShare2, FiTrendingUp } from 'react-icons/fi'
+import { FiChevronDown, FiDownload, FiEye, FiFileText, FiGrid, FiHeart, FiImage, FiMessageCircle, FiPlay, FiRefreshCw, FiShare2 } from 'react-icons/fi'
 import { api } from '../api/client'
 import { useStore } from '../store'
 import { colorForBrand } from '../lib/brandColor'
+import {
+  ChannelsTable,
+  DeltaText,
+  Donut,
+  Figure,
+  fmtNum,
+  PlatformLegend,
+  TrendLine,
+  UpNext,
+  WeekColumns,
+} from '../components/insights/Overview'
+
+// Fixed platform order for the donuts/legend (matches Overview.jsx's colour slots).
+const PLATFORM_SLUG_ORDER = ['facebook', 'instagram', 'tiktok', 'linkedin', 'telegram', 'youtube']
+const PER_PAGE = 10 // "All published posts" rows per page
+const TABS = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'performance', label: 'Performance' },
+  { id: 'content', label: 'Content' },
+  { id: 'insights', label: 'Insights & Actions' },
+]
+const PERF_METRICS = [
+  { id: 'engagement', label: 'Engagement' },
+  { id: 'views', label: 'Views' },
+  { id: 'posts', label: 'Posts' },
+]
 
 export const PLATFORM_ICONS = {
   facebook: SiFacebook,
@@ -38,7 +78,8 @@ const DATE_RANGES = [
   { id: 'all', short: 'All', label: 'all time', days: null },
 ]
 
-const SERIES_COLORS = { likes: '#1B75BB', comments: '#F08A5D', shares: '#86A41E' }
+// views/posts are only ever drawn alone (Performance tab metric chips), so they reuse the accent.
+export const SERIES_COLORS = { likes: '#1B75BB', comments: '#F08A5D', shares: '#86A41E', views: '#2a78d6', posts: '#2a78d6' }
 
 const compact = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 })
 const fmtCompact = (n) => (n == null ? '—' : n >= 1000 ? compact.format(n) : n.toLocaleString())
@@ -102,6 +143,35 @@ export function viewsOf(metrics) {
   return m.views != null ? m.views : m.subscribers != null ? m.subscribers : null
 }
 
+/** Per-day buckets (posts, likes, comments, shares, engagement, views,
+ *  clicks, engagement rate) for a set of posts over `days` — shared by the
+ *  page-wide charts and the Performance tab's per-platform chart. */
+function dailyOf(rows, days) {
+  const idx = new Map(days.map((d, i) => [d, i]))
+  const z = () => days.map(() => 0)
+  const out = { views: z(), engagement: z(), likes: z(), comments: z(), shares: z(), clicks: z(), posts: z(), rateV: z(), rateE: z() }
+  for (const it of rows) {
+    if (!it.published_at) continue
+    const i = idx.get(dayKey(it.published_at))
+    if (i == null) continue
+    out.posts[i] += 1
+    if (it.status !== 'ok' && it.status !== 'partial') continue
+    const m = it.metrics || {}
+    out.likes[i] += m.likes || 0
+    out.comments[i] += m.comments || 0
+    out.shares[i] += m.shares || 0
+    out.clicks[i] += m.clicks || 0
+    out.engagement[i] += engagementOf(m)
+    if (m.views != null) {
+      out.views[i] += m.views
+      out.rateV[i] += m.views
+      out.rateE[i] += engagementOf(m)
+    }
+  }
+  out.rate = out.rateV.map((v, i) => (v > 0 ? (out.rateE[i] / v) * 100 : 0))
+  return out
+}
+
 function toCsv(rows) {
   const header = ['Date', 'Brand', 'Platform', 'Type', 'Caption', 'Views', 'Likes', 'Comments', 'Shares', 'Status']
   const lines = [header.join(',')]
@@ -122,57 +192,6 @@ function toCsv(rows) {
     lines.push(cells.map((c) => `"${c}"`).join(','))
   }
   return lines.join('\n')
-}
-
-function Sparkline({ values, color = '#1B75BB', width = 76, height = 26 }) {
-  if (!values || values.length < 2) return <div style={{ width, height }} />
-  const max = Math.max(...values)
-  const min = Math.min(...values)
-  const span = max - min || 1
-  const pts = values.map((v, i) => ({
-    x: (i / (values.length - 1)) * (width - 2) + 1,
-    y: height - 2 - ((v - min) / span) * (height - 4),
-  }))
-  return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
-      <path d={smoothPath(pts)} fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
-
-function Delta({ current, previous }) {
-  if (previous == null || !(previous > 0) || current == null) {
-    return <span className="text-[11.5px] text-ink-400">no prior period</span>
-  }
-  const pct = ((current - previous) / previous) * 100
-  const up = pct >= 0
-  return (
-    <span className="text-[11.5px] text-ink-500">
-      <span className={`font-semibold ${up ? 'text-brand' : 'text-red-600'}`}>
-        {up ? '↗' : '↘'} {up ? '+' : ''}
-        {pct.toFixed(1)}%
-      </span>{' '}
-      vs last period
-    </span>
-  )
-}
-
-function StatCard({ icon: Icon, label, value, spark, current, previous }) {
-  return (
-    <div className="bg-white rounded-2xl border border-ink-200/60 shadow-[0_1px_2px_rgba(16,24,40,0.04)] px-4 py-4 min-w-0">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <Icon size={17} className="text-ink-600 mb-2.5" aria-hidden="true" />
-          <div className="text-[12px] text-ink-600 leading-snug">{label}</div>
-        </div>
-        <Sparkline values={spark} />
-      </div>
-      <div className="mt-2 text-[24px] font-bold text-ink-900 tabular-nums tracking-tight leading-none">{value}</div>
-      <div className="mt-2.5">
-        <Delta current={current} previous={previous} />
-      </div>
-    </div>
-  )
 }
 
 function ChartCard({ title, children, right }) {
@@ -199,31 +218,50 @@ function StatusChip({ resolved, note }) {
   )
 }
 
-function niceCeil(n) {
-  if (!(n > 0)) return 1
-  const mag = Math.pow(10, Math.floor(Math.log10(n)))
-  const norm = n / mag
-  const step = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10
-  return step * mag
+/** Top of a 4-gridline axis (0, ¼, ½, ¾, top): picks a clean step first —
+ *  1, 2, 5, 10, 20, 50… — so every tick is a whole, round number (0/1/2/3/4,
+ *  0/5/10/15/20) — never 0/1.3/2.5/3.8/5. */
+function axisMax(n) {
+  const raw = Math.max(1, n / 4)
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)))
+  const norm = raw / mag
+  const step = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * mag
+  return step * 4
 }
 
+/** Smooth line through the points using monotone cubic interpolation
+ *  (Fritsch–Carlson): curved, but it never overshoots the data — a spike from
+ *  0 to 1 and back can't dip below zero or bulge above the peak, which the
+ *  old Catmull-Rom-style curve did. */
 function smoothPath(pts) {
-  if (!pts.length) return ''
-  if (pts.length === 1) return `M ${pts[0].x} ${pts[0].y}`
+  const n = pts.length
+  if (!n) return ''
+  if (n === 1) return `M ${pts[0].x} ${pts[0].y}`
+  if (n === 2) return `M ${pts[0].x} ${pts[0].y} L ${pts[1].x} ${pts[1].y}`
+  const dx = [], slope = []
+  for (let i = 0; i < n - 1; i++) {
+    dx.push(pts[i + 1].x - pts[i].x)
+    slope.push((pts[i + 1].y - pts[i].y) / (dx[i] || 1))
+  }
+  // tangent at each point: 0 at local extremes/flats, harmonic mean elsewhere
+  const m = [slope[0]]
+  for (let i = 1; i < n - 1; i++) {
+    const a = slope[i - 1], b = slope[i]
+    m.push(a * b <= 0 ? 0 : (3 * (dx[i - 1] + dx[i])) / ((2 * dx[i] + dx[i - 1]) / a + (dx[i] + 2 * dx[i - 1]) / b))
+  }
+  m.push(slope[n - 2])
   let d = `M ${pts[0].x} ${pts[0].y}`
-  const t = 0.18
-  for (let i = 0; i < pts.length - 1; i++) {
-    const p0 = pts[i - 1] || pts[i]
-    const p1 = pts[i]
-    const p2 = pts[i + 1]
-    const p3 = pts[i + 2] || p2
-    const c1x = p1.x + (p2.x - p0.x) * t
-    const c1y = p1.y + (p2.y - p0.y) * t
-    const c2x = p2.x - (p3.x - p1.x) * t
-    const c2y = p2.y - (p3.y - p1.y) * t
-    d += ` C ${c1x} ${c1y} ${c2x} ${c2y} ${p2.x} ${p2.y}`
+  for (let i = 0; i < n - 1; i++) {
+    const h = dx[i] / 3
+    d += ` C ${pts[i].x + h} ${pts[i].y + m[i] * h} ${pts[i + 1].x - h} ${pts[i + 1].y - m[i + 1] * h} ${pts[i + 1].x} ${pts[i + 1].y}`
   }
   return d
+}
+
+/** Axis tick label: whole numbers stay whole; fractional steps get one decimal
+ *  so a 0–1 axis reads 0 / 0.25 / 0.5 … instead of 0, 0, 1, 1, 1. */
+function tickLabel(v) {
+  return Number.isInteger(v) ? fmtCompact(v) : v.toFixed(v < 1 ? 2 : 1).replace(/0+$/, '').replace(/\.$/, '')
 }
 
 export function EngagementLineChart({ series, activeTargetId, brandColor, height = 340 }) {
@@ -257,7 +295,7 @@ export function EngagementLineChart({ series, activeTargetId, brandColor, height
 
   // Floor of 4 so small counts get distinct whole-number ticks (0,1,2,3,4)
   // instead of rounding to "0, 0, 1, 1, 1".
-  const maxY = niceCeil(Math.max(...series.map((s) => s.y), 4))
+  const maxY = axisMax(Math.max(...series.map((s) => s.y), 1))
 
   const xf = (i) => PAD.left + (series.length > 1 ? (i / (series.length - 1)) * innerW : innerW / 2)
   const yf = (v) => PAD.top + innerH - (v / maxY) * innerH
@@ -309,7 +347,7 @@ export function EngagementLineChart({ series, activeTargetId, brandColor, height
           const gy = PAD.top + innerH - g * innerH
           return (
             <g key={g}>
-              <line x1={PAD.left} x2={w - PAD.right} y1={gy} y2={gy} stroke="#EAEDF0" strokeWidth="1" strokeDasharray={g === 0 ? '' : '3 4'} />
+              <line x1={PAD.left} x2={w - PAD.right} y1={gy + 0.5} y2={gy + 0.5} stroke={g === 0 ? '#c3c2b7' : '#EDEFF2'} strokeWidth="1" />
               <text x={PAD.left - 10} y={gy + 3.5} textAnchor="end" fontSize="10.5" fill="#9AA2AD">
                 {Math.round(maxY * g).toLocaleString()}
               </text>
@@ -385,65 +423,6 @@ export function EngagementLineChart({ series, activeTargetId, brandColor, height
 /** Horizontal bars, one per platform actually posted to in this view —
  * total engagement (likes+comments+shares), not a fabricated "reach" number
  * the platform APIs this app pulls from don't expose. */
-export function PlatformBarChart({ rows }) {
-  if (!rows.length) {
-    return (
-      <div className="py-16 text-center text-[11px] text-ink-400">
-        No published posts to chart yet.
-      </div>
-    )
-  }
-  const max = niceCeil(Math.max(...rows.map((r) => r.value), 1))
-  const ticks = [0, 0.25, 0.5, 0.75, 1].map((t) => t * max)
-  const NAMES = { facebook: 'Facebook', instagram: 'Instagram', linkedin: 'LinkedIn', telegram: 'Telegram', tiktok: 'TikTok', youtube: 'YouTube' }
-  return (
-    <div className="pt-2">
-      <div className="relative">
-        {/* vertical gridlines behind the bars */}
-        <div className="absolute inset-y-0 left-[96px] right-2 pointer-events-none">
-          {ticks.map((t, i) => (
-            <span
-              key={i}
-              className="absolute inset-y-0 border-l border-dashed border-ink-200"
-              style={{ left: `${(i / (ticks.length - 1)) * 100}%` }}
-            />
-          ))}
-        </div>
-        <div className="relative space-y-4 py-2">
-          {rows.map((r) => {
-            const color = PLATFORM_COLORS[r.slug] || '#94A3B8'
-            const pct = Math.max(1.5, (r.value / max) * 100)
-            return (
-              <div key={r.slug} className="flex items-center gap-3" title={`${r.value.toLocaleString()} engagement`}>
-                <div className="w-[84px] flex-none text-right text-[12.5px] text-ink-700 truncate">
-                  {NAMES[r.slug] || r.slug}
-                </div>
-                <div className="flex-1 mr-2">
-                  <div
-                    className="h-[22px] rounded-[4px] transition-all duration-500"
-                    style={{ width: `${pct}%`, background: color }}
-                  />
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-      <div className="flex ml-[96px] mr-2 mt-2">
-        {ticks.map((t, i) => (
-          <span
-            key={i}
-            className="flex-1 text-[11px] text-ink-500 tabular-nums first:text-left last:text-right last:flex-none text-center"
-            style={i === 0 ? { flex: '0 0 auto', transform: 'translateX(-4px)' } : undefined}
-          >
-            {fmtCompact(Math.round(t))}
-          </span>
-        ))}
-      </div>
-    </div>
-  )
-}
-
 /** Likes / comments / shares as separate smooth lines, one point per day —
  * the three engagement numbers every platform integration here actually
  * returns (no "saves" — none of the APIs expose it). */
@@ -468,7 +447,7 @@ function MultiLineChart({ days, series, height = 330 }) {
   if (!days.length || total === 0) {
     return (
       <div ref={wrapRef} className="h-[280px] grid place-items-center text-[12px] text-ink-400">
-        No engagement recorded in this period yet.
+        Nothing recorded in this period yet.
       </div>
     )
   }
@@ -476,7 +455,8 @@ function MultiLineChart({ days, series, height = 330 }) {
   const PAD = { top: 12, right: 12, bottom: 34, left: 48 }
   const innerW = w - PAD.left - PAD.right
   const innerH = height - PAD.top - PAD.bottom
-  const maxY = niceCeil(Math.max(...keys.flatMap((k) => series[k]), 1))
+  // Floor of 4 so small counts get whole-number ticks (0,1,2,3,4).
+  const maxY = axisMax(Math.max(...keys.flatMap((k) => series[k]), 1))
   const xf = (i) => PAD.left + (days.length > 1 ? (i / (days.length - 1)) * innerW : innerW / 2)
   const yf = (v) => PAD.top + innerH - (v / maxY) * innerH
   const grid = [0, 0.25, 0.5, 0.75, 1]
@@ -511,9 +491,9 @@ function MultiLineChart({ days, series, height = 330 }) {
           const gy = PAD.top + innerH - g * innerH
           return (
             <g key={g}>
-              <line x1={PAD.left} x2={w - PAD.right} y1={gy} y2={gy} stroke="#E5E8EC" strokeDasharray={g === 0 ? '' : '4 4'} />
-              <text x={PAD.left - 10} y={gy + 4} textAnchor="end" fontSize="12" fill="#6B7683">
-                {fmtCompact(Math.round(maxY * g))}
+              <line x1={PAD.left} x2={w - PAD.right} y1={gy + 0.5} y2={gy + 0.5} stroke={g === 0 ? '#c3c2b7' : '#EDEFF2'} strokeWidth="1" />
+              <text x={PAD.left - 10} y={gy + 4} textAnchor="end" fontSize="12" fill="#898781">
+                {tickLabel(maxY * g)}
               </text>
             </g>
           )
@@ -525,7 +505,7 @@ function MultiLineChart({ days, series, height = 330 }) {
           return (
             <g key={k}>
               <path d={area} fill={`url(#${idBase}-${k})`} />
-              <path d={line} fill="none" stroke={SERIES_COLORS[k]} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+              <path d={line} fill="none" stroke={SERIES_COLORS[k]} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             </g>
           )
         })}
@@ -572,8 +552,8 @@ function MultiLineChart({ days, series, height = 330 }) {
       </svg>
       <div className="flex items-center justify-center gap-4 mt-1">
         {keys.map((k) => (
-          <span key={k} className="inline-flex items-center gap-1.5 text-[12px]" style={{ color: SERIES_COLORS[k] }}>
-            <span className="w-2.5 h-2.5 rounded-full" style={{ background: SERIES_COLORS[k] }} />
+          <span key={k} className="inline-flex items-center gap-1.5 text-[12px] capitalize text-ink-600">
+            <span className="w-2.5 h-2.5 rounded-full" style={{ background: SERIES_COLORS[k] }} aria-hidden="true" />
             {k}
           </span>
         ))}
@@ -592,29 +572,30 @@ function ContentTypeChart({ rows, height = 260 }) {
       </div>
     )
   }
-  const maxY = niceCeil(Math.max(...rows.map((r) => r.avg), 1))
+  // Floor of 4 so small averages still get readable, distinct ticks.
+  const maxY = axisMax(Math.max(...rows.map((r) => r.avg), 1))
   const grid = [0, 0.25, 0.5, 0.75, 1]
   const LABEL = { image: 'Image', video: 'Video', text: 'Text only' }
   return (
     <div className="flex" style={{ height }}>
       <div className="flex flex-col justify-between pr-3 pb-7 text-[11px] text-ink-500 tabular-nums text-right w-10">
         {[...grid].reverse().map((g) => (
-          <span key={g}>{fmtCompact(Math.round(maxY * g))}</span>
+          <span key={g}>{tickLabel(maxY * g)}</span>
         ))}
       </div>
       <div className="relative flex-1">
         <div className="absolute inset-x-0 top-[7px] bottom-[34px] flex flex-col justify-between pointer-events-none">
           {grid.map((g) => (
-            <span key={g} className={`border-t ${g === 0 ? 'border-ink-200' : 'border-dashed border-ink-200'}`} />
+            <span key={g} className={`border-t ${g === 0 ? 'border-[#c3c2b7]' : 'border-[#EDEFF2]'}`} />
           ))}
         </div>
         <div className="absolute inset-x-0 top-[7px] bottom-[34px] flex items-end justify-around px-4">
           {rows.map((r) => (
-            <div key={r.kind} className="flex flex-col items-center justify-end h-full" title={`${r.count} posts`}>
-              <span className="text-[11px] font-semibold text-ink-700 mb-1 tabular-nums">{fmtCompact(Math.round(r.avg))}</span>
+            <div key={r.kind} className="flex flex-col items-center justify-end h-full" title={`${r.count} posts · ${r.avg.toFixed(1)} avg. engagement`}>
+              <span className="text-[11px] font-semibold text-ink-700 mb-1 tabular-nums">{tickLabel(Math.round(r.avg * 10) / 10)}</span>
               <div
-                className="w-10 rounded-t-md bg-brand transition-all duration-500"
-                style={{ height: `${Math.max(2, (r.avg / maxY) * 100)}%` }}
+                className="w-6 rounded-t-[4px] transition-all duration-500"
+                style={{ height: `${Math.max(2, (r.avg / maxY) * 100)}%`, background: '#2a78d6' }}
               />
             </div>
           ))}
@@ -631,88 +612,6 @@ function ContentTypeChart({ rows, height = 260 }) {
   )
 }
 
-function TopPosts({ rows, onOpen }) {
-  if (!rows.length) {
-    return (
-      <div className="h-[220px] grid place-items-center text-[12px] text-ink-400">
-        No posts with likes, comments or views to rank in this period yet.
-      </div>
-    )
-  }
-  return (
-    <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1">
-      {rows.map((it) => {
-        const src = mediaSrc(it.media_url)
-        const Icon = PLATFORM_ICONS[it.platform_slug] || FiGrid
-        const color = PLATFORM_COLORS[it.platform_slug] || '#64748b'
-        const m = it.metrics || {}
-        const caption = (it.caption || it.title || '').replace(HASHTAG_RE, '').trim()
-        return (
-          <button
-            key={it.target_id}
-            type="button"
-            onClick={() => onOpen(it)}
-            className="flex-none w-[210px] text-left rounded-xl border border-ink-200/70 bg-white hover:shadow-card-hover transition-shadow duration-150 overflow-hidden"
-          >
-            <div className="relative h-[120px] bg-ink-100 grid place-items-center overflow-hidden">
-              {src && it.media_kind === 'image' ? (
-                <img src={src} alt="" className="absolute inset-0 w-full h-full object-cover" />
-              ) : src && it.media_kind === 'video' ? (
-                <video src={src} className="absolute inset-0 w-full h-full object-cover" muted />
-              ) : (
-                <FiImage size={22} className="text-ink-300" />
-              )}
-              <span className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full bg-white/95 px-2 py-0.5 text-[10px] font-semibold text-ink-700 shadow-sm">
-                <Icon size={11} style={{ color }} />
-                <span className="capitalize">{it.platform_slug}</span>
-              </span>
-            </div>
-            <div className="p-3">
-              <div className="text-[12px] text-ink-800 leading-snug line-clamp-2 min-h-[34px]">{caption || '—'}</div>
-              <div className="mt-2 flex items-center justify-between text-[11px] text-ink-500">
-                <span className="inline-flex items-center gap-1">
-                  <FiHeart size={13} /> {fmtCompact(engagementOf(m))}
-                </span>
-                <span>{new Date(it.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
-              </div>
-            </div>
-          </button>
-        )
-      })}
-    </div>
-  )
-}
-
-export function avgOf(rows, pick) {
-  const vals = rows.map(pick).filter((v) => v != null && v !== 0)
-  if (!vals.length) return null
-  return vals.reduce((a, b) => a + b, 0) / vals.length
-}
-
-export function buildInsights(post, series, avg) {
-  const m = post.metrics || {}
-  const engagement = engagementOf(m)
-  const out = []
-  const ranked = series.filter((s) => s.y > 0).map((s) => s.y).sort((a, b) => b - a)
-  const rank = ranked.indexOf(engagement) + 1
-  if (rank > 0 && ranked.length > 1) {
-    const pct = Math.round((1 - rank / ranked.length) * 100)
-    out.push(`Ranks #${rank} of ${ranked.length} posts in this view — top ${pct}%.`)
-  }
-  if (avg && m.likes != null && avg.likes != null) {
-    const ratio = m.likes / avg.likes
-    out.push(ratio >= 1.25 ? `Likes run ${ratio.toFixed(1)}× your average — this one clearly lands.` : ratio <= 0.5 ? `Likes trail at ${Math.round(ratio * 100)}% of your average — try a stronger hook.` : 'Likes are close to your typical post.')
-  }
-  if (avg && m.views != null && avg.views != null) {
-    const d = m.views - avg.views
-    out.push(d >= 0 ? `Views beat your average by ${d.toLocaleString()}.` : `Views sit ${Math.abs(d).toLocaleString()} below your average.`)
-  }
-  if ((m.comments ?? 0) > 0) out.push(`Comments are ${m.comments} — some conversation happening.`)
-  else out.push('No comments yet — a question in the caption usually nudges replies.')
-  if (!out.length) out.push('Not enough published data yet; check back once more posts go live.')
-  return out
-}
-
 export default function InsightsPage() {
   const { brands, showToast } = useStore()
   const navigate = useNavigate()
@@ -723,6 +622,8 @@ export default function InsightsPage() {
   const [rangeId, setRangeId] = useState('30')
   const [loading, setLoading] = useState(false)
 
+  const [publishing, setPublishing] = useState(null)
+
   const load = () => {
     setLoading(true)
     const brand = brands.find((b) => b.slug === brandFilter)
@@ -732,6 +633,10 @@ export default function InsightsPage() {
       .then(setItems)
       .catch((e) => showToast(`Could not load insights — ${e.message}`))
       .finally(() => setLoading(false))
+    api
+      .get(`/views/publishing${brand ? `?brand_id=${brand.id}` : ''}`)
+      .then(setPublishing)
+      .catch(() => setPublishing({ days: [], upcoming: [], today: '' }))
   }
 
   useEffect(() => {
@@ -815,45 +720,13 @@ export default function InsightsPage() {
   }, [filtered, range.days, cutoff])
 
   // Per-day buckets for every chart + sparkline on the page.
-  const daily = useMemo(() => {
-    const idx = new Map(days.map((d, i) => [d, i]))
-    const z = () => days.map(() => 0)
-    const out = { views: z(), engagement: z(), likes: z(), comments: z(), shares: z(), posts: z(), rateV: z(), rateE: z() }
-    for (const it of filtered) {
-      if (!it.published_at) continue
-      const i = idx.get(dayKey(it.published_at))
-      if (i == null) continue
-      out.posts[i] += 1
-      if (!isResolved(it)) continue
-      const m = it.metrics || {}
-      out.likes[i] += m.likes || 0
-      out.comments[i] += m.comments || 0
-      out.shares[i] += m.shares || 0
-      out.engagement[i] += engagementOf(m)
-      if (m.views != null) {
-        out.views[i] += m.views
-        out.rateV[i] += m.views
-        out.rateE[i] += engagementOf(m)
-      }
-    }
-    out.rate = out.rateV.map((v, i) => (v > 0 ? (out.rateE[i] / v) * 100 : 0))
-    return out
-  }, [filtered, days])
+  const daily = useMemo(() => dailyOf(filtered, days), [filtered, days])
 
   // Sparklines read better as a running total than a spiky day-by-day line.
   const cumulative = (arr) => {
     let s = 0
     return arr.map((v) => (s += v))
   }
-
-  const platformTotals = useMemo(() => {
-    const map = new Map()
-    for (const it of filtered) {
-      if (!isResolved(it) || !it.platform_slug) continue
-      map.set(it.platform_slug, (map.get(it.platform_slug) || 0) + engagementOf(it.metrics))
-    }
-    return [...map.entries()].map(([slug, value]) => ({ slug, value })).sort((a, b) => b.value - a.value)
-  }, [filtered])
 
   const contentTypes = useMemo(() => {
     const map = new Map()
@@ -881,6 +754,19 @@ export default function InsightsPage() {
     [filtered],
   )
 
+  // "All published posts": 10 per page; any filter/range change starts over at 1.
+  const [page, setPage] = useState(0)
+  const tableRef = useRef(null)
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PER_PAGE))
+  // Keyed on the filter inputs, not `filtered` — that array is rebuilt every
+  // render (the date cutoff is "now"), which would snap back to page 1 constantly.
+  useEffect(() => setPage(0), [items, rangeId, brandFilter, typeFilter, tagFilter])
+  const pageRows = filtered.slice(page * PER_PAGE, (page + 1) * PER_PAGE)
+  const goToPage = (p) => {
+    setPage(Math.min(Math.max(0, p), pageCount - 1))
+    tableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
   const exportCsv = () => {
     if (!filtered.length) return
     const blob = new Blob([toCsv(filtered)], { type: 'text/csv;charset=utf-8;' })
@@ -901,17 +787,173 @@ export default function InsightsPage() {
     return [...map.entries()].map(([slug, count]) => ({ slug, count }))
   }, [filtered])
 
-  const cards = [
-    { icon: FiEye, label: 'Total Views', value: fmtCompact(cur.views), spark: cumulative(daily.views), c: cur.views, p: prev?.views },
-    { icon: FiBarChart2, label: 'Total Engagement', value: fmtCompact(cur.engagement), spark: cumulative(daily.engagement), c: cur.engagement, p: prev?.engagement },
-    { icon: FiHeart, label: 'Likes', value: fmtCompact(cur.likes), spark: cumulative(daily.likes), c: cur.likes, p: prev?.likes },
-    { icon: FiActivity, label: 'Engagement Rate', value: cur.rate == null ? '—' : `${cur.rate.toFixed(1)}%`, spark: daily.rate, c: cur.rate, p: prev?.rate },
-    { icon: FiMessageCircle, label: 'Comments', value: fmtCompact(cur.comments), spark: cumulative(daily.comments), c: cur.comments, p: prev?.comments },
-    { icon: FiFileText, label: 'Posts Published', value: fmtCompact(cur.posts), spark: cumulative(daily.posts), c: cur.posts, p: prev?.posts },
-  ]
+  // Per-platform share of engagement / views for the two donuts — fixed
+  // platform order so a platform keeps its place and colour under any filter.
+  const platformSplit = useMemo(() => {
+    const out = {}
+    for (const it of filtered) {
+      if (!isResolved(it) || !it.platform_slug) continue
+      const m = it.metrics || {}
+      const r = (out[it.platform_slug] ||= { engagement: 0, views: 0 })
+      r.engagement += engagementOf(m)
+      r.views += m.views || 0
+    }
+    const seg = (key) =>
+      PLATFORM_SLUG_ORDER.filter((s) => out[s]).map((s) => ({ slug: s, label: PLATFORM_LABELS[s] || s, value: out[s][key] }))
+    return { engagement: seg('engagement'), views: seg('views'), slugs: PLATFORM_SLUG_ORDER.filter((s) => out[s]) }
+  }, [filtered])
+
+  // One row per channel (brand × platform account) with this period vs the
+  // previous one, and a daily engagement trend line.
+  const channelRows = useMemo(() => {
+    const keyOf = (it) => it.channel_id ?? `${it.brand_slug}:${it.platform_slug}`
+    const idx = new Map(days.map((d, i) => [d, i]))
+    const map = new Map()
+    const rowFor = (it) => {
+      const k = keyOf(it)
+      if (!map.has(k)) {
+        map.set(k, {
+          key: k,
+          brand: it.brand_name,
+          brandSlug: it.brand_slug,
+          platform: it.platform_slug,
+          handle: it.channel_handle && it.channel_handle !== it.brand_name ? it.channel_handle : '',
+          posts: 0, engagement: 0, views: null, reported: false, rateV: 0, rateE: 0,
+          prevPosts: previous ? 0 : null, prevEngagement: previous ? 0 : null, prevViews: previous ? 0 : null,
+          trend: days.map(() => 0),
+        })
+      }
+      return map.get(k)
+    }
+    for (const it of filtered) {
+      const r = rowFor(it)
+      r.posts += 1
+      if (!isResolved(it)) continue
+      const m = it.metrics || {}
+      const e = engagementOf(m)
+      if (['likes', 'comments', 'shares'].some((k) => m[k] != null)) r.reported = true
+      r.engagement += e
+      if (m.views != null) {
+        r.views = (r.views || 0) + m.views
+        r.rateV += m.views
+        r.rateE += e
+      }
+      const i = it.published_at ? idx.get(dayKey(it.published_at)) : null
+      if (i != null) r.trend[i] += e
+    }
+    for (const it of previous || []) {
+      const r = map.get(keyOf(it))
+      if (!r) continue
+      r.prevPosts += 1
+      if (!isResolved(it)) continue
+      r.prevEngagement += engagementOf(it.metrics)
+      r.prevViews += (it.metrics || {}).views || 0
+    }
+    return [...map.values()].map((r) => ({
+      ...r,
+      rate: r.rateV > 0 ? (r.rateE / r.rateV) * 100 : null,
+      trend: cumulative(r.trend),
+      prevViews: r.views == null ? null : r.prevViews,
+    }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered, previous, days])
+
+  // ── Tabs ────────────────────────────────────────────────────────────────
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tab = TABS.some((t) => t.id === searchParams.get('tab')) ? searchParams.get('tab') : 'overview'
+  const setTab = (id) => setSearchParams(id === 'overview' ? {} : { tab: id }, { replace: true })
+
+  const sumOf = (rows, key) =>
+    rows.reduce((s, it) => s + (isResolved(it) ? (it.metrics || {})[key] || 0 : 0), 0)
+  const reports = (rows, key) => rows.some((it) => (it.metrics || {})[key] != null)
+
+  // Performance tab: one metric at a time (never two scales on one axis),
+  // optionally for a single platform.
+  const [perfMetric, setPerfMetric] = useState('engagement')
+  const [perfPlatform, setPerfPlatform] = useState('all')
+  const perfDaily = useMemo(
+    () => dailyOf(perfPlatform === 'all' ? filtered : filtered.filter((it) => it.platform_slug === perfPlatform), days),
+    [filtered, days, perfPlatform],
+  )
+
+  // Past three weeks a day-by-day line is mostly zeros between posts, so
+  // the Performance chart sums each week instead (one point per week).
+  const perfChart = useMemo(() => {
+    const pick =
+      perfMetric === 'engagement'
+        ? { likes: perfDaily.likes, comments: perfDaily.comments, shares: perfDaily.shares }
+        : { [perfMetric]: perfDaily[perfMetric] }
+    if (days.length <= 21) return { days, series: pick, unit: 'day' }
+    const starts = []
+    for (let i = 0; i < days.length; i += 7) starts.push(i)
+    const sum = (arr) => starts.map((i) => arr.slice(i, i + 7).reduce((a, b) => a + b, 0))
+    return {
+      days: starts.map((i) => days[i]),
+      series: Object.fromEntries(Object.entries(pick).map(([k, arr]) => [k, sum(arr)])),
+      unit: 'week',
+    }
+  }, [perfDaily, perfMetric, days])
+
+  const platformRows = useMemo(() => {
+    const map = new Map()
+    for (const it of filtered) {
+      const r = map.get(it.platform_slug) || { slug: it.platform_slug, label: PLATFORM_LABELS[it.platform_slug] || it.platform_slug, posts: 0, engagement: 0, views: null, clicks: null, reported: false, rv: 0, re: 0 }
+      r.posts += 1
+      map.set(it.platform_slug, r)
+      if (!isResolved(it)) continue
+      const m = it.metrics || {}
+      const e = engagementOf(m)
+      if (['likes', 'comments', 'shares'].some((k) => m[k] != null)) r.reported = true
+      r.engagement += e
+      if (m.views != null) {
+        r.views = (r.views || 0) + m.views
+        r.rv += m.views
+        r.re += e
+      }
+      if (m.clicks != null) r.clicks = (r.clicks || 0) + m.clicks
+    }
+    return [...map.values()]
+      .map((r) => ({ ...r, rate: r.rv > 0 ? (r.re / r.rv) * 100 : null }))
+      .sort((a, b) => b.engagement - a.engagement || b.posts - a.posts)
+  }, [filtered])
+
+  // Insights & Actions — computed from these posts only (src/lib/insightsEngine.js).
+  const insightList = useMemo(() => buildInsights(filtered, { engagementOf, platformLabels: PLATFORM_LABELS }), [filtered])
+  const funnel = useMemo(() => buildFunnel(filtered, { engagementOf }), [filtered])
+  const actions = useMemo(() => {
+    const fromInsights = insightList.map((i) => ({ id: i.id, title: i.action.title, why: i.title + '.', label: i.action.label, to: i.action.to }))
+    const fallback = [
+      { id: 'create', title: 'Keep the calendar full', why: 'Plan the next few days of posts so no day goes quiet.', label: 'Create a post', to: '/new' },
+      { id: 'auto', title: 'Let AI suggest ideas daily', why: 'Auto-generate writes fresh post ideas for you to approve every morning.', label: 'Set up Auto-generate', to: '/auto' },
+      { id: 'channels', title: 'Reach more people', why: 'Connect another platform so each post travels further.', label: 'Add a channel', to: '/channels/add' },
+    ]
+    const seen = new Set()
+    return [...fromInsights, ...fallback].filter((a) => !seen.has(a.to + a.label) && seen.add(a.to + a.label)).slice(0, 3)
+  }, [insightList])
+
+  // Last 7 days vs the 7 before — independent of the range buttons.
+  const week = useMemo(() => {
+    const now = Date.now()
+    const inWin = (it, from, to) => {
+      const t = it.published_at ? new Date(it.published_at).getTime() : null
+      return t != null && t >= now - from * 86400000 && t < now - to * 86400000
+    }
+    const a = (items || []).filter((it) => inWin(it, 7, 0))
+    const b = (items || []).filter((it) => inWin(it, 14, 7))
+    const eng = (rows) => rows.reduce((s, it) => s + (isResolved(it) ? engagementOf(it.metrics) : 0), 0)
+    return [
+      { label: 'Posts published', value: a.length, previous: b.length },
+      { label: 'Views', value: reports(a, 'views') ? sumOf(a, 'views') : null, previous: sumOf(b, 'views') },
+      { label: 'Engagement', value: eng(a), previous: eng(b) },
+      { label: 'Comments', value: sumOf(a, 'comments'), previous: sumOf(b, 'comments') },
+    ]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items])
+
+  const clicksNow = reports(filtered, 'clicks') ? sumOf(filtered, 'clicks') : null
 
   return (
-    <div className="w-full px-5 lg:px-8 py-7 animate-fadein">
+    <div className="w-full px-5 lg:px-8 pt-7 pb-28 animate-fadein">
       <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-[24px] font-bold text-ink-900 tracking-tight leading-tight">Analytics</h1>
@@ -965,48 +1007,7 @@ export default function InsightsPage() {
         </div>
       </div>
 
-      {/* KPI cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
-        {items === null
-          ? Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="bg-white rounded-2xl border border-ink-200/60 p-4 space-y-3">
-                <div className="h-4 w-4 rounded skeleton" />
-                <div className="h-3 w-24 rounded skeleton" />
-                <div className="h-6 w-16 rounded skeleton" />
-                <div className="h-3 w-28 rounded skeleton" />
-              </div>
-            ))
-          : cards.map((k) => (
-              <StatCard key={k.label} icon={k.icon} label={k.label} value={k.value} spark={k.spark} current={k.c} previous={k.p} />
-            ))}
-      </div>
-
-      <div className="grid xl:grid-cols-2 gap-6 mb-6">
-        <ChartCard title="Engagement Over Time">
-          <MultiLineChart
-            days={days}
-            series={{ comments: daily.comments, likes: daily.likes, shares: daily.shares }}
-          />
-        </ChartCard>
-        <ChartCard title="Engagement by Platform">
-          <PlatformBarChart rows={platformTotals} />
-        </ChartCard>
-      </div>
-
-      <div className="grid xl:grid-cols-2 gap-6 mb-6">
-        <ChartCard title="Content Type Performance" right={<span className="text-[11.5px] text-ink-500">avg. engagement per post</span>}>
-          <ContentTypeChart rows={contentTypes} />
-        </ChartCard>
-        <ChartCard
-          title={
-            <span className="inline-flex items-center gap-2">
-              <FiTrendingUp size={17} className="text-ink-700" /> Top Performing Posts
-            </span>
-          }
-        >
-          <TopPosts rows={topPosts} onOpen={(it) => navigate(`/insights/${it.target_id}`)} />
-        </ChartCard>
-      </div>
+      <TabBar tabs={TABS} value={tab} onChange={setTab} />
 
       {/* One banner per platform whose connection is broken, instead of the
           same error repeated on every row. */}
@@ -1038,177 +1039,394 @@ export default function InsightsPage() {
         )
       })}
 
-      {/* Table */}
-      <div className="bg-white rounded-2xl border border-ink-200/60 shadow-[0_1px_2px_rgba(16,24,40,0.04)] overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-ink-100 flex items-center justify-between">
-          <span className="font-semibold text-ink-900 text-[15px]">
-            All published posts <span className="text-ink-400 font-normal">({filtered.length})</span>
-          </span>
-          <button
-            type="button"
-            onClick={exportCsv}
-            disabled={!filtered.length}
-            title="Export CSV"
-            className="w-8 h-8 rounded-lg grid place-items-center text-ink-400 hover:text-ink-700 hover:bg-ink-50 disabled:opacity-30 transition-all duration-150"
-          >
-            <FiDownload size={16} />
-          </button>
-        </div>
 
-        {items === null ? (
-          <div className="divide-y divide-ink-100">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="px-5 py-3.5 flex items-center gap-4">
-                <div className="w-10 h-10 rounded-lg skeleton" />
-                <div className="flex-1 space-y-1.5">
-                  <div className="h-3 w-2/3 rounded skeleton" />
-                  <div className="h-3 w-1/3 rounded skeleton" />
-                </div>
-                <div className="w-16 h-4 rounded skeleton" />
+      {tab === 'overview' && (
+        <>
+          {/* Posting activity: previous / this / next week + what goes out next */}
+          <section className="mb-6 grid overflow-hidden rounded-2xl border border-ink-200/60 bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)] lg:grid-cols-[minmax(0,1fr)_300px]">
+            <div className="min-w-0 p-5">
+              <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+                <h2 className="text-[15.5px] font-semibold tracking-tight text-ink-900">Posting activity</h2>
+                <span className="inline-flex items-center gap-3 text-[11.5px] text-ink-500">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-sm bg-[#2a78d6]" aria-hidden="true" /> Published
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-sm bg-[#9ec5f4]" aria-hidden="true" /> Scheduled
+                  </span>
+                </span>
               </div>
-            ))}
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="py-20 text-center">
-            <div className="text-[14px] font-semibold text-ink-700">Nothing here yet</div>
-            <div className="text-[12px] text-ink-400 mt-1">Once a post goes out in this range, it shows up here.</div>
-          </div>
-        ) : (
-          <>
-          {/* phones: one card per post, numbers in a single row */}
-          <div className="sm:hidden divide-y divide-ink-100">
-            {filtered.map((it) => (
-              <MobilePostRow key={it.target_id} it={it} onOpen={() => navigate(`/insights/${it.target_id}`)} />
-            ))}
+              {publishing ? (
+                <WeekColumns days={publishing.days} today={publishing.today} />
+              ) : (
+                <div className="h-[130px] rounded-xl skeleton" />
+              )}
+            </div>
+            <div className="border-t border-ink-100 bg-ink-50/40 p-4 lg:border-l lg:border-t-0">
+              <h3 className="mb-3 text-[12.5px] font-semibold text-ink-700">Up next</h3>
+              {publishing ? (
+                <UpNext items={publishing.upcoming} icons={PLATFORM_ICONS} mediaSrc={mediaSrc} />
+              ) : (
+                <div className="h-[130px] rounded-xl skeleton" />
+              )}
+            </div>
+          </section>
+
+          {/* Performance: three headline figures, then one row per channel */}
+          <section className="mb-6 overflow-hidden rounded-2xl border border-ink-200/60 bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+            <div className="flex items-center justify-between gap-3 border-b border-ink-100 px-5 py-3.5">
+              <h3 className="text-[14.5px] font-semibold text-ink-900">Channels</h3>
+              <span className="text-[12px] text-ink-500">{range.label[0].toUpperCase() + range.label.slice(1)} · vs the period before</span>
+            </div>
+            {items === null ? (
+              <div className="grid gap-px md:grid-cols-3">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="m-5 h-16 rounded-xl skeleton" />
+                ))}
+              </div>
+            ) : (
+              <>
+                <div className="grid divide-y divide-ink-100 md:grid-cols-3 md:divide-x md:divide-y-0">
+                  <Figure label="Posts published" value={fmtNum(cur.posts)} delta={<DeltaText current={cur.posts} previous={prev?.posts} />}>
+                    <TrendLine values={cumulative(daily.posts)} width={120} />
+                  </Figure>
+                  <Figure label="Engagement" value={fmtNum(cur.engagement)} delta={<DeltaText current={cur.engagement} previous={prev?.engagement} />}>
+                    <Donut segments={platformSplit.engagement} label="Engagement" />
+                  </Figure>
+                  <Figure label="Views" value={fmtNum(cur.views)} delta={<DeltaText current={cur.views} previous={prev?.views} />}>
+                    <Donut segments={platformSplit.views} label="Views" />
+                  </Figure>
+                </div>
+                <PlatformLegend slugs={platformSplit.slugs} labels={PLATFORM_LABELS} />
+              </>
+            )}
+          </section>
+
+
+          {/* Secondary numbers: rate, clicks, comments, shares — each with its trend */}
+          {items !== null && (
+            <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+              <StatTile label="Engagement rate" value={cur.rate == null ? '—' : `${cur.rate.toFixed(1)}%`} current={cur.rate} previous={prev?.rate} bars={bucket(daily.rate)} hint="engagement ÷ views" />
+              <StatTile label="Link clicks" value={clicksNow == null ? '—' : fmtNum(clicksNow)} current={clicksNow} previous={previous && clicksNow != null ? sumOf(previous, 'clicks') : null} bars={bucket(daily.clicks)} hint={clicksNow == null ? 'not reported yet' : 'where the platform reports them'} />
+              <StatTile label="Comments" value={fmtNum(cur.comments)} current={cur.comments} previous={prev?.comments} bars={bucket(daily.comments)} />
+              <StatTile label="Shares" value={fmtNum(cur.shares)} current={cur.shares} previous={prev?.shares} bars={bucket(daily.shares)} />
+            </div>
+          )}
+        </>
+      )}
+
+      {tab === 'performance' && (
+        <>
+          <div className="mb-6 grid gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+            <section className={`${cardCls} min-w-0 p-5`}>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-[15.5px] font-semibold tracking-tight text-ink-900">Content performance</h2>
+                <Chips label="Metric" options={PERF_METRICS} value={perfMetric} onChange={setPerfMetric} />
+              </div>
+              <div className="mb-3">
+                <Chips
+                  label="Platform"
+                  options={[{ id: 'all', label: 'All platforms' }, ...platformSplit.slugs.map((s) => ({ id: s, label: PLATFORM_LABELS[s] || s }))]}
+                  value={perfPlatform}
+                  onChange={setPerfPlatform}
+                />
+              </div>
+              <MultiLineChart key={perfMetric + perfChart.unit} days={perfChart.days} series={perfChart.series} />
+              <p className="mt-1 text-center text-[11px] text-ink-400">
+                {perfChart.unit === 'week' ? 'Each point is one week (dated by its first day)' : 'Each point is one day'}
+              </p>
+            </section>
+            <section className={`${cardCls} min-w-0 p-5`}>
+              <h2 className="mb-4 text-[15.5px] font-semibold tracking-tight text-ink-900">Platform performance</h2>
+              <PlatformBars rows={platformRows} icons={PLATFORM_ICONS} />
+            </section>
           </div>
 
-          <div className="hidden sm:block overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[820px]">
-              <thead>
-                <tr className="border-b border-ink-100 text-[11px] font-semibold text-ink-500">
-                  <th className="px-5 py-2.5 font-semibold">Post</th>
-                  <th className="px-3 py-2.5 font-semibold">Type</th>
-                  <th className="px-3 py-2.5 font-semibold">Status</th>
-                  <th className="px-3 py-2.5 font-semibold text-right">Views</th>
-                  <th className="px-3 py-2.5 font-semibold text-right">Likes</th>
-                  <th className="px-3 py-2.5 font-semibold text-right">Comments</th>
-                  <th className="px-5 py-2.5 font-semibold text-right">Shares</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((it) => {
-                  const Icon = PLATFORM_ICONS[it.platform_slug] || FiGrid
-                  const brandColor = colorForBrand(it.brand_slug)
-                  const platColor = PLATFORM_COLORS[it.platform_slug] || '#64748b'
-                  const caption = it.caption || it.title || ''
-                  const tags = hashtagsOf(caption)
-                  const captionText = caption.replace(HASHTAG_RE, '').trim()
-                  const resolved = it.status === 'ok' || it.status === 'partial'
-                  const m = it.metrics || {}
-                  const src = mediaSrc(it.media_url)
-                  const grouped = !resolved && isConnectionProblem(it)
-                  const num = (v) =>
-                    v != null ? (
-                      <span className="text-ink-800 tabular-nums">{v.toLocaleString()}</span>
-                    ) : (
-                      <span className="text-ink-300">—</span>
-                    )
-                  return (
-                    <tr
-                      key={it.target_id}
-                      onClick={() => navigate(`/insights/${it.target_id}`)}
-                      className="border-t border-ink-100 hover:bg-ink-50/60 cursor-pointer transition-colors duration-100"
-                    >
-                      <td className="px-5 py-3 max-w-[460px]">
-                        <div className="flex items-center gap-3">
-                          <div className="relative flex-none">
-                            <div className="relative isolate w-11 h-11 rounded-lg bg-ink-100 overflow-hidden">
-                              {src && it.media_kind === 'image' ? (
-                                <img src={src} alt="" className="w-full h-full object-cover" />
-                              ) : src ? (
-                                <>
-                                  <video
-                                    src={`${src}#t=0.1`}
-                                    preload="metadata"
-                                    muted
-                                    playsInline
-                                    disablePictureInPicture
-                                    className="w-full h-full object-cover pointer-events-none"
-                                  />
-                                  <span className="absolute inset-0 grid place-items-center">
-                                    <span className="w-5 h-5 rounded-full bg-black/55 grid place-items-center text-white">
-                                      <FiPlay size={9} className="ml-px" />
-                                    </span>
-                                  </span>
-                                </>
-                              ) : (
-                                <span className="w-full h-full grid place-items-center text-ink-300">
-                                  <FiFileText size={16} />
-                                </span>
-                              )}
-                            </div>
-                            <span
-                              className="absolute -bottom-1 -right-1 rounded-full grid place-items-center text-white ring-2 ring-white"
-                              style={{ background: platColor, width: 18, height: 18 }}
-                            >
-                              <Icon size={10} />
-                            </span>
-                          </div>
-                          <div className="min-w-0">
-                            <div className={`text-[13px] text-ink-900 line-clamp-1 ${isKhmerText(captionText) ? 'font-khmer' : ''}`}>
-                              {captionText || <span className="text-ink-400">No caption</span>}
-                              {tags.length > 0 && <span className="text-brand"> {tags.join(' ')}</span>}
-                            </div>
-                            <div className="mt-0.5 flex items-center gap-1.5 text-[11.5px] text-ink-500">
-                              <span className="w-1.5 h-1.5 rounded-full flex-none" style={{ background: brandColor }} />
-                              <span className="truncate">{it.brand_name}</span>
-                              <span className="text-ink-300">·</span>
-                              <span className="whitespace-nowrap">{fmtDate(it.published_at)}</span>
-                            </div>
-                            {!resolved && it.note && !grouped && (
-                              <div className="text-[11px] text-amber-700 mt-0.5 truncate">{it.note}</div>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-3 py-3">
-                        <span className="inline-flex items-center gap-1.5 text-[12px] text-ink-600 capitalize">
-                          {it.media_kind === 'video' ? <FiPlay size={12} /> : it.media_kind === 'image' ? <FiImage size={12} /> : <FiFileText size={12} />}
-                          {it.media_kind || 'text'}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3">
-                        <StatusChip resolved={resolved} note={it.note} />
-                      </td>
-                      <td className="px-3 py-3 text-[12.5px] text-right">
-                        {m.views != null ? (
-                          num(m.views)
-                        ) : (
-                          <span
-                            className="text-ink-300"
-                            title={
-                              it.platform_slug === 'telegram'
-                                ? "Telegram's bot API doesn't report views per post"
-                                : undefined
-                            }
-                          >
-                            —
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-3 py-3 text-[12.5px] text-right">{num(m.likes)}</td>
-                      <td className="px-3 py-3 text-[12.5px] text-right">{num(m.comments)}</td>
-                      <td className="px-5 py-3 text-[12.5px] text-right">{num(m.shares)}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+          <section className={`${cardCls} mb-6 overflow-hidden`}>
+            <div className="flex items-center justify-between gap-3 border-b border-ink-100 px-5 py-3.5">
+              <h2 className="text-[14.5px] font-semibold text-ink-900">Channels</h2>
+              <span className="text-[12px] text-ink-500">vs the period before</span>
+            </div>
+              <div>
+                <ChannelsTable
+                  rows={channelRows}
+                  icons={PLATFORM_ICONS}
+                  labels={PLATFORM_LABELS}
+                  onFilter={(r) => r.brandSlug && setBrandFilter(r.brandSlug)}
+                />
+              </div>
+          </section>
+
+          <div className="mb-6">
+            <ChartCard title="Content type performance" right={<span className="text-[11.5px] text-ink-500">avg. engagement per post</span>}>
+              <ContentTypeChart rows={contentTypes} />
+            </ChartCard>
           </div>
-          </>
-        )}
-      </div>
+        </>
+      )}
+
+      {tab === 'content' && (
+        <>
+          <h2 className="mb-3 text-[17px] font-bold tracking-tight text-ink-900">Top performing content</h2>
+          <div className="mb-8">
+            <TopContentGrid rows={topPosts.slice(0, 4)} icons={PLATFORM_ICONS} mediaSrc={mediaSrc} engagementOf={engagementOf} onOpen={(it) => navigate(`/insights/${it.target_id}`)} />
+          </div>
+          {/* Table */}
+          <div ref={tableRef} className="scroll-mt-4 bg-white rounded-2xl border border-ink-200/60 shadow-[0_1px_2px_rgba(16,24,40,0.04)] overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-ink-100 flex items-center justify-between">
+              <span className="font-semibold text-ink-900 text-[15px]">
+                All published posts <span className="text-ink-400 font-normal">({filtered.length})</span>
+              </span>
+              <button
+                type="button"
+                onClick={exportCsv}
+                disabled={!filtered.length}
+                title="Export CSV"
+                className="w-8 h-8 rounded-lg grid place-items-center text-ink-400 hover:text-ink-700 hover:bg-ink-50 disabled:opacity-30 transition-all duration-150"
+              >
+                <FiDownload size={16} />
+              </button>
+            </div>
+
+            {items === null ? (
+              <div className="divide-y divide-ink-100">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="px-5 py-3.5 flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-lg skeleton" />
+                    <div className="flex-1 space-y-1.5">
+                      <div className="h-3 w-2/3 rounded skeleton" />
+                      <div className="h-3 w-1/3 rounded skeleton" />
+                    </div>
+                    <div className="w-16 h-4 rounded skeleton" />
+                  </div>
+                ))}
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="py-20 text-center">
+                <div className="text-[14px] font-semibold text-ink-700">Nothing here yet</div>
+                <div className="text-[12px] text-ink-400 mt-1">Once a post goes out in this range, it shows up here.</div>
+              </div>
+            ) : (
+              <>
+              {/* phones: one card per post, numbers in a single row */}
+              <div className="sm:hidden divide-y divide-ink-100">
+                {pageRows.map((it) => (
+                  <MobilePostRow key={it.target_id} it={it} onOpen={() => navigate(`/insights/${it.target_id}`)} />
+                ))}
+              </div>
+
+              <div className="hidden sm:block overflow-x-auto">
+                <table className="w-full text-left border-collapse min-w-[820px]">
+                  <thead>
+                    <tr className="border-b border-ink-100 text-[11px] font-semibold text-ink-500">
+                      <th className="px-5 py-2.5 font-semibold">Post</th>
+                      <th className="px-3 py-2.5 font-semibold">Type</th>
+                      <th className="px-3 py-2.5 font-semibold">Status</th>
+                      <th className="px-3 py-2.5 font-semibold text-right">Views</th>
+                      <th className="px-3 py-2.5 font-semibold text-right">Likes</th>
+                      <th className="px-3 py-2.5 font-semibold text-right">Comments</th>
+                      <th className="px-5 py-2.5 font-semibold text-right">Shares</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pageRows.map((it) => {
+                      const Icon = PLATFORM_ICONS[it.platform_slug] || FiGrid
+                      const brandColor = colorForBrand(it.brand_slug)
+                      const platColor = PLATFORM_COLORS[it.platform_slug] || '#64748b'
+                      const caption = it.caption || it.title || ''
+                      const tags = hashtagsOf(caption)
+                      const captionText = caption.replace(HASHTAG_RE, '').trim()
+                      const resolved = it.status === 'ok' || it.status === 'partial'
+                      const m = it.metrics || {}
+                      const src = mediaSrc(it.media_url)
+                      const grouped = !resolved && isConnectionProblem(it)
+                      const num = (v) =>
+                        v != null ? (
+                          <span className="text-ink-800 tabular-nums">{v.toLocaleString()}</span>
+                        ) : (
+                          <span className="text-ink-300">—</span>
+                        )
+                      return (
+                        <tr
+                          key={it.target_id}
+                          onClick={() => navigate(`/insights/${it.target_id}`)}
+                          className="border-t border-ink-100 hover:bg-ink-50/60 cursor-pointer transition-colors duration-100"
+                        >
+                          <td className="px-5 py-3 max-w-[460px]">
+                            <div className="flex items-center gap-3">
+                              <div className="relative flex-none">
+                                <div className="relative isolate w-11 h-11 rounded-lg bg-ink-100 overflow-hidden">
+                                  {src && it.media_kind === 'image' ? (
+                                    <img src={src} alt="" className="w-full h-full object-cover" />
+                                  ) : src ? (
+                                    <>
+                                      <video
+                                        src={`${src}#t=0.1`}
+                                        preload="metadata"
+                                        muted
+                                        playsInline
+                                        disablePictureInPicture
+                                        className="w-full h-full object-cover pointer-events-none"
+                                      />
+                                      <span className="absolute inset-0 grid place-items-center">
+                                        <span className="w-5 h-5 rounded-full bg-black/55 grid place-items-center text-white">
+                                          <FiPlay size={9} className="ml-px" />
+                                        </span>
+                                      </span>
+                                    </>
+                                  ) : (
+                                    <span className="w-full h-full grid place-items-center text-ink-300">
+                                      <FiFileText size={16} />
+                                    </span>
+                                  )}
+                                </div>
+                                <span
+                                  className="absolute -bottom-1 -right-1 rounded-full grid place-items-center text-white ring-2 ring-white"
+                                  style={{ background: platColor, width: 18, height: 18 }}
+                                >
+                                  <Icon size={10} />
+                                </span>
+                              </div>
+                              <div className="min-w-0">
+                                <div className={`text-[13px] text-ink-900 line-clamp-1 ${isKhmerText(captionText) ? 'font-khmer' : ''}`}>
+                                  {captionText || <span className="text-ink-400">No caption</span>}
+                                  {tags.length > 0 && <span className="text-brand"> {tags.join(' ')}</span>}
+                                </div>
+                                <div className="mt-0.5 flex items-center gap-1.5 text-[11.5px] text-ink-500">
+                                  <span className="w-1.5 h-1.5 rounded-full flex-none" style={{ background: brandColor }} />
+                                  <span className="truncate">{it.brand_name}</span>
+                                  <span className="text-ink-300">·</span>
+                                  <span className="whitespace-nowrap">{fmtDate(it.published_at)}</span>
+                                </div>
+                                {!resolved && it.note && !grouped && (
+                                  <div className="text-[11px] text-amber-700 mt-0.5 truncate">{it.note}</div>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-3 py-3">
+                            <span className="inline-flex items-center gap-1.5 text-[12px] text-ink-600 capitalize">
+                              {it.media_kind === 'video' ? <FiPlay size={12} /> : it.media_kind === 'image' ? <FiImage size={12} /> : <FiFileText size={12} />}
+                              {it.media_kind || 'text'}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3">
+                            <StatusChip resolved={resolved} note={it.note} />
+                          </td>
+                          <td className="px-3 py-3 text-[12.5px] text-right">
+                            {m.views != null ? (
+                              num(m.views)
+                            ) : (
+                              <span
+                                className="text-ink-300"
+                                title={
+                                  it.platform_slug === 'telegram'
+                                    ? "Telegram's bot API doesn't report views per post"
+                                    : undefined
+                                }
+                              >
+                                —
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-3 py-3 text-[12.5px] text-right">{num(m.likes)}</td>
+                          <td className="px-3 py-3 text-[12.5px] text-right">{num(m.comments)}</td>
+                          <td className="px-5 py-3 text-[12.5px] text-right">{num(m.shares)}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <Pager page={page} pages={pageCount} total={filtered.length} perPage={PER_PAGE} onPage={goToPage} />
+              </>
+            )}
+          </div>
+        </>
+      )}
+
+      {tab === 'insights' && (
+        <>
+          <section className={`${cardCls} mb-6 p-5`}>
+            <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="text-[15.5px] font-semibold tracking-tight text-ink-900">Insights</h2>
+              <span className="text-[11.5px] text-ink-500">worked out from your {filtered.length} posts in {range.label}</span>
+            </div>
+            {insightList.length ? (
+              <InsightCards items={insightList} />
+            ) : (
+              <p className="rounded-xl bg-ink-50 px-4 py-6 text-center text-[12.5px] leading-relaxed text-ink-500">
+                Not enough posts with numbers yet to spot reliable patterns. Insights appear once you have a few posts with likes,
+                comments or views — try a longer date range, or check back after a few more posts.
+              </p>
+            )}
+          </section>
+
+          <section className={`${cardCls} mb-6 p-5`}>
+            <div className="mb-5 flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="text-[15.5px] font-semibold tracking-tight text-ink-900">Content funnel</h2>
+              <span className="text-[11.5px] text-ink-500">views &amp; clicks only from platforms that report them</span>
+            </div>
+            <Funnel steps={funnel} />
+          </section>
+
+          <h2 className="mb-3 text-[17px] font-bold tracking-tight text-ink-900">What to do next</h2>
+          <div className="mb-6">
+            <ActionCards items={actions} />
+          </div>
+
+          <section className={`${cardCls} p-5`}>
+            <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="text-[15.5px] font-semibold tracking-tight text-ink-900">This week</h2>
+              <span className="text-[11.5px] text-ink-500">last 7 days vs the 7 before</span>
+            </div>
+            <WeekCompare rows={week} />
+          </section>
+        </>
+      )}
     </div>
+  )
+}
+
+/** "Showing 11–20 of 23" + Previous / page numbers / Next. Long runs collapse
+ *  to 1 … 4 5 6 … 12 so the bar never wraps. */
+function Pager({ page, pages, total, perPage, onPage }) {
+  if (pages <= 1) return null
+  const nums = []
+  for (let p = 0; p < pages; p++) {
+    if (p === 0 || p === pages - 1 || Math.abs(p - page) <= 1) nums.push(p)
+    else if (nums[nums.length - 1] !== '…') nums.push('…')
+  }
+  const btn = 'h-8 min-w-8 rounded-lg px-2.5 text-[12.5px] font-medium transition-colors disabled:opacity-35 disabled:cursor-not-allowed'
+  return (
+    <nav className="flex flex-wrap items-center justify-between gap-3 border-t border-ink-100 px-5 py-3" aria-label="Pages">
+      <span className="text-[12px] text-ink-500 tabular-nums">
+        Showing {page * perPage + 1}–{Math.min(total, (page + 1) * perPage)} of {total}
+      </span>
+      <div className="flex items-center gap-1">
+        <button type="button" onClick={() => onPage(page - 1)} disabled={page === 0} className={`${btn} text-ink-700 hover:bg-ink-100`}>
+          Previous
+        </button>
+        {nums.map((p, i) =>
+          p === '…' ? (
+            <span key={`gap${i}`} className="px-1 text-ink-400">…</span>
+          ) : (
+            <button
+              key={p}
+              type="button"
+              onClick={() => onPage(p)}
+              aria-current={p === page ? 'page' : undefined}
+              className={`${btn} tabular-nums ${p === page ? 'bg-brand-soft text-brand' : 'text-ink-700 hover:bg-ink-100'}`}
+            >
+              {p + 1}
+            </button>
+          ),
+        )}
+        <button type="button" onClick={() => onPage(page + 1)} disabled={page >= pages - 1} className={`${btn} text-ink-700 hover:bg-ink-100`}>
+          Next
+        </button>
+      </div>
+    </nav>
   )
 }
 

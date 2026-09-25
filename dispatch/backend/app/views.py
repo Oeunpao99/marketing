@@ -131,6 +131,74 @@ def _platform_map(db: Session) -> dict[int, Platform]:
     return {p.id: p for p in db.scalars(select(Platform)).all()}
 
 
+@router.get("/publishing")
+def publishing_view(
+    brand_id: int | None = None, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)
+):
+    """Posting activity for the Analytics overview: posts per day for the
+    previous, current and next week (Mon–Sun, Phnom Penh clock) — published
+    ones by when they went out, queued ones by when they're due — plus the
+    next few posts waiting to go out. No platform calls; database only."""
+    from app.media import kind_for
+
+    now = datetime.now(PHNOM_PENH)
+    monday = now.date() - timedelta(days=now.weekday())
+    first = monday - timedelta(days=7)
+    start = datetime(first.year, first.month, first.day, tzinfo=PHNOM_PENH)
+    end = start + timedelta(days=21)
+
+    brands = _brand_map(db, ws)
+    plats = _platform_map(db)
+    chans = {c.id: c for c in _scoped(db, Channel, ws)}
+    videos = {v.id: v for v in _scoped(db, Video, ws)}
+    targets = db.scalars(
+        select(PostTarget)
+        .options(selectinload(PostTarget.post))
+        .where(
+            scope(PostTarget, ws),
+            PostTarget.status.in_(("posted", "queued", "posting")),
+            func.coalesce(PostTarget.published_at, PostTarget.scheduled_for) >= start,
+            func.coalesce(PostTarget.published_at, PostTarget.scheduled_for) < end,
+        )
+    ).all()
+    if brand_id is not None:
+        targets = [t for t in targets if t.post and t.post.brand_id == brand_id]
+
+    days = {(first + timedelta(days=i)).isoformat(): {"posted": 0, "scheduled": 0} for i in range(21)}
+    upcoming = []
+    for t in targets:
+        posted = t.status == "posted"
+        when = t.published_at if posted else t.scheduled_for
+        if when is None:
+            continue
+        key = when.astimezone(PHNOM_PENH).date().isoformat()
+        if key in days:
+            days[key]["posted" if posted else "scheduled"] += 1
+        if not posted and when >= now:
+            ch = chans.get(t.channel_id)
+            plat = plats.get(ch.platform_id) if ch else None
+            post = t.post
+            video = videos.get(post.video_id) if post and post.video_id else None
+            brand = brands.get(post.brand_id) if post else None
+            upcoming.append(
+                {
+                    "target_id": t.id,
+                    "at": when,
+                    "platform_slug": plat.slug if plat else "?",
+                    "brand_name": brand.name if brand else "",
+                    "title": t.title or (post.title if post else "") or "Untitled",
+                    "media_url": video.url if video else None,
+                    "media_kind": kind_for(video.url, None) if video and video.url else None,
+                }
+            )
+    upcoming.sort(key=lambda u: u["at"])
+    return {
+        "today": now.date().isoformat(),
+        "days": [{"date": d, **c} for d, c in days.items()],
+        "upcoming": upcoming[:4],
+    }
+
+
 @router.get("/today")
 def today(db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
     brands = _brand_map(db, ws)
@@ -549,6 +617,10 @@ def insights_view(
                 "brand_slug": brand.slug if brand else None,
                 "brand_name": brand.name if brand else "?",
                 "platform_slug": plat.slug if plat else "?",
+                # Which account it went to — the Analytics "Channels" table
+                # groups by this (a brand can have one channel per platform).
+                "channel_id": ch.id if ch else None,
+                "channel_handle": (ch.handle if ch else "") or "",
                 "title": t.title or (post.title if post else "") or "Untitled",
                 "caption": t.caption,
                 "media_url": video.url if video else None,

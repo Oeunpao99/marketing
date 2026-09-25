@@ -1,33 +1,37 @@
+// One post's performance, written for a marketing team: the headline number
+// and how it compares with "your usual", where the engagement came from, where
+// the post ranks among the same platform's posts, and what to try next. When a
+// platform gives no numbers, one plain explanation replaces the charts.
+//
+// Chart rules (dataviz skill): this post is the accent (slot-1 blue), "your
+// usual" is a neutral marker, likes/comments/shares keep the colours they have
+// on the Analytics page (SERIES_COLORS, validated); every figure also appears
+// as text, so nothing depends on colour alone.
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import {
+  FiAlertTriangle,
   FiArrowLeft,
   FiAward,
   FiCalendar,
-  FiEye,
+  FiCheckCircle,
+  FiClock,
   FiExternalLink,
   FiGrid,
-  FiHeart,
+  FiHash,
   FiImage,
+  FiLock,
   FiMessageCircle,
-  FiShare2,
   FiTrendingDown,
   FiTrendingUp,
-  FiUsers,
   FiZap,
 } from 'react-icons/fi'
 import { api } from '../api/client'
 import { useStore } from '../store'
 import { colorForBrand } from '../lib/brandColor'
 import { isKhmer } from '../lib/format'
-import CircularProgress from '../components/ui/CircularProgress'
-import {
-  PLATFORM_COLORS,
-  PLATFORM_ICONS,
-  EngagementLineChart,
-  engagementOf,
-  mediaSrc,
-} from './InsightsPage'
+import { platformHue } from '../components/insights/Overview'
+import { PLATFORM_ICONS, SERIES_COLORS, EngagementLineChart, engagementOf, mediaSrc } from './InsightsPage'
 
 const PLATFORM_NAMES = {
   facebook: 'Facebook',
@@ -37,108 +41,296 @@ const PLATFORM_NAMES = {
   tiktok: 'TikTok',
   youtube: 'YouTube',
 }
-
+const ACCENT = '#2a78d6'
 const HASHTAG_RE = /#[\p{L}\p{N}_]+/gu
+const card = 'bg-white rounded-2xl border border-ink-200/60 shadow-[0_1px_2px_rgba(16,24,40,0.04)]'
 
 const isResolved = (p) => p.status === 'ok' || p.status === 'partial'
+const hasEngagement = (m) => ['likes', 'comments', 'shares'].some((k) => (m || {})[k] != null)
+const fmt = (n) => (n == null ? '—' : Math.round(n).toLocaleString())
 
 function avg(values) {
   const v = values.filter((x) => x != null)
   return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null
 }
 
-const card = 'bg-white rounded-2xl border border-ink-200/60 shadow-[0_1px_2px_rgba(16,24,40,0.04)]'
+/** "2.3× your usual" / "40% below your usual" / "about your usual". */
+function vsUsual(value, usual) {
+  if (value == null || usual == null || !(usual > 0)) return null
+  if (value === 0) return { up: false, text: `None yet · usual ${fmt(usual)}` }
+  const r = value / usual
+  if (r >= 1.15) return { up: true, text: `${r.toFixed(r >= 10 ? 0 : 1)}× your usual` }
+  if (r <= 0.85) return { up: false, text: `${Math.round((1 - r) * 100)}% below your usual` }
+  return { up: null, text: 'About your usual' }
+}
 
-/** One metric, compared against the same platform's average — or an honest
- * "not reported" when that platform's API simply doesn't return it. */
-function MetricCard({ icon: Icon, label, value, average, tint, platformName, channelWide }) {
-  const has = value != null
-  const diff = has && average != null && average > 0 ? ((value - average) / average) * 100 : null
-  const up = diff != null && diff >= 0
+function VsPill({ v }) {
+  if (!v) return null
+  const tone = v.up === true ? 'bg-emerald-50 text-emerald-800' : v.up === false ? 'bg-red-50 text-red-700' : 'bg-ink-100 text-ink-600'
+  const Icon = v.up === true ? FiTrendingUp : v.up === false ? FiTrendingDown : null
   return (
-    <div className={`${card} p-4 relative overflow-hidden`}>
-      <div className="flex items-center justify-between">
-        <span className="w-9 h-9 rounded-xl grid place-items-center" style={{ background: `${tint}14`, color: tint }}>
-          <Icon size={17} />
+    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-semibold ${tone}`}>
+      {Icon && <Icon size={13} aria-hidden="true" />}
+      {v.text}
+    </span>
+  )
+}
+
+// ── "No numbers yet" — why, in plain words, and what to do ────────────────
+function explain(post, platformName) {
+  const note = post.note || ''
+  if (isResolved(post)) {
+    // Live, but the platform gives apps no numbers (e.g. LinkedIn personal posts).
+    return {
+      icon: FiCheckCircle,
+      tone: 'green',
+      title: `Live on ${platformName}`,
+      body: note || `${platformName} doesn't share this post's numbers with apps.`,
+      action: `Open the post on ${platformName} to see its likes, comments and views.`,
+    }
+  }
+  if (post.status === 'waiting') {
+    return {
+      icon: FiClock,
+      tone: 'amber',
+      title: `Waiting for someone to post it in ${platformName}`,
+      body: note,
+      action: `Open the ${platformName} app, find the video in your inbox/drafts and tap Post. Numbers show here soon after.`,
+    }
+  }
+  if (post.status === 'processing') {
+    return { icon: FiClock, tone: 'blue', title: `${platformName} is still processing this post`, body: note, action: 'Check back in a few minutes.' }
+  }
+  if (/private|only me/i.test(note)) {
+    return {
+      icon: FiLock,
+      tone: 'blue',
+      title: 'Posted privately — no public numbers',
+      body: note,
+      action: `Make the video public in ${platformName}, or wait until ContentFlow's ${platformName} app is approved to post publicly.`,
+    }
+  }
+  if (/token|access|auth|reconnect|expired|permission/i.test(note)) {
+    return {
+      icon: FiAlertTriangle,
+      tone: 'amber',
+      title: `ContentFlow can't read ${platformName} right now`,
+      body: note,
+      action: `Reconnect the ${platformName} channel, then refresh this page.`,
+      link: { to: '/channels', label: 'Go to Channels' },
+    }
+  }
+  return {
+    icon: FiAlertTriangle,
+    tone: 'amber',
+    title: 'No numbers for this post yet',
+    body: note || 'This post is waiting or failed.',
+    action: 'If it keeps showing, open the post on the platform to check it went out.',
+  }
+}
+
+function Explainer({ info, post, platformName }) {
+  const tones = {
+    amber: 'bg-amber-50 text-amber-700 ring-amber-200',
+    blue: 'bg-sky-50 text-sky-700 ring-sky-200',
+    green: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+  }
+  return (
+    <section className={`${card} p-6 sm:p-7`}>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+        <span className={`grid h-12 w-12 flex-none place-items-center rounded-2xl ring-1 ${tones[info.tone]}`}>
+          <info.icon size={22} aria-hidden="true" />
         </span>
-        {diff != null && Math.abs(diff) >= 0.5 && (
-          <span
-            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${
-              up ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'
-            }`}
-          >
-            {up ? <FiTrendingUp size={12} /> : <FiTrendingDown size={12} />}
-            {up ? '+' : ''}
-            {diff.toFixed(0)}%
-          </span>
-        )}
-      </div>
-      <div className="mt-3 text-[12px] text-ink-600">{label}</div>
-      {has ? (
-        <>
-          <div className="mt-1 text-[26px] font-bold text-ink-900 tabular-nums tracking-tight leading-none">
-            {value.toLocaleString()}
+        <div className="min-w-0 flex-1">
+          <h2 className="text-[17px] font-semibold tracking-tight text-ink-900">{info.title}</h2>
+          {info.body && <p className="mt-1 text-[13px] leading-relaxed text-ink-600">{info.body}</p>}
+          <div className="mt-4 rounded-xl bg-ink-50 px-4 py-3 text-[13px] leading-relaxed text-ink-800">
+            <span className="font-semibold">What to do: </span>
+            {info.action}
           </div>
-          <div className="mt-2 text-[11px] text-ink-500">
-            {channelWide ? (
-              'Whole channel, incl. admins & bot — not this post'
-            ) : average != null ? (
-              <>
-                {platformName} average <span className="font-semibold text-ink-700">{Math.round(average).toLocaleString()}</span>
-              </>
-            ) : (
-              'First post with this number'
+          <div className="mt-4 flex flex-wrap gap-2">
+            {info.link && (
+              <Link to={info.link.to} className="btn-primary">
+                {info.link.label}
+              </Link>
+            )}
+            {post.url && (
+              <a href={post.url} target="_blank" rel="noreferrer" className="btn-outline">
+                Open on {platformName} <FiExternalLink size={13} />
+              </a>
             )}
           </div>
-        </>
-      ) : (
-        <>
-          <div className="mt-1 text-[26px] font-bold text-ink-300 leading-none">—</div>
-          <div className="mt-2 text-[11px] text-ink-400">Not reported by {platformName}</div>
-        </>
-      )}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ── Headline: total engagement + where it came from ───────────────────────
+function Headline({ m, engagement, usualEngagement, rate, usualRate, platformName, reach }) {
+  const parts = ['likes', 'comments', 'shares'].map((k) => ({ key: k, value: m[k] ?? 0 })).filter((p) => m[p.key] != null)
+  const total = parts.reduce((s, p) => s + p.value, 0)
+  return (
+    <section className={`${card} grid overflow-hidden lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]`}>
+      <div className="p-6">
+        <div className="text-[12.5px] font-medium text-ink-600">Total engagement</div>
+        <div className="mt-1 flex flex-wrap items-end gap-3">
+          <span className="text-[52px] font-bold leading-none tracking-tight text-ink-900">{fmt(engagement)}</span>
+          <span className="pb-1.5">
+            <VsPill v={vsUsual(engagement, usualEngagement)} />
+          </span>
+        </div>
+        <p className="mt-2 text-[12.5px] text-ink-500">
+          Likes + comments + shares.{' '}
+          {usualEngagement != null ? (
+            <>
+              Your usual {platformName} post gets <span className="font-semibold text-ink-700">{fmt(usualEngagement)}</span>.
+            </>
+          ) : (
+            `Your first ${platformName} post with numbers — the next ones will be compared with it.`
+          )}
+        </p>
+        <div className="mt-5 grid grid-cols-2 gap-3">
+          <MiniStat label={reach.label} value={fmt(reach.value)} hint={reach.hint} />
+          <MiniStat
+            label="Engagement rate"
+            value={rate == null ? '—' : `${rate.toFixed(1)}%`}
+            hint={rate == null ? 'needs views' : usualRate != null ? `usual ${usualRate.toFixed(1)}%` : 'of people who saw it'}
+          />
+        </div>
+      </div>
+
+      <div className="border-t border-ink-100 bg-ink-50/40 p-6 lg:border-l lg:border-t-0">
+        <div className="text-[12.5px] font-medium text-ink-600">Where the engagement came from</div>
+        {total > 0 ? (
+          <>
+            {/* part-to-whole: one stacked bar, 2px surface gaps between parts */}
+            <div className="mt-4 flex h-3 gap-[2px] overflow-hidden rounded-full" role="img" aria-label="Engagement split">
+              {parts
+                .filter((p) => p.value > 0)
+                .map((p) => (
+                  <div key={p.key} style={{ width: `${(p.value / total) * 100}%`, background: SERIES_COLORS[p.key] }} title={`${p.key}: ${p.value}`} />
+                ))}
+            </div>
+            <ul className="mt-4 space-y-2.5">
+              {parts.map((p) => (
+                <li key={p.key} className="flex items-center gap-2.5 text-[13px]">
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ background: SERIES_COLORS[p.key] }} aria-hidden="true" />
+                  <span className="capitalize text-ink-700">{p.key}</span>
+                  <span className="ml-auto font-semibold tabular-nums text-ink-900">{fmt(p.value)}</span>
+                  <span className="w-11 text-right text-[12px] tabular-nums text-ink-400">{Math.round((p.value / total) * 100)}%</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <p className="mt-4 text-[13px] leading-relaxed text-ink-500">
+            No likes, comments or shares yet. New posts often pick up over the first 24–48 hours.
+          </p>
+        )}
+      </div>
+    </section>
+  )
+}
+
+function MiniStat({ label, value, hint }) {
+  return (
+    <div className="rounded-xl border border-ink-200/70 bg-white px-3.5 py-3">
+      <div className="text-[11.5px] text-ink-500">{label}</div>
+      <div className="mt-0.5 text-[20px] font-bold leading-tight text-ink-900">{value}</div>
+      {hint && <div className="mt-0.5 truncate text-[11px] text-ink-400">{hint}</div>}
     </div>
   )
 }
 
-/** This post's bar vs the platform-average bar, per metric it actually has. */
-function CompareBars({ rows, color }) {
-  if (!rows.length) {
-    return <div className="py-8 text-center text-[12px] text-ink-400">No comparable numbers yet.</div>
-  }
+// ── This post vs your usual: bars with an "usual" marker ──────────────────
+function VsUsualChart({ rows, platformName }) {
+  if (!rows.length) return <p className="py-6 text-center text-[12.5px] text-ink-400">No comparable numbers yet.</p>
   return (
-    <div className="space-y-4">
-      {rows.map((r) => {
-        const max = Math.max(r.value, r.average || 0, 1)
-        return (
-          <div key={r.label}>
-            <div className="flex items-baseline justify-between text-[12px] mb-1.5">
-              <span className="font-medium text-ink-800">{r.label}</span>
-              <span className="text-ink-500 tabular-nums">
-                <span className="font-semibold text-ink-900">{r.value.toLocaleString()}</span>
-                {r.average != null && <> vs {Math.round(r.average).toLocaleString()}</>}
-              </span>
-            </div>
-            <div className="space-y-1">
-              <div className="h-2.5 rounded-full bg-ink-100 overflow-hidden">
-                <div className="h-full rounded-full transition-all duration-700" style={{ width: `${(r.value / max) * 100}%`, background: color }} />
+    <div>
+      <ul className="space-y-4">
+        {rows.map((r) => {
+          const max = Math.max(r.value, r.usual || 0, 1) * 1.1
+          const v = vsUsual(r.value, r.usual)
+          return (
+            <li key={r.label}>
+              <div className="mb-1.5 flex items-baseline gap-2 text-[12.5px]">
+                <span className="font-medium text-ink-800">{r.label}</span>
+                <span className="ml-auto font-semibold tabular-nums text-ink-900">{fmt(r.value)}</span>
+                <span className={`w-36 text-right text-[11.5px] ${v?.up === true ? 'text-emerald-700' : v?.up === false ? 'text-red-600' : 'text-ink-400'}`}>
+                  {v ? v.text : r.usual == null ? 'no usual yet' : ''}
+                </span>
               </div>
-              {r.average != null && (
-                <div className="h-2.5 rounded-full bg-ink-100 overflow-hidden">
-                  <div className="h-full rounded-full bg-ink-300 transition-all duration-700" style={{ width: `${(r.average / max) * 100}%` }} />
-                </div>
-              )}
-            </div>
-          </div>
-        )
-      })}
-      <div className="flex items-center gap-4 pt-1 text-[11px] text-ink-500">
+              <div className="relative h-3 rounded-full bg-ink-100">
+                <div className="h-full rounded-full" style={{ width: `${(r.value / max) * 100}%`, background: ACCENT }} />
+                {r.usual != null && (
+                  <span
+                    className="absolute -top-1 h-5 w-[3px] rounded-full bg-ink-800 ring-2 ring-white"
+                    style={{ left: `calc(${(r.usual / max) * 100}% - 1.5px)` }}
+                    title={`Your usual: ${fmt(r.usual)}`}
+                  />
+                )}
+              </div>
+            </li>
+          )
+        })}
+      </ul>
+      <div className="mt-4 flex items-center gap-4 text-[11.5px] text-ink-500">
         <span className="inline-flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: color }} /> This post
+          <span className="h-2.5 w-4 rounded-full" style={{ background: ACCENT }} aria-hidden="true" /> This post
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-ink-300" /> Platform average
+          <span className="h-3.5 w-[3px] rounded-full bg-ink-800" aria-hidden="true" /> Your usual {platformName} post
         </span>
+      </div>
+    </div>
+  )
+}
+
+// ── Ranking: every same-platform post as a dot, this one highlighted ──────
+function RankStrip({ scores, mine, rank, platformName }) {
+  const n = scores.length
+  if (n < 2 || rank < 1) {
+    return (
+      <p className="py-4 text-[12.5px] leading-relaxed text-ink-500">
+        {n < 2 ? `Ranking starts once you have 2+ ${platformName} posts with numbers.` : `${platformName} doesn't report per-post numbers, so posts can't be ranked.`}
+      </p>
+    )
+  }
+  const max = Math.max(...scores, 1)
+  const topPct = Math.max(1, Math.round((rank / n) * 100))
+  return (
+    <div>
+      <div className="flex items-end gap-3">
+        <span className="text-[36px] font-bold leading-none tracking-tight text-ink-900">#{rank}</span>
+        <span className="pb-1 text-[13px] text-ink-600">
+          of {n} {platformName} posts · <span className="font-semibold text-ink-900">top {topPct}%</span>
+        </span>
+      </div>
+      {/* dot strip: position = engagement; ranks read left (low) → right (high) */}
+      <div className="relative mt-6 h-10" role="img" aria-label={`Rank ${rank} of ${n}`}>
+        <div className="absolute inset-x-0 top-1/2 h-px bg-[#c3c2b7]" />
+        {scores.map((s, i) => (
+          <span
+            key={i}
+            className="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-ink-300 ring-2 ring-white"
+            style={{ left: `${(s / max) * 100}%` }}
+          />
+        ))}
+        <span
+          className="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full ring-[3px] ring-white shadow"
+          style={{ left: `${(mine / max) * 100}%`, background: ACCENT }}
+        />
+        <span
+          className="absolute -top-3 -translate-x-1/2 whitespace-nowrap rounded-md bg-ink-900 px-1.5 py-0.5 text-[10.5px] font-semibold text-white"
+          style={{ left: `clamp(24px, ${(mine / max) * 100}%, calc(100% - 24px))` }}
+        >
+          This post
+        </span>
+      </div>
+      <div className="mt-1 flex justify-between text-[11px] text-ink-400">
+        <span>Fewer interactions</span>
+        <span>More</span>
       </div>
     </div>
   )
@@ -146,7 +338,6 @@ function CompareBars({ rows, color }) {
 
 export default function InsightsPostPage() {
   const { targetId } = useParams()
-  const navigate = useNavigate()
   const { showToast } = useStore()
   const [items, setItems] = useState(null)
   const [zoom, setZoom] = useState(false)
@@ -158,48 +349,32 @@ export default function InsightsPostPage() {
       .catch((e) => showToast(`Could not load insights — ${e.message}`))
   }, [showToast])
 
-  const post = useMemo(
-    () => (items || []).find((it) => String(it.target_id) === String(targetId)),
-    [items, targetId],
-  )
+  const post = useMemo(() => (items || []).find((it) => String(it.target_id) === String(targetId)), [items, targetId])
 
-  // Everything this post gets compared against is the same platform — a
-  // Telegram post's reach and a TikTok post's reach aren't the same number.
+  // Everything this post is compared with is the same platform — a Telegram
+  // post's reach and a TikTok post's reach aren't the same number.
   const peers = useMemo(
     () => (items || []).filter((p) => isResolved(p) && post && p.platform_slug === post.platform_slug),
     [items, post],
   )
 
+  // Same platform, and only posts that report engagement — mixing in a
+  // LinkedIn or Telegram post (no numbers) would plot fake zeros.
   const series = useMemo(
     () =>
-      (items || [])
-        .filter(isResolved)
-        .slice()
+      peers
+        .filter((p) => hasEngagement(p.metrics))
         .sort((a, b) => new Date(a.published_at) - new Date(b.published_at))
         .map((p) => ({ id: p.target_id, date: p.published_at, y: engagementOf(p.metrics) })),
-    [items],
+    [peers],
   )
 
   if (items === null) {
     return (
-      <div className="w-full px-5 lg:px-8 py-7 animate-fadein">
-        <div className="h-4 w-32 rounded skeleton mb-6" />
-        <div className="grid xl:grid-cols-[380px_minmax(0,1fr)] gap-6">
-          <div className={`${card} p-4 space-y-3`}>
-            <div className="aspect-[4/5] rounded-xl skeleton" />
-            <div className="h-3 w-3/4 rounded skeleton" />
-            <div className="h-3 w-1/2 rounded skeleton" />
-          </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 content-start">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className={`${card} p-4 space-y-3`}>
-                <div className="h-9 w-9 rounded-xl skeleton" />
-                <div className="h-3 w-20 rounded skeleton" />
-                <div className="h-6 w-14 rounded skeleton" />
-              </div>
-            ))}
-          </div>
-        </div>
+      <div className="w-full px-5 lg:px-8 py-7 animate-fadein space-y-6">
+        <div className="h-4 w-32 rounded skeleton" />
+        <div className={`${card} h-32 skeleton`} />
+        <div className={`${card} h-56 skeleton`} />
       </div>
     )
   }
@@ -220,7 +395,6 @@ export default function InsightsPostPage() {
   const slug = post.platform_slug
   const platformName = PLATFORM_NAMES[slug] || slug
   const Icon = PLATFORM_ICONS[slug] || FiGrid
-  const platColor = PLATFORM_COLORS[slug] || '#64748b'
   const brandColor = colorForBrand(post.brand_slug)
   const src = mediaSrc(post.media_url)
   const resolved = isResolved(post)
@@ -229,146 +403,126 @@ export default function InsightsPostPage() {
   const tags = [...new Set(caption.match(HASHTAG_RE) || [])]
   const body = caption.replace(HASHTAG_RE, '').trim()
   const engagement = engagementOf(m)
+  const showEngagement = resolved && hasEngagement(m)
 
-  const avgOf = (key) => avg(peers.filter((p) => p.target_id !== post.target_id).map((p) => (p.metrics || {})[key]))
-  const averages = {
-    views: avgOf('views'),
-    subscribers: avgOf('subscribers'),
-    likes: avgOf('likes'),
-    comments: avgOf('comments'),
-    shares: avgOf('shares'),
-  }
+  const others = peers.filter((p) => p.target_id !== post.target_id)
+  const usualOf = (key) => avg(others.map((p) => (p.metrics || {})[key]))
+  const usualEngagement = avg(others.filter((p) => hasEngagement(p.metrics)).map((p) => engagementOf(p.metrics)))
+  const rate = m.views ? (engagement / m.views) * 100 : null
+  const usualRate = avg(others.filter((p) => (p.metrics || {}).views > 0).map((p) => (engagementOf(p.metrics) / p.metrics.views) * 100))
 
-  // Telegram only reports the whole channel's member count — the same number
-  // on every post — so it's shown as channel context, never compared against
-  // an "average" or used to rank posts.
+  // Telegram reports only the whole channel's member count — context, not a
+  // per-post number, so it is never compared or ranked.
   const reach =
     m.views != null
-      ? { label: 'Views', icon: FiEye, value: m.views, average: averages.views }
-      : { label: 'Channel members', icon: FiUsers, value: m.subscribers ?? null, average: null, channelWide: true }
+      ? { label: 'Views', value: m.views, hint: usualOf('views') != null ? `usual ${fmt(usualOf('views'))}` : 'people who saw it' }
+      : m.subscribers != null
+        ? { label: 'Channel members', value: m.subscribers, hint: 'Whole channel, not this post' }
+        : { label: 'Views', value: null, hint: `not reported by ${platformName}` }
 
-  const metrics = [
-    { ...reach, tint: '#1A6FC4' },
-    { label: 'Likes', icon: FiHeart, value: m.likes ?? null, average: averages.likes, tint: '#E4405F' },
-    { label: 'Comments', icon: FiMessageCircle, value: m.comments ?? null, average: averages.comments, tint: '#F08A5D' },
-    { label: 'Shares', icon: FiShare2, value: m.shares ?? null, average: averages.shares, tint: '#86A41E' },
-  ]
-  const noNumbers = metrics.every((x) => x.value == null)
+  const compareRows = [
+    { label: 'Views', value: m.views, usual: usualOf('views') },
+    { label: 'Likes', value: m.likes, usual: usualOf('likes') },
+    { label: 'Comments', value: m.comments, usual: usualOf('comments') },
+    { label: 'Shares', value: m.shares, usual: usualOf('shares') },
+  ].filter((r) => r.value != null)
 
-  // Rank among same-platform posts by engagement, else per-post views. A
-  // platform with neither (Telegram) can't be ranked — every post would tie.
+  // Rank by engagement, else views. Platforms with neither can't be ranked.
   const scoreOf = (p) => {
     const pm = p.metrics || {}
     const e = engagementOf(pm)
     return e > 0 ? e : pm.views ?? 0
   }
   const rankable = peers.some((p) => scoreOf(p) > 0)
-  const ranked = rankable ? peers.map(scoreOf).sort((a, b) => b - a) : []
+  const scores = rankable ? peers.map(scoreOf) : []
   const myScore = scoreOf(post)
-  const rank = rankable ? ranked.indexOf(myScore) + 1 : 0
-  const topPct = rank > 0 && ranked.length ? Math.max(1, Math.round((rank / ranked.length) * 100)) : null
+  const rank = rankable ? [...scores].sort((a, b) => b - a).indexOf(myScore) + 1 : 0
 
-  const compareRows = metrics
-    .filter((x) => x.value != null && !x.channelWide)
-    .map((x) => ({ label: x.label, value: x.value, average: x.average }))
+  // Plain-language next steps.
+  const tips = []
+  const topPct = rank > 0 && scores.length > 1 ? Math.max(1, Math.round((rank / scores.length) * 100)) : null
+  if (topPct != null && topPct <= 25) tips.push({ icon: FiAward, text: `One of your best ${platformName} posts (top ${topPct}%). Reuse its format, hook or topic in your next few posts.` })
+  if (topPct != null && topPct >= 75 && scores.length >= 4) tips.push({ icon: FiTrendingDown, text: `Below most of your ${platformName} posts. Try a stronger first line, a clearer image, or posting at a different time.` })
+  if (m.comments === 0) tips.push({ icon: FiMessageCircle, text: 'No comments yet — ending the caption with a question usually gets people replying.' })
+  if (m.shares === 0 && (m.likes || 0) > 0) tips.push({ icon: FiZap, text: 'People liked it but nobody shared it. A useful tip, a list or a surprising fact is more shareable.' })
+  if (!tags.length) tips.push({ icon: FiHash, text: 'No hashtags — 2–3 relevant tags help new people find it.' })
+  if (tags.length > 6) tips.push({ icon: FiHash, text: `${tags.length} hashtags is a lot — 3–5 focused tags usually perform better.` })
+  if (!tips.length) tips.push({ icon: FiCheckCircle, text: 'Nothing stands out to fix — keep posting consistently and compare again after a few more posts.' })
 
-  const rate = m.views ? (engagement / m.views) * 100 : null
-
-  const insights = []
-  if (rank > 0 && ranked.length > 1) insights.push({ icon: FiAward, text: `#${rank} of ${ranked.length} ${platformName} posts — top ${topPct}%.` })
-  for (const x of metrics) {
-    if (x.value == null || x.average == null || !(x.average > 0)) continue
-    const r = x.value / x.average
-    if (r >= 1.25) insights.push({ icon: FiTrendingUp, text: `${x.label} are ${r.toFixed(1)}× your ${platformName} average.` })
-    else if (r <= 0.6) insights.push({ icon: FiTrendingDown, text: `${x.label} trail at ${Math.round(r * 100)}% of your ${platformName} average.` })
-  }
-  if (m.comments === 0) insights.push({ icon: FiMessageCircle, text: 'No comments yet — ending the caption with a question usually nudges replies.' })
-  if (m.likes == null && m.comments == null && m.shares == null) {
-    insights.push({ icon: FiZap, text: `${platformName} doesn't report likes, comments or shares through its API — reach is the one number available here.` })
-  }
-  if (!tags.length) insights.push({ icon: FiZap, text: 'No hashtags on this one — 2–3 relevant tags help it get found.' })
+  const info = !resolved || (!showEngagement && m.views == null && m.subscribers == null) ? explain(post, platformName) : null
 
   return (
-    <div className="w-full px-5 lg:px-8 py-7 animate-fadein">
-      <Link
-        to="/insights"
-        className="mb-5 inline-flex items-center gap-1.5 text-[13px] font-medium text-ink-600 hover:text-ink-900"
-      >
+    <div className="w-full px-5 lg:px-8 pt-7 pb-28 animate-fadein">
+      <Link to="/insights" className="mb-5 inline-flex items-center gap-1.5 text-[13px] font-medium text-ink-600 hover:text-ink-900">
         <FiArrowLeft size={16} /> Back to Analytics
       </Link>
 
       <div className="space-y-6">
-        {/* Post header: small thumbnail + caption, so the numbers stay in view */}
-        <section className={`${card} p-4 flex flex-col sm:flex-row gap-4`}>
+        {/* The post */}
+        <section className={`${card} flex flex-col gap-4 p-4 sm:flex-row`}>
           <button
             type="button"
             onClick={() => src && setZoom(true)}
-            className="relative flex-none w-full sm:w-28 h-40 sm:h-28 rounded-xl overflow-hidden bg-ink-100 grid place-items-center"
+            className="relative grid h-44 w-full flex-none place-items-center overflow-hidden rounded-xl bg-ink-100 sm:h-32 sm:w-32"
             title={src ? 'View full size' : ''}
           >
             {src && post.media_kind === 'image' ? (
-              <img src={src} alt="" className="absolute inset-0 w-full h-full object-cover" />
+              <img src={src} alt="" className="absolute inset-0 h-full w-full object-cover" />
             ) : src && post.media_kind === 'video' ? (
-              <video src={src} className="absolute inset-0 w-full h-full object-cover" muted playsInline />
+              <video src={src} className="absolute inset-0 h-full w-full object-cover" muted playsInline />
             ) : (
               <FiImage size={24} className="text-ink-400" />
             )}
-            <span
-              className="absolute bottom-1.5 left-1.5 w-6 h-6 rounded-full grid place-items-center text-white ring-2 ring-white"
-              style={{ background: platColor }}
-            >
+            <span className="absolute bottom-1.5 left-1.5 grid h-6 w-6 place-items-center rounded-full text-white ring-2 ring-white" style={{ background: platformHue(slug) }}>
               <Icon size={12} />
             </span>
           </button>
 
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px]">
-              <span className="w-2.5 h-2.5 rounded-full" style={{ background: brandColor }} />
+              <span className="h-2.5 w-2.5 rounded-full" style={{ background: brandColor }} />
               <span className="font-semibold text-ink-900">{post.brand_name}</span>
               <span className="text-ink-300">·</span>
               <span className="text-ink-600">{platformName}</span>
               <span className="text-ink-300">·</span>
               <span className="inline-flex items-center gap-1 text-ink-500">
                 <FiCalendar size={12} />
-                {new Date(post.published_at).toLocaleString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
+                {new Date(post.published_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Phnom_Penh' })}
               </span>
-              <span className="inline-flex items-center gap-1.5 ml-1 text-ink-700 font-medium" title={post.note || ''}>
-                <span className={`w-2 h-2 rounded-full ${resolved ? 'bg-emerald-500' : 'bg-amber-400'}`} />
+              <span
+                className={`ml-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                  resolved ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'
+                }`}
+              >
+                {resolved ? <FiCheckCircle size={11} /> : <FiClock size={11} />}
                 {resolved ? 'Live' : 'Needs attention'}
               </span>
             </div>
-            <p className={`mt-2 text-[13px] text-ink-800 leading-relaxed line-clamp-3 whitespace-pre-line ${isKhmer(body) ? 'font-khmer' : ''}`}>
-              {body || <span className="text-ink-400 italic">No caption</span>}
+            <p className={`mt-2 line-clamp-3 whitespace-pre-line text-[13.5px] leading-relaxed text-ink-800 ${isKhmer(body) ? 'font-khmer' : ''}`}>
+              {body || <span className="italic text-ink-400">No caption</span>}
             </p>
             {tags.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {tags.map((t) => (
-                  <span key={t} className="text-[11.5px] font-medium text-brand">{t}</span>
+                  <span key={t} className="rounded-md bg-brand-soft px-1.5 py-0.5 text-[11.5px] font-medium text-brand">
+                    {t}
+                  </span>
                 ))}
               </div>
             )}
           </div>
 
-          <div className="flex sm:flex-col gap-2 sm:w-44 flex-none">
-            {post.url && (
-              <a href={post.url} target="_blank" rel="noreferrer" className="btn-primary flex-1 sm:flex-none">
+          {post.url && (
+            <div className="flex-none sm:w-44">
+              <a href={post.url} target="_blank" rel="noreferrer" className="btn-primary w-full">
                 View on {platformName} <FiExternalLink size={13} />
               </a>
-            )}
-            <button type="button" onClick={() => navigate('/insights')} className="btn-outline flex-1 sm:flex-none">
-              All posts
-            </button>
-          </div>
+            </div>
+          )}
         </section>
 
         {zoom && src && (
-          <div className="fixed inset-0 z-[100] bg-ink-950/80 grid place-items-center p-6 animate-fadein" onClick={() => setZoom(false)}>
+          <div className="fixed inset-0 z-[100] grid place-items-center bg-ink-950/80 p-6 animate-fadein" onClick={() => setZoom(false)}>
             {post.media_kind === 'video' ? (
               <video src={src} className="max-h-[85vh] max-w-full rounded-xl" controls autoPlay onClick={(e) => e.stopPropagation()} />
             ) : (
@@ -377,110 +531,70 @@ export default function InsightsPostPage() {
           </div>
         )}
 
-        {/* Performance */}
-        <div className="min-w-0 space-y-6">
-          {!resolved && (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3.5 text-[12.5px] text-amber-800 leading-relaxed">
-              {post.note || 'This post is waiting or failed — no live numbers yet.'}
-            </div>
-          )}
-
-          {/* Live but no numbers at all (LinkedIn personal posts): one plain
-              explanation instead of four "—" cards and empty charts. */}
-          {resolved && noNumbers ? (
-            <section className={`${card} p-6 flex flex-col items-center text-center`}>
-              <span className="w-11 h-11 rounded-xl grid place-items-center text-white" style={{ background: platColor }}>
-                <Icon size={20} />
-              </span>
-              <h2 className="mt-3 text-[15.5px] font-semibold text-ink-900 tracking-tight">This post is live on {platformName}</h2>
-              <p className="mt-1.5 max-w-md text-[12.5px] text-ink-600 leading-relaxed">
-                {post.note || `${platformName} doesn't share this post's numbers with apps.`}
-              </p>
-              {post.url && (
-                <a href={post.url} target="_blank" rel="noreferrer" className="btn-primary mt-4">
-                  See likes &amp; comments on {platformName} <FiExternalLink size={13} />
-                </a>
-              )}
-            </section>
-          ) : (
+        {info ? (
+          <Explainer info={info} post={post} platformName={platformName} />
+        ) : (
           <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {metrics.map((x) => (
-              <MetricCard key={x.label} {...x} platformName={platformName} />
-            ))}
-          </div>
-
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
-            <section className={`${card} p-5`}>
-              <h2 className="text-[15.5px] font-semibold text-ink-900 tracking-tight">This post vs your average</h2>
-              <p className="text-[12px] text-ink-500 mt-0.5 mb-5">Compared with your other {platformName} posts.</p>
-              <CompareBars rows={compareRows} color={brandColor} />
-            </section>
-
-            <section className={`${card} p-5 flex flex-col items-center text-center`}>
-              <h2 className="self-start text-[15.5px] font-semibold text-ink-900 tracking-tight">Ranking</h2>
-              <div className="my-5">
-                <CircularProgress
-                  percent={topPct != null ? 100 - topPct + 1 : 0}
-                  size={148}
-                  stroke={12}
-                  color={brandColor}
-                  trackColor="#EDEFF3"
-                >
-                  <div>
-                    <div className="text-[27.5px] font-bold text-ink-900 leading-none">{rank > 0 ? `#${rank}` : '—'}</div>
-                    <div className="text-[11px] text-ink-500 mt-1">of {ranked.length || 0}</div>
-                  </div>
-                </CircularProgress>
-              </div>
-              <div className="text-[12.5px] text-ink-700">
-                {topPct != null && ranked.length > 1 ? (
-                  <>
-                    Top <span className="font-semibold text-ink-900">{topPct}%</span> of {platformName} posts
-                  </>
-                ) : !rankable ? (
-                  `${platformName} doesn't report per-post numbers, so posts can't be ranked`
-                ) : (
-                  'Needs more posts to rank against'
-                )}
-              </div>
-              {rate != null && (
-                <div className="mt-4 w-full rounded-xl bg-ink-50 px-3 py-2.5 flex items-center justify-between text-[12px]">
-                  <span className="text-ink-600">Engagement rate</span>
-                  <span className="font-bold text-ink-900">{rate.toFixed(1)}%</span>
-                </div>
-              )}
-            </section>
-          </div>
-
-          <section className={`${card} p-5`}>
-            <div className="flex items-baseline justify-between gap-3 mb-2">
-              <h2 className="text-[15.5px] font-semibold text-ink-900 tracking-tight">Where it sits over time</h2>
-              <span className="text-[11.5px] text-ink-500">every post's engagement · this one highlighted</span>
-            </div>
-            <EngagementLineChart series={series} activeTargetId={post.target_id} brandColor={brandColor} height={300} />
-          </section>
-
-          <section className={`${card} p-5`}>
-            <h2 className="text-[15.5px] font-semibold text-ink-900 tracking-tight mb-4">Insights</h2>
-            {resolved && insights.length ? (
-              <div className="grid sm:grid-cols-2 gap-3">
-                {insights.map((x, i) => (
-                  <div key={i} className="flex items-start gap-3 rounded-xl border border-ink-100 bg-ink-50/60 p-3.5">
-                    <span className="w-8 h-8 rounded-lg grid place-items-center flex-none bg-brand-soft text-brand">
-                      <x.icon size={15} />
-                    </span>
-                    <p className="text-[12.5px] text-ink-700 leading-relaxed">{x.text}</p>
-                  </div>
-                ))}
-              </div>
+            {showEngagement ? (
+              <Headline
+                m={m}
+                engagement={engagement}
+                usualEngagement={usualEngagement}
+                rate={rate}
+                usualRate={usualRate}
+                platformName={platformName}
+                reach={reach}
+              />
             ) : (
-              <p className="text-[12.5px] text-ink-500">Insights appear once this post has live numbers.</p>
+              <section className={`${card} p-6`}>
+                <div className="text-[12.5px] font-medium text-ink-600">{reach.label}</div>
+                <div className="mt-1 text-[44px] font-bold leading-none tracking-tight text-ink-900">{fmt(reach.value)}</div>
+                <p className="mt-2 text-[12.5px] text-ink-500">
+                  {reach.hint}. {platformName} doesn't share likes, comments or shares with apps
+                  {post.url ? ' — open the post to see them.' : '.'}
+                </p>
+              </section>
             )}
-          </section>
+
+            {(compareRows.length > 0 || rankable) && (
+              <div className="grid gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+                <section className={`${card} p-5`}>
+                  <h2 className="text-[15.5px] font-semibold tracking-tight text-ink-900">Compared with your usual</h2>
+                  <p className="mb-5 mt-0.5 text-[12px] text-ink-500">This post against your average {platformName} post.</p>
+                  <VsUsualChart rows={compareRows} platformName={platformName} />
+                </section>
+                <section className={`${card} p-5`}>
+                  <h2 className="mb-4 text-[15.5px] font-semibold tracking-tight text-ink-900">Ranking</h2>
+                  <RankStrip scores={scores} mine={myScore} rank={rank} platformName={platformName} />
+                </section>
+              </div>
+            )}
+
+            {series.length >= 2 && (
+              <section className={`${card} p-5`}>
+                <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+                  <h2 className="text-[15.5px] font-semibold tracking-tight text-ink-900">Your {platformName} posts over time</h2>
+                  <span className="text-[11.5px] text-ink-500">engagement per post · this one highlighted</span>
+                </div>
+                <EngagementLineChart series={series} activeTargetId={post.target_id} brandColor={ACCENT} height={280} />
+              </section>
+            )}
+
+            <section className={`${card} p-5`}>
+              <h2 className="mb-4 text-[15.5px] font-semibold tracking-tight text-ink-900">What to do next</h2>
+              <ol className="grid gap-3 sm:grid-cols-2">
+                {tips.map((t, i) => (
+                  <li key={i} className="flex items-start gap-3 rounded-xl border border-ink-100 bg-ink-50/60 p-3.5">
+                    <span className="grid h-8 w-8 flex-none place-items-center rounded-lg bg-brand-soft text-brand">
+                      <t.icon size={15} aria-hidden="true" />
+                    </span>
+                    <p className="text-[12.5px] leading-relaxed text-ink-700">{t.text}</p>
+                  </li>
+                ))}
+              </ol>
+            </section>
           </>
-          )}
-        </div>
+        )}
       </div>
     </div>
   )

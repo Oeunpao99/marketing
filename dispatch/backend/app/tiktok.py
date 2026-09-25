@@ -347,7 +347,15 @@ def video_insights(access_token: str, publish_id: str) -> dict:
 
     ids = status.get("publicaly_available_post_id") or []
     if not ids:
-        return {"status": "unavailable", "note": "TikTok did not return a video id.", "metrics": {}}
+        # Published, but with no public id: it went out as "Only me" (private)
+        # — the only visibility an unaudited app may use — and TikTok gives
+        # apps stats for public videos only.
+        return {
+            "status": "unavailable",
+            "note": "Posted privately (“Only me”) — TikTok only shares stats for public videos. "
+            "Numbers appear once the video is public.",
+            "metrics": {},
+        }
     # TikTok returns this as a JSON number, but the Query Videos API's
     # video_ids filter requires strings — passing the raw number 400s.
     videos = query_videos(access_token, [str(ids[0])])
