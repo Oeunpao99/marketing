@@ -9,6 +9,7 @@ from app import content_scheduler, scheduler, video
 from app.advisor import router as advisor_router
 from app.ai import router as ai_router
 from app.auth import router as auth_router
+from app import billing, sessions
 from app.improve import router as improve_router
 from app.story import router as story_router
 from app.chats import router as chats_router
@@ -60,6 +61,18 @@ MAINTENANCE_DEFAULT = "ContentFlow is down for scheduled maintenance. We'll be b
 
 
 @app.middleware("http")
+async def billing_payer(request: Request, call_next):
+    """Open this request's "who pays for AI" holder (app/billing.py)."""
+    billing.begin_request()
+    return await call_next(request)
+
+
+@app.exception_handler(billing.OutOfCredit)
+async def out_of_credit(_request: Request, exc: billing.OutOfCredit):
+    return JSONResponse({"detail": str(exc), "out_of_credit": True}, status_code=402)
+
+
+@app.middleware("http")
 async def maintenance_gate(request: Request, call_next):
     """MAINTENANCE_MODE=true: refuse every API call (except health) with a 503
     the frontend recognises (``"maintenance": true``) and shows as its
@@ -107,6 +120,8 @@ for resource in REGISTRY:
     api.include_router(build_router(resource), dependencies=authed)
 
 api.include_router(auth_router)
+api.include_router(billing.router, dependencies=authed)
+api.include_router(sessions.router, dependencies=authed)
 api.include_router(ai_router, dependencies=authed)
 api.include_router(advisor_router, dependencies=authed)
 api.include_router(improve_router, dependencies=authed)

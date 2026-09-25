@@ -29,6 +29,7 @@ import StoryEditor from '../components/story/StoryEditor'
 import { handoff } from '../lib/handoff'
 import { colorForBrand } from '../lib/brandColor'
 import { trackJob, untrackJob } from '../lib/genJobs'
+import { fmtUSD } from '../lib/money'
 
 // AI Agent — one chat for both asking and creating. A message that reads
 // like a question ("how is my engagement?", "what should I post next?") goes
@@ -122,6 +123,7 @@ function serializeTurn(t) {
     storyId: t.storyId || null,
     language: t.language ?? '',
     tokens: t.tokens || 0,
+    cost: t.cost || 0,
     startedAt: t.startedAt,
   }
 }
@@ -225,6 +227,27 @@ export default function AIPromptPage() {
   // (or a chat is opened), and follow along when an answer / image lands —
   // unless the person has scrolled up to read something older.
   const statusKey = turns.map((t) => t.status).join(',')
+
+  // Live AI-credit meter (app/billing.py): what you've spent since this page
+  // opened, and what the workspace has left. Refreshed whenever a turn
+  // finishes, and every 30s (storyboard scenes are charged as they land).
+  const meterSince = useRef(new Date().toISOString())
+  const [meter, setMeter] = useState(null)
+  useEffect(() => {
+    let alive = true
+    const load = () =>
+      api
+        .get(`/billing/summary?since=${encodeURIComponent(meterSince.current)}`)
+        .then((m) => alive && setMeter(m))
+        .catch(() => {})
+    load()
+    const id = setInterval(load, 30000)
+    return () => {
+      alive = false
+      clearInterval(id)
+    }
+  }, [statusKey])
+  const openBilling = () => window.dispatchEvent(new CustomEvent('dispatch:open-settings', { detail: { tab: 'billing' } }))
   const prevLenRef = useRef(0)
   useLayoutEffect(() => {
     const opening = prevLenRef.current === 0 // a chat just opened: jump, don't glide
@@ -374,7 +397,7 @@ export default function AIPromptPage() {
           const res = await api.get(`/ai/video/${t.jobId}`)
           if (res.status === 'succeeded' && res.video) {
             untrackJob(t.jobId)
-            patchTurn(t.id, { status: 'done', video: res.video, tokens: res.total_tokens })
+            patchTurn(t.id, { status: 'done', video: res.video, tokens: res.total_tokens, cost: res.cost_usd })
             addTokens(res.total_tokens)
             refreshCounts()
           } else if (res.status === 'failed') {
@@ -425,7 +448,7 @@ export default function AIPromptPage() {
           reference_url: turn.refUrl || '',
         })
         if (res.video) {
-          patchTurn(turn.id, { status: 'done', video: res.video, tokens: res.total_tokens })
+          patchTurn(turn.id, { status: 'done', video: res.video, tokens: res.total_tokens, cost: res.cost_usd })
           addTokens(res.total_tokens)
           refreshCounts()
         } else {
@@ -666,10 +689,29 @@ export default function AIPromptPage() {
             </p>
           </div>
           <div className="flex items-center gap-1">
-            {sessionTokens > 0 && (
-              <span className="mr-2 hidden sm:inline text-[11px] text-ink-400" title="Provider tokens used on this page since you opened it">
-                {fmtTok(sessionTokens)} tokens this session
-              </span>
+            {meter ? (
+              <button
+                type="button"
+                onClick={openBilling}
+                title="Your AI use since you opened this page, and the workspace's credit left this month — click for details"
+                className="mr-1.5 inline-flex h-8 items-center gap-1.5 rounded-full bg-white/80 px-3 text-[11px] text-ink-500 ring-1 ring-ink-200 hover:ring-brand/40 hover:text-ink-700 transition"
+              >
+                <span className="hidden md:inline tabular-nums">{fmtTok(meter.session_tokens || sessionTokens)} tokens</span>
+                <span className="hidden md:inline text-ink-300">·</span>
+                <span className="hidden sm:inline tabular-nums font-semibold text-ink-700">~{fmtUSD(meter.session_spent)} this session</span>
+                <span className="hidden sm:inline text-ink-300">·</span>
+                <span
+                  className={`tabular-nums font-semibold ${
+                    meter.available <= 0 ? 'text-red-600' : meter.available <= 5 ? 'text-amber-600' : 'text-brand'
+                  }`}
+                >
+                  {fmtUSD(Math.max(0, meter.available))} left
+                </span>
+              </button>
+            ) : (
+              sessionTokens > 0 && (
+                <span className="mr-2 hidden sm:inline text-[11px] text-ink-400">{fmtTok(sessionTokens)} tokens this session</span>
+              )
             )}
             <button
               type="button"
@@ -1454,6 +1496,7 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary }) {
               <button type="button" onClick={onLibrary} className="ml-1 text-[11px] text-ink-400 hover:text-brand">
                 Saved to Library
                 {t.tokens ? ` · ${fmtTok(t.tokens)} tok` : ''}
+                {t.cost ? ` · ~${fmtUSD(t.cost)}` : ''}
               </button>
             </div>
           </>
@@ -1586,6 +1629,12 @@ function IconBtn({ title, onClick, children }) {
   )
 }
 
+// Two columns: "what" (type, kind, size) on the left, "how" (length, brand)
+// on the right; the storyboard voiceover and the ✦ prompt options run full
+// width below. Stacks into one column on phones.
+const RATIO_SHORT = { '9:16': 'Reels', '1:1': 'Feed', '16:9': 'YouTube' }
+const VOICE_SHORT = { English: 'English', Khmer: 'Khmer', 'Khmer + English': 'Khmer + English', '': 'None' }
+
 function SettingsPopover({
   type, setType, ratio, setRatio, seconds, setSeconds, videoMode, setVideoMode, storySeconds, setStorySeconds,
   voice, setVoice, brands, brand, setBrand, style, setStyle, template, setTemplate,
@@ -1598,127 +1647,150 @@ function SettingsPopover({
     `h-8 px-2.5 rounded-lg border text-[11.5px] font-medium transition-colors ${
       on ? 'border-brand/40 bg-brand-soft text-brand' : 'border-ink-200 text-ink-600 hover:border-ink-300'
     }`
+  // Narrow equal-width buttons (lengths): no side padding, allowed to shrink.
+  const tight = (on) => `${chip(on).replace('px-2.5', 'px-0')} min-w-0 flex-1`
+  const select =
+    'h-8 w-full rounded-lg border border-ink-200 bg-white px-2 text-[11.5px] text-ink-700 focus:outline-none focus:border-brand'
   const story = type === 'video' && videoMode === 'story'
+  const current = brands.find((b) => b.slug === brand)
+
   return (
-    <div className="absolute bottom-full left-0 mb-2 w-[330px] max-w-[calc(100vw-40px)] rounded-2xl glass-panel p-4 animate-fadein space-y-4">
-      <div className="flex rounded-xl bg-ink-100 p-1">
-        <button type="button" className={seg(type === 'image')} onClick={() => setType('image')}>
-          <FiImage size={14} /> Image
-        </button>
-        <button type="button" className={seg(type === 'video')} onClick={() => setType('video')}>
-          <FiVideo size={14} /> Video
-        </button>
+    <div className="absolute bottom-full left-0 mb-2 w-[460px] max-w-[calc(100vw-40px)] rounded-2xl border border-ink-200/80 bg-white p-4 shadow-[0_18px_50px_-12px_rgba(16,24,40,0.28)] animate-fadein">
+      <div className="grid gap-x-4 gap-y-3.5 sm:grid-cols-2">
+        {/* what to make */}
+        <div className="space-y-3.5">
+          <div className="flex rounded-xl bg-ink-100 p-1">
+            <button type="button" className={seg(type === 'image')} onClick={() => setType('image')}>
+              <FiImage size={14} /> Image
+            </button>
+            <button type="button" className={seg(type === 'video')} onClick={() => setType('video')}>
+              <FiVideo size={14} /> Video
+            </button>
+          </div>
+
+          {type === 'video' && (
+            <Setting label="Kind of video">
+              <div className="grid grid-cols-2 gap-1.5">
+                {[
+                  { id: 'clip', icon: <FiVideo size={13} />, title: 'Instant', sub: '1 clip · 4–12s' },
+                  { id: 'story', icon: <FiFilm size={13} />, title: 'Storyboard', sub: 'Scenes · 16–64s' },
+                ].map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => setVideoMode(m.id)}
+                    className={`${chip(videoMode === m.id)} h-auto py-1.5 text-left`}
+                  >
+                    <div className="inline-flex items-center gap-1.5 font-semibold">
+                      {m.icon}
+                      {m.title}
+                    </div>
+                    <div className="text-[10px] leading-tight text-ink-400">{m.sub}</div>
+                  </button>
+                ))}
+              </div>
+            </Setting>
+          )}
+
+          <Setting label="Size">
+            <div className="flex gap-1.5">
+              {RATIOS.filter((r) => !(story && r.id === '1:1')).map((r) => (
+                <button
+                  key={r.id}
+                  type="button"
+                  title={r.sub}
+                  onClick={() => setRatio(r.id)}
+                  className={`${chip(ratio === r.id || (story && ratio === '1:1' && r.id === '9:16'))} h-auto flex-1 py-1 text-left`}
+                >
+                  <div className="font-semibold">{r.id}</div>
+                  <div className="text-[10px] leading-tight opacity-70">{RATIO_SHORT[r.id]}</div>
+                </button>
+              ))}
+            </div>
+          </Setting>
+        </div>
+
+        {/* how */}
+        <div className="space-y-3.5">
+          {type === 'video' && !story && (
+            <Setting label="Length">
+              <div className="flex gap-1.5">
+                {LENGTHS.map((n) => (
+                  <button key={n} type="button" onClick={() => setSeconds(n)} className={tight(seconds === n)}>
+                    {n}s
+                  </button>
+                ))}
+              </div>
+            </Setting>
+          )}
+
+          {story && (
+            <>
+              <Setting label={`Length · ${storySeconds / 8} scenes of 8s`}>
+                <div className="flex gap-1">
+                  {STORY_LENGTHS.map((n) => (
+                    <button key={n} type="button" onClick={() => setStorySeconds(n)} className={tight(storySeconds === n)}>
+                      {n}s
+                    </button>
+                  ))}
+                </div>
+              </Setting>
+            </>
+          )}
+
+          <Setting label="Brand">
+            <div className="relative">
+              <span
+                className="pointer-events-none absolute left-2.5 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full"
+                style={{ background: current ? colorForBrand(current.slug) : 'transparent' }}
+              />
+              <select value={brand || ''} onChange={(e) => setBrand(e.target.value)} className={`${select} pl-6`}>
+                {brands.map((b) => (
+                  <option key={b.slug} value={b.slug}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </Setting>
+        </div>
       </div>
 
-      {type === 'video' && (
-        <Setting label="Kind of video">
-          <div className="grid grid-cols-2 gap-1.5">
-            {[
-              { id: 'clip', icon: <FiVideo size={13} />, title: 'Instant video', sub: 'One clip · 4–12s' },
-              { id: 'story', icon: <FiFilm size={13} />, title: 'Storyboard', sub: 'Scene by scene · 16–64s' },
-            ].map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                onClick={() => setVideoMode(m.id)}
-                className={`${chip(videoMode === m.id)} h-auto py-2 text-left`}
-              >
-                <div className="inline-flex items-center gap-1.5 font-semibold">
-                  {m.icon}
-                  {m.title}
-                </div>
-                <div className="text-[10px] text-ink-400 leading-tight">{m.sub}</div>
-              </button>
-            ))}
-          </div>
-        </Setting>
-      )}
-
-      <Setting label="Size">
-        <div className="grid grid-cols-3 gap-1.5">
-          {RATIOS.filter((r) => !(story && r.id === '1:1')).map((r) => (
-            <button
-              key={r.id}
-              type="button"
-              onClick={() => setRatio(r.id)}
-              className={`${chip(ratio === r.id || (story && ratio === '1:1' && r.id === '9:16'))} h-auto py-1.5 text-left`}
-            >
-              <div className="font-semibold">{r.id}</div>
-              <div className="text-[10px] text-ink-400 leading-tight">{r.sub}</div>
-            </button>
-          ))}
-        </div>
-      </Setting>
-
-      {type === 'video' && !story && (
-        <Setting label="Length">
-          <div className="flex gap-1.5">
-            {LENGTHS.map((n) => (
-              <button key={n} type="button" onClick={() => setSeconds(n)} className={chip(seconds === n)}>
-                {n}s
-              </button>
-            ))}
-          </div>
-        </Setting>
-      )}
-
       {story && (
-        <>
-          <Setting label="Length">
-            <div className="flex flex-wrap gap-1.5">
-              {STORY_LENGTHS.map((n) => (
-                <button key={n} type="button" onClick={() => setStorySeconds(n)} className={chip(storySeconds === n)}>
-                  ~{n}s
-                </button>
-              ))}
-            </div>
-            <div className="mt-1 text-[10px] text-ink-400">{storySeconds / 8} scenes of 8s each</div>
-          </Setting>
+        <div className="mt-3.5">
           <Setting label="Voiceover">
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex rounded-xl bg-ink-100 p-1">
               {[...VOICES, ''].map((v) => (
-                <button key={v || 'none'} type="button" onClick={() => setVoice(v)} className={chip(voice === v)}>
-                  {v || 'None'}
+                <button
+                  key={v || 'none'}
+                  type="button"
+                  title={v || 'No voiceover'}
+                  onClick={() => setVoice(v)}
+                  className={`${seg(voice === v)} h-7 whitespace-nowrap px-1 text-[11.5px]`}
+                >
+                  {VOICE_SHORT[v]}
                 </button>
               ))}
             </div>
           </Setting>
-        </>
+        </div>
       )}
 
-      <Setting label="Brand">
-        <div className="flex flex-wrap gap-1.5">
-          {brands.map((b) => (
-            <button key={b.slug} type="button" onClick={() => setBrand(b.slug)} className={`${chip(brand === b.slug)} inline-flex items-center gap-1.5`}>
-              <span className="w-2 h-2 rounded-full" style={{ background: colorForBrand(b.slug) }} />
-              {b.name}
-            </button>
+      {/* ✦ prompt writer options */}
+      <div className="mt-3.5 flex flex-wrap items-center gap-2 border-t border-ink-100 pt-3">
+        <span className="text-[10.5px] text-ink-400">
+          <span className="text-brand">✦</span> Write it for me uses
+        </span>
+        <select value={template} onChange={(e) => setTemplate(e.target.value)} className={`${select} w-auto min-w-0 flex-1`}>
+          {TEMPLATES[type].map((x) => (
+            <option key={x}>{x}</option>
           ))}
-        </div>
-      </Setting>
-
-      <div className="border-t border-ink-100 pt-3">
-        <div className="mb-2 text-[10.5px] text-ink-400">Used when ✦ writes the prompt for you</div>
-        <div className="grid grid-cols-2 gap-2">
-          <select
-            value={template}
-            onChange={(e) => setTemplate(e.target.value)}
-            className="h-8 rounded-lg border border-ink-200 bg-white px-2 text-[11.5px] text-ink-700 focus:outline-none focus:border-brand"
-          >
-            {TEMPLATES[type].map((x) => (
-              <option key={x}>{x}</option>
-            ))}
-          </select>
-          <select
-            value={style}
-            onChange={(e) => setStyle(e.target.value)}
-            className="h-8 rounded-lg border border-ink-200 bg-white px-2 text-[11.5px] text-ink-700 focus:outline-none focus:border-brand"
-          >
-            {STYLES.map((x) => (
-              <option key={x}>{x}</option>
-            ))}
-          </select>
-        </div>
+        </select>
+        <select value={style} onChange={(e) => setStyle(e.target.value)} className={`${select} w-auto min-w-0 flex-1`}>
+          {STYLES.map((x) => (
+            <option key={x}>{x}</option>
+          ))}
+        </select>
       </div>
     </div>
   )

@@ -30,6 +30,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app import billing
 from app.config import get_settings
 from app.database import SessionLocal, get_db
 from app.media import read_media, store_blob
@@ -424,6 +425,8 @@ class VideoJobOut(BaseModel):
     queued_ahead: int = 0
     rendered_at: str | None = None
     video: VideoRef | None = None
+    # Estimated cost (USD) of this job — charged to the workspace's AI credit.
+    cost_usd: float = 0.0
 
 
 def _out(job: GenerationJob, video: Video | None, queued_ahead: int = 0) -> VideoJobOut:
@@ -444,6 +447,7 @@ def _out(job: GenerationJob, video: Video | None, queued_ahead: int = 0) -> Vide
             else None
         ),
         video=VideoRef(id=video.id, url=video.url, filename=video.filename) if video else None,
+        cost_usd=round(billing.job_cost(job), 4) if job.status == "succeeded" else 0.0,
     )
 
 
@@ -533,6 +537,7 @@ def advance_video(db: Session, job_id: int) -> GenerationJob | None:
     job.output_tokens = usage.get("output", 0)
     job.total_tokens = usage.get("total", 0)
     db.commit()
+    billing.charge_job(job)
     _ready_push(job)
     return job
 
@@ -549,6 +554,7 @@ def create_video(
     s = get_settings()
     seconds = max(3, min(payload.seconds, s.video_max_seconds))
     ratio = payload.aspect_ratio if payload.aspect_ratio in _DIMS else "9:16"
+    billing.require(ws, billing.video_cost(s.video_provider, seconds), db)
     try:
         provider, provider_job_id = start_job(payload.prompt, ratio, seconds)
     except VideoGenError as exc:
@@ -622,6 +628,7 @@ def create_image(
     if not s.image_generation_enabled:
         raise HTTPException(503, "Image generation is turned off (IMAGE_GENERATION_ENABLED=false).")
 
+    billing.require(ws, billing.IMAGE_HOLD, db)
     reference: bytes | None = None
     if payload.reference_url:
         reference = read_media(payload.reference_url)
@@ -689,6 +696,7 @@ def _render_image(job_id: int, reference: bytes | None) -> None:
         job.error = ""
         job.input_tokens, job.output_tokens, job.total_tokens = usage["input"], usage["output"], usage["total"]
         db.commit()
+        billing.charge_job(job)
         _ready_push(job)
     finally:
         db.close()

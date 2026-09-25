@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Brand, LoginEvent, TeamMember, Workspace
 from app.schemas import AuthOut, LoginIn, RegisterIn, UserOut, WorkspaceUpdate
+from app import sessions
 from app.security import create_token, hash_password, verify_password
 from app.tenancy import MANAGER_ROLES, get_current_user, require_manager
 
@@ -68,7 +69,9 @@ def register(payload: RegisterIn, request: Request, db: Session = Depends(get_db
     db.commit()
     db.refresh(user)
     record_login(db, request, email, "signup", user)
-    return AuthOut(token=create_token(user.id), user=_user_out(db, user))
+    token = create_token(user.id)
+    sessions.start(token, user, request)
+    return AuthOut(token=token, user=_user_out(db, user))
 
 
 @router.post("/login", response_model=AuthOut)
@@ -90,7 +93,9 @@ def login(payload: LoginIn, request: Request, db: Session = Depends(get_db)):
     if not user.is_active:
         fail("disabled", 403, "This account is disabled.")
     record_login(db, request, email, "success", user)
-    return AuthOut(token=create_token(user.id), user=_user_out(db, user))
+    token = create_token(user.id)
+    sessions.start(token, user, request)
+    return AuthOut(token=token, user=_user_out(db, user))
 
 
 # ── Security: sign-in history ─────────────────────────────────────────────

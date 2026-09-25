@@ -42,10 +42,6 @@
     @apply m-0 p-0 bg-ink-50 text-ink-900 antialiased;
     font-family: 'Inter', 'Khmer OS Siemreap', system-ui, sans-serif;
   }
-  /* Keep the scrollbar's space reserved, so a page that is exactly one
-     screen tall (AI Agent) can't flicker a scrollbar in and out — which
-     nudged the whole layout sideways while its fade-in ran. */
-  html { scrollbar-gutter: stable; }
   * { @apply box-border; }
   button, input, select, textarea { @apply font-[inherit] text-[inherit]; }
   /* No drag-to-resize corner anywhere — text boxes grow with their content
@@ -54,19 +50,10 @@
   :focus-visible { @apply outline-2 outline-offset-2 outline-brand/50 rounded; }
 }
 
-/* Ultra-thin scrollbars everywhere */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(100, 110, 125, 0.28) transparent;
-}
-*::-webkit-scrollbar { width: 1px; height: 1px; }
-*::-webkit-scrollbar-track { background: transparent; }
-*::-webkit-scrollbar-thumb { background: rgba(100, 110, 125, 0.3); border-radius: 1px; }
-*::-webkit-scrollbar-thumb:hover { background: rgba(100, 110, 125, 0.55); }
-*::-webkit-scrollbar-corner { background: transparent; }
-
-.side-scroll { scrollbar-width: none; }
-.side-scroll::-webkit-scrollbar { width: 0; height: 0; }
+/* No visible scrollbars anywhere (the user's preference) — everything still
+   scrolls with the wheel, trackpad, touch and keyboard. */
+* { scrollbar-width: none; }
+*::-webkit-scrollbar { display: none; width: 0; height: 0; }
 
 select {
   appearance: none;

@@ -31,6 +31,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app import billing
 from app.content_ai import ContentAIError, fact_check, generate_ideas
 from app.content_scheduler import (
     PHNOM_PENH,
@@ -161,6 +162,7 @@ def _free_days(db: Session, brand_id: int, start: date) -> list[date]:
 def build_plan(db: Session, brand_id: int, starts_on: date | None = None, step=lambda _p, _s: None) -> WeeklyPlan:
     """Write a fresh plan for the 7 days from ``starts_on`` (default tomorrow),
     replacing this brand's un-approved one. Raises ContentAIError."""
+    billing.bind_brand(brand_id)  # often runs in a worker thread: charge the brand's workspace
     brand = db.get(Brand, brand_id)
     automation = db.scalar(select(Automation).where(Automation.brand_id == brand_id))
     if brand is None or automation is None:
@@ -302,6 +304,7 @@ def _build_job(brand_id: int) -> None:
 
 def _media_job(brand_id: int, draft_ids: list[int]) -> None:
     """Make an image for each approved plan draft, then schedule it on its day."""
+    billing.bind_brand(brand_id)
     db = SessionLocal()
     pool = ThreadPoolExecutor(max_workers=_MAX_PARALLEL_MEDIA, thread_name_prefix="weekly-media")
     try:

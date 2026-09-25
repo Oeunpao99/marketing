@@ -12,6 +12,7 @@ import json
 
 import httpx
 
+from app import billing
 from app.config import get_settings
 from app.models import Product
 
@@ -114,6 +115,10 @@ def _chat(messages: list[dict], model: str, max_tokens: int = 4000) -> dict:
     cfg = get_settings()
     if not cfg.azure_openai_api_key or not cfg.azure_openai_endpoint:
         raise ContentAIError("AI service is not configured.")
+    try:
+        billing.require_current()
+    except billing.OutOfCredit as exc:
+        raise ContentAIError(str(exc)) from exc
     url = f"{cfg.azure_openai_endpoint.rstrip('/')}/chat/completions"
     try:
         resp = httpx.post(
@@ -141,10 +146,20 @@ def _chat(messages: list[dict], model: str, max_tokens: int = 4000) -> dict:
             pass
         raise ContentAIError(f"AI service error: {detail}")
     try:
-        content = resp.json()["choices"][0]["message"]["content"].strip()
+        data = resp.json()
+        billing.charge_text(data.get("model") or model, data.get("usage"), _note(messages))
+        content = data["choices"][0]["message"]["content"].strip()
         return json.loads(content)
     except (KeyError, IndexError, AttributeError, ValueError) as exc:
         raise ContentAIError("AI service returned an unexpected response.") from exc
+
+
+def _note(messages: list[dict]) -> str:
+    """A short "what was this for" line for the credit ledger: the start of
+    the system prompt's first sentence."""
+    system = next((m.get("content") for m in messages if m.get("role") == "system"), "") or ""
+    first = str(system).strip().split("\n")[0].split(". ")[0]
+    return f"AI writing: {first[:120]}" if first else "AI writing"
 
 
 POLISH_PROMPT = (

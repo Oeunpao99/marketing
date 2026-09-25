@@ -108,7 +108,14 @@ def _generate_media_for(
     from app.media import store_blob
     from app.models import GenerationJob
 
+    from app import billing
+
     prompt = image_prompt_for_idea(brand.name, brand.lang, idea, products)
+    try:
+        billing.require(brand.workspace_id, billing.IMAGE_HOLD)
+    except billing.OutOfCredit:
+        log.info("auto-media skipped for brand %s: out of AI credit", brand.id)
+        return None
     try:
         with video_gen.image_slot():
             provider, blob, usage = video_gen.generate_image(prompt, "9:16")
@@ -148,6 +155,7 @@ def _generate_media_for(
         db.flush()
         job.video_id = v.id
         db.commit()
+        billing.charge_job(job)
         db.refresh(v)
         return v.id
     finally:
@@ -360,6 +368,9 @@ def run_automation(
     ).scalar_one_or_none()
     if automation is None:
         raise ContentAIError(f"Automation {automation_id} not found.")
+    from app.billing import bind_brand
+
+    bind_brand(automation.brand_id)  # this batch's AI calls are the brand's workspace's
 
     today = _today()
     if automation.last_run_on == today:

@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app import billing
 from app.config import get_settings
 from app.database import get_db
 from app.models import Brand, Product
@@ -173,6 +174,7 @@ def build_prompt(req: PromptRequest, db: Session = Depends(get_db), ws: int = De
         else []
     )
 
+    billing.require(ws)
     base = cfg.azure_openai_endpoint.rstrip("/")
     url = f"{base}/chat/completions"
     body = {
@@ -212,6 +214,7 @@ def build_prompt(req: PromptRequest, db: Session = Depends(get_db), ws: int = De
         raise HTTPException(502, "AI service returned an empty prompt.")
 
     usage = data.get("usage") or {}
+    billing.charge_text(data.get("model") or cfg.azure_openai_deployment, usage, "AI writing: prompt for an image / video")
     return PromptResponse(
         prompt=content,
         model=data.get("model", cfg.azure_openai_deployment),

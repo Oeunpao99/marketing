@@ -4,7 +4,9 @@ import {
   FiAlertTriangle,
   FiBell,
   FiBriefcase,
+  FiCalendar,
   FiCheck,
+  FiCreditCard,
   FiDroplet,
   FiLock,
   FiLogOut,
@@ -25,6 +27,7 @@ import { ACCENTS, applyAccent, DEFAULT_ACCENT, normalizeAccent } from '../../lib
 import { promptInstall, useInstallState } from '../../lib/pwa'
 import { APP_VERSION, applyUpdate, latestVersion } from '../../lib/update'
 import { TZ } from '../../lib/tz'
+import { fmtUSD } from '../../lib/money'
 
 // Settings — every control here is real and saves to the backend
 // (app/auth.py): profile, password, workspace name, and the team (add people
@@ -38,6 +41,7 @@ const TABS = [
   { id: 'security', label: 'Security', icon: FiLock },
   { id: 'workspace', label: 'Workspace', icon: FiBriefcase },
   { id: 'team', label: 'Team', icon: FiUsers },
+  { id: 'billing', label: 'Billing', icon: FiCreditCard },
 ]
 
 const TIMEZONES = ['UTC+7', 'UTC+8', 'UTC+9', 'UTC+0', 'UTC-5', 'UTC-8']
@@ -51,8 +55,17 @@ const ROLE_HINT = {
 const input =
   'w-full h-10 rounded-xl border border-ink-200 bg-white px-3 text-[13px] text-ink-800 placeholder:text-ink-300 focus:outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 disabled:bg-ink-50 disabled:text-ink-500'
 
-export default function SettingsModal({ open, onClose, showToast }) {
+export default function SettingsModal({ open, onClose, showToast, initialTab = null }) {
   const [tab, setTab] = useState('profile')
+
+  useEffect(() => {
+    if (open && initialTab) setTab(initialTab)
+  }, [open, initialTab])
+
+  const activeTabRef = useRef(null)
+  useEffect(() => {
+    activeTabRef.current?.scrollIntoView({ block: 'nearest', inline: 'center' })
+  }, [tab, open])
 
   useEffect(() => {
     if (!open) return
@@ -64,11 +77,14 @@ export default function SettingsModal({ open, onClose, showToast }) {
   if (!open) return null
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-fadein">
-      <div className="fixed inset-0 glass-overlay" onClick={onClose} />
-      <div className="relative flex h-[min(620px,90vh)] w-full max-w-[820px] overflow-hidden rounded-3xl glass-panel">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      {/* A plain dim and a solid panel, no backdrop blur: blurring a page
+          that keeps animating (AI Agent renders, videos) re-blurs the whole
+          screen every frame and made this feel stuck. */}
+      <div className="fixed inset-0 bg-ink-950/40" onClick={onClose} />
+      <div className="relative animate-fadein flex h-[90dvh] w-full sm:w-[70vw] overflow-hidden rounded-3xl border border-ink-200/70 bg-white shadow-[0_24px_60px_-16px_rgba(16,24,40,0.35)]">
         {/* tabs */}
-        <nav className="hidden sm:flex w-[200px] flex-none flex-col gap-0.5 border-r border-white/60 bg-white/40 p-3">
+        <nav className="hidden sm:flex w-[200px] flex-none flex-col gap-0.5 border-r border-ink-100 bg-ink-50/70 p-3">
           <div className="px-2.5 pb-3 pt-1 text-[15px] font-bold text-ink-900">Settings</div>
           {TABS.map((t) => (
             <button
@@ -110,7 +126,7 @@ export default function SettingsModal({ open, onClose, showToast }) {
                   type="button"
                   role="tab"
                   aria-selected={tab === t.id}
-                  ref={(el) => tab === t.id && el?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' })}
+                  ref={tab === t.id ? activeTabRef : null}
                   onClick={() => setTab(t.id)}
                   className={`flex flex-none items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-1.5 text-[12.5px] font-semibold transition-colors ${
                     tab === t.id ? 'bg-brand text-white shadow-sm' : 'bg-white/70 text-ink-600 ring-1 ring-ink-200'
@@ -130,6 +146,7 @@ export default function SettingsModal({ open, onClose, showToast }) {
             {tab === 'security' && <SecurityTab showToast={showToast} onClose={onClose} />}
             {tab === 'workspace' && <WorkspaceTab showToast={showToast} />}
             {tab === 'team' && <TeamTab showToast={showToast} />}
+            {tab === 'billing' && <BillingTab />}
           </div>
         </div>
       </div>
@@ -498,66 +515,158 @@ function PushSection({ showToast }) {
 // ── Security ──────────────────────────────────────────────────────────────
 function SecurityTab({ showToast, onClose }) {
   const { user, logout } = useAuth()
-  const [form, setForm] = useState({ current: '', next: '', confirm: '' })
-  const [saving, setSaving] = useState(false)
-  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
-  const mismatch = form.confirm && form.next !== form.confirm
-  const ready = form.current && form.next.length >= 8 && form.next === form.confirm
 
-  const save = async () => {
-    if (!ready) return
-    setSaving(true)
-    try {
-      await api.post('/auth/password', { current_password: form.current, new_password: form.next })
-      setForm({ current: '', next: '', confirm: '' })
-      showToast('Password changed')
-    } catch (e) {
-      showToast(e.message)
-    } finally {
-      setSaving(false)
-    }
+  const signOut = async () => {
+    // End this session on the server too, so the token stops working even if copied.
+    await api.post('/auth/logout').catch(() => {})
+    onClose()
+    logout()
+    showToast('Signed out')
   }
 
   return (
     <div className="space-y-8">
-      <section className="space-y-4">
-        <SectionTitle title="Change password" sub="At least 8 characters." />
-        <Row label="Current password">
-          <input type="password" autoComplete="current-password" value={form.current} onChange={set('current')} className={input} />
-        </Row>
-        <Row label="New password">
-          <input type="password" autoComplete="new-password" value={form.next} onChange={set('next')} className={input} />
-        </Row>
-        <Row label="Confirm new password" hint={mismatch ? <span className="text-red-600">Passwords don’t match</span> : null}>
-          <input type="password" autoComplete="new-password" value={form.confirm} onChange={set('confirm')} className={input} />
-        </Row>
-        <div className="flex justify-end">
-          <button type="button" onClick={save} disabled={!ready || saving} className="btn-primary disabled:opacity-50">
-            {saving ? 'Saving…' : 'Change password'}
-          </button>
-        </div>
-      </section>
+      <ActiveSessions showToast={showToast} />
 
       <LoginHistory />
 
-      <section className="rounded-2xl border border-ink-200 p-4 flex items-center gap-3">
+      <section className="flex items-center gap-3 border-t border-ink-100 pt-5">
         <div className="min-w-0 flex-1">
           <div className="text-[13px] font-semibold text-ink-800">Signed in as {user?.name}</div>
           <div className="truncate text-[12px] text-ink-500">{user?.email}</div>
         </div>
         <button
           type="button"
-          onClick={() => {
-            onClose()
-            logout()
-            showToast('Signed out')
-          }}
+          onClick={signOut}
           className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2 text-[12.5px] font-semibold text-red-700 hover:bg-red-100"
         >
           <FiLogOut size={14} /> Sign out
         </button>
       </section>
     </div>
+  )
+}
+
+// Signed-in devices (app/sessions.py): this one first, then the rest by last
+// activity; any other device can be signed out from here.
+const sessionTime = (iso) =>
+  new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+
+function ActiveSessions({ showToast }) {
+  const [rows, setRows] = useState(null)
+  const [busy, setBusy] = useState('')
+
+  const load = () =>
+    api
+      .get('/auth/security/sessions')
+      .then(setRows)
+      .catch(() => setRows([]))
+  useEffect(() => {
+    load()
+  }, [])
+
+  const signOutOne = async (s) => {
+    setBusy(s.id)
+    try {
+      await api.del(`/auth/security/sessions/${s.id}`)
+      setRows((list) => list.filter((x) => x.id !== s.id))
+      showToast(`Signed out ${s.device}`)
+    } catch (e) {
+      showToast(`Couldn’t sign out — ${e.message}`)
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const signOutOthers = async () => {
+    setBusy('others')
+    try {
+      const r = await api.post('/auth/security/sessions/sign-out-others')
+      setRows((list) => list.filter((x) => x.current))
+      showToast(r.signed_out ? `Signed out ${r.signed_out} other device${r.signed_out === 1 ? '' : 's'}` : 'No other devices')
+    } catch (e) {
+      showToast(`Couldn’t sign out — ${e.message}`)
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const others = (rows || []).filter((r) => !r.current).length
+  const mobile = (device) => /android|iphone|ipad/i.test(device)
+
+  return (
+    <section>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <SectionTitle title="Active sessions" sub="Devices signed in to your account right now." />
+        {others > 0 && (
+          <button
+            type="button"
+            onClick={signOutOthers}
+            disabled={!!busy}
+            className="text-[12px] font-semibold text-red-600 hover:underline disabled:opacity-50"
+          >
+            {busy === 'others' ? 'Signing out…' : 'Sign out all other devices'}
+          </button>
+        )}
+      </div>
+
+      {rows === null ? (
+        <div className="mt-3 space-y-2">
+          <div className="h-10 rounded-lg skeleton" />
+          <div className="h-10 rounded-lg skeleton" />
+        </div>
+      ) : rows.length === 0 ? (
+        <p className="mt-3 text-[12.5px] text-ink-500">No active sessions.</p>
+      ) : (
+        <div className="mt-3">
+          <div className="hidden md:grid grid-cols-[minmax(0,1.3fr)_minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_5.5rem] gap-4 border-b border-ink-100 pb-2 text-[11.5px] font-medium text-ink-400">
+            <span>Device</span>
+            <span>Location</span>
+            <span>Created</span>
+            <span>Updated</span>
+            <span />
+          </div>
+          <div className="divide-y divide-ink-100">
+            {rows.map((r) => {
+              const Icon = mobile(r.device) ? FiSmartphone : FiMonitor
+              return (
+                <div
+                  key={r.id}
+                  className="grid grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1.3fr)_minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_5.5rem] items-center gap-x-4 gap-y-0.5 py-3 text-[12.5px]"
+                >
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Icon size={14} className="flex-none text-ink-400" />
+                    <div className="min-w-0">
+                      <div className="truncate font-medium text-ink-800">{r.device}</div>
+                      {r.current && <div className="text-[11px] font-semibold text-brand">Current</div>}
+                    </div>
+                  </div>
+                  <span className="hidden md:block truncate text-ink-600" title={r.ip}>{r.location}</span>
+                  <span className="hidden md:block text-ink-600">{sessionTime(r.created_at)}</span>
+                  <span className="hidden md:block text-ink-600">{sessionTime(r.last_seen_at)}</span>
+                  <div className="row-span-2 md:row-span-1 text-right">
+                    {!r.current && (
+                      <button
+                        type="button"
+                        onClick={() => signOutOne(r)}
+                        disabled={!!busy}
+                        className="rounded-lg px-2.5 py-1 text-[12px] font-semibold text-ink-600 ring-1 ring-ink-200 hover:bg-red-50 hover:text-red-700 hover:ring-red-200 disabled:opacity-50"
+                      >
+                        {busy === r.id ? '…' : 'Sign out'}
+                      </button>
+                    )}
+                  </div>
+                  {/* phones: the details under the device name */}
+                  <div className="md:hidden col-start-1 truncate pl-[22px] text-[11px] text-ink-400">
+                    {r.location} · active {sessionTime(r.last_seen_at)}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </section>
   )
 }
 
@@ -683,11 +792,13 @@ function WorkspaceTab({ showToast }) {
   const { user, renameWorkspace } = useAuth()
   const canManage = user?.role === 'owner' || user?.role === 'admin'
   const [info, setInfo] = useState(null)
+  const [plan, setPlan] = useState('')
   const [name, setName] = useState(user?.workspace_name || '')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     api.get('/auth/workspace').then(setInfo).catch(() => setInfo(null))
+    api.get('/billing/summary').then((b) => setPlan(b.plan_label)).catch(() => {})
   }, [])
 
   const dirty = name.trim() && name.trim() !== user?.workspace_name
@@ -703,30 +814,258 @@ function WorkspaceTab({ showToast }) {
     }
   }
 
-  return (
-    <div className="space-y-6">
-      <Row
-        label="Workspace name"
-        hint={canManage ? 'Your company or agency — shown in the sidebar.' : 'Only an owner or admin can rename it.'}
-      >
-        <input value={name} disabled={!canManage} onChange={(e) => setName(e.target.value)} className={input} />
-      </Row>
-      {canManage && <SaveBar dirty={!!dirty} saving={saving} onSave={save} onReset={() => setName(user?.workspace_name || '')} />}
+  const shown = (dirty ? name : user?.workspace_name) || 'Workspace'
+  const initials = shown
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join('')
+  const created = info ? new Date(info.created_at) : null
 
-      <div className="grid grid-cols-3 gap-2 sm:gap-3">
-        <Stat label="Brands" value={info?.brands} />
-        <Stat label="Members" value={info?.members} />
-        <Stat
-          label="Created"
-          value={info ? new Date(info.created_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : null}
-          sub={info ? new Date(info.created_at).getFullYear() : null}
+  return (
+    <div className="space-y-7">
+      {/* identity */}
+      <section className="flex items-center gap-4">
+        <span className="grid h-14 w-14 flex-none place-items-center rounded-2xl bg-gradient-to-br from-brand to-brand-dark text-[18px] font-bold text-white shadow-[0_8px_20px_rgb(var(--brand)/0.25)]">
+          {initials}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="truncate text-[17px] font-bold text-ink-900">{user?.workspace_name}</h3>
+            {plan && (
+              <span className="rounded-full bg-brand-soft px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wide text-brand">{plan}</span>
+            )}
+          </div>
+          <p className="mt-0.5 text-[12.5px] text-ink-500">
+            {created ? `Created ${created.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}` : ' '}
+            {user?.role ? ` · You’re ${ROLE_LABEL[user.role] ? `an ${ROLE_LABEL[user.role].toLowerCase()}` : user.role}` : ''}
+          </p>
+        </div>
+      </section>
+
+      {/* name */}
+      <section>
+        <label className="block">
+          <span className="text-[13px] font-semibold text-ink-900">Workspace name</span>
+          <span className="mt-0.5 block text-[12px] text-ink-500">
+            {canManage ? 'Your company or agency — shown in the sidebar.' : 'Only an owner or admin can rename it.'}
+          </span>
+          <div className="mt-2 flex gap-2">
+            <input
+              value={name}
+              disabled={!canManage}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && dirty && !saving && save()}
+              className={`${input} flex-1`}
+            />
+            {canManage && dirty && (
+              <>
+                <button type="button" onClick={() => setName(user?.workspace_name || '')} className="btn-ghost">
+                  Cancel
+                </button>
+                <button type="button" onClick={save} disabled={saving} className="btn-primary">
+                  {saving ? 'Saving…' : 'Save'}
+                </button>
+              </>
+            )}
+          </div>
+        </label>
+      </section>
+
+      {/* at a glance */}
+      <section>
+        <h3 className="text-[13px] font-semibold text-ink-900">At a glance</h3>
+        <div className="mt-2 grid grid-cols-3 divide-x divide-ink-100 rounded-2xl border border-ink-200">
+          {[
+            { icon: FiBriefcase, label: 'Brands', value: info?.brands },
+            { icon: FiUsers, label: 'Members', value: info?.members },
+            {
+              icon: FiCalendar,
+              label: 'Created',
+              value: created ? created.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : null,
+              sub: created ? created.getFullYear() : null,
+            },
+          ].map((stat) => (
+            <div key={stat.label} className="min-w-0 px-4 py-3.5">
+              <div className="flex items-center gap-1.5 text-[11.5px] text-ink-500">
+                <stat.icon size={12} /> {stat.label}
+              </div>
+              <div className="mt-1 truncate text-[20px] font-bold tabular-nums text-ink-900">
+                {stat.value ?? '—'}
+                {stat.sub != null && <span className="ml-1.5 text-[12px] font-medium text-ink-400">{stat.sub}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* privacy */}
+      <section className="flex items-start gap-3 rounded-2xl bg-ink-50 px-4 py-3.5">
+        <FiLock size={15} className="mt-0.5 flex-none text-ink-500" />
+        <p className="text-[12.5px] leading-relaxed text-ink-600">
+          <span className="font-semibold text-ink-800">Private to this workspace.</span> Brands, channels, posts, media and AI
+          chats belong to this workspace and are invisible to every other account.
+        </p>
+      </section>
+    </div>
+  )
+}
+
+// ── Billing ───────────────────────────────────────────────────────────────
+// The workspace's monthly AI credit (app/billing.py): what's left, where it
+// went, and every recent spend. Costs are estimates of the providers' prices.
+const KIND_ORDER = [
+  { kind: 'video', label: 'Videos' },
+  { kind: 'image', label: 'Images' },
+  { kind: 'text', label: 'AI writing' },
+]
+
+function usageDetail(e) {
+  if (e.kind === 'video' && e.seconds) return `${e.seconds}s clip`
+  if (e.tokens) return `${e.tokens.toLocaleString()} tokens`
+  return ''
+}
+
+// A label, a thin bar and a figure on the right — one row of usage.
+// tone: 'brand' (normal) | 'warn' (running low) | 'danger' (used up)
+function UsageBar({ label, pct, right, tone = 'brand' }) {
+  return (
+    <div className="grid grid-cols-[minmax(0,7.5rem)_1fr_auto] items-center gap-4 py-2">
+      <span className="truncate text-[13px] text-ink-800">{label}</span>
+      <div className="h-1.5 overflow-hidden rounded-full bg-ink-100">
+        <div
+          className={`h-full rounded-full transition-[width,background-color] duration-500 ${
+            tone === 'danger' ? 'bg-red-500' : tone === 'warn' ? 'bg-amber-500' : 'bg-brand'
+          }`}
+          style={{ width: `${Math.max(0, Math.min(100, pct))}%` }}
         />
       </div>
+      <span className="min-w-[3.5rem] text-right text-[12.5px] tabular-nums text-ink-600">{right}</span>
+    </div>
+  )
+}
 
-      <p className="rounded-xl bg-brand-soft/50 px-4 py-3 text-[12px] leading-relaxed text-ink-600">
-        Everything in ContentFlow — brands, channels, posts, media and AI chats — belongs to this workspace and is
-        invisible to every other account.
-      </p>
+function BillingTab() {
+  const [data, setData] = useState(null)
+  const [error, setError] = useState('')
+  const [loadedAt, setLoadedAt] = useState(null)
+
+  const load = () =>
+    api
+      .get('/billing')
+      .then((d) => {
+        setData(d)
+        setError('')
+        setLoadedAt(new Date())
+      })
+      .catch((e) => setError(e.message))
+  useEffect(() => {
+    load()
+  }, [])
+
+  if (!data) {
+    return error ? (
+      <div className="rounded-xl bg-red-50 px-4 py-3 text-[12.5px] text-red-700">Couldn’t load billing — {error}</div>
+    ) : (
+      <div className="space-y-3">
+        <div className="h-16 rounded-xl skeleton" />
+        <div className="h-32 rounded-xl skeleton" />
+      </div>
+    )
+  }
+
+  const credit = data.monthly_credit || 0
+  const left = Math.max(0, data.available)
+  const usedPct = credit > 0 ? Math.round(((credit - left) / credit) * 100) : 0
+  const tone = left <= 0 ? 'danger' : usedPct >= 80 ? 'warn' : 'brand'
+  const toneText = { danger: 'text-red-600', warn: 'text-amber-600', brand: 'text-brand' }[tone]
+  const reset = new Date(data.resets_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  const byKind = Object.fromEntries(data.breakdown.map((b) => [b.kind, b]))
+  const totalSpent = data.breakdown.reduce((sum, b) => sum + Math.max(0, b.amount), 0)
+
+  return (
+    <div className="space-y-7">
+      {/* this month */}
+      <section>
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="text-[15px] font-bold text-ink-900">Monthly AI credit</h3>
+          <span className="rounded-full bg-brand-soft px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wide text-brand">
+            {data.plan_label} plan
+          </span>
+        </div>
+        <p className="mt-2 flex flex-wrap items-baseline gap-x-1.5 text-[13px] text-ink-600">
+          <span className={`text-[22px] font-bold tabular-nums tracking-tight ${toneText}`}>
+            {fmtUSD(left)}
+          </span>
+          <span>left of {fmtUSD(credit)}</span>
+          <span className="text-ink-300">·</span>
+          <span className="text-[15px] font-bold tabular-nums text-ink-900">{fmtUSD(data.spent)}</span>
+          <span>used this month</span>
+        </p>
+        <p className="mt-0.5 text-[12px] text-ink-500">
+          Refills on {reset}. AI pauses at $0 — posting and scheduling keep working.
+          {data.pending > 0 ? ` ${fmtUSD(data.pending)} is held for renders in progress.` : ''}
+        </p>
+        <div className="mt-2">
+          <UsageBar label="Credit used" pct={usedPct} right={`${usedPct}%`} tone={tone} />
+        </div>
+      </section>
+
+      {/* by type */}
+      <section>
+        <h3 className="text-[15px] font-bold text-ink-900">This month’s usage by type</h3>
+        <div className="mt-2">
+          {KIND_ORDER.map(({ kind, label }) => {
+            const b = byKind[kind]
+            const share = totalSpent > 0 && b ? Math.round((b.amount / totalSpent) * 100) : 0
+            return <UsageBar key={kind} label={label} pct={share} right={`${share}%`} />
+          })}
+        </div>
+      </section>
+
+      {/* recent spends */}
+      <section>
+        <h3 className="text-[15px] font-bold text-ink-900">Recent activity</h3>
+        {data.recent.length === 0 ? (
+          <p className="mt-2 text-[12.5px] text-ink-500">No AI used yet this month.</p>
+        ) : (
+          <div className="mt-2 divide-y divide-ink-100">
+            {data.recent.map((e) => {
+              const detail = [e.model, usageDetail(e), e.user].filter(Boolean).join(' · ')
+              return (
+                <div key={e.id} className="flex items-baseline gap-4 py-2.5">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[12.5px] text-ink-800" title={e.note}>
+                      {e.note || e.label}
+                    </div>
+                    <div className="truncate text-[11px] text-ink-400">
+                      {loginTime(e.created_at)}
+                      {detail ? ` · ${detail}` : ''}
+                    </div>
+                  </div>
+                  <span className={`flex-none text-[12.5px] tabular-nums ${e.amount < 0 ? 'text-emerald-600' : 'text-ink-700'}`}>
+                    {e.amount < 0 ? `+${fmtUSD(-e.amount)}` : `-${fmtUSD(e.amount)}`}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </section>
+
+      <div className="space-y-2 text-[12px] text-ink-500">
+        <div className="flex items-center gap-2">
+          Last updated: {loadedAt ? loadedAt.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : '—'}
+          <button type="button" onClick={load} className="rounded p-1 text-ink-500 hover:text-ink-900" title="Refresh" aria-label="Refresh">
+            <FiRefreshCw size={13} />
+          </button>
+        </div>
+        <p>
+          Costs are estimates from each AI provider’s prices (tokens for writing and images, seconds for video), so they can
+          differ slightly from the final bill. Unused credit doesn’t roll over.
+        </p>
+      </div>
     </div>
   )
 }
@@ -976,18 +1315,6 @@ function SaveBar({ dirty, saving, onSave, onReset }) {
       <button type="button" onClick={onSave} disabled={!dirty || saving} className="btn-primary disabled:opacity-50">
         {saving ? 'Saving…' : 'Save changes'}
       </button>
-    </div>
-  )
-}
-
-function Stat({ label, value, sub }) {
-  return (
-    <div className="min-w-0 rounded-xl border border-ink-200 bg-white/60 px-3 py-3 sm:px-4">
-      <div className="text-[11px] text-ink-500">{label}</div>
-      <div className="mt-0.5 truncate text-[16px] sm:text-[17px] font-bold text-ink-900">
-        {value ?? '—'}
-        {sub != null && <span className="ml-1 text-[11px] font-medium text-ink-400">{sub}</span>}
-      </div>
     </div>
   )
 }

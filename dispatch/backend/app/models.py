@@ -16,6 +16,7 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     LargeBinary,
+    Numeric,
     String,
     Text,
     Time,
@@ -52,6 +53,40 @@ class Workspace(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(120))
+    # Billing plan (app/billing.py): "pro" gets PLAN_CREDIT["pro"] of AI credit
+    # a month. Not editable through any API yet — there's no payment system.
+    plan: Mapped[str] = mapped_column(String(20), default="pro", server_default="pro")
+
+
+class CreditEntry(Base):
+    """One line of a workspace's AI-credit ledger (app/billing.py): a spend
+    (negative ``amount_usd``, estimated from the provider's tokens / seconds)
+    or a grant (positive). The balance is the plan's monthly credit plus the
+    sum of this month's entries, so it refills on the 1st with no cron job.
+    Deliberately not in app/registry.py — nobody edits credit over the API."""
+
+    __tablename__ = "credit_entries"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(
+        ForeignKey("workspaces.id", ondelete="CASCADE"), index=True
+    )
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("team_members.id", ondelete="SET NULL"), nullable=True
+    )
+    # "text" | "image" | "video" | "grant"
+    kind: Mapped[str] = mapped_column(String(12))
+    amount_usd: Mapped[float] = mapped_column(Numeric(12, 6))
+    model: Mapped[str] = mapped_column(String(80), default="", server_default="")
+    tokens: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    seconds: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    note: Mapped[str] = mapped_column(String(300), default="", server_default="")
+    job_id: Mapped[int | None] = mapped_column(
+        ForeignKey("generation_jobs.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
 
 
 class Brand(Base, TimestampMixin):
@@ -373,6 +408,34 @@ class PushSubscription(Base, TimestampMixin):
     p256dh: Mapped[str] = mapped_column(String(200))
     auth: Mapped[str] = mapped_column(String(100))
     user_agent: Mapped[str] = mapped_column(String(300), default="", server_default="")
+
+
+class UserSession(Base):
+    """One signed-in device (app/sessions.py) — Settings → Security → Active
+    sessions. Keyed by a SHA-256 of the session token (never the token
+    itself); a row with ``revoked_at`` set turns that token away, which is how
+    "Sign out" on another device works. Not in app/registry.py."""
+
+    __tablename__ = "user_sessions"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)  # sha256(token) hex
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("team_members.id", ondelete="CASCADE"), index=True
+    )
+    workspace_id: Mapped[int] = mapped_column(
+        ForeignKey("workspaces.id", ondelete="CASCADE"), index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    ip: Mapped[str] = mapped_column(String(64), default="", server_default="")
+    user_agent: Mapped[str] = mapped_column(String(300), default="", server_default="")
+    # "Phnom Penh, Phnom Penh, KH" — looked up once from the IP (ipwho.is).
+    location: Mapped[str] = mapped_column(String(160), default="", server_default="")
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class LoginEvent(Base):

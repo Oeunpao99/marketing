@@ -65,6 +65,7 @@ export default function Sidebar({ collapsed = false }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [brandOpen, setBrandOpen] = useState(false);
   const [brandQuery, setBrandQuery] = useState("");
@@ -82,7 +83,10 @@ export default function Sidebar({ collapsed = false }) {
 
   useEffect(() => {
     const open = () => setSearchOpen(true);
-    const openSettings = () => setSettingsOpen(true);
+    const openSettings = (event) => {
+      setSettingsTab(event?.detail?.tab || null);
+      setSettingsOpen(true);
+    };
     const onKeyDown = (event) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
@@ -488,7 +492,7 @@ export default function Sidebar({ collapsed = false }) {
         </div>
       </div>
 
-      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} showToast={showToast} />
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} showToast={showToast} initialTab={settingsTab} />
       <Notifications open={notifOpen} onClose={() => setNotifOpen(false)} anchor={collapsed ? "rail" : "bottom"} />
       <SearchModal
         open={searchOpen}

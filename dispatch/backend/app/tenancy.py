@@ -10,7 +10,7 @@ turns that into a WHERE clause; ``owned(...)`` fetches one row or 404s — a
 
 from __future__ import annotations
 
-from fastapi import Depends, Header, HTTPException
+from fastapi import Depends, Header, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -19,6 +19,7 @@ from app.models import (
     Automation,
     Brand,
     Channel,
+    CreditEntry,
     Draft,
     GenerationJob,
     Platform,
@@ -36,6 +37,7 @@ MANAGER_ROLES = {"owner", "admin"}
 
 
 def get_current_user(
+    request: Request,
     authorization: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ) -> TeamMember:
@@ -48,6 +50,11 @@ def get_current_user(
     user = db.get(TeamMember, user_id)
     if user is None or not user.is_active:
         raise HTTPException(401, "Account not found")
+    from app import sessions  # local import: sessions imports this module
+    from app.billing import bind_user  # local import: billing imports this module
+
+    sessions.touch(db, authorization[7:].strip(), user, request)  # signed out elsewhere → 401
+    bind_user(user)  # AI calls in this request are charged to their workspace
     return user
 
 
@@ -71,7 +78,7 @@ def scope(model, ws: int):
     Returns None for shared, global tables (Platform)."""
     if model is Platform:
         return None
-    if model in (Brand, Video, GenerationJob, TeamMember, VideoStory):
+    if model in (Brand, Video, GenerationJob, TeamMember, VideoStory, CreditEntry):
         return model.workspace_id == ws
     if model in (Channel, Post, Draft, Automation, Product, WeeklyPlan):
         return model.brand_id.in_(brand_ids(ws))

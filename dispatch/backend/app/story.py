@@ -38,6 +38,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
+from app import billing
 from app.advisor import _take_quota
 from app.config import get_settings
 from app.content_ai import ContentAIError, _chat, _fix_khmer_punctuation, _product_facts
@@ -351,6 +352,8 @@ def render_story(story_id: int, db: Session = Depends(get_db), ws: int = Depends
     story = db.scalar(select(VideoStory).where(VideoStory.id == story_id).with_for_update())
     if story.status != "draft":
         raise HTTPException(409, "These clips are already being made.")
+    provider = get_settings().video_provider
+    billing.require(ws, sum(billing.video_cost(provider, s["seconds"]) for s in story.scenes), db)
     story.scenes = [{**s, "state": "pending", "job_id": None, "error": ""} for s in story.scenes]
     story.status = "rendering"
     db.commit()
@@ -471,6 +474,11 @@ def _advance(db: Session, story_id: int) -> None:
         if s["state"] != "pending":
             continue
         prompt = scene_prompt(story, n, scenes)
+        try:
+            billing.require(story.workspace_id, billing.video_cost(get_settings().video_provider, s["seconds"]), db)
+        except billing.OutOfCredit as exc:
+            s["state"], s["error"] = "failed", str(exc)
+            continue
         try:
             provider, provider_job_id = start_job(prompt, story.aspect_ratio, s["seconds"])
         except VideoGenError as exc:
