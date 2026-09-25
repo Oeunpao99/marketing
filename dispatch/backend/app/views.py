@@ -1064,7 +1064,11 @@ def linkedin_oauth_start(brand_id: int, db: Session = Depends(get_db), ws: int =
 
 @public_router.get("/oauth/linkedin/callback", include_in_schema=False)
 def linkedin_oauth_callback(
-    code: str = "", state: str = "", error: str = "", db: Session = Depends(get_db)
+    code: str = "",
+    state: str = "",
+    error: str = "",
+    error_description: str = "",
+    db: Session = Depends(get_db),
 ):
     frontend = get_settings().frontend_url.rstrip("/")
 
@@ -1075,7 +1079,13 @@ def linkedin_oauth_callback(
         return RedirectResponse(f"{frontend}/channels?{urlencode(params)}")
 
     if error:
-        return back(False, error)
+        if error == "invalid_scope_error":
+            return back(
+                False,
+                "LinkedIn app is missing a product — add “Sign In with LinkedIn using OpenID Connect” "
+                "and “Share on LinkedIn” in the developer portal.",
+            )
+        return back(False, error_description or error)
 
     try:
         payload = verify_payload(state)
