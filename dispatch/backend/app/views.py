@@ -495,6 +495,17 @@ def _post_metrics(platform_slug: str, config: dict, external_id: str, cache: "_M
                 "metrics": {"subscribers": subscribers},
                 "url": None,
             }
+        if platform_slug == "linkedin":
+            # Reading a member post's likes/comments/impressions needs LinkedIn's
+            # partner-only Community Management API — "Share on LinkedIn" can
+            # post but not read back. Link to the post so its stats are one tap away.
+            return {
+                "status": "partial",
+                "note": "LinkedIn doesn't share likes, comments or views with apps for personal "
+                "posts — open the post on LinkedIn to see them.",
+                "metrics": {},
+                "url": f"https://www.linkedin.com/feed/update/{external_id}/" if external_id else None,
+            }
         return {"status": "unavailable", "note": "No insights integration for this platform.", "metrics": {}, "url": None}
     except Exception as exc:  # noqa: BLE001 - one post's failure shouldn't blank the page
         return {"status": "unavailable", "note": str(exc), "metrics": {}, "url": None}
