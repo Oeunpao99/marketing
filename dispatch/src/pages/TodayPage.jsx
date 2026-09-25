@@ -1,11 +1,14 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useStore } from '../store'
 import DayView from '../components/today/DayView'
 import TableView from '../components/today/TableView'
 import CircularProgress from '../components/ui/CircularProgress'
+import Pager from '../components/ui/Pager'
 import { phnomPenhDay, phnomPenhDate, dayLabel, fullDayLabel } from '../lib/tz'
 import { FiCheck, FiCheckCircle, FiClock, FiEdit3, FiRefreshCw, FiSend, FiZap } from 'react-icons/fi'
+
+const PER_PAGE = 10 // queue posts per page
 
 function KpiCard({ icon: Icon, label, value, note, loading, children }) {
   return (
@@ -62,8 +65,34 @@ export default function TodayPage() {
   }, [queue])
 
   const visibleDays = day === 'all' ? days : days.filter((d) => d === day)
-  const match = (q) => day === 'all' || phnomPenhDay(q.scheduledFor) === day
+  const inDay = (q) => day === 'all' || phnomPenhDay(q.scheduledFor) === day
   const empty = queueReady && queue.length === 0
+
+  // 10 posts per page, in dispatch order. The views still get the whole queue
+  // and a `match` filter — it just also checks the post is on this page.
+  const [page, setPage] = useState(0)
+  const listRef = useRef(null)
+  // Real dispatch order = date AND time (the store's order is time-of-day
+  // only, which would mix days across pages).
+  const ordered = useMemo(
+    () =>
+      [...queue].sort(
+        (a, b) =>
+          (a.scheduledFor ? new Date(a.scheduledFor).getTime() : Infinity) -
+            (b.scheduledFor ? new Date(b.scheduledFor).getTime() : Infinity) || String(a.t).localeCompare(String(b.t)),
+      ),
+    [queue],
+  )
+  const inDayList = ordered.filter(inDay)
+  const pageCount = Math.max(1, Math.ceil(inDayList.length / PER_PAGE))
+  const current = Math.min(page, pageCount - 1) // the live refresh can shrink the list
+  const onPage = new Set(inDayList.slice(current * PER_PAGE, (current + 1) * PER_PAGE))
+  const match = (q) => onPage.has(q)
+  useEffect(() => setPage(0), [day])
+  const goToPage = (p) => {
+    setPage(Math.min(Math.max(0, p), pageCount - 1))
+    listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   return (
     <div className="w-full px-5 lg:px-8 py-7 animate-fadein">
@@ -113,7 +142,7 @@ export default function TodayPage() {
       </div>
 
       {/* Queue */}
-      <div className="bg-white rounded-2xl border border-ink-200/60 shadow-[0_1px_2px_rgba(16,24,40,0.04)] overflow-hidden">
+      <div ref={listRef} className="scroll-mt-4 bg-white rounded-2xl border border-ink-200/60 shadow-[0_1px_2px_rgba(16,24,40,0.04)] overflow-hidden">
         <header className="px-5 lg:px-7 pt-5 pb-3 flex items-center justify-between gap-3.5">
           <div>
             <h2 className="text-[15.5px] font-semibold text-ink-900 tracking-tight">Queue</h2>
@@ -200,10 +229,11 @@ export default function TodayPage() {
           <div className="px-7 py-14 text-center text-[12px] text-ink-400">
             Nothing scheduled for this day. Pick another date above.
           </div>
-        ) : view === 'table' ? (
-          <TableView queue={queue} match={match} />
         ) : (
-          <DayView queue={queue} match={match} />
+          <>
+            {view === 'table' ? <TableView queue={ordered} match={match} /> : <DayView queue={ordered} match={match} />}
+            <Pager page={current} pages={pageCount} total={inDayList.length} perPage={PER_PAGE} onPage={goToPage} />
+          </>
         )}
       </div>
     </div>
