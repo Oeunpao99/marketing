@@ -253,6 +253,7 @@ export default function InsightsPostPage() {
     { label: 'Comments', icon: FiMessageCircle, value: m.comments ?? null, average: averages.comments, tint: '#F08A5D' },
     { label: 'Shares', icon: FiShare2, value: m.shares ?? null, average: averages.shares, tint: '#86A41E' },
   ]
+  const noNumbers = metrics.every((x) => x.value == null)
 
   // Rank among same-platform posts by engagement, else per-post views. A
   // platform with neither (Telegram) can't be ranked — every post would tie.
@@ -384,6 +385,25 @@ export default function InsightsPostPage() {
             </div>
           )}
 
+          {/* Live but no numbers at all (LinkedIn personal posts): one plain
+              explanation instead of four "—" cards and empty charts. */}
+          {resolved && noNumbers ? (
+            <section className={`${card} p-6 flex flex-col items-center text-center`}>
+              <span className="w-11 h-11 rounded-xl grid place-items-center text-white" style={{ background: platColor }}>
+                <Icon size={20} />
+              </span>
+              <h2 className="mt-3 text-[15.5px] font-semibold text-ink-900 tracking-tight">This post is live on {platformName}</h2>
+              <p className="mt-1.5 max-w-md text-[12.5px] text-ink-600 leading-relaxed">
+                {post.note || `${platformName} doesn't share this post's numbers with apps.`}
+              </p>
+              {post.url && (
+                <a href={post.url} target="_blank" rel="noreferrer" className="btn-primary mt-4">
+                  See likes &amp; comments on {platformName} <FiExternalLink size={13} />
+                </a>
+              )}
+            </section>
+          ) : (
+          <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {metrics.map((x) => (
               <MetricCard key={x.label} {...x} platformName={platformName} />
@@ -458,6 +478,8 @@ export default function InsightsPostPage() {
               <p className="text-[12.5px] text-ink-500">Insights appear once this post has live numbers.</p>
             )}
           </section>
+          </>
+          )}
         </div>
       </div>
     </div>
