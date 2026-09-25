@@ -44,10 +44,13 @@ GRAPH_HOST = "https://graph.facebook.com"
 # without it Pages owned by a Business portfolio can be missing from /me/accounts.
 # Every scope here must also be added to the app (Use cases → Customize →
 # Permissions), or Facebook's dialog reports it as an "Invalid Scope".
+# pages_read_user_content: reactions + comment counts on a Page post (Graph
+# v26 refuses both without it, and refuses the old `likes` field outright).
+# read_insights: a post's views and clicks (/insights).
 SCOPES = (
     "pages_show_list,pages_read_engagement,pages_manage_posts,"
-    "pages_manage_metadata,instagram_basic,instagram_content_publish,"
-    "business_management"
+    "pages_manage_metadata,pages_read_user_content,read_insights,"
+    "instagram_basic,instagram_content_publish,business_management"
 )
 
 # In-memory holding pen between the OAuth callback and the "pick a Page"
@@ -287,30 +290,50 @@ def publish_to_instagram(token: str, ig_user_id: str, caption: str, media_url: s
 
 
 # ── insights — per-post numbers for the Insights page ────────────────────
-def page_post_insights(token: str, post_id: str) -> dict:
-    """Likes / comments / shares for one Facebook Page post (or the video
-    node when it was posted as a video — same fields apply)."""
-    _app_id, _secret, _redirect, version = _conf()
+def _graph_get(version: str, path: str, params: dict) -> dict | None:
+    """One read; None when Graph refuses it (e.g. a permission this Page's
+    token wasn't granted), so the other numbers can still be shown."""
     try:
-        resp = httpx.get(
-            f"{GRAPH_HOST}/{version}/{post_id}",
-            params={
-                "fields": "likes.summary(true).limit(0),comments.summary(true).limit(0),"
-                "shares,permalink_url",
-                "access_token": token,
-            },
-            timeout=30.0,
-        )
+        resp = httpx.get(f"{GRAPH_HOST}/{version}/{path}", params=params, timeout=30.0)
     except httpx.HTTPError as exc:
         raise MetaError(f"Could not reach Facebook: {exc}") from exc
-    if resp.status_code >= 400:
-        raise MetaError(f"Could not read that post's numbers: {_explain(resp)}")
-    body = resp.json()
+    return resp.json() if resp.status_code < 400 else None
+
+
+def page_post_insights(token: str, post_id: str) -> dict:
+    """Reactions / comments / shares / views / clicks for one Facebook Page
+    post (or the video node when it was posted as a video).
+
+    Graph v26: the old ``likes`` field is refused; reactions + comment counts
+    need pages_read_user_content; views (post_media_view) + clicks need
+    read_insights. Each read is separate and a refused one reports None ("not
+    reported") instead of failing the whole post — a Page connected before
+    those permissions were added still gets shares and its link."""
+    _app_id, _secret, _redirect, version = _conf()
+    base = _graph_get(version, post_id, {"fields": "shares,permalink_url", "access_token": token})
+    if base is None:
+        raise MetaError("Could not read that post — reconnect the Facebook channel.")
+    counts = _graph_get(
+        version,
+        post_id,
+        {"fields": "reactions.summary(total_count).limit(0),comments.summary(true).limit(0)", "access_token": token},
+    )
+    stats = _graph_get(version, f"{post_id}/insights", {"metric": "post_media_view,post_clicks", "access_token": token})
+    metric = {
+        m.get("name"): ((m.get("values") or [{}])[0].get("value"))
+        for m in ((stats or {}).get("data") or [])
+    }
+
+    def total(edge: str) -> int | None:
+        return None if counts is None else ((counts.get(edge) or {}).get("summary") or {}).get("total_count", 0)
+
     return {
-        "likes": (body.get("likes") or {}).get("summary", {}).get("total_count", 0),
-        "comments": (body.get("comments") or {}).get("summary", {}).get("total_count", 0),
-        "shares": (body.get("shares") or {}).get("count", 0),
-        "url": body.get("permalink_url"),
+        "likes": total("reactions"),  # Facebook "likes" = all reactions (👍❤️😆…)
+        "comments": total("comments"),
+        "shares": (base.get("shares") or {}).get("count", 0),
+        "views": metric.get("post_media_view"),
+        "clicks": metric.get("post_clicks"),
+        "url": base.get("permalink_url"),
     }
 
 
