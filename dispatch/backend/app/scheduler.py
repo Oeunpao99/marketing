@@ -54,8 +54,8 @@ async def _run(interval: int) -> None:
 def start(app) -> None:
     """Attach the worker task to the FastAPI app (call from lifespan startup)."""
     settings = get_settings()
-    if not settings.publish_worker_enabled:
-        log.info("delivery worker disabled (PUBLISH_WORKER_ENABLED=false)")
+    if not settings.publish_worker_enabled or settings.maintenance_mode:
+        log.info("delivery worker disabled (PUBLISH_WORKER_ENABLED=false or MAINTENANCE_MODE=true)")
         app.state.publish_worker = None
         return
     interval = max(5, settings.publish_worker_interval_seconds)

@@ -19,6 +19,44 @@ export const tokenStore = {
   },
 }
 
+// Server updating / in maintenance: a 503 marked `maintenance` (backend
+// MAINTENANCE_MODE, or nginx while the backend restarts) or no answer at all.
+// Tell the app to show its "updating" screen (MaintenanceOverlay) and give the
+// caller an error it can recognise (`err.maintenance`) instead of a raw one.
+const UPDATING = 'ContentFlow is updating to a new version. This usually takes under a minute.'
+
+function maintenanceError(message) {
+  window.dispatchEvent(new CustomEvent('dispatch:maintenance', { detail: { message } }))
+  const err = new Error(message)
+  err.maintenance = true
+  err.status = 503
+  return err
+}
+
+async function send(url, init) {
+  try {
+    return await fetch(url, init)
+  } catch {
+    // No response at all: offline, or the server is mid-restart.
+    if (navigator.onLine === false) throw new Error('You’re offline — check your internet connection.')
+    throw maintenanceError(UPDATING)
+  }
+}
+
+function parse(text) {
+  try {
+    return text ? JSON.parse(text) : null
+  } catch {
+    return null
+  }
+}
+
+function checkMaintenance(res, data) {
+  if ((res.status === 503 && data?.maintenance) || (res.status === 502 && !data)) {
+    throw maintenanceError(data?.detail || UPDATING)
+  }
+}
+
 async function request(method, path, body) {
   // Accept both "/views/x" and "/api/views/x" — BASE is added once either way.
   if (path.startsWith('/api/')) path = path.slice(4)
@@ -28,19 +66,14 @@ async function request(method, path, body) {
   const token = tokenStore.get()
   if (token) headers.Authorization = `Bearer ${token}`
 
-  const res = await fetch(BASE + path, {
+  const res = await send(BASE + path, {
     method,
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
   })
   if (res.status === 204) return null
-  const text = await res.text()
-  let data = null
-  try {
-    data = text ? JSON.parse(text) : null
-  } catch {
-    data = null
-  }
+  const data = parse(await res.text())
+  checkMaintenance(res, data)
   if (!res.ok) {
     if (res.status === 401 && path !== '/auth/login' && path !== '/auth/register') {
       tokenStore.set(null)
@@ -55,7 +88,9 @@ async function request(method, path, body) {
         : !data
         ? `Can’t reach the API (${res.status}). Is the dev server / backend running?`
         : `Request failed (${res.status})`
-    throw new Error(message)
+    const err = new Error(message)
+    err.status = res.status
+    throw err
   }
   return data
 }
@@ -65,14 +100,9 @@ async function upload(path, formData) {
   const headers = {}
   const token = tokenStore.get()
   if (token) headers.Authorization = `Bearer ${token}`
-  const res = await fetch(BASE + path, { method: 'POST', headers, body: formData })
-  const text = await res.text()
-  let data = null
-  try {
-    data = text ? JSON.parse(text) : null
-  } catch {
-    data = null
-  }
+  const res = await send(BASE + path, { method: 'POST', headers, body: formData })
+  const data = parse(await res.text())
+  checkMaintenance(res, data)
   if (!res.ok) {
     throw new Error(data?.detail || `Upload failed (${res.status})`)
   }

@@ -13,14 +13,31 @@ export function AuthProvider({ children }) {
       setLoading(false)
       return
     }
-    api
-      .get('/auth/me')
-      .then(setUser)
-      .catch(() => {
-        tokenStore.set(null)
-        setUser(null)
-      })
-      .finally(() => setLoading(false))
+    let cancelled = false
+    const loadMe = () =>
+      api
+        .get('/auth/me')
+        .then((u) => {
+          if (cancelled) return
+          setUser(u)
+          setLoading(false)
+        })
+        .catch((e) => {
+          if (cancelled) return
+          // Server updating: keep the sign-in — the "updating" screen is up
+          // and we try again once it's back (dispatch:back-online). Only a
+          // real rejection signs the person out.
+          if (e.maintenance) return
+          tokenStore.set(null)
+          setUser(null)
+          setLoading(false)
+        })
+    loadMe()
+    window.addEventListener('dispatch:back-online', loadMe)
+    return () => {
+      cancelled = true
+      window.removeEventListener('dispatch:back-online', loadMe)
+    }
   }, [])
 
   // Apply the person's saved accent colour / motion setting whenever we learn

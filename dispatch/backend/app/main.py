@@ -1,8 +1,9 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import APIRouter, Depends, FastAPI
+from fastapi import APIRouter, Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app import content_scheduler, scheduler, video
 from app.advisor import router as advisor_router
@@ -52,12 +53,35 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+MAINTENANCE_DEFAULT = "ContentFlow is down for scheduled maintenance. We'll be back shortly."
+
+
+@app.middleware("http")
+async def maintenance_gate(request: Request, call_next):
+    """MAINTENANCE_MODE=true: refuse every API call (except health) with a 503
+    the frontend recognises (``"maintenance": true``) and shows as its
+    "updating" screen."""
+    if settings.maintenance_mode and request.url.path.startswith("/api/") and request.url.path != "/api/health":
+        return JSONResponse(
+            {"detail": settings.maintenance_message or MAINTENANCE_DEFAULT, "maintenance": True},
+            status_code=503,
+            headers={"Retry-After": "60"},
+        )
+    return await call_next(request)
+
+
 api = APIRouter(prefix="/api")
 
 
 @api.get("/health", tags=["Meta"])
 def health():
-    return {"status": "ok"}
+    # Stays 200 in maintenance (container health checks use it); the app polls
+    # it to know when to take the "updating" screen down.
+    return {
+        "status": "ok",
+        "maintenance": settings.maintenance_mode,
+        "message": (settings.maintenance_message or MAINTENANCE_DEFAULT) if settings.maintenance_mode else "",
+    }
 
 
 @api.get("/meta/models", tags=["Meta"], dependencies=[Depends(get_current_user)])

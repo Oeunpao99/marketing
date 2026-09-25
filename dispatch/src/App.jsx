@@ -3,6 +3,7 @@ import { hideSplash } from "./lib/splash";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./auth";
 import Shell from "./components/layout/Shell";
+import MaintenanceOverlay from "./components/ui/MaintenanceOverlay";
 import Toast from "./components/ui/Toast";
 import AddChannelPage from "./pages/AddChannelPage";
 import AIPromptPage from "./pages/AIPromptPage";
@@ -76,6 +77,7 @@ export default function App() {
   return (
     <AuthProvider>
       <Gate />
+      <MaintenanceOverlay />
     </AuthProvider>
   );
 }

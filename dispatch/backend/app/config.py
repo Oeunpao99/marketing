@@ -30,6 +30,13 @@ class Settings(BaseSettings):
     # escape hatch as the delivery worker, via POST /api/views/auto/{id}/run-now.
     content_scheduler_enabled: bool = True
 
+    # Planned maintenance: every /api call except /api/health answers 503 with
+    # this message, the app shows its "updating" screen to everyone, and the
+    # delivery + content workers don't start. Flip it in .env and recreate the
+    # backend container; set it back to false the same way.
+    maintenance_mode: bool = False
+    maintenance_message: str = ""
+
     # Azure OpenAI — powers the AI agent's "Generate prompt".
     azure_openai_api_key: str = ""
     azure_openai_endpoint: str = ""  # e.g. https://<res>.services.ai.azure.com/openai/v1/

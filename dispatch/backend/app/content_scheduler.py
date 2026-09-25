@@ -554,8 +554,8 @@ async def _run(interval: int) -> None:
 def start(app) -> None:
     """Attach the worker task to the FastAPI app (call from lifespan startup)."""
     settings = get_settings()
-    if not settings.content_scheduler_enabled:
-        log.info("content scheduler disabled (CONTENT_SCHEDULER_ENABLED=false)")
+    if not settings.content_scheduler_enabled or settings.maintenance_mode:
+        log.info("content scheduler disabled (CONTENT_SCHEDULER_ENABLED=false or MAINTENANCE_MODE=true)")
         app.state.content_scheduler = None
         return
     app.state.content_scheduler = asyncio.create_task(_run(60))
