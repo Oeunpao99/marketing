@@ -423,7 +423,7 @@ function SettingsDrawer({ a, channels, run, running, onUpdate, onBrandUpdate, on
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className="text-[12px] font-semibold text-ink-800">Generate media</div>
-                <div className="text-[11px] text-ink-500">An image per idea — uses image credits each run</div>
+                <div className="text-[11px] text-ink-500">The best idea each day gets an 8s video, the rest get images — uses AI credit each run</div>
               </div>
               <Toggle on={a.auto_media} onChange={(v) => onUpdate({ auto_media: v })} />
             </div>

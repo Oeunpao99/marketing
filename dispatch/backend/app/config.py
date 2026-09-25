@@ -65,6 +65,9 @@ class Settings(BaseSettings):
     # gemini_veo — Google AI Studio / Gemini API key + a Veo model id.
     gemini_api_key: str = ""
     gemini_video_model: str = "veo-3.1-fast-generate-preview"
+    # Auto-generate's daily video (app/content_scheduler.py) — cheaper than the
+    # AI Agent's model, since it runs every day. Only used with gemini_veo.
+    auto_video_model: str = "veo-3.1-fast-generate-preview"
 
     # In-portal image generation (AI agent → "Generate image"). Synchronous.
     # Provider: "azure_openai" (dall-e-3 / gpt-image-1) or "gemini_imagen".

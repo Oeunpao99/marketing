@@ -496,6 +496,7 @@ def _advance(db: Session, story_id: int) -> None:
             seconds=s["seconds"],
             provider=provider,
             provider_job_id=provider_job_id,
+            model=billing.video_model(provider),
             status="running",
         )
         db.add(job)

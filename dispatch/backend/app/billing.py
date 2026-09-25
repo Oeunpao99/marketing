@@ -143,8 +143,8 @@ def billed_seconds(provider: str, seconds: int) -> int:
     return 12 if seconds >= 10 else (8 if seconds >= 6 else 4)
 
 
-def video_cost(provider: str, seconds: int) -> float:
-    model = video_model(provider).lower()
+def video_cost(provider: str, seconds: int, model: str | None = None) -> float:
+    model = (model or video_model(provider)).lower()
     rate = next((price for key, price in VIDEO_PRICES if key in model), DEFAULT_VIDEO)
     return rate * billed_seconds(provider, seconds)
 
@@ -156,7 +156,7 @@ def job_cost(job: GenerationJob) -> float:
             return image_cost(job.input_tokens or 0, job.output_tokens or 0)
         return IMAGE_HOLD
     if job.kind in ("video", "scene"):
-        return video_cost(job.provider or get_settings().video_provider, job.seconds or 0)
+        return video_cost(job.provider or get_settings().video_provider, job.seconds or 0, job.model or None)
     return 0.0
 
 
@@ -298,7 +298,7 @@ def charge_job(job: GenerationJob) -> None:
         if job.kind == "image" and job.provider == "azure_openai"
         else get_settings().gemini_image_model
         if job.kind == "image"
-        else video_model(job.provider)
+        else job.model or video_model(job.provider)
     )
     what = {"image": "Image", "video": "Video", "scene": "Story scene"}.get(job.kind, job.kind)
     charge(

@@ -81,16 +81,42 @@ def _azure_conf():
     return f"https://{host}/openai/v1/videos", s.video_api_key, s.azure_openai_video_deployment
 
 
-def _azure_start(prompt: str, aspect_ratio: str, seconds: int) -> str:
+def _first_frame(reference: bytes, aspect_ratio: str) -> bytes:
+    """The reference image cropped to the clip's exact size (Sora insists)."""
+    from app.imaging import ImageError, fit_cover
+
+    width, height = _DIMS.get(aspect_ratio, _DIMS["9:16"])
+    try:
+        return fit_cover(reference, width, height)
+    except ImageError as exc:
+        raise VideoGenError(str(exc)) from exc
+
+
+def _azure_start(
+    prompt: str, aspect_ratio: str, seconds: int, reference: bytes | None = None, model: str | None = None
+) -> str:
+    # ``model`` is ignored: Sora renders with its Azure deployment.
     url, key, deployment = _azure_conf()
+    size = _SORA_SIZES.get(aspect_ratio, _SORA_SIZES["9:16"])
     body = {
         "model": deployment,
         "prompt": prompt,
-        "size": _SORA_SIZES.get(aspect_ratio, _SORA_SIZES["9:16"]),
+        "size": size,
         "seconds": "12" if seconds >= 10 else ("8" if seconds >= 6 else "4"),
     }
     try:
-        resp = httpx.post(url, headers={"api-key": key}, json=body, timeout=60.0)
+        if reference is not None:
+            # Image-to-video: multipart, the image as the opening frame.
+            frame = _first_frame(reference, aspect_ratio if aspect_ratio in _SORA_SIZES else "9:16")
+            resp = httpx.post(
+                url,
+                headers={"api-key": key},
+                data=body,
+                files={"input_reference": ("first-frame.png", frame, "image/png")},
+                timeout=90.0,
+            )
+        else:
+            resp = httpx.post(url, headers={"api-key": key}, json=body, timeout=60.0)
     except httpx.HTTPError as exc:
         raise VideoGenError(f"Could not reach the video service: {exc}") from exc
     if resp.status_code >= 400:
@@ -144,9 +170,11 @@ def _gemini_key() -> str:
     return key
 
 
-def _gemini_start(prompt: str, aspect_ratio: str, seconds: int) -> str:
+def _gemini_start(
+    prompt: str, aspect_ratio: str, seconds: int, reference: bytes | None = None, model: str | None = None
+) -> str:
     key = _gemini_key()
-    model = get_settings().gemini_video_model
+    model = model or get_settings().gemini_video_model
     ratio = aspect_ratio if aspect_ratio in {"16:9", "9:16"} else "9:16"
     # No personGeneration: Veo 3.1 text-to-video only accepts "allow_all"
     # outside the EU/UK/CH/MENA and only "allow_adult" inside — its default
@@ -155,6 +183,10 @@ def _gemini_start(prompt: str, aspect_ratio: str, seconds: int) -> str:
         "instances": [{"prompt": prompt}],
         "parameters": {"aspectRatio": ratio, "durationSeconds": 8 if seconds >= 7 else (6 if seconds >= 5 else 4)},
     }
+    if reference is not None:
+        # Image-to-video: Veo animates from this image as the first frame.
+        frame = _first_frame(reference, ratio)
+        body["instances"][0]["image"] = {"bytesBase64Encoded": base64.b64encode(frame).decode(), "mimeType": "image/png"}
     url = f"{_GEMINI_BASE}/models/{model}:predictLongRunning"
     try:
         resp = httpx.post(url, headers={"x-goog-api-key": key}, json=body, timeout=60.0)
@@ -238,9 +270,13 @@ def _provider():
     return s.video_provider, impl
 
 
-def start_job(prompt: str, aspect_ratio: str, seconds: int) -> tuple[str, str]:
+def start_job(
+    prompt: str, aspect_ratio: str, seconds: int, reference: bytes | None = None, model: str | None = None
+) -> tuple[str, str]:
+    """Start a render; ``reference`` (image bytes) becomes the first frame;
+    ``model`` overrides the provider's default model (Veo only)."""
     name, (start, _poll, _fetch) = _provider()
-    return name, start(prompt, aspect_ratio, seconds)
+    return name, start(prompt, aspect_ratio, seconds, reference, model)
 
 
 def _impl_for(provider: str):
@@ -400,6 +436,8 @@ class VideoJobIn(BaseModel):
     aspect_ratio: str = "9:16"
     seconds: int = 8
     brand_id: int | None = None
+    # A "/media/..." image the user uploaded — the video starts from it.
+    reference_url: str = ""
 
 
 class VideoRef(BaseModel):
@@ -555,8 +593,13 @@ def create_video(
     seconds = max(3, min(payload.seconds, s.video_max_seconds))
     ratio = payload.aspect_ratio if payload.aspect_ratio in _DIMS else "9:16"
     billing.require(ws, billing.video_cost(s.video_provider, seconds), db)
+    reference: bytes | None = None
+    if payload.reference_url:
+        reference = read_media(payload.reference_url)
+        if reference is None:
+            raise HTTPException(400, "Reference image not found.")
     try:
-        provider, provider_job_id = start_job(payload.prompt, ratio, seconds)
+        provider, provider_job_id = start_job(payload.prompt, ratio, seconds, reference)
     except VideoGenError as exc:
         raise HTTPException(503, str(exc)) from exc
 
@@ -570,6 +613,7 @@ def create_video(
         seconds=seconds,
         provider=provider,
         provider_job_id=provider_job_id,
+        model=billing.video_model(provider),
         status="running",
     )
     db.add(job)

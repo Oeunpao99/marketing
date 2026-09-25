@@ -300,6 +300,9 @@ class GenerationJob(Base, TimestampMixin):
     total_tokens: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     provider: Mapped[str] = mapped_column(String(40), default="", server_default="")
     provider_job_id: Mapped[str] = mapped_column(String(120), default="", server_default="")
+    # The model / deployment that rendered it ("" = the provider's default) —
+    # app/billing.py prices by it (auto-generate videos use a cheaper model).
+    model: Mapped[str] = mapped_column(String(80), default="", server_default="")
     # queued | running | succeeded | failed
     status: Mapped[str] = mapped_column(String(12), default="queued")
     error: Mapped[str] = mapped_column(Text, default="", server_default="")

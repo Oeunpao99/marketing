@@ -12,6 +12,7 @@ turns into "✦ Generate this" buttons.
 
 from __future__ import annotations
 
+import base64
 import threading
 from datetime import UTC, date, datetime, timedelta
 
@@ -23,6 +24,8 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.content_ai import ContentAIError, _chat
 from app.database import get_db
+from app.imaging import ImageError, shrink
+from app.media import read_media
 from app.models import Automation, Brand, Channel, Draft, Platform, PostTarget, Product
 from app.tenancy import current_workspace_id, owned, scope
 
@@ -69,6 +72,8 @@ class AdvisorIn(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
     history: list[HistoryItem] = Field(default_factory=list)
     brand_id: int | None = None
+    # A "/media/..." image the user attached — the advisor looks at it.
+    image_url: str = ""
 
 
 # ── per-workspace daily question cap (AI calls cost money) ───────────────
@@ -215,10 +220,31 @@ def advisor(
     for h in payload.history[-8:]:
         if h.role in ("user", "assistant") and h.content.strip():
             messages.append({"role": h.role, "content": h.content})
-    messages.append({"role": "user", "content": payload.message})
+    model = get_settings().azure_openai_deployment
+    if payload.image_url:
+        image = read_media(payload.image_url)
+        if image is None:
+            raise HTTPException(400, "The attached image wasn't found — attach it again.")
+        try:
+            image = shrink(image)
+        except ImageError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        data_url = "data:image/jpeg;base64," + base64.b64encode(image).decode()
+        messages.append(
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": payload.message},
+                    {"type": "image_url", "image_url": {"url": data_url}},
+                ],
+            }
+        )
+        model = get_settings().azure_openai_vision_deployment or model
+    else:
+        messages.append({"role": "user", "content": payload.message})
 
     try:
-        out = _chat(messages, get_settings().azure_openai_deployment, max_tokens=6000)
+        out = _chat(messages, model, max_tokens=6000)
     except ContentAIError as exc:
         raise HTTPException(503, str(exc)) from exc
 

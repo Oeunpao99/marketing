@@ -433,6 +433,7 @@ export default function AIPromptPage() {
           message: turn.prompt,
           history: turn.history || [],
           brand_id: turn.brandId,
+          image_url: turn.refUrl || '',
         })
         patchTurn(turn.id, {
           status: 'done',
@@ -475,6 +476,7 @@ export default function AIPromptPage() {
           aspect_ratio: turn.ratio,
           seconds: turn.seconds,
           brand_id: turn.brandId,
+          reference_url: turn.refUrl || '',
         })
         trackJob(res.id, 'video')
         patchTurn(turn.id, { jobId: res.id })
@@ -486,7 +488,7 @@ export default function AIPromptPage() {
 
   const intent = intentPick || (looksLikeQuestion(text) ? 'ask' : 'create')
 
-  const ask = (message) => {
+  const ask = (message, image = null) => {
     // The last few Q&A pairs, so follow-ups ("and on TikTok?") make sense.
     const history = turns
       .filter((t) => t.kind === 'ask' && t.status === 'done')
@@ -501,6 +503,8 @@ export default function AIPromptPage() {
       prompt: message,
       history,
       brandId: brandObj?.id ?? null,
+      refUrl: image?.url || '',
+      refPreview: image?.previewUrl || '',
       status: 'working',
       startedAt: Date.now(),
     }
@@ -531,7 +535,12 @@ export default function AIPromptPage() {
     if (intent === 'ask') {
       setText('')
       setIntentPick(null)
-      ask(prompt)
+      ask(prompt, refImg)
+      setRefImg(null)
+      return
+    }
+    if (isStory && refImg) {
+      showToast('Storyboards don’t use an attached image yet — remove it, or pick Instant video')
       return
     }
     if (prompt.length < 10) {
@@ -594,11 +603,6 @@ export default function AIPromptPage() {
   const attachFile = async (file) => {
     if (!file) return
     if (!file.type.startsWith('image/')) return showToast('Reference must be an image')
-    if (type !== 'image') {
-      chooseType('image')
-      showToast('Reference images work with image generation — switched to Image')
-    }
-    setIntentPick('create')
     const name = file.name && file.name !== 'image.png' ? file.name : `pasted-${Date.now()}.png`
     const previewUrl = URL.createObjectURL(file)
     setRefImg({ previewUrl, url: null, name })
@@ -641,7 +645,6 @@ export default function AIPromptPage() {
     setType(t)
     setRatio(t === 'image' ? '1:1' : '9:16')
     setTemplate(TEMPLATES[t][0])
-    if (t === 'video') setRefImg(null)
   }
 
   const useInPost = (turn) => {
@@ -875,7 +878,9 @@ export default function AIPromptPage() {
             placeholder={
               writing
                 ? 'Writing your prompt…'
-                : isStory
+                : refImg
+                  ? `Ask about this image, or describe the ${isImage ? 'image' : 'video'} to make from it…`
+                  : isStory
                   ? 'Describe the video story — the problem, the product, the result…'
                   : `Ask about your marketing, or describe the ${isImage ? 'image' : 'video'} you want…`
             }
@@ -924,15 +929,13 @@ export default function AIPromptPage() {
               )}
             </div>
 
-            {intent === 'create' && (
-              <label
-                className="h-9 w-9 rounded-full grid place-items-center text-ink-600 hover:bg-ink-100 cursor-pointer"
-                title="Attach a reference image — or paste / drop one into the box"
-              >
-                <input type="file" accept="image/*" className="hidden" onChange={attach} />
-                <FiPaperclip size={15} />
-              </label>
-            )}
+            <label
+              className="h-9 w-9 rounded-full grid place-items-center text-ink-600 hover:bg-ink-100 cursor-pointer"
+              title="Attach an image — ask about it, or make an image / video from it (or paste / drop one into the box)"
+            >
+              <input type="file" accept="image/*" className="hidden" onChange={attach} />
+              <FiPaperclip size={15} />
+            </label>
 
             {intent === 'create' && (
             <button
@@ -1174,6 +1177,7 @@ function AskTurn({ t, onRetry, onGenerate, onEdit }) {
     <div className="space-y-4 animate-fadein">
       <div className="flex flex-col items-end">
         <div className={`max-w-[70%] rounded-2xl rounded-br-md bg-brand-soft/70 px-4 py-2.5 text-[13px] leading-relaxed text-ink-900 whitespace-pre-wrap ${khmer(t.prompt)}`}>
+          {t.refPreview && <img src={t.refPreview} alt="" className="mb-2 w-28 h-28 rounded-lg object-cover" />}
           {t.prompt}
         </div>
         <div className="mt-1 flex items-center text-ink-400">

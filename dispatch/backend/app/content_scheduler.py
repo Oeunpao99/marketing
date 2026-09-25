@@ -23,7 +23,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.content_ai import ContentAIError, fact_check, generate_ideas, image_prompt_for_idea
+from app.content_ai import ContentAIError, fact_check, generate_ideas, image_prompt_for_idea, video_prompt_for_idea
 from app.learning import brand_learnings, learned_time
 from app.database import SessionLocal
 from app.models import Automation, Brand, Channel, Draft, Post, PostTarget, Product, Video
@@ -89,6 +89,80 @@ def _brand_snapshot(brand: Brand) -> _AutoBrand:
 
 def _product_snapshot(product: Product) -> _AutoProduct:
     return _AutoProduct(product.name, product.description)
+
+
+_VIDEO_WAIT = 12 * 60  # give up on a daily video after this many seconds
+_VIDEO_POLL = 10
+
+
+def _pick_video_idea(ideas: list[dict]) -> int:
+    """The idea that gets the day's video: the highest fit score (first on a tie)."""
+    scores = [(i.get("fit_score") or 0) for i in ideas]
+    return max(range(len(ideas)), key=lambda n: (scores[n], -n))
+
+
+def _generate_video_for(
+    brand: Brand | _AutoBrand, idea: dict, products: list[Product | _AutoProduct]
+) -> int | None:
+    """Best-effort: render an 8s video for this idea (auto-generate's daily
+    video, on the cheaper AUTO_VIDEO_MODEL) and wait for it, returning the
+    Video id — or None, so the caller can fall back to an image. The job is a
+    normal GenerationJob, so it shows in the Library and is charged to the
+    workspace's AI credit when it finishes."""
+    import time as _time
+
+    from app import billing
+    from app import video as video_gen
+    from app.models import GenerationJob
+
+    s = get_settings()
+    if not s.video_generation_enabled:
+        return None
+    model = s.auto_video_model if s.video_provider == "gemini_veo" else None
+    try:
+        billing.require(brand.workspace_id, billing.video_cost(s.video_provider, 8, model))
+    except billing.OutOfCredit:
+        log.info("auto video skipped for brand %s: out of AI credit", brand.id)
+        return None
+    prompt = video_prompt_for_idea(brand.name, brand.lang, idea, products)
+    try:
+        provider, provider_job_id = video_gen.start_job(prompt, "9:16", 8, model=model)
+    except video_gen.VideoGenError as exc:
+        log.warning("auto video failed to start for brand %s: %s", brand.id, exc)
+        return None
+
+    db = SessionLocal()
+    try:
+        job = GenerationJob(
+            workspace_id=brand.workspace_id,
+            brand_id=brand.id,
+            kind="video",
+            prompt=prompt,
+            aspect_ratio="9:16",
+            seconds=8,
+            provider=provider,
+            provider_job_id=provider_job_id,
+            model=model or billing.video_model(provider),
+            status="running",
+        )
+        db.add(job)
+        db.commit()
+        job_id = job.id
+        deadline = _time.monotonic() + _VIDEO_WAIT
+        while _time.monotonic() < deadline:
+            _time.sleep(_VIDEO_POLL)
+            video_gen.advance_video(db, job_id)  # the worker may beat us to it — fine
+            db.expire_all()
+            job = db.get(GenerationJob, job_id)
+            if job.status == "succeeded":
+                return job.video_id
+            if job.status == "failed":
+                log.warning("auto video failed for brand %s: %s", brand.id, job.error)
+                return None
+        log.warning("auto video for brand %s still rendering after %ss — using an image", brand.id, _VIDEO_WAIT)
+        return None
+    finally:
+        db.close()
 
 
 def _generate_media_for(
@@ -295,19 +369,29 @@ def _write_batch(
         span = 95 - check_end
         brand_args = _brand_snapshot(brand)
         product_args = [_product_snapshot(p) for p in products]
+        # One video a day — for the idea that scored best — and an image for
+        # the rest, all in parallel. A video that fails falls back to an image.
+        video_n = _pick_video_idea(ideas) if get_settings().video_generation_enabled else -1
         pool = ThreadPoolExecutor(max_workers=_MAX_PARALLEL_MEDIA, thread_name_prefix="auto-media")
         try:
             futures = {
-                pool.submit(_generate_media_for, brand_args, idea, product_args): n
+                pool.submit(
+                    _generate_video_for if n == video_n else _generate_media_for, brand_args, idea, product_args
+                ): n
                 for n, idea in enumerate(ideas)
             }
             done = 0
             for fut in as_completed(futures):
-                media_ids[futures[fut]] = fut.result()
+                n = futures[fut]
+                media_ids[n] = fut.result()
+                if media_ids[n] is None and n == video_n:
+                    media_ids[n] = _generate_media_for(brand_args, ideas[n], product_args)
                 done += 1
                 report(
                     check_end + span * done // len(ideas),
-                    f"Making image {done} of {len(ideas)}…",
+                    f"Making media {done} of {len(ideas)} (1 video, the rest images)…"
+                    if video_n >= 0 and len(ideas) > 1
+                    else f"Making media {done} of {len(ideas)}…",
                     95,
                 )
         finally:

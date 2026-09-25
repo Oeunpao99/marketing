@@ -338,6 +338,32 @@ def image_prompt_for_idea(brand_name: str, brand_lang: str, idea: dict, products
     return "\n".join(lines)
 
 
+def video_prompt_for_idea(brand_name: str, brand_lang: str, idea: dict, products: list[Product]) -> str:
+    """An 8-second video brief for one already-written idea — the video twin of
+    ``image_prompt_for_idea``, used by auto-generate's daily video."""
+    lines = [
+        f"An 8-second, vertical 9:16 cinematic social video for {brand_name}"
+        + (f" (audience: {brand_lang})" if brand_lang else "")
+        + ", made for Reels / TikTok / Shorts. One continuous shot, no cuts.",
+        f"Post topic: {idea.get('title', '')}.",
+        f"Caption it goes with: {idea.get('caption', '')[:300]}",
+    ]
+    if products:
+        lines.append("Real product facts to stay accurate to (don't invent others):")
+        for p in products:
+            entry = f"- {p.name}"
+            if p.description:
+                entry += f": {p.description[:300]}"
+            lines.append(entry)
+    lines.append(
+        "Open on a strong, scroll-stopping visual in the first second; one clear subject and "
+        "action; smooth, deliberate camera movement (slow push-in, orbit or tracking shot); "
+        "premium commercial lighting; photorealistic. Upbeat background music and natural ambient "
+        "sound, no voiceover or dialogue. No on-screen text, captions, logos or watermarks."
+    )
+    return "\n".join(lines)
+
+
 FACT_CHECK_PROMPT = (
     "You fact-check social media captions for a brand before they're posted. "
     "You get the brand's product information (the ONLY source of truth) and a "
