@@ -27,6 +27,8 @@ from app.models import (
     Product,
     TeamMember,
     Video,
+    VideoStory,
+    WeeklyPlan,
 )
 from app.security import decode_token
 
@@ -69,9 +71,9 @@ def scope(model, ws: int):
     Returns None for shared, global tables (Platform)."""
     if model is Platform:
         return None
-    if model in (Brand, Video, GenerationJob, TeamMember):
+    if model in (Brand, Video, GenerationJob, TeamMember, VideoStory):
         return model.workspace_id == ws
-    if model in (Channel, Post, Draft, Automation, Product):
+    if model in (Channel, Post, Draft, Automation, Product, WeeklyPlan):
         return model.brand_id.in_(brand_ids(ws))
     if model is PostTarget:
         return PostTarget.post_id.in_(select(Post.id).where(Post.brand_id.in_(brand_ids(ws))))

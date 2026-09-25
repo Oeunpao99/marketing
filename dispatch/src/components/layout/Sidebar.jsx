@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import {
   FiBarChart2,
   FiCalendar,
+  FiClipboard,
   FiCheck,
   FiChevronDown,
   FiEdit,
@@ -45,6 +46,7 @@ const SECTIONS = [
     label: "AI Studio",
     items: [
       { to: "/ai", icon: FiZap, label: "AI Agent" },
+      { to: "/weekly", icon: FiClipboard, label: "Weekly plan" },
       { to: "/auto", icon: FiRepeat, label: "Auto-generate" },
       { to: "/products", icon: FiPackage, label: "Products" },
     ],

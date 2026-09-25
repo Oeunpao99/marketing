@@ -290,6 +290,31 @@ select {
   .cf-puff, .cf-sweep { display: none; }
 }
 
+/* ── Joining a video story (components/story/JoiningCanvas.jsx) ──────────
+   Clips, voice and captions fly into an editor timeline, a playhead sweeps
+   it, then they fade and the cycle starts again (6s). */
+@keyframes cf-fly-in {
+  0%        { transform: translate(var(--fx, 0), var(--fy, -60px)) rotate(var(--fr, -8deg)) scale(.7); opacity: 0; }
+  14%, 84%  { transform: none; opacity: 1; }
+  94%, 100% { transform: translateY(4px) scale(.96); opacity: 0; }
+}
+@keyframes cf-playhead {
+  0%, 24%   { left: 0%; opacity: 0; }
+  28%       { opacity: 1; }
+  84%       { left: 100%; opacity: 1; }
+  90%, 100% { left: 100%; opacity: 0; }
+}
+@keyframes cf-wave { 0%, 100% { transform: scaleY(.35); } 50% { transform: scaleY(1); } }
+@keyframes cf-screen-in { from { opacity: 0; transform: scale(1.04); } to { opacity: 1; transform: none; } }
+.cf-fly { animation: cf-fly-in 6s cubic-bezier(.2,.8,.2,1) infinite both; }
+.cf-playhead { animation: cf-playhead 6s linear infinite; }
+.cf-wave { animation: cf-wave 1.1s ease-in-out infinite; }
+.cf-screen-in { animation: cf-screen-in .5s ease both; }
+@media (prefers-reduced-motion: reduce) {
+  .cf-fly, .cf-wave, .cf-screen-in { animation: none !important; opacity: 1 !important; transform: none !important; }
+  .cf-playhead { display: none; }
+}
+
 /* ── Login brand lockup (LoginPage's BrandLockup) ─────────────────────── */
 @keyframes cf-mark-in {
   0%   { opacity: 0; transform: scale(.55) rotate(-14deg); }

@@ -93,11 +93,19 @@ def _is_khmer(brand_lang: str) -> bool:
     return "khmer" in (brand_lang or "").lower() or any("ក" <= ch <= "៿" for ch in brand_lang or "")
 
 
-def _system_prompt(brand_lang: str) -> str:
+WEEK_GUIDE = (
+    "\n\nTHIS IS A WEEK PLAN, not one day: the ideas are spread across the coming "
+    "week, one per post slot. Rotate products and angles so the week feels "
+    "varied — no two neighbouring ideas on the same product or format."
+)
+
+
+def _system_prompt(brand_lang: str, week: bool = False) -> str:
+    base = SYSTEM_PROMPT.replace("for ONE day", "for ONE week") + WEEK_GUIDE if week else SYSTEM_PROMPT
     if not _is_khmer(brand_lang):
-        return SYSTEM_PROMPT
+        return base
     mixed = "english" in (brand_lang or "").lower()
-    return SYSTEM_PROMPT + (MIXED_GUIDE if mixed else KHMER_GUIDE)
+    return base + (MIXED_GUIDE if mixed else KHMER_GUIDE)
 
 
 def _chat(messages: list[dict], model: str, max_tokens: int = 4000) -> dict:
@@ -232,7 +240,10 @@ def generate_ideas(
     count: int,
     voice_examples: str = "",
     learnings: str = "",
+    week: bool = False,
 ) -> list[dict]:
+    """``week=True``: plan ideas spread over a week (app/weekly.py) rather
+    than one day's batch."""
     cfg = get_settings()
     khmer = _is_khmer(brand_lang)
     # Khmer quality depends heavily on the model — a Khmer brand can use its own
@@ -240,7 +251,7 @@ def generate_ideas(
     model = (cfg.azure_openai_khmer_deployment if khmer else "") or cfg.azure_openai_deployment
     parsed = _chat(
         [
-            {"role": "system", "content": _system_prompt(brand_lang)},
+            {"role": "system", "content": _system_prompt(brand_lang, week)},
             {"role": "user", "content": _brief(brand_name, brand_lang, products, topic_source, count, voice_examples, learnings)},
         ],
         model,

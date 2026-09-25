@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import AutoTextarea from '../components/ui/AutoTextarea'
 import { createPortal } from 'react-dom'
 import { FiX } from 'react-icons/fi'
 import { api } from '../api/client'
@@ -372,23 +373,25 @@ function ProductForm({ form, setForm, brands, busy, onCancel, onSave, title }) {
             </label>
             <label className="block">
               <span className="mb-1.5 block text-[12px] font-semibold text-ink-800">Description</span>
-              <textarea
-                rows={8}
+              <AutoTextarea
+                minRows={8}
+                maxRows={24}
                 value={form.description}
                 onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
                 placeholder="What it is, who it's for…"
-                className={`${fieldClass} resize-y`}
+                className={fieldClass}
               />
               <span className="mt-1.5 block text-[11px] text-ink-400">Markdown works: # headings, **bold**, - bullets</span>
             </label>
             <label className="block">
               <span className="mb-1.5 block text-[12px] font-semibold text-ink-800">Highlights</span>
-              <textarea
-                rows={3}
+              <AutoTextarea
+                minRows={3}
+                maxRows={12}
                 value={form.highlights}
                 onChange={(e) => setForm((f) => ({ ...f, highlights: e.target.value }))}
                 placeholder="Cheap; fast; local support…"
-                className={`${fieldClass} resize-y`}
+                className={fieldClass}
               />
               <span className="mt-1.5 block text-[11px] text-ink-400">Selling points, pricing, offers — separate with ; or new lines</span>
             </label>

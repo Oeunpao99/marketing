@@ -21,6 +21,8 @@ import PostDetailPage from "./pages/PostDetailPage";
 import ProductsPage from "./pages/ProductsPage";
 import ReviewPage from "./pages/ReviewPage";
 import TodayPage from "./pages/TodayPage";
+import VideoStoryPage from "./pages/VideoStoryPage";
+import WeeklyPage from "./pages/WeeklyPage";
 import { StoreProvider, useStore } from "./store";
 
 function ToastHost() {
@@ -41,7 +43,9 @@ function Portal() {
             <Route path="/brands/new" element={<CreateBrandPage />} />
             <Route path="/channels/add" element={<AddChannelPage />} />
             <Route path="/auto" element={<AutoPage />} />
+            <Route path="/weekly" element={<WeeklyPage />} />
             <Route path="/products" element={<ProductsPage />} />
+            <Route path="/story" element={<VideoStoryPage />} />
             <Route path="/calendar" element={<CalendarPage />} />
             <Route path="/ai" element={<AIPromptPage />} />
             <Route path="/library" element={<LibraryPage />} />

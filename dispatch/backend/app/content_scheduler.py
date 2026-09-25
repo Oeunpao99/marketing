@@ -154,11 +154,22 @@ def _generate_media_for(
         db.close()
 
 
-def schedule_draft_as_post(db: Session, draft: Draft) -> Post:
+def _slot_on(day: date, platform_slug: str, now: datetime, override: time | None = None) -> datetime:
+    """That platform's posting time on a given day — or the next slot from
+    now if that moment has already passed (a plan approved late)."""
+    t = override or _default_time_for(platform_slug)
+    candidate = datetime.combine(day, t, tzinfo=PHNOM_PENH)
+    return candidate if candidate > now else _next_slot(platform_slug, now, override)
+
+
+def schedule_draft_as_post(db: Session, draft: Draft, on_day: date | None = None) -> Post:
     """Turn an auto-media draft into a real, queued Post — every channel the
     brand has actually connected, at that platform's usual posting time
     (today's slot if it hasn't passed yet, else tomorrow's). Raises
     ContentAIError if there's no connected channel to actually post it to.
+
+    ``on_day``: post on that Phnom Penh day instead of the next slot (a
+    weekly plan item, app/weekly.py).
 
     Flushes but does not commit — callers own the transaction (a single
     draft approved by hand commits right away; a whole automation batch
@@ -205,13 +216,16 @@ def schedule_draft_as_post(db: Session, draft: Draft) -> Post:
     )
     for ch in channels:
         slug = ch.platform.slug if ch.platform else ""
+        at = override_time or (learned_time(learned, slug) if learned else None)
         db.add(
             PostTarget(
                 post_id=post.id,
                 channel_id=ch.id,
                 caption=draft.body,
                 title=draft.title,
-                scheduled_for=_next_slot(slug, now, override_time or (learned_time(learned, slug) if learned else None)),
+                scheduled_for=(
+                    _slot_on(on_day, slug, now, at) if on_day else _next_slot(slug, now, at)
+                ),
                 status="queued",
             )
         )
@@ -350,6 +364,18 @@ def run_automation(
     today = _today()
     if automation.last_run_on == today:
         db.commit()  # release the row lock
+        return None
+    # An approved weekly plan (app/weekly.py) already covers today — don't
+    # write a second batch on top of it.
+    if db.scalar(
+        select(Draft.id).where(
+            Draft.brand_id == automation.brand_id,
+            Draft.planned_for == today,
+            Draft.source == "ai-weekly",
+        ).limit(1)
+    ):
+        automation.last_run_on = today
+        db.commit()
         return None
 
     return _write_batch(db, automation, today, report)
@@ -535,6 +561,14 @@ def _tick() -> dict:
                 db.rollback()
                 log.exception("content generation crashed for automation %s", automation_id)
                 failed.append(f"automation {automation_id}: unexpected error")
+        try:
+            from app.weekly import auto_tick  # local import: weekly imports this module
+
+            if planned := auto_tick(db, now):
+                log.info("content scheduler: %d weekly plan(s) written", planned)
+        except Exception:  # noqa: BLE001 - never let the weekly plan sink the daily run
+            db.rollback()
+            log.exception("weekly plan tick failed")
         return {"checked": len(due_ids), "written": written, "failed": failed}
     finally:
         db.close()

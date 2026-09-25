@@ -12,6 +12,8 @@ const LABELS = {
   "/review": "Content",
   "/calendar": "Calendar",
   "/auto": "Auto-generate",
+  "/weekly": "Weekly plan",
+  "/story": "Video story",
   "/ai": "AI Agent",
   "/library": "Media Library",
   "/products": "Products",

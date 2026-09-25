@@ -115,6 +115,7 @@ def _posts(db: Session, brand_id: int) -> list[dict]:
         url = urls.get(post.video_id) if post and post.video_id else None
         out.append(
             {
+                "target_id": t.id,
                 "platform": slugs.get(t.channel_id, ""),
                 "published_at": t.published_at,
                 "caption": t.caption or "",

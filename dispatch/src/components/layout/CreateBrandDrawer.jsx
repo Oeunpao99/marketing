@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { FiX } from "react-icons/fi";
 import { api } from "../../api/client";
+import AutoTextarea from "../ui/AutoTextarea";
 import { useStore } from "../../store";
 
 export const openCreateBrand = () => window.dispatchEvent(new Event("dispatch:create-brand"));
@@ -127,8 +128,9 @@ export default function CreateBrandDrawer() {
               />
             </Field>
             <Field label="Description">
-              <textarea
-                rows={4}
+              <AutoTextarea
+                minRows={4}
+                maxRows={12}
                 value={form.note}
                 onChange={(e) => setForm({ ...form, note: e.target.value })}
                 placeholder="What this brand publishes"

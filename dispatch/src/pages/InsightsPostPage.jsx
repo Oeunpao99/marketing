@@ -32,6 +32,7 @@ import { colorForBrand } from '../lib/brandColor'
 import { isKhmer } from '../lib/format'
 import { platformHue } from '../components/insights/Overview'
 import { GrowthCard, MembersCard, MoreFromChannel, PostingTimeCard } from '../components/insights/PostDetail'
+import ImproveCard from '../components/insights/ImproveCard'
 import { PLATFORM_ICONS, SERIES_COLORS, EngagementLineChart, engagementOf, mediaSrc } from './InsightsPage'
 
 const PLATFORM_NAMES = {
@@ -475,6 +476,19 @@ export default function InsightsPostPage() {
   if (tags.length > 6) tips.push({ icon: FiHash, text: `${tags.length} hashtags is a lot — 3–5 focused tags usually perform better.` })
   if (!tips.length) tips.push({ icon: FiCheckCircle, text: 'Nothing stands out to fix — keep posting consistently and compare again after a few more posts.' })
 
+  // Clearly below this brand's usual on the platform — the Improve card moves
+  // to the top and says so.
+  const usualVs = showEngagement ? vsUsual(engagement, usualEngagement) : null
+  const weakText =
+    usualVs?.up === false
+      ? usualVs.text
+      : topPct != null && topPct >= 75 && scores.length >= 4
+        ? `Below most of your ${platformName} posts`
+        : ''
+  const improve = caption.trim() !== '' && (
+    <ImproveCard key={post.target_id} post={post} platformName={platformName} weakText={weakText} showToast={showToast} />
+  )
+
   const info = !resolved || (!showEngagement && m.views == null && m.subscribers == null) ? explain(post, platformName) : null
 
   return (
@@ -557,11 +571,14 @@ export default function InsightsPostPage() {
           </div>
         )}
 
+        {weakText && improve}
+
         {info ? (
           <>
             <Explainer info={info} post={post} platformName={platformName} />
             <PostingTimeCard post={post} peers={samePlatform} platformName={platformName} />
             <MoreFromChannel post={post} items={items} icons={PLATFORM_ICONS} engagementOf={engagementOf} onOpen={openPost} />
+            {!weakText && improve}
           </>
         ) : (
           <>
@@ -639,6 +656,8 @@ export default function InsightsPostPage() {
                 ))}
               </ol>
             </section>
+
+            {!weakText && improve}
           </>
         )}
       </div>

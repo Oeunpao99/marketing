@@ -9,6 +9,8 @@ from app import content_scheduler, scheduler, video
 from app.advisor import router as advisor_router
 from app.ai import router as ai_router
 from app.auth import router as auth_router
+from app.improve import router as improve_router
+from app.story import router as story_router
 from app.chats import router as chats_router
 from app.config import get_settings
 from app.crud_router import build_router
@@ -20,6 +22,7 @@ from app.tenancy import get_current_user
 from app.video import router as video_gen_router
 from app.views import public_router as views_public_router
 from app.views import router as views_router
+from app.weekly import router as weekly_router
 
 logging.basicConfig(level=logging.INFO)
 settings = get_settings()
@@ -106,11 +109,14 @@ for resource in REGISTRY:
 api.include_router(auth_router)
 api.include_router(ai_router, dependencies=authed)
 api.include_router(advisor_router, dependencies=authed)
+api.include_router(improve_router, dependencies=authed)
+api.include_router(story_router, dependencies=authed)
 api.include_router(chats_router, dependencies=authed)
 api.include_router(push_router, dependencies=authed)
 api.include_router(video_gen_router, dependencies=authed)
 api.include_router(media_router, dependencies=authed)
 api.include_router(views_router, dependencies=authed)
+api.include_router(weekly_router, dependencies=authed)
 api.include_router(views_public_router)
 app.include_router(api)
 app.include_router(media_serve_router)

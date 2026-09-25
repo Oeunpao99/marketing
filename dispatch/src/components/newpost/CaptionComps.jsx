@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import AutoTextarea from '../ui/AutoTextarea'
 import { api } from '../../api/client'
 import { PLAT } from '../../data/brands'
 import { phnomPenhDate } from '../../lib/tz'
@@ -352,10 +353,12 @@ export default function CaptionComps({ comps, selectedChannels, onUpdate }) {
                   label="Caption"
                   hint="Write something different for each channel. Identical posts across pages get flagged as spam."
                 >
-                  <textarea
+                  <AutoTextarea
+                    minRows={3}
+                    maxRows={16}
                     value={d.cap}
                     placeholder="Write the caption…"
-                    className="input min-h-[84px] rounded-lg leading-relaxed resize-y"
+                    className="input rounded-lg leading-relaxed"
                     onChange={(e) => onUpdate({ updateField: { id, field: 'cap', value: e.target.value } })}
                   />
                   <div className={`text-right mt-1 font-mono text-[10.5px] ${d.cap.length > P.limit ? 'text-red-600 font-semibold' : 'text-ink-400'}`}>

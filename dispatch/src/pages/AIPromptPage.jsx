@@ -8,6 +8,7 @@ import {
   FiCopy,
   FiDownload,
   FiEdit2,
+  FiFilm,
   FiImage,
   FiMaximize2,
   FiMessageCircle,
@@ -23,6 +24,8 @@ import {
 import { useStore } from '../store'
 import { api } from '../api/client'
 import AutoTextarea from '../components/ui/AutoTextarea'
+import GeneratingCanvas from '../components/ui/GeneratingCanvas'
+import StoryEditor from '../components/story/StoryEditor'
 import { handoff } from '../lib/handoff'
 import { colorForBrand } from '../lib/brandColor'
 import { trackJob, untrackJob } from '../lib/genJobs'
@@ -36,6 +39,9 @@ import { trackJob, untrackJob } from '../lib/genJobs'
 // every option (type, size, length, brand, style) lives behind the settings
 // button, and ✦ "Write it for me" turns a short idea into a full prompt
 // grounded in the brand's products (the old guided brief, in one click).
+// Video has two modes: an instant clip (one 4-12s render), or a storyboard
+// (app/story.py) — a 16-64s video the AI scripts scene by scene, shown in the
+// chat to edit, render, redo and join into one MP4.
 
 const mediaBase = window.location.port === '5173' ? 'http://localhost:8000' : ''
 
@@ -46,6 +52,8 @@ const RATIOS = [
 ]
 // Sora 2 only renders 4 / 8 / 12-second clips (Veo: 4 / 6 / 8 — 12 becomes 8).
 const LENGTHS = [4, 8, 12]
+const STORY_LENGTHS = [16, 24, 32, 48, 64]
+const VOICES = ['English', 'Khmer', 'Khmer + English']
 const STYLES = ['Photorealistic', 'Illustration', '3D / CGI', 'Anime / Manga']
 const TEMPLATES = {
   image: ['Product hero shot', 'Promo / sale banner', 'Story / Reels cover', 'Tip / quote card'],
@@ -111,6 +119,8 @@ function serializeTurn(t) {
     suggestions: t.suggestions,
     video: t.video || null,
     jobId: t.jobId || null,
+    storyId: t.storyId || null,
+    language: t.language ?? '',
     tokens: t.tokens || 0,
     startedAt: t.startedAt,
   }
@@ -134,6 +144,9 @@ export default function AIPromptPage() {
   const [type, setType] = useState('image')
   const [ratio, setRatio] = useState('1:1')
   const [seconds, setSeconds] = useState(8)
+  const [videoMode, setVideoMode] = useState('clip') // 'clip' = instant video | 'story' = storyboard
+  const [storySeconds, setStorySeconds] = useState(32)
+  const [voice, setVoice] = useState(null) // null = the brand's language; '' = no voiceover
   const [brand, setBrand] = useState(null)
   const [style, setStyle] = useState(STYLES[0])
   const [template, setTemplate] = useState(TEMPLATES.image[0])
@@ -161,6 +174,8 @@ export default function AIPromptPage() {
 
   const brandObj = brands.find((b) => b.slug === brand) || brands[0]
   const isImage = type === 'image'
+  const isStory = type === 'video' && videoMode === 'story'
+  const storyVoice = voice ?? (VOICES.includes(brandObj?.lang) ? brandObj.lang : 'English')
   const working = turns.some((t) => t.status === 'working')
 
   useEffect(() => {
@@ -419,6 +434,18 @@ export default function AIPromptPage() {
           trackJob(res.id, 'image')
           patchTurn(turn.id, { jobId: res.id })
         }
+      } else if (turn.kind === 'story') {
+        // Writes the storyboard only (~20-40s); clips render once it's approved.
+        const res = await api.post('/ai/story', {
+          idea: turn.prompt,
+          brand_id: turn.brandId,
+          total_seconds: turn.seconds,
+          scene_seconds: 8,
+          aspect_ratio: turn.ratio,
+          language: turn.language,
+        })
+        patchTurn(turn.id, { status: 'done', storyId: res.id })
+        refreshCounts()
       } else {
         const res = await api.post('/ai/video', {
           prompt: turn.prompt,
@@ -492,9 +519,10 @@ export default function AIPromptPage() {
     const turn = {
       id: ++turnSeq,
       prompt,
-      kind: type,
-      ratio,
-      seconds,
+      kind: isStory ? 'story' : type,
+      ratio: isStory && ratio === '1:1' ? '9:16' : ratio,
+      seconds: isStory ? storySeconds : seconds,
+      language: isStory ? storyVoice : '',
       brandId: brandObj?.id ?? null,
       brandName: brandObj?.name || '',
       refUrl: refImg?.url || '',
@@ -606,13 +634,18 @@ export default function AIPromptPage() {
 
   const editPrompt = (turn) => {
     setText(turn.prompt)
-    chooseType(turn.kind)
+    chooseType(turn.kind === 'image' ? 'image' : 'video')
+    if (turn.kind !== 'image') setVideoMode(turn.kind === 'story' ? 'story' : 'clip')
+    if (turn.kind === 'story') {
+      setStorySeconds(turn.seconds)
+      setVoice(turn.language ?? null)
+    }
     setRatio(turn.ratio)
     composerRef.current?.querySelector('textarea')?.focus()
   }
 
   const regenerate = (turn) => {
-    const again = { ...turn, id: ++turnSeq, status: 'working', video: null, jobId: null, startedAt: Date.now() }
+    const again = { ...turn, id: ++turnSeq, status: 'working', video: null, jobId: null, storyId: null, startedAt: Date.now() }
     setTurns((list) => [...list, again])
     run(again)
   }
@@ -712,6 +745,14 @@ export default function AIPromptPage() {
                   composerRef.current?.querySelector('textarea')?.focus()
                 }}
               />
+            ) : t.kind === 'story' ? (
+              <StoryTurn
+                key={t.id}
+                t={t}
+                onEdit={() => editPrompt(t)}
+                onRetry={() => regenerate(t)}
+                onDeleted={() => setTurns((list) => list.filter((x) => x.id !== t.id))}
+              />
             ) : (
             <Turn
               key={t.id}
@@ -792,7 +833,9 @@ export default function AIPromptPage() {
             placeholder={
               writing
                 ? 'Writing your prompt…'
-                : `Ask about your marketing, or describe the ${isImage ? 'image' : 'video'} you want…`
+                : isStory
+                  ? 'Describe the video story — the problem, the product, the result…'
+                  : `Ask about your marketing, or describe the ${isImage ? 'image' : 'video'} you want…`
             }
             className="block w-full border-0 bg-transparent px-5 pt-4 pb-2 text-[13.5px] leading-relaxed text-ink-900 placeholder:text-ink-400 focus:outline-none focus:ring-0 disabled:opacity-60"
           />
@@ -810,7 +853,8 @@ export default function AIPromptPage() {
               >
                 <FiSliders size={15} />
                 <span className="hidden sm:inline">
-                  {isImage ? 'Image' : `Video · ${seconds}s`} · {ratio}
+                  {isImage ? 'Image' : isStory ? `Storyboard · ~${storySeconds}s` : `Video · ${seconds}s`} ·{' '}
+                  {isStory && ratio === '1:1' ? '9:16' : ratio}
                 </span>
               </button>
               {settingsOpen && (
@@ -821,6 +865,12 @@ export default function AIPromptPage() {
                   setRatio={setRatio}
                   seconds={seconds}
                   setSeconds={setSeconds}
+                  videoMode={videoMode}
+                  setVideoMode={setVideoMode}
+                  storySeconds={storySeconds}
+                  setStorySeconds={setStorySeconds}
+                  voice={storyVoice}
+                  setVoice={setVoice}
                   brands={brands}
                   brand={brandObj?.slug}
                   setBrand={setBrand}
@@ -1305,7 +1355,7 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary }) {
       <div className="flex flex-col items-start">
         {t.status === 'working' && (
           <div className={shape}>
-            <GeneratingCanvas kind={t.kind} stage={stage} />
+            <GeneratingCanvas icon={t.kind === 'image' ? '✦' : '▶'} stage={stage} />
             <div className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-brand/15">
               <div className="h-full rounded-full bg-brand transition-[width] duration-300 ease-linear" style={{ width: `${pct}%` }} />
             </div>
@@ -1413,50 +1463,6 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary }) {
   )
 }
 
-// The placeholder while a render runs: drifting brand-colour smoke, the
-// ContentFlow mark floating in the middle with puffs rising off it, and a
-// shimmer sweep (keyframes: index.css, "cf-*").
-const PUFFS = [
-  { delay: '0s', drift: '-26px' },
-  { delay: '0.9s', drift: '18px' },
-  { delay: '1.8s', drift: '-8px' },
-  { delay: '2.7s', drift: '30px' },
-]
-
-function GeneratingCanvas({ kind, stage }) {
-  return (
-    <div className="relative h-full w-full overflow-hidden rounded-2xl bg-[#E8F1FB] ring-1 ring-brand/10">
-      <div className="cf-smoke cf-smoke-a" />
-      <div className="cf-smoke cf-smoke-b" />
-      <div className="cf-smoke cf-smoke-c" />
-      <div className="cf-sweep" />
-
-      {PUFFS.map((p) => (
-        <span key={p.delay} className="cf-puff" style={{ animationDelay: p.delay, '--drift': p.drift }} />
-      ))}
-
-      <div className="absolute inset-0 grid place-items-center">
-        <div className="cf-float flex flex-col items-center">
-          <div className="relative">
-            <span className="cf-halo absolute -inset-4 rounded-[28px] bg-white/70 blur-md" />
-            <span className="relative w-16 h-16 rounded-2xl grid place-items-center bg-white shadow-[0_10px_30px_rgb(var(--brand)/0.35)]">
-              <img src="/brand/logo-mark.png" alt="" className="w-12 h-12 object-contain" />
-            </span>
-          </div>
-          <span className="mt-3 text-[14px] font-bold tracking-tight text-ink-900/80">ContentFlow</span>
-        </div>
-      </div>
-
-      <div className="absolute inset-x-0 bottom-0 p-3">
-        <div className="mx-auto w-fit max-w-full truncate rounded-full bg-white/70 px-3 py-1 text-[11px] font-medium text-ink-700 backdrop-blur-sm">
-          {kind === 'image' ? '✦ ' : '▶ '}
-          {stage}
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // Full-size view of a generated image/video: dark backdrop, media fitted to
 // the screen, and the same actions as the chat row.
 function MediaViewer({ url, isImage, filename, onUse, onClose }) {
@@ -1524,6 +1530,48 @@ function MediaViewer({ url, isImage, filename, onUse, onClose }) {
   )
 }
 
+function StoryTurn({ t, onEdit, onRetry, onDeleted }) {
+  return (
+    <div className="space-y-4 animate-fadein">
+      <div className="flex flex-col items-end">
+        <div className="max-w-[70%] rounded-2xl rounded-br-md bg-brand-soft/70 px-4 py-2.5 text-[13px] leading-relaxed text-ink-900 whitespace-pre-wrap">
+          {t.prompt}
+        </div>
+        <div className="mt-1 flex items-center gap-0.5 text-ink-400">
+          <span className="mr-1.5 text-[10.5px]">
+            Storyboard · ~{t.seconds}s · {t.ratio} · {t.language || 'No voiceover'}
+            {t.brandName ? ` · ${t.brandName}` : ''}
+          </span>
+          <IconBtn title="Edit idea" onClick={onEdit}>
+            <FiEdit2 size={13} />
+          </IconBtn>
+        </div>
+      </div>
+
+      {t.status === 'working' && (
+        <div className="flex items-center gap-3 rounded-2xl border border-ink-200/60 bg-white px-4 py-3.5 w-fit">
+          <span className="h-5 w-5 animate-spin rounded-full border-2 border-brand/20 border-t-brand" />
+          <div>
+            <div className="text-[12.5px] font-semibold text-ink-800">Writing the storyboard…</div>
+            <div className="text-[10.5px] text-ink-400">Scenes, voiceover and on-screen text — about 30 seconds</div>
+          </div>
+        </div>
+      )}
+      {t.status === 'failed' && (
+        <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-[12.5px] text-red-700">
+          Couldn’t write the storyboard — {t.error}.
+          <button type="button" onClick={onRetry} className="ml-2 font-semibold underline">
+            Try again
+          </button>
+        </div>
+      )}
+      {t.status === 'done' && t.storyId && (
+        <StoryEditor storyId={t.storyId} compact onDeleted={onDeleted} />
+      )}
+    </div>
+  )
+}
+
 function IconBtn({ title, onClick, children }) {
   return (
     <button
@@ -1539,7 +1587,8 @@ function IconBtn({ title, onClick, children }) {
 }
 
 function SettingsPopover({
-  type, setType, ratio, setRatio, seconds, setSeconds, brands, brand, setBrand, style, setStyle, template, setTemplate,
+  type, setType, ratio, setRatio, seconds, setSeconds, videoMode, setVideoMode, storySeconds, setStorySeconds,
+  voice, setVoice, brands, brand, setBrand, style, setStyle, template, setTemplate,
 }) {
   const seg = (on) =>
     `flex-1 h-8 rounded-lg text-[12px] font-semibold inline-flex items-center justify-center gap-1.5 transition-colors ${
@@ -1549,6 +1598,7 @@ function SettingsPopover({
     `h-8 px-2.5 rounded-lg border text-[11.5px] font-medium transition-colors ${
       on ? 'border-brand/40 bg-brand-soft text-brand' : 'border-ink-200 text-ink-600 hover:border-ink-300'
     }`
+  const story = type === 'video' && videoMode === 'story'
   return (
     <div className="absolute bottom-full left-0 mb-2 w-[330px] max-w-[calc(100vw-40px)] rounded-2xl glass-panel p-4 animate-fadein space-y-4">
       <div className="flex rounded-xl bg-ink-100 p-1">
@@ -1560,10 +1610,39 @@ function SettingsPopover({
         </button>
       </div>
 
+      {type === 'video' && (
+        <Setting label="Kind of video">
+          <div className="grid grid-cols-2 gap-1.5">
+            {[
+              { id: 'clip', icon: <FiVideo size={13} />, title: 'Instant video', sub: 'One clip · 4–12s' },
+              { id: 'story', icon: <FiFilm size={13} />, title: 'Storyboard', sub: 'Scene by scene · 16–64s' },
+            ].map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => setVideoMode(m.id)}
+                className={`${chip(videoMode === m.id)} h-auto py-2 text-left`}
+              >
+                <div className="inline-flex items-center gap-1.5 font-semibold">
+                  {m.icon}
+                  {m.title}
+                </div>
+                <div className="text-[10px] text-ink-400 leading-tight">{m.sub}</div>
+              </button>
+            ))}
+          </div>
+        </Setting>
+      )}
+
       <Setting label="Size">
         <div className="grid grid-cols-3 gap-1.5">
-          {RATIOS.map((r) => (
-            <button key={r.id} type="button" onClick={() => setRatio(r.id)} className={`${chip(ratio === r.id)} h-auto py-1.5 text-left`}>
+          {RATIOS.filter((r) => !(story && r.id === '1:1')).map((r) => (
+            <button
+              key={r.id}
+              type="button"
+              onClick={() => setRatio(r.id)}
+              className={`${chip(ratio === r.id || (story && ratio === '1:1' && r.id === '9:16'))} h-auto py-1.5 text-left`}
+            >
               <div className="font-semibold">{r.id}</div>
               <div className="text-[10px] text-ink-400 leading-tight">{r.sub}</div>
             </button>
@@ -1571,7 +1650,7 @@ function SettingsPopover({
         </div>
       </Setting>
 
-      {type === 'video' && (
+      {type === 'video' && !story && (
         <Setting label="Length">
           <div className="flex gap-1.5">
             {LENGTHS.map((n) => (
@@ -1581,6 +1660,30 @@ function SettingsPopover({
             ))}
           </div>
         </Setting>
+      )}
+
+      {story && (
+        <>
+          <Setting label="Length">
+            <div className="flex flex-wrap gap-1.5">
+              {STORY_LENGTHS.map((n) => (
+                <button key={n} type="button" onClick={() => setStorySeconds(n)} className={chip(storySeconds === n)}>
+                  ~{n}s
+                </button>
+              ))}
+            </div>
+            <div className="mt-1 text-[10px] text-ink-400">{storySeconds / 8} scenes of 8s each</div>
+          </Setting>
+          <Setting label="Voiceover">
+            <div className="flex flex-wrap gap-1.5">
+              {[...VOICES, ''].map((v) => (
+                <button key={v || 'none'} type="button" onClick={() => setVoice(v)} className={chip(voice === v)}>
+                  {v || 'None'}
+                </button>
+              ))}
+            </div>
+          </Setting>
+        </>
       )}
 
       <Setting label="Brand">

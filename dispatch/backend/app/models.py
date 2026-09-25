@@ -424,6 +424,67 @@ class MetricSnapshot(Base):
     metrics: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, server_default="{}", nullable=False)
 
 
+class WeeklyPlan(Base, TimestampMixin):
+    """One brand's AI weekly report + plan (app/weekly.py) — last week's
+    numbers vs the week before, and a day-by-day set of post ideas for the
+    coming week that the person approves in one tap. ``report`` and ``items``
+    are written by app/weekly.py and read as-is by the Weekly plan page.
+    Not in app/registry.py: no generic CRUD endpoint."""
+
+    __tablename__ = "weekly_plans"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    brand_id: Mapped[int] = mapped_column(ForeignKey("brands.id", ondelete="CASCADE"), index=True)
+    # First and last Phnom Penh day the plan's posts are spread over.
+    starts_on: Mapped[date] = mapped_column(Date, index=True)
+    ends_on: Mapped[date] = mapped_column(Date)
+    # ready | approved | dismissed
+    status: Mapped[str] = mapped_column(String(12), default="ready")
+    report: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, server_default="{}", nullable=False)
+    # [{"key", "day": "YYYY-MM-DD", "title", "caption", "insight", "fit_score", "fact_issues"}]
+    items: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list, server_default="[]", nullable=False)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    approved_by: Mapped[int | None] = mapped_column(
+        ForeignKey("team_members.id", ondelete="SET NULL"), nullable=True
+    )
+
+
+class VideoStory(Base, TimestampMixin):
+    """A longer video (15-60s) made scene by scene (app/story.py): the AI
+    writes a storyboard, each scene renders as its own short clip (a
+    GenerationJob of kind "scene" — the video model only makes 4-12s), and
+    the clips are joined into one MP4 once the person approves.
+
+    ``scenes``: [{"key", "seconds", "visual", "voiceover", "on_screen",
+    "job_id": int | null, "state": "draft" | "pending" | "rendering" |
+    "done" | "failed", "error"}]. Not in app/registry.py."""
+
+    __tablename__ = "video_stories"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
+    brand_id: Mapped[int | None] = mapped_column(
+        ForeignKey("brands.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("team_members.id", ondelete="SET NULL"), nullable=True
+    )
+    title: Mapped[str] = mapped_column(String(200), default="")
+    idea: Mapped[str] = mapped_column(Text, default="")
+    # The shared look every scene's prompt starts with, so the clips match.
+    style: Mapped[str] = mapped_column(Text, default="")
+    aspect_ratio: Mapped[str] = mapped_column(String(8), default="9:16")
+    # Voiceover language ("" = no voiceover, music and sound only).
+    language: Mapped[str] = mapped_column(String(40), default="English")
+    # draft | rendering | ready | combining | done | failed
+    status: Mapped[str] = mapped_column(String(12), default="draft")
+    scenes: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list, server_default="[]", nullable=False)
+    final_video_id: Mapped[int | None] = mapped_column(
+        ForeignKey("videos.id", ondelete="SET NULL"), nullable=True
+    )
+    error: Mapped[str] = mapped_column(Text, default="", server_default="")
+
+
 class TeamMember(Base, TimestampMixin):
     __tablename__ = "team_members"
 

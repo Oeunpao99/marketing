@@ -432,7 +432,7 @@ def library_view(db: Session = Depends(get_db), ws: int = Depends(current_worksp
     videos = {v.id: v for v in _scoped(db, Video, ws)}
     jobs = db.scalars(
         select(GenerationJob)
-        .where(scope(GenerationJob, ws), GenerationJob.video_id.is_not(None))
+        .where(scope(GenerationJob, ws), GenerationJob.video_id.is_not(None), GenerationJob.kind != "scene")
         .order_by(GenerationJob.created_at.desc(), GenerationJob.id.desc())
     ).all()
     out = []
@@ -778,7 +778,7 @@ def sidebar_counts(db: Session = Depends(get_db), ws: int = Depends(current_work
     total = count(Channel)
     queued = count(PostTarget)
     waiting = count(Draft, Draft.status == "waiting")
-    library = count(GenerationJob, GenerationJob.video_id.is_not(None))
+    library = count(GenerationJob, GenerationJob.video_id.is_not(None), GenerationJob.kind != "scene")
     per_brand = dict(
         db.execute(
             select(Post.brand_id, func.count(PostTarget.id))
@@ -1424,7 +1424,9 @@ def approve_draft(draft_id: int, db: Session = Depends(get_db), ws: int = Depend
 
     if d.video_id is not None:
         try:
-            post = schedule_draft_as_post(db, d)
+            # A weekly-plan idea keeps its planned day (app/weekly.py).
+            on_day = d.planned_for if d.source == "ai-weekly" else None
+            post = schedule_draft_as_post(db, d, on_day=on_day)
         except ContentAIError as exc:
             raise HTTPException(422, str(exc)) from exc
         d.status = "scheduled"

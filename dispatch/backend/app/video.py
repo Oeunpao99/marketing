@@ -457,6 +457,8 @@ def _ready_push(job: GenerationJob) -> None:
     — shows in the phone's notification bar even with the app closed."""
     from app.push import notify_user
 
+    if job.kind == "scene":
+        return  # one clip of a longer video — app/story.py tells them when all are done
     what = "image" if job.kind == "image" else "video"
     if job.status == "succeeded":
         notify_user(job.user_id, "generated", f"Your {what} is ready ✨", _clip(job.prompt), "/ai", f"gen-{job.id}")
@@ -478,7 +480,7 @@ def advance_video(db: Session, job_id: int) -> GenerationJob | None:
     if job is None:
         db.rollback()
         return None
-    if job.kind != "video" or job.status in {"succeeded", "failed"}:
+    if job.kind not in ("video", "scene") or job.status in {"succeeded", "failed"}:
         db.commit()
         return job
 
@@ -518,7 +520,7 @@ def advance_video(db: Session, job_id: int) -> GenerationJob | None:
         resolution=f"{width}x{height}",
         size_bytes=len(blob),
         source="ai",
-        tag="ai-video",
+        tag="ai-scene" if job.kind == "scene" else "ai-video",
         url=url,
     )
     db.add(video)
@@ -730,6 +732,9 @@ def _tick() -> None:
                 except Exception:  # noqa: BLE001 - one bad job mustn't stop the rest
                     db.rollback()
                     log.exception("advancing video job %s failed", job.id)
+        from app.story import tick_stories  # local import: story imports this module
+
+        tick_stories(db)
     finally:
         db.close()
 
