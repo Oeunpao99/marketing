@@ -6,16 +6,19 @@ owner — each sign-up is its own isolated account (app/tenancy.py).
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+import ipaddress
+from datetime import UTC, datetime, timedelta
+
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Brand, TeamMember, Workspace
+from app.models import Brand, LoginEvent, TeamMember, Workspace
 from app.schemas import AuthOut, LoginIn, RegisterIn, UserOut, WorkspaceUpdate
 from app.security import create_token, hash_password, verify_password
-from app.tenancy import get_current_user, require_manager
+from app.tenancy import MANAGER_ROLES, get_current_user, require_manager
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -40,7 +43,7 @@ def _user_out(db: Session, user: TeamMember) -> UserOut:
 
 
 @router.post("/register", response_model=AuthOut, status_code=201)
-def register(payload: RegisterIn, db: Session = Depends(get_db)):
+def register(payload: RegisterIn, request: Request, db: Session = Depends(get_db)):
     email = payload.email.strip().lower()
     if "@" not in email:
         raise HTTPException(422, "Enter a valid email address.")
@@ -64,20 +67,140 @@ def register(payload: RegisterIn, db: Session = Depends(get_db)):
     db.add(user)
     db.commit()
     db.refresh(user)
+    record_login(db, request, email, "signup", user)
     return AuthOut(token=create_token(user.id), user=_user_out(db, user))
 
 
 @router.post("/login", response_model=AuthOut)
-def login(payload: LoginIn, db: Session = Depends(get_db)):
+def login(payload: LoginIn, request: Request, db: Session = Depends(get_db)):
     email = payload.email.strip().lower()
+    ip = client_ip(request)
     user = db.scalar(select(TeamMember).where(func.lower(TeamMember.email) == email))
-    if user is None or not user.password_hash or not verify_password(
-        payload.password, user.password_hash
-    ):
-        raise HTTPException(401, "Wrong email or password.")
+
+    def fail(status: str, code: int, message: str):
+        record_login(db, request, email, status, user)
+        raise HTTPException(code, message)
+
+    if too_many_failures(db, email, ip):
+        fail("blocked", 429, "Too many failed sign-in attempts. Wait 15 minutes and try again.")
+    if user is None:
+        fail("unknown_email", 401, "Wrong email or password.")
+    if not user.password_hash or not verify_password(payload.password, user.password_hash):
+        fail("wrong_password", 401, "Wrong email or password.")
     if not user.is_active:
-        raise HTTPException(403, "This account is disabled.")
+        fail("disabled", 403, "This account is disabled.")
+    record_login(db, request, email, "success", user)
     return AuthOut(token=create_token(user.id), user=_user_out(db, user))
+
+
+# ── Security: sign-in history ─────────────────────────────────────────────
+# Every attempt is written to login_events (never the password). Owners and
+# admins see their whole workspace's history; everyone else sees their own.
+_FAIL_WINDOW = timedelta(minutes=15)
+_MAX_FAILS_PER_EMAIL = 10
+_MAX_FAILS_PER_IP = 30
+_KEEP_FOR = timedelta(days=90)
+_FAILED = ("wrong_password", "unknown_email", "disabled", "blocked")
+
+
+def client_ip(request: Request) -> str:
+    """The visitor's real address. The site sits behind two proxies (the VM's
+    front proxy, then the frontend container's nginx), each appending to
+    X-Forwarded-For — so walk it from the right and take the first public
+    address; a client can prepend fake entries on the left, not the right."""
+    chain = [p.strip() for p in request.headers.get("x-forwarded-for", "").split(",") if p.strip()]
+    for candidate in reversed(chain):
+        try:
+            addr = ipaddress.ip_address(candidate)
+        except ValueError:
+            continue
+        if addr.is_global:
+            return candidate
+    return request.headers.get("x-real-ip") or (request.client.host if request.client else "")
+
+
+def too_many_failures(db: Session, email: str, ip: str) -> bool:
+    since = datetime.now(UTC) - _FAIL_WINDOW
+    failed = select(func.count()).select_from(LoginEvent).where(
+        LoginEvent.created_at >= since, LoginEvent.status.in_(_FAILED)
+    )
+    if (db.scalar(failed.where(LoginEvent.email == email)) or 0) >= _MAX_FAILS_PER_EMAIL:
+        return True
+    return bool(ip) and (db.scalar(failed.where(LoginEvent.ip == ip)) or 0) >= _MAX_FAILS_PER_IP
+
+
+def record_login(db: Session, request: Request, email: str, status: str, user: TeamMember | None) -> None:
+    db.add(
+        LoginEvent(
+            workspace_id=user.workspace_id if user else None,
+            user_id=user.id if user else None,
+            email=email[:160],
+            status=status,
+            ip=client_ip(request)[:64],
+            user_agent=request.headers.get("user-agent", "")[:300],
+        )
+    )
+    if status == "success":  # prune old history now and then, not on every attempt
+        db.execute(delete(LoginEvent).where(LoginEvent.created_at < datetime.now(UTC) - _KEEP_FOR))
+    db.commit()
+
+
+def describe_device(ua: str) -> str:
+    """"Chrome on Windows" from a User-Agent string — enough to recognise a device."""
+    browser = next(
+        (name for token, name in (
+            ("Edg/", "Edge"), ("OPR/", "Opera"), ("SamsungBrowser", "Samsung Internet"),
+            ("CriOS", "Chrome"), ("FxiOS", "Firefox"), ("Firefox/", "Firefox"),
+            ("Chrome/", "Chrome"), ("Safari/", "Safari"),
+        ) if token in ua),
+        "",
+    )
+    system = next(
+        (name for token, name in (
+            ("iPhone", "iPhone"), ("iPad", "iPad"), ("Android", "Android"),
+            ("Windows", "Windows"), ("Mac OS X", "macOS"), ("CrOS", "ChromeOS"), ("Linux", "Linux"),
+        ) if token in ua),
+        "",
+    )
+    if browser and system:
+        return f"{browser} on {system}"
+    return browser or system or ("Unknown device" if ua else "—")
+
+
+@router.get("/security/logins")
+def login_history(request: Request, user: TeamMember = Depends(get_current_user), db: Session = Depends(get_db)):
+    manager = user.role in MANAGER_ROLES
+    mine = LoginEvent.workspace_id == user.workspace_id if manager else LoginEvent.user_id == user.id
+    rows = db.scalars(select(LoginEvent).where(mine).order_by(LoginEvent.created_at.desc()).limit(200)).all()
+    since = datetime.now(UTC) - timedelta(hours=24)
+    failed_24h = db.scalar(
+        select(func.count()).select_from(LoginEvent).where(
+            mine, LoginEvent.created_at >= since, LoginEvent.status.in_(_FAILED)
+        )
+    )
+    names = {
+        m.id: m.name
+        for m in db.scalars(select(TeamMember).where(TeamMember.workspace_id == user.workspace_id)).all()
+    }
+    here_ip, here_ua = client_ip(request), request.headers.get("user-agent", "")
+    return {
+        "scope": "workspace" if manager else "me",
+        "failed_24h": failed_24h or 0,
+        "events": [
+            {
+                "id": r.id,
+                "at": r.created_at.isoformat(),
+                "email": r.email,
+                "member": names.get(r.user_id, ""),
+                "status": r.status,
+                "ip": r.ip,
+                "device": describe_device(r.user_agent),
+                "user_agent": r.user_agent,
+                "this_device": r.ip == here_ip and r.user_agent == here_ua,
+            }
+            for r in rows
+        ],
+    }
 
 
 @router.get("/me", response_model=UserOut)

@@ -1,0 +1,8 @@
+# ContentFlow — https://mkt.chlart.org
+# Public pages may be indexed; the API and uploaded media may not.
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /media/
+
+Sitemap: https://mkt.chlart.org/sitemap.xml

@@ -371,6 +371,32 @@ class PushSubscription(Base, TimestampMixin):
     user_agent: Mapped[str] = mapped_column(String(300), default="", server_default="")
 
 
+class LoginEvent(Base):
+    """One sign-in attempt (app/auth.py) — the Settings → Security login
+    history. Never stores the password, right or wrong. ``workspace_id`` /
+    ``user_id`` are set only when the typed email belongs to an account, so an
+    attempt on an unknown email is recorded but shown to no workspace.
+    Deliberately not in app/registry.py: no generic CRUD endpoint."""
+
+    __tablename__ = "login_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
+    workspace_id: Mapped[int | None] = mapped_column(
+        ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("team_members.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    email: Mapped[str] = mapped_column(String(160), index=True)  # as typed, lowercased
+    # success | signup | wrong_password | unknown_email | disabled | blocked
+    status: Mapped[str] = mapped_column(String(20))
+    ip: Mapped[str] = mapped_column(String(64), default="", server_default="")
+    user_agent: Mapped[str] = mapped_column(String(300), default="", server_default="")
+
+
 class TeamMember(Base, TimestampMixin):
     __tablename__ = "team_members"
 

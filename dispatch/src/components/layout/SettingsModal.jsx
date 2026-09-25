@@ -1,12 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
+  FiAlertTriangle,
   FiBell,
   FiBriefcase,
   FiCheck,
   FiDroplet,
   FiLock,
   FiLogOut,
+  FiMonitor,
+  FiRefreshCw,
+  FiSmartphone,
   FiTrash2,
   FiUser,
   FiUserPlus,
@@ -20,6 +24,7 @@ import { disablePush, enablePush, pushStatus, sendTestPush } from '../../lib/pus
 import { ACCENTS, applyAccent, DEFAULT_ACCENT, normalizeAccent } from '../../lib/theme'
 import { promptInstall, useInstallState } from '../../lib/pwa'
 import { APP_VERSION, applyUpdate, latestVersion } from '../../lib/update'
+import { TZ } from '../../lib/tz'
 
 // Settings — every control here is real and saves to the backend
 // (app/auth.py): profile, password, workspace name, and the team (add people
@@ -533,6 +538,8 @@ function SecurityTab({ showToast, onClose }) {
         </div>
       </section>
 
+      <LoginHistory />
+
       <section className="rounded-2xl border border-ink-200 p-4 flex items-center gap-3">
         <div className="min-w-0 flex-1">
           <div className="text-[13px] font-semibold text-ink-800">Signed in as {user?.name}</div>
@@ -551,6 +558,123 @@ function SecurityTab({ showToast, onClose }) {
         </button>
       </section>
     </div>
+  )
+}
+
+// Sign-in history (GET /auth/security/logins): every attempt with the email
+// typed, IP, device and result — never the password. Owners/admins see the
+// whole workspace, everyone else their own sign-ins.
+const LOGIN_STATUS = {
+  success: { label: 'Signed in', tone: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
+  signup: { label: 'Account created', tone: 'bg-sky-50 text-sky-700 ring-sky-200' },
+  wrong_password: { label: 'Wrong password', tone: 'bg-red-50 text-red-700 ring-red-200' },
+  unknown_email: { label: 'Unknown email', tone: 'bg-red-50 text-red-700 ring-red-200' },
+  disabled: { label: 'Account disabled', tone: 'bg-amber-50 text-amber-800 ring-amber-200' },
+  blocked: { label: 'Blocked · too many tries', tone: 'bg-red-100 text-red-800 ring-red-300' },
+}
+
+const loginTime = (iso) =>
+  new Date(iso).toLocaleString('en-GB', {
+    timeZone: TZ,
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+
+function LoginHistory() {
+  const [data, setData] = useState(null)
+  const [error, setError] = useState('')
+  const [onlyFailed, setOnlyFailed] = useState(false)
+
+  const load = () => {
+    setError('')
+    api.get('/auth/security/logins').then(setData, (e) => setError(e.message))
+  }
+  useEffect(load, [])
+
+  const events = (data?.events || []).filter(
+    (e) => !onlyFailed || !['success', 'signup'].includes(e.status),
+  )
+
+  return (
+    <section className="space-y-3">
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <SectionTitle
+          title="Sign-in activity"
+          sub={
+            data?.scope === 'workspace'
+              ? 'Every attempt to sign in to this workspace, newest first. Passwords are never recorded.'
+              : 'Your recent sign-ins, newest first. Passwords are never recorded.'
+          }
+        />
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setOnlyFailed((v) => !v)}
+            className={`h-8 rounded-lg border px-2.5 text-[11.5px] font-medium ${
+              onlyFailed ? 'border-red-200 bg-red-50 text-red-700' : 'border-ink-200 text-ink-600 hover:border-ink-300'
+            }`}
+          >
+            Failed only
+          </button>
+          <button type="button" onClick={load} className="h-8 w-8 grid place-items-center rounded-lg border border-ink-200 text-ink-600 hover:border-ink-300" title="Refresh">
+            <FiRefreshCw size={13} />
+          </button>
+        </div>
+      </div>
+
+      {data && data.failed_24h > 0 && (
+        <div className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-[12px] text-amber-800">
+          <FiAlertTriangle size={15} className="mt-0.5 flex-none" />
+          <span>
+            <b>{data.failed_24h}</b> failed sign-in attempt{data.failed_24h === 1 ? '' : 's'} in the last 24 hours. If you don’t
+            recognise them, change your password — after 10 wrong tries in 15 minutes an account is locked for 15 minutes.
+          </span>
+        </div>
+      )}
+
+      {error ? (
+        <div className="text-[12px] text-red-600">{error}</div>
+      ) : !data ? (
+        <div className="text-[12px] text-ink-400">Loading…</div>
+      ) : !events.length ? (
+        <div className="rounded-xl border border-dashed border-ink-200 px-4 py-6 text-center text-[12px] text-ink-400">
+          {onlyFailed ? 'No failed attempts.' : 'No sign-ins recorded yet.'}
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-ink-200">
+          <ul className="max-h-[360px] divide-y divide-ink-100 overflow-y-auto">
+            {events.map((e) => {
+              const st = LOGIN_STATUS[e.status] || { label: e.status, tone: 'bg-ink-50 text-ink-600 ring-ink-200' }
+              const Phone = /iPhone|iPad|Android/.test(e.device) ? FiSmartphone : FiMonitor
+              return (
+                <li key={e.id} className="flex items-start gap-3 px-3.5 py-3" title={e.user_agent}>
+                  <span className="mt-0.5 grid h-8 w-8 flex-none place-items-center rounded-lg bg-ink-100 text-ink-600">
+                    <Phone size={15} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className={`rounded-full px-2 py-0.5 text-[10.5px] font-semibold ring-1 ${st.tone}`}>{st.label}</span>
+                      <span className="truncate text-[12.5px] font-medium text-ink-800">{e.member || e.email}</span>
+                      {e.member && <span className="truncate text-[11.5px] text-ink-400">{e.email}</span>}
+                      {e.this_device && (
+                        <span className="rounded-full bg-brand-soft px-2 py-0.5 text-[10.5px] font-semibold text-brand">This device</span>
+                      )}
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11.5px] text-ink-500">
+                      <span>{e.device}</span>
+                      <span className="font-mono">{e.ip || 'IP unknown'}</span>
+                      <span>{loginTime(e.at)}</span>
+                    </div>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      )}
+    </section>
   )
 }
 
