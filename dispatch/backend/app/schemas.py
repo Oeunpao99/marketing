@@ -299,6 +299,9 @@ class AutomationBase(BaseModel):
     # Custom time auto-scheduled posts go out at. None = the built-in
     # per-platform defaults.
     post_at: time | None = None
+    # Use what has worked for this brand (app/learning.py) when writing and
+    # scheduling.
+    learn_from_results: bool = True
 
 
 class AutomationCreate(AutomationBase):
@@ -315,6 +318,7 @@ class AutomationUpdate(BaseModel):
     auto_media: bool | None = None
     auto_channel_ids: list[int] | None = None
     post_at: time | None = None
+    learn_from_results: bool | None = None
 
 
 class AutomationOut(TimestampsOut, AutomationBase):

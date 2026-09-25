@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
-import { FiPlay, FiRefreshCw, FiSettings, FiX } from 'react-icons/fi'
+import { FiPlay, FiRefreshCw, FiSettings, FiTrendingUp, FiX } from 'react-icons/fi'
 import { api } from '../api/client'
 import { colorForBrand } from '../lib/brandColor'
 import { useStore } from '../store'
@@ -146,6 +146,12 @@ export default function AutoPage() {
                               ) : (
                                 <div className="text-[11.5px] text-ink-500">
                                   {a.brand_lang || 'No language set'} · wrote {when(a.last_run_on)}
+                                  {a.learn_from_results && a.learnings?.rules?.length > 0 && (
+                                    <span className="ml-1.5 inline-flex items-center gap-1 text-emerald-700">
+                                      <FiTrendingUp size={11} aria-hidden="true" /> learning from {a.learnings.rules.length} result
+                                      {a.learnings.rules.length === 1 ? '' : 's'}
+                                    </span>
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -355,6 +361,17 @@ function SettingsDrawer({ a, channels, run, running, onUpdate, onBrandUpdate, on
             </Field>
           </Section>
 
+          <Section title="Learn from results">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-[12px] font-semibold text-ink-800">Use what works for this brand</div>
+                <div className="text-[11px] text-ink-500">Writes and schedules new posts using your own post results</div>
+              </div>
+              <Toggle on={a.learn_from_results} onChange={(v) => onUpdate({ learn_from_results: v })} />
+            </div>
+            {a.learn_from_results && <Learned learnings={a.learnings} />}
+          </Section>
+
           <Section title="Schedule">
             <div className="grid grid-cols-2 gap-3">
               <Field label="Write at">
@@ -427,7 +444,15 @@ function SettingsDrawer({ a, channels, run, running, onUpdate, onBrandUpdate, on
                       </button>
                     )}
                   </div>
-                  {!a.post_at && <p className="mt-1 text-[11px] text-ink-400">Blank = each platform's usual time</p>}
+                  {!a.post_at && (
+                    <p className="mt-1 text-[11px] text-ink-400">
+                      {a.learn_from_results && Object.keys(a.learnings?.post_hours || {}).length
+                        ? `Blank = your best time from results (${Object.entries(a.learnings.post_hours)
+                            .map(([k, v]) => `${PLAT[k]?.name || k} ${v}`)
+                            .join(', ')}), else each platform's usual time`
+                        : "Blank = each platform's usual time"}
+                    </p>
+                  )}
                 </Field>
 
                 <Field label="Channels">
@@ -478,6 +503,34 @@ function SettingsDrawer({ a, channels, run, running, onUpdate, onBrandUpdate, on
       </aside>
     </div>,
     document.body,
+  )
+}
+
+/** What app/learning.py found for this brand — each rule with its evidence,
+ *  or why there's nothing yet. */
+function Learned({ learnings }) {
+  const rules = learnings?.rules || []
+  if (!rules.length) {
+    return (
+      <p className="rounded-xl bg-ink-50 px-3.5 py-3 text-[11.5px] leading-relaxed text-ink-600">
+        Nothing to learn from yet{learnings?.posts ? ` — ${learnings.posts} post${learnings.posts === 1 ? '' : 's'} with numbers so far` : ''}.
+        Once a few posts have likes and comments, the AI starts using what works (best time, format, questions, caption length).
+      </p>
+    )
+  }
+  return (
+    <ul className="space-y-2 rounded-xl border border-emerald-100 bg-emerald-50/50 p-3">
+      {rules.map((r) => (
+        <li key={r.id} className="flex items-start gap-2 text-[12px]">
+          <FiTrendingUp size={13} className="mt-0.5 flex-none text-emerald-700" aria-hidden="true" />
+          <span>
+            <span className="font-medium text-ink-900">{r.text}</span>
+            <span className="block text-[11px] text-ink-500">{r.evidence}</span>
+          </span>
+        </li>
+      ))}
+      <li className="pt-1 text-[11px] text-ink-500">From your last {learnings.posts} posts with numbers · updates as new results come in</li>
+    </ul>
   )
 }
 

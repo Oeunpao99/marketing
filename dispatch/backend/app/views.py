@@ -370,6 +370,7 @@ def calendar_view(
 @router.get("/auto")
 def auto_view(db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
     from app.content_scheduler import run_status  # local import avoids a module cycle
+    from app.learning import brand_learnings
 
     brands = _brand_map(db, ws)
     autos = _scoped(db, Automation, ws)
@@ -391,6 +392,8 @@ def auto_view(db: Session = Depends(get_db), ws: int = Depends(current_workspace
             "post_at": a.post_at.strftime("%H:%M") if a.post_at else None,
             "last_run_on": a.last_run_on,
             "run": run_status(a.id),
+            "learn_from_results": a.learn_from_results,
+            "learnings": {k: v for k, v in brand_learnings(db, a.brand_id).items() if k in ("posts", "rules", "post_hours")},
         }
         for a in sorted(autos, key=lambda x: x.brand_id)
     ]

@@ -190,6 +190,7 @@ def _brief(
     topic_source: str,
     count: int,
     voice_examples: str = "",
+    learnings: str = "",
 ) -> str:
     lines = [
         f"Brand: {brand_name}" + (f" (write in: {brand_lang})" if brand_lang else ""),
@@ -217,6 +218,9 @@ def _brief(
             "copy facts, prices or claims from them unless they also appear in "
             "the product info above.\n---\n" + voice_examples.strip()[:3000] + "\n---"
         )
+    if learnings and learnings.strip():
+        # app/learning.py — measured from this brand's own published posts.
+        lines.append("\n" + learnings.strip()[:3000])
     return "\n".join(lines)
 
 
@@ -227,6 +231,7 @@ def generate_ideas(
     topic_source: str,
     count: int,
     voice_examples: str = "",
+    learnings: str = "",
 ) -> list[dict]:
     cfg = get_settings()
     khmer = _is_khmer(brand_lang)
@@ -236,7 +241,7 @@ def generate_ideas(
     parsed = _chat(
         [
             {"role": "system", "content": _system_prompt(brand_lang)},
-            {"role": "user", "content": _brief(brand_name, brand_lang, products, topic_source, count, voice_examples)},
+            {"role": "user", "content": _brief(brand_name, brand_lang, products, topic_source, count, voice_examples, learnings)},
         ],
         model,
     )

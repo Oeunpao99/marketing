@@ -7,14 +7,14 @@ from fastapi.responses import JSONResponse
 
 from app import content_scheduler, scheduler, video
 from app.advisor import router as advisor_router
-from app.chats import router as chats_router
-from app.push import router as push_router
 from app.ai import router as ai_router
 from app.auth import router as auth_router
+from app.chats import router as chats_router
 from app.config import get_settings
 from app.crud_router import build_router
 from app.media import router as media_router
 from app.media import serve_router as media_serve_router
+from app.push import router as push_router
 from app.registry import REGISTRY, registry_meta
 from app.tenancy import get_current_user
 from app.video import router as video_gen_router
@@ -61,7 +61,11 @@ async def maintenance_gate(request: Request, call_next):
     """MAINTENANCE_MODE=true: refuse every API call (except health) with a 503
     the frontend recognises (``"maintenance": true``) and shows as its
     "updating" screen."""
-    if settings.maintenance_mode and request.url.path.startswith("/api/") and request.url.path != "/api/health":
+    if (
+        settings.maintenance_mode
+        and request.url.path.startswith("/api/")
+        and request.url.path != "/api/health"
+    ):
         return JSONResponse(
             {"detail": settings.maintenance_message or MAINTENANCE_DEFAULT, "maintenance": True},
             status_code=503,
@@ -80,7 +84,9 @@ def health():
     return {
         "status": "ok",
         "maintenance": settings.maintenance_mode,
-        "message": (settings.maintenance_message or MAINTENANCE_DEFAULT) if settings.maintenance_mode else "",
+        "message": (settings.maintenance_message or MAINTENANCE_DEFAULT)
+        if settings.maintenance_mode
+        else "",
     }
 
 

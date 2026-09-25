@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.content_ai import ContentAIError, fact_check, generate_ideas, image_prompt_for_idea
+from app.learning import brand_learnings, learned_time
 from app.database import SessionLocal
 from app.models import Automation, Brand, Channel, Draft, Post, PostTarget, Product, Video
 
@@ -195,6 +196,13 @@ def schedule_draft_as_post(db: Session, draft: Draft) -> Post:
 
     now = datetime.now(PHNOM_PENH)
     override_time = automation.post_at if automation else None
+    # No fixed time set: use each platform's best-performing hour for this
+    # brand when there's enough evidence (app/learning.py), else the defaults.
+    learned = (
+        brand_learnings(db, draft.brand_id)
+        if automation and automation.learn_from_results and not override_time
+        else None
+    )
     for ch in channels:
         slug = ch.platform.slug if ch.platform else ""
         db.add(
@@ -203,7 +211,7 @@ def schedule_draft_as_post(db: Session, draft: Draft) -> Post:
                 channel_id=ch.id,
                 caption=draft.body,
                 title=draft.title,
-                scheduled_for=_next_slot(slug, now, override_time),
+                scheduled_for=_next_slot(slug, now, override_time or (learned_time(learned, slug) if learned else None)),
                 status="queued",
             )
         )
@@ -232,8 +240,9 @@ def _write_batch(
     ideas_end, check_end = (45, 55) if media else (70, 95)
     report(5, f"Writing {count} idea{'s' if count != 1 else ''}…", ideas_end)
     try:
+        learnings = brand_learnings(db, brand.id)["prompt"] if automation.learn_from_results else ""
         ideas = generate_ideas(
-            brand.name, brand.lang, list(products), automation.topic_source, count, brand.voice_examples or ""
+            brand.name, brand.lang, list(products), automation.topic_source, count, brand.voice_examples or "", learnings
         )
     except ContentAIError:
         db.commit()  # release the lock even though this attempt failed

@@ -302,6 +302,10 @@ class Automation(Base, TimestampMixin):
     # per-platform defaults (19:30 Facebook / 20:00 TikTok / 20:30 else — see
     # content_scheduler.py's _default_time_for). Null = keep those defaults.
     post_at: Mapped[time | None] = mapped_column(Time, nullable=True)
+    # Learn from results (app/learning.py): feed what has worked for this
+    # brand into the idea brief, and auto-schedule at its best-performing
+    # hour when post_at isn't set. On by default; the page has a switch.
+    learn_from_results: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
 
 
 @event.listens_for(Brand, "after_insert")

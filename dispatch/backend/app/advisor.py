@@ -84,7 +84,9 @@ def _take_quota(ws: int) -> int:
             _usage.pop(key, None)
         used = _usage.get((ws, today), 0)
         if used >= limit:
-            raise HTTPException(429, f"Daily advisor limit reached ({limit} questions). Try again tomorrow.")
+            raise HTTPException(
+                429, f"Daily advisor limit reached ({limit} questions). Try again tomorrow."
+            )
         _usage[(ws, today)] = used + 1
         return limit - used - 1
 
@@ -107,18 +109,28 @@ def _snapshot(db: Session, ws: int, focus_brand_id: int | None) -> str:
         lines.append(f"The user is currently looking at brand id {focus_brand_id}.")
 
     for b in brands:
-        lines.append(f"\n## Brand: {b.name} (id {b.id}) — language: {b.lang or 'unset'}; note: {_clip(b.note, 120)}")
+        lines.append(
+            f"\n## Brand: {b.name} (id {b.id}) — language: {b.lang or 'unset'}; note: {_clip(b.note, 120)}"
+        )
         if b.voice_examples:
             lines.append(f"Voice examples: {_clip(b.voice_examples, 400)}")
-        products = db.scalars(select(Product).where(Product.brand_id == b.id).order_by(Product.name)).all()
+        products = db.scalars(
+            select(Product).where(Product.brand_id == b.id).order_by(Product.name)
+        ).all()
         if products:
             lines.append("Products:")
             for p in products[:15]:
-                lines.append(f"- {p.name}: {_clip(p.description, 180)} | highlights: {_clip(p.highlights, 180)}")
+                lines.append(
+                    f"- {p.name}: {_clip(p.description, 180)} | highlights: {_clip(p.highlights, 180)}"
+                )
         else:
             lines.append("Products: none added yet.")
         chans = db.scalars(select(Channel).where(Channel.brand_id == b.id)).all()
-        live = [f"{plats.get(c.platform_id, '?')} ({c.handle or 'no handle'})" for c in chans if c.status != "off"]
+        live = [
+            f"{plats.get(c.platform_id, '?')} ({c.handle or 'no handle'})"
+            for c in chans
+            if c.status != "off"
+        ]
         lines.append(f"Connected channels: {', '.join(live) if live else 'none'}")
         a = db.scalar(select(Automation).where(Automation.brand_id == b.id))
         if a:
@@ -128,14 +140,20 @@ def _snapshot(db: Session, ws: int, focus_brand_id: int | None) -> str:
             )
 
     queued = db.scalar(
-        select(func.count()).select_from(PostTarget).where(scope(PostTarget, ws), PostTarget.status == "queued")
+        select(func.count())
+        .select_from(PostTarget)
+        .where(scope(PostTarget, ws), PostTarget.status == "queued")
     )
-    waiting = db.scalar(select(func.count()).select_from(Draft).where(scope(Draft, ws), Draft.status == "waiting"))
+    waiting = db.scalar(
+        select(func.count()).select_from(Draft).where(scope(Draft, ws), Draft.status == "waiting")
+    )
     since = datetime.now(UTC) - timedelta(days=30)
     posted_30 = db.scalar(
         select(func.count())
         .select_from(PostTarget)
-        .where(scope(PostTarget, ws), PostTarget.status == "posted", PostTarget.published_at >= since)
+        .where(
+            scope(PostTarget, ws), PostTarget.status == "posted", PostTarget.published_at >= since
+        )
     )
     failed_30 = db.scalar(
         select(func.count())
@@ -154,13 +172,24 @@ def _snapshot(db: Session, ws: int, focus_brand_id: int | None) -> str:
         lines.append("\n## Recent published posts (newest first, live numbers):")
         for r in rows:
             m = r.get("metrics") or {}
-            nums = ", ".join(f"{k} {v}" for k, v in m.items() if isinstance(v, (int, float))) or "no numbers"
+            nums = (
+                ", ".join(f"{k} {v}" for k, v in m.items() if isinstance(v, (int, float)))
+                or "no numbers"
+            )
             when = r.get("published_at")
-            when = when.strftime("%Y-%m-%d %a %H:%M UTC") if hasattr(when, "strftime") else str(when or "?")
+            when = (
+                when.strftime("%Y-%m-%d %a %H:%M UTC")
+                if hasattr(when, "strftime")
+                else str(when or "?")
+            )
             lines.append(
                 f"- [{r.get('brand_name')}] {r.get('platform_slug')} · {when} · {r.get('media_kind') or 'text'} · "
-                f"\"{_clip(r.get('title') or '', 60)}\" — {nums}"
-                + (f" ({_clip(r.get('note') or '', 80)})" if r.get("status") != "ok" and r.get("note") else "")
+                f'"{_clip(r.get("title") or "", 60)}" — {nums}'
+                + (
+                    f" ({_clip(r.get('note') or '', 80)})"
+                    if r.get("status") != "ok" and r.get("note")
+                    else ""
+                )
                 + f" | caption: {_clip(r.get('caption') or '', 140)}"
             )
     lines.append(
@@ -171,7 +200,9 @@ def _snapshot(db: Session, ws: int, focus_brand_id: int | None) -> str:
 
 
 @router.post("/advisor")
-def advisor(payload: AdvisorIn, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+def advisor(
+    payload: AdvisorIn, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)
+):
     if payload.brand_id is not None:
         owned(db, Brand, payload.brand_id, ws)
     remaining = _take_quota(ws)

@@ -22,13 +22,14 @@ export default function CircularProgress({
           cx={size / 2}
           cy={size / 2}
           r={r}
-          style={{ stroke: color }}
+          // One style object: a second `style` prop silently replaced the first,
+          // so the arc lost its colour and only the grey track showed.
+          style={{ stroke: color, transition: 'stroke-dashoffset 300ms ease' }}
           strokeWidth={stroke}
           fill="none"
           strokeDasharray={c}
           strokeDashoffset={offset}
           strokeLinecap="round"
-          style={{ transition: 'stroke-dashoffset 300ms ease' }}
         />
       </svg>
       <div className="absolute inset-0 flex items-center justify-center">{children}</div>
