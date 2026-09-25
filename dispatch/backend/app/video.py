@@ -342,7 +342,7 @@ def _azure_image(
     else:
         resp = _post_with_retry(
             f"{base}/images/generations",
-            _azure_headers(key),
+            auth,  # httpx sets Content-Type: application/json for json=
             json={"model": deployment, "prompt": prompt, "size": size, "n": 1},
         )
 
