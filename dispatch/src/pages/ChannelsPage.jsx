@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { FaLinkedin } from "react-icons/fa";
 import { FiGrid } from "react-icons/fi";
@@ -16,10 +16,31 @@ import { PLAT } from "../data/brands";
 import { colorForBrand } from "../lib/brandColor";
 import { useStore } from "../store";
 import { openCreateBrand } from "../components/layout/CreateBrandDrawer";
+import { PLATFORM_COLORS } from "./InsightsPage";
 
 export default function ChannelsPage() {
-  const { brands, channels, refreshChannels, showToast } = useStore();
+  const { brands, channels, refreshChannels, showToast, activeBrand } = useStore();
   const navigate = useNavigate();
+
+  // Brand tabs + status filter, so nobody scrolls through every brand's 6–7
+  // platforms. Kept in localStorage (not the url — this page's url params are
+  // the OAuth "connected / failed" results, cleared on arrival).
+  const [tab, setTabState] = useState(() => readPref("channels_tab") || activeBrand || "all");
+  const [show, setShowState] = useState(() => readPref("channels_show") || "all");
+  const setTab = (v) => (setTabState(v), writePref("channels_tab", v));
+  const setShow = (v) => (setShowState(v), writePref("channels_show", v));
+  const tabBrand = brands.find((b) => b.slug === tab);
+  const currentTab = tabBrand ? tab : "all"; // a deleted brand falls back to All
+  const counts = useMemo(() => {
+    const scope = currentTab === "all" ? channels : channels.filter((c) => c.b === currentTab);
+    return {
+      all: scope.length,
+      connected: scope.filter((c) => c.s !== "off").length,
+      off: scope.filter((c) => c.s === "off").length,
+    };
+  }, [channels, currentTab]);
+  const shownBrands = currentTab === "all" ? brands : brands.filter((b) => b.slug === currentTab);
+  const matches = (c) => show === "all" || (show === "connected" ? c.s !== "off" : c.s === "off");
   const [searchParams, setSearchParams] = useSearchParams();
   // The channel the "Disconnect?" confirm is open for, plus how many queued
   // posts would be cancelled (null while that count is loading).
@@ -122,9 +143,68 @@ export default function ChannelsPage() {
         </div>
       </div>
 
+      {/* Brand tabs — "3/6" = connected / total for that brand */}
+      <div className="mb-4 border-b border-ink-200/80" role="tablist" aria-label="Brands">
+        <div className="-mb-px flex gap-1 overflow-x-auto">
+          {[{ slug: "all", name: "All brands" }, ...brands].map((b) => {
+            const own = b.slug === "all" ? channels : channels.filter((c) => c.b === b.slug);
+            const live = own.filter((c) => c.s !== "off").length;
+            const active = currentTab === b.slug;
+            return (
+              <button
+                key={b.slug}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setTab(b.slug)}
+                className={`inline-flex items-center gap-2 whitespace-nowrap border-b-2 px-3.5 py-2.5 text-[13px] font-medium transition-colors ${
+                  active ? "border-brand text-brand" : "border-transparent text-ink-500 hover:text-ink-800"
+                }`}
+              >
+                {b.slug !== "all" && (
+                  <span className="h-2 w-2 rounded-full" style={{ background: colorForBrand(b.slug) }} aria-hidden="true" />
+                )}
+                {b.name}
+                <span className={`rounded-full px-1.5 py-0.5 text-[10.5px] font-semibold ${active ? "bg-brand-soft text-brand" : "bg-ink-100 text-ink-500"}`}>
+                  {live}/{own.length}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Status filter */}
+      <div className="mb-5 flex flex-wrap gap-1.5" role="group" aria-label="Show">
+        {[
+          ["all", "All", counts.all],
+          ["connected", "Connected", counts.connected],
+          ["off", "Not connected", counts.off],
+        ].map(([id, label, n]) => (
+          <button
+            key={id}
+            type="button"
+            aria-pressed={show === id}
+            onClick={() => setShow(id)}
+            className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[12px] font-medium transition-colors ${
+              show === id ? "bg-ink-900 text-white" : "bg-white text-ink-600 ring-1 ring-ink-200 hover:bg-ink-50"
+            }`}
+          >
+            {id !== "all" && (
+              <span className={`h-2 w-2 rounded-full ${id === "connected" ? "bg-emerald-500" : "bg-ink-300"}`} aria-hidden="true" />
+            )}
+            {label}
+            <span className={show === id ? "text-white/70" : "text-ink-400"}>{n}</span>
+          </button>
+        ))}
+      </div>
+
       <div className="space-y-4">
-        {brands.map((b) => {
-          const rows = channels.filter((c) => c.b === b.slug);
+        {shownBrands.map((b) => {
+          const all = channels.filter((c) => c.b === b.slug);
+          const rows = all.filter(matches);
+          // In "All brands", hide a brand with nothing matching the status filter.
+          if (currentTab === "all" && show !== "all" && !rows.length) return null;
           const color = colorForBrand(b.slug);
           return (
             <div
@@ -143,12 +223,14 @@ export default function ChannelsPage() {
                   <div className="font-bold text-ink-800" style={{ color }}>
                     {b.name}
                   </div>
-                  <div className="text-[11.5px] text-ink-600">
-                    {b.lang} · {b.note}
-                  </div>
+                  {(b.lang || b.note) && (
+                    <div className="text-[11.5px] text-ink-600">{[b.lang, b.note].filter(Boolean).join(" · ")}</div>
+                  )}
                 </div>
                 <div className="ml-auto flex items-center gap-2">
-                  <Tag variant="idle">{rows.length} channels</Tag>
+                  <Tag variant="idle">
+                    {all.filter((c) => c.s !== "off").length}/{all.length} connected
+                  </Tag>
                   <button
                     type="button"
                     onClick={() =>
@@ -162,13 +244,20 @@ export default function ChannelsPage() {
                   </button>
                 </div>
               </header>
+              {!rows.length && (
+                <div className="px-4 py-8 text-center text-[12.5px] text-ink-400">
+                  {show === "connected"
+                    ? "No connected channels for this brand yet."
+                    : show === "off"
+                      ? "Every channel for this brand is connected."
+                      : "No channels yet — add a platform to get started."}
+                </div>
+              )}
               {rows.map((c) => {
                 const detail = [c.h, c.m].filter(Boolean).join(" · ");
                 return (
                   <div key={c.id} className="flex items-center gap-3 px-4 py-3.5 border-t border-ink-100 first:border-t-0">
-                    <span className="grid h-10 w-10 flex-none place-items-center rounded-xl bg-ink-50 text-ink-700">
-                      <PlatformIcon platform={c.p} />
-                    </span>
+                    <PlatformTile platform={c.p} dim={c.s === "off"} />
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                         <span className="text-[13px] font-semibold text-ink-900">{PLAT[c.p]?.name || c.p}</span>
@@ -225,7 +314,9 @@ export default function ChannelsPage() {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center gap-2 text-[14px] font-bold text-ink-800">
-                <PlatformIcon platform={confirming.p} />
+                <span style={{ color: PLATFORM_COLORS[confirming.p] || undefined }}>
+                  <PlatformIcon platform={confirming.p} />
+                </span>
                 Disconnect {PLAT[confirming.p]?.name || confirming.p}?
               </div>
               <p className="mt-2 text-[12px] text-ink-600 leading-relaxed">
@@ -266,6 +357,22 @@ export default function ChannelsPage() {
   );
 }
 
+function readPref(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writePref(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* private mode etc. — the tab just won't be remembered */
+  }
+}
+
 // "3 days ago" / "12 Aug 2026" instead of a raw ISO timestamp.
 function lastPost(value) {
   if (!value || value === "—") return "never";
@@ -280,6 +387,21 @@ function lastPost(value) {
   if (days < 7) return `${days} day${days === 1 ? "" : "s"} ago`;
   if (days < 30) return `${Math.round(days / 7)} week${days < 14 ? "" : "s"} ago`;
   return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
+
+/** The platform's logo in its own brand colour, on a light tint of that
+ *  colour. Not-connected channels are shown faded so live ones stand out. */
+function PlatformTile({ platform, dim }) {
+  const color = PLATFORM_COLORS[platform] || "#64748b";
+  return (
+    <span
+      className={`grid h-10 w-10 flex-none place-items-center rounded-xl ring-1 transition-opacity ${dim ? "opacity-60" : ""}`}
+      style={{ color, background: `${color}14`, "--tw-ring-color": `${color}26` }}
+      title={dim ? "Not connected" : "Connected"}
+    >
+      <PlatformIcon platform={platform} />
+    </span>
+  );
 }
 
 function PlatformIcon({ platform }) {

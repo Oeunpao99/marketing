@@ -8,7 +8,7 @@
 // on the Analytics page (SERIES_COLORS, validated); every figure also appears
 // as text, so nothing depends on colour alone.
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   FiAlertTriangle,
   FiArrowLeft,
@@ -31,6 +31,7 @@ import { useStore } from '../store'
 import { colorForBrand } from '../lib/brandColor'
 import { isKhmer } from '../lib/format'
 import { platformHue } from '../components/insights/Overview'
+import { GrowthCard, MembersCard, MoreFromChannel, PostingTimeCard } from '../components/insights/PostDetail'
 import { PLATFORM_ICONS, SERIES_COLORS, EngagementLineChart, engagementOf, mediaSrc } from './InsightsPage'
 
 const PLATFORM_NAMES = {
@@ -304,7 +305,10 @@ function RankStrip({ scores, mine, rank, platformName }) {
       <div className="flex items-end gap-3">
         <span className="text-[36px] font-bold leading-none tracking-tight text-ink-900">#{rank}</span>
         <span className="pb-1 text-[13px] text-ink-600">
-          of {n} {platformName} posts · <span className="font-semibold text-ink-900">top {topPct}%</span>
+          of {n} {platformName} posts ·{' '}
+          <span className="font-semibold text-ink-900">
+            {topPct <= 50 ? `top ${topPct}%` : `bottom ${Math.max(1, Math.round(((n - rank + 1) / n) * 100))}%`}
+          </span>
         </span>
       </div>
       {/* dot strip: position = engagement; ranks read left (low) → right (high) */}
@@ -341,6 +345,8 @@ export default function InsightsPostPage() {
   const { showToast } = useStore()
   const [items, setItems] = useState(null)
   const [zoom, setZoom] = useState(false)
+  const [history, setHistory] = useState(null)
+  const navigate = useNavigate()
 
   useEffect(() => {
     api
@@ -349,7 +355,26 @@ export default function InsightsPostPage() {
       .catch((e) => showToast(`Could not load insights — ${e.message}`))
   }, [showToast])
 
+  // Opening another post from "More from this channel" reuses this page.
+  const openPost = (p) => navigate(`/insights/${p.target_id}`)
+
+  // Saved readings over time (app/views.py record_snapshots) for the growth charts.
+  useEffect(() => {
+    window.scrollTo(0, 0)
+    setHistory(null)
+    api
+      .get(`/views/insights/${targetId}/history`)
+      .then(setHistory)
+      .catch(() => setHistory({ post: [], channel: [] }))
+  }, [targetId])
+
   const post = useMemo(() => (items || []).find((it) => String(it.target_id) === String(targetId)), [items, targetId])
+
+  // Every post on this platform (any status) — for "when it went out".
+  const samePlatform = useMemo(
+    () => (items || []).filter((p) => post && p.platform_slug === post.platform_slug && p.published_at),
+    [items, post],
+  )
 
   // Everything this post is compared with is the same platform — a Telegram
   // post's reach and a TikTok post's reach aren't the same number.
@@ -437,6 +462,7 @@ export default function InsightsPostPage() {
   const scores = rankable ? peers.map(scoreOf) : []
   const myScore = scoreOf(post)
   const rank = rankable ? [...scores].sort((a, b) => b - a).indexOf(myScore) + 1 : 0
+  const showRank = rankable && scores.length >= 2 && rank > 0
 
   // Plain-language next steps.
   const tips = []
@@ -532,7 +558,11 @@ export default function InsightsPostPage() {
         )}
 
         {info ? (
-          <Explainer info={info} post={post} platformName={platformName} />
+          <>
+            <Explainer info={info} post={post} platformName={platformName} />
+            <PostingTimeCard post={post} peers={samePlatform} platformName={platformName} />
+            <MoreFromChannel post={post} items={items} icons={PLATFORM_ICONS} engagementOf={engagementOf} onOpen={openPost} />
+          </>
         ) : (
           <>
             {showEngagement ? (
@@ -556,17 +586,29 @@ export default function InsightsPostPage() {
               </section>
             )}
 
-            {(compareRows.length > 0 || rankable) && (
-              <div className="grid gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-                <section className={`${card} p-5`}>
-                  <h2 className="text-[15.5px] font-semibold tracking-tight text-ink-900">Compared with your usual</h2>
-                  <p className="mb-5 mt-0.5 text-[12px] text-ink-500">This post against your average {platformName} post.</p>
-                  <VsUsualChart rows={compareRows} platformName={platformName} />
-                </section>
-                <section className={`${card} p-5`}>
-                  <h2 className="mb-4 text-[15.5px] font-semibold tracking-tight text-ink-900">Ranking</h2>
-                  <RankStrip scores={scores} mine={myScore} rank={rank} platformName={platformName} />
-                </section>
+            {/* Over time: this post's own numbers, or (Telegram) the channel's members */}
+            {showEngagement || m.views != null ? (
+              <GrowthCard history={history} publishedAt={post.published_at} seriesColors={SERIES_COLORS} platformName={platformName} />
+            ) : m.subscribers != null ? (
+              <MembersCard history={history} publishedAt={post.published_at} />
+            ) : null}
+
+            {(compareRows.length > 0 || showRank) && (
+              <div className={`grid gap-6 ${compareRows.length > 0 && showRank ? 'lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]' : ''}`}>
+                {compareRows.length > 0 && (
+                  <section className={`${card} p-5`}>
+                    <h2 className="text-[15.5px] font-semibold tracking-tight text-ink-900">Compared with your usual</h2>
+                    <p className="mb-5 mt-0.5 text-[12px] text-ink-500">This post against your average {platformName} post.</p>
+                    <VsUsualChart rows={compareRows} platformName={platformName} />
+                  </section>
+                )}
+                {/* Only when there's a real ranking — no "needs more posts" placeholder */}
+                {showRank && (
+                  <section className={`${card} p-5`}>
+                    <h2 className="mb-4 text-[15.5px] font-semibold tracking-tight text-ink-900">Ranking</h2>
+                    <RankStrip scores={scores} mine={myScore} rank={rank} platformName={platformName} />
+                  </section>
+                )}
               </div>
             )}
 
@@ -579,6 +621,10 @@ export default function InsightsPostPage() {
                 <EngagementLineChart series={series} activeTargetId={post.target_id} brandColor={ACCENT} height={280} />
               </section>
             )}
+
+            <PostingTimeCard post={post} peers={samePlatform} platformName={platformName} />
+
+            <MoreFromChannel post={post} items={items} icons={PLATFORM_ICONS} engagementOf={engagementOf} onOpen={openPost} />
 
             <section className={`${card} p-5`}>
               <h2 className="mb-4 text-[15.5px] font-semibold tracking-tight text-ink-900">What to do next</h2>

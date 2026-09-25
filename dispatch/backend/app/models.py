@@ -397,6 +397,29 @@ class LoginEvent(Base):
     user_agent: Mapped[str] = mapped_column(String(300), default="", server_default="")
 
 
+class MetricSnapshot(Base):
+    """A post's (or a channel's) numbers at one moment — platforms only report
+    "now", so saving readings over time is what lets Analytics chart how a post
+    grew. ``target_id`` set = one post's metrics (likes/comments/shares/views/
+    clicks); ``target_id`` null = channel-wide numbers (Telegram's member
+    count). Written by app/views.py's record_snapshots (when Analytics loads,
+    and every few hours by the background collector in app/scheduler.py).
+    Not in app/registry.py: no generic CRUD endpoint."""
+
+    __tablename__ = "metric_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
+    channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id", ondelete="CASCADE"), index=True)
+    target_id: Mapped[int | None] = mapped_column(
+        ForeignKey("post_targets.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    taken_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
+    metrics: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, server_default="{}", nullable=False)
+
+
 class TeamMember(Base, TimestampMixin):
     __tablename__ = "team_members"
 

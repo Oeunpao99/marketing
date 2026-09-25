@@ -221,7 +221,7 @@ function StatusChip({ resolved, note }) {
 /** Top of a 4-gridline axis (0, ¼, ½, ¾, top): picks a clean step first —
  *  1, 2, 5, 10, 20, 50… — so every tick is a whole, round number (0/1/2/3/4,
  *  0/5/10/15/20) — never 0/1.3/2.5/3.8/5. */
-function axisMax(n) {
+export function axisMax(n) {
   const raw = Math.max(1, n / 4)
   const mag = Math.pow(10, Math.floor(Math.log10(raw)))
   const norm = raw / mag

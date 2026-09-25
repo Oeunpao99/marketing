@@ -72,6 +72,12 @@ export default {
           from: { opacity: '0', transform: 'translateY(6px)' },
           to: { opacity: '1', transform: 'translateY(0)' },
         },
+        // Opacity only — for full-height pages (AI Agent), where fadein's 6px
+        // slide would briefly make the page scrollable and jiggle the scroll.
+        fade: {
+          from: { opacity: '0' },
+          to: { opacity: '1' },
+        },
         'slide-up': {
           from: { opacity: '0', transform: 'translateY(12px)' },
           to: { opacity: '1', transform: 'translateY(0)' },
@@ -137,6 +143,7 @@ export default {
       },
       animation: {
         fadein: 'fadein .25s ease-out',
+        fade: 'fade .25s ease-out',
         'slide-up': 'slide-up .3s cubic-bezier(.2,.7,.2,1)',
         'slide-in-right': 'slide-in-right .3s cubic-bezier(.2,.7,.2,1)',
         'drawer-in': 'drawer-in .32s cubic-bezier(.2,.7,.2,1)',

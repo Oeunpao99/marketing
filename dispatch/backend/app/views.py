@@ -4,6 +4,7 @@ These sit on top of the same tables the generic ``/api/<resource>`` endpoints
 expose; they just pre-join the data so the React pages stay thin.
 """
 
+import logging
 import threading
 import time
 from datetime import UTC, date, datetime, timedelta, timezone
@@ -25,6 +26,7 @@ from app.models import (
     Channel,
     Draft,
     GenerationJob,
+    MetricSnapshot,
     Platform,
     Post,
     PostTarget,
@@ -33,6 +35,8 @@ from app.models import (
 from app.publishers import PublishError, publish, verify_telegram
 from app.security import sign_payload, verify_payload
 from app.tenancy import current_workspace_id, owned, scope
+
+log = logging.getLogger("app.views")
 
 # Every route here is workspace-scoped (app/tenancy.py) and mounted behind
 # login in app/main.py — except ``public_router``: the OAuth callbacks, which
@@ -644,7 +648,120 @@ def insights_view(
     if not rows:
         return []
     with ThreadPoolExecutor(max_workers=min(8, len(rows))) as pool:
-        return list(pool.map(fetch, rows))
+        results = list(pool.map(fetch, rows))
+    # Save these readings for the "over time" charts — never at the cost of
+    # the page itself.
+    try:
+        record_snapshots(db, ws, results)
+    except Exception:  # noqa: BLE001
+        db.rollback()
+        log.exception("could not record metric snapshots")
+    return results
+
+
+# ── Metric history (post page "over time" charts) ─────────────────────────
+# Platforms only report numbers as of now; saving a reading every so often is
+# what makes "how did this post grow" chartable. At most one reading per post
+# (and per Telegram channel) per _SNAPSHOT_EVERY, however often pages load.
+_SNAPSHOT_EVERY = timedelta(hours=1)
+_SNAPSHOT_KEYS = ("likes", "comments", "shares", "views", "clicks", "subscribers")
+
+
+def record_snapshots(db: Session, ws: int, results: list[dict]) -> int:
+    """Store the numbers in these Analytics rows (target_id, channel_id,
+    platform_slug, status, metrics). Telegram's member count is channel-wide,
+    so it is stored once per channel (target_id NULL), not per post."""
+    now = datetime.now(UTC)
+    post_rows, channel_rows = {}, {}
+    for r in results:
+        if r.get("status") not in ("ok", "partial") or not r.get("channel_id"):
+            continue
+        metrics = {k: r["metrics"][k] for k in _SNAPSHOT_KEYS if (r.get("metrics") or {}).get(k) is not None}
+        if not metrics:
+            continue
+        if r.get("platform_slug") == "telegram":
+            channel_rows[r["channel_id"]] = {"subscribers": metrics.get("subscribers")}
+        else:
+            post_rows[r["target_id"]] = (r["channel_id"], metrics)
+
+    def latest(col, ids):
+        if not ids:
+            return {}
+        q = select(col, func.max(MetricSnapshot.taken_at)).where(col.in_(ids)).group_by(col)
+        if col is MetricSnapshot.channel_id:
+            q = q.where(MetricSnapshot.target_id.is_(None))
+        return dict(db.execute(q).all())
+
+    seen_posts = latest(MetricSnapshot.target_id, list(post_rows))
+    seen_channels = latest(MetricSnapshot.channel_id, list(channel_rows))
+    added = 0
+    for tid, (cid, metrics) in post_rows.items():
+        if tid in seen_posts and now - seen_posts[tid] < _SNAPSHOT_EVERY:
+            continue
+        db.add(MetricSnapshot(workspace_id=ws, channel_id=cid, target_id=tid, taken_at=now, metrics=metrics))
+        added += 1
+    for cid, metrics in channel_rows.items():
+        if metrics.get("subscribers") is None or (cid in seen_channels and now - seen_channels[cid] < _SNAPSHOT_EVERY):
+            continue
+        db.add(MetricSnapshot(workspace_id=ws, channel_id=cid, target_id=None, taken_at=now, metrics=metrics))
+        added += 1
+    if added:
+        db.commit()
+    return added
+
+
+@router.get("/insights/{target_id}/history")
+def insights_history(target_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    """Saved readings for one post, plus its channel's member count over time
+    (Telegram). Empty lists until the first readings are saved."""
+    t = owned(db, PostTarget, target_id, ws, "Post")
+    snaps = db.scalars(
+        select(MetricSnapshot)
+        .where(MetricSnapshot.workspace_id == ws, MetricSnapshot.target_id == t.id)
+        .order_by(MetricSnapshot.taken_at)
+        .limit(500)
+    ).all()
+    chan = db.scalars(
+        select(MetricSnapshot)
+        .where(MetricSnapshot.workspace_id == ws, MetricSnapshot.channel_id == t.channel_id, MetricSnapshot.target_id.is_(None))
+        .order_by(MetricSnapshot.taken_at)
+        .limit(500)
+    ).all()
+    return {
+        "published_at": t.published_at,
+        "post": [{"at": s.taken_at, **s.metrics} for s in snaps],
+        "channel": [{"at": s.taken_at, **s.metrics} for s in chan],
+    }
+
+
+_COLLECT_DAYS = 14  # keep sampling a post for its first two weeks
+
+
+def collect_snapshots(db: Session) -> int:
+    """Background collector (app/scheduler.py): read the current numbers of
+    every post published in the last _COLLECT_DAYS, across all workspaces, and
+    save them — so growth charts fill in even if nobody opens Analytics."""
+    since = datetime.now(UTC) - timedelta(days=_COLLECT_DAYS)
+    plats = _platform_map(db)
+    targets = db.scalars(
+        select(PostTarget)
+        .options(selectinload(PostTarget.post), selectinload(PostTarget.channel))
+        .where(PostTarget.status == "posted", PostTarget.external_id != "", PostTarget.published_at >= since)
+    ).all()
+    brands = {b.id: b for b in db.scalars(select(Brand)).all()}
+    by_ws: dict[int, list[dict]] = {}
+    cache = _MetricsCache()
+    for t in targets:
+        ch = t.channel
+        brand = brands.get(t.post.brand_id) if t.post else None
+        plat = plats.get(ch.platform_id) if ch else None
+        if not ch or not brand or not plat or ch.status != "live":
+            continue
+        result = _post_metrics(plat.slug, ch.config or {}, t.external_id, cache)
+        by_ws.setdefault(brand.workspace_id, []).append(
+            {"target_id": t.id, "channel_id": ch.id, "platform_slug": plat.slug, **result}
+        )
+    return sum(record_snapshots(db, ws, rows) for ws, rows in by_ws.items())
 
 
 @router.get("/sidebar")

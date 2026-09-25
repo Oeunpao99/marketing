@@ -198,18 +198,27 @@ export default function AIPromptPage() {
     return () => clearInterval(id)
   }, [working])
 
+  // Ready to type on arrival — on desktop only (on a phone it would pop the
+  // keyboard up by itself), and without scrolling the page: the old
+  // autoFocus made the browser scroll the box into view as the page opened.
+  useEffect(() => {
+    if (!window.matchMedia?.('(pointer: fine)').matches) return
+    composerRef.current?.querySelector('textarea')?.focus({ preventScroll: true })
+  }, [])
+
   // Keep the newest turn in view: jump to the bottom when a message is sent
   // (or a chat is opened), and follow along when an answer / image lands —
   // unless the person has scrolled up to read something older.
   const statusKey = turns.map((t) => t.status).join(',')
   const prevLenRef = useRef(0)
   useLayoutEffect(() => {
+    const opening = prevLenRef.current === 0 // a chat just opened: jump, don't glide
     const grew = turns.length > prevLenRef.current
     prevLenRef.current = turns.length
     const doc = document.documentElement
     const nearBottom = () => doc.scrollHeight - (window.scrollY + window.innerHeight) < 360
-    if (!grew && !nearBottom()) return
-    const toBottom = () => window.scrollTo({ top: doc.scrollHeight, behavior: 'smooth' })
+    if (!turns.length || (!grew && !nearBottom())) return // empty chat: nothing to follow
+    const toBottom = () => window.scrollTo({ top: doc.scrollHeight, behavior: opening ? 'auto' : 'smooth' })
     requestAnimationFrame(toBottom)
     // Media grows the page once it has loaded — follow it down once more.
     const id = setTimeout(() => nearBottom() && toBottom(), 700)
@@ -613,7 +622,7 @@ export default function AIPromptPage() {
   return (
     // Fills the screen below the top bar, so the composer always sits at the
     // bottom — even when the thread is short or empty.
-    <div className="w-full px-5 lg:px-10 animate-fadein flex flex-col min-h-[calc(100dvh-7.5rem-env(safe-area-inset-bottom))] lg:min-h-[calc(100dvh-3.5rem)]">
+    <div className="w-full px-5 lg:px-10 animate-fade flex flex-col min-h-[calc(100dvh-7.5rem-env(safe-area-inset-bottom))] lg:min-h-[calc(100dvh-3.5rem)]">
       {/* Page header — pinned under the top bar while the thread scrolls. */}
       <div className="sticky top-14 z-20 -mx-5 lg:-mx-10 px-5 lg:px-10 bg-[#F4F6F9]/90 backdrop-blur-md">
         <div className="mx-auto w-full lg:w-4/5 flex items-center justify-between gap-3 py-4">
@@ -768,7 +777,6 @@ export default function AIPromptPage() {
           )}
 
           <AutoTextarea
-            autoFocus
             minRows={1}
             maxRows={10}
             value={text}

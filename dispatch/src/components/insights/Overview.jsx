@@ -169,7 +169,7 @@ export function UpNext({ items, icons, mediaSrc }) {
 // ── Performance figures ───────────────────────────────────────────────────
 /** Smooth path through [x, y] points that never overshoots them (monotone
  *  cubic, Fritsch–Carlson) — same curve as InsightsPage's line charts. */
-function monotonePath(pts) {
+export function monotonePath(pts) {
   const n = pts.length
   if (n < 3) return pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x},${y}`).join(' ')
   const dx = [], s = []

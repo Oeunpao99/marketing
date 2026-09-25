@@ -60,15 +60,47 @@ def start(app) -> None:
         return
     interval = max(5, settings.publish_worker_interval_seconds)
     app.state.publish_worker = asyncio.create_task(_run(interval))
+    app.state.snapshot_worker = asyncio.create_task(_run_snapshots(SNAPSHOT_INTERVAL))
+
+
+# Metric history for the Analytics "over time" charts: every few hours, save
+# the current numbers of recent posts (app/views.py collect_snapshots).
+SNAPSHOT_INTERVAL = 3 * 60 * 60
+
+
+def _snapshot_tick() -> int:
+    from app.views import collect_snapshots
+
+    db = SessionLocal()
+    try:
+        return collect_snapshots(db)
+    finally:
+        db.close()
+
+
+async def _run_snapshots(interval: int) -> None:
+    log.info("metric snapshot collector started (every %ss)", interval)
+    await asyncio.sleep(120)  # let the app finish starting up first
+    while True:
+        try:
+            saved = await asyncio.to_thread(_snapshot_tick)
+            if saved:
+                log.info("saved %d metric snapshot(s)", saved)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001 - keep the loop alive across any error
+            log.exception("metric snapshot tick failed")
+        await asyncio.sleep(interval)
 
 
 async def stop(app) -> None:
-    """Cancel the worker task (call from lifespan shutdown)."""
-    task = getattr(app.state, "publish_worker", None)
-    if task is None:
-        return
-    task.cancel()
-    try:
-        await task
-    except asyncio.CancelledError:
-        pass
+    """Cancel the worker tasks (call from lifespan shutdown)."""
+    for name in ("publish_worker", "snapshot_worker"):
+        task = getattr(app.state, name, None)
+        if task is None:
+            continue
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass

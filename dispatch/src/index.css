@@ -42,6 +42,10 @@
     @apply m-0 p-0 bg-ink-50 text-ink-900 antialiased;
     font-family: 'Inter', 'Khmer OS Siemreap', system-ui, sans-serif;
   }
+  /* Keep the scrollbar's space reserved, so a page that is exactly one
+     screen tall (AI Agent) can't flicker a scrollbar in and out — which
+     nudged the whole layout sideways while its fade-in ran. */
+  html { scrollbar-gutter: stable; }
   * { @apply box-border; }
   button, input, select, textarea { @apply font-[inherit] text-[inherit]; }
   /* No drag-to-resize corner anywhere — text boxes grow with their content

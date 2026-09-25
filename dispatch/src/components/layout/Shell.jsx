@@ -1,4 +1,5 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useLayoutEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Topbar from './Topbar'
 import MobileBar from './MobileBar'
@@ -52,6 +53,15 @@ export default function Shell({ children }) {
   useRunFinishedToast()
   useGenJobWatcher()
   useAppBadge()
+
+  // A new page opens at the top. Without this the browser kept the previous
+  // page's scroll offset, so e.g. AI Agent opened part-way down, then
+  // snapped and crept into place — it looked like the page was shaking.
+  // Layout effect = before the first paint, so nothing visibly jumps.
+  const { pathname } = useLocation()
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0)
+  }, [pathname])
 
   const toggle = () =>
     setCollapsed((v) => {
