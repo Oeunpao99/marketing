@@ -129,6 +129,11 @@ export default {
           '55%': { width: '65%' },
           '100%': { left: '100%', width: '45%' },
         },
+        // Maintenance card: a wrench "tightening" back and forth.
+        wrench: {
+          '0%, 100%': { transform: 'rotate(-18deg)' },
+          '50%': { transform: 'rotate(22deg)' },
+        },
       },
       animation: {
         fadein: 'fadein .25s ease-out',
@@ -145,6 +150,8 @@ export default {
         'sending-stripes': 'sending-stripes .8s linear infinite',
         'media-reveal': 'media-reveal .6s cubic-bezier(.2,.7,.2,1)',
         indeterminate: 'indeterminate 1.15s cubic-bezier(.5,.1,.5,.9) infinite',
+        wrench: 'wrench .9s ease-in-out infinite',
+        'spin-slow': 'spin 3.2s linear infinite',
       },
     },
   },

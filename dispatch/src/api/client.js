@@ -23,7 +23,7 @@ export const tokenStore = {
 // MAINTENANCE_MODE, or nginx while the backend restarts) or no answer at all.
 // Tell the app to show its "updating" screen (MaintenanceOverlay) and give the
 // caller an error it can recognise (`err.maintenance`) instead of a raw one.
-const UPDATING = 'ContentFlow is updating to a new version. This usually takes under a minute.'
+const UPDATING = 'We’re installing a new version. This usually takes under a minute.'
 
 function maintenanceError(message) {
   window.dispatchEvent(new CustomEvent('dispatch:maintenance', { detail: { message } }))
