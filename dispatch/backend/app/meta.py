@@ -40,9 +40,14 @@ from app.config import get_settings
 AUTH_HOST = "https://www.facebook.com"
 GRAPH_HOST = "https://graph.facebook.com"
 
+# business_management: Meta requires it for Instagram-with-Facebook-login, and
+# without it Pages owned by a Business portfolio can be missing from /me/accounts.
+# Every scope here must also be added to the app (Use cases → Customize →
+# Permissions), or Facebook's dialog reports it as an "Invalid Scope".
 SCOPES = (
     "pages_show_list,pages_read_engagement,pages_manage_posts,"
-    "pages_manage_metadata,instagram_basic,instagram_content_publish"
+    "pages_manage_metadata,instagram_basic,instagram_content_publish,"
+    "business_management"
 )
 
 # In-memory holding pen between the OAuth callback and the "pick a Page"
