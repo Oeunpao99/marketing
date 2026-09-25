@@ -44,7 +44,8 @@ const RATIOS = [
   { id: '1:1', sub: 'Feed square' },
   { id: '16:9', sub: 'YouTube · landscape' },
 ]
-const LENGTHS = [4, 8, 12, 20]
+// Sora 2 only renders 4 / 8 / 12-second clips (Veo: 4 / 6 / 8 — 12 becomes 8).
+const LENGTHS = [4, 8, 12]
 const STYLES = ['Photorealistic', 'Illustration', '3D / CGI', 'Anime / Manga']
 const TEMPLATES = {
   image: ['Product hero shot', 'Promo / sale banner', 'Story / Reels cover', 'Tip / quote card'],

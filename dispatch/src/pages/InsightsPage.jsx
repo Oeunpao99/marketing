@@ -635,7 +635,7 @@ function TopPosts({ rows, onOpen }) {
   if (!rows.length) {
     return (
       <div className="h-[220px] grid place-items-center text-[12px] text-ink-400">
-        Nothing published in this period yet.
+        No posts with likes, comments or views to rank in this period yet.
       </div>
     )
   }
@@ -654,11 +654,11 @@ function TopPosts({ rows, onOpen }) {
             onClick={() => onOpen(it)}
             className="flex-none w-[210px] text-left rounded-xl border border-ink-200/70 bg-white hover:shadow-card-hover transition-shadow duration-150 overflow-hidden"
           >
-            <div className="relative h-[120px] bg-ink-100 grid place-items-center">
+            <div className="relative h-[120px] bg-ink-100 grid place-items-center overflow-hidden">
               {src && it.media_kind === 'image' ? (
-                <img src={src} alt="" className="w-full h-full object-cover" />
+                <img src={src} alt="" className="absolute inset-0 w-full h-full object-cover" />
               ) : src && it.media_kind === 'video' ? (
-                <video src={src} className="w-full h-full object-cover" muted />
+                <video src={src} className="absolute inset-0 w-full h-full object-cover" muted />
               ) : (
                 <FiImage size={22} className="text-ink-300" />
               )}
@@ -872,6 +872,9 @@ export default function InsightsPage() {
     () =>
       filtered
         .filter(isResolved)
+        // Only posts the platform actually reports numbers for — a LinkedIn
+        // personal post (or Telegram) would otherwise rank as "top" with 0.
+        .filter((p) => ['views', 'likes', 'comments', 'shares'].some((k) => (p.metrics || {})[k] != null))
         .slice()
         .sort((a, b) => engagementOf(b.metrics) - engagementOf(a.metrics))
         .slice(0, 8),

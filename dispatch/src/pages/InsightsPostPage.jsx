@@ -307,9 +307,9 @@ export default function InsightsPostPage() {
             title={src ? 'View full size' : ''}
           >
             {src && post.media_kind === 'image' ? (
-              <img src={src} alt="" className="w-full h-full object-cover" />
+              <img src={src} alt="" className="absolute inset-0 w-full h-full object-cover" />
             ) : src && post.media_kind === 'video' ? (
-              <video src={src} className="w-full h-full object-cover" muted playsInline />
+              <video src={src} className="absolute inset-0 w-full h-full object-cover" muted playsInline />
             ) : (
               <FiImage size={24} className="text-ink-400" />
             )}

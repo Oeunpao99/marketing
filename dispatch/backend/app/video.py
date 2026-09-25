@@ -62,37 +62,34 @@ def _explain(resp: httpx.Response) -> str:
         return resp.text[:300] or f"HTTP {resp.status_code}"
 
 
-# ── Azure OpenAI Sora ────────────────────────────────────────────────────
+# ── Azure OpenAI Sora 2 ──────────────────────────────────────────────────
+# Sora 2 speaks the OpenAI v1 Videos API: POST /openai/v1/videos, poll
+# GET /openai/v1/videos/{id} (queued → in_progress → completed | failed),
+# download GET /openai/v1/videos/{id}/content. Only 720x1280 / 1280x720 and
+# 4 / 8 / 12-second clips are accepted.
+_SORA_SIZES = {"9:16": "720x1280", "16:9": "1280x720"}
+
+
 def _azure_conf():
     s = get_settings()
     if not s.video_api_key or not s.video_endpoint:
         raise VideoGenError("Azure video is not configured (endpoint / key missing).")
-    return (
-        s.video_endpoint.rstrip("/"),
-        s.video_api_key,
-        s.azure_openai_video_deployment,
-        s.azure_openai_video_api_version,
-    )
-
-
-def _azure_headers(key: str) -> dict:
-    return {"api-key": key, "Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+    # Accept any form of the resource url (".../openai/v1/", a Foundry project
+    # url ".../api/projects/<name>", ...) — only the host matters.
+    host = httpx.URL(s.video_endpoint.strip()).host
+    return f"https://{host}/openai/v1/videos", s.video_api_key, s.azure_openai_video_deployment
 
 
 def _azure_start(prompt: str, aspect_ratio: str, seconds: int) -> str:
-    base, key, deployment, api_version = _azure_conf()
-    width, height = _DIMS.get(aspect_ratio, _DIMS["9:16"])
+    url, key, deployment = _azure_conf()
     body = {
         "model": deployment,
         "prompt": prompt,
-        "width": width,
-        "height": height,
-        "n_seconds": seconds,
-        "n_variants": 1,
+        "size": _SORA_SIZES.get(aspect_ratio, _SORA_SIZES["9:16"]),
+        "seconds": "12" if seconds >= 10 else ("8" if seconds >= 6 else "4"),
     }
-    url = f"{base}/video/generations/jobs?api-version={api_version}"
     try:
-        resp = httpx.post(url, headers=_azure_headers(key), json=body, timeout=60.0)
+        resp = httpx.post(url, headers={"api-key": key}, json=body, timeout=60.0)
     except httpx.HTTPError as exc:
         raise VideoGenError(f"Could not reach the video service: {exc}") from exc
     if resp.status_code >= 400:
@@ -104,37 +101,30 @@ def _azure_start(prompt: str, aspect_ratio: str, seconds: int) -> str:
 
 
 def _azure_poll(provider_job_id: str) -> dict:
-    base, key, _dep, api_version = _azure_conf()
-    url = f"{base}/video/generations/jobs/{provider_job_id}?api-version={api_version}"
+    url, key, _dep = _azure_conf()
     try:
-        resp = httpx.get(url, headers=_azure_headers(key), timeout=30.0)
+        resp = httpx.get(f"{url}/{provider_job_id}", headers={"api-key": key}, timeout=30.0)
     except httpx.HTTPError as exc:
         raise VideoGenError(f"Could not reach the video service: {exc}") from exc
     if resp.status_code >= 400:
         raise VideoGenError(f"Video service error: {_explain(resp)}")
     data = resp.json()
     raw = (data.get("status") or "").lower()
-    generations = data.get("generations") or []
-    gen_id = generations[0].get("id") if generations else None
-    if raw == "succeeded":
-        if not gen_id:
-            return {"status": "failed", "ref": None, "error": "Render returned no video."}
-        return {"status": "succeeded", "ref": gen_id, "error": None,
-                "usage": _usage(data.get("usage"))}
-    if raw in {"failed", "cancelled"}:
-        return {"status": "failed", "ref": None,
-                "error": data.get("failure_reason") or f"Render {raw}."}
-    if raw in {"running", "processing", "preprocessing"}:
+    if raw == "completed":
+        return {"status": "succeeded", "ref": provider_job_id, "error": None, "usage": _usage(data.get("usage"))}
+    if raw in {"failed", "cancelled", "expired"}:
+        err = data.get("error")
+        msg = (err.get("message") or err.get("code")) if isinstance(err, dict) else err
+        return {"status": "failed", "ref": None, "error": msg or f"Render {raw}."}
+    if raw == "in_progress":
         return {"status": "running", "ref": None, "error": None}
     return {"status": "queued", "ref": None, "error": None}
 
 
 def _azure_fetch(ref: str) -> bytes:
-    base, key, _dep, api_version = _azure_conf()
-    url = f"{base}/video/generations/{ref}/content/video?api-version={api_version}"
+    url, key, _dep = _azure_conf()
     try:
-        resp = httpx.get(url, headers={"api-key": key, "Authorization": f"Bearer {key}"},
-                         timeout=180.0)
+        resp = httpx.get(f"{url}/{ref}/content", headers={"api-key": key}, timeout=180.0, follow_redirects=True)
     except httpx.HTTPError as exc:
         raise VideoGenError(f"Could not download the video: {exc}") from exc
     if resp.status_code >= 400:
@@ -157,9 +147,12 @@ def _gemini_start(prompt: str, aspect_ratio: str, seconds: int) -> str:
     key = _gemini_key()
     model = get_settings().gemini_video_model
     ratio = aspect_ratio if aspect_ratio in {"16:9", "9:16"} else "9:16"
+    # No personGeneration: Veo 3.1 text-to-video only accepts "allow_all"
+    # outside the EU/UK/CH/MENA and only "allow_adult" inside — its default
+    # already picks the right one for the region. Clips are 4/6/8s.
     body = {
         "instances": [{"prompt": prompt}],
-        "parameters": {"aspectRatio": ratio, "personGeneration": "allow_adult"},
+        "parameters": {"aspectRatio": ratio, "durationSeconds": 8 if seconds >= 7 else (6 if seconds >= 5 else 4)},
     }
     url = f"{_GEMINI_BASE}/models/{model}:predictLongRunning"
     try:
