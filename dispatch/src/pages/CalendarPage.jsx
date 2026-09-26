@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FiImage, FiVideo } from 'react-icons/fi'
 import { api } from '../api/client'
+import GeneratingCanvas from '../components/ui/GeneratingCanvas'
 import { colorForBrand } from '../lib/brandColor'
 import { phnomPenhDate } from '../lib/tz'
 import { useStore } from '../store'
@@ -37,7 +38,16 @@ export default function CalendarPage() {
     const end = ymd(year, month, daysInMonth(year, month))
     api
       .get(`/views/calendar?start=${start}&end=${end}`)
-      .then(setItems)
+      .then((rows) => {
+        setItems(rows)
+        setOpen((o) =>
+          o
+            ? rows.find((r) => r.key === o.key) ||
+              rows.find((r) => r.type === 'post' && r.brand_id === o.brand_id && r.title === o.title) ||
+              o
+            : o,
+        )
+      })
       .catch(() => setItems([]))
   }
 
@@ -49,6 +59,30 @@ export default function CalendarPage() {
     setPicked((p) => (p.startsWith(prefix) ? p : today.startsWith(prefix) ? today : `${prefix}-01`))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [year, month])
+
+  const pending = (items || []).some((it) => it.media_pending)
+  useEffect(() => {
+    if (!pending) return
+    const id = setInterval(load, 5000)
+    return () => clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pending, year, month])
+
+  const makeMedia = async (item, kind) => {
+    if (busy) return
+    setBusy(true)
+    try {
+      await api.post(`/views/drafts/${item.id}/media`, { kind })
+      const mark = (x) => (x.key === item.key ? { ...x, media_pending: kind } : x)
+      setItems((xs) => xs.map(mark))
+      setOpen((o) => (o ? mark(o) : o))
+      showToast(kind === 'video' ? 'Making the video — about 1–3 minutes' : 'Making the image — about 30 seconds')
+    } catch (e) {
+      showToast(`Couldn’t start — ${e.message}`)
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const shiftMonth = (delta) => {
     let m = month + delta
@@ -303,6 +337,7 @@ export default function CalendarPage() {
           onApprove={(it) => act(it, 'approve')}
           onReject={(it) => act(it, 'reject')}
           onUseIdea={useIdea}
+          onMakeMedia={makeMedia}
           onResults={(targetId) => navigate(`/insights/${targetId}`)}
         />
       )}
@@ -462,7 +497,7 @@ function Pill({ status }) {
   return <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${tone}`}>{label}</span>
 }
 
-function PreviewModal({ item, busy, onClose, onApprove, onReject, onUseIdea, onResults }) {
+function PreviewModal({ item, busy, onClose, onApprove, onReject, onUseIdea, onMakeMedia, onResults }) {
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', onKey)
@@ -471,6 +506,7 @@ function PreviewModal({ item, busy, onClose, onApprove, onReject, onUseIdea, onR
 
   const isPost = item.type === 'post'
   const m = item.media
+  const making = !m && item.media_pending
   const day = item.planned_for
     ? new Date(`${item.planned_for}T00:00:00`).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
     : ''
@@ -480,12 +516,22 @@ function PreviewModal({ item, busy, onClose, onApprove, onReject, onUseIdea, onR
       <div
         role="dialog"
         aria-modal="true"
-        className="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl bg-white shadow-[0_24px_60px_-16px_rgba(16,24,40,0.35)] sm:flex-row"
+        className="flex max-h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl bg-white shadow-[0_24px_60px_-16px_rgba(16,24,40,0.35)] sm:flex-row"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* the media, as it will post */}
+        {/* the media, as it will post (or being made right now) */}
+        {making && (
+          <div className="flex-none p-3 sm:w-[380px]">
+            <div className="mx-auto aspect-[9/16] max-h-[36vh] sm:max-h-none">
+              <GeneratingCanvas
+                icon={item.media_pending === 'video' ? '▶' : '✦'}
+                stage={item.media_pending === 'video' ? 'Making the video…' : 'Making the image…'}
+              />
+            </div>
+          </div>
+        )}
         {m && (
-          <div className="flex max-h-[40vh] flex-none items-center justify-center bg-ink-950 sm:max-h-none sm:w-[300px]">
+          <div className="flex max-h-[40vh] flex-none items-center justify-center bg-ink-950 sm:max-h-none sm:w-[380px]">
             {m.kind === 'image' ? (
               <img src={`${mediaBase}${m.url}`} alt="" className="max-h-[40vh] w-full object-contain sm:max-h-[88vh]" />
             ) : (
@@ -519,7 +565,7 @@ function PreviewModal({ item, busy, onClose, onApprove, onReject, onUseIdea, onR
             </div>
 
             <h2 className={`mt-3 font-display text-[19px] leading-snug text-ink-900 ${khmer(item.title)}`}>{item.title}</h2>
-            {!isPost && !m && (
+            {!isPost && !m && !making && (
               <div className="mt-1 text-[11.5px] text-ink-400">Idea — no image or video yet</div>
             )}
 
@@ -589,10 +635,29 @@ function PreviewModal({ item, busy, onClose, onApprove, onReject, onUseIdea, onR
                 Schedule it
               </button>
             )}
-            {!isPost && !m && item.status !== 'rejected' && (
-              <button type="button" onClick={() => onUseIdea(item)} className="btn-outline">
-                Make media in AI Agent →
-              </button>
+            {!isPost && !m && !making && item.status !== 'rejected' && (
+              <>
+                <button type="button" disabled={busy} onClick={() => onMakeMedia(item, 'image')} className="btn-primary disabled:opacity-50">
+                  <FiImage size={13} /> Generate image
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onMakeMedia(item, 'video')}
+                  className="btn-outline disabled:opacity-50"
+                  title="An 8-second video — about $1.20 of AI credit"
+                >
+                  <FiVideo size={13} /> Generate video
+                </button>
+                <button type="button" onClick={() => onUseIdea(item)} className="text-[12px] font-semibold text-ink-500 hover:text-brand">
+                  or open in AI Agent
+                </button>
+              </>
+            )}
+            {making && (
+              <span className="text-[12px] text-ink-500">
+                {item.status === 'approved' ? 'It will be scheduled on its day once the media is ready.' : 'Approve it once the media is ready.'}
+              </span>
             )}
             <button type="button" onClick={onClose} className="ml-auto rounded-xl px-4 py-2 text-[12px] font-semibold text-ink-500 hover:bg-ink-100">
               Close

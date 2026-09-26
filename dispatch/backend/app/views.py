@@ -462,6 +462,7 @@ def calendar_view(
                 "source": d.source,
                 "generated_at": d.generated_at,
                 "media": media.get(d.video_id) if d.video_id else None,
+                "media_pending": d.id in _media_running,
                 "targets": [],
             }
         )
@@ -1538,6 +1539,90 @@ def approve_draft(draft_id: int, db: Session = Depends(get_db), ws: int = Depend
     d.status = "approved"
     db.commit()
     return {"id": d.id, "status": d.status}
+
+
+# ── media for an idea that has none (Calendar → "Generate image / video") ──
+_media_running: set[int] = set()  # draft ids being given media right now
+_media_lock = threading.Lock()
+
+
+class DraftMediaIn(BaseModel):
+    kind: str = Field(default="image", pattern="^(image|video)$")
+
+
+@router.post("/drafts/{draft_id}/media", status_code=202)
+def make_draft_media(
+    draft_id: int, payload: DraftMediaIn, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)
+):
+    """Make an image or an 8s video for an idea that has no media, in the
+    background. If the idea is already approved, it's then scheduled as a real
+    post on its day — the same as approving an idea that came with media."""
+    from app import billing
+
+    d = owned(db, Draft, draft_id, ws)
+    if d.video_id is not None:
+        raise HTTPException(409, "This idea already has media.")
+    if d.status == "rejected":
+        raise HTTPException(409, "This idea was sent back.")
+    s = get_settings()
+    if payload.kind == "video":
+        model = s.auto_video_model if s.video_provider == "gemini_veo" else None
+        billing.require(ws, billing.video_cost(s.video_provider, 8, model), db)
+    else:
+        billing.require(ws, billing.IMAGE_HOLD, db)
+    with _media_lock:
+        if d.id in _media_running:
+            raise HTTPException(409, "Already making media for this idea.")
+        _media_running.add(d.id)
+    threading.Thread(target=_draft_media_job, args=(d.id, payload.kind), daemon=True, name=f"draft-media-{d.id}").start()
+    return {"id": d.id, "making": payload.kind}
+
+
+def _draft_media_job(draft_id: int, kind: str) -> None:
+    from app import billing
+    from app.content_scheduler import (
+        ContentAIError,
+        _brand_snapshot,
+        _generate_media_for,
+        _generate_video_for,
+        _product_snapshot,
+        _today,
+        schedule_draft_as_post,
+    )
+    from app.database import SessionLocal
+    from app.models import Product
+
+    db = SessionLocal()
+    try:
+        d = db.get(Draft, draft_id)
+        brand = db.get(Brand, d.brand_id) if d else None
+        if d is None or brand is None:
+            return
+        billing.bind(brand.workspace_id)
+        products = [_product_snapshot(p) for p in db.scalars(select(Product).where(Product.brand_id == brand.id)).all()]
+        idea = {"title": d.title, "caption": d.body}
+        make = _generate_video_for if kind == "video" else _generate_media_for
+        video_id = make(_brand_snapshot(brand), idea, products)
+        if video_id is None:
+            log.warning("calendar: couldn't make %s for draft %s", kind, draft_id)
+            return
+        d = db.get(Draft, draft_id)
+        d.video_id = video_id
+        if d.status == "approved":
+            on_day = d.planned_for if d.planned_for and d.planned_for >= _today() else None
+            try:
+                schedule_draft_as_post(db, d, on_day=on_day)
+                d.status = "scheduled"
+            except ContentAIError as exc:
+                log.warning("calendar: made media for draft %s but couldn't schedule it: %s", draft_id, exc)
+        db.commit()
+    except Exception:  # noqa: BLE001 - surface in the log; the page just stops waiting
+        db.rollback()
+        log.exception("calendar media job crashed for draft %s", draft_id)
+    finally:
+        db.close()
+        with _media_lock:
+            _media_running.discard(draft_id)
 
 
 @router.post("/drafts/{draft_id}/reject")
