@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { colorForBrand } from '../../lib/brandColor'
+import { useStore } from '../../store'
 import { phnomPenhDay, dayLabel } from '../../lib/tz'
 import PlatformIcon from '../ui/PlatformIcon'
 import StatusBadge from './StatusBadge'
@@ -8,6 +9,11 @@ const isKhmer = (s) => /[\u1780-\u17FF\u19E0-\u19FF]/.test(s)
 
 export default function TableView({ queue, match = () => true }) {
   const navigate = useNavigate()
+  // The post page looks posts up by their place in the store's queue — this
+  // list is sorted differently (by date and time), so link by that place,
+  // not by the row's position here.
+  const { queue: storeQueue } = useStore()
+  const openPost = (q) => navigate(`/post/${storeQueue.indexOf(q)}`)
   const visible = queue.map((q, i) => ({ q, i })).filter(({ q }) => match(q))
 
   if (!visible.length) {
@@ -38,7 +44,7 @@ export default function TableView({ queue, match = () => true }) {
             return (
               <tr
                 key={q.postId ?? q.targetId ?? i}
-                onClick={() => navigate(`/post/${i}`)}
+                onClick={() => openPost(q)}
                 className="cursor-pointer transition-colors duration-100 hover:bg-brand/[0.04]"
               >
                 <td className="px-7 py-2.5 whitespace-nowrap font-semibold text-ink-600">

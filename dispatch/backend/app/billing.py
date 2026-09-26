@@ -23,6 +23,7 @@ your actual bill.
 from __future__ import annotations
 
 import logging
+import re
 from contextvars import ContextVar
 from datetime import UTC, datetime, timedelta, timezone
 
@@ -301,6 +302,10 @@ def charge_job(job: GenerationJob) -> None:
         else job.model or video_model(job.provider)
     )
     what = {"image": "Image", "video": "Video", "scene": "Story scene"}.get(job.kind, job.kind)
+    # Auto-generated briefs open with boilerplate; their "Post topic:" line
+    # is what a person recognises in the activity list.
+    topic = re.search(r"Post topic:\s*(.+)", job.prompt or "")
+    summary = topic.group(1).strip() if topic else (job.prompt or "")
     charge(
         job.workspace_id,
         kind,
@@ -309,7 +314,7 @@ def charge_job(job: GenerationJob) -> None:
         model=model,
         tokens=job.total_tokens or 0,
         seconds=billed_seconds(job.provider, job.seconds or 0) if kind == "video" else 0,
-        note=f"{what}: {job.prompt[:200]}",
+        note=f"{what}: {summary[:200]}",
         job_id=job.id,
     )
 
@@ -339,29 +344,59 @@ def billing_overview(db: Session = Depends(get_db), ws: int = Depends(current_wo
         }
         for kind, total, count, tokens, seconds in sorted(rows, key=lambda r: float(r[1] or 0))
     ]
+    out.update(_activity_page(db, ws, 1, ACTIVITY_PAGE))
+    return out
+
+
+ACTIVITY_PAGE = 10  # rows per page of Settings → Billing → Recent activity
+
+
+def _activity_page(db: Session, ws: int, page: int, per_page: int) -> dict:
+    """One page of the workspace's credit ledger, newest first."""
+    per_page = max(1, min(per_page, 50))
+    total = db.scalar(select(func.count()).select_from(CreditEntry).where(CreditEntry.workspace_id == ws)) or 0
+    pages = max(1, -(-total // per_page))
+    page = max(1, min(page, pages))
     names = dict(db.execute(select(TeamMember.id, TeamMember.name).where(TeamMember.workspace_id == ws)).all())
-    recent = db.scalars(
+    rows = db.scalars(
         select(CreditEntry)
         .where(CreditEntry.workspace_id == ws)
         .order_by(CreditEntry.created_at.desc(), CreditEntry.id.desc())
-        .limit(60)
+        .offset((page - 1) * per_page)
+        .limit(per_page)
     ).all()
-    out["recent"] = [
-        {
-            "id": e.id,
-            "kind": e.kind,
-            "label": _KIND_LABEL.get(e.kind, e.kind),
-            "amount": round(-float(e.amount_usd), 6),
-            "model": e.model,
-            "tokens": e.tokens,
-            "seconds": e.seconds,
-            "note": e.note,
-            "user": names.get(e.user_id, ""),
-            "created_at": e.created_at,
-        }
-        for e in recent
-    ]
-    return out
+    return {
+        "recent": [
+            {
+                "id": e.id,
+                "kind": e.kind,
+                "label": _KIND_LABEL.get(e.kind, e.kind),
+                "amount": round(-float(e.amount_usd), 6),
+                "model": e.model,
+                "tokens": e.tokens,
+                "seconds": e.seconds,
+                "note": e.note,
+                "user": names.get(e.user_id, ""),
+                "created_at": e.created_at,
+            }
+            for e in rows
+        ],
+        "recent_page": page,
+        "recent_pages": pages,
+        "recent_total": total,
+        "recent_per_page": per_page,
+    }
+
+
+@router.get("/activity")
+def billing_activity(
+    page: int = 1,
+    per_page: int = ACTIVITY_PAGE,
+    db: Session = Depends(get_db),
+    ws: int = Depends(current_workspace_id),
+):
+    """Settings → Billing → Recent activity, a page at a time."""
+    return _activity_page(db, ws, page, per_page)
 
 
 @router.get("/summary")

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FiCalendar } from 'react-icons/fi'
 import { colorForBrand } from '../../lib/brandColor'
+import { useStore } from '../../store'
 import { phnomPenhDay, dayLabel } from '../../lib/tz'
 import PlatformIcon from '../ui/PlatformIcon'
 import StatusBadge from './StatusBadge'
@@ -10,6 +11,11 @@ const isKhmer = (s) => /[\u1780-\u17FF\u19E0-\u19FF]/.test(s)
 
 export default function DayView({ queue, match = () => true }) {
   const navigate = useNavigate()
+  // The post page looks posts up by their place in the store's queue — this
+  // list is sorted differently (by date and time), so link by that place,
+  // not by the row's position here.
+  const { queue: storeQueue } = useStore()
+  const openPost = (q) => navigate(`/post/${storeQueue.indexOf(q)}`)
   const prevStatus = useRef({})
   const [justPosted, setJustPosted] = useState({})
 
@@ -100,7 +106,7 @@ export default function DayView({ queue, match = () => true }) {
             </div>
             <button
               type="button"
-              onClick={() => navigate(`/post/${i}`)}
+              onClick={() => openPost(q)}
               className={`w-full text-left rounded-2xl border px-4 py-3 transition-all duration-150 cursor-pointer hover:-translate-y-0.5 hover:shadow-card ${
                 sending
                   ? 'border-brand-line bg-brand-softer'

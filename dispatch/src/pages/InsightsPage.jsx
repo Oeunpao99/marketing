@@ -117,6 +117,12 @@ function isConnectionProblem(it) {
   return /token|access|auth|reconnect|expired|permission/i.test(it.note || '')
 }
 
+/** A missing permission (the app may read stats only once Meta grants it) —
+ * posting still works, so this isn't a "disconnected" account. */
+function isPermissionProblem(note) {
+  return /permission|requires the|pages_read_engagement|read_insights|\(#10\)|\(#200\)/i.test(note || '')
+}
+
 function hashtagsOf(text) {
   return [...new Set((text || '').match(HASHTAG_RE) || [])]
 }
@@ -783,9 +789,15 @@ export default function InsightsPage() {
     const map = new Map()
     for (const it of filtered) {
       if (isResolved(it) || !isConnectionProblem(it)) continue
-      map.set(it.platform_slug, (map.get(it.platform_slug) || 0) + 1)
+      const cur = map.get(it.platform_slug) || { count: 0, note: it.note }
+      map.set(it.platform_slug, { count: cur.count + 1, note: cur.note })
     }
-    return [...map.entries()].map(([slug, count]) => ({ slug, count }))
+    return [...map.entries()].map(([slug, { count, note }]) => ({
+      slug,
+      count,
+      note,
+      permission: isPermissionProblem(note),
+    }))
   }, [filtered])
 
   // Per-platform share of engagement / views for the two donuts — fixed
@@ -1027,15 +1039,26 @@ export default function InsightsPage() {
             </span>
             <div className="min-w-0 flex-1">
               <div className="text-[13px] font-semibold text-ink-900">
-                {PLATFORM_LABELS[p.slug] || p.slug} is disconnected
+                {p.permission
+                  ? `${PLATFORM_LABELS[p.slug] || p.slug} isn't sharing post stats yet`
+                  : `${PLATFORM_LABELS[p.slug] || p.slug} is disconnected`}
               </div>
               <div className="text-[12px] text-ink-600">
-                {p.count} post{p.count === 1 ? '' : 's'} can't report numbers until you reconnect the account.
+                {p.permission
+                  ? `${p.count} post${p.count === 1 ? '' : 's'} can't report numbers: the app needs a permission to read stats. Posting still works.`
+                  : `${p.count} post${p.count === 1 ? '' : 's'} can't report numbers until you reconnect the account.`}
               </div>
+              {p.note && (
+                <div className="mt-1 line-clamp-2 text-[11px] text-ink-400" title={p.note}>
+                  {PLATFORM_LABELS[p.slug] || p.slug} says: {p.note}
+                </div>
+              )}
             </div>
-            <button type="button" onClick={() => navigate('/channels')} className="btn-outline">
-              Reconnect
-            </button>
+            {!p.permission && (
+              <button type="button" onClick={() => navigate('/channels')} className="btn-outline">
+                Reconnect
+              </button>
+            )}
           </div>
         )
       })}

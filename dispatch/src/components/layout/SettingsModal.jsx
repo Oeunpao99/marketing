@@ -960,6 +960,10 @@ function activitySnippet(e) {
     .replace(/[#*>_`]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
+  // Auto-generated media briefs open with boilerplate ("An 8-second, vertical
+  // 9:16…", "Create a photorealistic…"); their "Post topic:" line says more.
+  const topic = text.match(/Post topic:\s*([^.]+)/i)?.[1]?.trim()
+  if (topic) return topic.length <= 60 ? topic : `${topic.slice(0, 60).replace(/\s+\S*$/, '')}…`
   const phrase = text.split(/[,:.;(—]/)[0].trim() || text
   if (phrase.length <= 60) return phrase.length < text.length ? `${phrase}…` : phrase
   return `${phrase.slice(0, 60).replace(/\s+\S*$/, '')}…`
@@ -1020,6 +1024,17 @@ function BillingTab() {
   useEffect(() => {
     load()
   }, [])
+
+  // Recent activity, a page at a time (GET /billing/activity).
+  const [pageBusy, setPageBusy] = useState(false)
+  const goPage = (page) => {
+    setPageBusy(true)
+    api
+      .get(`/billing/activity?page=${page}`)
+      .then((p) => setData((d) => ({ ...d, ...p })))
+      .catch(() => {})
+      .finally(() => setPageBusy(false))
+  }
 
   if (!data) {
     return error ? (
@@ -1126,6 +1141,35 @@ function BillingTab() {
                 </div>
               )
             })}
+          </div>
+        )}
+        {data.recent_pages > 1 && (
+          <div className={`mt-3 flex items-center justify-between gap-3 ${pageBusy ? 'opacity-60' : ''}`}>
+            <span className="text-[11.5px] text-ink-400">
+              Showing {(data.recent_page - 1) * data.recent_per_page + 1}–
+              {Math.min(data.recent_page * data.recent_per_page, data.recent_total)} of {data.recent_total}
+            </span>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => goPage(data.recent_page - 1)}
+                disabled={pageBusy || data.recent_page <= 1}
+                className="h-8 rounded-lg border border-ink-200 px-3 text-[12px] font-medium text-ink-700 hover:bg-ink-50 disabled:opacity-40"
+              >
+                ‹ Previous
+              </button>
+              <span className="px-1.5 text-[12px] tabular-nums text-ink-500">
+                Page {data.recent_page} of {data.recent_pages}
+              </span>
+              <button
+                type="button"
+                onClick={() => goPage(data.recent_page + 1)}
+                disabled={pageBusy || data.recent_page >= data.recent_pages}
+                className="h-8 rounded-lg border border-ink-200 px-3 text-[12px] font-medium text-ink-700 hover:bg-ink-50 disabled:opacity-40"
+              >
+                Next ›
+              </button>
+            </div>
           </div>
         )}
       </section>
