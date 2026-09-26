@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { FiImage, FiVideo } from 'react-icons/fi'
 import { api } from '../api/client'
 import { colorForBrand } from '../lib/brandColor'
 import { phnomPenhDate } from '../lib/tz'
@@ -81,10 +82,18 @@ export default function CalendarPage() {
     if (busy) return
     setBusy(true)
     try {
-      await api.post(`/views/drafts/${draft.id}/${action}`)
-      setItems((xs) => xs.map((x) => (x.id === draft.id ? { ...x, status: action === 'approve' ? 'approved' : 'rejected' } : x)))
-      setOpen((o) => (o ? { ...o, status: action === 'approve' ? 'approved' : 'rejected' } : o))
-      showToast(action === 'approve' ? 'Approved' : 'Sent back')
+      const res = await api.post(`/views/drafts/${draft.id}/${action}`)
+      if (res?.post_id) {
+        // It had media, so approving scheduled it as a real post — show that.
+        setOpen(null)
+        load()
+        showToast('Approved and scheduled')
+      } else {
+        const status = action === 'approve' ? 'approved' : 'rejected'
+        setItems((xs) => xs.map((x) => (x.key === draft.key ? { ...x, status } : x)))
+        setOpen((o) => (o ? { ...o, status } : o))
+        showToast(action === 'approve' ? 'Approved' : 'Sent back')
+      }
     } catch (e) {
       showToast(`Could not update — ${e.message}`)
     } finally {
@@ -108,7 +117,7 @@ export default function CalendarPage() {
       <div className="mb-6">
           <h1 className="page-title">Calendar</h1>
           <p className="page-sub mt-1">
-            What the AI has planned to post, day by day. Click an idea to read it, approve it, or turn it into a post.
+            Your posts and the AI's ideas, day by day. Click one to preview it — media, caption and where it goes out.
           </p>
         </div>
 
@@ -221,7 +230,7 @@ export default function CalendarPage() {
                     <div className="space-y-1">
                       {(byDay.get(dateStr) || []).slice(0, 3).map((it) => (
                         <button
-                          key={it.id}
+                          key={it.key}
                           type="button"
                           onClick={() => setOpen(it)}
                           className={`w-full text-left px-1.5 py-1 rounded-md text-[10px] leading-tight truncate flex items-center gap-1 ${
@@ -236,6 +245,13 @@ export default function CalendarPage() {
                             style={{ background: colorForBrand(it.brand_slug) }}
                           />
                           <span className="truncate">{it.title}</span>
+                          {it.media &&
+                            (it.media.kind === 'image' ? (
+                              <FiImage size={10} className="ml-auto flex-none text-ink-400" />
+                            ) : (
+                              <FiVideo size={10} className="ml-auto flex-none text-ink-400" />
+                            ))}
+                          {it.status === 'failed' && <span className="flex-none text-[9px] font-bold text-red-600">!</span>}
                         </button>
                       ))}
                       {(byDay.get(dateStr) || []).length > 3 && (
@@ -280,79 +296,15 @@ export default function CalendarPage() {
       )}
 
       {open && (
-        <div
-          className="fixed inset-0 z-50 bg-ink-950/25 backdrop-blur-md flex items-center justify-center p-4 animate-fadein"
-          onClick={() => setOpen(null)}
-        >
-          <div
-            className="glass-strong rounded-3xl overflow-hidden max-w-lg w-full max-h-[85vh] flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-5 lg:p-6 flex flex-col min-h-0">
-              <div className="flex items-center gap-2 text-[11.5px] text-ink-500 flex-wrap">
-                <span className="w-2 h-2 rounded-full flex-none" style={{ background: colorForBrand(open.brand_slug) }} />
-                <span className="font-semibold text-ink-800">{open.brand_name}</span>
-                <span className="text-ink-300">·</span>
-                <span>{open.planned_for}</span>
-                <span
-                  className={`ml-auto px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${
-                    open.status === 'approved'
-                      ? 'bg-emerald-100 text-emerald-700'
-                      : open.status === 'rejected'
-                        ? 'bg-ink-100 text-ink-500'
-                        : 'bg-amber-100 text-amber-700'
-                  }`}
-                >
-                  {open.status}
-                </span>
-              </div>
-              <h2 className="mt-3 font-display text-[20px] leading-tight text-ink-900">{open.title}</h2>
-              {open.insight && (
-                <p className="mt-2 text-[12px] text-ink-500 italic leading-relaxed">{open.insight}</p>
-              )}
-              <div className="mt-3 text-[10px] font-bold uppercase tracking-wide text-ink-400">Caption</div>
-              <p className="mt-1 text-[12.5px] text-ink-700 leading-relaxed overflow-y-auto flex-1 whitespace-pre-line pr-1">
-                {open.body}
-              </p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => useIdea(open)}
-                  className="px-4 py-2.5 rounded-xl gradient-brand text-white text-[12px] font-bold hover:shadow-glow-lg transition-all duration-200"
-                >
-                  Use this idea →
-                </button>
-                {open.status === 'waiting' && (
-                  <>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => act(open, 'approve')}
-                      className="px-4 py-2.5 rounded-xl border-2 border-brand text-brand text-[12px] font-bold hover:bg-brand/5 disabled:opacity-50 transition-all duration-150"
-                    >
-                      Approve
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => act(open, 'reject')}
-                      className="px-4 py-2.5 rounded-xl border border-ink-200 text-ink-500 text-[12px] font-bold hover:bg-red-50 hover:text-red-600 hover:border-red-200 disabled:opacity-50 transition-all duration-150"
-                    >
-                      Reject
-                    </button>
-                  </>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setOpen(null)}
-                  className="ml-auto px-4 py-2.5 rounded-xl text-ink-500 text-[12px] font-bold hover:bg-ink-100"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <PreviewModal
+          item={open}
+          busy={busy}
+          onClose={() => setOpen(null)}
+          onApprove={(it) => act(it, 'approve')}
+          onReject={(it) => act(it, 'reject')}
+          onUseIdea={useIdea}
+          onResults={(targetId) => navigate(`/insights/${targetId}`)}
+        />
       )}
     </div>
   )
@@ -367,6 +319,9 @@ const STATUS = {
   waiting: ['Waiting', 'bg-amber-400'],
   approved: ['Approved', 'bg-emerald-500'],
   scheduled: ['Scheduled', 'bg-brand'],
+  posted: ['Posted', 'bg-emerald-500'],
+  partial: ['Partly posted', 'bg-amber-400'],
+  failed: ['Failed', 'bg-red-500'],
   rejected: ['Sent back', 'bg-ink-300'],
 }
 const khmer = (t) => (/[\u1780-\u17FF]/.test(t || '') ? 'font-khmer' : '')
@@ -401,7 +356,7 @@ function MobileMonth({ cells, byDay, today, picked, onPick, onOpen }) {
                 type="button"
                 onClick={() => onPick(dateStr)}
                 className="flex h-12 flex-col items-center justify-start gap-1 rounded-xl pt-1"
-                aria-label={`${dateStr}, ${dayItems.length} idea${dayItems.length === 1 ? '' : 's'}`}
+                aria-label={`${dateStr}, ${dayItems.length} planned`}
               >
                 <span
                   className={`grid h-7 w-7 place-items-center rounded-full text-[12.5px] font-semibold ${
@@ -417,7 +372,7 @@ function MobileMonth({ cells, byDay, today, picked, onPick, onOpen }) {
                 <span className="flex h-1.5 items-center gap-0.5">
                   {dayItems.slice(0, 3).map((it) => (
                     <span
-                      key={it.id}
+                      key={it.key}
                       className="h-1.5 w-1.5 rounded-full"
                       style={{ background: it.status === 'rejected' ? '#CBD2D9' : colorForBrand(it.brand_slug) }}
                     />
@@ -434,7 +389,7 @@ function MobileMonth({ cells, byDay, today, picked, onPick, onOpen }) {
         <div className="mb-2 flex items-baseline justify-between">
           <div className="text-[14px] font-semibold text-ink-900">{label}</div>
           <div className="text-[11.5px] text-ink-400">
-            {list.length} idea{list.length === 1 ? '' : 's'}
+            {list.length} planned
           </div>
         </div>
         {list.length === 0 ? (
@@ -447,7 +402,7 @@ function MobileMonth({ cells, byDay, today, picked, onPick, onOpen }) {
               const [statusLabel, statusDot] = STATUS[it.status] || [it.status, 'bg-ink-300']
               return (
                 <button
-                  key={it.id}
+                  key={it.key}
                   type="button"
                   onClick={() => onOpen(it)}
                   className={`w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-left shadow-card active:bg-ink-50 ${
@@ -475,6 +430,175 @@ function MobileMonth({ cells, byDay, today, picked, onPick, onOpen }) {
             })}
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+
+// ── preview ─────────────────────────────────────────────────────────────────
+// Clicking a calendar item: a post shows as it goes out (its media, the
+// caption, each channel's time and status); an idea shows its caption, any
+// media it already has, and what to do next.
+const mediaBase = window.location.port === '5173' ? 'http://localhost:8000' : ''
+
+const PILL = {
+  waiting: ['Waiting', 'bg-amber-100 text-amber-700'],
+  approved: ['Approved', 'bg-emerald-100 text-emerald-700'],
+  scheduled: ['Scheduled', 'bg-brand-soft text-brand'],
+  posted: ['Posted', 'bg-emerald-100 text-emerald-700'],
+  partial: ['Partly posted', 'bg-amber-100 text-amber-700'],
+  failed: ['Failed', 'bg-red-100 text-red-700'],
+  queued: ['Scheduled', 'bg-brand-soft text-brand'],
+  rejected: ['Sent back', 'bg-ink-100 text-ink-500'],
+}
+const SOURCE = { 'ai-auto': 'Auto-generate', 'ai-weekly': 'Weekly plan', compose: 'Compose' }
+
+const whenLabel = (iso) =>
+  iso ? new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—'
+
+function Pill({ status }) {
+  const [label, tone] = PILL[status] || [status, 'bg-ink-100 text-ink-600']
+  return <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${tone}`}>{label}</span>
+}
+
+function PreviewModal({ item, busy, onClose, onApprove, onReject, onUseIdea, onResults }) {
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  const isPost = item.type === 'post'
+  const m = item.media
+  const day = item.planned_for
+    ? new Date(`${item.planned_for}T00:00:00`).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+    : ''
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/40 p-4 animate-fadein" onClick={onClose}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl bg-white shadow-[0_24px_60px_-16px_rgba(16,24,40,0.35)] sm:flex-row"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* the media, as it will post */}
+        {m && (
+          <div className="flex max-h-[40vh] flex-none items-center justify-center bg-ink-950 sm:max-h-none sm:w-[300px]">
+            {m.kind === 'image' ? (
+              <img src={`${mediaBase}${m.url}`} alt="" className="max-h-[40vh] w-full object-contain sm:max-h-[88vh]" />
+            ) : (
+              <video
+                src={`${mediaBase}${m.url}`}
+                controls
+                playsInline
+                preload="metadata"
+                className="max-h-[40vh] w-full bg-black object-contain sm:max-h-[88vh]"
+              />
+            )}
+          </div>
+        )}
+
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-6">
+            <div className="flex flex-wrap items-center gap-2 text-[11.5px] text-ink-500">
+              <span className="h-2 w-2 flex-none rounded-full" style={{ background: colorForBrand(item.brand_slug) }} />
+              <span className="font-semibold text-ink-800">{item.brand_name}</span>
+              <span className="text-ink-300">·</span>
+              <span>{day}</span>
+              {SOURCE[item.source] && (
+                <>
+                  <span className="text-ink-300">·</span>
+                  <span>{SOURCE[item.source]}</span>
+                </>
+              )}
+              <span className="ml-auto">
+                <Pill status={item.status} />
+              </span>
+            </div>
+
+            <h2 className={`mt-3 font-display text-[19px] leading-snug text-ink-900 ${khmer(item.title)}`}>{item.title}</h2>
+            {!isPost && !m && (
+              <div className="mt-1 text-[11.5px] text-ink-400">Idea — no image or video yet</div>
+            )}
+
+            <div className="mt-4 text-[10.5px] font-bold uppercase tracking-wide text-ink-400">Caption</div>
+            <p className={`mt-1 whitespace-pre-line text-[13px] leading-relaxed text-ink-700 ${khmer(item.body)}`}>
+              {item.body || '—'}
+            </p>
+
+            {item.targets?.length > 0 && (
+              <>
+                <div className="mt-5 text-[10.5px] font-bold uppercase tracking-wide text-ink-400">Where &amp; when</div>
+                <div className="mt-1.5 divide-y divide-ink-100 rounded-xl border border-ink-200">
+                  {item.targets.map((t) => (
+                    <div key={t.id} className="px-3.5 py-2.5">
+                      <div className="flex items-center gap-2 text-[12.5px]">
+                        <span className="font-semibold text-ink-800">{t.platform_name}</span>
+                        {t.handle && <span className="truncate text-ink-400">{t.handle}</span>}
+                        <span className="ml-auto flex-none">
+                          <Pill status={t.status} />
+                        </span>
+                      </div>
+                      <div className="mt-0.5 flex items-center gap-2 text-[11.5px] text-ink-500">
+                        {t.published_at ? `Posted ${whenLabel(t.published_at)}` : `Goes out ${whenLabel(t.scheduled_for)}`}
+                        {t.status === 'posted' && (
+                          <button type="button" onClick={() => onResults(t.id)} className="ml-auto font-semibold text-brand hover:underline">
+                            View results →
+                          </button>
+                        )}
+                      </div>
+                      {t.status === 'failed' && t.error && <div className="mt-1 text-[11px] text-red-600">{t.error}</div>}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {item.insight && (
+              <details className="mt-4 group">
+                <summary className="cursor-pointer list-none text-[11.5px] font-semibold text-ink-500 hover:text-ink-800">
+                  Why this idea <span className="text-ink-300 group-open:hidden">▸</span>
+                  <span className="hidden text-ink-300 group-open:inline">▾</span>
+                </summary>
+                <p className="mt-1 text-[12px] italic leading-relaxed text-ink-500">{item.insight}</p>
+              </details>
+            )}
+          </div>
+
+          {/* actions for where it is now */}
+          <div className="flex flex-wrap items-center gap-2 border-t border-ink-100 px-5 py-3.5 sm:px-6">
+            {!isPost && item.status === 'waiting' && (
+              <>
+                <button type="button" disabled={busy} onClick={() => onApprove(item)} className="btn-primary disabled:opacity-50">
+                  {m ? 'Approve & schedule' : 'Approve'}
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onReject(item)}
+                  className="rounded-xl border border-ink-200 px-4 py-2 text-[12px] font-semibold text-ink-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                >
+                  Send back
+                </button>
+              </>
+            )}
+            {!isPost && item.status === 'approved' && m && (
+              <button type="button" disabled={busy} onClick={() => onApprove(item)} className="btn-primary disabled:opacity-50">
+                Schedule it
+              </button>
+            )}
+            {!isPost && !m && item.status !== 'rejected' && (
+              <button type="button" onClick={() => onUseIdea(item)} className="btn-outline">
+                Make media in AI Agent →
+              </button>
+            )}
+            <button type="button" onClick={onClose} className="ml-auto rounded-xl px-4 py-2 text-[12px] font-semibold text-ink-500 hover:bg-ink-100">
+              Close
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )

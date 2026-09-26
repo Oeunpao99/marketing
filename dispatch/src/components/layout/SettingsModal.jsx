@@ -8,6 +8,9 @@ import {
   FiCheck,
   FiCreditCard,
   FiDroplet,
+  FiVideo,
+  FiImage,
+  FiEdit3,
   FiLock,
   FiLogOut,
   FiMonitor,
@@ -927,6 +930,60 @@ function usageDetail(e) {
   return ''
 }
 
+// What an "AI writing" request was for — recognised from the start of the
+// instruction it ran with (app/billing.py stores that as the note).
+const WRITING_PURPOSE = [
+  [/content strategist/i, 'Wrote post ideas'],
+  [/fact-check/i, 'Fact-checked captions'],
+  [/copy editor/i, 'Polished captions'],
+  [/prompt for an image|prompt engineer/i, 'Wrote an image / video prompt'],
+  [/marketing advisor/i, 'Answered a question'],
+  [/social media editor/i, 'Suggested post improvements'],
+  [/storyboard|creative director/i, 'Wrote a storyboard'],
+]
+
+function activityTitle(e) {
+  const note = e.note || ''
+  if (e.kind === 'text') return WRITING_PURPOSE.find(([re]) => re.test(note))?.[1] || 'AI writing'
+  if (e.kind === 'image') return 'Image'
+  if (e.kind === 'video') return `${/^Story scene/i.test(note) ? 'Storyboard scene' : 'Video'}${e.seconds ? ` · ${e.seconds}s` : ''}`
+  return e.label || 'Credit added'
+}
+
+// A short hint of what an image / video showed: the prompt's first phrase
+// (up to its first comma, colon or full stop), at most ~60 characters.
+function activitySnippet(e) {
+  if (e.kind !== 'image' && e.kind !== 'video') return ''
+  const text = (e.note || '')
+    .replace(/^(Video|Image|Story scene):\s*/i, '')
+    .replace(/^SUBJECT\b[:\s]*/i, '')
+    .replace(/[#*>_`]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  const phrase = text.split(/[,:.;(—]/)[0].trim() || text
+  if (phrase.length <= 60) return phrase.length < text.length ? `${phrase}…` : phrase
+  return `${phrase.slice(0, 60).replace(/\s+\S*$/, '')}…`
+}
+
+const shortModel = (m) => (m || '').replace(/-\d{4}-\d{2}-\d{2}$/, '').replace(/-generate(-preview)?$/, '')
+
+function dayLabel(iso) {
+  const d = new Date(iso)
+  const today = new Date()
+  const yesterday = new Date(today)
+  yesterday.setDate(today.getDate() - 1)
+  if (d.toDateString() === today.toDateString()) return 'Today'
+  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday'
+  return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+}
+
+const ACTIVITY_ICON = {
+  text: { icon: FiEdit3, tone: 'bg-sky-50 text-sky-600' },
+  image: { icon: FiImage, tone: 'bg-violet-50 text-violet-600' },
+  video: { icon: FiVideo, tone: 'bg-brand-soft text-brand' },
+  grant: { icon: FiCreditCard, tone: 'bg-emerald-50 text-emerald-600' },
+}
+
 // A label, a thin bar and a figure on the right — one row of usage.
 // tone: 'brand' (normal) | 'warn' (running low) | 'danger' (used up)
 function UsageBar({ label, pct, right, tone = 'brand' }) {
@@ -1030,23 +1087,42 @@ function BillingTab() {
         {data.recent.length === 0 ? (
           <p className="mt-2 text-[12.5px] text-ink-500">No AI used yet this month.</p>
         ) : (
-          <div className="mt-2 divide-y divide-ink-100">
-            {data.recent.map((e) => {
-              const detail = [e.model, usageDetail(e), e.user].filter(Boolean).join(' · ')
+          <div className="mt-1">
+            {data.recent.map((e, i) => {
+              const day = dayLabel(e.created_at)
+              const newDay = i === 0 || dayLabel(data.recent[i - 1].created_at) !== day
+              const meta = [
+                new Date(e.created_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }),
+                shortModel(e.model),
+                e.kind === 'video' ? '' : usageDetail(e),
+                e.user,
+              ]
+                .filter(Boolean)
+                .join(' · ')
+              const snippet = activitySnippet(e)
+              const { icon: Icon, tone } = ACTIVITY_ICON[e.kind] || ACTIVITY_ICON.text
               return (
-                <div key={e.id} className="flex items-baseline gap-4 py-2.5">
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[12.5px] text-ink-800" title={e.note}>
-                      {e.note || e.label}
-                    </div>
-                    <div className="truncate text-[11px] text-ink-400">
-                      {loginTime(e.created_at)}
-                      {detail ? ` · ${detail}` : ''}
+                <div key={e.id}>
+                  {newDay && (
+                    <div className="pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wide text-ink-400">{day}</div>
+                  )}
+                  <div className="flex items-start gap-3 border-b border-ink-100 py-2.5 last:border-0">
+                    <span className={`mt-0.5 grid h-7 w-7 flex-none place-items-center rounded-lg ${tone}`}>
+                      <Icon size={13} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="truncate text-[13px] font-medium text-ink-800">{activityTitle(e)}</span>
+                        <span
+                          className={`flex-none text-[13px] font-semibold tabular-nums ${e.amount < 0 ? 'text-emerald-600' : 'text-ink-800'}`}
+                        >
+                          {e.amount < 0 ? `+${fmtUSD(-e.amount)}` : `−${fmtUSD(e.amount)}`}
+                        </span>
+                      </div>
+                      {snippet && <div className="mt-0.5 truncate text-[12px] text-ink-500">{snippet}</div>}
+                      <div className="mt-0.5 truncate text-[11px] text-ink-400">{meta}</div>
                     </div>
                   </div>
-                  <span className={`flex-none text-[12.5px] tabular-nums ${e.amount < 0 ? 'text-emerald-600' : 'text-ink-700'}`}>
-                    {e.amount < 0 ? `+${fmtUSD(-e.amount)}` : `-${fmtUSD(e.amount)}`}
-                  </span>
                 </div>
               )
             })}

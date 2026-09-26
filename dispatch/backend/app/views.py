@@ -5,6 +5,7 @@ expose; they just pre-join the data so the React pages stay thin.
 """
 
 import logging
+import re
 import threading
 import time
 from datetime import UTC, date, datetime, timedelta, timezone
@@ -333,12 +334,54 @@ def calendar_view(
     db: Session = Depends(get_db),
     ws: int = Depends(current_workspace_id),
 ):
-    """Every planned idea (any status) with a calendar slot, for the Calendar page."""
+    """The Calendar page: every real post (scheduled or published — from
+    Compose, auto-generate or a weekly plan) and every AI idea that hasn't
+    become a post yet, day by day (Phnom Penh). Each item says which it is
+    (``type``: "post" | "idea"), with its media, so the page can preview it.
+    An idea that already became a post shows once — as the post, under the
+    idea's title (a draft has no post id; its post is the one scheduled with
+    the same brand + media, see content_scheduler.schedule_draft_as_post)."""
     from app.content_scheduler import _today  # local import avoids a module cycle
+    from app.media import kind_for
 
     start = start or _today() - timedelta(days=7)
     end = end or _today() + timedelta(days=30)
     brands = _brand_map(db, ws)
+
+    def brand_fields(brand_id: int) -> dict:
+        b = brands.get(brand_id)
+        return {"brand_id": brand_id, "brand_slug": b.slug if b else None, "brand_name": b.name if b else "?"}
+
+    # ── posts with a target in range ──
+    lo = datetime.combine(start, datetime.min.time(), PHNOM_PENH)
+    hi = datetime.combine(end + timedelta(days=1), datetime.min.time(), PHNOM_PENH)
+    when = func.coalesce(PostTarget.published_at, PostTarget.scheduled_for)
+    rows = db.execute(
+        select(PostTarget, Post, Channel.handle, Platform.slug, Platform.name)
+        .join(Post, Post.id == PostTarget.post_id)
+        .join(Channel, Channel.id == PostTarget.channel_id)
+        .join(Platform, Platform.id == Channel.platform_id)
+        .where(Post.brand_id.in_(brands.keys()), when >= lo, when < hi)
+        .order_by(when, PostTarget.id)
+    ).all()
+    posts: dict[int, Post] = {}
+    targets: dict[int, list[dict]] = {}
+    for t, post, handle, slug, pname in rows:
+        posts[post.id] = post
+        targets.setdefault(post.id, []).append(
+            {
+                "id": t.id,
+                "platform": slug,
+                "platform_name": pname,
+                "handle": handle,
+                "caption": t.caption,
+                "scheduled_for": t.scheduled_for,
+                "published_at": t.published_at,
+                "status": t.status,
+                "error": t.error,
+            }
+        )
+
     drafts = db.scalars(
         select(Draft)
         .where(
@@ -349,22 +392,81 @@ def calendar_view(
         )
         .order_by(Draft.planned_for, Draft.brand_id)
     ).all()
-    return [
-        {
-            "id": d.id,
-            "brand_id": d.brand_id,
-            "brand_slug": brands[d.brand_id].slug if d.brand_id in brands else None,
-            "brand_name": brands[d.brand_id].name if d.brand_id in brands else "?",
-            "title": d.title,
-            "body": d.body,
-            "insight": d.insight,
-            "planned_for": d.planned_for,
-            "status": d.status,
-            "source": d.source,
-            "generated_at": d.generated_at,
-        }
-        for d in drafts
-    ]
+
+    video_ids = {d.video_id for d in drafts if d.video_id} | {p.video_id for p in posts.values() if p.video_id}
+    media = {
+        v.id: {"id": v.id, "url": v.url, "kind": kind_for(v.url or "", None), "filename": v.filename}
+        for v in (db.scalars(select(Video).where(Video.id.in_(video_ids))).all() if video_ids else [])
+    }
+    # Which idea each post came from (same brand + media).
+    idea_for = {(d.brand_id, d.video_id): d for d in drafts if d.video_id}
+
+    def post_title(post: Post, caption: str, idea: Draft | None) -> str:
+        if idea is not None:
+            return idea.title
+        first = next((line.strip() for line in (caption or "").splitlines() if line.strip()), "")
+        if first:
+            return first if len(first) <= 80 else first[:79].rstrip() + "…"
+        return re.sub(r"\.(png|jpe?g|webp|gif|mp4|mov)$", "", post.title or "Post", flags=re.I)
+
+    def post_status(ts: list[dict]) -> str:
+        states = {t["status"] for t in ts}
+        if states == {"posted"}:
+            return "posted"
+        if "failed" in states:
+            return "failed"
+        if "posted" in states:
+            return "partial"
+        return "scheduled"
+
+    items: list[dict] = []
+    used_ideas: set[int] = set()
+    for pid, post in posts.items():
+        ts = targets[pid]
+        first = ts[0]
+        at = first["published_at"] or first["scheduled_for"]
+        idea = idea_for.get((post.brand_id, post.video_id)) if post.video_id else None
+        if idea is not None:
+            used_ideas.add(idea.id)
+        caption = first["caption"] or (idea.body if idea else "")
+        items.append(
+            {
+                "key": f"post-{pid}",
+                "type": "post",
+                "id": pid,
+                **brand_fields(post.brand_id),
+                "title": post_title(post, caption, idea),
+                "body": caption,
+                "insight": idea.insight if idea else "",
+                "planned_for": at.astimezone(PHNOM_PENH).date() if at else None,
+                "status": post_status(ts),
+                "source": idea.source if idea else "compose",
+                "media": media.get(post.video_id) if post.video_id else None,
+                "targets": ts,
+            }
+        )
+    for d in drafts:
+        if d.id in used_ideas:
+            continue
+        items.append(
+            {
+                "key": f"idea-{d.id}",
+                "type": "idea",
+                "id": d.id,
+                **brand_fields(d.brand_id),
+                "title": d.title,
+                "body": d.body,
+                "insight": d.insight,
+                "planned_for": d.planned_for,
+                "status": d.status,
+                "source": d.source,
+                "generated_at": d.generated_at,
+                "media": media.get(d.video_id) if d.video_id else None,
+                "targets": [],
+            }
+        )
+    items.sort(key=lambda x: (x["planned_for"] or start, 0 if x["type"] == "post" else 1))
+    return items
 
 
 @router.get("/auto")
