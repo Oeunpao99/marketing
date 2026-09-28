@@ -17,10 +17,12 @@ import {
   FiCheckCircle,
   FiClock,
   FiExternalLink,
+  FiEye,
   FiGrid,
   FiHash,
   FiImage,
   FiLock,
+  FiPercent,
   FiRepeat,
   FiTrash2,
   FiMessageCircle,
@@ -32,12 +34,13 @@ import { api } from '../api/client'
 import { useStore } from '../store'
 import { colorForBrand } from '../lib/brandColor'
 import { isKhmer } from '../lib/format'
-import { platformHue } from '../components/insights/Overview'
-import { GrowthCard, MembersCard, MoreFromChannel, PostingTimeCard } from '../components/insights/PostDetail'
+import { platformHue, platformIconClass } from '../components/insights/Overview'
+import { GrowthCard, MembersCard, MoreFromChannel, PostingTimeCard, PostsTrendCard } from '../components/insights/PostDetail'
 import ImproveCard from '../components/insights/ImproveCard'
 import RepostDialog from '../components/insights/RepostDialog'
 import DeletePostDialog from '../components/insights/DeletePostDialog'
-import { OriginBadge, PLATFORM_ICONS, SERIES_COLORS, EngagementLineChart, engagementOf, mediaSrc } from './InsightsPage'
+import { OriginBadge, PLATFORM_ICONS, SERIES_COLORS, engagementOf, mediaSrc } from './InsightsPage'
+import { DonutWithTable } from '../components/today/DashboardCharts'
 
 const PLATFORM_NAMES = {
   facebook: 'Facebook',
@@ -47,7 +50,6 @@ const PLATFORM_NAMES = {
   tiktok: 'TikTok',
   youtube: 'YouTube',
 }
-const ACCENT = '#2a78d6'
 const HASHTAG_RE = /#[\p{L}\p{N}_]+/gu
 const card = 'bg-white rounded-2xl border border-ink-200/60 shadow-[0_1px_2px_rgba(16,24,40,0.04)]'
 
@@ -70,17 +72,6 @@ function vsUsual(value, usual) {
   return { up: null, text: 'About your usual' }
 }
 
-function VsPill({ v }) {
-  if (!v) return null
-  const tone = v.up === true ? 'bg-emerald-50 text-emerald-800' : v.up === false ? 'bg-red-50 text-red-700' : 'bg-ink-100 text-ink-600'
-  const Icon = v.up === true ? FiTrendingUp : v.up === false ? FiTrendingDown : null
-  return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-semibold ${tone}`}>
-      {Icon && <Icon size={13} aria-hidden="true" />}
-      {v.text}
-    </span>
-  )
-}
 
 // ── "No numbers yet" — why, in plain words, and what to do ────────────────
 function explain(post, platformName) {
@@ -172,175 +163,94 @@ function Explainer({ info, post, platformName }) {
   )
 }
 
-// ── Headline: total engagement + where it came from ───────────────────────
-function Headline({ m, engagement, usualEngagement, rate, usualRate, platformName, reach }) {
-  const parts = ['likes', 'comments', 'shares'].map((k) => ({ key: k, value: m[k] ?? 0 })).filter((p) => m[p.key] != null)
-  const total = parts.reduce((s, p) => s + p.value, 0)
+// ── Headline numbers: one compact strip ───────────────────────────────────
+function VsText({ v, fallback }) {
+  if (!v) return <span className="text-ink-400">{fallback}</span>
+  const Icon = v.up === true ? FiTrendingUp : v.up === false ? FiTrendingDown : null
+  const tone = v.up === true ? 'text-emerald-700' : v.up === false ? 'text-red-600' : 'text-ink-500'
   return (
-    <section className={`${card} grid overflow-hidden lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]`}>
-      <div className="p-6">
-        <div className="text-[12.5px] font-medium text-ink-600">Total engagement</div>
-        <div className="mt-1 flex flex-wrap items-end gap-3">
-          <span className="text-[52px] font-bold leading-none tracking-tight text-ink-900">{fmt(engagement)}</span>
-          <span className="pb-1.5">
-            <VsPill v={vsUsual(engagement, usualEngagement)} />
-          </span>
-        </div>
-        <p className="mt-2 text-[12.5px] text-ink-500">
-          Likes + comments + shares.{' '}
-          {usualEngagement != null ? (
-            <>
-              Your usual {platformName} post gets <span className="font-semibold text-ink-700">{fmt(usualEngagement)}</span>.
-            </>
-          ) : (
-            `Your first ${platformName} post with numbers — the next ones will be compared with it.`
-          )}
-        </p>
-        <div className="mt-5 grid grid-cols-2 gap-3">
-          <MiniStat label={reach.label} value={fmt(reach.value)} hint={reach.hint} />
-          <MiniStat
-            label="Engagement rate"
-            value={rate == null ? '—' : `${rate.toFixed(1)}%`}
-            hint={rate == null ? 'needs views' : usualRate != null ? `usual ${usualRate.toFixed(1)}%` : 'of people who saw it'}
-          />
-        </div>
-      </div>
+    <span className={`inline-flex items-center gap-1 font-medium ${tone}`}>
+      {Icon && <Icon size={12} aria-hidden="true" />}
+      {v.text}
+    </span>
+  )
+}
 
-      <div className="border-t border-ink-100 bg-ink-50/40 p-6 lg:border-l lg:border-t-0">
-        <div className="text-[12.5px] font-medium text-ink-600">Where the engagement came from</div>
-        {total > 0 ? (
-          <>
-            {/* part-to-whole: one stacked bar, 2px surface gaps between parts */}
-            <div className="mt-4 flex h-3 gap-[2px] overflow-hidden rounded-full" role="img" aria-label="Engagement split">
-              {parts
-                .filter((p) => p.value > 0)
-                .map((p) => (
-                  <div key={p.key} style={{ width: `${(p.value / total) * 100}%`, background: SERIES_COLORS[p.key] }} title={`${p.key}: ${p.value}`} />
-                ))}
-            </div>
-            <ul className="mt-4 space-y-2.5">
-              {parts.map((p) => (
-                <li key={p.key} className="flex items-center gap-2.5 text-[13px]">
-                  <span className="h-2.5 w-2.5 rounded-full" style={{ background: SERIES_COLORS[p.key] }} aria-hidden="true" />
-                  <span className="capitalize text-ink-700">{p.key}</span>
-                  <span className="ml-auto font-semibold tabular-nums text-ink-900">{fmt(p.value)}</span>
-                  <span className="w-11 text-right text-[12px] tabular-nums text-ink-400">{Math.round((p.value / total) * 100)}%</span>
-                </li>
-              ))}
-            </ul>
-          </>
-        ) : (
-          <p className="mt-4 text-[13px] leading-relaxed text-ink-500">
-            No likes, comments or shares yet. New posts often pick up over the first 24–48 hours.
-          </p>
-        )}
-      </div>
+/** Engagement · reach · rate · rank — each with how it compares. */
+function KpiStrip({ cells }) {
+  return (
+    <section className={`${card} grid grid-cols-2 gap-px overflow-hidden bg-ink-100 lg:grid-cols-4`}>
+      {cells.map((c) => (
+        <div key={c.label} className="bg-white px-5 py-4">
+          <div className="flex items-center gap-1.5 text-[12px] text-ink-500">
+            <c.icon size={13} className="text-ink-400" aria-hidden="true" />
+            {c.label}
+          </div>
+          <div className="mt-1 text-[26px] font-bold leading-tight tracking-tight tabular-nums text-ink-900">{c.value}</div>
+          <div className="mt-0.5 truncate text-[11.5px]">{c.sub}</div>
+        </div>
+      ))}
     </section>
   )
 }
 
-function MiniStat({ label, value, hint }) {
-  return (
-    <div className="rounded-xl border border-ink-200/70 bg-white px-3.5 py-3">
-      <div className="text-[11.5px] text-ink-500">{label}</div>
-      <div className="mt-0.5 text-[20px] font-bold leading-tight text-ink-900">{value}</div>
-      {hint && <div className="mt-0.5 truncate text-[11px] text-ink-400">{hint}</div>}
-    </div>
-  )
-}
+const fmt1 = (n) => (n == null ? '—' : n >= 10 || Number.isInteger(n) ? fmt(n) : n.toFixed(1))
 
-// ── This post vs your usual: bars with an "usual" marker ──────────────────
-function VsUsualChart({ rows, platformName }) {
-  if (!rows.length) return <p className="py-6 text-center text-[12.5px] text-ink-400">No comparable numbers yet.</p>
+/** Two stacked bars on one scale — this post and your usual post — each
+ *  split into likes / comments / shares, so both the total and the mix
+ *  compare at a glance. */
+function MixVsUsual({ m, usual, platformName }) {
+  const keys = ['likes', 'comments', 'shares'].filter((k) => m[k] != null)
+  const hasUsual = keys.some((k) => usual[k] != null)
+  const rows = [
+    { key: 'post', label: 'This post', vals: keys.map((k) => m[k] || 0), faded: false },
+    ...(hasUsual ? [{ key: 'usual', label: `Your usual ${platformName} post`, vals: keys.map((k) => usual[k] || 0), faded: true }] : []),
+  ]
+  const totals = rows.map((r) => r.vals.reduce((a, b) => a + b, 0))
+  const max = Math.max(...totals, 1)
   return (
     <div>
-      <ul className="space-y-4">
-        {rows.map((r) => {
-          const max = Math.max(r.value, r.usual || 0, 1) * 1.1
-          const v = vsUsual(r.value, r.usual)
-          return (
-            <li key={r.label}>
-              <div className="mb-1.5 flex items-baseline gap-2 text-[12.5px]">
-                <span className="font-medium text-ink-800">{r.label}</span>
-                <span className="ml-auto font-semibold tabular-nums text-ink-900">{fmt(r.value)}</span>
-                <span className={`w-36 text-right text-[11.5px] ${v?.up === true ? 'text-emerald-700' : v?.up === false ? 'text-red-600' : 'text-ink-400'}`}>
-                  {v ? v.text : r.usual == null ? 'no usual yet' : ''}
-                </span>
-              </div>
-              <div className="relative h-3 rounded-full bg-ink-100">
-                <div className="h-full rounded-full" style={{ width: `${(r.value / max) * 100}%`, background: ACCENT }} />
-                {r.usual != null && (
-                  <span
-                    className="absolute -top-1 h-5 w-[3px] rounded-full bg-ink-800 ring-2 ring-white"
-                    style={{ left: `calc(${(r.usual / max) * 100}% - 1.5px)` }}
-                    title={`Your usual: ${fmt(r.usual)}`}
-                  />
+      <div className="space-y-4">
+        {rows.map((r, ri) => (
+          <div key={r.key}>
+            <div className="mb-1.5 flex items-baseline justify-between gap-3 text-[12.5px]">
+              <span className={r.faded ? 'text-ink-500' : 'font-medium text-ink-800'}>{r.label}</span>
+              <span className="font-semibold tabular-nums text-ink-900">
+                {fmt1(totals[ri])} <span className="font-normal text-ink-400">engagement</span>
+              </span>
+            </div>
+            <div className="h-6 rounded-md bg-ink-50">
+              <div className="flex h-full gap-[2px]" style={{ width: `${(totals[ri] / max) * 100}%` }}>
+                {keys.map((k, i) =>
+                  r.vals[i] > 0 ? (
+                    <div
+                      key={k}
+                      className="h-full first:rounded-l-md last:rounded-r-md"
+                      style={{ width: `${(r.vals[i] / totals[ri]) * 100}%`, background: SERIES_COLORS[k], opacity: r.faded ? 0.55 : 1 }}
+                      title={`${k}: ${fmt1(r.vals[i])}`}
+                    />
+                  ) : null,
                 )}
               </div>
-            </li>
-          )
-        })}
-      </ul>
-      <div className="mt-4 flex items-center gap-4 text-[11.5px] text-ink-500">
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-2.5 w-4 rounded-full" style={{ background: ACCENT }} aria-hidden="true" /> This post
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-3.5 w-[3px] rounded-full bg-ink-800" aria-hidden="true" /> Your usual {platformName} post
-        </span>
-      </div>
-    </div>
-  )
-}
-
-// ── Ranking: every same-platform post as a dot, this one highlighted ──────
-function RankStrip({ scores, mine, rank, platformName }) {
-  const n = scores.length
-  if (n < 2 || rank < 1) {
-    return (
-      <p className="py-4 text-[12.5px] leading-relaxed text-ink-500">
-        {n < 2 ? `Ranking starts once you have 2+ ${platformName} posts with numbers.` : `${platformName} doesn't report per-post numbers, so posts can't be ranked.`}
-      </p>
-    )
-  }
-  const max = Math.max(...scores, 1)
-  const topPct = Math.max(1, Math.round((rank / n) * 100))
-  return (
-    <div>
-      <div className="flex items-end gap-3">
-        <span className="text-[36px] font-bold leading-none tracking-tight text-ink-900">#{rank}</span>
-        <span className="pb-1 text-[13px] text-ink-600">
-          of {n} {platformName} posts ·{' '}
-          <span className="font-semibold text-ink-900">
-            {topPct <= 50 ? `top ${topPct}%` : `bottom ${Math.max(1, Math.round(((n - rank + 1) / n) * 100))}%`}
-          </span>
-        </span>
-      </div>
-      {/* dot strip: position = engagement; ranks read left (low) → right (high) */}
-      <div className="relative mt-6 h-10" role="img" aria-label={`Rank ${rank} of ${n}`}>
-        <div className="absolute inset-x-0 top-1/2 h-px bg-[#c3c2b7]" />
-        {scores.map((s, i) => (
-          <span
-            key={i}
-            className="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-ink-300 ring-2 ring-white"
-            style={{ left: `${(s / max) * 100}%` }}
-          />
+            </div>
+          </div>
         ))}
-        <span
-          className="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full ring-[3px] ring-white shadow"
-          style={{ left: `${(mine / max) * 100}%`, background: ACCENT }}
-        />
-        <span
-          className="absolute -top-3 -translate-x-1/2 whitespace-nowrap rounded-md bg-night-900 px-1.5 py-0.5 text-[10.5px] font-semibold text-white"
-          style={{ left: `clamp(24px, ${(mine / max) * 100}%, calc(100% - 24px))` }}
-        >
-          This post
-        </span>
       </div>
-      <div className="mt-1 flex justify-between text-[11px] text-ink-400">
-        <span>Fewer interactions</span>
-        <span>More</span>
-      </div>
+      {/* the same numbers as text: legend + each part vs usual */}
+      <ul className="mt-5 grid gap-2 sm:grid-cols-3">
+        {keys.map((k) => (
+          <li key={k} className="rounded-xl bg-ink-50/70 px-3 py-2">
+            <div className="flex items-center gap-1.5 text-[11.5px] capitalize text-ink-600">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ background: SERIES_COLORS[k] }} aria-hidden="true" />
+              {k}
+            </div>
+            <div className="mt-0.5 text-[16px] font-bold tabular-nums text-ink-900">{fmt(m[k])}</div>
+            <div className="truncate text-[11px]">
+              <VsText v={vsUsual(m[k], usual[k])} fallback={usual[k] == null ? 'no usual yet' : `usual ${fmt1(usual[k])}`} />
+            </div>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }
@@ -452,12 +362,6 @@ export default function InsightsPostPage() {
         ? { label: 'Channel members', value: m.subscribers, hint: 'Whole channel, not this post' }
         : { label: 'Views', value: null, hint: `not reported by ${platformName}` }
 
-  const compareRows = [
-    { label: 'Views', value: m.views, usual: usualOf('views') },
-    { label: 'Likes', value: m.likes, usual: usualOf('likes') },
-    { label: 'Comments', value: m.comments, usual: usualOf('comments') },
-    { label: 'Shares', value: m.shares, usual: usualOf('shares') },
-  ].filter((r) => r.value != null)
 
   // Rank by engagement, else views. Platforms with neither can't be ranked.
   const scoreOf = (p) => {
@@ -515,13 +419,13 @@ export default function InsightsPostPage() {
       {reposting && <RepostDialog post={post} onClose={() => setReposting(false)} />}
       {deleting && <DeletePostDialog post={post} onClose={() => setDeleting(false)} onDeleted={() => navigate('/insights')} />}
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* The post */}
         <section className={`${card} flex flex-col gap-4 p-4 sm:flex-row`}>
           <button
             type="button"
             onClick={() => src && setZoom(true)}
-            className="relative grid h-44 w-full flex-none place-items-center overflow-hidden rounded-xl bg-ink-100 sm:h-32 sm:w-32"
+            className="relative grid h-44 w-full flex-none place-items-center overflow-hidden rounded-xl bg-ink-100 sm:h-28 sm:w-28"
             title={src ? 'View full size' : ''}
           >
             {src && (post.media_kind === 'image' || post.media_thumb) ? (
@@ -531,7 +435,7 @@ export default function InsightsPostPage() {
             ) : (
               <FiImage size={24} className="text-ink-400" />
             )}
-            <span className="absolute bottom-1.5 left-1.5 grid h-6 w-6 place-items-center rounded-full text-white ring-2 ring-white" style={{ background: platformHue(slug) }}>
+            <span className={`absolute bottom-1.5 left-1.5 grid h-6 w-6 place-items-center rounded-full ring-2 ring-white ${platformIconClass(slug)}`} style={{ background: platformHue(slug) }}>
               <Icon size={12} />
             </span>
           </button>
@@ -576,7 +480,7 @@ export default function InsightsPostPage() {
 
           {post.url && (
             <div className="flex-none sm:w-44">
-              <a href={post.url} target="_blank" rel="noreferrer" className="btn-primary w-full">
+              <a href={post.url} target="_blank" rel="noreferrer" className="btn-outline w-full">
                 View on {platformName} <FiExternalLink size={13} />
               </a>
             </div>
@@ -605,15 +509,64 @@ export default function InsightsPostPage() {
         ) : (
           <>
             {showEngagement ? (
-              <Headline
-                m={m}
-                engagement={engagement}
-                usualEngagement={usualEngagement}
-                rate={rate}
-                usualRate={usualRate}
-                platformName={platformName}
-                reach={reach}
-              />
+              <>
+                <KpiStrip
+                  cells={[
+                    {
+                      icon: FiZap,
+                      label: 'Engagement',
+                      value: fmt(engagement),
+                      sub: <VsText v={vsUsual(engagement, usualEngagement)} fallback="likes + comments + shares" />,
+                    },
+                    { icon: FiEye, label: reach.label, value: fmt(reach.value), sub: <VsText v={vsUsual(m.views, usualOf('views'))} fallback={reach.hint} /> },
+                    {
+                      icon: FiPercent,
+                      label: 'Engagement rate',
+                      value: rate == null ? '—' : `${rate.toFixed(1)}%`,
+                      sub: (
+                        <span className="text-ink-500">
+                          {rate == null ? 'needs views' : usualRate != null ? `usual ${usualRate.toFixed(1)}%` : 'of people who saw it'}
+                        </span>
+                      ),
+                    },
+                    {
+                      icon: FiAward,
+                      label: 'Rank',
+                      value: showRank ? `#${rank}` : '—',
+                      sub: showRank ? (
+                        <span className="text-ink-500">
+                          of {scores.length} {platformName} posts ·{' '}
+                          <b className="font-semibold text-ink-800">{topPct <= 50 ? `top ${topPct}%` : `bottom ${Math.max(1, 100 - topPct + 1)}%`}</b>
+                        </span>
+                      ) : (
+                        <span className="text-ink-400">needs 2+ posts with numbers</span>
+                      ),
+                    },
+                  ]}
+                />
+
+                <div className="grid gap-4 lg:grid-cols-3">
+                  <section className={`${card} p-5`}>
+                    <h2 className="text-[14.5px] font-semibold tracking-tight text-ink-900">Engagement mix</h2>
+                    <p className="mb-4 mt-0.5 text-[12px] text-ink-500">What people did with this post</p>
+                    <DonutWithTable
+                      size={112}
+                      centerLabel="engagement"
+                      emptyText="No likes, comments or shares yet — new posts often pick up over the first 24–48 hours."
+                      segments={['likes', 'comments', 'shares']
+                        .filter((k) => m[k] != null)
+                        .map((k) => ({ key: k, label: k[0].toUpperCase() + k.slice(1), value: m[k] || 0, color: SERIES_COLORS[k] }))}
+                    />
+                  </section>
+                  <section className={`${card} p-5 lg:col-span-2`}>
+                    <h2 className="text-[14.5px] font-semibold tracking-tight text-ink-900">This post vs your usual</h2>
+                    <p className="mb-4 mt-0.5 text-[12px] text-ink-500">
+                      Against the average of your other {platformName} posts
+                    </p>
+                    <MixVsUsual m={m} usual={{ likes: usualOf('likes'), comments: usualOf('comments'), shares: usualOf('shares') }} platformName={platformName} />
+                  </section>
+                </div>
+              </>
             ) : (
               <section className={`${card} p-6`}>
                 <div className="text-[12.5px] font-medium text-ink-600">{reach.label}</div>
@@ -625,55 +578,30 @@ export default function InsightsPostPage() {
               </section>
             )}
 
-            {/* Over time: this post's own numbers, or (Telegram) the channel's members */}
-            {showEngagement || m.views != null ? (
-              <GrowthCard history={history} publishedAt={post.published_at} seriesColors={SERIES_COLORS} platformName={platformName} />
-            ) : m.subscribers != null ? (
-              <MembersCard history={history} publishedAt={post.published_at} />
-            ) : null}
+            {/* Over time: this post's own growth, and where it sits among your posts */}
+            <div className="grid gap-4 xl:grid-cols-2">
+              {showEngagement || m.views != null ? (
+                <GrowthCard history={history} publishedAt={post.published_at} seriesColors={SERIES_COLORS} platformName={platformName} />
+              ) : m.subscribers != null ? (
+                <MembersCard history={history} publishedAt={post.published_at} />
+              ) : null}
+              {series.length >= 2 && <PostsTrendCard series={series} activeId={post.target_id} usual={usualEngagement} platformName={platformName} />}
+            </div>
 
-            {(compareRows.length > 0 || showRank) && (
-              <div className={`grid gap-6 ${compareRows.length > 0 && showRank ? 'lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]' : ''}`}>
-                {compareRows.length > 0 && (
-                  <section className={`${card} p-5`}>
-                    <h2 className="text-[15.5px] font-semibold tracking-tight text-ink-900">Compared with your usual</h2>
-                    <p className="mb-5 mt-0.5 text-[12px] text-ink-500">This post against your average {platformName} post.</p>
-                    <VsUsualChart rows={compareRows} platformName={platformName} />
-                  </section>
-                )}
-                {/* Only when there's a real ranking — no "needs more posts" placeholder */}
-                {showRank && (
-                  <section className={`${card} p-5`}>
-                    <h2 className="mb-4 text-[15.5px] font-semibold tracking-tight text-ink-900">Ranking</h2>
-                    <RankStrip scores={scores} mine={myScore} rank={rank} platformName={platformName} />
-                  </section>
-                )}
-              </div>
-            )}
-
-            {series.length >= 2 && (
-              <section className={`${card} p-5`}>
-                <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-                  <h2 className="text-[15.5px] font-semibold tracking-tight text-ink-900">Your {platformName} posts over time</h2>
-                  <span className="text-[11.5px] text-ink-500">engagement per post · this one highlighted</span>
-                </div>
-                <EngagementLineChart series={series} activeTargetId={post.target_id} brandColor={ACCENT} height={280} />
-              </section>
-            )}
-
-            <PostingTimeCard post={post} peers={samePlatform} platformName={platformName} />
-
-            <MoreFromChannel post={post} items={items} icons={PLATFORM_ICONS} engagementOf={engagementOf} onOpen={openPost} />
+            <div className="grid gap-4 xl:grid-cols-2">
+              <PostingTimeCard post={post} peers={samePlatform} platformName={platformName} />
+              <MoreFromChannel post={post} items={items} icons={PLATFORM_ICONS} engagementOf={engagementOf} onOpen={openPost} />
+            </div>
 
             <section className={`${card} p-5`}>
-              <h2 className="mb-4 text-[15.5px] font-semibold tracking-tight text-ink-900">What to do next</h2>
-              <ol className="grid gap-3 sm:grid-cols-2">
+              <h2 className="mb-3 text-[14.5px] font-semibold tracking-tight text-ink-900">What to do next</h2>
+              <ol className="grid gap-2.5 sm:grid-cols-2">
                 {tips.map((t, i) => (
-                  <li key={i} className="flex items-start gap-3 rounded-xl border border-ink-100 bg-ink-50/60 p-3.5">
+                  <li key={i} className="flex items-center gap-3 rounded-xl bg-ink-50/70 px-3.5 py-2.5">
                     <span className="grid h-8 w-8 flex-none place-items-center rounded-lg bg-brand-soft text-brand">
                       <t.icon size={15} aria-hidden="true" />
                     </span>
-                    <p className="text-[12.5px] leading-relaxed text-ink-700">{t.text}</p>
+                    <p className="text-[12.5px] leading-snug text-ink-700">{t.text}</p>
                   </li>
                 ))}
               </ol>

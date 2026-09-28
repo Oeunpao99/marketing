@@ -27,7 +27,7 @@ function since(fromIso, toIso) {
 }
 
 // ── A small time-series chart (x = real time, one y-axis) ─────────────────
-function TimeChart({ series, marker, height = 220, unitLabel }) {
+function TimeChart({ series, marker, markerLabel = 'this post', baseline, dots = true, height = 220, unitLabel }) {
   const wrap = useRef(null)
   const [hover, setHover] = useState(null)
   const [W, setW] = useState(720)
@@ -48,7 +48,7 @@ function TimeChart({ series, marker, height = 220, unitLabel }) {
   const t0 = Math.min(...all.map((p) => p.t), marker ?? Infinity)
   const t1 = Math.max(...all.map((p) => p.t))
   const span = Math.max(1, t1 - t0)
-  const yMax = axisMax(Math.max(...all.map((p) => p.v), 1))
+  const yMax = axisMax(Math.max(...all.map((p) => p.v), baseline?.v ?? 0, 1))
   const x = (t) => PAD.l + ((t - t0) / span) * (W - PAD.l - PAD.r)
   const y = (v) => PAD.t + (1 - v / yMax) * (height - PAD.t - PAD.b)
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((g) => g * yMax)
@@ -71,17 +71,25 @@ function TimeChart({ series, marker, height = 220, unitLabel }) {
       <svg width={W} height={height} viewBox={`0 0 ${W} ${height}`} className="block select-none" onMouseMove={onMove} onMouseLeave={() => setHover(null)} role="img" aria-label={unitLabel}>
         {ticks.map((v) => (
           <g key={v}>
-            <line x1={PAD.l} x2={W - PAD.r} y1={y(v) + 0.5} y2={y(v) + 0.5} stroke={v === 0 ? '#c3c2b7' : '#EDEFF2'} />
-            <text x={PAD.l - 8} y={y(v) + 4} textAnchor="end" fontSize="11" fill="#898781">
+            <line x1={PAD.l} x2={W - PAD.r} y1={y(v) + 0.5} y2={y(v) + 0.5} style={{ stroke: v === 0 ? 'rgb(var(--ink-300))' : 'rgb(var(--ink-100))' }} />
+            <text x={PAD.l - 8} y={y(v) + 4} textAnchor="end" fontSize="11" style={{ fill: 'rgb(var(--ink-400))' }}>
               {fmt(v)}
             </text>
           </g>
         ))}
         {marker != null && (
           <g>
-            <line x1={x(marker)} x2={x(marker)} y1={PAD.t} y2={height - PAD.b} stroke="#52514e" strokeWidth="1" strokeDasharray="3 3" />
-            <text x={x(marker) + 5} y={PAD.t + 10} fontSize="10.5" fill="#52514e">
-              this post
+            <line x1={x(marker)} x2={x(marker)} y1={PAD.t} y2={height - PAD.b} style={{ stroke: 'rgb(var(--ink-500))' }} strokeWidth="1" strokeDasharray="3 3" />
+            <text x={Math.min(x(marker) + 5, W - PAD.r - 52)} y={PAD.t + 10} fontSize="10.5" style={{ fill: 'rgb(var(--ink-500))' }}>
+              {markerLabel}
+            </text>
+          </g>
+        )}
+        {baseline && (
+          <g>
+            <line x1={PAD.l} x2={W - PAD.r} y1={y(baseline.v)} y2={y(baseline.v)} style={{ stroke: 'rgb(var(--ink-400))' }} strokeDasharray="4 4" />
+            <text x={W - PAD.r} y={y(baseline.v) - 5} textAnchor="end" fontSize="10.5" style={{ fill: 'rgb(var(--ink-500))' }}>
+              {baseline.label}
             </text>
           </g>
         )}
@@ -92,19 +100,29 @@ function TimeChart({ series, marker, height = 220, unitLabel }) {
             <g key={s.key}>
               {series.length === 1 && <path d={`${d} L${pts[pts.length - 1][0]},${y(0)} L${pts[0][0]},${y(0)} Z`} fill={s.color} opacity="0.08" />}
               <path d={d} fill="none" stroke={s.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              {s.points.map((p) => (
-                <circle key={p.t} cx={x(p.t)} cy={y(p.v)} r={hover === p.t ? 4.5 : 2.5} fill={s.color} stroke="#fff" strokeWidth="2" />
-              ))}
+              {s.points
+                .filter((p) => dots || hover === p.t || p.t === marker)
+                .map((p) => (
+                  <circle
+                    key={p.t}
+                    cx={x(p.t)}
+                    cy={y(p.v)}
+                    r={hover === p.t || p.t === marker ? 4.5 : 2.5}
+                    fill={s.color}
+                    style={{ stroke: 'rgb(var(--surface))' }}
+                    strokeWidth="2"
+                  />
+                ))}
             </g>
           )
         })}
-        <text x={PAD.l} y={height - 8} fontSize="11" fill="#898781">
+        <text x={PAD.l} y={height - 8} fontSize="11" style={{ fill: 'rgb(var(--ink-400))' }}>
           {label(t0)}
         </text>
-        <text x={W - PAD.r} y={height - 8} fontSize="11" fill="#898781" textAnchor="end">
+        <text x={W - PAD.r} y={height - 8} fontSize="11" style={{ fill: 'rgb(var(--ink-400))' }} textAnchor="end">
           {label(t1)}
         </text>
-        {hover != null && <line x1={x(hover)} x2={x(hover)} y1={PAD.t} y2={height - PAD.b} stroke="#c3c2b7" />}
+        {hover != null && <line x1={x(hover)} x2={x(hover)} y1={PAD.t} y2={height - PAD.b} style={{ stroke: 'rgb(var(--ink-300))' }} />}
       </svg>
       {hover != null && (
         <div
@@ -151,18 +169,24 @@ export function GrowthCard({ history, publishedAt, seriesColors, platformName })
     const pts = snaps.filter((s) => s[key] != null).map((s) => ({ t: new Date(s.at).getTime(), v: s[key] }))
     return pub != null && pts.length && pts[0].t > pub ? [{ t: pub, v: 0 }, ...pts] : pts
   }
+  // Engagement = one total line; the likes / comments / shares split is the
+  // donut's job, so three near-flat lines don't crowd the chart.
+  const engagementPoints = () => {
+    const pts = snaps
+      .filter((s) => ['likes', 'comments', 'shares'].some((k) => s[k] != null))
+      .map((s) => ({ t: new Date(s.at).getTime(), v: (s.likes || 0) + (s.comments || 0) + (s.shares || 0) }))
+    return pub != null && pts.length && pts[0].t > pub ? [{ t: pub, v: 0 }, ...pts] : pts
+  }
   const series =
     metric === 'views'
-      ? [{ key: 'views', label: 'Views', color: ACCENT, points: withStart('views') }]
-      : ['likes', 'comments', 'shares']
-          .map((k) => ({ key: k, label: k[0].toUpperCase() + k.slice(1), color: seriesColors[k], points: withStart(k) }))
-          .filter((s) => s.points.length)
+      ? [{ key: 'views', label: 'Views', color: seriesColors.views || ACCENT, points: withStart('views') }]
+      : [{ key: 'engagement', label: 'Engagement', color: ACCENT, points: engagementPoints() }].filter((s) => s.points.length)
   const last = snaps[snaps.length - 1]
 
   return (
     <section className={`${card} p-5`}>
       <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-[15.5px] font-semibold tracking-tight text-ink-900">How this post grew</h2>
+        <h2 className="text-[14.5px] font-semibold tracking-tight text-ink-900">How this post grew</h2>
         {hasViews && (
           <div className="flex gap-1.5">
             {['engagement', 'views'].map((m) => (
@@ -185,13 +209,35 @@ export function GrowthCard({ history, publishedAt, seriesColors, platformName })
           : 'Readings of this post’s numbers, saved every few hours.'}
       </p>
       {series.some((s) => s.points.length >= 2) ? (
-        <TimeChart series={series} unitLabel={`${platformName} post ${metric} over time`} />
+        <TimeChart series={series} height={190} unitLabel={`${platformName} post ${metric} over time`} />
       ) : (
         <WaitingNote>
           ContentFlow saves this post’s numbers every few hours. The growth chart appears after the first readings — check back later
           today.
         </WaitingNote>
       )}
+    </section>
+  )
+}
+
+// ── Your posts on this platform over time ─────────────────────────────────
+/** Engagement per post (x = when it went out), this post marked and your
+ *  usual as a dashed line — so it's clear at a glance where it sits. */
+export function PostsTrendCard({ series, activeId, usual, platformName }) {
+  const points = series.map((p) => ({ t: new Date(p.date).getTime(), v: p.y }))
+  const mine = series.find((p) => p.id === activeId)
+  return (
+    <section className={`${card} p-5`}>
+      <h2 className="text-[14.5px] font-semibold tracking-tight text-ink-900">Your {platformName} posts over time</h2>
+      <p className="mb-4 mt-0.5 text-[12px] text-ink-500">Engagement per post · {series.length} posts · this one marked</p>
+      <TimeChart
+        series={[{ key: 'posts', label: 'Engagement', color: ACCENT, points }]}
+        marker={mine ? new Date(mine.date).getTime() : undefined}
+        baseline={usual != null ? { v: usual, label: `usual ${fmt(usual)}` } : undefined}
+        dots={false}
+        height={190}
+        unitLabel={`${platformName} posts' engagement over time`}
+      />
     </section>
   )
 }
@@ -245,7 +291,7 @@ export function PostingTimeCard({ post, peers, platformName }) {
     : '—'
   return (
     <section className={`${card} p-5`}>
-      <h2 className="text-[15.5px] font-semibold tracking-tight text-ink-900">When it went out</h2>
+      <h2 className="text-[14.5px] font-semibold tracking-tight text-ink-900">When it went out</h2>
       <p className="mt-0.5 text-[12px] text-ink-500">
         {when} (Phnom Penh) · your {peers.length} {platformName} post{peers.length === 1 ? '' : 's'} by hour
       </p>
@@ -254,7 +300,7 @@ export function PostingTimeCard({ post, peers, platformName }) {
           <div key={h} className="group relative flex h-full flex-1 items-end" title={`${String(h).padStart(2, '0')}:00 — ${n} post${n === 1 ? '' : 's'}`}>
             <div
               className="w-full rounded-t-[3px]"
-              style={{ height: n ? `${Math.max(6, (n / max) * 100)}%` : '2px', background: h === mine ? ACCENT : n ? '#c9d6e8' : '#EDEFF2' }}
+              style={{ height: n ? `${Math.max(6, (n / max) * 100)}%` : '2px', background: h === mine ? ACCENT : n ? 'rgb(var(--ink-200))' : 'rgb(var(--ink-100))' }}
             />
           </div>
         ))}
@@ -290,7 +336,7 @@ export function MoreFromChannel({ post, items, icons, engagementOf, onOpen }) {
   const Icon = icons[post.platform_slug] || FiGrid
   return (
     <section className={`${card} p-5`}>
-      <h2 className="mb-3 text-[15.5px] font-semibold tracking-tight text-ink-900">More from this channel</h2>
+      <h2 className="mb-2 text-[14.5px] font-semibold tracking-tight text-ink-900">More from this channel</h2>
       <ul className="divide-y divide-ink-100">
         {others.map((p) => {
           const m = p.metrics || {}

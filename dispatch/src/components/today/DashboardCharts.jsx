@@ -13,7 +13,7 @@
 // a legend with numbers.
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { FiAlertTriangle, FiArrowRight, FiCalendar, FiCheckCircle, FiTrendingDown, FiTrendingUp, FiPieChart } from 'react-icons/fi'
+import { FiAlertTriangle, FiArrowRight, FiBarChart2, FiCalendar, FiCheckCircle, FiTrendingDown, FiTrendingUp, FiPieChart } from 'react-icons/fi'
 import { PLAT } from '../../data/brands'
 import PlatformIcon, { PLAT_BRAND_CLASS } from '../ui/PlatformIcon'
 import { platformHue } from '../insights/Overview'
@@ -136,7 +136,7 @@ export function useDashboardStats(queue, channels) {
     }
     const busiest = days.filter((d) => !d.future).sort((a, b) => b.total - a.total)[0]
     if (busiest?.total > 1) {
-      insights.push({ tone: 'info', text: `Busiest day in the last 2 weeks: ${shortDay(busiest.date)}, with ${busiest.total} posts.` })
+      insights.push({ tone: 'info', icon: FiBarChart2, text: `Busiest day in the last 2 weeks: ${shortDay(busiest.date)}, with ${busiest.total} posts.` })
     }
     if (!failed30.length && attempted) {
       insights.push({ tone: 'good', text: `Every delivery in the last 30 days went out (${attempted} of ${attempted}).` })
@@ -299,11 +299,10 @@ export function DailyStackedBars({ days, platforms }) {
 
 /** A donut with its total in the middle and a legend table beside it (value
  *  and share per segment — the chart's readable twin). */
-export function DonutWithTable({ segments, centerLabel, emptyText }) {
+export function DonutWithTable({ segments, centerLabel, emptyText, size = 132 }) {
   const [hover, setHover] = useState(null)
   const total = segments.reduce((s, x) => s + x.value, 0)
-  const size = 132
-  const stroke = 16
+  const stroke = size >= 120 ? 16 : 13
   const r = size / 2 - stroke / 2 - 2
   const c = size / 2
   const circ = 2 * Math.PI * r
@@ -380,12 +379,27 @@ export function DonutWithTable({ segments, centerLabel, emptyText }) {
   )
 }
 
+// Each tone: an icon on a soft tint of its colour, plus a word for screen
+// readers — the colour is never the only signal.
 const TONES = {
-  critical: { icon: FiAlertTriangle, cls: 'text-red-600', label: 'Needs attention' },
-  warning: { icon: FiCalendar, cls: 'text-amber-600', label: 'Heads up' },
-  good: { icon: FiTrendingUp, cls: 'text-emerald-700', label: 'Going well' },
-  down: { icon: FiTrendingDown, cls: 'text-red-600', label: 'Down' },
-  info: { icon: FiPieChart, cls: 'text-ink-500', label: 'Pattern' },
+  critical: { icon: FiAlertTriangle, badge: 'bg-red-50 text-red-600', label: 'Needs attention' },
+  warning: { icon: FiCalendar, badge: 'bg-amber-50 text-amber-700', label: 'Heads up' },
+  good: { icon: FiTrendingUp, badge: 'bg-emerald-50 text-emerald-700', label: 'Going well' },
+  down: { icon: FiTrendingDown, badge: 'bg-red-50 text-red-600', label: 'Down' },
+  info: { icon: FiPieChart, badge: 'bg-brand-soft text-brand', label: 'Pattern' },
+}
+
+// Numbers (12 · 39% · 1,240) in bold, so the facts stand out when skimming.
+function withNumbers(text) {
+  return text.split(/(\d[\d,.]*%?)/g).map((part, i) =>
+    /^\d/.test(part) ? (
+      <b key={i} className="font-semibold tabular-nums text-ink-900">
+        {part}
+      </b>
+    ) : (
+      part
+    ),
+  )
 }
 
 /** "What stands out" — the numbers above turned into sentences, most
@@ -399,21 +413,24 @@ export function Insights({ items }) {
     )
   }
   return (
-    <ul className="space-y-3">
+    <ul className="-my-1 divide-y divide-ink-100">
       {items.map((i, n) => {
         const t = TONES[i.tone] || TONES.info
-        const Icon = t.icon
+        const Icon = i.icon || t.icon
         return (
-          <li key={n} className="flex items-start gap-2.5">
-            <span className={`mt-0.5 flex-none ${t.cls}`} title={t.label}>
+          <li key={n} className="flex items-center gap-3 py-2.5">
+            <span className={`grid h-8 w-8 flex-none place-items-center rounded-lg ${t.badge}`} title={t.label}>
               <Icon size={15} aria-label={t.label} />
             </span>
-            <div className="min-w-0 flex-1 text-[12.5px] leading-snug">
-              <span className="font-medium text-ink-900">{i.text}</span>
-              {i.hint && <span className="block text-[11.5px] text-ink-500">{i.hint}</span>}
+            <div className="min-w-0 flex-1">
+              <div className="text-[12.5px] leading-snug text-ink-700">{withNumbers(i.text)}</div>
+              {i.hint && <div className="mt-0.5 text-[11.5px] leading-snug text-ink-400">{i.hint}</div>}
             </div>
             {i.link && (
-              <Link to={i.link.to} className="inline-flex flex-none items-center gap-1 text-[12px] font-semibold text-brand hover:underline">
+              <Link
+                to={i.link.to}
+                className="inline-flex flex-none items-center gap-1 rounded-lg border border-brand/25 bg-brand-soft px-2.5 py-1 text-[11.5px] font-semibold text-brand hover:bg-brand hover:text-white transition-colors"
+              >
                 {i.link.label} <FiArrowRight size={12} />
               </Link>
             )}
