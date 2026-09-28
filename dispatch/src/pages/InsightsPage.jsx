@@ -5,13 +5,11 @@ import Pager from '../components/ui/Pager'
 import Select from '../components/ui/Select'
 import {
   ActionCards,
-  bucket,
   cardCls,
   Chips,
   Funnel,
   InsightCards,
   PlatformBars,
-  StatTile,
   TabBar,
   TopContentGrid,
   WeekCompare,
@@ -24,18 +22,28 @@ import {
   SiTiktok,
   SiYoutube,
 } from 'react-icons/si'
-import { FiDownload, FiEye, FiFileText, FiGrid, FiHeart, FiImage, FiMessageCircle, FiPlay, FiRefreshCw, FiShare2 } from 'react-icons/fi'
+import {
+  FiArrowDown,
+  FiArrowUp,
+  FiDownload,
+  FiEye,
+  FiFileText,
+  FiGrid,
+  FiHeart,
+  FiImage,
+  FiMessageCircle,
+  FiPlay,
+  FiRefreshCw,
+  FiShare2,
+  FiX,
+} from 'react-icons/fi'
 import { api } from '../api/client'
 import { useStore } from '../store'
 import { colorForBrand } from '../lib/brandColor'
 import {
-  ChannelsTable,
-  DeltaText,
-  Donut,
-  Figure,
-  fmtNum,
-  PlatformLegend,
-  TrendLine,
+  ChannelScoreboard,
+  PulseCard,
+  RANK_BY,
   UpNext,
   WeekColumns,
 } from '../components/insights/Overview'
@@ -229,18 +237,6 @@ function ChartCard({ title, children, right }) {
       </div>
       {children}
     </div>
-  )
-}
-
-function StatusChip({ resolved, note }) {
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 whitespace-nowrap text-[12px] font-medium text-ink-700"
-      title={resolved ? '' : note || ''}
-    >
-      <span className={`h-2 w-2 rounded-full flex-none ${resolved ? 'bg-emerald-500' : 'bg-amber-400'}`} />
-      {resolved ? 'Live' : 'Needs attention'}
-    </span>
   )
 }
 
@@ -639,7 +635,7 @@ function ContentTypeChart({ rows, height = 260 }) {
 }
 
 export default function InsightsPage() {
-  const { brands, showToast } = useStore()
+  const { brands, channels, showToast } = useStore()
   const navigate = useNavigate()
   const [items, setItems] = useState(null)
   const [brandFilter, setBrandFilter] = useState('all')
@@ -648,6 +644,9 @@ export default function InsightsPage() {
   const [tagFilter, setTagFilter] = useState('all')
   const [rangeId, setRangeId] = useState('30')
   const [loading, setLoading] = useState(false)
+  // Channels table: totals, or averages per post so busy and quiet channels compare fairly.
+  const [perPost, setPerPost] = useState(false)
+  const [rankBy, setRankBy] = useState('engagement')
 
   const [publishing, setPublishing] = useState(null)
 
@@ -748,9 +747,6 @@ export default function InsightsPage() {
     return daysBetween(Math.min(...dates), Math.max(...dates, Date.now()))
   }, [filtered, range.days, cutoff])
 
-  // Per-day buckets for every chart + sparkline on the page.
-  const daily = useMemo(() => dailyOf(filtered, days), [filtered, days])
-
   // Sparklines read better as a running total than a spiky day-by-day line.
   const cumulative = (arr) => {
     let s = 0
@@ -783,14 +779,52 @@ export default function InsightsPage() {
     [filtered],
   )
 
-  // "All published posts": 10 per page; any filter/range change starts over at 1.
+  // "Your posts": 10 per page, sortable by any column (newest first by
+  // default), optionally narrowed to one channel / platform from the channel
+  // scoreboard's "N posts →" buttons. Any filter/range change starts over at page 1.
   const [page, setPage] = useState(0)
+  const [postSort, setPostSort] = useState({ id: 'date', dir: -1 })
+  const [postScope, setPostScope] = useState(null) // { key?, platform?, label }
   const tableRef = useRef(null)
-  const pageCount = Math.max(1, Math.ceil(filtered.length / PER_PAGE))
+  const postRows = useMemo(() => {
+    const scoped = !postScope
+      ? filtered
+      : filtered.filter((it) =>
+          postScope.key != null
+            ? (it.channel_id ?? `${it.brand_slug}:${it.platform_slug}`) === postScope.key
+            : it.platform_slug === postScope.platform,
+        )
+    const val = (it) => {
+      if (postSort.id === 'date') return it.published_at ? new Date(it.published_at).getTime() : 0
+      const m = isResolved(it) ? it.metrics || {} : {}
+      if (postSort.id === 'engagement') return engagementOf(m)
+      if (postSort.id === 'rate') return m.views ? engagementOf(m) / m.views : -1
+      return m[postSort.id] ?? -1
+    }
+    return [...scoped].sort((a, b) => (val(a) - val(b)) * postSort.dir)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered, postScope, postSort])
+  const pageCount = Math.max(1, Math.ceil(postRows.length / PER_PAGE))
   // Keyed on the filter inputs, not `filtered` — that array is rebuilt every
   // render (the date cutoff is "now"), which would snap back to page 1 constantly.
-  useEffect(() => setPage(0), [items, rangeId, brandFilter, typeFilter, tagFilter, originFilter])
-  const pageRows = filtered.slice(page * PER_PAGE, (page + 1) * PER_PAGE)
+  useEffect(() => setPage(0), [items, rangeId, brandFilter, typeFilter, tagFilter, originFilter, postScope, postSort])
+  useEffect(() => setPostScope(null), [brandFilter])
+  const pageRows = postRows.slice(page * PER_PAGE, (page + 1) * PER_PAGE)
+  // Longest engagement bar in "Your posts" = the best post in view.
+  const postMax = useMemo(
+    () => Math.max(0, ...postRows.map((it) => (isResolved(it) ? engagementOf(it.metrics) : 0))),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [postRows],
+  )
+  const sortPostsBy = (id) => setPostSort((s) => ({ id, dir: s.id === id ? -s.dir : -1 }))
+  const showPostsOf = (r) => {
+    setPostScope(
+      r.brand
+        ? { key: r.key, label: `${r.brand}${r.handle ? ` ${r.handle}` : ''} · ${PLATFORM_LABELS[r.platform] || r.platform}` }
+        : { platform: r.platform, label: PLATFORM_LABELS[r.platform] || r.platform },
+    )
+    requestAnimationFrame(() => tableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  }
   const goToPage = (p) => {
     setPage(Math.min(Math.max(0, p), pageCount - 1))
     tableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -842,6 +876,14 @@ export default function InsightsPage() {
     return { engagement: seg('engagement'), views: seg('views'), slugs: PLATFORM_SLUG_ORDER.filter((s) => out[s]) }
   }, [filtered])
 
+  // The platform with the biggest slice of engagement — for the pulse card's read-out.
+  const topPlatform = useMemo(() => {
+    const segs = platformSplit.engagement
+    const total = segs.reduce((n, x) => n + x.value, 0)
+    const top = [...segs].sort((a, b) => b.value - a.value)[0]
+    return top && total > 0 ? { label: top.label, share: top.value / total } : null
+  }, [platformSplit])
+
   // One row per channel (brand × platform account) with this period vs the
   // previous one, and a daily engagement trend line.
   const channelRows = useMemo(() => {
@@ -857,12 +899,25 @@ export default function InsightsPage() {
           brandSlug: it.brand_slug,
           platform: it.platform_slug,
           handle: it.channel_handle && it.channel_handle !== it.brand_name ? it.channel_handle : '',
-          posts: 0, engagement: 0, views: null, reported: false, rateV: 0, rateE: 0,
+          posts: 0, engagement: 0, likes: 0, comments: 0, shares: 0, views: null, reported: false, rateV: 0, rateE: 0,
           prevPosts: previous ? 0 : null, prevEngagement: previous ? 0 : null, prevViews: previous ? 0 : null,
           trend: days.map(() => 0),
         })
       }
       return map.get(k)
+    }
+    // Every connected channel gets a row, even with no posts this period —
+    // otherwise a channel nobody posts to never shows up.
+    for (const c of channels) {
+      if (c.s === 'off' || (brandFilter !== 'all' && c.b !== brandFilter)) continue
+      const brand = brands.find((b) => b.slug === c.b)
+      rowFor({
+        channel_id: c.id,
+        brand_name: brand?.name || c.b,
+        brand_slug: c.b,
+        platform_slug: c.p,
+        channel_handle: c.h,
+      })
     }
     for (const it of filtered) {
       const r = rowFor(it)
@@ -872,6 +927,9 @@ export default function InsightsPage() {
       const e = engagementOf(m)
       if (['likes', 'comments', 'shares'].some((k) => m[k] != null)) r.reported = true
       r.engagement += e
+      r.likes += m.likes || 0
+      r.comments += m.comments || 0
+      r.shares += m.shares || 0
       if (m.views != null) {
         r.views = (r.views || 0) + m.views
         r.rateV += m.views
@@ -895,7 +953,7 @@ export default function InsightsPage() {
       prevViews: r.views == null ? null : r.prevViews,
     }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtered, previous, days])
+  }, [filtered, previous, days, channels, brands, brandFilter])
 
   // ── Tabs ────────────────────────────────────────────────────────────────
   const [searchParams, setSearchParams] = useSearchParams()
@@ -988,8 +1046,6 @@ export default function InsightsPage() {
     ]
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items])
-
-  const clicksNow = reports(filtered, 'clicks') ? sumOf(filtered, 'clicks') : null
 
   return (
     <div className="w-full px-5 lg:px-8 pt-7 pb-28 animate-fadein">
@@ -1114,76 +1170,157 @@ export default function InsightsPage() {
 
       {tab === 'overview' && (
         <>
-          {/* Posting activity: previous / this / next week + what goes out next */}
-          <section className="mb-6 grid overflow-hidden rounded-2xl border border-ink-200/60 bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)] lg:grid-cols-[minmax(0,1fr)_300px]">
-            <div className="min-w-0 p-5">
-              <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
-                <h2 className="text-[15.5px] font-semibold tracking-tight text-ink-900">Posting activity</h2>
-                <span className="inline-flex items-center gap-3 text-[11.5px] text-ink-500">
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="h-2.5 w-2.5 rounded-sm bg-[#2a78d6]" aria-hidden="true" /> Published
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="h-2.5 w-2.5 rounded-sm bg-[#9ec5f4]" aria-hidden="true" /> Scheduled
-                  </span>
-                </span>
-              </div>
-              {publishing ? (
-                <WeekColumns days={publishing.days} today={publishing.today} />
-              ) : (
-                <div className="h-[130px] rounded-xl skeleton" />
-              )}
-            </div>
-            <div className="border-t border-ink-100 bg-ink-50/40 p-4 lg:border-l lg:border-t-0">
-              <h3 className="mb-3 text-[12.5px] font-semibold text-ink-700">Up next</h3>
-              {publishing ? (
-                <UpNext items={publishing.upcoming} icons={PLATFORM_ICONS} mediaSrc={mediaSrc} />
-              ) : (
-                <div className="h-[130px] rounded-xl skeleton" />
-              )}
-            </div>
-          </section>
+          {/* Engagement as the hero, what it's made of, then the supporting numbers */}
+          <div className="mb-6">
+            {items === null ? (
+              <div className="h-[196px] rounded-2xl skeleton" />
+            ) : (
+              <PulseCard
+                cur={cur}
+                prev={prev}
+                period={range.label[0].toUpperCase() + range.label.slice(1)}
+                viewsReported={reports(filtered, 'views')}
+                topPlatform={topPlatform}
+              />
+            )}
+          </div>
 
-          {/* Performance: three headline figures, then one row per channel */}
-          <section className="mb-6 overflow-hidden rounded-2xl border border-ink-200/60 bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
-            <div className="flex items-center justify-between gap-3 border-b border-ink-100 px-5 py-3.5">
-              <h3 className="text-[14.5px] font-semibold text-ink-900">Channels</h3>
-              <span className="text-[12px] text-ink-500">{range.label[0].toUpperCase() + range.label.slice(1)} · vs the period before</span>
+          {/* Every channel ranked on one metric */}
+          <section className={`${cardCls} mb-6 overflow-hidden`}>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-3 px-5 pb-3 pt-4">
+              <div className="mr-auto">
+                <h2 className="text-[15.5px] font-semibold tracking-tight text-ink-900">Channel scoreboard</h2>
+                <p className="text-[12px] text-ink-500">Which Pages and accounts are pulling their weight</p>
+              </div>
+              <Chips label="Rank by" options={RANK_BY} value={rankBy} onChange={setRankBy} />
+              <label className="inline-flex cursor-pointer items-center gap-2 text-[12px] font-medium text-ink-700">
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={perPost}
+                  onClick={() => setPerPost((v) => !v)}
+                  className={`relative h-5 w-9 flex-none rounded-full transition-colors duration-150 ${perPost ? 'bg-brand' : 'bg-ink-200'}`}
+                >
+                  <span
+                    className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-[left] duration-150 ${perPost ? 'left-[18px]' : 'left-0.5'}`}
+                  />
+                </button>
+                Average per post
+              </label>
             </div>
             {items === null ? (
-              <div className="grid gap-px md:grid-cols-3">
-                {[0, 1, 2].map((i) => (
-                  <div key={i} className="m-5 h-16 rounded-xl skeleton" />
-                ))}
-              </div>
+              <div className="mx-5 mb-5 h-40 rounded-xl skeleton" />
             ) : (
-              <>
-                <div className="grid divide-y divide-ink-100 md:grid-cols-3 md:divide-x md:divide-y-0">
-                  <Figure label="Posts published" value={fmtNum(cur.posts)} delta={<DeltaText current={cur.posts} previous={prev?.posts} />}>
-                    <TrendLine values={cumulative(daily.posts)} width={120} />
-                  </Figure>
-                  <Figure label="Engagement" value={fmtNum(cur.engagement)} delta={<DeltaText current={cur.engagement} previous={prev?.engagement} />}>
-                    <Donut segments={platformSplit.engagement} label="Engagement" />
-                  </Figure>
-                  <Figure label="Views" value={fmtNum(cur.views)} delta={<DeltaText current={cur.views} previous={prev?.views} />}>
-                    <Donut segments={platformSplit.views} label="Views" />
-                  </Figure>
-                </div>
-                <PlatformLegend slugs={platformSplit.slugs} labels={PLATFORM_LABELS} />
-              </>
+              <ChannelScoreboard
+                rows={channelRows}
+                rankBy={rankBy}
+                perPost={perPost}
+                icons={PLATFORM_ICONS}
+                labels={PLATFORM_LABELS}
+                onPosts={showPostsOf}
+                onFilter={(r) => r.brandSlug && setBrandFilter(r.brandSlug)}
+                onPlan={() => navigate('/new')}
+              />
             )}
           </section>
 
-
-          {/* Secondary numbers: rate, clicks, comments, shares — each with its trend */}
-          {items !== null && (
-            <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-              <StatTile label="Engagement rate" value={cur.rate == null ? '—' : `${cur.rate.toFixed(1)}%`} current={cur.rate} previous={prev?.rate} bars={bucket(daily.rate)} hint="engagement ÷ views" />
-              <StatTile label="Link clicks" value={clicksNow == null ? '—' : fmtNum(clicksNow)} current={clicksNow} previous={previous && clicksNow != null ? sumOf(previous, 'clicks') : null} bars={bucket(daily.clicks)} hint={clicksNow == null ? 'not reported yet' : 'where the platform reports them'} />
-              <StatTile label="Comments" value={fmtNum(cur.comments)} current={cur.comments} previous={prev?.comments} bars={bucket(daily.comments)} />
-              <StatTile label="Shares" value={fmtNum(cur.shares)} current={cur.shares} previous={prev?.shares} bars={bucket(daily.shares)} />
+          {/* Every published post, sortable */}
+          <section ref={tableRef} className={`${cardCls} scroll-mt-4 overflow-hidden`}>
+            <div className="flex flex-wrap items-center gap-2 px-5 pb-3 pt-4">
+              <h2 className="text-[15.5px] font-semibold tracking-tight text-ink-900">
+                Your posts <span className="font-normal text-ink-400">({postRows.length})</span>
+              </h2>
+              {postScope && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-brand-soft py-0.5 pl-2.5 pr-1 text-[11.5px] font-semibold text-brand">
+                  {postScope.label}
+                  <button
+                    type="button"
+                    onClick={() => setPostScope(null)}
+                    className="grid h-4 w-4 place-items-center rounded-full hover:bg-brand/15"
+                    aria-label="Show all posts"
+                  >
+                    <FiX size={11} />
+                  </button>
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={exportCsv}
+                disabled={!filtered.length}
+                title="Export CSV"
+                className="ml-auto grid h-8 w-8 place-items-center rounded-lg text-ink-400 transition-all duration-150 hover:bg-ink-50 hover:text-ink-700 disabled:opacity-30"
+              >
+                <FiDownload size={16} />
+              </button>
             </div>
-          )}
+
+            {items === null ? (
+              <div className="divide-y divide-ink-100 border-t border-ink-100">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-4 px-5 py-3.5">
+                    <div className="h-10 w-10 rounded-lg skeleton" />
+                    <div className="flex-1 space-y-1.5">
+                      <div className="h-3 w-2/3 rounded skeleton" />
+                      <div className="h-3 w-1/3 rounded skeleton" />
+                    </div>
+                    <div className="h-4 w-16 rounded skeleton" />
+                  </div>
+                ))}
+              </div>
+            ) : postRows.length === 0 ? (
+              <div className="border-t border-ink-100 py-16 text-center">
+                <div className="text-[14px] font-semibold text-ink-700">Nothing here yet</div>
+                <div className="mt-1 text-[12px] text-ink-400">Once a post goes out in this range, it shows up here.</div>
+              </div>
+            ) : (
+              <>
+                {/* phones: one card per post, numbers in a single row */}
+                <div className="divide-y divide-ink-100 border-t border-ink-100 sm:hidden">
+                  {pageRows.map((it) => (
+                    <MobilePostRow key={it.target_id} it={it} onOpen={() => navigate(`/insights/${it.target_id}`)} />
+                  ))}
+                </div>
+
+                <div className="hidden overflow-x-auto sm:block">
+                  <table className="w-full min-w-[860px] border-collapse text-left">
+                    <thead className="border-y border-ink-100">
+                      <tr className="text-[11.5px] text-ink-500">
+                        {POST_COLS.map((c) => {
+                          const active = postSort.id === c.id
+                          return (
+                            <th
+                              key={c.id}
+                              className={`py-2 font-medium ${c.id === 'date' ? 'pl-5 pr-3' : 'px-3 text-right last:pr-5'}`}
+                              aria-sort={active ? (postSort.dir < 0 ? 'descending' : 'ascending') : 'none'}
+                            >
+                              <button
+                                type="button"
+                                onClick={() => sortPostsBy(c.id)}
+                                title={c.info ? `${c.label} — ${c.info}` : `Sort by ${c.label.toLowerCase()}`}
+                                className={`inline-flex items-center gap-1 py-0.5 font-semibold ${
+                                  active ? 'text-brand' : 'hover:text-ink-800'
+                                }`}
+                              >
+                                {c.label}
+                                {active &&
+                                  (postSort.dir < 0 ? <FiArrowDown size={11} aria-hidden="true" /> : <FiArrowUp size={11} aria-hidden="true" />)}
+                              </button>
+                            </th>
+                          )
+                        })}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-ink-100">
+                      {pageRows.map((it) => (
+                        <PostRow key={it.target_id} it={it} max={postMax} onOpen={() => navigate(`/insights/${it.target_id}`)} />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <Pager page={page} pages={pageCount} total={postRows.length} perPage={PER_PAGE} onPage={goToPage} />
+              </>
+            )}
+          </section>
         </>
       )}
 
@@ -1214,21 +1351,6 @@ export default function InsightsPage() {
             </section>
           </div>
 
-          <section className={`${cardCls} mb-6 overflow-hidden`}>
-            <div className="flex items-center justify-between gap-3 border-b border-ink-100 px-5 py-3.5">
-              <h2 className="text-[14.5px] font-semibold text-ink-900">Channels</h2>
-              <span className="text-[12px] text-ink-500">vs the period before</span>
-            </div>
-              <div>
-                <ChannelsTable
-                  rows={channelRows}
-                  icons={PLATFORM_ICONS}
-                  labels={PLATFORM_LABELS}
-                  onFilter={(r) => r.brandSlug && setBrandFilter(r.brandSlug)}
-                />
-              </div>
-          </section>
-
           <div className="mb-6">
             <ChartCard title="Content type performance" right={<span className="text-[11.5px] text-ink-500">avg. engagement per post</span>}>
               <ContentTypeChart rows={contentTypes} />
@@ -1243,178 +1365,36 @@ export default function InsightsPage() {
           <div className="mb-8">
             <TopContentGrid rows={topPosts.slice(0, 4)} icons={PLATFORM_ICONS} mediaSrc={mediaSrc} engagementOf={engagementOf} onOpen={(it) => navigate(`/insights/${it.target_id}`)} />
           </div>
-          {/* Table */}
-          <div ref={tableRef} className="scroll-mt-4 bg-white rounded-2xl border border-ink-200/60 shadow-[0_1px_2px_rgba(16,24,40,0.04)] overflow-hidden">
-            <div className="px-5 py-3.5 border-b border-ink-100 flex items-center justify-between">
-              <span className="font-semibold text-ink-900 text-[15px]">
-                All published posts <span className="text-ink-400 font-normal">({filtered.length})</span>
-              </span>
-              <button
-                type="button"
-                onClick={exportCsv}
-                disabled={!filtered.length}
-                title="Export CSV"
-                className="w-8 h-8 rounded-lg grid place-items-center text-ink-400 hover:text-ink-700 hover:bg-ink-50 disabled:opacity-30 transition-all duration-150"
-              >
-                <FiDownload size={16} />
-              </button>
+
+          {/* Posting activity: previous / this / next week + what goes out next */}
+          <section className="mb-6 grid overflow-hidden rounded-2xl border border-ink-200/60 bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)] lg:grid-cols-[minmax(0,1fr)_300px]">
+            <div className="min-w-0 p-5">
+              <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+                <h2 className="text-[15.5px] font-semibold tracking-tight text-ink-900">Posting activity</h2>
+                <span className="inline-flex items-center gap-3 text-[11.5px] text-ink-500">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-sm bg-[#2a78d6]" aria-hidden="true" /> Published
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-sm bg-[#9ec5f4]" aria-hidden="true" /> Scheduled
+                  </span>
+                </span>
+              </div>
+              {publishing ? (
+                <WeekColumns days={publishing.days} today={publishing.today} />
+              ) : (
+                <div className="h-[130px] rounded-xl skeleton" />
+              )}
             </div>
-
-            {items === null ? (
-              <div className="divide-y divide-ink-100">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="px-5 py-3.5 flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-lg skeleton" />
-                    <div className="flex-1 space-y-1.5">
-                      <div className="h-3 w-2/3 rounded skeleton" />
-                      <div className="h-3 w-1/3 rounded skeleton" />
-                    </div>
-                    <div className="w-16 h-4 rounded skeleton" />
-                  </div>
-                ))}
-              </div>
-            ) : filtered.length === 0 ? (
-              <div className="py-20 text-center">
-                <div className="text-[14px] font-semibold text-ink-700">Nothing here yet</div>
-                <div className="text-[12px] text-ink-400 mt-1">Once a post goes out in this range, it shows up here.</div>
-              </div>
-            ) : (
-              <>
-              {/* phones: one card per post, numbers in a single row */}
-              <div className="sm:hidden divide-y divide-ink-100">
-                {pageRows.map((it) => (
-                  <MobilePostRow key={it.target_id} it={it} onOpen={() => navigate(`/insights/${it.target_id}`)} />
-                ))}
-              </div>
-
-              <div className="hidden sm:block overflow-x-auto">
-                <table className="w-full text-left border-collapse min-w-[820px]">
-                  <thead>
-                    <tr className="border-b border-ink-100 text-[11px] font-semibold text-ink-500">
-                      <th className="px-5 py-2.5 font-semibold">Post</th>
-                      <th className="px-3 py-2.5 font-semibold">Type</th>
-                      <th className="px-3 py-2.5 font-semibold">Status</th>
-                      <th className="px-3 py-2.5 font-semibold text-right">Views</th>
-                      <th className="px-3 py-2.5 font-semibold text-right">Likes</th>
-                      <th className="px-3 py-2.5 font-semibold text-right">Comments</th>
-                      <th className="px-5 py-2.5 font-semibold text-right">Shares</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pageRows.map((it) => {
-                      const Icon = PLATFORM_ICONS[it.platform_slug] || FiGrid
-                      const brandColor = colorForBrand(it.brand_slug)
-                      const platColor = PLATFORM_COLORS[it.platform_slug] || '#64748b'
-                      const caption = it.caption || it.title || ''
-                      const tags = hashtagsOf(caption)
-                      const captionText = caption.replace(HASHTAG_RE, '').trim()
-                      const resolved = it.status === 'ok' || it.status === 'partial'
-                      const m = it.metrics || {}
-                      const src = mediaSrc(it.media_url)
-                      const grouped = !resolved && isConnectionProblem(it)
-                      const num = (v) =>
-                        v != null ? (
-                          <span className="text-ink-800 tabular-nums">{v.toLocaleString()}</span>
-                        ) : (
-                          <span className="text-ink-300">—</span>
-                        )
-                      return (
-                        <tr
-                          key={it.target_id}
-                          onClick={() => navigate(`/insights/${it.target_id}`)}
-                          className="border-t border-ink-100 hover:bg-ink-50/60 cursor-pointer transition-colors duration-100"
-                        >
-                          <td className="px-5 py-3 max-w-[460px]">
-                            <div className="flex items-center gap-3">
-                              <div className="relative flex-none">
-                                <div className="relative isolate w-11 h-11 rounded-lg bg-ink-100 overflow-hidden">
-                                  {src && (it.media_kind === 'image' || it.media_thumb) ? (
-                                    <img src={src} alt="" className="w-full h-full object-cover" />
-                                  ) : src ? (
-                                    <>
-                                      <video
-                                        src={`${src}#t=0.1`}
-                                        preload="metadata"
-                                        muted
-                                        playsInline
-                                        disablePictureInPicture
-                                        className="w-full h-full object-cover pointer-events-none"
-                                      />
-                                      <span className="absolute inset-0 grid place-items-center">
-                                        <span className="w-5 h-5 rounded-full bg-black/55 grid place-items-center text-white">
-                                          <FiPlay size={9} className="ml-px" />
-                                        </span>
-                                      </span>
-                                    </>
-                                  ) : (
-                                    <span className="w-full h-full grid place-items-center text-ink-300">
-                                      <FiFileText size={16} />
-                                    </span>
-                                  )}
-                                </div>
-                                <span
-                                  className="absolute -bottom-1 -right-1 rounded-full grid place-items-center text-white ring-2 ring-white"
-                                  style={{ background: platColor, width: 18, height: 18 }}
-                                >
-                                  <Icon size={10} />
-                                </span>
-                              </div>
-                              <div className="min-w-0">
-                                <div className={`text-[13px] text-ink-900 line-clamp-1 ${isKhmerText(captionText) ? 'font-khmer' : ''}`}>
-                                  {captionText || <span className="text-ink-400">No caption</span>}
-                                  {tags.length > 0 && <span className="text-brand"> {tags.join(' ')}</span>}
-                                </div>
-                                <div className="mt-0.5 flex items-center gap-1.5 text-[11.5px] text-ink-500">
-                                  <span className="w-1.5 h-1.5 rounded-full flex-none" style={{ background: brandColor }} />
-                                  <span className="truncate">{it.brand_name}</span>
-                                  <span className="text-ink-300">·</span>
-                                  <span className="whitespace-nowrap">{fmtDate(it.published_at)}</span>
-                                  <OriginBadge origin={it.origin} platform={it.platform_slug} />
-                                </div>
-                                {!resolved && it.note && !grouped && (
-                                  <div className="text-[11px] text-amber-700 mt-0.5 truncate">{it.note}</div>
-                                )}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-3 py-3">
-                            <span className="inline-flex items-center gap-1.5 text-[12px] text-ink-600 capitalize">
-                              {it.media_kind === 'video' ? <FiPlay size={12} /> : it.media_kind === 'image' ? <FiImage size={12} /> : <FiFileText size={12} />}
-                              {it.media_kind || 'text'}
-                            </span>
-                          </td>
-                          <td className="px-3 py-3">
-                            <StatusChip resolved={resolved} note={it.note} />
-                          </td>
-                          <td className="px-3 py-3 text-[12.5px] text-right">
-                            {m.views != null ? (
-                              num(m.views)
-                            ) : (
-                              <span
-                                className="text-ink-300"
-                                title={
-                                  it.platform_slug === 'telegram'
-                                    ? "Telegram's bot API doesn't report views per post"
-                                    : undefined
-                                }
-                              >
-                                —
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-3 py-3 text-[12.5px] text-right">{num(m.likes)}</td>
-                          <td className="px-3 py-3 text-[12.5px] text-right">{num(m.comments)}</td>
-                          <td className="px-5 py-3 text-[12.5px] text-right">{num(m.shares)}</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              <Pager page={page} pages={pageCount} total={filtered.length} perPage={PER_PAGE} onPage={goToPage} />
-              </>
-            )}
-          </div>
+            <div className="border-t border-ink-100 bg-ink-50/40 p-4 lg:border-l lg:border-t-0">
+              <h3 className="mb-3 text-[12.5px] font-semibold text-ink-700">Up next</h3>
+              {publishing ? (
+                <UpNext items={publishing.upcoming} icons={PLATFORM_ICONS} mediaSrc={mediaSrc} />
+              ) : (
+                <div className="h-[130px] rounded-xl skeleton" />
+              )}
+            </div>
+          </section>
         </>
       )}
 
@@ -1458,6 +1438,115 @@ export default function InsightsPage() {
         </>
       )}
     </div>
+  )
+}
+
+// "Your posts" columns — the header buttons sort by these ids.
+const POST_COLS = [
+  { id: 'date', label: 'Post' },
+  { id: 'engagement', label: 'Engagement', info: 'reactions + comments + shares' },
+  { id: 'rate', label: 'Eng. rate', info: 'engagement ÷ views' },
+  { id: 'views', label: 'Views' },
+  { id: 'likes', label: 'Reactions' },
+  { id: 'comments', label: 'Comments' },
+  { id: 'shares', label: 'Shares' },
+]
+
+/** One post in the desktop "Your posts" table: thumbnail + caption +
+ *  where / when, then its numbers. Zeros are dimmed; a post whose numbers
+ *  couldn't be read gets an amber dot on its thumbnail and the reason. */
+function PostRow({ it, max, onOpen }) {
+  const Icon = PLATFORM_ICONS[it.platform_slug] || FiGrid
+  const platColor = PLATFORM_COLORS[it.platform_slug] || '#64748b'
+  const caption = it.caption || it.title || ''
+  const tags = hashtagsOf(caption)
+  const captionText = caption.replace(HASHTAG_RE, '').trim()
+  const resolved = it.status === 'ok' || it.status === 'partial'
+  const m = resolved ? it.metrics || {} : {}
+  const reported = ['likes', 'comments', 'shares'].some((k) => m[k] != null)
+  const src = mediaSrc(it.media_url)
+  const engagement = reported ? engagementOf(m) : null
+  const rate = m.views ? (engagementOf(m) / m.views) * 100 : null
+  const num = (v, fmt = (x) => x.toLocaleString()) =>
+    v == null ? <span className="text-ink-300">—</span> : <span className={v ? 'text-ink-800' : 'text-ink-300'}>{fmt(v)}</span>
+  const KindIcon = it.media_kind === 'video' ? FiPlay : it.media_kind === 'image' ? FiImage : FiFileText
+
+  return (
+    <tr onClick={onOpen} className="cursor-pointer transition-colors duration-100 hover:bg-ink-50/60">
+      <td className="max-w-[480px] py-2.5 pl-5 pr-3">
+        <div className="flex items-center gap-3">
+          <div className="relative flex-none">
+            <div className="relative isolate h-11 w-11 overflow-hidden rounded-lg bg-ink-100">
+              {src && (it.media_kind === 'image' || it.media_thumb) ? (
+                <img src={src} alt="" className="h-full w-full object-cover" />
+              ) : src ? (
+                <>
+                  <video
+                    src={`${src}#t=0.1`}
+                    preload="metadata"
+                    muted
+                    playsInline
+                    disablePictureInPicture
+                    className="pointer-events-none h-full w-full object-cover"
+                  />
+                  <span className="absolute inset-0 grid place-items-center">
+                    <span className="grid h-5 w-5 place-items-center rounded-full bg-black/55 text-white">
+                      <FiPlay size={9} className="ml-px" />
+                    </span>
+                  </span>
+                </>
+              ) : (
+                <span className="grid h-full w-full place-items-center text-ink-300">
+                  <FiFileText size={16} />
+                </span>
+              )}
+            </div>
+            <span
+              className="absolute -bottom-1 -right-1 grid place-items-center rounded-full text-white ring-2 ring-white"
+              style={{ background: platColor, width: 18, height: 18 }}
+            >
+              <Icon size={10} />
+            </span>
+            {!resolved && (
+              <span className="absolute -left-1 -top-1 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-white" title={it.note || 'Needs attention'} />
+            )}
+          </div>
+          <div className="min-w-0">
+            <div className={`line-clamp-1 text-[13px] text-ink-900 ${isKhmerText(captionText) ? 'font-khmer' : ''}`}>
+              {captionText || <span className="text-ink-400">No caption</span>}
+              {tags.length > 0 && <span className="text-brand"> {tags.join(' ')}</span>}
+            </div>
+            <div className="mt-0.5 flex items-center gap-1.5 text-[11.5px] text-ink-500">
+              <span className="h-1.5 w-1.5 flex-none rounded-full" style={{ background: colorForBrand(it.brand_slug) }} />
+              <span className="truncate">{it.brand_name}</span>
+              <span className="text-ink-300">·</span>
+              <span className="whitespace-nowrap">{fmtDate(it.published_at)}</span>
+              <span className="text-ink-300">·</span>
+              <KindIcon size={11} className="flex-none" aria-label={it.media_kind || 'text'} />
+              <OriginBadge origin={it.origin} platform={it.platform_slug} />
+            </div>
+            {!resolved && it.note && !isConnectionProblem(it) && (
+              <div className="mt-0.5 truncate text-[11px] text-amber-700">{it.note}</div>
+            )}
+          </div>
+        </div>
+      </td>
+      <td className="w-[130px] px-3 py-2.5 text-right text-[12.5px] font-semibold tabular-nums">
+        {num(engagement)}
+        {engagement > 0 && max > 0 && (
+          <div className="ml-auto mt-1 h-1 w-20 overflow-hidden rounded-full bg-ink-100" aria-hidden="true">
+            <div className="ml-auto h-full rounded-full bg-brand" style={{ width: `${Math.max(4, (engagement / max) * 100)}%` }} />
+          </div>
+        )}
+      </td>
+      <td className="px-3 py-2.5 text-right text-[12.5px] tabular-nums">{num(rate, (x) => `${x.toFixed(1)}%`)}</td>
+      <td className="px-3 py-2.5 text-right text-[12.5px] tabular-nums" title={it.platform_slug === 'telegram' ? "Telegram's bot API doesn't report views per post" : undefined}>
+        {num(m.views)}
+      </td>
+      <td className="px-3 py-2.5 text-right text-[12.5px] tabular-nums">{num(m.likes)}</td>
+      <td className="px-3 py-2.5 text-right text-[12.5px] tabular-nums">{num(m.comments)}</td>
+      <td className="py-2.5 pl-3 pr-5 text-right text-[12.5px] tabular-nums">{num(m.shares)}</td>
+    </tr>
   )
 }
 

@@ -10,7 +10,17 @@
 // table (three of the colours sit below 3:1 contrast on white, so the legend +
 // table are the required relief, not decoration).
 import { useMemo, useState } from 'react'
-import { FiArrowDownRight, FiArrowUpRight, FiExternalLink, FiGrid, FiImage } from 'react-icons/fi'
+import {
+  FiArrowDownRight,
+  FiArrowUpRight,
+  FiChevronDown,
+  FiCornerUpRight,
+  FiExternalLink,
+  FiGrid,
+  FiHeart,
+  FiImage,
+  FiMessageCircle,
+} from 'react-icons/fi'
 
 // Fixed platform → categorical slot (never re-ranked by the data on screen).
 const PLATFORM_ORDER = ['facebook', 'instagram', 'tiktok', 'linkedin', 'telegram', 'youtube']
@@ -24,7 +34,7 @@ export const fmtNum = (n) => (n == null ? '—' : Math.abs(n) >= 1000 ? compact.
 
 /** Signed change vs the previous period — green up / red down, with an arrow
  *  so direction never rides on colour alone. */
-export function DeltaText({ current, previous, className = '' }) {
+export function DeltaText({ current, previous, className = '', format = fmtNum }) {
   if (previous == null || current == null) return <span className={`text-ink-400 ${className}`}>—</span>
   const d = current - previous
   if (d === 0) return <span className={`text-ink-400 ${className}`}>±0</span>
@@ -34,7 +44,7 @@ export function DeltaText({ current, previous, className = '' }) {
     <span className={`inline-flex items-center gap-0.5 font-medium ${up ? 'text-[#006300]' : 'text-red-600'} ${className}`}>
       <Arrow size={12} aria-hidden="true" />
       {up ? '+' : '−'}
-      {fmtNum(Math.abs(d))}
+      {format(Math.abs(d))}
     </span>
   )
 }
@@ -293,108 +303,344 @@ export function PlatformLegend({ slugs, labels }) {
   )
 }
 
-// ── Channels table (also the table view for every chart above) ────────────
-const SORTS = [
-  { id: 'engagement', label: 'Engagement' },
-  { id: 'posts', label: 'Posts' },
-  { id: 'views', label: 'Views' },
-]
-
-export function ChannelsTable({ rows, icons, labels, onFilter }) {
-  const [sort, setSort] = useState('engagement')
-  const sorted = useMemo(() => [...rows].sort((a, b) => (b[sort] ?? -1) - (a[sort] ?? -1)), [rows, sort])
-  if (!rows.length) {
-    return <div className="px-5 py-8 text-center text-[12.5px] text-ink-400">No published posts in this period.</div>
-  }
-  const th = 'px-3 py-2.5 text-[11.5px] font-medium text-ink-500' // alignment set per column
+// ── Pulse card (the headline numbers) ─────────────────────────────────────
+/** A label with a dotted underline that explains itself on hover / focus. */
+export function Defined({ children, text }) {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[720px] text-[12.5px]">
-        <thead className="bg-ink-50/70">
-          <tr>
-            <th className={`${th} pl-5 text-left`}>Channel</th>
-            <th className={`${th} text-left`}>Engagement trend</th>
-            {SORTS.map((s) => (
-              <th key={s.id} className={`${th} text-right`} aria-sort={sort === s.id ? 'descending' : 'none'}>
-                <button
-                  type="button"
-                  onClick={() => setSort(s.id)}
-                  className={`rounded-md px-1.5 py-0.5 ${sort === s.id ? 'bg-ink-100 font-semibold text-ink-800' : 'hover:text-ink-800'}`}
-                >
-                  {s.label}
-                </button>
-              </th>
-            ))}
-            <th className={`${th} text-right`}>Eng. rate</th>
-            <th className={`${th} pr-5`} aria-label="Open" />
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-ink-100">
-          {sorted.map((r) => {
-            const Icon = icons[r.platform] || FiGrid
-            return (
-              <tr key={r.key} className="hover:bg-ink-50/50">
-                <td className="py-3 pl-5 pr-3">
-                  <div className="flex items-center gap-3">
-                    <span className="relative grid h-9 w-9 flex-none place-items-center rounded-full bg-ink-100 text-[12px] font-bold text-ink-600">
-                      {(r.brand || '?').slice(0, 1).toUpperCase()}
-                      <span
-                        className="absolute -bottom-0.5 -right-0.5 grid h-4 w-4 place-items-center rounded-full text-white ring-2 ring-white"
-                        style={{ background: platformHue(r.platform) }}
-                      >
-                        <Icon size={9} aria-hidden="true" />
-                      </span>
-                    </span>
-                    <div className="min-w-0">
-                      <div className="truncate font-semibold text-ink-900">{r.brand}</div>
-                      <div className="truncate text-[11.5px] text-ink-500">
-                        {labels[r.platform] || r.platform}
-                        {r.handle ? ` · ${r.handle}` : ''}
-                      </div>
-                    </div>
-                  </div>
-                </td>
-                <td className="px-3 py-3">
-                  <TrendLine values={r.trend} width={110} height={30} color={platformHue(r.platform)} />
-                </td>
-                <NumCell value={r.engagement} prev={r.prevEngagement} reported={r.reported} />
-                <NumCell value={r.posts} prev={r.prevPosts} reported />
-                <NumCell value={r.views} prev={r.prevViews} reported={r.views != null} />
-                <td className="px-3 py-3 text-right tabular-nums text-ink-700">{r.rate == null ? '—' : `${r.rate.toFixed(1)}%`}</td>
-                <td className="py-3 pl-3 pr-5 text-right">
-                  <button
-                    type="button"
-                    onClick={() => onFilter(r)}
-                    className="inline-grid h-8 w-8 place-items-center rounded-lg text-ink-500 hover:bg-ink-100 hover:text-ink-800"
-                    title={`Show only ${r.brand} posts`}
-                  >
-                    <FiExternalLink size={14} />
-                  </button>
-                </td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
+    <span className="group relative inline-flex" tabIndex={0}>
+      <span className="cursor-help border-b border-dotted border-ink-300">{children}</span>
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute left-0 top-full z-30 mt-1.5 hidden w-56 rounded-lg bg-night-900 px-2.5 py-1.5 text-[11.5px] font-normal leading-snug text-white shadow-lg group-hover:block group-focus:block"
+      >
+        {text}
+      </span>
+    </span>
+  )
+}
+
+// What engagement is made of — fixed colours, same as the Performance chart.
+const MIX = [
+  { id: 'likes', label: 'Reactions', color: '#1B75BB' },
+  { id: 'comments', label: 'Comments', color: '#F08A5D' },
+  { id: 'shares', label: 'Shares', color: '#86A41E' },
+]
+const pct = (n) => (n == null ? '—' : `${n.toFixed(1)}%`)
+
+/** Engagement as the hero (with what it's made of and a one-line read-out),
+ *  then the supporting numbers. `cur` / `prev` come from totalsOf(). */
+export function PulseCard({ cur, prev, period, viewsReported, topPlatform }) {
+  const total = cur.engagement || 0
+  const parts = MIX.map((m) => ({ ...m, value: cur[m.id] || 0 }))
+  const lead = [...parts].sort((a, b) => b.value - a.value)[0]
+  const perPost = cur.posts ? total / cur.posts : null
+  const prevPerPost = prev?.posts ? prev.engagement / prev.posts : null
+  const readout = !total
+    ? 'No reactions, comments or shares yet in this period.'
+    : [
+        `Mostly ${lead.label.toLowerCase()} — ${Math.round((lead.value / total) * 100)}% of it.`,
+        topPlatform && topPlatform.share < 1 ? `${topPlatform.label} brought ${Math.round(topPlatform.share * 100)}%.` : '',
+        cur.comments === 0 ? 'Nobody is talking back yet — ask a question in the caption.' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')
+
+  const side = [
+    { id: 'posts', label: 'Posts', value: cur.posts, previous: prev?.posts, info: 'Posts that went out in this period on your connected channels.' },
+    { id: 'per', label: 'Per post', value: perPost, previous: prevPerPost, format: fmtAvg, info: 'Average engagement each post earned.' },
+    { id: 'views', label: 'Views', value: viewsReported ? cur.views : null, previous: prev?.views, info: 'Views or impressions — only from platforms that report them.' },
+    { id: 'rate', label: 'Eng. rate', value: cur.rate, previous: prev?.rate, format: pct, info: 'Engagement ÷ views, on posts from platforms that report views.' },
+  ]
+
+  return (
+    <div className="grid overflow-hidden rounded-2xl border border-ink-200/60 bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)] lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+      <div className="min-w-0 p-5 sm:p-6">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <span className="text-[13px] font-semibold text-ink-700">
+            <Defined text="Reactions + comments + shares, added up across every post.">Engagement</Defined>
+          </span>
+          <span className="text-[11.5px] text-ink-400">{period}</span>
+        </div>
+        <div className="mt-1 flex flex-wrap items-baseline gap-3">
+          <span className="text-[38px] font-bold leading-none tracking-tight text-ink-900 tabular-nums">{fmtNum(total)}</span>
+          <span className="text-[13px]">
+            <DeltaText current={total} previous={prev?.engagement} />
+          </span>
+        </div>
+        <p className="mt-2 max-w-[46ch] text-[12.5px] leading-relaxed text-ink-600">{readout}</p>
+
+        {/* what the engagement is made of */}
+        <div className="mt-4 flex h-2.5 gap-0.5 overflow-hidden rounded-full bg-ink-100" aria-hidden="true">
+          {total > 0 &&
+            parts
+              .filter((p) => p.value > 0)
+              .map((p) => <span key={p.id} style={{ width: `${(p.value / total) * 100}%`, background: p.color }} />)}
+        </div>
+        <div className="mt-2.5 grid grid-cols-3 gap-2">
+          {parts.map((p) => (
+            <div key={p.id} className="min-w-0">
+              <div className="flex items-center gap-1.5 text-[11.5px] text-ink-500">
+                <span className="h-2 w-2 flex-none rounded-full" style={{ background: p.color }} aria-hidden="true" />
+                {p.label}
+              </div>
+              <div className={`text-[15px] font-semibold tabular-nums ${p.value ? 'text-ink-900' : 'text-ink-300'}`}>{fmtNum(p.value)}</div>
+              <div className="text-[11px]">
+                <DeltaText current={p.value} previous={prev?.[p.id]} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 border-t border-ink-100 bg-ink-50/40 lg:border-l lg:border-t-0">
+        {side.map((s, i) => {
+          const fmt = s.format || fmtNum
+          return (
+            <div
+              key={s.id}
+              className={`min-w-0 p-4 sm:p-5 ${i % 2 ? 'border-l border-ink-100' : ''} ${i > 1 ? 'border-t border-ink-100' : ''}`}
+            >
+              <div className="text-[12px] text-ink-600">
+                <Defined text={s.info}>{s.label}</Defined>
+              </div>
+              <div className={`mt-1 text-[22px] font-bold leading-tight tabular-nums ${s.value ? 'text-ink-900' : 'text-ink-300'}`}>
+                {fmt(s.value)}
+              </div>
+              <div className="mt-0.5 text-[11.5px]">
+                <DeltaText current={s.value} previous={s.previous} format={fmt} />
+              </div>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
 
-function NumCell({ value, prev, reported }) {
+// ── Channel scoreboard ────────────────────────────────────────────────────
+// Every channel ranked on one metric, with a bar sized against the leader so
+// the gap between channels is visible at a glance. Channels sit under their
+// platform once there's more than one. `perPost` turns counts into averages so
+// a busy Page and a quiet one compare fairly. Connected channels with nothing
+// posted stay on the board (faded) with a nudge to plan something.
+export const fmtAvg = (n) => (n == null ? '—' : Math.abs(n) < 10 ? (Math.round(n * 10) / 10).toLocaleString() : fmtNum(n))
+const perPostOf = (v, posts) => (v == null || !posts ? null : v / posts)
+
+export const RANK_BY = [
+  { id: 'engagement', label: 'Engagement', avg: true, prev: 'prevEngagement' },
+  { id: 'posts', label: 'Posts', prev: 'prevPosts' },
+  { id: 'views', label: 'Views', avg: true, prev: 'prevViews' },
+  { id: 'rate', label: 'Eng. rate' },
+]
+
+const sumRows = (rows) => {
+  const sum = (k) => rows.reduce((s, r) => s + (r[k] || 0), 0)
+  const anyViews = rows.some((r) => r.views != null)
+  const hasPrev = rows.some((r) => r.prevPosts != null)
+  const rateV = sum('rateV')
+  return {
+    posts: sum('posts'),
+    engagement: sum('engagement'),
+    likes: sum('likes'),
+    comments: sum('comments'),
+    shares: sum('shares'),
+    views: anyViews ? sum('views') : null,
+    reported: rows.some((r) => r.reported),
+    prevPosts: hasPrev ? sum('prevPosts') : null,
+    prevEngagement: hasPrev ? sum('prevEngagement') : null,
+    prevViews: hasPrev && anyViews ? sum('prevViews') : null,
+    rate: rateV > 0 ? (sum('rateE') / rateV) * 100 : null,
+  }
+}
+
+/** The ranked number for a row, honouring the per-post switch. */
+function metricOf(metric, r, perPost) {
+  if (metric.id === 'rate') return r.rate
+  if (metric.id === 'views' && r.views == null) return null
+  if (metric.id === 'engagement' && !r.reported) return null
+  return perPost && metric.avg ? perPostOf(r[metric.id], r.posts) : r[metric.id]
+}
+
+// Each platform's own brand colour, for marking which platform a channel is
+// on (the chart palette above is for telling series apart, not for logos).
+// TikTok's black follows the theme's darkest ink so it stays visible in dark mode.
+const BRAND_HUES = {
+  facebook: '#1877F2',
+  instagram: '#E4405F',
+  linkedin: '#0A66C2',
+  telegram: '#26A5E4',
+  tiktok: 'rgb(var(--ink-900))',
+  youtube: '#FF0000',
+}
+const brandHue = (slug) => BRAND_HUES[slug] || 'rgb(var(--ink-500))'
+
+export function ChannelScoreboard({ rows, icons, labels, rankBy = 'engagement', perPost = false, onPosts, onFilter, onPlan }) {
+  const [collapsed, setCollapsed] = useState(() => new Set())
+  const metric = RANK_BY.find((m) => m.id === rankBy) || RANK_BY[0]
+  const fmt = metric.id === 'rate' ? pct : perPost && metric.avg ? fmtAvg : fmtNum
+
+  const { groups, max, rank } = useMemo(() => {
+    const val = (r) => (r.posts ? metricOf(metric, r, perPost) ?? -1 : -2)
+    const ranked = [...rows].filter((r) => r.posts).sort((a, b) => val(b) - val(a))
+    const map = new Map()
+    for (const r of rows) {
+      if (!map.has(r.platform)) map.set(r.platform, [])
+      map.get(r.platform).push(r)
+    }
+    return {
+      max: Math.max(0, ...rows.map((r) => (r.posts ? metricOf(metric, r, perPost) || 0 : 0))),
+      rank: new Map(ranked.map((r, i) => [r.key, i + 1])),
+      groups: [...map.entries()]
+        .map(([platform, list]) => {
+          const total = { ...sumRows(list), platform }
+          return { platform, total, rows: [...list].sort((a, b) => val(b) - val(a)) }
+        })
+        .sort((a, b) => val(b.total) - val(a.total)),
+    }
+  }, [rows, metric, perPost])
+
+  if (!rows.length) {
+    return <div className="px-5 py-10 text-center text-[12.5px] text-ink-400">No connected channels yet.</div>
+  }
+  const grouped = rows.length > 1
+  const toggle = (p) =>
+    setCollapsed((s) => {
+      const next = new Set(s)
+      next.has(p) ? next.delete(p) : next.add(p)
+      return next
+    })
+
   return (
-    <td className="px-3 py-3 text-right tabular-nums">
-      {reported ? (
-        <>
-          <div className="font-semibold text-ink-900">{fmtNum(value)}</div>
-          <div className="text-[11.5px]">
-            <DeltaText current={value} previous={prev} />
+    <div className="space-y-3 px-3 pb-3 sm:px-4 sm:pb-4">
+      {groups.map((g) => {
+        const Icon = icons[g.platform] || FiGrid
+        const hue = brandHue(g.platform)
+        const open = !grouped || !collapsed.has(g.platform)
+        const gv = metricOf(metric, g.total, perPost)
+        return (
+          <div key={g.platform} className="overflow-hidden rounded-xl border border-ink-100">
+            {grouped && (
+              <button
+                type="button"
+                onClick={() => toggle(g.platform)}
+                aria-expanded={open}
+                className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left hover:bg-ink-50/60"
+              >
+                <span
+                  className="grid h-7 w-7 flex-none place-items-center rounded-lg"
+                  style={{ background: `color-mix(in srgb, ${hue} 12%, transparent)`, color: hue }}
+                  aria-hidden="true"
+                >
+                  <Icon size={14} />
+                </span>
+                <span className="text-[13px] font-semibold text-ink-900">{labels[g.platform] || g.platform}</span>
+                <span className="text-[11.5px] text-ink-400">
+                  {g.rows.length} {g.rows.length === 1 ? 'account' : 'accounts'} · {g.total.posts} {g.total.posts === 1 ? 'post' : 'posts'}
+                </span>
+                <span className="ml-auto text-[12px] tabular-nums text-ink-600">
+                  {fmt(gv)} <span className="text-ink-400">{metric.label.toLowerCase()}</span>
+                </span>
+                <FiChevronDown
+                  size={15}
+                  className={`flex-none text-ink-400 transition-transform duration-150 ${open ? '' : '-rotate-90'}`}
+                  aria-hidden="true"
+                />
+              </button>
+            )}
+            {open && (
+              <ul className={`divide-y divide-ink-100 ${grouped ? 'border-t border-ink-100' : ''}`}>
+                {g.rows.map((r) => {
+                  const v = metricOf(metric, r, perPost)
+                  const prev = metric.prev ? (perPost && metric.avg ? perPostOf(r[metric.prev], r.prevPosts) : r[metric.prev]) : undefined
+                  return (
+                    <li key={r.key} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-3.5 py-3 sm:flex-nowrap">
+                      <span className="w-6 flex-none text-center text-[12px] font-bold tabular-nums text-ink-400">
+                        {rank.get(r.key) ? `#${rank.get(r.key)}` : ''}
+                      </span>
+                      <div className="flex min-w-0 flex-1 items-center gap-2.5 sm:max-w-[240px]">
+                        <span className="relative grid h-8 w-8 flex-none place-items-center rounded-full bg-ink-100 text-[11.5px] font-bold text-ink-600">
+                          {(r.brand || '?').slice(0, 1).toUpperCase()}
+                          <span
+                            className="absolute -bottom-0.5 -right-0.5 grid h-4 w-4 place-items-center rounded-full ring-2 ring-white"
+                            style={{ background: hue, color: r.platform === 'tiktok' ? 'rgb(var(--surface))' : '#fff' }}
+                            title={labels[r.platform] || r.platform}
+                          >
+                            <Icon size={9} aria-hidden="true" />
+                          </span>
+                        </span>
+                        <div className="min-w-0">
+                          <div className="truncate text-[13px] font-semibold text-ink-900">{r.brand}</div>
+                          <div className="truncate text-[11.5px] text-ink-500">{r.handle || labels[r.platform] || r.platform}</div>
+                        </div>
+                      </div>
+
+                      {r.posts ? (
+                        <>
+                          {/* bar against the leader */}
+                          <div className="order-last w-full min-w-0 sm:order-none sm:w-auto sm:flex-1">
+                            <div className="flex items-baseline justify-between gap-2">
+                              <span className="text-[14px] font-semibold tabular-nums text-ink-900">{fmt(v)}</span>
+                              <span className="text-[11.5px]">
+                                {metric.prev && v != null ? <DeltaText current={v} previous={prev} format={fmt} /> : null}
+                              </span>
+                            </div>
+                            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-ink-100">
+                              <div
+                                className="h-full rounded-full transition-[width] duration-300"
+                                style={{ width: `${max > 0 && v ? Math.max(3, (v / max) * 100) : 0}%`, background: hue }}
+                              />
+                            </div>
+                          </div>
+                          <div className="hidden flex-none items-center gap-3 text-[11.5px] tabular-nums text-ink-500 md:flex">
+                            {[
+                              [FiHeart, 'likes', 'Reactions'],
+                              [FiMessageCircle, 'comments', 'Comments'],
+                              [FiCornerUpRight, 'shares', 'Shares'],
+                            ].map(([I, k, label]) => {
+                              const n = r.reported ? (perPost ? perPostOf(r[k], r.posts) : r[k]) : null
+                              return (
+                                <span key={k} className={`inline-flex items-center gap-1 ${n ? '' : 'text-ink-300'}`} title={label}>
+                                  <I size={12} aria-hidden="true" />
+                                  {perPost ? fmtAvg(n) : fmtNum(n)}
+                                </span>
+                              )
+                            })}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => onPosts?.(r)}
+                            className="flex-none rounded-full border border-ink-200 px-2.5 py-1 text-[11.5px] font-semibold text-ink-700 hover:border-brand-line hover:text-brand"
+                            title="See these posts below"
+                          >
+                            {r.posts} {r.posts === 1 ? 'post' : 'posts'} →
+                          </button>
+                        </>
+                      ) : (
+                        <div className="flex flex-1 items-center justify-between gap-3 text-[12px] text-ink-400">
+                          <span>Nothing posted in this period</span>
+                          {onPlan && (
+                            <button type="button" onClick={() => onPlan(r)} className="font-semibold text-brand hover:underline">
+                              Plan a post
+                            </button>
+                          )}
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => onFilter(r)}
+                        className="grid h-7 w-7 flex-none place-items-center rounded-lg text-ink-400 hover:bg-ink-100 hover:text-ink-800"
+                        title={`Show only ${r.brand} across the page`}
+                      >
+                        <FiExternalLink size={13} />
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
           </div>
-        </>
-      ) : (
-        <span className="text-[11.5px] text-ink-400" title="This platform doesn't report this number to apps">
-          not reported
-        </span>
-      )}
-    </td>
+        )
+      })}
+    </div>
   )
 }
