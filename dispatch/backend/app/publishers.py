@@ -88,6 +88,70 @@ def publish(target: PostTarget, channel: Channel, video: Video | None) -> Publis
     raise PublishError(f"No delivery integration for platform '{slug}'.")
 
 
+class CannotUnpublish(PublishError):
+    """The platform gives apps no way to delete a post — do it in its app."""
+
+
+# Platforms whose API has no delete for a published post.
+_NO_DELETE = {
+    "instagram": "Instagram doesn't let apps delete posts — delete it in the Instagram app.",
+    "tiktok": "TikTok doesn't let apps delete videos — delete it in the TikTok app.",
+    "youtube": "Delete this video in YouTube Studio.",
+}
+
+
+def unpublish(target: PostTarget, channel: Channel) -> str:
+    """Take a published post down on its platform. Returns "removed", or
+    "not_on_platform" when there's nothing live to remove (simulated delivery,
+    or already deleted there). Raises CannotUnpublish when the platform has no
+    delete API, PublishError when the delete failed — the post may still be up."""
+    slug = channel.platform.slug if channel.platform else ""
+    ext = (target.external_id or "").strip()
+    cfg = channel.config or {}
+    if not ext:
+        # Delivered without a platform id: a simulated platform, nothing live.
+        return "not_on_platform"
+    if slug in _NO_DELETE:
+        raise CannotUnpublish(_NO_DELETE[slug])
+    if slug == "facebook":
+        from app import meta
+
+        if not cfg.get("access_token"):
+            raise PublishError("Facebook channel is missing its Page connection — reconnect it.")
+        try:
+            meta.delete_page_post(cfg["access_token"], ext)
+        except meta.MetaError as exc:
+            raise PublishError(str(exc)) from exc
+        return "removed"
+    if slug == "linkedin":
+        from app import linkedin
+
+        if not cfg.get("access_token"):
+            raise PublishError("LinkedIn channel is missing its connection — reconnect it.")
+        try:
+            return "removed" if linkedin.delete_post(cfg["access_token"], ext) else "not_on_platform"
+        except linkedin.LinkedInError as exc:
+            raise PublishError(str(exc)) from exc
+    if slug == "telegram":
+        token = cfg.get("bot_token") or get_settings().telegram_bot_token
+        chat_id = cfg.get("chat_id") or channel.handle
+        if not token or not chat_id:
+            raise PublishError("Telegram channel is missing its bot token or chat — reconnect it.")
+        try:
+            _telegram_call(token, "deleteMessage", {"chat_id": chat_id, "message_id": ext})
+        except PublishError as exc:
+            if "message to delete not found" in str(exc).lower():
+                return "not_on_platform"
+            if "can't be deleted" in str(exc).lower():
+                raise PublishError(
+                    "Telegram won't let the bot delete this message (too old, or the bot lost its "
+                    "admin rights) — delete it in Telegram."
+                ) from exc
+            raise
+        return "removed"
+    raise CannotUnpublish(f"Can't delete posts on '{slug}' from here — delete it on the platform.")
+
+
 def _publish_facebook(target: PostTarget, channel: Channel, video: Video | None) -> PublishResult:
     from app import meta
     from app.media import kind_for, read_media

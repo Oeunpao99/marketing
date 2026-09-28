@@ -257,6 +257,20 @@ def publish_to_page(
     return body.get("post_id") or body.get("id") or ""
 
 
+def delete_page_post(token: str, post_id: str) -> None:
+    """Delete a Page post (feed post, photo or video) from Facebook. Raises
+    MetaError on any failure — including "does not exist", which Facebook
+    also returns for a missing permission, so it's never taken as "already
+    gone" (the person can remove it from ContentFlow only, after checking)."""
+    _app_id, _secret, _redirect, version = _conf()
+    try:
+        resp = httpx.delete(f"{GRAPH_HOST}/{version}/{post_id}", params={"access_token": token}, timeout=30.0)
+    except httpx.HTTPError as exc:
+        raise MetaError(f"Could not reach Facebook: {exc}") from exc
+    if resp.status_code >= 400:
+        raise MetaError(f"Facebook couldn't delete the post: {_explain(resp)}")
+
+
 _IG_POLL_TRIES = 20
 _IG_POLL_DELAY = 3.0
 

@@ -232,6 +232,26 @@ def _upload_video(access_token: str, person_urn: str, media: bytes) -> str:
     return video_urn
 
 
+def delete_post(access_token: str, post_urn: str) -> bool:
+    """Delete one of the member's own posts. Returns False when LinkedIn says
+    it's already gone. Raises LinkedInError otherwise."""
+    from urllib.parse import quote
+
+    try:
+        resp = httpx.delete(
+            f"{API_BASE}/posts/{quote(post_urn, safe='')}",
+            headers={**_rest_headers(access_token), "X-RestLi-Method": "DELETE"},
+            timeout=30.0,
+        )
+    except httpx.HTTPError as exc:
+        raise LinkedInError(f"Could not reach LinkedIn: {exc}") from exc
+    if resp.status_code < 400:
+        return True
+    if resp.status_code in (404, 410):
+        return False
+    raise LinkedInError(f"LinkedIn couldn't delete the post: {_explain(resp)}")
+
+
 def publish_post(
     access_token: str, person_sub: str, caption: str, media: bytes | None, kind: str | None
 ) -> str:

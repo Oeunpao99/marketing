@@ -22,6 +22,7 @@ import {
   FiImage,
   FiLock,
   FiRepeat,
+  FiTrash2,
   FiMessageCircle,
   FiTrendingDown,
   FiTrendingUp,
@@ -35,6 +36,7 @@ import { platformHue } from '../components/insights/Overview'
 import { GrowthCard, MembersCard, MoreFromChannel, PostingTimeCard } from '../components/insights/PostDetail'
 import ImproveCard from '../components/insights/ImproveCard'
 import RepostDialog from '../components/insights/RepostDialog'
+import DeletePostDialog from '../components/insights/DeletePostDialog'
 import { OriginBadge, PLATFORM_ICONS, SERIES_COLORS, EngagementLineChart, engagementOf, mediaSrc } from './InsightsPage'
 
 const PLATFORM_NAMES = {
@@ -350,6 +352,7 @@ export default function InsightsPostPage() {
   const [zoom, setZoom] = useState(false)
   const [history, setHistory] = useState(null)
   const [reposting, setReposting] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -500,11 +503,17 @@ export default function InsightsPostPage() {
         <Link to="/insights" className="inline-flex items-center gap-1.5 text-[13px] font-medium text-ink-600 hover:text-ink-900">
           <FiArrowLeft size={16} /> Back to Analytics
         </Link>
-        <button type="button" onClick={() => setReposting(true)} className="btn-outline" title="Post this again — now or later, here or on another channel">
-          <FiRepeat size={14} /> Repost
-        </button>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => setDeleting(true)} className="btn-ghost px-3 py-1.5 text-red-600 hover:bg-red-50" title="Delete this post from the platform and ContentFlow">
+            <FiTrash2 size={14} /> Delete
+          </button>
+          <button type="button" onClick={() => setReposting(true)} className="btn-outline" title="Post this again — now or later, here or on another channel">
+            <FiRepeat size={14} /> Repost
+          </button>
+        </div>
       </div>
       {reposting && <RepostDialog post={post} onClose={() => setReposting(false)} />}
+      {deleting && <DeletePostDialog post={post} onClose={() => setDeleting(false)} onDeleted={() => navigate('/insights')} />}
 
       <div className="space-y-6">
         {/* The post */}

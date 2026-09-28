@@ -37,7 +37,7 @@ from app.models import (
     TeamMember,
     Video,
 )
-from app.publishers import PublishError, publish, verify_telegram
+from app.publishers import CannotUnpublish, PublishError, publish, unpublish, verify_telegram
 from app.security import sign_payload, verify_payload
 from app.tenancy import MANAGER_ROLES, current_workspace_id, get_current_user, owned, scope
 
@@ -1445,6 +1445,91 @@ def post_cancel_scheduled(post_id: int, db: Session = Depends(get_db), ws: int =
         db.delete(post)
     db.commit()
     return {"post_id": post_id, "cancelled": len(waiting)}
+
+
+# ── delete a post — on the platform first, then here ──────────────────────
+# A published channel is only removed from ContentFlow once its platform has
+# confirmed the delete, so nothing stays live that we no longer show. Where
+# the platform can't delete (Instagram, TikTok) or the delete failed, the row
+# stays and the reply says why; ``force=true`` then removes it here only —
+# for when the person has deleted it on the platform themselves.
+def _take_down(db: Session, target_id: int, force: bool) -> dict:
+    """Delete one channel's copy. Commits on its own, so a platform delete
+    that went through is never forgotten because a later channel failed."""
+    t = db.scalar(select(PostTarget).where(PostTarget.id == target_id).with_for_update())
+    if t is None:
+        return {"target_id": target_id, "result": "not_on_platform"}
+    ch = db.get(Channel, t.channel_id)
+    out = {
+        "target_id": t.id,
+        "channel_id": t.channel_id,
+        "platform": ch.platform.slug if ch and ch.platform else "",
+        "detail": "",
+    }
+    # Going out now (or within the edit lock) — the delivery worker may be
+    # about to send it, same rule as editing / cancelling.
+    if t.status == "posting" or (t.status == "queued" and not _editable(t, datetime.now(UTC))):
+        db.rollback()
+        return {**out, "result": "busy", "detail": "It's being sent right now — try again in a minute."}
+    if t.status == "posted" and ch is not None:
+        try:
+            out["result"] = unpublish(t, ch)
+        except CannotUnpublish as exc:
+            if not force:
+                db.rollback()
+                return {**out, "result": "manual", "detail": str(exc)}
+            out["result"] = "removed_here_only"
+        except PublishError as exc:
+            if not force:
+                db.rollback()
+                return {**out, "result": "failed", "detail": str(exc)}
+            out["result"] = "removed_here_only"
+    else:
+        out["result"] = "not_on_platform"  # queued / failed — it never went out
+    post_id = t.post_id
+    db.delete(t)  # its metric snapshots go with it (ON DELETE CASCADE)
+    db.flush()
+    if not db.scalar(select(func.count()).select_from(PostTarget).where(PostTarget.post_id == post_id)):
+        post = db.get(Post, post_id)
+        if post is not None:
+            db.delete(post)
+    db.commit()
+    return out
+
+
+def _removal_reply(post_id: int, results: list[dict], db: Session) -> dict:
+    return {
+        "post_id": post_id,
+        "post_deleted": db.get(Post, post_id) is None,
+        "channels": results,
+        # Still up somewhere and still shown here — the page asks what to do.
+        "remaining": [r for r in results if r["result"] in ("manual", "failed", "busy")],
+    }
+
+
+@router.delete("/posts/{post_id}")
+def post_delete(
+    post_id: int, force: bool = False, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)
+):
+    """Delete a post everywhere: every published channel is taken down on its
+    platform, anything still queued is cancelled."""
+    post = owned(db, Post, post_id, ws, "Post")
+    ids = db.scalars(select(PostTarget.id).where(PostTarget.post_id == post.id).order_by(PostTarget.id)).all()
+    results = [_take_down(db, tid, force) for tid in ids]
+    if not ids:
+        db.delete(post)
+        db.commit()
+    return _removal_reply(post_id, results, db)
+
+
+@router.delete("/post-targets/{target_id}")
+def post_target_delete(
+    target_id: int, force: bool = False, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)
+):
+    """Delete one channel's copy of a post (on its platform first)."""
+    t = owned(db, PostTarget, target_id, ws, "Post")
+    post_id = t.post_id
+    return _removal_reply(post_id, [_take_down(db, target_id, force)], db)
 
 
 # ── repost a published post ───────────────────────────────────────────────

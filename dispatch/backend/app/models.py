@@ -14,6 +14,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     LargeBinary,
     Numeric,
@@ -22,6 +23,7 @@ from sqlalchemy import (
     Time,
     event,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -197,7 +199,7 @@ class Post(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     brand_id: Mapped[int] = mapped_column(ForeignKey("brands.id", ondelete="CASCADE"), index=True)
     video_id: Mapped[int | None] = mapped_column(
-        ForeignKey("videos.id", ondelete="SET NULL"), nullable=True
+        ForeignKey("videos.id", ondelete="SET NULL"), nullable=True, index=True
     )
     title: Mapped[str] = mapped_column(String(200), default="")
     # draft | scheduled | posted
@@ -221,6 +223,12 @@ class Post(Base, TimestampMixin):
 
 class PostTarget(Base, TimestampMixin):
     __tablename__ = "post_targets"
+    __table_args__ = (
+        # The publishing worker's every-tick "what's due?" scan (views.py).
+        Index("ix_post_targets_due", "scheduled_for", postgresql_where=text("status IN ('queued', 'posting')")),
+        # Analytics / learning / weekly report: published posts in a date range.
+        Index("ix_post_targets_published", "published_at", postgresql_where=text("status = 'posted'")),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     post_id: Mapped[int] = mapped_column(
@@ -256,6 +264,8 @@ class PostTarget(Base, TimestampMixin):
 
 class Draft(Base, TimestampMixin):
     __tablename__ = "drafts"
+    # "N ideas waiting for review" — counted on every sidebar poll.
+    __table_args__ = (Index("ix_drafts_brand_status", "brand_id", "status"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     brand_id: Mapped[int] = mapped_column(ForeignKey("brands.id", ondelete="CASCADE"), index=True)
@@ -276,7 +286,7 @@ class Draft(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(String(12), default="waiting")
     # Set when Automation.auto_media generated an image/video for this idea.
     video_id: Mapped[int | None] = mapped_column(
-        ForeignKey("videos.id", ondelete="SET NULL"), nullable=True
+        ForeignKey("videos.id", ondelete="SET NULL"), nullable=True, index=True
     )
     # The AI's own 0-100 self-check of how well this idea is grounded in the
     # brand's real product facts — null for hand-made drafts.
@@ -301,6 +311,10 @@ class GenerationJob(Base, TimestampMixin):
     """
 
     __tablename__ = "generation_jobs"
+    __table_args__ = (
+        # The render worker's every-tick scan for unfinished jobs (video.py).
+        Index("ix_generation_jobs_open", "status", postgresql_where=text("status IN ('queued', 'running')")),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     workspace_id: Mapped[int] = mapped_column(
@@ -330,7 +344,7 @@ class GenerationJob(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(String(12), default="queued")
     error: Mapped[str] = mapped_column(Text, default="", server_default="")
     video_id: Mapped[int | None] = mapped_column(
-        ForeignKey("videos.id", ondelete="SET NULL"), nullable=True
+        ForeignKey("videos.id", ondelete="SET NULL"), nullable=True, index=True
     )
 
     video: Mapped[Video | None] = relationship()
@@ -530,6 +544,11 @@ class MetricSnapshot(Base):
     Not in app/registry.py: no generic CRUD endpoint."""
 
     __tablename__ = "metric_snapshots"
+    __table_args__ = (
+        # "Latest reading per post / per channel" — the fastest-growing table.
+        Index("ix_metric_snapshots_target_taken", "target_id", "taken_at"),
+        Index("ix_metric_snapshots_channel_taken", "channel_id", "taken_at", postgresql_where=text("target_id IS NULL")),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     workspace_id: Mapped[int] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)

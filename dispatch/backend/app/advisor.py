@@ -22,11 +22,12 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.content_ai import ContentAIError, _chat
+from app.content_ai import PILLARS, ContentAIError, _chat
 from app.database import get_db
 from app.imaging import ImageError, shrink
+from app.learning import brand_learnings
 from app.media import read_media
-from app.models import Automation, Brand, Channel, Draft, Platform, PostTarget, Product
+from app.models import Automation, Brand, BrandAsset, Channel, Draft, Platform, PostTarget, Product
 from app.tenancy import current_workspace_id, owned, scope
 
 router = APIRouter(prefix="/ai", tags=["AI"])
@@ -54,13 +55,28 @@ Rules:
   DATA says otherwise) — don't invent other countries or details.
 - Reply in the language the user wrote in (Khmer → natural Khmer; English → English).
 
-Also propose up to 3 concrete next posts as "suggestions", each with a ready-to-use,
-detailed image or video generation prompt (subject, setting, lighting, composition, style — no
-text/logos in the image) grounded in a real product from the DATA. Return [] if suggestions
-don't fit the question.
+- "What has worked" lines in the DATA are measured from the brand's own posts, with evidence —
+  build on them and quote them rather than guessing patterns yourself.
+
+Also propose up to 3 concrete next posts as "suggestions" for the brand the user is looking at
+(else the brand the question is about). Each one:
+- "pillar": what the post is about — one of: __PILLARS__.
+  A feed of nothing but product ads bores people: unless the user asks for product or sales
+  posts, at most 1 of the 3 is a selling pillar (product, proof, promotion), and lean towards
+  a pillar the "What has worked" lines favour.
+- "type": "video" only for an idea that works as ONE short continuous shot (one subject, one
+  action, 8 seconds); otherwise "image".
+- "product": the exact name of the product from the DATA the visual shows, or "" if none.
+- "brief": 1-3 sentences in English saying what the post is and what the picture or clip shows —
+  concrete and filmable (who, where, what happens), set in the brand's market. It is NOT the
+  final generation prompt (a specialist writes that from your brief), so no camera, lighting or
+  style lists, and never text or logos drawn in the visual.
+Return [] if suggestions don't fit the question.
 
 Reply as JSON: {"answer": "<markdown>", "suggestions": [{"label": "<short title>",
-"type": "image" | "video", "prompt": "<generation prompt>"}]}"""
+"type": "image" | "video", "pillar": "...", "product": "...", "brief": "..."}]}""".replace(
+    "__PILLARS__", ", ".join(f"{k} ({label})" for k, (label, _) in PILLARS.items())
+)
 
 
 class HistoryItem(BaseModel):
@@ -143,6 +159,12 @@ def _snapshot(db: Session, ws: int, focus_brand_id: int | None) -> str:
                 f"Auto-generate: {'ON' if a.enabled else 'off'}, {a.videos_per_day}/day at {a.run_at:%H:%M}, "
                 f"topics: {a.topic_source or '-'}, review first: {a.require_approval}, auto images: {a.auto_media}"
             )
+        # Measured from this brand's own posts (app/learning.py) — the same
+        # rules the Weekly plan and Auto-generate follow.
+        rules = brand_learnings(db, b.id)["rules"]
+        if rules:
+            lines.append("What has worked (measured):")
+            lines += [f"- {r['text']} ({r['evidence']})" for r in rules]
 
     queued = db.scalar(
         select(func.count())
@@ -248,16 +270,37 @@ def advisor(
     except ContentAIError as exc:
         raise HTTPException(503, str(exc)) from exc
 
+    # Products that have a brand-kit photo, by lowercased name — a suggestion
+    # naming one starts from that real photo (the video's first frame / the
+    # image's product reference) instead of a product the model invents.
+    photo_rows = db.execute(
+        select(Product.id, Product.name, Product.brand_id)
+        .join(BrandAsset, BrandAsset.product_id == Product.id)
+        .where(BrandAsset.kind == "product", Product.brand_id.in_(select(Brand.id).where(scope(Brand, ws))))
+    ).all()
+    photos: dict[str, int] = {}
+    for pid, name, bid in photo_rows:
+        # The brand the user is looking at wins a name clash.
+        if name and (name.lower() not in photos or bid == payload.brand_id):
+            photos[name.lower()] = pid
+
     suggestions = []
     for s in (out.get("suggestions") or [])[:3]:
-        if isinstance(s, dict) and s.get("prompt"):
-            suggestions.append(
-                {
-                    "label": _clip(str(s.get("label") or "Post idea"), 80),
-                    "type": "video" if s.get("type") == "video" else "image",
-                    "prompt": str(s["prompt"]).strip(),
-                }
-            )
+        brief = str((s.get("brief") or s.get("prompt") or "") if isinstance(s, dict) else "").strip()
+        if not brief:
+            continue
+        pillar = str(s.get("pillar") or "").strip().lower()
+        suggestions.append(
+            {
+                "label": _clip(str(s.get("label") or "Post idea"), 80),
+                "type": "video" if s.get("type") == "video" else "image",
+                "pillar": pillar if pillar in PILLARS else "",
+                # The idea only — the page turns it into the real generation
+                # prompt with app/ai.py's writer (same one as the ✦ button).
+                "brief": brief,
+                "product_id": photos.get(str(s.get("product") or "").strip().lower()),
+            }
+        )
     answer = str(out.get("answer") or "").strip()
     if not answer:
         raise HTTPException(502, "The advisor returned an empty answer — try asking again.")

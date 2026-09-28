@@ -31,6 +31,7 @@ import { handoff } from '../lib/handoff'
 import { colorForBrand } from '../lib/brandColor'
 import { trackJob, untrackJob } from '../lib/genJobs'
 import { fmtUSD } from '../lib/money'
+import { PILLAR_LABELS, pillarChipClass } from '../lib/angles'
 import { kitSrc, TemplatePicker } from '../components/brandkit/BrandKit'
 
 // AI Agent — one chat for both asking and creating. A message that reads
@@ -563,21 +564,47 @@ export default function AIPromptPage() {
     run(turn)
   }
 
-  const generateSuggestion = (sug) => {
+  // An advisor suggestion carries an idea brief (+ pillar, product photo): it
+  // goes through the same prompt writer as ✦ first, so suggested videos get
+  // the short timed shot plan and start from the real product photo. Chats
+  // saved before that carry a finished `prompt` and go straight to render.
+  const generateSuggestion = async (sug) => {
     const kind = sug.type === 'video' ? 'video' : 'image'
+    const productId = sug.product_id ?? null
+    if (!sug.brief && !sug.prompt) return showToast('This suggestion is empty — ask again for fresh ideas')
     const turn = {
       id: ++turnSeq,
-      prompt: sug.prompt,
+      prompt: sug.brief || sug.prompt,
       kind,
       ratio: kind === 'video' ? '9:16' : isImage ? ratio : '1:1',
       seconds,
       brandId: brandObj?.id ?? null,
       brandName: brandObj?.name || '',
+      kit: productId ? { templateId: null, productId, logo: false } : null,
       status: 'working',
       startedAt: Date.now(),
     }
     setTurns((list) => [...list, turn])
-    run(turn)
+    if (!sug.brief) return run(turn)
+    try {
+      const res = await api.post('/ai/prompt', {
+        brand: brandObj?.name || '',
+        brand_language: brandObj?.lang || '',
+        brand_id: brandObj?.id ?? null,
+        type: kind,
+        aspect_ratio: turn.ratio,
+        seconds,
+        style,
+        topic: sug.brief,
+        has_reference: kind === 'video' && !!productId,
+        brand_kit: kind === 'image' && !!productId,
+      })
+      addTokens(res.total_tokens)
+      patchTurn(turn.id, { prompt: res.prompt })
+      run({ ...turn, prompt: res.prompt })
+    } catch (e) {
+      patchTurn(turn.id, { status: 'failed', error: `Couldn’t write the prompt — ${e.message}` })
+    }
   }
 
   const send = () => {
@@ -718,7 +745,7 @@ export default function AIPromptPage() {
   }
 
   const editPrompt = (turn) => {
-    setText(turn.prompt)
+    setText(turn.prompt || '')
     chooseType(turn.kind === 'image' ? 'image' : 'video')
     if (turn.kind !== 'image') setVideoMode(turn.kind === 'story' ? 'story' : 'clip')
     if (turn.kind === 'story') {
@@ -1359,12 +1386,17 @@ function AskTurn({ t, onRetry, onGenerate, onEdit }) {
                         key={sug.label}
                         type="button"
                         onClick={() => onGenerate(sug)}
-                        title={sug.prompt}
+                        title={sug.brief || sug.prompt}
                         className="inline-flex items-center gap-1.5 rounded-full border border-brand/30 bg-white px-3.5 py-1.5 text-[12px] font-medium text-brand hover:bg-brand-soft transition-colors"
                       >
                         <span>✦</span>
                         {sug.type === 'video' ? <FiVideo size={12} /> : <FiImage size={12} />}
                         {sug.label}
+                        {PILLAR_LABELS[sug.pillar] && (
+                          <span className={`rounded-full px-1.5 py-px text-[10px] font-semibold ${pillarChipClass(sug.pillar)}`}>
+                            {PILLAR_LABELS[sug.pillar]}
+                          </span>
+                        )}
                       </button>
                     ))}
                   </div>
@@ -1457,7 +1489,9 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary }) {
   const [expanded, setExpanded] = useState(false)
   const [viewing, setViewing] = useState(false)
   const [copied, setCopied] = useState(false)
-  const long = t.prompt.length > 320
+  // Chats saved by an older page version can hold a turn without a prompt.
+  const prompt = t.prompt || ''
+  const long = prompt.length > 320
   const elapsed = t.startedAt ? (Date.now() - t.startedAt) / 1000 : 0
   const renderElapsed = t.renderedAt ? (Date.now() - new Date(t.renderedAt).getTime()) / 1000 : null
   // Images get no % back from the provider, so the number is an ETA-anchored
@@ -1488,7 +1522,7 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary }) {
 
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(t.prompt)
+      await navigator.clipboard.writeText(prompt)
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
     } catch {
@@ -1502,7 +1536,7 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary }) {
       <div className="flex flex-col items-end">
         <div className="max-w-[70%] rounded-2xl rounded-br-md bg-brand-soft/70 px-4 py-2.5 text-[13px] leading-relaxed text-ink-900 whitespace-pre-wrap">
           {t.refPreview && <img src={t.refPreview} alt="" className="mb-2 w-20 h-20 rounded-lg object-cover" />}
-          {long && !expanded ? `${t.prompt.slice(0, 320).trimEnd()}…` : t.prompt}
+          {long && !expanded ? `${prompt.slice(0, 320).trimEnd()}…` : prompt}
           {long && (
             <button type="button" onClick={() => setExpanded((v) => !v)} className="ml-1 text-[12px] font-semibold text-brand">
               {expanded ? 'Show less' : 'Show more'}
