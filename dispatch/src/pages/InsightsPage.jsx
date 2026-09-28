@@ -811,13 +811,17 @@ export default function InsightsPage() {
     const map = new Map()
     for (const it of filtered) {
       if (isResolved(it) || !isConnectionProblem(it)) continue
-      const cur = map.get(it.platform_slug) || { count: 0, note: it.note }
-      map.set(it.platform_slug, { count: cur.count + 1, note: cur.note })
+      const cur = map.get(it.platform_slug) || { count: 0, note: it.note, accounts: new Set() }
+      // Which Page / account under which brand — each brand keeps its own
+      // saved login, so each one listed here needs reconnecting.
+      cur.accounts.add([it.channel_handle, it.brand_name].filter(Boolean).join(' · '))
+      map.set(it.platform_slug, { ...cur, count: cur.count + 1 })
     }
-    return [...map.entries()].map(([slug, { count, note }]) => ({
+    return [...map.entries()].map(([slug, { count, note, accounts }]) => ({
       slug,
       count,
       note,
+      accounts: [...accounts].filter(Boolean),
       permission: isPermissionProblem(note),
     }))
   }, [filtered])
@@ -1088,17 +1092,21 @@ export default function InsightsPage() {
                   ? `${p.count} post${p.count === 1 ? '' : 's'} can't report numbers: the app needs a permission to read stats. Posting still works.`
                   : `${p.count} post${p.count === 1 ? '' : 's'} can't report numbers until you reconnect the account.`}
               </div>
+              {p.accounts.length > 0 && (
+                <div className="mt-0.5 text-[12px] text-ink-700">
+                  Affected: <span className="font-semibold">{p.accounts.join(', ')}</span> — reconnect{' '}
+                  {p.accounts.length === 1 ? 'it' : 'each one'} and allow every permission.
+                </div>
+              )}
               {p.note && (
                 <div className="mt-1 line-clamp-2 text-[11px] text-ink-400" title={p.note}>
                   {PLATFORM_LABELS[p.slug] || p.slug} says: {p.note}
                 </div>
               )}
             </div>
-            {!p.permission && (
-              <button type="button" onClick={() => navigate('/channels')} className="btn-outline">
-                Reconnect
-              </button>
-            )}
+            <button type="button" onClick={() => navigate('/channels')} className="btn-outline">
+              Reconnect
+            </button>
           </div>
         )
       })}
