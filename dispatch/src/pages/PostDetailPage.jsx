@@ -188,7 +188,7 @@ export default function PostDetailPage() {
       </div>
 
       {zoom && src && (
-        <div className="fixed inset-0 z-[100] bg-ink-950/80 grid place-items-center p-6 animate-fadein" onClick={() => setZoom(false)}>
+        <div className="fixed inset-0 z-[100] bg-night-950/80 grid place-items-center p-6 animate-fadein" onClick={() => setZoom(false)}>
           {isImage ? (
             <img src={src} alt="" className="max-h-[85vh] max-w-full rounded-xl object-contain" />
           ) : (

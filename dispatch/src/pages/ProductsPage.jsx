@@ -6,6 +6,7 @@ import { api } from '../api/client'
 import { colorForBrand } from '../lib/brandColor'
 import { useStore } from '../store'
 import MarkdownText from '../components/ui/MarkdownText'
+import Select from '../components/ui/Select'
 
 const EMPTY_FORM = { name: '', description: '', highlights: '' }
 const PREVIEW_CHARS = 340
@@ -187,7 +188,7 @@ export default function ProductsPage() {
       {/* Delete confirmation */}
       {confirmItem && (
         <div
-          className="fixed inset-0 z-50 bg-ink-950/25 backdrop-blur-md flex items-center justify-center p-4 animate-fadein"
+          className="fixed inset-0 z-50 bg-night-950/40 backdrop-blur-md flex items-center justify-center p-4 animate-fadein"
           onClick={() => setConfirmItem(null)}
         >
           <div
@@ -344,20 +345,15 @@ function ProductForm({ form, setForm, brands, busy, onCancel, onSave, title }) {
           }}
         >
           <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
-            <label className="block">
+            <div>
               <span className="mb-1.5 block text-[12px] font-semibold text-ink-800">Brand</span>
-              <select
+              <Select
+                size="lg"
                 value={form.brand_id ?? ''}
-                onChange={(e) => setForm((f) => ({ ...f, brand_id: +e.target.value }))}
-                className={fieldClass}
-              >
-                {brands.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+                onChange={(brand_id) => setForm((f) => ({ ...f, brand_id }))}
+                options={brands.map((b) => ({ value: b.id, label: b.name, color: colorForBrand(b.slug) }))}
+              />
+            </div>
             <label className="block">
               <span className="mb-1.5 block text-[12px] font-semibold text-ink-800">
                 Name <span className="text-red-500">*</span>

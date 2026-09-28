@@ -2,10 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { FiArrowDownRight, FiArrowUpRight, FiCalendar, FiCheck, FiRefreshCw, FiTrendingUp, FiX } from 'react-icons/fi'
 import { api } from '../api/client'
+import { angleText } from '../lib/angles'
 import { colorForBrand } from '../lib/brandColor'
 import { useStore } from '../store'
 import { PLAT } from '../data/brands'
 import AutoTextarea from '../components/ui/AutoTextarea'
+import Select from '../components/ui/Select'
 
 // The weekly habit (backend app/weekly.py): how the last 7 days went, what the
 // AI learned, and next week's posts — trimmed here and approved in one tap.
@@ -152,17 +154,13 @@ export default function WeeklyPage() {
           </p>
         </div>
         {brands.length > 1 && (
-          <select
+          <Select
+            align="right"
             value={brand.slug}
-            onChange={(e) => switchBrand(e.target.value)}
-            className="bg-white border border-ink-200 rounded-xl px-3 py-2 text-[12.5px] font-medium focus:outline-none focus:border-brand"
-          >
-            {brands.map((b) => (
-              <option key={b.slug} value={b.slug}>
-                {b.name}
-              </option>
-            ))}
-          </select>
+            onChange={switchBrand}
+            buttonClassName="font-medium"
+            options={brands.map((b) => ({ value: b.slug, label: b.name, color: colorForBrand(b.slug) }))}
+          />
         )}
       </div>
 
@@ -387,6 +385,14 @@ function PlanItem({ item, onRemove, onSave }) {
                 title="AI's own self-check: how grounded this idea is in real product facts"
               >
                 {item.fit_score}% fit
+              </span>
+            )}
+            {angleText(item.angle, item.goal) && (
+              <span
+                className="rounded-full bg-ink-100 px-1.5 py-px text-[10px] font-semibold text-ink-600"
+                title="The marketing angle and goal the AI wrote this caption for"
+              >
+                {angleText(item.angle, item.goal)}
               </span>
             )}
           </div>

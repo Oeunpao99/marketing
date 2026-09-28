@@ -24,6 +24,7 @@ import {
 import { useStore } from '../store'
 import { api } from '../api/client'
 import AutoTextarea from '../components/ui/AutoTextarea'
+import Select from '../components/ui/Select'
 import GeneratingCanvas from '../components/ui/GeneratingCanvas'
 import StoryEditor from '../components/story/StoryEditor'
 import { handoff } from '../lib/handoff'
@@ -683,7 +684,7 @@ export default function AIPromptPage() {
     // bottom — even when the thread is short or empty.
     <div className="w-full px-5 lg:px-10 animate-fade flex flex-col min-h-[calc(100dvh-7.5rem-env(safe-area-inset-bottom))] lg:min-h-[calc(100dvh-3.5rem)]">
       {/* Page header — pinned under the top bar while the thread scrolls. */}
-      <div className="sticky top-14 z-20 -mx-5 lg:-mx-10 px-5 lg:px-10 bg-[#F4F6F9]/90 backdrop-blur-md">
+      <div className="sticky top-14 z-20 -mx-5 lg:-mx-10 px-5 lg:px-10 bg-canvas/90 backdrop-blur-md">
         <div className="mx-auto w-full lg:w-4/5 flex items-center justify-between gap-3 py-4">
           <div>
             <h1 className="text-[22px] font-bold text-ink-900 tracking-tight leading-tight">AI Agent</h1>
@@ -814,7 +815,7 @@ export default function AIPromptPage() {
       </div>
 
       {/* composer */}
-      <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] lg:bottom-0 z-20 -mx-5 lg:-mx-10 px-5 lg:px-10 pb-5 pt-6 bg-gradient-to-t from-[#F4F6F9] via-[#F4F6F9] to-transparent">
+      <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] lg:bottom-0 z-20 -mx-5 lg:-mx-10 px-5 lg:px-10 pb-5 pt-6 bg-gradient-to-t from-canvas via-canvas to-transparent">
         <div
           ref={composerRef}
           onDragOver={(e) => {
@@ -1453,7 +1454,7 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary }) {
                   src={url}
                   controls
                   playsInline
-                  className="block w-full h-auto rounded-2xl bg-ink-900 ring-1 ring-ink-900/10 animate-media-reveal"
+                  className="block w-full h-auto rounded-2xl bg-night-900 ring-1 ring-ink-900/10 animate-media-reveal"
                 />
                 <button
                   type="button"
@@ -1525,7 +1526,7 @@ function MediaViewer({ url, isImage, filename, onUse, onClose }) {
   }, [onClose])
 
   return createPortal(
-    <div className="fixed inset-0 z-[120] bg-ink-950/90 animate-fadein" onClick={onClose}>
+    <div className="fixed inset-0 z-[120] bg-night-950/90 animate-fadein" onClick={onClose}>
       <div className="absolute right-4 top-4 z-10 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
         <button
           type="button"
@@ -1653,10 +1654,7 @@ function SettingsPopover({
     }`
   // Narrow equal-width buttons (lengths): no side padding, allowed to shrink.
   const tight = (on) => `${chip(on).replace('px-2.5', 'px-0')} min-w-0 flex-1`
-  const select =
-    'h-8 w-full rounded-lg border border-ink-200 bg-white px-2 text-[11.5px] text-ink-700 focus:outline-none focus:border-brand'
   const story = type === 'video' && videoMode === 'story'
-  const current = brands.find((b) => b.slug === brand)
 
   return (
     <div className="absolute bottom-full left-0 mb-2 w-[460px] max-w-[calc(100vw-40px)] rounded-2xl border border-ink-200/80 bg-white p-4 shadow-[0_18px_50px_-12px_rgba(16,24,40,0.28)] animate-fadein">
@@ -1743,19 +1741,12 @@ function SettingsPopover({
           )}
 
           <Setting label="Brand">
-            <div className="relative">
-              <span
-                className="pointer-events-none absolute left-2.5 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full"
-                style={{ background: current ? colorForBrand(current.slug) : 'transparent' }}
-              />
-              <select value={brand || ''} onChange={(e) => setBrand(e.target.value)} className={`${select} pl-6`}>
-                {brands.map((b) => (
-                  <option key={b.slug} value={b.slug}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <Select
+              size="sm"
+              value={brand || ''}
+              onChange={setBrand}
+              options={brands.map((b) => ({ value: b.slug, label: b.name, color: colorForBrand(b.slug) }))}
+            />
           </Setting>
         </div>
       </div>
@@ -1785,16 +1776,21 @@ function SettingsPopover({
         <span className="text-[10.5px] text-ink-400">
           <span className="text-brand">✦</span> Write it for me uses
         </span>
-        <select value={template} onChange={(e) => setTemplate(e.target.value)} className={`${select} w-auto min-w-0 flex-1`}>
-          {TEMPLATES[type].map((x) => (
-            <option key={x}>{x}</option>
-          ))}
-        </select>
-        <select value={style} onChange={(e) => setStyle(e.target.value)} className={`${select} w-auto min-w-0 flex-1`}>
-          {STYLES.map((x) => (
-            <option key={x}>{x}</option>
-          ))}
-        </select>
+        <Select
+          size="sm"
+          className="min-w-0 flex-1"
+          value={template}
+          onChange={setTemplate}
+          options={TEMPLATES[type].map((x) => ({ value: x }))}
+        />
+        <Select
+          size="sm"
+          align="right"
+          className="min-w-0 flex-1"
+          value={style}
+          onChange={setStyle}
+          options={STYLES.map((x) => ({ value: x }))}
+        />
       </div>
     </div>
   )

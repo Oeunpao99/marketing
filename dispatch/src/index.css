@@ -12,6 +12,47 @@
   --brand-soft: 228 239 250;
   --brand-softer: 242 247 252;
   --brand-line: 211 227 244;
+  --brand-text: 26 111 196;
+
+  /* Light theme: greys, surfaces, the page canvas (RGB triplets). */
+  --ink-50: 247 248 249;
+  --ink-100: 237 238 240;
+  --ink-200: 216 219 223;
+  --ink-300: 179 186 195;
+  --ink-400: 107 118 131;
+  --ink-500: 74 83 95;
+  --ink-600: 50 58 68;
+  --ink-700: 38 44 51;
+  --ink-800: 30 35 42;
+  --ink-900: 22 25 30;
+  --ink-950: 14 16 20;
+  --surface: 255 255 255;
+  --edge: 255 255 255;
+  --canvas: 244 246 249;
+  --canvas-soft: 250 251 252;
+  color-scheme: light;
+}
+
+/* Dark theme (src/lib/theme.js puts `dark` on <html>): the grey scale flips —
+   ink-900 becomes the light text colour, ink-50/100 the dark hover fills —
+   and cards become a dark surface on a darker canvas. */
+html.dark {
+  --ink-50: 20 24 30;
+  --ink-100: 30 35 43;
+  --ink-200: 45 51 61;
+  --ink-300: 72 80 92;
+  --ink-400: 134 145 158;
+  --ink-500: 160 170 182;
+  --ink-600: 188 196 206;
+  --ink-700: 210 216 223;
+  --ink-800: 226 230 235;
+  --ink-900: 237 240 243;
+  --ink-950: 247 248 249;
+  --surface: 24 28 35;
+  --edge: 52 58 68;
+  --canvas: 14 17 21;
+  --canvas-soft: 18 21 26;
+  color-scheme: dark;
 }
 
 /* Settings → Appearance → Reduce motion */
@@ -39,7 +80,7 @@
 
 @layer base {
   html, body {
-    @apply m-0 p-0 bg-ink-50 text-ink-900 antialiased;
+    @apply m-0 p-0 bg-canvas text-ink-900 antialiased;
     font-family: 'Inter', 'Khmer OS Siemreap', system-ui, sans-serif;
   }
   * { @apply box-border; }
@@ -130,7 +171,7 @@ select {
   /* Every popup uses these three (modals, sheets, drawers, dropdowns):
      a blurred dim backdrop, and frosted translucent panels on top of it. */
   .glass-overlay {
-    @apply bg-ink-950/25 backdrop-blur-md;
+    @apply bg-night-950/25 backdrop-blur-md;
   }
   .glass-panel {
     @apply bg-white/80 backdrop-blur-2xl backdrop-saturate-150 border border-white/70;
@@ -139,10 +180,6 @@ select {
   .glass-drawer {
     @apply bg-white/85 backdrop-blur-2xl backdrop-saturate-150 border-l border-white/70;
     box-shadow: -18px 0 50px -16px rgba(16, 24, 40, 0.28);
-  }
-  /* Flat, cool light-gray app canvas — white cards sit on it. */
-  .bg-canvas {
-    background: #F4F6F9;
   }
 
   /* ————— forms ————— */
@@ -189,7 +226,7 @@ select {
   /* ————— skeleton loader ————— */
   .skeleton {
     @apply relative overflow-hidden rounded-lg bg-ink-100;
-    background-image: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.7) 50%, transparent 100%);
+    background-image: linear-gradient(90deg, transparent 0%, rgb(var(--surface) / 0.7) 50%, transparent 100%);
     background-size: 200% 100%;
     animation: shimmer 1.6s linear infinite;
   }
@@ -222,7 +259,7 @@ select {
     background:
       radial-gradient(54% 70% at 82% 0%, rgb(var(--brand) / 0.10), transparent 60%),
       radial-gradient(40% 60% at 8% 100%, rgb(var(--brand-light) / 0.08), transparent 55%),
-      linear-gradient(180deg, #FFFFFF 0%, rgb(var(--brand-softer)) 100%);
+      linear-gradient(180deg, rgb(var(--surface)) 0%, rgb(var(--brand-softer)) 100%);
   }
 }
 /* ── AI Agent "generating" canvas (AIPromptPage's GeneratingCanvas) ──────
@@ -276,6 +313,20 @@ select {
   .cf-smoke, .cf-float, .cf-halo, .cf-puff, .cf-sweep { animation: none !important; }
   .cf-puff, .cf-sweep { display: none; }
 }
+
+/* Dark mode for the component classes built with @apply from pastel colours
+   (utility classes get theirs from src/styles/dark-tints.css). */
+html.dark .btn-danger { background-color: rgb(239 68 68 / 0.12); color: #fca5a5; border-color: rgb(239 68 68 / 0.3); }
+html.dark .btn-danger:hover { background-color: rgb(239 68 68 / 0.2); }
+html.dark .text-brand, html.dark .hover\:text-brand:hover, html.dark .group:hover .group-hover\:text-brand { color: rgb(var(--brand-text)); }
+
+/* The "generating" canvas in dark mode: light glowing in the dark — the
+   smoke glows in the accent colours, the shimmer and puffs are faint and
+   accent-tinted instead of white glare, and the logo sits in an accent glow. */
+html.dark .cf-smoke { mix-blend-mode: screen; opacity: .9; }
+html.dark .cf-sweep { background: linear-gradient(90deg, transparent, rgb(255 255 255 / .07), transparent); }
+html.dark .cf-puff { background: radial-gradient(circle, rgb(var(--brand-light) / .45), transparent 70%); }
+html.dark .cf-halo { background-color: rgb(var(--brand) / .45); }
 
 /* ── Joining a video story (components/story/JoiningCanvas.jsx) ──────────
    Clips, voice and captions fly into an editor timeline, a playhead sweeps

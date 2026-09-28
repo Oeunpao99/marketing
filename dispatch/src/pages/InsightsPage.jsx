@@ -2,6 +2,7 @@
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { buildFunnel, buildInsights } from '../lib/insightsEngine'
 import Pager from '../components/ui/Pager'
+import Select from '../components/ui/Select'
 import {
   ActionCards,
   bucket,
@@ -23,7 +24,7 @@ import {
   SiTiktok,
   SiYoutube,
 } from 'react-icons/si'
-import { FiChevronDown, FiDownload, FiEye, FiFileText, FiGrid, FiHeart, FiImage, FiMessageCircle, FiPlay, FiRefreshCw, FiShare2 } from 'react-icons/fi'
+import { FiDownload, FiEye, FiFileText, FiGrid, FiHeart, FiImage, FiMessageCircle, FiPlay, FiRefreshCw, FiShare2 } from 'react-icons/fi'
 import { api } from '../api/client'
 import { useStore } from '../store'
 import { colorForBrand } from '../lib/brandColor'
@@ -135,8 +136,26 @@ export function fmtDate(iso) {
 
 export function mediaSrc(url) {
   if (!url) return null
+  if (/^https?:\/\//i.test(url)) return url
   const base = window.location.port === '5173' ? 'http://localhost:8000' : ''
   return `${base}${url}`
+}
+
+/** Where a post was made: through ContentFlow, or straight on the platform
+ * (imported from the connected Page — app/importer.py). */
+export function OriginBadge({ origin, platform }) {
+  const native = origin === 'native'
+  const name = { facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok', telegram: 'Telegram', linkedin: 'LinkedIn', youtube: 'YouTube' }[platform] || 'the platform'
+  return (
+    <span
+      title={native ? `Posted directly on ${name} — imported from the connected account` : 'Posted with ContentFlow'}
+      className={`inline-flex flex-none items-center whitespace-nowrap rounded-full px-1.5 py-px text-[10px] font-semibold ${
+        native ? 'bg-ink-100 text-ink-600' : 'bg-brand-soft text-brand'
+      }`}
+    >
+      {native ? `On ${name}` : 'ContentFlow'}
+    </span>
+  )
 }
 
 /** engagement = the sum of whatever counts we actually have for that platform. */
@@ -373,7 +392,7 @@ export function EngagementLineChart({ series, activeTargetId, brandColor, height
               cx={p.x}
               cy={p.y}
               r={active ? 4.5 : 2.5}
-              fill="#fff"
+              style={{ fill: 'rgb(var(--surface))' }}
               stroke={active ? brandColor : '#B6BCC5'}
               strokeWidth={active ? 2.5 : 1.5}
             />
@@ -534,7 +553,7 @@ function MultiLineChart({ days, series, height = 330 }) {
           <g pointerEvents="none">
             <line x1={xf(hover)} x2={xf(hover)} y1={PAD.top} y2={PAD.top + innerH} stroke="#94A3B8" strokeDasharray="3 4" />
             {keys.map((k) => (
-              <circle key={k} cx={xf(hover)} cy={yf(series[k][hover])} r="4" fill="#fff" stroke={SERIES_COLORS[k]} strokeWidth="2" />
+              <circle key={k} cx={xf(hover)} cy={yf(series[k][hover])} r="4" style={{ fill: 'rgb(var(--surface))' }} stroke={SERIES_COLORS[k]} strokeWidth="2" />
             ))}
             {(() => {
               const tipW = 132
@@ -625,6 +644,7 @@ export default function InsightsPage() {
   const [items, setItems] = useState(null)
   const [brandFilter, setBrandFilter] = useState('all')
   const [typeFilter, setTypeFilter] = useState('all')
+  const [originFilter, setOriginFilter] = useState('all')
   const [tagFilter, setTagFilter] = useState('all')
   const [rangeId, setRangeId] = useState('30')
   const [loading, setLoading] = useState(false)
@@ -665,9 +685,10 @@ export default function InsightsPage() {
       if (cutoff && it.published_at && new Date(it.published_at).getTime() < cutoff) return false
       if (typeFilter !== 'all' && it.media_kind !== typeFilter) return false
       if (tagFilter !== 'all' && !hashtagsOf(it.caption || it.title).includes(tagFilter)) return false
+      if (originFilter !== 'all' && (it.origin || 'contentflow') !== originFilter) return false
       return true
     })
-  }, [items, cutoff, typeFilter, tagFilter])
+  }, [items, cutoff, typeFilter, tagFilter, originFilter])
 
   const isResolved = (it) => it.status === 'ok' || it.status === 'partial'
 
@@ -681,9 +702,10 @@ export default function InsightsPage() {
       if (t == null || t < start || t >= cutoff) return false
       if (typeFilter !== 'all' && it.media_kind !== typeFilter) return false
       if (tagFilter !== 'all' && !hashtagsOf(it.caption || it.title).includes(tagFilter)) return false
+      if (originFilter !== 'all' && (it.origin || 'contentflow') !== originFilter) return false
       return true
     })
-  }, [items, range.days, cutoff, typeFilter, tagFilter])
+  }, [items, range.days, cutoff, typeFilter, tagFilter, originFilter])
 
   const totalsOf = (rows) => {
     let views = 0
@@ -767,7 +789,7 @@ export default function InsightsPage() {
   const pageCount = Math.max(1, Math.ceil(filtered.length / PER_PAGE))
   // Keyed on the filter inputs, not `filtered` — that array is rebuilt every
   // render (the date cutoff is "now"), which would snap back to page 1 constantly.
-  useEffect(() => setPage(0), [items, rangeId, brandFilter, typeFilter, tagFilter])
+  useEffect(() => setPage(0), [items, rangeId, brandFilter, typeFilter, tagFilter, originFilter])
   const pageRows = filtered.slice(page * PER_PAGE, (page + 1) * PER_PAGE)
   const goToPage = (p) => {
     setPage(Math.min(Math.max(0, p), pageCount - 1))
@@ -993,23 +1015,41 @@ export default function InsightsPage() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2 mb-5">
-        <Dropdown value={brandFilter} onChange={setBrandFilter} label="Brand">
-          <option value="all">All brands</option>
-          {brands.map((b) => (
-            <option key={b.id} value={b.slug}>{b.name}</option>
-          ))}
-        </Dropdown>
-        <Dropdown value={typeFilter} onChange={setTypeFilter} label="Post type">
-          <option value="all">All post types</option>
-          <option value="image">Images</option>
-          <option value="video">Videos</option>
-        </Dropdown>
-        <Dropdown value={tagFilter} onChange={setTagFilter} label="Hashtag">
-          <option value="all">All hashtags</option>
-          {allTags.map((t) => (
-            <option key={t} value={t}>{t}</option>
-          ))}
-        </Dropdown>
+        <Dropdown
+          value={brandFilter}
+          onChange={setBrandFilter}
+          label="Brand"
+          options={[
+            { value: 'all', label: 'All brands' },
+            ...brands.map((b) => ({ value: b.slug, label: b.name, color: colorForBrand(b.slug) })),
+          ]}
+        />
+        <Dropdown
+          value={typeFilter}
+          onChange={setTypeFilter}
+          label="Post type"
+          options={[
+            { value: 'all', label: 'All post types' },
+            { value: 'image', label: 'Images' },
+            { value: 'video', label: 'Videos' },
+          ]}
+        />
+        <Dropdown
+          value={originFilter}
+          onChange={setOriginFilter}
+          label="Posted from"
+          options={[
+            { value: 'all', label: 'Posted from anywhere' },
+            { value: 'contentflow', label: 'Posted with ContentFlow' },
+            { value: 'native', label: 'Posted directly on the Page' },
+          ]}
+        />
+        <Dropdown
+          value={tagFilter}
+          onChange={setTagFilter}
+          label="Hashtag"
+          options={[{ value: 'all', label: 'All hashtags' }, ...allTags.map((t) => ({ value: t }))]}
+        />
         <div className="ml-auto flex items-center gap-2">
           <button type="button" onClick={exportCsv} disabled={!filtered.length} className="btn-outline">
             <FiDownload size={15} /> Export
@@ -1280,7 +1320,7 @@ export default function InsightsPage() {
                             <div className="flex items-center gap-3">
                               <div className="relative flex-none">
                                 <div className="relative isolate w-11 h-11 rounded-lg bg-ink-100 overflow-hidden">
-                                  {src && it.media_kind === 'image' ? (
+                                  {src && (it.media_kind === 'image' || it.media_thumb) ? (
                                     <img src={src} alt="" className="w-full h-full object-cover" />
                                   ) : src ? (
                                     <>
@@ -1321,6 +1361,7 @@ export default function InsightsPage() {
                                   <span className="truncate">{it.brand_name}</span>
                                   <span className="text-ink-300">·</span>
                                   <span className="whitespace-nowrap">{fmtDate(it.published_at)}</span>
+                                  <OriginBadge origin={it.origin} platform={it.platform_slug} />
                                 </div>
                                 {!resolved && it.note && !grouped && (
                                   <div className="text-[11px] text-amber-700 mt-0.5 truncate">{it.note}</div>
@@ -1432,7 +1473,7 @@ function MobilePostRow({ it, onOpen }) {
     <button type="button" onClick={onOpen} className="flex w-full gap-3 px-4 py-3.5 text-left active:bg-ink-50">
       <div className="relative flex-none">
         <div className="relative isolate h-12 w-12 overflow-hidden rounded-xl bg-ink-100">
-          {src && it.media_kind === 'image' ? (
+          {src && (it.media_kind === 'image' || it.media_thumb) ? (
             <img src={src} alt="" className="h-full w-full object-cover" />
           ) : src ? (
             <>
@@ -1467,6 +1508,7 @@ function MobilePostRow({ it, onOpen }) {
           <span className="truncate">{it.brand_name}</span>
           <span className="text-ink-300">·</span>
           <span className="whitespace-nowrap">{fmtDate(it.published_at)}</span>
+          <OriginBadge origin={it.origin} platform={it.platform_slug} />
         </div>
         {stats.length > 0 ? (
           <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-ink-700">
@@ -1487,20 +1529,14 @@ function MobilePostRow({ it, onOpen }) {
   )
 }
 
-function Dropdown({ value, onChange, label, children }) {
+function Dropdown({ value, onChange, label, options }) {
   return (
-    <div className="relative">
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        aria-label={label}
-        className="appearance-none pl-3 pr-8 py-2 rounded-xl border border-ink-200 bg-white text-[12px] font-semibold text-ink-700 hover:border-ink-300 focus:outline-none focus:border-brand cursor-pointer"
-      >
-        {children}
-      </select>
-      <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-400">
-        <FiChevronDown size={14} />
-      </span>
-    </div>
+    <Select
+      value={value}
+      onChange={onChange}
+      options={options}
+      aria-label={label}
+      buttonClassName="text-[12px] font-semibold"
+    />
   )
 }

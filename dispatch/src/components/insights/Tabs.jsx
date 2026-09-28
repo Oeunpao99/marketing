@@ -59,7 +59,7 @@ export function Chips({ options, value, onChange, label }) {
           onClick={() => onChange(o.id)}
           aria-pressed={value === o.id}
           className={`inline-flex h-7 items-center gap-1.5 rounded-lg px-2.5 text-[12px] font-medium transition-colors ${
-            value === o.id ? 'bg-ink-900 text-white' : 'bg-ink-100 text-ink-600 hover:bg-ink-200/70'
+            value === o.id ? 'bg-ink-900 text-ink-50' : 'bg-ink-100 text-ink-600 hover:bg-ink-200/70'
           }`}
         >
           {o.dot && <span className="h-2 w-2 rounded-full" style={{ background: o.dot }} aria-hidden="true" />}
@@ -201,7 +201,7 @@ export function TopContentGrid({ rows, icons, mediaSrc, onOpen, engagementOf }) 
             className={`${cardCls} group flex flex-col items-stretch justify-start overflow-hidden text-left transition-shadow hover:shadow-card-hover`}
           >
             <div className="relative grid aspect-[16/10] place-items-center overflow-hidden bg-ink-100">
-              {src && it.media_kind === 'image' ? (
+              {src && (it.media_kind === 'image' || it.media_thumb) ? (
                 <img src={src} alt="" className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
               ) : src && it.media_kind === 'video' ? (
                 <video src={src} className="absolute inset-0 h-full w-full object-cover" muted />

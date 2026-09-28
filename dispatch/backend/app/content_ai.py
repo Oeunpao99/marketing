@@ -2,8 +2,10 @@
 
 Used by ``app/content_scheduler.py`` (the automated daily run) and the
 "Generate now" button on the Auto-generate page. One Azure OpenAI chat call,
-asked to return strict JSON: a list of ``{title, insight, caption}`` ideas,
-one candidate day's worth of content per brand.
+asked to return strict JSON: a list of ``{goal, angle, title, insight,
+caption}`` ideas, one candidate day's worth of content per brand. Each caption
+is written for a goal (GOALS — sets the call-to-action strength) with a
+marketing angle (ANGLES), so a batch isn't the same generic caption N times.
 """
 
 from __future__ import annotations
@@ -16,20 +18,79 @@ from app import billing
 from app.config import get_settings
 from app.models import Product
 
+# Marketing angles a caption can be written with — key → (label, recipe).
+# The key is stored on Draft/Post.angle and app/learning.py compares them, so
+# don't rename a key once it's in use (labels are free to change).
+ANGLES: dict[str, tuple[str, str]] = {
+    "problem_solution": (
+        "Problem → Solution",
+        "open on a pain the audience feels, say what it costs them, then show "
+        "how the product solves it — a short ✓ list of what it does works well here",
+    ),
+    "direct_offer": (
+        "Direct offer",
+        "a clear sales post: a hook question, one line introducing the product, "
+        "3-5 concrete benefits as a ✓ list, a one-line flow that sums it up "
+        "(e.g. 'Customer asks → AI answers → AI sells.'), then the offer and a "
+        "strong call to action",
+    ),
+    "engagement": (
+        "Engagement question",
+        "a relatable scenario or question that gets people to comment; the "
+        "product can stay in the background; end by asking them to comment",
+    ),
+    "story": (
+        "Story / scenario",
+        "a short, vivid moment from the customer's day (e.g. a message "
+        "arriving at 2 AM), what happens without the product, then with it",
+    ),
+    "short_hook": (
+        "Short & punchy",
+        "2-4 short lines: one sharp hook, one line of value, a 3-beat "
+        "tagline, a call to action",
+    ),
+    "how_to": (
+        "Tip / how-to",
+        "teach one useful, specific tip the audience can use today — as 3-5 "
+        "short numbered steps or ✓ points — connected naturally to the product",
+    ),
+    "social_proof": (
+        "Social proof",
+        "a result, customer situation or use case — ONLY with facts given in "
+        "the product info, never invented numbers, testimonials or clients",
+    ),
+}
+
+# What each idea is for — decides how hard the call to action pushes.
+GOALS: dict[str, str] = {
+    "awareness": "soft or no call to action — just make the brand memorable",
+    "engagement": "end with a question or an invitation to comment/share, not a sales pitch",
+    "leads": "invite them to message/inbox the page or sign up — low commitment",
+    "sales": "a clear, direct call to action with the offer (buy, order, start the trial), "
+    "including the link if one is in the product info",
+}
+
+_ANGLE_LIST = "\n".join(f"  - {k} ({label}): {recipe}." for k, (label, recipe) in ANGLES.items())
+_GOAL_LIST = "\n".join(f"  - {k}: {cta}." for k, cta in GOALS.items())
+
 SYSTEM_PROMPT = (
     "You are the content strategist for a social media team. Given a brand, "
     "its products/offers, and where topics should come from, write concrete, "
-    "publish-ready post ideas for ONE day.\n"
+    "publish-ready post ideas for ONE day. You are a marketer, not a text "
+    "generator: every caption is written for one goal, with one angle.\n"
     "\n"
     "For each idea return:\n"
+    "- goal: what this post is for — one of:\n" + _GOAL_LIST + "\n"
+    "- angle: the marketing angle — one of:\n" + _ANGLE_LIST + "\n"
     "- title: a short, specific working title (under 70 chars) — not a generic "
     "label like 'Product tip'.\n"
-    "- insight: 1-2 sentences on WHY this angle, for the human reviewing it — "
-    "the audience need, trend, or product fact it plays off.\n"
-    "- caption: a ready-to-post caption in the brand's audience language, "
-    "written in that platform's voice (short paragraphs, natural, not "
-    "salesy), ending with a light call to action. No hashtags spam — at most "
-    "2-3 relevant ones at the end.\n"
+    "- insight: 1-2 sentences on WHY this goal and angle, for the human "
+    "reviewing it — the audience need, trend, or product fact it plays off.\n"
+    "- caption: a ready-to-post caption in the brand's audience language that "
+    "follows the chosen angle's recipe and the goal's call-to-action strength. "
+    "Open with a hook in the first line that speaks to the audience's "
+    "situation — never a bland 'Meet X, your intelligent …' intro. Lay it out "
+    "as described under CAPTION FORMAT below.\n"
     "- fit_score: your OWN honest 0-100 self-check of this specific idea — "
     "how directly it's grounded in the product facts actually given (not "
     "generic brand-appropriate filler), and how clear/specific the angle is. "
@@ -37,13 +98,32 @@ SYSTEM_PROMPT = (
     "you're mostly guessing or being generic. Score each idea independently "
     "and honestly — don't inflate it.\n"
     "\n"
-    "Ideas must be genuinely distinct from each other (different angle, "
-    "product, or format each) and grounded in the product info given — don't "
-    "invent products or claims that weren't provided.\n"
+    "CAPTION FORMAT — social posts are plain text: no markdown, no **bold**, "
+    "no # headings. Make it easy to scan on a phone:\n"
+    "- The hook alone on the first line.\n"
+    "- A blank line between every block — never one dense paragraph.\n"
+    "- Benefits, features or steps go in a list, one per line starting with "
+    "'✓ ' (steps may use '1.' '2.' '3.'): 3-5 lines, each short (a few "
+    "words), concrete and parallel in form, with no full stop at the end.\n"
+    "- Where it fits, one short flow line with arrows that sums up the value "
+    "(A → B → C).\n"
+    "- The call to action alone on the last line (before any hashtags); put "
+    "👉 before a link.\n"
+    "- 0-3 emoji in total, each with a purpose. No hashtag spam — at most "
+    "2-3 relevant ones at the very end.\n"
+    "Short angles (short_hook, engagement, story) stay short — don't force a "
+    "list into them.\n"
+    "\n"
+    "Ideas must be genuinely distinct from each other: use a DIFFERENT angle "
+    "for each idea where you can, and mix goals across the batch (not every "
+    "post should be a sales pitch). Stay grounded in the product info given — "
+    "don't invent products, prices, free trials, discounts, links or claims "
+    "that weren't provided; if the offer or link isn't in the product info, "
+    "use a call to action that doesn't need one (e.g. 'send us a message').\n"
     "\n"
     "Respond with ONLY a JSON object: "
-    '{"ideas": [{"title": "...", "insight": "...", "caption": "...", '
-    '"fit_score": 0}, ...]} '
+    '{"ideas": [{"goal": "...", "angle": "...", "title": "...", "insight": "...", '
+    '"caption": "...", "fit_score": 0}, ...]} '
     "— no prose, no markdown fences."
 )
 
@@ -55,6 +135,46 @@ MIN_FIT_SCORE = 45
 class ContentAIError(RuntimeError):
     pass
 
+
+# What makes Khmer read as "translated" — shared by the writer (KHMER_GUIDE)
+# and the second-pass native editor (POLISH_PROMPT).
+KHMER_NATURAL = (
+    "What makes Khmer sound translated or stiff — avoid all of it:\n"
+    "- English sentence order and English idioms carried over ('take your "
+    "business to the next level', 'game-changer', 'unlock'); say the idea the "
+    "way a Cambodian would say it out loud.\n"
+    "- Formal / written-register filler: នូវ, ត្រូវបាន (passive), ធ្វើការ + verb "
+    "(write ឆ្លើយ, not ធ្វើការឆ្លើយតប), stacked ការ-nouns (ការធ្វើឲ្យប្រសើរឡើងនូវ…), "
+    "ក្នុងការ, ដែលជា, ជាមួយនឹង when a simpler word works.\n"
+    "- Repeating របស់អ្នក in every sentence — once is enough; drop it when the "
+    "owner is obvious.\n"
+    "- Mixing ways of addressing the reader: pick one (អ្នក, or បង for a "
+    "friendly shop voice; លោកអ្នក only for a formal brand) and keep it — follow "
+    "the brand's real captions if given.\n"
+    "- Starting every question with តើ; end questions naturally (…ទេ? …មែនទេ? "
+    "…អត់?) and use តើ only when it reads naturally.\n"
+    "Do: short spoken sentences; everyday words (ឆ្លើយ, ជួយ, លក់, ទិញ, ឆាប់, "
+    "ស្រួល); keep the words local pages write in English in Latin script — "
+    "Inbox, Message, Comment, Share, Page, Live, Order, Staff, Link, AI, app, "
+    "Facebook, TikTok, Telegram; ។ ends a sentence (never '.' and not after "
+    "✓ list lines or after a '?').\n"
+)
+
+KHMER_EXAMPLE = (
+    "តើអ្នកកំពុងបាត់បង់អតិថិជន ព្រោះមិនអាចឆ្លើយ Inbox ទាន់មែនទេ?\n"
+    "\n"
+    "Chumnouykar AI ជួយអាជីវកម្មរបស់អ្នក៖\n"
+    "\n"
+    "✓ ឆ្លើយអតិថិជន 24/7\n"
+    "✓ ណែនាំផលិតផលដោយ AI\n"
+    "✓ ប្រមូលព័ត៌មានអតិថិជន\n"
+    "✓ ជួយបង្កើត Order\n"
+    "✓ មិនចាំបាច់ឲ្យ Staff ឆ្លើយគ្រប់ Message\n"
+    "\n"
+    "អតិថិជនសួរ → AI ឆ្លើយ → AI ជួយលក់។\n"
+    "\n"
+    "សាកល្បង FREE 14 ថ្ងៃ ដោយមិនត្រូវការកាតឥណទាន។"
+)
 
 KHMER_GUIDE = (
     "\n\nKHMER LANGUAGE — this brand posts in Khmer for a Cambodian audience:\n"
@@ -71,16 +191,24 @@ KHMER_GUIDE = (
     "- Correct Khmer spelling. Khmer doesn't put spaces between every word — only "
     "between phrases/clauses.\n"
     "- Prices and numbers the way local posts write them (e.g. $5, 20,000 ៛, 24/7).\n"
-    "- End with a natural local call to action (e.g. inviting people to inbox the "
-    "page or send a message), not a stiff translated one.\n"
+    "- Write the call to action (at the strength the idea's goal calls for) the way "
+    "local pages do — e.g. inviting people to inbox the page or comment below — "
+    "not a stiff translated one.\n"
     "- The title and insight are for the internal team: write the title in Khmer "
-    "too, but the insight may be in English."
+    "too, but the insight may be in English.\n"
+    "\n" + KHMER_NATURAL + "\n"
+    "A Khmer direct_offer caption with the right voice and layout — it is an "
+    "example from another brand: copy only its tone, wording style and "
+    "structure; take facts, offers and product names ONLY from this brand's "
+    "product info above, and don't make every caption look like it:\n---\n"
+    + KHMER_EXAMPLE + "\n---"
 )
 
 MIXED_GUIDE = (
     "\n\nLANGUAGE — this brand's audience mixes Khmer and English: write the caption "
     "mainly in natural spoken Khmer, with English only for the terms Cambodians "
-    "normally say in English (app names, tech words, product names)."
+    "normally say in English (app names, tech words, product names).\n"
+    "\n" + KHMER_NATURAL
 )
 
 
@@ -170,7 +298,10 @@ POLISH_PROMPT = (
     "feel, no stiff formal/literary wording. Keep every fact, product name, price, "
     "number, link and hashtag exactly as given — don't add claims. Keep brand, "
     "product and app names (Facebook, Telegram, TikTok, AI, …) in Latin script. "
-    "Keep roughly the same length and structure (line breaks, call to action).\n"
+    "Keep the layout exactly: same line breaks and blank lines, the same ✓ / "
+    "numbered list lines, arrows, emoji, link and call to action — improve the "
+    "wording inside them, not the structure.\n"
+    "\n" + KHMER_NATURAL + "\n"
     'Respond with ONLY a JSON object: {"captions": ["...", ...]} — same count and '
     "order as the input."
 )
@@ -288,12 +419,18 @@ def generate_ideas(
             fit_score = int(idea.get("fit_score", 0))
         except (TypeError, ValueError):
             fit_score = 0
+        angle = str(idea.get("angle") or "").strip().lower()
+        goal = str(idea.get("goal") or "").strip().lower()
         cleaned.append(
             {
                 "title": title[:200],
                 "insight": str(idea.get("insight") or "").strip(),
                 "caption": caption,
                 "fit_score": max(0, min(100, fit_score)),
+                # Unknown values are dropped rather than stored — learning.py
+                # groups by these, so a typo would become its own "angle".
+                "angle": angle if angle in ANGLES else "",
+                "goal": goal if goal in GOALS else "",
             }
         )
     if not cleaned:

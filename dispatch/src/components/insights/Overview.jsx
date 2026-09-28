@@ -42,7 +42,7 @@ export function DeltaText({ current, previous, className = '' }) {
 function Tip({ x, y, children }) {
   return (
     <div
-      className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-lg bg-ink-900 px-2.5 py-1.5 text-[11.5px] text-white shadow-lg"
+      className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-lg bg-night-900 px-2.5 py-1.5 text-[11.5px] text-white shadow-lg"
       style={{ left: x, top: y - 8 }}
     >
       {children}
@@ -151,7 +151,7 @@ export function UpNext({ items, icons, mediaSrc }) {
               <div className="mt-0.5 line-clamp-2 text-[12px] leading-snug text-ink-800">{u.title}</div>
             </div>
             <div className="w-16 flex-none bg-ink-100 grid place-items-center">
-              {src && u.media_kind === 'image' ? (
+              {src && (u.media_kind === 'image' || u.media_thumb) ? (
                 <img src={src} alt="" className="h-full w-full object-cover" />
               ) : src && u.media_kind === 'video' ? (
                 <video src={src} className="h-full w-full object-cover" muted />
@@ -221,7 +221,7 @@ export function Donut({ segments, size = 84, label }) {
   if (!(total > 0)) {
     return (
       <svg width={size} height={size} aria-label={`${label}: no data`}>
-        <circle cx={c} cy={c} r={r} fill="none" stroke="#e1e0d9" strokeWidth={stroke} />
+        <circle cx={c} cy={c} r={r} fill="none" style={{ stroke: 'rgb(var(--ink-100))' }} strokeWidth={stroke} />
       </svg>
     )
   }

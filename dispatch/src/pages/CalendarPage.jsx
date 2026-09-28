@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { FiImage, FiVideo } from 'react-icons/fi'
 import { api } from '../api/client'
 import GeneratingCanvas from '../components/ui/GeneratingCanvas'
+import { angleText } from '../lib/angles'
 import { colorForBrand } from '../lib/brandColor'
 import { phnomPenhDate } from '../lib/tz'
 import { useStore } from '../store'
@@ -512,7 +513,7 @@ function PreviewModal({ item, busy, onClose, onApprove, onReject, onUseIdea, onM
     : ''
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/40 p-4 animate-fadein" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-night-950/50 p-4 animate-fadein" onClick={onClose}>
       <div
         role="dialog"
         aria-modal="true"
@@ -531,7 +532,7 @@ function PreviewModal({ item, busy, onClose, onApprove, onReject, onUseIdea, onM
           </div>
         )}
         {m && (
-          <div className="flex max-h-[40vh] flex-none items-center justify-center bg-ink-950 sm:max-h-none sm:w-[380px]">
+          <div className="flex max-h-[40vh] flex-none items-center justify-center bg-night-950 sm:max-h-none sm:w-[380px]">
             {m.kind === 'image' ? (
               <img src={`${mediaBase}${m.url}`} alt="" className="max-h-[40vh] w-full object-contain sm:max-h-[88vh]" />
             ) : (
@@ -608,6 +609,9 @@ function PreviewModal({ item, busy, onClose, onApprove, onReject, onUseIdea, onM
                   Why this idea <span className="text-ink-300 group-open:hidden">▸</span>
                   <span className="hidden text-ink-300 group-open:inline">▾</span>
                 </summary>
+                {angleText(item.angle) && (
+                  <p className="mt-1 text-[11.5px] font-semibold text-ink-600">Angle: {angleText(item.angle)}</p>
+                )}
                 <p className="mt-1 text-[12px] italic leading-relaxed text-ink-500">{item.insight}</p>
               </details>
             )}

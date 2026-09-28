@@ -108,7 +108,7 @@ function TimeChart({ series, marker, height = 220, unitLabel }) {
       </svg>
       {hover != null && (
         <div
-          className="pointer-events-none absolute top-0 z-10 -translate-x-1/2 whitespace-nowrap rounded-lg bg-ink-900 px-2.5 py-1.5 text-[11.5px] text-white shadow-lg"
+          className="pointer-events-none absolute top-0 z-10 -translate-x-1/2 whitespace-nowrap rounded-lg bg-night-900 px-2.5 py-1.5 text-[11.5px] text-white shadow-lg"
           style={{ left: `${(x(hover) / W) * 100}%` }}
         >
           <div className="font-semibold">{label(hover)}</div>
@@ -171,7 +171,7 @@ export function GrowthCard({ history, publishedAt, seriesColors, platformName })
                 type="button"
                 onClick={() => setMetric(m)}
                 aria-pressed={metric === m}
-                className={`h-7 rounded-lg px-2.5 text-[12px] font-medium capitalize ${metric === m ? 'bg-ink-900 text-white' : 'bg-ink-100 text-ink-600 hover:bg-ink-200/70'}`}
+                className={`h-7 rounded-lg px-2.5 text-[12px] font-medium capitalize ${metric === m ? 'bg-ink-900 text-ink-50' : 'bg-ink-100 text-ink-600 hover:bg-ink-200/70'}`}
               >
                 {m}
               </button>

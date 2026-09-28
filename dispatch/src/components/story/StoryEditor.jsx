@@ -730,7 +730,7 @@ function CompactScene({ scene, index, story, editable, busy, onChange, onRedo })
   return (
     <li className="flex gap-3.5 px-5 py-4">
       <div className="flex-none w-9 text-center">
-        <span className="mx-auto w-7 h-7 rounded-lg bg-ink-900 text-white grid place-items-center text-[11px] font-bold">{index + 1}</span>
+        <span className="mx-auto w-7 h-7 rounded-lg bg-ink-900 text-ink-50 grid place-items-center text-[11px] font-bold">{index + 1}</span>
         <div className="mt-1.5 text-[10px] leading-tight text-ink-400">
           {timecode(scene.starts_at)}
           <br />
@@ -868,7 +868,7 @@ function SceneCard({ scene, index, story, compact, editable, busy, onChange, onR
   return (
     <article className={`${card} overflow-hidden`}>
       <header className="flex flex-wrap items-center gap-2.5 border-b border-ink-100 px-4 py-3">
-        <span className="w-7 h-7 rounded-lg bg-ink-900 text-white grid place-items-center text-[10.5px] font-bold flex-none">{index + 1}</span>
+        <span className="w-7 h-7 rounded-lg bg-ink-900 text-ink-50 grid place-items-center text-[10.5px] font-bold flex-none">{index + 1}</span>
         <div className="min-w-0">
           <div className="text-[12px] font-semibold text-ink-800">Scene {index + 1}</div>
           <div className="text-[10px] text-ink-400">{timecode(scene.starts_at)}–{timecode(scene.starts_at + scene.seconds)}</div>
@@ -881,7 +881,7 @@ function SceneCard({ scene, index, story, compact, editable, busy, onChange, onR
 
       <div className="p-4">
         {scene.video_url && (
-          <div className="mb-4 flex justify-center rounded-2xl bg-ink-950 p-2">
+          <div className="mb-4 flex justify-center rounded-2xl bg-night-950 p-2">
             <video
               src={abs(scene.video_url)}
               controls
@@ -964,7 +964,7 @@ function FinalVideo({ story, compact = false, onUseFinal, onLibrary }) {
   const shape = compact && story.aspect_ratio === '9:16' ? 'max-w-[300px] mx-auto' : ''
   return (
     <div className={`${card} overflow-hidden`}>
-      <div className="bg-ink-950 p-2">
+      <div className="bg-night-950 p-2">
         <video
           src={abs(story.final_video.url)}
           controls

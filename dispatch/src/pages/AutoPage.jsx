@@ -8,6 +8,7 @@ import { useStore } from '../store'
 import { PLAT } from '../data/brands'
 import PlatformIcon from '../components/ui/PlatformIcon'
 import AutoTextarea from '../components/ui/AutoTextarea'
+import Select from '../components/ui/Select'
 import { seedRuns, startRun, useAutoRuns, useSmoothProgress } from '../lib/autoRuns'
 
 const TOPIC_SOURCES = [
@@ -389,13 +390,11 @@ function SettingsDrawer({ a, channels, run, running, onUpdate, onBrandUpdate, on
               </Field>
             </div>
             <Field label="Topics from">
-              <select value={a.topic_source} className={input} onChange={(e) => onUpdate({ topic_source: e.target.value })}>
-                {TOPIC_SOURCES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.value}
-                  </option>
-                ))}
-              </select>
+              <Select
+                value={a.topic_source}
+                options={TOPIC_SOURCES}
+                onChange={(topic_source) => onUpdate({ topic_source })}
+              />
             </Field>
           </Section>
 

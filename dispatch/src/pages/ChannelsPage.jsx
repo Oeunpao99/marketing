@@ -78,6 +78,25 @@ export default function ChannelsPage() {
     }
   };
 
+  // Facebook / Instagram: pull in posts made directly on the account (the
+  // backend also does this on connect and every few hours for new ones).
+  const [importing, setImporting] = useState(null);
+  const importPosts = async (c) => {
+    setImporting(c.id);
+    try {
+      const { imported, days } = await api.post(`/views/channels/${c.id}/import-posts`);
+      showToast(
+        imported
+          ? `Imported ${imported} post${imported === 1 ? "" : "s"} from ${c.h} — see them in Analytics`
+          : `No new posts from the last ${days} days — Analytics already has everything`,
+      );
+    } catch (e) {
+      showToast(`Could not import — ${e.message}`);
+    } finally {
+      setImporting(null);
+    }
+  };
+
   // Lands here after the TikTok OAuth redirect (see AddChannelPage / the
   // backend's /oauth/tiktok/callback) — surface the result, then pull the
   // freshly-connected channel in and drop the query params from the url.
@@ -187,7 +206,7 @@ export default function ChannelsPage() {
             aria-pressed={show === id}
             onClick={() => setShow(id)}
             className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[12px] font-medium transition-colors ${
-              show === id ? "bg-ink-900 text-white" : "bg-white text-ink-600 ring-1 ring-ink-200 hover:bg-ink-50"
+              show === id ? "bg-ink-900 text-ink-50" : "bg-white text-ink-600 ring-1 ring-ink-200 hover:bg-ink-50"
             }`}
           >
             {id !== "all" && (
@@ -286,6 +305,18 @@ export default function ChannelsPage() {
                           Connect
                         </button>
                       ) : (
+                        <div className="flex items-center gap-2">
+                        {(c.p === "facebook" || c.p === "instagram") && (
+                          <button
+                            type="button"
+                            disabled={importing === c.id}
+                            onClick={() => importPosts(c)}
+                            title="Bring in posts made directly on this account in the last 90 days, so Analytics shows them too"
+                            className="px-3 py-1.5 rounded-xl border border-ink-200 bg-white text-ink-600 text-[11.5px] font-semibold hover:border-brand-line hover:text-brand disabled:opacity-60 transition-all duration-150"
+                          >
+                            {importing === c.id ? "Importing…" : "Import past posts"}
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => askDisconnect(c)}
@@ -293,6 +324,7 @@ export default function ChannelsPage() {
                         >
                           Disconnect
                         </button>
+                        </div>
                       )}
                     </div>
                   </div>

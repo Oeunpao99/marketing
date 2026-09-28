@@ -33,7 +33,7 @@ import { isKhmer } from '../lib/format'
 import { platformHue } from '../components/insights/Overview'
 import { GrowthCard, MembersCard, MoreFromChannel, PostingTimeCard } from '../components/insights/PostDetail'
 import ImproveCard from '../components/insights/ImproveCard'
-import { PLATFORM_ICONS, SERIES_COLORS, EngagementLineChart, engagementOf, mediaSrc } from './InsightsPage'
+import { OriginBadge, PLATFORM_ICONS, SERIES_COLORS, EngagementLineChart, engagementOf, mediaSrc } from './InsightsPage'
 
 const PLATFORM_NAMES = {
   facebook: 'Facebook',
@@ -327,7 +327,7 @@ function RankStrip({ scores, mine, rank, platformName }) {
           style={{ left: `${(mine / max) * 100}%`, background: ACCENT }}
         />
         <span
-          className="absolute -top-3 -translate-x-1/2 whitespace-nowrap rounded-md bg-ink-900 px-1.5 py-0.5 text-[10.5px] font-semibold text-white"
+          className="absolute -top-3 -translate-x-1/2 whitespace-nowrap rounded-md bg-night-900 px-1.5 py-0.5 text-[10.5px] font-semibold text-white"
           style={{ left: `clamp(24px, ${(mine / max) * 100}%, calc(100% - 24px))` }}
         >
           This post
@@ -506,7 +506,7 @@ export default function InsightsPostPage() {
             className="relative grid h-44 w-full flex-none place-items-center overflow-hidden rounded-xl bg-ink-100 sm:h-32 sm:w-32"
             title={src ? 'View full size' : ''}
           >
-            {src && post.media_kind === 'image' ? (
+            {src && (post.media_kind === 'image' || post.media_thumb) ? (
               <img src={src} alt="" className="absolute inset-0 h-full w-full object-cover" />
             ) : src && post.media_kind === 'video' ? (
               <video src={src} className="absolute inset-0 h-full w-full object-cover" muted playsInline />
@@ -523,7 +523,11 @@ export default function InsightsPostPage() {
               <span className="h-2.5 w-2.5 rounded-full" style={{ background: brandColor }} />
               <span className="font-semibold text-ink-900">{post.brand_name}</span>
               <span className="text-ink-300">·</span>
-              <span className="text-ink-600">{platformName}</span>
+              <span className="text-ink-600">
+                {platformName}
+                {post.channel_handle ? ` · ${post.channel_handle}` : ''}
+              </span>
+              <OriginBadge origin={post.origin} platform={slug} />
               <span className="text-ink-300">·</span>
               <span className="inline-flex items-center gap-1 text-ink-500">
                 <FiCalendar size={12} />
@@ -562,7 +566,7 @@ export default function InsightsPostPage() {
         </section>
 
         {zoom && src && (
-          <div className="fixed inset-0 z-[100] grid place-items-center bg-ink-950/80 p-6 animate-fadein" onClick={() => setZoom(false)}>
+          <div className="fixed inset-0 z-[100] grid place-items-center bg-night-950/80 p-6 animate-fadein" onClick={() => setZoom(false)}>
             {post.media_kind === 'video' ? (
               <video src={src} className="max-h-[85vh] max-w-full rounded-xl" controls autoPlay onClick={(e) => e.stopPropagation()} />
             ) : (

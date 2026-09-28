@@ -30,6 +30,7 @@ export default function ChannelPicker({ brands, channels, selectedChannels, togg
                   key={c.id}
                   platform={c.p}
                   label={PLAT[c.p].name}
+                  handle={c.s === 'off' ? '' : c.h}
                   off={c.s === 'off'}
                   checked={selectedChannels.some((x) => x.id === c.id)}
                   onChange={(v) => toggle(c.id, v)}
@@ -43,7 +44,7 @@ export default function ChannelPicker({ brands, channels, selectedChannels, togg
   )
 }
 
-function CheckRow({ platform, label, off, checked, onChange }) {
+function CheckRow({ platform, label, handle, off, checked, onChange }) {
   return (
     <label
       className={`flex items-center gap-2 py-1.5 text-[12.5px] font-semibold ${off ? 'text-ink-400 cursor-not-allowed' : 'cursor-pointer text-ink-700 hover:text-ink-900 transition-all duration-150'}`}
@@ -56,7 +57,10 @@ function CheckRow({ platform, label, off, checked, onChange }) {
         onChange={(e) => onChange(e.target.checked)}
       />
       <PlatformIcon name={PLAT[platform]?.name} className={`flex-none ${off ? 'opacity-40' : ''} ${PLAT_COLORS[PLAT[platform]?.name] || 'text-ink-500'}`} />
-      {label}
+      <span className="min-w-0 flex-1 truncate">
+        {label}
+        {handle && <span className="ml-1.5 text-[11px] font-medium text-ink-400">{handle}</span>}
+      </span>
       {off && <span className="text-[10.5px] text-ink-400">— not connected</span>}
     </label>
   )

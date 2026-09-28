@@ -69,10 +69,16 @@ SNAPSHOT_INTERVAL = 3 * 60 * 60
 
 
 def _snapshot_tick() -> int:
+    from app.importer import import_all
     from app.views import collect_snapshots
 
     db = SessionLocal()
     try:
+        # New posts made straight on a connected Page first, so they get
+        # their numbers saved in this same tick.
+        imported = import_all(db)
+        if imported:
+            log.info("imported %d post(s) made outside ContentFlow", imported)
         return collect_snapshots(db)
     finally:
         db.close()

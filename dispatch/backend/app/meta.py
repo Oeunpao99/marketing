@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import time
 import uuid
+from datetime import datetime
 from urllib.parse import urlencode
 
 import httpx
@@ -289,6 +290,93 @@ def publish_to_instagram(token: str, ig_user_id: str, caption: str, media_url: s
     return pub_resp.json().get("id") or ""
 
 
+# ── past posts — made on the platform itself (app/importer.py) ───────────
+def _graph_time(value: str | None) -> datetime | None:
+    try:
+        return datetime.strptime(value or "", "%Y-%m-%dT%H:%M:%S%z")
+    except ValueError:
+        return None
+
+
+def _paged(url: str, params: dict | None, limit: int, what: str):
+    """Yield items across Graph's cursor pages until ``limit`` or the end."""
+    seen = 0
+    while url and seen < limit:
+        try:
+            resp = httpx.get(url, params=params, timeout=30.0)
+        except httpx.HTTPError as exc:
+            raise MetaError(f"Could not reach Facebook: {exc}") from exc
+        if resp.status_code >= 400:
+            raise MetaError(f"Facebook wouldn't list {what}: {_explain(resp)}")
+        body = resp.json()
+        for item in body.get("data") or []:
+            seen += 1
+            yield item
+            if seen >= limit:
+                return
+        url = (body.get("paging") or {}).get("next")
+        params = None  # the "next" url already carries every parameter
+
+
+def list_page_posts(token: str, page_id: str, since: datetime, limit: int) -> list[dict]:
+    """A Page's published posts since ``since``, newest first. ``alt_id`` is
+    the attached object's id — for a video that's the Video id, which is what
+    ContentFlow stores for its own video posts (so they aren't re-imported)."""
+    _app_id, _secret, _redirect, version = _conf()
+    params = {
+        "fields": "id,message,created_time,full_picture,permalink_url,attachments{media_type,target{id}}",
+        "since": int(since.timestamp()),
+        "limit": 50,
+        "access_token": token,
+    }
+    out = []
+    for p in _paged(f"{GRAPH_HOST}/{version}/{page_id}/published_posts", params, limit, "this Page's posts"):
+        att = ((p.get("attachments") or {}).get("data") or [{}])[0]
+        media = (att.get("media_type") or "").lower()
+        out.append(
+            {
+                "id": p.get("id") or "",
+                "alt_id": ((att.get("target") or {}).get("id")) or "",
+                "caption": p.get("message") or "",
+                "published_at": _graph_time(p.get("created_time")),
+                "picture": p.get("full_picture") or "",
+                "url": p.get("permalink_url") or "",
+                "kind": "video" if "video" in media else "image" if p.get("full_picture") else "text",
+            }
+        )
+    return [p for p in out if p["id"] and p["published_at"]]
+
+
+def list_instagram_media(token: str, ig_user_id: str, since: datetime, limit: int) -> list[dict]:
+    """An Instagram account's posts since ``since``, newest first."""
+    _app_id, _secret, _redirect, version = _conf()
+    params = {
+        "fields": "id,caption,media_type,media_url,thumbnail_url,permalink,timestamp",
+        "limit": 50,
+        "access_token": token,
+    }
+    out = []
+    for m in _paged(f"{GRAPH_HOST}/{version}/{ig_user_id}/media", params, limit, "this Instagram account's posts"):
+        at = _graph_time(m.get("timestamp"))
+        if at is None:
+            continue
+        if at < since:
+            break  # newest first — everything after this is older
+        video = (m.get("media_type") or "").upper() == "VIDEO"
+        out.append(
+            {
+                "id": m.get("id") or "",
+                "alt_id": "",
+                "caption": m.get("caption") or "",
+                "published_at": at,
+                "picture": (m.get("thumbnail_url") if video else m.get("media_url")) or "",
+                "url": m.get("permalink") or "",
+                "kind": "video" if video else "image",
+            }
+        )
+    return [m for m in out if m["id"]]
+
+
 # ── insights — per-post numbers for the Insights page ────────────────────
 def _graph_get(version: str, path: str, params: dict) -> dict | None:
     """One read; None when Graph refuses it (e.g. a permission this Page's
@@ -298,6 +386,33 @@ def _graph_get(version: str, path: str, params: dict) -> dict | None:
     except httpx.HTTPError as exc:
         raise MetaError(f"Could not reach Facebook: {exc}") from exc
     return resp.json() if resp.status_code < 400 else None
+
+
+def _graph_read(version: str, path: str, params: dict) -> tuple[dict | None, dict]:
+    """Like ``_graph_get``, but also hands back Graph's error when it refuses."""
+    try:
+        resp = httpx.get(f"{GRAPH_HOST}/{version}/{path}", params=params, timeout=30.0)
+    except httpx.HTTPError as exc:
+        raise MetaError(f"Could not reach Facebook: {exc}") from exc
+    if resp.status_code < 400:
+        return resp.json(), {}
+    try:
+        err = resp.json().get("error") or {}
+    except ValueError:
+        err = {}
+    return None, err if isinstance(err, dict) else {"message": str(err)}
+
+
+def _post_read_error(err: dict) -> str:
+    """Why Facebook wouldn't give us a post — in words that say what to do."""
+    code, msg = err.get("code"), (err.get("message") or "").strip()
+    if code == 190:
+        return "Facebook signed this Page out (the access token expired or was revoked) — reconnect the Facebook channel."
+    if code == 100 and ("does not exist" in msg or err.get("error_subcode") == 33):
+        return "This post no longer exists on Facebook — it was deleted, or hidden from the Page."
+    if code in (10, 200) or "permission" in msg.lower():
+        return f"Facebook needs a permission to read this post's stats ({msg})."
+    return f"Facebook wouldn't share this post's stats: {msg or 'no reason given'}."
 
 
 def page_post_insights(token: str, post_id: str) -> dict:
@@ -310,9 +425,13 @@ def page_post_insights(token: str, post_id: str) -> dict:
     reported") instead of failing the whole post — a Page connected before
     those permissions were added still gets shares and its link."""
     _app_id, _secret, _redirect, version = _conf()
-    base = _graph_get(version, post_id, {"fields": "shares,permalink_url", "access_token": token})
+    base, err = _graph_read(version, post_id, {"fields": "shares,permalink_url", "access_token": token})
     if base is None:
-        raise MetaError("Could not read that post — reconnect the Facebook channel.")
+        # Posted as a video, the id is a Video node — it has no `shares` field,
+        # so ask for what a video does have before giving up.
+        base, err2 = _graph_read(version, post_id, {"fields": "permalink_url", "access_token": token})
+        if base is None:
+            raise MetaError(_post_read_error(err2 or err))
     counts = _graph_get(
         version,
         post_id,

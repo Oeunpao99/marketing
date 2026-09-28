@@ -172,7 +172,7 @@ export default function LibraryPage() {
                   <video src={abs(it.url)} className="w-full h-full object-contain" muted preload="metadata" />
                 )}
 
-                <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-ink-900/70 text-white text-[10px] font-bold uppercase tracking-wide">
+                <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-night-900/70 text-white text-[10px] font-bold uppercase tracking-wide">
                   {it.kind}
                 </span>
               </button>
@@ -223,14 +223,14 @@ export default function LibraryPage() {
       {/* Lightbox */}
       {open && (
         <div
-          className="fixed inset-0 z-50 bg-ink-950/70 backdrop-blur-md flex items-center justify-center p-4 lg:p-10 animate-fadein"
+          className="fixed inset-0 z-50 bg-night-950/70 backdrop-blur-md flex items-center justify-center p-4 lg:p-10 animate-fadein"
           onClick={() => setOpen(null)}
         >
           <div
             className="glass-strong rounded-3xl overflow-hidden max-w-6xl w-full max-h-full flex flex-col lg:flex-row"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="bg-ink-950 flex items-center justify-center lg:w-[62%] p-3 min-h-0">
+            <div className="bg-night-950 flex items-center justify-center lg:w-[62%] p-3 min-h-0">
               {open.kind === 'image' ? (
                 <img src={abs(open.url)} alt="" className="max-h-[75vh] w-auto h-auto max-w-full object-contain rounded-xl animate-media-reveal" />
               ) : (
@@ -292,7 +292,7 @@ export default function LibraryPage() {
     {/* Delete confirmation */}
       {confirmItem && (
         <div
-          className="fixed inset-0 z-[60] bg-ink-950/25 backdrop-blur-md flex items-center justify-center p-4 animate-fadein"
+          className="fixed inset-0 z-[60] bg-night-950/40 backdrop-blur-md flex items-center justify-center p-4 animate-fadein"
           onClick={() => setConfirmItem(null)}
         >
           <div

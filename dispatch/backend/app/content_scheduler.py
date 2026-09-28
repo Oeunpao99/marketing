@@ -283,7 +283,9 @@ def schedule_draft_as_post(db: Session, draft: Draft, on_day: date | None = None
             "the only one — it needs a video, not an image)."
         )
 
-    post = Post(brand_id=draft.brand_id, video_id=draft.video_id, title=draft.title, status="scheduled")
+    post = Post(
+        brand_id=draft.brand_id, video_id=draft.video_id, title=draft.title, status="scheduled", angle=draft.angle or ""
+    )
     db.add(post)
     db.flush()
 
@@ -357,6 +359,8 @@ def _write_batch(
             source="ai-auto",
             status="waiting",  # set for real below, once media (if any) is attached
             fit_score=idea.get("fit_score"),
+            angle=idea.get("angle") or "",
+            goal=idea.get("goal") or "",
             fact_issues=checks[n] if checks is not None else None,
         )
         for n, idea in enumerate(ideas)

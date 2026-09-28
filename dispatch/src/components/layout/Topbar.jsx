@@ -108,7 +108,7 @@ export default function Topbar({ onToggleSidebar }) {
         >
           <FiBell size={19} />
           {notifCount > 0 && (
-            <span className="absolute top-0.5 right-0.5 min-w-[17px] h-[17px] px-1 rounded-full bg-red-600 text-white text-[10px] font-bold grid place-items-center ring-2 ring-[#FAFBFC]">
+            <span className="absolute top-0.5 right-0.5 min-w-[17px] h-[17px] px-1 rounded-full bg-red-600 text-white text-[10px] font-bold grid place-items-center ring-2 ring-canvas-soft">
               {notifCount > 9 ? "9+" : notifCount}
             </span>
           )}

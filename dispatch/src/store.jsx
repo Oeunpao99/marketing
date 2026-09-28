@@ -157,6 +157,8 @@ export function StoreProvider({ children }) {
               source: d.source,
               videoUrl: d.video_url,
               fitScore: d.fit_score,
+              angle: d.angle,
+              goal: d.goal,
               factIssues: d.fact_issues,
             })),
           );

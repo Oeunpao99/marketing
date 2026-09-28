@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { FiArrowLeft, FiCheck, FiFilm, FiLayers, FiRefreshCw, FiZap } from 'react-icons/fi'
 import { api } from '../api/client'
 import AutoTextarea from '../components/ui/AutoTextarea'
+import Select from '../components/ui/Select'
 import StoryEditor, { StatusPill, storyInput as input } from '../components/story/StoryEditor'
 import { useStore } from '../store'
 
@@ -166,37 +167,26 @@ export default function VideoStoryPage() {
           </div>
 
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
-            <label>
+            <div>
               <span className="label">Brand</span>
-              <select
+              <Select
+                size="lg"
                 value={creation.brand_id || ''}
-                onChange={(event) => selectBrand(Number(event.target.value))}
+                onChange={selectBrand}
                 disabled={!brands.length}
-                className={input}
-              >
-                {!brands.length && <option value="">Create a brand first</option>}
-                {brands.map((brand) => (
-                  <option key={brand.id} value={brand.id}>
-                    {brand.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
+                placeholder={brands.length ? 'Select a brand' : 'Create a brand first'}
+                options={brands.map((brand) => ({ value: brand.id, label: brand.name }))}
+              />
+            </div>
+            <div>
               <span className="label">Voiceover</span>
-              <select
+              <Select
+                size="lg"
                 value={creation.language}
-                onChange={(event) => updateCreation({ language: event.target.value })}
-                className={input}
-              >
-                {LANGUAGES.map((language) => (
-                  <option key={language} value={language}>
-                    {language}
-                  </option>
-                ))}
-                <option value="">No voiceover</option>
-              </select>
-            </label>
+                onChange={(language) => updateCreation({ language })}
+                options={[...LANGUAGES.map((language) => ({ value: language })), { value: '', label: 'No voiceover' }]}
+              />
+            </div>
           </div>
 
           <label className="block mt-4">
@@ -279,43 +269,36 @@ export default function VideoStoryPage() {
           </div>
 
           <div className="mt-5 grid gap-4 sm:grid-cols-3">
-            <label>
+            <div>
               <span className="label">Format</span>
-              <select
+              <Select
+                size="lg"
                 value={creation.aspect_ratio}
-                onChange={(event) => updateCreation({ aspect_ratio: event.target.value })}
-                className={input}
-              >
-                <option value="9:16">9:16 · Vertical</option>
-                <option value="16:9">16:9 · Landscape</option>
-              </select>
-            </label>
-            <label>
+                onChange={(aspect_ratio) => updateCreation({ aspect_ratio })}
+                options={[
+                  { value: '9:16', label: '9:16 · Vertical' },
+                  { value: '16:9', label: '16:9 · Landscape' },
+                ]}
+              />
+            </div>
+            <div>
               <span className="label">Length</span>
-              <select
-                value={creation.total_seconds}
-                onChange={(event) => updateCreation({ total_seconds: Number(event.target.value) })}
-                className={input}
-              >
-                {[8, 16, 24, 32, 48, 64].map((seconds) => (
-                  <option key={seconds} value={seconds}>
-                    About {seconds} seconds
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
+              <Select
+                size="lg"
+                value={Number(creation.total_seconds)}
+                onChange={(total_seconds) => updateCreation({ total_seconds })}
+                options={[8, 16, 24, 32, 48, 64].map((seconds) => ({ value: seconds, label: `About ${seconds} seconds` }))}
+              />
+            </div>
+            <div>
               <span className="label">Clip length</span>
-              <select
-                value={creation.scene_seconds}
-                onChange={(event) => updateCreation({ scene_seconds: Number(event.target.value) })}
-                className={input}
-              >
-                <option value={4}>4 seconds</option>
-                <option value={8}>8 seconds</option>
-                <option value={12}>12 seconds</option>
-              </select>
-            </label>
+              <Select
+                size="lg"
+                value={Number(creation.scene_seconds)}
+                onChange={(scene_seconds) => updateCreation({ scene_seconds })}
+                options={[4, 8, 12].map((seconds) => ({ value: seconds, label: `${seconds} seconds` }))}
+              />
+            </div>
           </div>
 
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-ink-100 pt-5">

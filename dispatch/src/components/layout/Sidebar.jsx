@@ -132,7 +132,7 @@ export default function Sidebar({ collapsed = false }) {
           }
         >
           <Icon size={18} aria-hidden="true" />
-          {count != null && <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-brand ring-2 ring-[#FAFBFC]" />}
+          {count != null && <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-brand ring-2 ring-canvas-soft" />}
         </NavLink>
       );
     }
@@ -221,7 +221,7 @@ export default function Sidebar({ collapsed = false }) {
     "U";
 
   return (
-    <aside className="hidden lg:flex flex-col sticky top-0 h-screen bg-[#FAFBFC] border-r border-ink-200/70 side-scroll">
+    <aside className="hidden lg:flex flex-col sticky top-0 h-screen bg-canvas-soft border-r border-ink-200/70 side-scroll">
       {/* App name */}
       <NavLink
         to="/"
@@ -386,7 +386,7 @@ export default function Sidebar({ collapsed = false }) {
               >
                 <FiInbox size={18} />
                 {notifCount > 0 && (
-                  <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-red-500 ring-2 ring-[#FAFBFC]" />
+                  <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-red-500 ring-2 ring-canvas-soft" />
                 )}
               </button>
             ) : (

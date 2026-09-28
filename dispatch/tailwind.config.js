@@ -1,8 +1,24 @@
 /** @type {import('tailwindcss').Config} */
+// Light / dark: the greys (`ink`), surfaces (`bg-white`, `canvas`) and the
+// accent tints are CSS variables (index.css `:root` / `html.dark`), so the
+// whole app switches theme by toggling the `dark` class on <html> (see
+// src/lib/theme.js). `night` is a fixed dark for things that stay dark in both
+// themes — video frames, the dim behind a popup, dark tooltips.
+const v = (name) => `rgb(var(--${name}) / <alpha-value>)`
+const surface = v('surface')
+
 export default {
   content: ['./index.html', './src/**/*.{js,jsx}'],
+  darkMode: 'class',
   theme: {
     extend: {
+      // `bg-white` / white borders & rings are the card surface (dark in dark
+      // mode); `text-white` stays white — it sits on the accent and on photos.
+      backgroundColor: { white: surface },
+      borderColor: { white: v('edge') },
+      ringColor: { white: surface },
+      ringOffsetColor: { white: surface },
+      gradientColorStops: { white: surface },
       colors: {
         // Driven by CSS variables so the accent is user-selectable
         // (Settings → Appearance; see src/lib/theme.js). Defaults in index.css.
@@ -33,18 +49,29 @@ export default {
           600: '#D97706',
         },
         ink: {
-          DEFAULT: '#1A1D23',
-          50: '#F7F8F9',
-          100: '#EDEEF0',
-          200: '#D8DBDF',
-          300: '#B3BAC3',
-          400: '#6B7683',
-          500: '#4A535F',
-          600: '#323A44',
-          700: '#262C33',
+          DEFAULT: v('ink-900'),
+          50: v('ink-50'),
+          100: v('ink-100'),
+          200: v('ink-200'),
+          300: v('ink-300'),
+          400: v('ink-400'),
+          500: v('ink-500'),
+          600: v('ink-600'),
+          700: v('ink-700'),
+          800: v('ink-800'),
+          900: v('ink-900'),
+          950: v('ink-950'),
+        },
+        night: {
+          DEFAULT: '#16191E',
           800: '#1E232A',
           900: '#16191E',
           950: '#0E1014',
+        },
+        // The page behind the cards, and the sidebar's slightly lighter one.
+        canvas: {
+          DEFAULT: v('canvas'),
+          soft: v('canvas-soft'),
         },
       },
       fontFamily: {

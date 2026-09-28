@@ -37,7 +37,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-[1.1fr_1fr] bg-[#F7F9FC]">
+    <div className="min-h-screen grid lg:grid-cols-[1.1fr_1fr] bg-canvas">
       <BrandPanel />
 
       {/* ── form panel ── */}

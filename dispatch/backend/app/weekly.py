@@ -202,6 +202,8 @@ def build_plan(db: Session, brand_id: int, starts_on: date | None = None, step=l
             "caption": idea["caption"],
             "insight": idea["insight"],
             "fit_score": idea.get("fit_score"),
+            "angle": idea.get("angle") or "",
+            "goal": idea.get("goal") or "",
             "fact_issues": checks[n] if checks is not None else None,
         }
         for n, idea in enumerate(ideas)
@@ -534,6 +536,8 @@ def weekly_approve(
             source="ai-weekly",
             status="approved",
             fit_score=i.get("fit_score"),
+            angle=i.get("angle") or "",
+            goal=i.get("goal") or "",
             fact_issues=i.get("fact_issues"),
         )
         for i in keep

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
+import { angleText } from '../lib/angles'
 import { colorForBrand } from '../lib/brandColor'
 import { useStore } from '../store'
 
@@ -103,6 +104,14 @@ export default function ReviewPage() {
                           title="AI's own self-check: how grounded this idea is in real product facts"
                         >
                           {r.fitScore}% fit
+                        </span>
+                      )}
+                      {angleText(r.angle, r.goal) && (
+                        <span
+                          className="inline-flex items-center rounded-full bg-ink-100 px-1.5 py-px text-[10px] font-semibold text-ink-600"
+                          title="The marketing angle and goal the AI wrote this caption for"
+                        >
+                          {angleText(r.angle, r.goal)}
                         </span>
                       )}
                     </div>

@@ -249,11 +249,22 @@ def channels_view(db: Session = Depends(get_db), ws: int = Depends(current_works
     plats = _platform_map(db)
     brands = db.scalars(select(Brand).where(scope(Brand, ws)).order_by(Brand.name)).all()
     chans = _scoped(db, Channel, ws)
+    # A brand can hold several accounts per platform. Once one is connected,
+    # its other "not connected" rows (old Pages, kept for their post history)
+    # are just noise — show them only while nothing on that platform is live,
+    # and then just one of them as the "Connect" row.
+    shown: set[int] = set()
+    groups: dict[tuple[int, int], list] = {}
+    for c in sorted(chans, key=lambda c: c.id):
+        groups.setdefault((c.brand_id, c.platform_id), []).append(c)
+    for rows_ in groups.values():
+        live = [c for c in rows_ if c.status != "off"]
+        shown.update(c.id for c in (live or rows_[:1]))
     result = []
     for b in brands:
         rows = []
         for c in chans:
-            if c.brand_id != b.id:
+            if c.brand_id != b.id or c.id not in shown:
                 continue
             plat = plats.get(c.platform_id)
             rows.append(
@@ -319,6 +330,8 @@ def review_view(db: Session = Depends(get_db), ws: int = Depends(current_workspa
             "generated_at": d.generated_at,
             "source": d.source,
             "fit_score": d.fit_score,
+            "angle": d.angle,
+            "goal": d.goal,
             "fact_issues": d.fact_issues,
             "video_id": d.video_id,
             "video_url": videos[d.video_id].url if d.video_id in videos else None,
@@ -438,9 +451,11 @@ def calendar_view(
                 "title": post_title(post, caption, idea),
                 "body": caption,
                 "insight": idea.insight if idea else "",
+                "angle": post.angle or (idea.angle if idea else ""),
                 "planned_for": at.astimezone(PHNOM_PENH).date() if at else None,
                 "status": post_status(ts),
-                "source": idea.source if idea else "compose",
+                "source": idea.source if idea else ("native" if post.origin == "native" else "compose"),
+                "origin": post.origin or "contentflow",
                 "media": media.get(post.video_id) if post.video_id else None,
                 "targets": ts,
             }
@@ -457,6 +472,7 @@ def calendar_view(
                 "title": d.title,
                 "body": d.body,
                 "insight": d.insight,
+                "angle": d.angle,
                 "planned_for": d.planned_for,
                 "status": d.status,
                 "source": d.source,
@@ -720,6 +736,7 @@ def insights_view(
         ch = chans.get(t.channel_id)
         plat = plats.get(ch.platform_id) if ch else None
         video = videos.get(post.video_id) if post and post.video_id else None
+        imported = (t.platform_options or {}).get("imported") or {}
         rows.append(
             {
                 "target_id": t.id,
@@ -733,8 +750,18 @@ def insights_view(
                 "channel_handle": (ch.handle if ch else "") or "",
                 "title": t.title or (post.title if post else "") or "Untitled",
                 "caption": t.caption,
-                "media_url": video.url if video else None,
-                "media_kind": kind_for(video.url, None) if video and video.url else None,
+                "media_url": video.url if video else (imported.get("picture") or None),
+                "media_kind": (
+                    kind_for(video.url, None)
+                    if video and video.url
+                    else (imported.get("kind") if imported.get("kind") in ("image", "video") else None)
+                ),
+                # An imported post only has the platform's picture (for a video,
+                # its cover image) — show it as an image, never play it.
+                "media_thumb": bool(imported.get("picture")) and not video,
+                # "contentflow" = posted from here; "native" = posted straight
+                # on the platform and imported (app/importer.py).
+                "origin": (post.origin if post else "") or "contentflow",
                 "published_at": t.published_at,
                 "_channel_config": (ch.config if ch else None) or {},
                 "_external_id": t.external_id,
@@ -933,11 +960,25 @@ def schedule(payload: ScheduleIn, db: Session = Depends(get_db), ws: int = Depen
     for t in payload.targets:
         owned(db, Channel, t.channel_id, ws, f"Channel {t.channel_id}")
 
+    # A post made from an AI idea keeps that idea's angle, so learning.py can
+    # compare angles — matched on the unedited caption (no draft link here).
+    caption = next((t.caption for t in payload.targets if t.caption.strip()), "")
+    angle = (
+        db.scalar(
+            select(Draft.angle)
+            .where(Draft.brand_id == payload.brand_id, Draft.body == caption, Draft.angle != "")
+            .order_by(Draft.id.desc())
+            .limit(1)
+        )
+        if caption
+        else None
+    )
     post = Post(
         brand_id=payload.brand_id,
         video_id=payload.video_id,
         title=payload.title,
         status="scheduled",
+        angle=angle or "",
     )
     db.add(post)
     db.flush()
@@ -1006,6 +1047,20 @@ def connect_channel(
     }
 
 
+@router.post("/channels/{channel_id}/import-posts")
+def import_channel_posts(channel_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    """Pull in this Page's recent posts made outside ContentFlow now,
+    instead of waiting for the background import."""
+    from app import importer, meta
+
+    ch = owned(db, Channel, channel_id, ws)
+    try:
+        added = importer.import_channel(db, ch)
+    except meta.MetaError as exc:
+        raise HTTPException(502, str(exc)) from exc
+    return {"imported": added, "days": importer.LOOKBACK_DAYS}
+
+
 @router.get("/channels/{channel_id}/pending")
 def channel_pending(channel_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
     """How many not-yet-sent posts are queued for this channel — shown in the
@@ -1040,11 +1095,38 @@ def disconnect_channel(channel_id: int, db: Session = Depends(get_db), ws: int =
         t.error = "Channel was disconnected before this went out."
 
     ch.status = "off"
-    ch.config = {}
+    ch.config = {k: v for k, v in (ch.config or {}).items() if k in _IDENTITY_KEYS}
     ch.token_note = "Not connected"
     ch.last_post_at = None
     db.commit()
     return {"id": ch.id, "status": ch.status, "cancelled": len(pending)}
+
+
+# Non-secret keys that say WHICH account a channel is (a Facebook Page, an
+# Instagram account, a Telegram chat) — kept on disconnect, so reconnecting
+# the same account brings back the same channel and its post history.
+_IDENTITY_KEYS = ("page_id", "page_name", "ig_user_id", "ig_username", "chat_id")
+
+
+def _claim_channel(db: Session, brand_id: int, platform_id: int, key: str, value: str) -> Channel:
+    """The channel row a connected account should live in. A brand can have
+    several accounts on one platform (e.g. three Facebook Pages), one channel
+    each: reuse the row that already belongs to this account, else an empty
+    "not connected" placeholder, else start a new row."""
+    rows = db.scalars(
+        select(Channel)
+        .where(Channel.brand_id == brand_id, Channel.platform_id == platform_id)
+        .order_by(Channel.id)
+    ).all()
+    for ch in rows:
+        if str((ch.config or {}).get(key) or "") == str(value):
+            return ch
+    for ch in rows:
+        if ch.status == "off" and not any((ch.config or {}).get(k) for k in _IDENTITY_KEYS):
+            return ch
+    ch = Channel(brand_id=brand_id, platform_id=platform_id)
+    db.add(ch)
+    return ch
 
 
 def _connect_note(verified: dict | None, payload) -> str:
@@ -1088,24 +1170,26 @@ def create_channel_for_brand(payload: AddChannelIn, db: Session = Depends(get_db
     plat = db.scalar(select(Platform).where(Platform.slug == payload.platform_slug))
     if plat is None:
         raise HTTPException(404, f"Unknown platform '{payload.platform_slug}'.")
-    existing = db.scalar(
-        select(Channel).where(Channel.brand_id == payload.brand_id, Channel.platform_id == plat.id)
-    )
-    if existing is not None:
-        raise HTTPException(409, "That brand is already connected to this platform.")
-    verified = _verify_channel_config(plat.slug, payload.config or {})
-    handle = (
-        (verified or {}).get("chat_title") or payload.handle or payload.config.get("chat_id", "")
-    )
-    ch = Channel(
-        brand_id=payload.brand_id,
-        platform_id=plat.id,
-        handle=handle,
-        status="live",
-        token_note=_connect_note(verified, None),
-        config=payload.config or {},
-    )
-    db.add(ch)
+    config = payload.config or {}
+    chat_id = str(config.get("chat_id") or "")
+    if chat_id:
+        # Telegram: a brand can post to several chats — one channel each.
+        ch = _claim_channel(db, payload.brand_id, plat.id, "chat_id", chat_id)
+    else:
+        ch = db.scalar(
+            select(Channel).where(Channel.brand_id == payload.brand_id, Channel.platform_id == plat.id)
+        )
+        if ch is not None and ch.status != "off":
+            raise HTTPException(409, "That brand is already connected to this platform.")
+        if ch is None:
+            ch = Channel(brand_id=payload.brand_id, platform_id=plat.id)
+            db.add(ch)
+    verified = _verify_channel_config(plat.slug, config)
+    ch.handle = (verified or {}).get("chat_title") or payload.handle or chat_id
+    ch.status = "live"
+    ch.token_note = _connect_note(verified, None)
+    ch.config = {**(ch.config or {}), **config}
+    ch.last_post_at = None
     db.commit()
     db.refresh(ch)
     return {"id": ch.id, "status": ch.status, "verified": verified}
@@ -1286,8 +1370,17 @@ def meta_pending_view(pending_id: str, db: Session = Depends(get_db), ws: int = 
     }
 
 
-class MetaConfirmIn(BaseModel):
+class MetaPagePick(BaseModel):
     page_id: str
+    facebook: bool = True
+    instagram: bool = False
+
+
+class MetaConfirmIn(BaseModel):
+    # Several Pages at once — each becomes its own channel.
+    pages: list[MetaPagePick] = Field(default_factory=list)
+    # Older single-Page form, still accepted.
+    page_id: str | None = None
     connect_facebook: bool = True
     connect_instagram: bool = False
 
@@ -1300,54 +1393,69 @@ def meta_pending_confirm(
     if record is None:
         raise HTTPException(404, "That connect session expired — start again.")
     owned(db, Brand, record["brand_id"], ws)
+    picks = payload.pages or (
+        [MetaPagePick(page_id=payload.page_id, facebook=payload.connect_facebook, instagram=payload.connect_instagram)]
+        if payload.page_id
+        else []
+    )
+    picks = [pk for pk in picks if pk.facebook or pk.instagram]
+    if not picks:
+        raise HTTPException(400, "Pick at least one Page to connect.")
+    by_id = {p["id"]: p for p in record["pages"]}
+    for pk in picks:
+        page = by_id.get(pk.page_id)
+        if page is None:
+            raise HTTPException(404, "That Page was not in the list you connected.")
+        if pk.instagram and not page.get("ig_user_id"):
+            raise HTTPException(400, f"{page['name']} has no linked Instagram Business account.")
     meta.pop_pending(pending_id)
-    page = next((p for p in record["pages"] if p["id"] == payload.page_id), None)
-    if page is None:
-        raise HTTPException(404, "That Page was not in the list you connected.")
-    if not payload.connect_facebook and not payload.connect_instagram:
-        raise HTTPException(400, "Pick at least Facebook or Instagram.")
-    if payload.connect_instagram and not page.get("ig_user_id"):
-        raise HTTPException(400, "That Page has no linked Instagram Business account.")
 
     brand_id = record["brand_id"]
-    connected: list[str] = []
+    connected: list[dict] = []
+    claimed: list[Channel] = []
+    platforms = {p.slug: p for p in db.scalars(select(Platform).where(Platform.slug.in_(("facebook", "instagram"))))}
 
-    def upsert(platform_slug: str, handle: str, config: dict) -> None:
-        plat = db.scalar(select(Platform).where(Platform.slug == platform_slug))
+    def upsert(platform_slug: str, identity: tuple[str, str], handle: str, config: dict) -> None:
+        plat = platforms.get(platform_slug)
         if plat is None:
             return
-        ch = db.scalar(
-            select(Channel).where(Channel.brand_id == brand_id, Channel.platform_id == plat.id)
-        )
-        if ch is None:
-            ch = Channel(brand_id=brand_id, platform_id=plat.id)
-            db.add(ch)
+        ch = _claim_channel(db, brand_id, plat.id, *identity)
         ch.status = "live"
         ch.handle = handle
         ch.token_note = "Connected via Facebook login"
         ch.config = {**(ch.config or {}), **config}
         ch.last_post_at = None
-        connected.append(platform_slug)
+        claimed.append(ch)
+        connected.append({"platform": platform_slug, "name": handle})
 
-    if payload.connect_facebook:
-        upsert(
-            "facebook",
-            page["name"],
-            {"access_token": page["access_token"], "page_id": page["id"], "page_name": page["name"]},
-        )
-    if payload.connect_instagram:
-        upsert(
-            "instagram",
-            f"@{page['ig_username']}" if page.get("ig_username") else page["name"],
-            {
-                "access_token": page["access_token"],
-                "page_id": page["id"],
-                "ig_user_id": page["ig_user_id"],
-                "ig_username": page.get("ig_username", ""),
-            },
-        )
+    for pk in picks:
+        page = by_id[pk.page_id]
+        if pk.facebook:
+            upsert(
+                "facebook",
+                ("page_id", page["id"]),
+                page["name"],
+                {"access_token": page["access_token"], "page_id": page["id"], "page_name": page["name"]},
+            )
+        if pk.instagram:
+            upsert(
+                "instagram",
+                ("ig_user_id", page["ig_user_id"]),
+                f"@{page['ig_username']}" if page.get("ig_username") else page["name"],
+                {
+                    "access_token": page["access_token"],
+                    "page_id": page["id"],
+                    "ig_user_id": page["ig_user_id"],
+                    "ig_username": page.get("ig_username", ""),
+                },
+            )
     db.commit()
-    return {"connected": connected}
+    # Bring in what these Pages posted before (app/importer.py) — in the
+    # background, so connecting stays instant.
+    from app.importer import import_in_background
+
+    import_in_background([ch.id for ch in claimed])
+    return {"connected": connected, "importing": True}
 
 
 # ── LinkedIn OAuth connect ────────────────────────────────────────────────

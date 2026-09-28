@@ -84,7 +84,7 @@ export default function VideoStep({ onSetVideo, hasVideo, video }) {
         </>
       ) : (
         <div className="bg-white border border-ink-100 rounded-2xl px-4 py-3.5 flex gap-4 items-center shadow-card">
-          <div className="w-16 h-24 rounded-lg flex-none overflow-hidden bg-ink-900 grid place-items-center text-ink-500 font-mono text-[10px]">
+          <div className="w-16 h-24 rounded-lg flex-none overflow-hidden bg-night-900 grid place-items-center text-ink-500 font-mono text-[10px]">
             {previewUrl ? (
               isImage ? (
                 <img src={previewUrl} alt="" className="w-full h-full object-cover" />

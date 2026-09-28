@@ -22,6 +22,7 @@ from statistics import mean, median
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.content_ai import ANGLES
 from app.models import Channel, MetricSnapshot, Platform, Post, PostTarget, Video
 
 PHNOM_PENH = timezone(timedelta(hours=7))
@@ -122,6 +123,7 @@ def _posts(db: Session, brand_id: int) -> list[dict]:
                 "kind": (kind_for(url, None) if url else None) or "text",
                 "engagement": eng,
                 "comments": snap.metrics.get("comments"),
+                "angle": post.angle if post else "",
             }
         )
     return out
@@ -159,6 +161,30 @@ def brand_learnings(db: Session, brand_id: int) -> dict:
                 }.get(kind, "")
             )
         break  # only the top format is worth a rule
+
+    # Marketing angle (content_ai.ANGLES) — only AI-written posts carry one,
+    # and only angles compared against other angles, never against hand-made posts.
+    by_angle: dict[str, list[float]] = {}
+    for p in posts:
+        if p["angle"] in ANGLES:
+            by_angle.setdefault(p["angle"], []).append(p["engagement"])
+    best_angle = max(by_angle, key=lambda a: mean(by_angle[a]), default=None)
+    if best_angle is not None:
+        rest = [e for a, es in by_angle.items() if a != best_angle for e in es]
+        c = _compare(by_angle[best_angle], rest)
+        if c and c[0] >= RATIO:
+            label, recipe = ANGLES[best_angle]
+            rules.append(
+                {
+                    "id": "angle",
+                    "text": f"“{label}” posts get {_x(c[0])} more engagement than other angles",
+                    "evidence": f"{c[1]:.1f} vs {c[2]:.1f} per post ({len(by_angle[best_angle])} vs {len(rest)} posts)",
+                }
+            )
+            guidance.append(
+                f"The {best_angle} angle ({label}: {recipe}) works best here — use it for about "
+                "half of the ideas, and vary the rest."
+            )
 
     # Timing, per platform (each platform's audience keeps its own hours)
     for slug in sorted({p["platform"] for p in posts if p["platform"]}):

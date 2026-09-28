@@ -26,10 +26,11 @@ import { api } from '../../api/client'
 import { useAuth } from '../../auth'
 import { NOTIFY_KINDS, notifyPrefs } from '../../lib/notifications'
 import { disablePush, enablePush, pushStatus, sendTestPush } from '../../lib/push'
-import { ACCENTS, applyAccent, DEFAULT_ACCENT, normalizeAccent } from '../../lib/theme'
+import { ACCENTS, applyAccent, applyTheme, DEFAULT_ACCENT, normalizeAccent, THEMES } from '../../lib/theme'
 import { promptInstall, useInstallState } from '../../lib/pwa'
 import { APP_VERSION, applyUpdate, latestVersion } from '../../lib/update'
 import { TZ } from '../../lib/tz'
+import Select from '../ui/Select'
 import { fmtUSD } from '../../lib/money'
 
 // Settings — every control here is real and saves to the backend
@@ -84,7 +85,7 @@ export default function SettingsModal({ open, onClose, showToast, initialTab = n
       {/* A plain dim and a solid panel, no backdrop blur: blurring a page
           that keeps animating (AI Agent renders, videos) re-blurs the whole
           screen every frame and made this feel stuck. */}
-      <div className="fixed inset-0 bg-ink-950/40" onClick={onClose} />
+      <div className="fixed inset-0 bg-night-950/50" onClick={onClose} />
       <div className="relative animate-fadein flex h-[90dvh] w-full sm:w-[70vw] overflow-hidden rounded-3xl border border-ink-200/70 bg-white shadow-[0_24px_60px_-16px_rgba(16,24,40,0.35)]">
         {/* tabs */}
         <nav className="hidden sm:flex w-[200px] flex-none flex-col gap-0.5 border-r border-ink-100 bg-ink-50/70 p-3">
@@ -201,11 +202,12 @@ function ProfileTab({ showToast }) {
         <input type="email" value={form.email} onChange={set('email')} className={input} />
       </Row>
       <Row label="Timezone" hint="Used for times shown to you.">
-        <select value={form.timezone} onChange={set('timezone')} className={input}>
-          {[...new Set([form.timezone, ...TIMEZONES])].map((tz) => (
-            <option key={tz}>{tz}</option>
-          ))}
-        </select>
+        <Select
+          size="lg"
+          value={form.timezone}
+          onChange={(timezone) => setForm((f) => ({ ...f, timezone }))}
+          options={[...new Set([form.timezone, ...TIMEZONES])].map((tz) => ({ value: tz }))}
+        />
       </Row>
 
       <SaveBar dirty={dirty} saving={saving} onSave={save} onReset={() => setForm(initial)} />
@@ -214,6 +216,33 @@ function ProfileTab({ showToast }) {
 }
 
 // ── Appearance ────────────────────────────────────────────────────────────
+// A tiny picture of the app in each theme (System = half light, half dark).
+function ThemePreview({ kind }) {
+  const pane = (dark) => (
+    <div className={`flex h-full flex-1 gap-1 p-1.5 ${dark ? 'bg-[#0E1115]' : 'bg-[#F4F6F9]'}`}>
+      <div className={`w-3 rounded-sm ${dark ? 'bg-[#181C23]' : 'bg-white'}`} />
+      <div className="flex flex-1 flex-col gap-1">
+        <div className={`h-2 w-2/3 rounded-sm ${dark ? 'bg-[#2D333D]' : 'bg-[#D8DBDF]'}`} />
+        <div className={`flex-1 rounded-sm ${dark ? 'bg-[#181C23]' : 'bg-white'}`}>
+          <div className="m-1 h-1.5 w-1/2 rounded-sm bg-brand" />
+        </div>
+      </div>
+    </div>
+  )
+  return (
+    <div className="flex h-16 overflow-hidden rounded-lg ring-1 ring-ink-200">
+      {kind === 'system' ? (
+        <>
+          {pane(false)}
+          {pane(true)}
+        </>
+      ) : (
+        pane(kind === 'dark')
+      )}
+    </div>
+  )
+}
+
 function AppearanceTab({ showToast }) {
   const { user, updatePrefs } = useAuth()
   const prefs = user?.preferences || {}
@@ -243,8 +272,39 @@ function AppearanceTab({ showToast }) {
   }
   useEffect(() => () => clearTimeout(saveTimer.current), [])
 
+  const theme = prefs.theme || 'light'
+  const pickTheme = (id) => {
+    applyTheme(id) // instant; saving re-applies it on every device you sign in on
+    save({ theme: id }, `${THEMES.find((t) => t.id === id)?.label} theme`)
+  }
+
   return (
     <div className="space-y-8">
+      <section className="space-y-4">
+        <SectionTitle title="Theme" sub="Light, dark, or follow your device's setting." />
+        <div className="grid grid-cols-3 gap-3">
+          {THEMES.map((t) => {
+            const on = t.id === theme
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => pickTheme(t.id)}
+                className={`rounded-xl border p-2.5 text-left transition ${
+                  on ? 'border-brand ring-4 ring-brand/10' : 'border-ink-200 hover:border-ink-300'
+                }`}
+              >
+                <ThemePreview kind={t.id} />
+                <span className="mt-2 flex items-center gap-1.5 text-[12.5px] font-semibold text-ink-800">
+                  {on && <FiCheck size={13} className="text-brand" />}
+                  {t.label}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </section>
+
       <section className="space-y-4">
         <SectionTitle title="Accent colour" sub="Buttons, links, highlights and the sidebar — across the whole app." />
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -400,6 +460,8 @@ function InstallApp({ showToast }) {
 function NotificationsTab({ showToast }) {
   const { user, updatePrefs } = useAuth()
   const notify = notifyPrefs(user)
+  const setKind = (id, v) =>
+    updatePrefs({ notify: { ...notify, [id]: v } }).catch((e) => showToast(`Couldn’t save — ${e.message}`))
   return (
     <div className="space-y-8">
       <section>
@@ -1277,15 +1339,15 @@ function TeamTab({ showToast }) {
                       {ROLE_LABEL[m.role] || m.role}
                     </span>
                   ) : (
-                    <select
+                    <Select
+                      size="sm"
+                      align="right"
                       value={m.role}
-                      onChange={(e) => update(m, { role: e.target.value })}
+                      onChange={(role) => update(m, { role })}
                       title={ROLE_HINT[m.role]}
-                      className="h-8 rounded-lg border border-ink-200 bg-white px-2 text-[12px] font-medium text-ink-700 focus:outline-none focus:border-brand"
-                    >
-                      <option value="admin">Admin</option>
-                      <option value="editor">Editor</option>
-                    </select>
+                      buttonClassName="text-[12px] font-medium"
+                      options={['admin', 'editor'].map((r) => ({ value: r, label: ROLE_LABEL[r], hint: ROLE_HINT[r] }))}
+                    />
                   )}
                   {!locked && (
                     <div className="flex items-center gap-1">
@@ -1355,10 +1417,15 @@ function AddMember({ onCancel, onAdded, showToast }) {
       <div className="grid gap-3 sm:grid-cols-2">
         <input autoFocus placeholder="Full name" value={form.name} onChange={set('name')} className={input} />
         <input type="email" placeholder="Email" value={form.email} onChange={set('email')} className={input} />
-        <select value={form.role} onChange={set('role')} className={input}>
-          <option value="editor">Editor — creates & publishes</option>
-          <option value="admin">Admin — also manages the team</option>
-        </select>
+        <Select
+          size="lg"
+          value={form.role}
+          onChange={(role) => setForm((f) => ({ ...f, role }))}
+          options={[
+            { value: 'editor', label: 'Editor — creates & publishes' },
+            { value: 'admin', label: 'Admin — also manages the team' },
+          ]}
+        />
         <input value={form.password} onChange={set('password')} className={`${input} font-mono`} aria-label="Temporary password" />
       </div>
       <p className="text-[11.5px] text-ink-500">

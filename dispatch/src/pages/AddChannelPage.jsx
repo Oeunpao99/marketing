@@ -28,9 +28,10 @@ const PLATFORM_META = {
     color: "#1877F2",
     Icon: SiFacebook,
     label: "Facebook Pages",
-    desc: "Log into Facebook and pick a Page — this one publishes for real.",
+    desc: "Log into Facebook and pick one or more Pages — this one publishes for real.",
     live: true,
     oauth: "meta",
+    multi: true,
   },
   tiktok: {
     color: "#000000",
@@ -50,9 +51,10 @@ const PLATFORM_META = {
     color: "#E4405F",
     Icon: SiInstagram,
     label: "Instagram",
-    desc: "Log into Facebook and pick the Page linked to your Instagram — this one publishes for real.",
+    desc: "Log into Facebook and pick the Pages linked to your Instagram accounts — this one publishes for real.",
     live: true,
     oauth: "meta",
+    multi: true,
   },
   telegram: {
     color: "#26A5E4",
@@ -60,6 +62,7 @@ const PLATFORM_META = {
     label: "Telegram",
     desc: "Post to a Telegram channel with a bot. This one publishes for real.",
     live: true,
+    multi: true,
     fields: [
       {
         key: "bot_token",
@@ -86,7 +89,7 @@ const PLATFORM_META = {
 };
 
 export default function AddChannelPage() {
-  const { brands, channels, setChannels, showToast } = useStore();
+  const { brands, channels, setChannels, refreshChannels, showToast } = useStore();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -169,27 +172,19 @@ export default function AddChannelPage() {
       if (!botToken || !chatId)
         throw new Error("Enter both the bot token and the channel.");
 
-      // brand slug -> backend id, and the existing (seeded) Telegram channel if any
-      const groups = await api.get("/views/channels");
-      const group = groups.find((g) => g.slug === selectedBrand);
+      const group = brands.find((b) => b.slug === selectedBrand);
       if (!group)
         throw new Error(`Brand "${selectedBrand}" not found on the server.`);
-      const existing = group.channels.find(
-        (c) => c.platform_slug === "telegram",
-      );
 
+      // A brand can post to several Telegram channels — the server reuses the
+      // row for a chat it already knows, else adds a new channel.
       const config = { bot_token: botToken, chat_id: chatId };
-      const res = existing
-        ? await api.post(`/views/channels/${existing.id}/connect`, {
-            handle: chatId,
-            config,
-          })
-        : await api.post("/views/channels", {
-            brand_id: group.id,
-            platform_slug: "telegram",
-            handle: chatId,
-            config,
-          });
+      const res = await api.post("/views/channels", {
+        brand_id: group.id,
+        platform_slug: "telegram",
+        handle: chatId,
+        config,
+      });
 
       // Telegram verified these server-side — use the real channel name.
       const v = res?.verified || {};
@@ -201,25 +196,8 @@ export default function AddChannelPage() {
         brandName: group.name,
       });
 
-      // reflect it in the local list too
-      setChannels((prev) => {
-        const without = prev.filter(
-          (c) => !(c.b === selectedBrand && c.p === "telegram"),
-        );
-        return [
-          ...without,
-          {
-            id: `${selectedBrand}-telegram`,
-            b: selectedBrand,
-            p: "telegram",
-            h: displayName,
-            s: "live",
-            m: note,
-            l: "—",
-          },
-        ];
-      });
-      showToast(`${displayName} connected for ${group.name}`);
+      refreshChannels();
+      showToast(`${displayName} connected for ${group.name} (${note})`);
       setStep("success");
     } catch (e) {
       setError(e.message);
@@ -339,18 +317,27 @@ export default function AddChannelPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const confirmMetaPage = async (pageId, connectFacebook, connectInstagram) => {
+  // page id -> { facebook, instagram } for every Page ticked in the picker
+  const [picks, setPicks] = useState({});
+  const pickedPages = Object.entries(picks)
+    .filter(([, v]) => v.facebook || v.instagram)
+    .map(([page_id, v]) => ({ page_id, ...v }));
+
+  const confirmMetaPages = async () => {
+    if (!pickedPages.length) return;
     setBusy(true);
     setError(null);
     try {
       const res = await api.post(`/views/oauth/meta/pending/${pending.id}/confirm`, {
-        page_id: pageId,
-        connect_facebook: connectFacebook,
-        connect_instagram: connectInstagram,
+        pages: pickedPages,
       });
+      const n = res.connected.length;
       showToast(
-        `${res.connected.map((p) => (p === "facebook" ? "Facebook" : "Instagram")).join(" + ")} connected for ${pending.brand_name}`,
+        n === 1
+          ? `${res.connected[0].name} connected for ${pending.brand_name}`
+          : `${n} accounts connected for ${pending.brand_name}`,
       );
+      await refreshChannels();
       navigate("/channels");
     } catch (e) {
       setError(e.message);
@@ -427,13 +414,14 @@ export default function AddChannelPage() {
 
         <div className="mb-6">
           <h1 className="page-title">
-            Pick a <em className="italic text-brand">Page</em>
+            Pick your <em className="italic text-brand">Pages</em>
           </h1>
           <p className="page-sub mt-1">
             {pending && (
               <>
                 For <b className="text-ink-700">{pending.brand_name}</b>. Facebook returned every
-                Page you manage — pick the one this brand posts as.
+                Page you manage — tick each one this brand should post to. Each Page becomes
+                its own channel you can pick when posting.
               </>
             )}
           </p>
@@ -458,11 +446,28 @@ export default function AddChannelPage() {
               <MetaPageRow
                 key={p.id}
                 page={p}
-                defaultIntent={pending.intent}
-                busy={busy}
-                onConnect={confirmMetaPage}
+                intent={pending.intent}
+                pick={picks[p.id]}
+                onChange={(v) => setPicks((prev) => ({ ...prev, [p.id]: v }))}
               />
             ))}
+            <div className="flex items-center gap-3 pt-1">
+              <button
+                type="button"
+                disabled={busy || !pickedPages.length}
+                onClick={confirmMetaPages}
+                className="btn-primary"
+              >
+                {busy
+                  ? "Connecting…"
+                  : pickedPages.length > 1
+                    ? `Connect ${pickedPages.length} Pages`
+                    : "Connect"}
+              </button>
+              <span className="text-[11.5px] text-ink-400">
+                {pickedPages.length ? `${pickedPages.length} selected` : "Tick at least one Page."}
+              </span>
+            </div>
           </div>
         )}
 
@@ -558,7 +563,7 @@ export default function AddChannelPage() {
   /* ═══════════ PICK BRAND ═══════════ */
   if (step === "connect" && selectedPlatform) {
     const connectedForBrand = (brandId) =>
-      channels.some((c) => c.b === brandId && c.p === selectedPlatform);
+      channels.some((c) => c.b === brandId && c.p === selectedPlatform && c.s === "live");
 
     return (
       <div className="w-full px-5 lg:px-10 py-8 lg:py-10 animate-fadein">
@@ -584,14 +589,16 @@ export default function AddChannelPage() {
           </p>
           {brands.map((b) => {
             const isConnected = connectedForBrand(b.slug);
+            // Facebook / Instagram / Telegram: a brand can add more accounts.
+            const locked = isConnected && !meta.multi;
             const color = colorForBrand(b.slug);
             return (
               <button
                 key={b.id}
-                disabled={isConnected || busy}
+                disabled={locked || busy}
                 onClick={() => chooseBrand(b.slug)}
                 className={`w-full text-left p-4 rounded-2xl border transition-all duration-150 ${
-                  isConnected || busy
+                  locked || busy
                     ? "border-ink-200 bg-ink-50 opacity-60 cursor-not-allowed"
                     : "border-ink-100 bg-white hover:border-brand hover:shadow-card cursor-pointer"
                 }`}
@@ -610,8 +617,12 @@ export default function AddChannelPage() {
                     </div>
                     <div className="text-[11.5px] text-ink-400">{b.lang}</div>
                   </div>
-                  {isConnected ? (
+                  {locked ? (
                     <Tag variant="ok">Connected</Tag>
+                  ) : isConnected && !busy ? (
+                    <span className="text-[11.5px] text-brand font-semibold">
+                      {meta.oauth === "meta" ? "Add another Page →" : "Add another →"}
+                    </span>
                   ) : (
                     <span className="text-[11.5px] text-brand font-semibold">
                       {busy
@@ -714,7 +725,7 @@ export default function AddChannelPage() {
                     : `Connected · ${liveBrands.map((b) => b.name).join(", ")}`}
                 </span>
                 <span className="text-[12px] font-semibold text-brand whitespace-nowrap group-hover:translate-x-0.5 transition-transform">
-                  {connectedHere ? "Reconnect →" : "Connect →"}
+                  {connectedHere ? (m.multi ? "Add another →" : "Reconnect →") : "Connect →"}
                 </span>
               </div>
             </button>
@@ -725,38 +736,62 @@ export default function AddChannelPage() {
   );
 }
 
-/** One Facebook Page in the "pick a Page" step — its own Facebook / Instagram
- * checkboxes (Instagram only offered when that Page has one linked), and its
- * own "Connect" button so picking one Page doesn't block the others. */
-function MetaPageRow({ page, defaultIntent, busy, onConnect }) {
-  const [fb, setFb] = useState(defaultIntent !== "instagram");
-  const [ig, setIg] = useState(page.has_instagram && defaultIntent !== "facebook");
+/** One Facebook Page in the "pick your Pages" step — tick it to connect it,
+ * with its Facebook / Instagram choices (Instagram only when that Page has
+ * one linked). Nothing is ticked until the person picks it. */
+function MetaPageRow({ page, intent, pick, onChange }) {
+  const selected = !!pick && (pick.facebook || pick.instagram);
+  const toggle = (on) =>
+    onChange(
+      on
+        ? {
+            facebook: intent !== "instagram" || !page.has_instagram,
+            instagram: page.has_instagram && intent === "instagram",
+          }
+        : { facebook: false, instagram: false },
+    );
 
   return (
-    <div className="bg-white border border-ink-100 rounded-2xl p-4">
-      <div className="font-semibold text-ink-800 text-sm">{page.name}</div>
-      <div className="mt-2.5 space-y-1.5">
-        <label className="flex items-center gap-2 text-[12px] text-ink-700">
-          <input type="checkbox" checked={fb} onChange={(e) => setFb(e.target.checked)} />
-          Connect Facebook
-        </label>
-        {page.has_instagram ? (
+    <div
+      className={`rounded-2xl border p-4 transition-colors duration-150 ${
+        selected ? "border-brand-line bg-brand-soft" : "border-ink-100 bg-white"
+      }`}
+    >
+      <label className="flex items-center gap-2.5 cursor-pointer">
+        <input
+          type="checkbox"
+          className="w-4 h-4 accent-brand flex-none"
+          checked={selected}
+          onChange={(e) => toggle(e.target.checked)}
+        />
+        <span className="font-semibold text-ink-800 text-sm">{page.name}</span>
+      </label>
+      {selected && (
+        <div className="mt-2.5 ml-[26px] space-y-1.5">
           <label className="flex items-center gap-2 text-[12px] text-ink-700">
-            <input type="checkbox" checked={ig} onChange={(e) => setIg(e.target.checked)} />
-            Connect Instagram <span className="text-ink-400">@{page.instagram_username}</span>
+            <input
+              type="checkbox"
+              className="accent-brand"
+              checked={pick.facebook}
+              onChange={(e) => onChange({ ...pick, facebook: e.target.checked })}
+            />
+            Facebook Page
           </label>
-        ) : (
-          <div className="text-[11px] text-ink-400">No Instagram account linked to this Page.</div>
-        )}
-      </div>
-      <button
-        type="button"
-        disabled={busy || (!fb && !ig)}
-        onClick={() => onConnect(page.id, fb, ig)}
-        className="btn-primary text-[11.5px]"
-      >
-        {busy ? "Connecting…" : "Connect"}
-      </button>
+          {page.has_instagram ? (
+            <label className="flex items-center gap-2 text-[12px] text-ink-700">
+              <input
+                type="checkbox"
+                className="accent-brand"
+                checked={pick.instagram}
+                onChange={(e) => onChange({ ...pick, instagram: e.target.checked })}
+              />
+              Instagram <span className="text-ink-400">@{page.instagram_username}</span>
+            </label>
+          ) : (
+            <div className="text-[11px] text-ink-400">No Instagram account linked to this Page.</div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

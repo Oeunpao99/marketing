@@ -165,10 +165,10 @@ export default function NewPostPage() {
       for (const c of selected) {
         const g = groups.find((x) => x.slug === c.b);
         const bc = g?.channels.find(
-          (x) => x.platform_slug === c.p && x.status !== "off",
+          (x) => x.id === c.id && x.status !== "off",
         );
         if (!g || !bc) {
-          missing.push(`${PLAT[c.p]?.name || c.p} for ${c.b}`);
+          missing.push(`${PLAT[c.p]?.name || c.p}${c.h ? ` (${c.h})` : ""} for ${c.b}`);
           continue;
         }
         const d = comps[c.id];
@@ -361,7 +361,7 @@ export default function NewPostPage() {
       </div>
 
       {postMode === "post" && (
-        <div className="fixed inset-0 z-50 bg-ink-950/25 backdrop-blur-md flex items-center justify-center p-4 animate-fadein">
+        <div className="fixed inset-0 z-50 bg-night-950/40 backdrop-blur-md flex items-center justify-center p-4 animate-fadein">
           <div className="glass-strong rounded-3xl p-8 flex flex-col items-center gap-4 max-w-xs w-full text-center">
             <CircularProgress percent={postPct} size={128} stroke={11}>
               {postDone ? (

@@ -11,7 +11,7 @@ const PUFFS = [
 
 export default function GeneratingCanvas({ icon = '▶', stage, small = false }) {
   return (
-    <div className={`relative h-full w-full overflow-hidden bg-[#E8F1FB] ring-1 ring-brand/10 ${small ? 'rounded-xl' : 'rounded-2xl'}`}>
+    <div className={`relative h-full w-full overflow-hidden bg-brand-soft ring-1 ring-brand/10 ${small ? 'rounded-xl' : 'rounded-2xl'}`}>
       <div className="cf-smoke cf-smoke-a" />
       <div className="cf-smoke cf-smoke-b" />
       <div className="cf-smoke cf-smoke-c" />
