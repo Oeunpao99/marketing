@@ -28,6 +28,14 @@ export default function CalendarPage() {
   // Phone layout: the day whose ideas are listed under the compact month grid.
   const [picked, setPicked] = useState(today)
   const [busy, setBusy] = useState(false)
+  // Desktop grid: days opened past their first 3 items via "+N more".
+  const [expanded, setExpanded] = useState(() => new Set())
+  const toggleDay = (d) =>
+    setExpanded((s) => {
+      const next = new Set(s)
+      next.has(d) ? next.delete(d) : next.add(d)
+      return next
+    })
 
   const monthLabel = new Date(year, month, 1).toLocaleDateString(undefined, {
     month: 'long',
@@ -263,7 +271,7 @@ export default function CalendarPage() {
                       {Number(dateStr.slice(-2))}
                     </div>
                     <div className="space-y-1">
-                      {(byDay.get(dateStr) || []).slice(0, 3).map((it) => (
+                      {(byDay.get(dateStr) || []).slice(0, expanded.has(dateStr) ? undefined : 3).map((it) => (
                         <button
                           key={it.key}
                           type="button"
@@ -290,9 +298,13 @@ export default function CalendarPage() {
                         </button>
                       ))}
                       {(byDay.get(dateStr) || []).length > 3 && (
-                        <div className="text-[10px] text-ink-400 px-1.5">
-                          +{(byDay.get(dateStr) || []).length - 3} more
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => toggleDay(dateStr)}
+                          className="px-1.5 text-[10px] font-semibold text-ink-400 hover:text-brand"
+                        >
+                          {expanded.has(dateStr) ? 'Show less' : `+${(byDay.get(dateStr) || []).length - 3} more`}
+                        </button>
                       )}
                     </div>
                   </>
