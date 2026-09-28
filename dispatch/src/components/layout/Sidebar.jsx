@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   FiBarChart2,
@@ -17,6 +17,7 @@ import {
   FiSearch,
   FiSettings,
   FiSmartphone,
+  FiStar,
   FiZap,
 } from "react-icons/fi";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
@@ -57,6 +58,41 @@ const SECTIONS = [
   },
 ];
 
+// "Most used": which pages this person opens, kept per browser (a personal
+// shortcut, like the collapsed-sidebar setting) — timestamps per page for the
+// last USAGE_DAYS. The top few show in their own section with a badge.
+const USAGE_KEY = "cf_nav_usage";
+const USAGE_DAYS = 30;
+const MOST_USED_MAX = 3;
+const MOST_USED_MIN_OPENS = 3; // don't call a page "most used" after one visit
+// Dashboard is always first anyway; Platforms carries its own submenu.
+const TRACKED = [...CORE, ...SECTIONS.flatMap((s) => s.items)].filter((i) => !i.end && !i.expand);
+
+function readUsage() {
+  try {
+    return JSON.parse(localStorage.getItem(USAGE_KEY)) || {};
+  } catch {
+    return {};
+  }
+}
+
+function recordVisit(route) {
+  const since = Date.now() - USAGE_DAYS * 86400000;
+  const usage = readUsage();
+  const next = {};
+  for (const [r, times] of Object.entries(usage)) {
+    const kept = (Array.isArray(times) ? times : []).filter((t) => t >= since);
+    if (kept.length) next[r] = kept;
+  }
+  next[route] = [...(next[route] || []), Date.now()].slice(-200);
+  try {
+    localStorage.setItem(USAGE_KEY, JSON.stringify(next));
+  } catch {
+    // storage blocked (private window) — the section just stays empty
+  }
+  return next;
+}
+
 // ``collapsed`` = the slim icon rail (Shell's sidebar toggle): icons only,
 // labels as hover tooltips, counts as dots, menus open beside the rail.
 export default function Sidebar({ collapsed = false }) {
@@ -72,6 +108,24 @@ export default function Sidebar({ collapsed = false }) {
   const [notifOpen, setNotifOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
   const [platformsOpen, setPlatformsOpen] = useState(pathname.startsWith("/channels"));
+  const [usage, setUsage] = useState(readUsage);
+
+  // Count a visit each time a tracked page is opened.
+  useEffect(() => {
+    const item = TRACKED.find((i) => pathname === i.to || pathname.startsWith(`${i.to}/`));
+    if (item) setUsage(recordVisit(item.to));
+  }, [pathname]);
+
+  const mostUsed = useMemo(() => {
+    const since = Date.now() - USAGE_DAYS * 86400000;
+    return TRACKED.map((item) => ({
+      ...item,
+      uses: (usage[item.to] || []).filter((t) => t >= since).length,
+    }))
+      .filter((i) => i.uses >= MOST_USED_MIN_OPENS)
+      .sort((a, b) => b.uses - a.uses)
+      .slice(0, MOST_USED_MAX);
+  }, [usage]);
 
   const active = brands.find((b) => b.slug === activeBrand) || brands[0];
   const filteredBrands = brands.filter((b) =>
@@ -115,7 +169,7 @@ export default function Sidebar({ collapsed = false }) {
     return null;
   };
 
-  const navItem = ({ to, end, icon: Icon, label, badge, expand }) => {
+  const navItem = ({ to, end, icon: Icon, label, badge, expand, uses }) => {
     const count = badgeFor(badge);
     if (collapsed) {
       return (
@@ -157,6 +211,15 @@ export default function Sidebar({ collapsed = false }) {
                 aria-hidden="true"
               />
               <span className="flex-1 truncate">{label}</span>
+              {uses != null && (
+                <span
+                  title={`Opened ${uses} time${uses === 1 ? "" : "s"} in the last ${USAGE_DAYS} days`}
+                  className="inline-flex items-center gap-0.5 rounded-full bg-brand-soft px-1.5 py-px text-[10px] font-bold text-brand tabular-nums"
+                >
+                  <FiStar size={9} className="fill-current" aria-hidden="true" />
+                  {uses}
+                </span>
+              )}
               {count != null && (
                 <span className="text-[11px] font-semibold text-ink-500 tabular-nums">{count}</span>
               )}
@@ -363,6 +426,17 @@ export default function Sidebar({ collapsed = false }) {
       </div>
 
       <nav className={`flex-1 overflow-y-auto side-scroll pb-3 ${collapsed ? "px-2" : "px-3"}`}>
+        {mostUsed.length > 0 && (
+          <>
+            {!collapsed && (
+              <div className="px-3 mb-1.5 flex items-center gap-1.5 text-[12px] font-medium text-ink-500">
+                <FiStar size={11} className="text-brand fill-current" aria-hidden="true" /> Most used
+              </div>
+            )}
+            <div className={collapsed ? "space-y-1" : "space-y-0.5"}>{mostUsed.map(navItem)}</div>
+            <div className={`my-3 border-t border-ink-200/70 ${collapsed ? "mx-2" : "mx-0"}`} />
+          </>
+        )}
         <div className={collapsed ? "space-y-1" : "space-y-0.5"}>{CORE.map(navItem)}</div>
 
         {SECTIONS.map((section) => (

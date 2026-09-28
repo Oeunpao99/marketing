@@ -5,7 +5,8 @@ import DayView from '../components/today/DayView'
 import TableView from '../components/today/TableView'
 import CircularProgress from '../components/ui/CircularProgress'
 import Pager from '../components/ui/Pager'
-import { phnomPenhDay, phnomPenhDate, dayLabel, fullDayLabel } from '../lib/tz'
+import { phnomPenhDay, phnomPenhDate, fullDayLabel } from '../lib/tz'
+import DateRangePicker, { inRange } from '../components/ui/DateRangePicker'
 import { FiCheck, FiCheckCircle, FiClock, FiEdit3, FiRefreshCw, FiSend, FiZap } from 'react-icons/fi'
 
 const PER_PAGE = 10 // queue posts per page
@@ -44,7 +45,7 @@ function QueueSkeleton() {
 
 export default function TodayPage() {
   const { queue, channels, review, queueReady, activeBrand, brands } = useStore()
-  const [day, setDay] = useState('all')
+  const [range, setRange] = useState(null) // { from, to } Phnom Penh days, null = all dates
   const [view, setView] = useState('timeline')
   const liveCount = channels.filter((c) => c.s !== 'off').length
   const postedCount = queue.filter((q) => q.st === 'posted').length
@@ -55,17 +56,17 @@ export default function TodayPage() {
   const active = brands.find((b) => b.slug === activeBrand)
   const reviewCount = (review || []).length
 
-  const days = useMemo(() => {
-    const set = new Set()
+  // Posts per day — the date picker marks these days on its calendar.
+  const dayCounts = useMemo(() => {
+    const out = {}
     for (const q of queue) {
       const d = phnomPenhDay(q.scheduledFor)
-      if (d) set.add(d)
+      if (d) out[d] = (out[d] || 0) + 1
     }
-    return Array.from(set).sort()
+    return out
   }, [queue])
 
-  const visibleDays = day === 'all' ? days : days.filter((d) => d === day)
-  const inDay = (q) => day === 'all' || phnomPenhDay(q.scheduledFor) === day
+  const inDay = (q) => inRange(phnomPenhDay(q.scheduledFor), range)
   const empty = queueReady && queue.length === 0
 
   // 10 posts per page, in dispatch order. The views still get the whole queue
@@ -88,7 +89,7 @@ export default function TodayPage() {
   const current = Math.min(page, pageCount - 1) // the live refresh can shrink the list
   const onPage = new Set(inDayList.slice(current * PER_PAGE, (current + 1) * PER_PAGE))
   const match = (q) => onPage.has(q)
-  useEffect(() => setPage(0), [day])
+  useEffect(() => setPage(0), [range])
   const goToPage = (p) => {
     setPage(Math.min(Math.max(0, p), pageCount - 1))
     listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -155,33 +156,7 @@ export default function TodayPage() {
         </header>
 
         <div className="px-5 lg:px-7 pb-2 flex flex-wrap items-center gap-2">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setDay('all')}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all duration-150 ${
-                day === 'all'
-                  ? 'border-brand-line bg-brand-soft text-brand'
-                  : 'border-ink-200 bg-white text-ink-600 hover:border-brand-line'
-              }`}
-            >
-              All ({queue.length})
-            </button>
-            {days.map((d) => (
-              <button
-                key={d}
-                type="button"
-                onClick={() => setDay(day === d ? 'all' : d)}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all duration-150 ${
-                  day === d
-                    ? 'border-brand-line bg-brand-soft text-brand'
-                    : 'border-ink-200 bg-white text-ink-600 hover:border-brand-line'
-                }`}
-              >
-                {dayLabel(d)}
-              </button>
-            ))}
-          </div>
+          <DateRangePicker value={range} onChange={setRange} counts={dayCounts} />
 
           <div className="ml-auto inline-flex items-center gap-0.5 rounded-xl border border-ink-200 bg-ink-50 p-0.5">
             <button
@@ -225,9 +200,12 @@ export default function TodayPage() {
               </Link>
             </div>
           </div>
-        ) : visibleDays.length === 0 ? (
+        ) : inDayList.length === 0 ? (
           <div className="px-7 py-14 text-center text-[12px] text-ink-400">
-            Nothing scheduled for this day. Pick another date above.
+            Nothing on these dates.{' '}
+            <button type="button" onClick={() => setRange(null)} className="font-semibold text-brand hover:underline">
+              Show all dates
+            </button>
           </div>
         ) : (
           <>
