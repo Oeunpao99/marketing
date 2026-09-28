@@ -24,6 +24,8 @@ export default function NewPostPage() {
   const [video, setVideo] = useState(null);
   const [selected, setSelected] = useState([]);
   const [comps, setComps] = useState({});
+  // Caption that came with a Library item — every channel picked starts with it.
+  const [startCaption, setStartCaption] = useState("");
   const [error, setError] = useState(null);
 
   // "post" (Post now, shows the progress ring) or "schedule" (Schedule for
@@ -69,12 +71,13 @@ export default function NewPostPage() {
         name: a.name,
         size: a.size,
         dur: a.kind === "image" ? "image" : "—",
-        tag: "From AI agent",
+        tag: a.source ? `From ${a.source}` : "From AI agent",
         file: a.file,
         kind: a.kind,
         previewUrl: a.url,
         videoId: a.videoId ?? null,
       });
+      if (a.caption) setStartCaption(a.caption);
     }
   }, []);
 
@@ -87,7 +90,7 @@ export default function NewPostPage() {
           setComps((c2) => ({
             ...c2,
             [id]: {
-              cap: "",
+              cap: startCaption,
               ttl: "",
               date: phnomPenhDate(0),
               time: defaultTimeFor(c.p),

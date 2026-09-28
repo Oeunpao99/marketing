@@ -155,6 +155,10 @@ def _generate_video_for(
             db.expire_all()
             job = db.get(GenerationJob, job_id)
             if job.status == "succeeded":
+                v = db.get(Video, job.video_id) if job.video_id else None
+                if v is not None and not v.caption and idea.get("caption"):
+                    v.caption, v.caption_angle, v.caption_status = idea["caption"], idea.get("angle") or "", "ready"
+                    db.commit()
                 return job.video_id
             if job.status == "failed":
                 log.warning("auto video failed for brand %s: %s", brand.id, job.error)
@@ -224,6 +228,9 @@ def _generate_media_for(
             source="ai",
             tag="ai-auto-image",
             url=url,
+            caption=idea.get("caption") or "",
+            caption_angle=idea.get("angle") or "",
+            caption_status="ready" if idea.get("caption") else "",
         )
         db.add(v)
         db.flush()

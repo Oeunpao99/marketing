@@ -644,6 +644,9 @@ def _combine(story_id: int) -> None:
         story.final_video_id = video.id
         story.status = "done"
         db.commit()
+        from app.media_caption import write_in_background
+
+        write_in_background(video.id, f"{story.title}\n\n{script}")
         from app.push import notify_user
 
         notify_user(story.user_id, "generated", "Your video is ready 🎬", f"{story.title} — {total}s", f"/story?id={story.id}", f"story-{story.id}")

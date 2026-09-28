@@ -21,6 +21,7 @@ import {
   FiHash,
   FiImage,
   FiLock,
+  FiRepeat,
   FiMessageCircle,
   FiTrendingDown,
   FiTrendingUp,
@@ -33,6 +34,7 @@ import { isKhmer } from '../lib/format'
 import { platformHue } from '../components/insights/Overview'
 import { GrowthCard, MembersCard, MoreFromChannel, PostingTimeCard } from '../components/insights/PostDetail'
 import ImproveCard from '../components/insights/ImproveCard'
+import RepostDialog from '../components/insights/RepostDialog'
 import { OriginBadge, PLATFORM_ICONS, SERIES_COLORS, EngagementLineChart, engagementOf, mediaSrc } from './InsightsPage'
 
 const PLATFORM_NAMES = {
@@ -347,6 +349,7 @@ export default function InsightsPostPage() {
   const [items, setItems] = useState(null)
   const [zoom, setZoom] = useState(false)
   const [history, setHistory] = useState(null)
+  const [reposting, setReposting] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -493,9 +496,15 @@ export default function InsightsPostPage() {
 
   return (
     <div className="w-full px-5 lg:px-8 pt-7 pb-28 animate-fadein">
-      <Link to="/insights" className="mb-5 inline-flex items-center gap-1.5 text-[13px] font-medium text-ink-600 hover:text-ink-900">
-        <FiArrowLeft size={16} /> Back to Analytics
-      </Link>
+      <div className="mb-5 flex items-center justify-between gap-3">
+        <Link to="/insights" className="inline-flex items-center gap-1.5 text-[13px] font-medium text-ink-600 hover:text-ink-900">
+          <FiArrowLeft size={16} /> Back to Analytics
+        </Link>
+        <button type="button" onClick={() => setReposting(true)} className="btn-outline" title="Post this again — now or later, here or on another channel">
+          <FiRepeat size={14} /> Repost
+        </button>
+      </div>
+      {reposting && <RepostDialog post={post} onClose={() => setReposting(false)} />}
 
       <div className="space-y-6">
         {/* The post */}

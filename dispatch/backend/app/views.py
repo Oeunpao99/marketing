@@ -9,7 +9,9 @@ import re
 import threading
 import time
 from datetime import UTC, date, datetime, timedelta, timezone
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
+
+import httpx
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse
@@ -556,6 +558,16 @@ def library_view(db: Session = Depends(get_db), ws: int = Depends(current_worksp
         .where(scope(GenerationJob, ws), GenerationJob.video_id.is_not(None), GenerationJob.kind != "scene")
         .order_by(GenerationJob.created_at.desc(), GenerationJob.id.desc())
     ).all()
+    # How many times each asset has gone out — so nobody posts the same image
+    # twice by accident.
+    posted = dict(
+        db.execute(
+            select(Post.video_id, func.count(PostTarget.id))
+            .join(PostTarget, PostTarget.post_id == Post.id)
+            .where(scope(Post, ws), Post.video_id.is_not(None), PostTarget.status == "posted")
+            .group_by(Post.video_id)
+        ).all()
+    )
     out = []
     for j in jobs:
         v = videos.get(j.video_id)
@@ -581,9 +593,65 @@ def library_view(db: Session = Depends(get_db), ws: int = Depends(current_worksp
                 "input_tokens": j.input_tokens or 0,
                 "output_tokens": j.output_tokens or 0,
                 "total_tokens": j.total_tokens or 0,
+                # The ready-to-post caption (app/media_caption.py).
+                "caption": v.caption or "",
+                "caption_angle": v.caption_angle or "",
+                "caption_status": v.caption_status or ("ready" if v.caption else ""),
+                "posted_count": posted.get(v.id, 0),
             }
         )
     return out
+
+
+class LibraryCaptionIn(BaseModel):
+    angle: str = ""
+    goal: str = ""
+
+
+@router.post("/library/{job_id}/caption")
+def library_write_caption(
+    job_id: int,
+    payload: LibraryCaptionIn | None = None,
+    db: Session = Depends(get_db),
+    ws: int = Depends(current_workspace_id),
+):
+    """Write — or rewrite, optionally with a chosen angle / goal — the caption
+    for one Library item. One AI text call."""
+    from app.content_ai import ContentAIError
+    from app.media_caption import write_caption
+
+    job = owned(db, GenerationJob, job_id, ws, "Generation")
+    video = owned(db, Video, job.video_id, ws, "Media") if job.video_id else None
+    if video is None:
+        raise HTTPException(404, "This item has no image or video.")
+    if video.brand_id is None:
+        raise HTTPException(422, "Pick a brand for this image first — the caption is written from its products.")
+    payload = payload or LibraryCaptionIn()
+    try:
+        caption = write_caption(db, video, job.prompt, payload.angle, payload.goal)
+    except ContentAIError as exc:
+        db.rollback()
+        raise HTTPException(502, str(exc)) from exc
+    return {"caption": caption, "caption_angle": video.caption_angle, "caption_status": "ready"}
+
+
+class LibraryCaptionEdit(BaseModel):
+    caption: str = Field(max_length=5000)
+
+
+@router.patch("/library/{job_id}/caption")
+def library_edit_caption(
+    job_id: int, payload: LibraryCaptionEdit, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)
+):
+    """Save the person's own edits to a Library item's caption."""
+    job = owned(db, GenerationJob, job_id, ws, "Generation")
+    video = owned(db, Video, job.video_id, ws, "Media") if job.video_id else None
+    if video is None:
+        raise HTTPException(404, "This item has no image or video.")
+    video.caption = payload.caption.strip()
+    video.caption_status = "ready" if video.caption else ""
+    db.commit()
+    return {"caption": video.caption, "caption_status": video.caption_status}
 
 
 @router.delete("/library/{job_id}", status_code=204)
@@ -718,6 +786,11 @@ def insights_view(
 
     from app.media import kind_for
 
+    try:
+        reattach_posts(db, ws)
+    except Exception:  # noqa: BLE001 - a repair must never block the page
+        db.rollback()
+        log.exception("could not reattach posts")
     brands = _brand_map(db, ws)
     plats = _platform_map(db)
     chans = {c.id: c for c in _scoped(db, Channel, ws)}
@@ -877,6 +950,11 @@ def collect_snapshots(db: Session) -> int:
     every post published in the last _COLLECT_DAYS, across all workspaces, and
     save them — so growth charts fill in even if nobody opens Analytics."""
     since = datetime.now(UTC) - timedelta(days=_COLLECT_DAYS)
+    try:
+        reattach_posts(db)
+    except Exception:  # noqa: BLE001
+        db.rollback()
+        log.exception("could not reattach posts")
     plats = _platform_map(db)
     targets = db.scalars(
         select(PostTarget)
@@ -1063,6 +1141,211 @@ def import_channel_posts(channel_id: int, db: Session = Depends(get_db), ws: int
     return {"imported": added, "days": importer.LOOKBACK_DAYS}
 
 
+# ── keep each published post on the channel of the account it's on ───────
+_REATTACH_PLATFORMS = ("facebook", "instagram")
+
+
+def reattach_posts(db: Session, ws: int | None = None) -> int:
+    """Move published posts whose channel is the wrong account, or no longer
+    connected, onto the brand's connected channel for that account — so their
+    stats are read with the right token again. Facebook post ids start with
+    the Page id ("{page}_{post}"), which says exactly where a post belongs;
+    otherwise (Instagram, Facebook video ids) a post only moves when the brand
+    has exactly one connected account on that platform. Database only; returns
+    how many posts moved."""
+    plats = {p.id: p.slug for p in db.scalars(select(Platform).where(Platform.slug.in_(_REATTACH_PLATFORMS)))}
+    q = select(Channel).where(Channel.platform_id.in_(list(plats)))
+    if ws is not None:
+        q = q.where(scope(Channel, ws))
+    chans = {c.id: c for c in db.scalars(q)}
+    if not chans:
+        return 0
+    live: dict[tuple[int, int], list[Channel]] = {}
+    for c in chans.values():
+        if c.status == "live" and (c.config or {}).get("access_token"):
+            live.setdefault((c.brand_id, c.platform_id), []).append(c)
+
+    moved = 0
+    targets = db.scalars(
+        select(PostTarget).where(
+            PostTarget.channel_id.in_(list(chans)), PostTarget.status == "posted", PostTarget.external_id != ""
+        )
+    )
+    for t in targets:
+        ch = chans[t.channel_id]
+        siblings = live.get((ch.brand_id, ch.platform_id), [])
+        right = None
+        page = t.external_id.split("_", 1)[0] if plats[ch.platform_id] == "facebook" and "_" in t.external_id else ""
+        if page:
+            if str((ch.config or {}).get("page_id") or "") == page and ch in siblings:
+                continue
+            right = next((c for c in siblings if str((c.config or {}).get("page_id") or "") == page), None)
+        elif ch not in siblings and len(siblings) == 1:
+            right = siblings[0]
+        if right is not None and right.id != ch.id:
+            t.channel_id = right.id
+            moved += 1
+    if moved:
+        db.commit()
+        log.info("moved %d published post(s) onto their account's connected channel", moved)
+    return moved
+
+
+# ── repost a published post ───────────────────────────────────────────────
+class RepostIn(BaseModel):
+    caption: str = Field(min_length=1, max_length=5000)
+    title: str = Field(default="", max_length=200)
+    channel_ids: list[int] = Field(min_length=1, max_length=20)
+    # "now" | "best" (each channel's best / usual posting time) | an ISO datetime
+    when: str = "best"
+
+
+# Where Facebook / Instagram serve post pictures from — the only hosts an
+# imported post's picture is ever downloaded from.
+_PLATFORM_MEDIA_HOSTS = (".fbcdn.net", ".cdninstagram.com", ".fbsbx.com")
+_MAX_REPOST_IMAGE = 15 * 1024 * 1024
+
+
+def _repost_media(db: Session, post: Post, target: PostTarget) -> int | None:
+    """The media to repost with: the post's own file, or — for a post made
+    directly on Facebook / Instagram and imported — its picture, downloaded
+    once into the Library and attached to that post from then on."""
+    if post.video_id:
+        return post.video_id
+    imported = (target.platform_options or {}).get("imported") or {}
+    picture = imported.get("picture") or ""
+    if not picture:
+        return None  # a text-only post
+    if imported.get("kind") == "video":
+        raise HTTPException(
+            422,
+            "Facebook doesn't let apps download videos posted directly on the Page. "
+            "To repost it, upload the video in New post.",
+        )
+    url = urlparse(picture)
+    if url.scheme != "https" or not (url.hostname or "").endswith(_PLATFORM_MEDIA_HOSTS):
+        raise HTTPException(422, "This post's picture can't be fetched — upload it in New post instead.")
+    try:
+        resp = httpx.get(picture, timeout=30.0)
+    except httpx.HTTPError:
+        resp = None
+    ctype = (resp.headers.get("content-type") or "").split(";")[0] if resp is not None else ""
+    if resp is None or resp.status_code >= 400 or not ctype.startswith("image/"):
+        raise HTTPException(
+            502,
+            "Couldn't download the original picture from Facebook (its link may have expired). "
+            "Press \"Import past posts\" on the Platforms page to refresh it, then try again.",
+        )
+    if len(resp.content) > _MAX_REPOST_IMAGE:
+        raise HTTPException(422, "The original picture is too large to repost.")
+    from app.media import store_blob
+
+    ext = {"image/png": ".png", "image/webp": ".webp", "image/gif": ".gif"}.get(ctype, ".jpg")
+    brand = db.get(Brand, post.brand_id)
+    video = Video(
+        workspace_id=brand.workspace_id,
+        brand_id=post.brand_id,
+        filename=f"post-{target.id}{ext}",
+        size_bytes=len(resp.content),
+        source="import",
+        tag="image",
+        url=store_blob(db, resp.content, ext, ctype),
+    )
+    db.add(video)
+    db.flush()
+    post.video_id = video.id  # keep it — Analytics then shows this copy too
+    return video.id
+
+
+@router.post("/post-targets/{target_id}/repost", status_code=201)
+def repost_target(
+    target_id: int, payload: RepostIn, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)
+):
+    """Post an already-published post again — same media, the caption as
+    edited — to one or more of the brand's connected channels, now, at each
+    channel's best time, or at a chosen time."""
+    from app.improve import _best_slot
+    from app.media import kind_for
+
+    src = owned(db, PostTarget, target_id, ws, "Post")
+    if src.status != "posted":
+        raise HTTPException(422, "Only published posts can be reposted.")
+    post = db.get(Post, src.post_id)
+    src_channel = db.get(Channel, src.channel_id)
+    plats = _platform_map(db)
+
+    channels = [owned(db, Channel, cid, ws, "Channel") for cid in dict.fromkeys(payload.channel_ids)]
+    for ch in channels:
+        if ch.brand_id != post.brand_id:
+            raise HTTPException(422, "Pick channels of the same brand as the original post.")
+        if ch.status != "live":
+            raise HTTPException(422, f"{ch.handle or 'That channel'} isn't connected — reconnect it first.")
+
+    video_id = _repost_media(db, post, src)
+    video = db.get(Video, video_id) if video_id else None
+    kind = (kind_for(video.url, None) if video and video.url else None) or "text"
+    for ch in channels:
+        slug = plats[ch.platform_id].slug if ch.platform_id in plats else ""
+        name = f"{plats[ch.platform_id].name} ({ch.handle})" if ch.platform_id in plats else ch.handle
+        if slug == "tiktok" and kind != "video":
+            raise HTTPException(422, f"{name} only takes videos — untick it for this post.")
+        if slug == "instagram" and kind == "text":
+            raise HTTPException(422, f"{name} needs an image or video — untick it for this post.")
+
+    now = datetime.now(PHNOM_PENH)
+    fixed: datetime | None = None
+    if payload.when == "now":
+        fixed = now
+    elif payload.when != "best":
+        try:
+            fixed = datetime.fromisoformat(payload.when.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise HTTPException(422, "That time isn't valid.") from exc
+        if fixed.tzinfo is None:
+            fixed = fixed.replace(tzinfo=PHNOM_PENH)
+        if fixed < now - timedelta(minutes=1):
+            raise HTTPException(422, "Pick a time in the future.")
+
+    title = (payload.title or src.title or post.title or "Repost").strip()[:200]
+    new = Post(
+        brand_id=post.brand_id, video_id=video_id, title=title, status="scheduled", angle=post.angle or ""
+    )
+    db.add(new)
+    db.flush()
+    created: list[PostTarget] = []
+    for ch in channels:
+        slug = plats[ch.platform_id].slug if ch.platform_id in plats else ""
+        same_platform = src_channel is not None and ch.platform_id == src_channel.platform_id
+        pt = PostTarget(
+            post_id=new.id,
+            channel_id=ch.id,
+            caption=payload.caption.strip(),
+            title=title,
+            scheduled_for=fixed or _best_slot(db, post.brand_id, slug),
+            status="queued",
+            # Per-platform choices (TikTok privacy etc.) carry over to the same platform.
+            platform_options={k: v for k, v in (src.platform_options or {}).items() if k != "imported"}
+            if same_platform
+            else {},
+        )
+        db.add(pt)
+        created.append(pt)
+    db.commit()
+
+    result = {
+        "post_id": new.id,
+        "targets": [{"id": pt.id, "scheduled_for": pt.scheduled_for} for pt in created],
+    }
+    if payload.when == "now":
+        published, failed = [], []
+        for pt in created:
+            db.refresh(pt)
+            outcome = _run_publish(db, pt)
+            (published if outcome["status"] == "posted" else failed).append(outcome)
+        result.update(published=published, failed=failed)
+    return result
+
+
 # ── delete a brand ────────────────────────────────────────────────────────
 def _brand_usage(db: Session, brand_id: int) -> dict:
     def count(q) -> int:
@@ -1163,7 +1446,12 @@ def _claim_channel(db: Session, brand_id: int, platform_id: int, key: str, value
             return ch
     for ch in rows:
         if ch.status == "off" and not any((ch.config or {}).get(k) for k in _IDENTITY_KEYS):
-            return ch
+            # Only a true placeholder: a row with posts may have belonged to a
+            # different account (old disconnects wiped which one), and its
+            # posts would then be read with the wrong account's token.
+            has_posts = db.scalar(select(PostTarget.id).where(PostTarget.channel_id == ch.id).limit(1))
+            if has_posts is None:
+                return ch
     ch = Channel(brand_id=brand_id, platform_id=platform_id)
     db.add(ch)
     return ch

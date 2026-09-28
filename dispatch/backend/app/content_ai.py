@@ -21,43 +21,43 @@ from app.models import Product
 # Marketing angles a caption can be written with — key → (label, recipe).
 # The key is stored on Draft/Post.angle and app/learning.py compares them, so
 # don't rename a key once it's in use (labels are free to change).
+# Every angle follows the same CAPTION STRUCTURE (pain → cost → product →
+# ✓ capabilities → example → CTA); the angle only changes how it's told.
 ANGLES: dict[str, tuple[str, str]] = {
     "problem_solution": (
         "Problem → Solution",
-        "open on a pain the audience feels, say what it costs them, then show "
-        "how the product solves it — a short ✓ list of what it does works well here",
+        "hook = the pain stated plainly, the way the customer would say it",
     ),
     "direct_offer": (
         "Direct offer",
-        "a clear sales post: a hook question, one line introducing the product, "
-        "3-5 concrete benefits as a ✓ list, a one-line flow that sums it up "
-        "(e.g. 'Customer asks → AI answers → AI sells.'), then the offer and a "
-        "strong call to action",
+        "hook = the outcome they want as a question; the example is a flow "
+        "line (e.g. 'Customer asks → AI answers → AI sells.'); end on the offer "
+        "with a strong call to action",
     ),
     "engagement": (
         "Engagement question",
-        "a relatable scenario or question that gets people to comment; the "
-        "product can stay in the background; end by asking them to comment",
+        "hook = a relatable question; after the list, ask which point matters "
+        "most to them and invite a comment",
     ),
     "story": (
         "Story / scenario",
-        "a short, vivid moment from the customer's day (e.g. a message "
-        "arriving at 2 AM), what happens without the product, then with it",
+        "hook and 'why it hurts' told as one vivid moment from the customer's "
+        "day (e.g. a message arriving at 2 AM that nobody answers); the example "
+        "is the same moment with the product",
     ),
     "short_hook": (
         "Short & punchy",
-        "2-4 short lines: one sharp hook, one line of value, a 3-beat "
-        "tagline, a call to action",
+        "the tightest version: every block one short line and a 3-item list",
     ),
     "how_to": (
         "Tip / how-to",
-        "teach one useful, specific tip the audience can use today — as 3-5 "
-        "short numbered steps or ✓ points — connected naturally to the product",
+        "hook = a problem they can fix today; the list is 3-5 numbered steps "
+        "that use the product's capabilities",
     ),
     "social_proof": (
         "Social proof",
-        "a result, customer situation or use case — ONLY with facts given in "
-        "the product info, never invented numbers, testimonials or clients",
+        "hook = a use case or result — ONLY facts given in the product info, "
+        "never invented numbers, testimonials or clients",
     ),
 }
 
@@ -86,33 +86,49 @@ SYSTEM_PROMPT = (
     "label like 'Product tip'.\n"
     "- insight: 1-2 sentences on WHY this goal and angle, for the human "
     "reviewing it — the audience need, trend, or product fact it plays off.\n"
-    "- caption: a ready-to-post caption in the brand's audience language that "
-    "follows the chosen angle's recipe and the goal's call-to-action strength. "
-    "Open with a hook in the first line that speaks to the audience's "
-    "situation — never a bland 'Meet X, your intelligent …' intro. Lay it out "
-    "as described under CAPTION FORMAT below.\n"
+    "- caption: a ready-to-post caption in the brand's audience language, "
+    "built on the CAPTION STRUCTURE below, told the chosen angle's way, with "
+    "the goal's call-to-action strength.\n"
     "- fit_score: your OWN honest 0-100 self-check of this specific idea — "
     "how directly it's grounded in the product facts actually given (not "
     "generic brand-appropriate filler), and how clear/specific the angle is. "
     "100 = built directly from a real product fact provided. Below ~40 = "
     "you're mostly guessing or being generic. Score each idea independently "
-    "and honestly — don't inflate it.\n"
+    "and honestly — don't inflate it. A caption whose ✓ list doesn't name "
+    "specific capabilities from the product info scores below 40.\n"
+    "\n"
+    "CAPTION STRUCTURE — every caption, every angle. A reader who has never "
+    "heard of the product must finish it knowing what problem it solves and "
+    "what it actually does:\n"
+    "1. Hook (first line): the customer's pain or wish in their own words — "
+    "never a bland 'Meet X, your intelligent …' intro.\n"
+    "2. Why it hurts (1 line): what that problem costs them — lost sales, "
+    "wasted hours, missed customers, stress.\n"
+    "3. The fix (1 line): name the product and say plainly what it is.\n"
+    "4. What it does: a ✓ list of 3-5 of its REAL capabilities taken from the "
+    "product info — each line = the capability + what it means for the "
+    "customer (e.g. '✓ Replies to every message 24/7 — no customer waits "
+    "till morning'). Specific features, never vague lines like 'saves time' "
+    "or 'grows your business'. Pick the capabilities that answer the hook's pain.\n"
+    "5. Example (1-2 lines): the product at work in a real situation, or a "
+    "flow line (A → B → C).\n"
+    "6. Call to action.\n"
+    "Roughly 60-150 words. Different ideas should feature different "
+    "capabilities where the product info has enough of them.\n"
     "\n"
     "CAPTION FORMAT — social posts are plain text: no markdown, no **bold**, "
     "no # headings. Make it easy to scan on a phone:\n"
     "- The hook alone on the first line.\n"
     "- A blank line between every block — never one dense paragraph.\n"
-    "- Benefits, features or steps go in a list, one per line starting with "
-    "'✓ ' (steps may use '1.' '2.' '3.'): 3-5 lines, each short (a few "
-    "words), concrete and parallel in form, with no full stop at the end.\n"
+    "- The capability list: one per line starting with '✓ ' (how_to steps may "
+    "use '1.' '2.' '3.'), parallel in form, short enough to read at a glance, "
+    "with no full stop at the end.\n"
     "- Where it fits, one short flow line with arrows that sums up the value "
     "(A → B → C).\n"
     "- The call to action alone on the last line (before any hashtags); put "
     "👉 before a link.\n"
     "- 0-3 emoji in total, each with a purpose. No hashtag spam — at most "
     "2-3 relevant ones at the very end.\n"
-    "Short angles (short_hook, engagement, story) stay short — don't force a "
-    "list into them.\n"
     "\n"
     "Ideas must be genuinely distinct from each other: use a DIFFERENT angle "
     "for each idea where you can, and mix goals across the batch (not every "

@@ -577,6 +577,10 @@ def advance_video(db: Session, job_id: int) -> GenerationJob | None:
     db.commit()
     billing.charge_job(job)
     _ready_push(job)
+    if job.kind == "video" and job.user_id:  # a person's video, not a story scene / Auto-generate
+        from app.media_caption import write_in_background
+
+        write_in_background(video.id, job.prompt)
     return job
 
 
@@ -742,6 +746,10 @@ def _render_image(job_id: int, reference: bytes | None) -> None:
         db.commit()
         billing.charge_job(job)
         _ready_push(job)
+        if job.user_id:  # made by a person (not Auto-generate, which brings its own caption)
+            from app.media_caption import write_in_background
+
+            write_in_background(video.id, job.prompt)
     finally:
         db.close()
 

@@ -253,7 +253,7 @@ def brand_learnings(db: Session, brand_id: int) -> dict:
             short,
             long_,
             f"Short captions (under {_SHORT} characters) do better",
-            "Keep captions short — 1–3 sentences.",
+            "Keep captions tight — short lines and a short ✓ list, no long paragraphs.",
         ),
         (
             long_,

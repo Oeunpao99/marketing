@@ -163,6 +163,12 @@ class Video(Base, TimestampMixin):
     tag: Mapped[str] = mapped_column(String(80), default="")
     # Publicly reachable URL — when set, Telegram posts send the video itself.
     url: Mapped[str] = mapped_column(String(500), default="", server_default="")
+    # A ready-to-post caption for this image / video (app/media_caption.py) —
+    # "Use" in the Library carries it into Compose. caption_status: "" (none),
+    # "writing", "ready" or "failed"; caption_angle is a content_ai.ANGLES key.
+    caption: Mapped[str] = mapped_column(Text, default="", server_default="")
+    caption_angle: Mapped[str] = mapped_column(String(30), default="", server_default="")
+    caption_status: Mapped[str] = mapped_column(String(12), default="", server_default="")
 
 
 class MediaBlob(Base, TimestampMixin):
