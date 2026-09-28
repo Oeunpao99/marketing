@@ -38,6 +38,7 @@ from app.content_scheduler import (
     _MAX_PARALLEL_MEDIA,
     _brand_snapshot,
     _generate_media_for,
+    _poster_kit_for,
     _product_snapshot,
     _today,
     schedule_draft_as_post,
@@ -65,6 +66,7 @@ router = APIRouter(prefix="/weekly", tags=["Weekly plan"])
 
 PLAN_DAYS = 7
 MAX_ITEMS = 14
+CHUNK_DAYS = 2  # days written per AI call (see build_plan)
 # Sunday evening, Phnom Penh — the automatic plan for the week starting Monday.
 AUTO_WEEKDAY = 6
 AUTO_AT = time(18, 0)
@@ -279,28 +281,47 @@ def build_plan(db: Session, brand_id: int, starts_on: date | None = None, step=l
     per_day = max(1, min(automation.videos_per_day, 2))
     count = min(len(days) * per_day, MAX_ITEMS)
 
-    step(20, f"Writing {count} ideas for the week…")
-    ideas = generate_ideas(
-        brand.name,
-        brand.lang,
-        list(products),
-        automation.topic_source,
-        count,
-        brand.voice_examples or "",
-        learnings["prompt"] if automation.learn_from_results else "",
-        week=True,
-        days=days,
-    )
+    # Written a couple of days at a time: one call for the whole week squeezes
+    # 14 captions into one reply and they come out short (Khmer especially) —
+    # a few per call gets each the same room as the daily run's. Each batch
+    # hears the pillars already used, so the week still mixes and rotates.
+    ideas: list[dict] = []
+    chunks = [days[i : i + CHUNK_DAYS] for i in range(0, len(days), CHUNK_DAYS)]
+    for c, chunk in enumerate(chunks):
+        span = f"{chunk[0]:%a}" if len(chunk) == 1 else f"{chunk[0]:%a} – {chunk[-1]:%a}"
+        step(20 + 60 * c // len(chunks), f"Writing ideas for {span} ({len(ideas)} of {count} done)…")
+        try:
+            batch = generate_ideas(
+                brand.name,
+                brand.lang,
+                list(products),
+                automation.topic_source,
+                min(len(chunk) * per_day, count - len(ideas)),
+                brand.voice_examples or "",
+                learnings["prompt"] if automation.learn_from_results else "",
+                week=True,
+                days=chunk,
+                recent_pillars=[i["pillar"] for i in reversed(ideas) if i.get("pillar")][:8],
+            )
+        except ContentAIError:
+            if not ideas:
+                raise  # nothing written at all — report the failure
+            log.warning("weekly plan for brand %s: a batch failed, keeping %s ideas", brand_id, len(ideas))
+            continue
+        for k, idea in enumerate(batch):
+            # The day the AI planned it for (so a holiday post lands on the
+            # holiday), else spread evenly over this batch's days.
+            idea["day"] = idea.get("day") or chunk[k * len(chunk) // len(batch)].isoformat()
+        ideas += batch
+        if len(ideas) >= count:
+            break
     step(80, "Fact-checking against your products…")
     checks = fact_check([i["caption"] for i in ideas], list(products))
 
     items = [
         {
             "key": uuid.uuid4().hex[:10],
-            # The day the AI planned it for (so a holiday post lands on the
-            # holiday), else spread evenly — the fit-score filter may have
-            # dropped some ideas.
-            "day": idea.get("day") or days[n * len(days) // len(ideas)].isoformat(),
+            "day": idea["day"],
             "title": idea["title"],
             "caption": idea["caption"],
             "insight": idea["insight"],
@@ -422,11 +443,18 @@ def _media_job(brand_id: int, draft_ids: list[int]) -> None:
         drafts = db.scalars(select(Draft).where(Draft.id.in_(draft_ids)).order_by(Draft.planned_for)).all()
         brand_args = _brand_snapshot(brand)
         product_args = [_product_snapshot(p) for p in products]
+        # Same brand kit as the daily run (Automation.poster_kit): template,
+        # product photo and logo — gathered here so the image threads don't
+        # need the DB.
+        automation = db.scalar(select(Automation).where(Automation.brand_id == brand_id))
+        ideas = [{"title": d.title, "caption": d.body} for d in drafts]
+        kits = [
+            _poster_kit_for(db, automation, brand_id, idea, n, d.planned_for or _today()) if automation else ([], "")
+            for n, (idea, d) in enumerate(zip(ideas, drafts))
+        ]
         futures = {
-            pool.submit(
-                _generate_media_for, brand_args, {"title": d.title, "caption": d.body}, product_args
-            ): d
-            for d in drafts
+            pool.submit(_generate_media_for, brand_args, ideas[n], product_args, kits[n]): d
+            for n, d in enumerate(drafts)
         }
         done = scheduled = 0
         for fut in as_completed(futures):
