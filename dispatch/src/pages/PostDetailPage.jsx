@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { FiArrowLeft, FiBarChart2, FiCalendar, FiFileText, FiImage } from "react-icons/fi";
+import { FiArrowLeft, FiBarChart2, FiCalendar, FiEdit3, FiFileText, FiImage } from "react-icons/fi";
 import { api } from "../api/client";
 import PlatformIcon from "../components/ui/PlatformIcon";
 import StatusBadge from "../components/today/StatusBadge";
+import PostEditor from "../components/today/PostEditor";
 import { PLAT } from "../data/brands";
 import { colorForBrand } from "../lib/brandColor";
 import { TZ } from "../lib/tz";
@@ -19,12 +20,33 @@ const mediaSrc = (url) =>
 const targetStatus = (s) => (s === "posting" ? "sending" : s === "queued" ? "waiting" : s);
 
 export default function PostDetailPage() {
-  const { queue } = useStore();
+  const { queue, refreshQueue, showToast } = useStore();
   const { index } = useParams();
   const navigate = useNavigate();
   const q = queue[Number(index)];
   const [targets, setTargets] = useState(null); // every channel this post went to
   const [zoom, setZoom] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  // The url holds the post's place in the queue. Editing a time can move it,
+  // so follow the post itself: if its place changed, point the url at it again.
+  const pinned = useRef(null);
+  useEffect(() => {
+    if (q?.postId != null && pinned.current == null) pinned.current = q.postId;
+  }, [q?.postId]);
+  useEffect(() => {
+    const id = pinned.current;
+    if (id == null || q?.postId === id) return;
+    const at = queue.findIndex((x) => x.postId === id);
+    if (at !== -1) navigate(`/post/${at}`, { replace: true });
+  }, [queue, q?.postId, navigate]);
+
+  const afterEdit = async () => {
+    setEditing(false);
+    await refreshQueue();
+    setReloadKey((k) => k + 1);
+  };
 
   useEffect(() => {
     if (!q) return;
@@ -41,7 +63,7 @@ export default function PostDetailPage() {
         setTargets(mine);
       })
       .catch(() => setTargets([]));
-  }, [q?.postId, q?.ttl, q?.cap]);
+  }, [q?.postId, q?.ttl, q?.cap, reloadKey]);
 
   if (!q) {
     return (
@@ -70,20 +92,39 @@ export default function PostDetailPage() {
       })
     : "Not scheduled";
   const postedTarget = targets?.find((t) => t.status === "posted");
+  // Still waiting to go out on at least one channel → it can be edited.
+  const canEdit = q.postId != null && (targets || []).some((t) => t.status === "queued");
   const brandName = first?.brand_name || q.brandName || q.b;
   const title = q.ttl && q.ttl !== q.cap ? q.ttl : null;
 
   return (
     <div className="w-full px-5 lg:px-8 py-7 animate-fadein">
-      <Link
-        to="/"
-        className="mb-5 inline-flex items-center gap-1.5 text-[13px] font-medium text-ink-600 hover:text-ink-900"
-      >
-        <FiArrowLeft size={16} /> Back to Dashboard
-      </Link>
+      <div className="mb-5 flex items-center justify-between gap-3">
+        <Link to="/" className="inline-flex items-center gap-1.5 text-[13px] font-medium text-ink-600 hover:text-ink-900">
+          <FiArrowLeft size={16} /> Back to Dashboard
+        </Link>
+        {canEdit && !editing && (
+          <button type="button" onClick={() => setEditing(true)} className="btn-primary" title="Change the caption, time or channels before it goes out">
+            <FiEdit3 size={14} /> Edit post
+          </button>
+        )}
+      </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px] items-start">
-        {/* Post */}
+        {editing ? (
+          <section className={`${card} p-5`}>
+            <PostEditor
+              postId={q.postId}
+              showToast={showToast}
+              onDone={afterEdit}
+              onCancelled={async () => {
+                await refreshQueue();
+                navigate("/");
+              }}
+            />
+          </section>
+        ) : (
+        /* Post */
         <section className={`${card} p-5 flex flex-col md:flex-row gap-5`}>
           <button
             type="button"
@@ -135,6 +176,7 @@ export default function PostDetailPage() {
             </button>
           </div>
         </section>
+        )}
 
         {/* Where it went */}
         <div className="space-y-4 xl:sticky xl:top-20">

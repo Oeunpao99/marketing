@@ -635,6 +635,17 @@ def library_write_caption(
     return {"caption": caption, "caption_angle": video.caption_angle, "caption_status": "ready"}
 
 
+@router.get("/media/{video_id}/caption")
+def media_caption_view(video_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    """The AI caption for one image / video — Compose asks for it when media
+    arrives from the AI Agent or Video Story (it may still be "writing")."""
+    video = owned(db, Video, video_id, ws, "Media")
+    return {
+        "caption": video.caption or "",
+        "caption_status": video.caption_status or ("ready" if video.caption else ""),
+    }
+
+
 class LibraryCaptionEdit(BaseModel):
     caption: str = Field(max_length=5000)
 
@@ -1189,6 +1200,202 @@ def reattach_posts(db: Session, ws: int | None = None) -> int:
         db.commit()
         log.info("moved %d published post(s) onto their account's connected channel", moved)
     return moved
+
+
+# ── edit a scheduled post before it goes out ─────────────────────────────
+# A post can be edited until shortly before it's due: the delivery worker
+# reads a due post a moment before sending it, so edits inside this window
+# could be ignored (or a removed channel sent anyway) — refuse them instead.
+_EDIT_LOCK = timedelta(minutes=1)
+
+
+def _editable(t: PostTarget, now: datetime) -> bool:
+    return t.status == "queued" and (t.scheduled_for is None or t.scheduled_for > now + _EDIT_LOCK)
+
+
+def _post_editor(db: Session, post: Post, ws: int) -> dict:
+    from app.media import kind_for
+
+    plats = _platform_map(db)
+    now = datetime.now(UTC)
+    video = db.get(Video, post.video_id) if post.video_id else None
+    targets = db.scalars(select(PostTarget).where(PostTarget.post_id == post.id).order_by(PostTarget.id)).all()
+    chans = {
+        c.id: c
+        for c in db.scalars(select(Channel).where(Channel.brand_id == post.brand_id).order_by(Channel.id))
+    }
+
+    def chan_out(c: Channel) -> dict:
+        plat = plats.get(c.platform_id)
+        return {
+            "id": c.id,
+            "platform_slug": plat.slug if plat else "",
+            "platform_name": plat.name if plat else "?",
+            "handle": c.handle or "",
+            "char_limit": plat.char_limit if plat else 2200,
+            "status": c.status,
+        }
+
+    return {
+        "post_id": post.id,
+        "brand_id": post.brand_id,
+        "title": post.title,
+        "media": (
+            {"kind": kind_for(video.url, None) or "video", "url": video.url, "filename": video.filename}
+            if video and video.url
+            else None
+        ),
+        "targets": [
+            {
+                "id": t.id,
+                "channel_id": t.channel_id,
+                "caption": t.caption,
+                "title": t.title,
+                "scheduled_for": t.scheduled_for,
+                "status": t.status,
+                "editable": _editable(t, now),
+                "channel": chan_out(chans[t.channel_id]) if t.channel_id in chans else None,
+            }
+            for t in targets
+        ],
+        # Where it can go: the brand's connected channels.
+        "channels": [chan_out(c) for c in chans.values() if c.status == "live"],
+    }
+
+
+@router.get("/posts/{post_id}/edit")
+def post_edit_view(post_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    """A scheduled post as the editor needs it — each channel's caption and
+    time, which ones can still change, and the channels it could go to."""
+    return _post_editor(db, owned(db, Post, post_id, ws, "Post"), ws)
+
+
+class EditTargetIn(BaseModel):
+    id: int | None = None  # None = add this channel
+    channel_id: int
+    caption: str = Field(max_length=10000)
+    title: str = Field(default="", max_length=200)
+    scheduled_for: datetime
+
+
+class EditPostIn(BaseModel):
+    # The full set of channels that should still go out. A queued channel left
+    # out is removed from the post.
+    targets: list[EditTargetIn] = Field(max_length=30)
+
+
+@router.put("/posts/{post_id}/edit")
+def post_edit_save(
+    post_id: int, payload: EditPostIn, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)
+):
+    """Save changes to a scheduled post: captions, times, and which channels.
+    Channels already sent (or sending now) can't be changed."""
+    from app.media import kind_for
+
+    post = owned(db, Post, post_id, ws, "Post")
+    now = datetime.now(UTC)
+    plats = _platform_map(db)
+    current = {
+        t.id: t
+        for t in db.scalars(select(PostTarget).where(PostTarget.post_id == post.id).with_for_update())
+    }
+    editable = {i: t for i, t in current.items() if _editable(t, now)}
+
+    video = db.get(Video, post.video_id) if post.video_id else None
+    kind = (kind_for(video.url, None) if video and video.url else None) or "text"
+
+    seen: set[int] = set()
+    checked: list[tuple[EditTargetIn, Channel]] = []
+    for it in payload.targets:
+        ch = owned(db, Channel, it.channel_id, ws, "Channel")
+        plat = plats.get(ch.platform_id)
+        name = f"{plat.name if plat else 'Channel'} ({ch.handle})" if ch.handle else (plat.name if plat else "Channel")
+        if ch.brand_id != post.brand_id:
+            raise HTTPException(422, "Pick channels of this post's brand.")
+        if ch.id in seen:
+            raise HTTPException(422, f"{name} is in the list twice.")
+        seen.add(ch.id)
+        if it.id is not None:
+            if it.id not in current:
+                raise HTTPException(404, "That channel isn't part of this post any more — reload and try again.")
+            if it.id not in editable:
+                raise HTTPException(
+                    409, f"The {name} post has already gone out or is going out right now — it can't be changed."
+                )
+        if ch.status != "live":
+            raise HTTPException(422, f"{name} isn't connected — reconnect it, or remove it from this post.")
+        slug = plat.slug if plat else ""
+        if slug == "tiktok" and kind != "video":
+            raise HTTPException(422, f"{name} only takes videos.")
+        if slug == "instagram" and kind == "text":
+            raise HTTPException(422, f"{name} needs an image or video.")
+        caption = it.caption.strip()
+        if not caption:
+            raise HTTPException(422, f"The caption for {name} is empty.")
+        limit = plat.char_limit if plat and plat.char_limit else 0
+        if limit and len(caption) > limit:
+            raise HTTPException(422, f"The caption for {name} is {len(caption) - limit} characters over its {limit} limit.")
+        when = it.scheduled_for if it.scheduled_for.tzinfo else it.scheduled_for.replace(tzinfo=PHNOM_PENH)
+        if when <= now + _EDIT_LOCK:
+            raise HTTPException(422, f"Pick a time at least a minute from now for {name}.")
+        checked.append((it, ch))
+
+    keep: set[int] = set()
+    for it, ch in checked:
+        when = it.scheduled_for if it.scheduled_for.tzinfo else it.scheduled_for.replace(tzinfo=PHNOM_PENH)
+        if it.id is not None:
+            t = editable[it.id]
+            if t.channel_id != ch.id:
+                t.platform_options = {}  # per-platform choices belonged to the old channel
+            t.channel_id = ch.id
+            t.caption = it.caption.strip()
+            t.title = (it.title or t.title or post.title or "").strip()[:200]
+            t.scheduled_for = when
+            keep.add(t.id)
+        else:
+            db.add(
+                PostTarget(
+                    post_id=post.id,
+                    channel_id=ch.id,
+                    caption=it.caption.strip(),
+                    title=(it.title or post.title or "").strip()[:200],
+                    scheduled_for=when,
+                    status="queued",
+                )
+            )
+    removed = [t for i, t in editable.items() if i not in keep]
+    for t in removed:
+        db.delete(t)
+    db.flush()
+
+    left = db.scalar(select(func.count()).select_from(PostTarget).where(PostTarget.post_id == post.id)) or 0
+    if left == 0:
+        db.delete(post)  # every channel removed — the post is cancelled
+        db.commit()
+        return {"post_id": post_id, "cancelled": True}
+    if any(t.status == "queued" for t in db.scalars(select(PostTarget).where(PostTarget.post_id == post.id))):
+        post.status = "scheduled"
+    db.commit()
+    return _post_editor(db, post, ws)
+
+
+@router.delete("/posts/{post_id}/scheduled")
+def post_cancel_scheduled(post_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    """Cancel what's still waiting to go out. Channels already posted stay as
+    history; the post itself goes when nothing is left."""
+    post = owned(db, Post, post_id, ws, "Post")
+    now = datetime.now(UTC)
+    targets = db.scalars(select(PostTarget).where(PostTarget.post_id == post.id).with_for_update()).all()
+    waiting = [t for t in targets if _editable(t, now)]
+    if not waiting:
+        raise HTTPException(409, "Nothing left to cancel — it has already gone out or is going out now.")
+    for t in waiting:
+        db.delete(t)
+    db.flush()
+    if len(waiting) == len(targets):
+        db.delete(post)
+    db.commit()
+    return {"post_id": post_id, "cancelled": len(waiting)}
 
 
 # ── repost a published post ───────────────────────────────────────────────

@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FiCheck, FiEdit3, FiSend, FiUsers } from "react-icons/fi";
+import { FiCheck, FiEdit3, FiRefreshCw, FiSend, FiUsers } from "react-icons/fi";
 import { api } from "../api/client";
 import CaptionComps from "../components/newpost/CaptionComps";
 import ChannelPicker from "../components/newpost/ChannelPicker";
@@ -26,6 +26,10 @@ export default function NewPostPage() {
   const [comps, setComps] = useState({});
   // Caption that came with a Library item — every channel picked starts with it.
   const [startCaption, setStartCaption] = useState("");
+  // "writing" while the AI caption for this media is still on its way.
+  const [captionWait, setCaptionWait] = useState(null);
+  // The asset arrived with its own caption (the Library, maybe edited) — keep it.
+  const handedCaption = useRef(false);
   const [error, setError] = useState(null);
 
   // "post" (Post now, shows the progress ring) or "schedule" (Schedule for
@@ -77,9 +81,56 @@ export default function NewPostPage() {
         previewUrl: a.url,
         videoId: a.videoId ?? null,
       });
-      if (a.caption) setStartCaption(a.caption);
+      if (a.caption) {
+        handedCaption.current = true;
+        setStartCaption(a.caption);
+      }
     }
   }, []);
+
+  // Media from the AI Agent / Video Story: its caption is written in the
+  // background right after the render (app/media_caption.py) — fetch it, and
+  // keep checking while it's still being written. It only fills captions that
+  // are still empty, never over something already typed.
+  const mediaId = video?.videoId ?? null;
+  useEffect(() => {
+    if (mediaId == null || handedCaption.current) return undefined;
+    let stopped = false;
+    let tries = 0;
+    const apply = (caption) => {
+      setStartCaption(caption);
+      setComps((prev) => {
+        const next = { ...prev };
+        for (const [id, c] of Object.entries(prev)) if (!c.cap?.trim()) next[id] = { ...c, cap: caption };
+        return next;
+      });
+    };
+    const check = async () => {
+      if (stopped) return;
+      try {
+        const { caption, caption_status } = await api.get(`/views/media/${mediaId}/caption`);
+        if (stopped) return;
+        if (caption) {
+          setCaptionWait(null);
+          apply(caption);
+          return;
+        }
+        if (caption_status === "writing" && tries++ < 30) {
+          setCaptionWait("writing");
+          setTimeout(check, 3000);
+          return;
+        }
+      } catch {
+        // not an AI asset, or not reachable — just write the caption by hand
+      }
+      if (!stopped) setCaptionWait(null);
+    };
+    check();
+    return () => {
+      stopped = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mediaId]);
 
   const toggle = (id, checked) => {
     setSelected((prev) => {
@@ -305,6 +356,16 @@ export default function NewPostPage() {
       </div>
 
       <VideoStep hasVideo={!!video} video={video} onSetVideo={setVideo} />
+
+      {captionWait === "writing" && (
+        <div className="mb-4 flex items-center gap-2 rounded-xl border border-brand-line bg-brand-soft px-3.5 py-2.5 text-[12px] text-brand">
+          <FiRefreshCw size={13} className="animate-spin flex-none" />
+          <span>
+            <b>AI is writing the caption for this {video?.kind === "video" ? "video" : "image"}…</b> Pick where it
+            goes — it fills in the caption as soon as it’s ready.
+          </span>
+        </div>
+      )}
 
       <ChannelPicker
         brands={brands}
