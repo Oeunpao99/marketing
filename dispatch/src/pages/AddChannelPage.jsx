@@ -427,6 +427,19 @@ export default function AddChannelPage() {
           </p>
         </div>
 
+        {pending?.missing_permissions?.length > 0 && (
+          <div className="mb-4 max-w-lg rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-[12px] leading-relaxed text-amber-800">
+            <div className="font-semibold">Facebook didn’t give ContentFlow every permission</div>
+            Missing: <span className="font-mono text-[11px]">{pending.missing_permissions.join(", ")}</span>.{" "}
+            {pending.missing_permissions.some((p) => p.startsWith("pages_read") || p === "read_insights")
+              ? "Posting may still work, but post stats and importing past posts won’t. "
+              : ""}
+            Go back and connect again, clicking <b>Edit access</b> in the Facebook window and allowing
+            everything. If it’s still missing, this Facebook account needs a role (Admin or Tester) on the
+            ContentFlow app until Meta’s App Review is approved.
+          </div>
+        )}
+
         {pendingLoading ? (
           <div className="space-y-3 max-w-lg">
             {Array.from({ length: 2 }).map((_, i) => (

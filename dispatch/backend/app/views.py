@@ -1336,6 +1336,7 @@ def meta_oauth_callback(
         short_token = meta.exchange_code(code)
         user_token = meta.long_lived_token(short_token)
         pages = meta.list_pages(user_token)
+        missing = meta.missing_permissions(user_token)
     except meta.MetaError as exc:
         return to_channels(str(exc))
 
@@ -1344,7 +1345,7 @@ def meta_oauth_callback(
             "No Facebook Pages found — you need to be an admin of at least one Page."
         )
 
-    pending_id = meta.stash_pending(brand.id, payload.get("intent", "facebook"), pages)
+    pending_id = meta.stash_pending(brand.id, payload.get("intent", "facebook"), pages, missing)
     return RedirectResponse(f"{frontend}/channels/add?{urlencode({'meta_pending': pending_id})}")
 
 
@@ -1358,6 +1359,9 @@ def meta_pending_view(pending_id: str, db: Session = Depends(get_db), ws: int = 
         "brand_id": record["brand_id"],
         "brand_name": brand.name if brand else "?",
         "intent": record["intent"],
+        # Permissions Facebook withheld from this login — the picker warns
+        # about them (e.g. no pages_read_engagement = no stats, no import).
+        "missing_permissions": record.get("missing", []),
         "pages": [
             {
                 "id": p["id"],

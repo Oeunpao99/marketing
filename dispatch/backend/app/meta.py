@@ -94,8 +94,30 @@ def authorize_url(state: str) -> str:
         "state": state,
         "response_type": "code",
         "scope": SCOPES,
+        # Ask again for any permission declined or skipped on an earlier
+        # connect — without this Facebook silently leaves it out forever, so
+        # reconnecting never fixes e.g. a missing pages_read_engagement.
+        "auth_type": "rerequest",
     }
     return f"{AUTH_HOST}/{version}/dialog/oauth?{urlencode(params)}"
+
+
+def missing_permissions(user_token: str) -> list[str]:
+    """Which of SCOPES Facebook did NOT grant this login — declined in the
+    dialog, or withheld because the permission only has Standard Access and
+    this person has no role on the app. Empty when the check itself fails."""
+    _app_id, _secret, _redirect, version = _conf()
+    try:
+        resp = httpx.get(
+            f"{GRAPH_HOST}/{version}/me/permissions", params={"access_token": user_token}, timeout=20.0
+        )
+        if resp.status_code >= 400:
+            return []
+        rows = resp.json().get("data") or []
+    except (httpx.HTTPError, ValueError):
+        return []
+    granted = {r.get("permission") for r in rows if r.get("status") == "granted"}
+    return [s for s in SCOPES.split(",") if s not in granted]
 
 
 def exchange_code(code: str) -> str:
@@ -177,7 +199,7 @@ def list_pages(user_token: str) -> list[dict]:
     return out
 
 
-def stash_pending(brand_id: int, intent: str, pages: list[dict]) -> str:
+def stash_pending(brand_id: int, intent: str, pages: list[dict], missing: list[str] | None = None) -> str:
     """Hold a fetched Page list server-side; returns the opaque id the
     frontend uses to fetch and later confirm — raw tokens never leave here."""
     pending_id = uuid.uuid4().hex
@@ -185,6 +207,7 @@ def stash_pending(brand_id: int, intent: str, pages: list[dict]) -> str:
         "brand_id": brand_id,
         "intent": intent,
         "pages": pages,
+        "missing": missing or [],
         "expires": time.time() + _PENDING_TTL_SECONDS,
     }
     _gc_pending()
