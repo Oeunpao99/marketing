@@ -454,6 +454,9 @@ class VideoJobIn(BaseModel):
     brand_id: int | None = None
     # A "/media/..." image the user uploaded — the video starts from it.
     reference_url: str = ""
+    # A product whose brand-kit photo the video starts from (when no
+    # reference_url) — so the clip shows the real product, not an invented one.
+    product_id: int | None = None
 
 
 class VideoRef(BaseModel):
@@ -618,6 +621,12 @@ def create_video(
         reference = read_media(payload.reference_url)
         if reference is None:
             raise HTTPException(400, "Reference image not found.")
+    elif payload.product_id is not None and payload.brand_id is not None:
+        from app.brand_kit import product_photo
+
+        reference = product_photo(db, payload.brand_id, payload.product_id)
+        if reference is None:
+            raise HTTPException(400, "That product has no photo in the brand kit.")
     try:
         provider, provider_job_id = start_job(payload.prompt, ratio, seconds, reference)
     except VideoGenError as exc:

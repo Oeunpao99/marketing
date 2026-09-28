@@ -189,6 +189,7 @@ def build_plan(db: Session, brand_id: int, starts_on: date | None = None, step=l
         brand.voice_examples or "",
         learnings["prompt"] if automation.learn_from_results else "",
         week=True,
+        days=days,
     )
     step(80, "Fact-checking against your products…")
     checks = fact_check([i["caption"] for i in ideas], list(products))
@@ -196,18 +197,22 @@ def build_plan(db: Session, brand_id: int, starts_on: date | None = None, step=l
     items = [
         {
             "key": uuid.uuid4().hex[:10],
-            # Spread evenly — the fit-score filter may have dropped some ideas.
-            "day": days[n * len(days) // len(ideas)].isoformat(),
+            # The day the AI planned it for (so a holiday post lands on the
+            # holiday), else spread evenly — the fit-score filter may have
+            # dropped some ideas.
+            "day": idea.get("day") or days[n * len(days) // len(ideas)].isoformat(),
             "title": idea["title"],
             "caption": idea["caption"],
             "insight": idea["insight"],
             "fit_score": idea.get("fit_score"),
+            "pillar": idea.get("pillar") or "",
             "angle": idea.get("angle") or "",
             "goal": idea.get("goal") or "",
             "fact_issues": checks[n] if checks is not None else None,
         }
         for n, idea in enumerate(ideas)
     ]
+    items.sort(key=lambda i: i["day"])
     for old in db.scalars(
         select(WeeklyPlan).where(WeeklyPlan.brand_id == brand_id, WeeklyPlan.status == "ready")
     ):
@@ -536,6 +541,7 @@ def weekly_approve(
             source="ai-weekly",
             status="approved",
             fit_score=i.get("fit_score"),
+            pillar=i.get("pillar") or "",
             angle=i.get("angle") or "",
             goal=i.get("goal") or "",
             fact_issues=i.get("fact_issues"),

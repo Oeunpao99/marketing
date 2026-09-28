@@ -22,7 +22,7 @@ from statistics import mean, median
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.content_ai import ANGLES
+from app.content_ai import ANGLES, PILLARS
 from app.models import Channel, MetricSnapshot, Platform, Post, PostTarget, Video
 
 PHNOM_PENH = timezone(timedelta(hours=7))
@@ -124,6 +124,7 @@ def _posts(db: Session, brand_id: int) -> list[dict]:
                 "engagement": eng,
                 "comments": snap.metrics.get("comments"),
                 "angle": post.angle if post else "",
+                "pillar": post.pillar if post else "",
             }
         )
     return out
@@ -162,29 +163,32 @@ def brand_learnings(db: Session, brand_id: int) -> dict:
             )
         break  # only the top format is worth a rule
 
-    # Marketing angle (content_ai.ANGLES) — only AI-written posts carry one,
-    # and only angles compared against other angles, never against hand-made posts.
-    by_angle: dict[str, list[float]] = {}
-    for p in posts:
-        if p["angle"] in ANGLES:
-            by_angle.setdefault(p["angle"], []).append(p["engagement"])
-    best_angle = max(by_angle, key=lambda a: mean(by_angle[a]), default=None)
-    if best_angle is not None:
-        rest = [e for a, es in by_angle.items() if a != best_angle for e in es]
-        c = _compare(by_angle[best_angle], rest)
+    # Content pillar (content_ai.PILLARS) and marketing angle (content_ai.ANGLES)
+    # — only AI-written posts carry them, so each is compared against the
+    # others of its kind, never against hand-made posts.
+    for field, known, noun, share in (
+        ("pillar", PILLARS, "topics", "lean the pillar mix towards it (without breaking the mix rules)"),
+        ("angle", ANGLES, "angles", "use it for about half of the ideas, and vary the rest"),
+    ):
+        by_key: dict[str, list[float]] = {}
+        for p in posts:
+            if p[field] in known:
+                by_key.setdefault(p[field], []).append(p["engagement"])
+        best = max(by_key, key=lambda k: mean(by_key[k]), default=None)
+        if best is None:
+            continue
+        rest = [e for k, es in by_key.items() if k != best for e in es]
+        c = _compare(by_key[best], rest)
         if c and c[0] >= RATIO:
-            label, recipe = ANGLES[best_angle]
+            label, recipe = known[best]
             rules.append(
                 {
-                    "id": "angle",
-                    "text": f"“{label}” posts get {_x(c[0])} more engagement than other angles",
-                    "evidence": f"{c[1]:.1f} vs {c[2]:.1f} per post ({len(by_angle[best_angle])} vs {len(rest)} posts)",
+                    "id": field,
+                    "text": f"“{label}” posts get {_x(c[0])} more engagement than other {noun}",
+                    "evidence": f"{c[1]:.1f} vs {c[2]:.1f} per post ({len(by_key[best])} vs {len(rest)} posts)",
                 }
             )
-            guidance.append(
-                f"The {best_angle} angle ({label}: {recipe}) works best here — use it for about "
-                "half of the ideas, and vary the rest."
-            )
+            guidance.append(f"The {best} {field} ({label}: {recipe}) works best here — {share}.")
 
     # Timing, per platform (each platform's audience keeps its own hours)
     for slug in sorted({p["platform"] for p in posts if p["platform"]}):

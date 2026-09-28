@@ -334,6 +334,7 @@ def review_view(db: Session = Depends(get_db), ws: int = Depends(current_workspa
             "generated_at": d.generated_at,
             "source": d.source,
             "fit_score": d.fit_score,
+            "pillar": d.pillar,
             "angle": d.angle,
             "goal": d.goal,
             "fact_issues": d.fact_issues,
@@ -456,6 +457,7 @@ def calendar_view(
                 "body": caption,
                 "insight": idea.insight if idea else "",
                 "angle": post.angle or (idea.angle if idea else ""),
+                "pillar": post.pillar or (idea.pillar if idea else ""),
                 "planned_for": at.astimezone(PHNOM_PENH).date() if at else None,
                 "status": post_status(ts),
                 "source": idea.source if idea else ("native" if post.origin == "native" else "compose"),
@@ -477,6 +479,7 @@ def calendar_view(
                 "body": d.body,
                 "insight": d.insight,
                 "angle": d.angle,
+                "pillar": d.pillar,
                 "planned_for": d.planned_for,
                 "status": d.status,
                 "source": d.source,
@@ -1091,16 +1094,21 @@ def schedule(payload: ScheduleIn, db: Session = Depends(get_db), ws: int = Depen
     for t in payload.targets:
         owned(db, Channel, t.channel_id, ws, f"Channel {t.channel_id}")
 
-    # A post made from an AI idea keeps that idea's angle, so learning.py can
-    # compare angles — matched on the unedited caption (no draft link here).
+    # A post made from an AI idea keeps that idea's angle and pillar, so
+    # learning.py can compare them — matched on the unedited caption (no draft
+    # link here).
     caption = next((t.caption for t in payload.targets if t.caption.strip()), "")
-    angle = (
-        db.scalar(
-            select(Draft.angle)
-            .where(Draft.brand_id == payload.brand_id, Draft.body == caption, Draft.angle != "")
+    idea = (
+        db.execute(
+            select(Draft.angle, Draft.pillar)
+            .where(
+                Draft.brand_id == payload.brand_id,
+                Draft.body == caption,
+                (Draft.angle != "") | (Draft.pillar != ""),
+            )
             .order_by(Draft.id.desc())
             .limit(1)
-        )
+        ).first()
         if caption
         else None
     )
@@ -1109,7 +1117,8 @@ def schedule(payload: ScheduleIn, db: Session = Depends(get_db), ws: int = Depen
         video_id=payload.video_id,
         title=payload.title,
         status="scheduled",
-        angle=angle or "",
+        angle=idea.angle if idea else "",
+        pillar=idea.pillar if idea else "",
     )
     db.add(post)
     db.flush()
@@ -1555,7 +1564,12 @@ def repost_target(
 
     title = (payload.title or src.title or post.title or "Repost").strip()[:200]
     new = Post(
-        brand_id=post.brand_id, video_id=video_id, title=title, status="scheduled", angle=post.angle or ""
+        brand_id=post.brand_id,
+        video_id=video_id,
+        title=title,
+        status="scheduled",
+        angle=post.angle or "",
+        pillar=post.pillar or "",
     )
     db.add(new)
     db.flush()
@@ -2270,6 +2284,7 @@ def _draft_media_job(draft_id: int, kind: str) -> None:
     from app.content_scheduler import (
         ContentAIError,
         _brand_snapshot,
+        _first_frame_for,
         _generate_media_for,
         _generate_video_for,
         _product_snapshot,
@@ -2288,8 +2303,11 @@ def _draft_media_job(draft_id: int, kind: str) -> None:
         billing.bind(brand.workspace_id)
         products = [_product_snapshot(p) for p in db.scalars(select(Product).where(Product.brand_id == brand.id)).all()]
         idea = {"title": d.title, "caption": d.body}
-        make = _generate_video_for if kind == "video" else _generate_media_for
-        video_id = make(_brand_snapshot(brand), idea, products)
+        if kind == "video":
+            first_frame = _first_frame_for(db, brand.id, idea)
+            video_id = _generate_video_for(_brand_snapshot(brand), idea, products, first_frame)
+        else:
+            video_id = _generate_media_for(_brand_snapshot(brand), idea, products)
         if video_id is None:
             log.warning("calendar: couldn't make %s for draft %s", kind, draft_id)
             return

@@ -243,6 +243,16 @@ def gather(
     return images, guide
 
 
+def product_photo(db: Session, brand_id: int, product_id: int) -> bytes | None:
+    """The brand kit photo of one product — a video's first frame."""
+    photo = db.scalar(
+        select(BrandAsset).where(
+            BrandAsset.brand_id == brand_id, BrandAsset.kind == "product", BrandAsset.product_id == product_id
+        )
+    )
+    return read_media(photo.url) if photo is not None else None
+
+
 def product_for_idea(db: Session, brand_id: int, idea: dict) -> int | None:
     """The product an auto-generated idea is about (its name appears in the
     title or caption) — only products that have a photo in the kit."""

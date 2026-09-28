@@ -2,15 +2,18 @@
 
 Used by ``app/content_scheduler.py`` (the automated daily run) and the
 "Generate now" button on the Auto-generate page. One Azure OpenAI chat call,
-asked to return strict JSON: a list of ``{goal, angle, title, insight,
-caption}`` ideas, one candidate day's worth of content per brand. Each caption
-is written for a goal (GOALS — sets the call-to-action strength) with a
-marketing angle (ANGLES), so a batch isn't the same generic caption N times.
+asked to return strict JSON: a list of ``{pillar, goal, angle, title,
+insight, caption}`` ideas, one candidate day's worth of content per brand.
+Each idea is about a content pillar (PILLARS — what the post is about; most
+are NOT product pitches, so a feed isn't all ads), written for a goal (GOALS —
+sets the call-to-action strength) with a marketing angle (ANGLES — how it's
+told), so a batch isn't the same generic caption N times.
 """
 
 from __future__ import annotations
 
 import json
+from datetime import date
 
 import httpx
 
@@ -18,11 +21,67 @@ from app import billing
 from app.config import get_settings
 from app.models import Product
 
+# Content pillars — WHAT a post is about — key → (label, recipe). A feed of
+# nothing but product pitches bores people, so most pillars give the reader
+# something on its own (a tip, a laugh, a question, a local moment) and only
+# SELLING_PILLARS pitch the product. Stored on Draft/Post.pillar and compared
+# by app/learning.py, so don't rename a key once it's in use.
+PILLARS: dict[str, tuple[str, str]] = {
+    "educate": (
+        "Education / tips",
+        "useful know-how from the audience's world — a tip, a mistake to avoid, how "
+        "something works, a quick checklist — worth saving even if they never buy",
+    ),
+    "local_moment": (
+        "Local moment",
+        "tie into what's happening for a Cambodian audience on or near that day — a "
+        "holiday or festival, payday (15th / end of month), the season, a school "
+        "term — only moments you are sure of from the dates and topic source given; "
+        "never guess the date of a moveable holiday",
+    ),
+    "relatable": (
+        "Relatable / fun",
+        "an everyday moment the audience knows too well, told with light humour or "
+        "warmth — the kind of post people tag a friend on",
+    ),
+    "community": (
+        "Community / question",
+        "get the audience talking: a this-or-that, a poll-style question, ask for "
+        "their tip or opinion — easy to answer in one comment",
+    ),
+    "behind_scenes": (
+        "Behind the scenes",
+        "the people, process and values behind the brand — how things are made or "
+        "done, a day at work, why the brand exists; only details given in the brand "
+        "or product info",
+    ),
+    "product": (
+        "Product spotlight",
+        "one product or feature at work — a demo, a use case, a how-to that uses it",
+    ),
+    "proof": (
+        "Customer proof",
+        "a customer situation or result — ONLY facts given in the product info, "
+        "never invented numbers, testimonials or clients",
+    ),
+    "promotion": (
+        "Promotion / offer",
+        "the direct sell: the offer, why now, and a clear way to buy or sign up",
+    ),
+}
+# The pillars that pitch the product (the CAPTION STRUCTURE below); the rest use
+# the VALUE STRUCTURE. A batch keeps these to about 1 in 3.
+SELLING_PILLARS = ("product", "proof", "promotion")
+
+_PILLAR_LIST = "\n".join(
+    f"  - {k} ({label}{', sells' if k in SELLING_PILLARS else ''}): {recipe}."
+    for k, (label, recipe) in PILLARS.items()
+)
+
 # Marketing angles a caption can be written with — key → (label, recipe).
 # The key is stored on Draft/Post.angle and app/learning.py compares them, so
 # don't rename a key once it's in use (labels are free to change).
-# Every angle follows the same CAPTION STRUCTURE (pain → cost → product →
-# ✓ capabilities → example → CTA); the angle only changes how it's told.
+# The angle only changes how a post is told; the pillar picks the structure.
 ANGLES: dict[str, tuple[str, str]] = {
     "problem_solution": (
         "Problem → Solution",
@@ -77,29 +136,52 @@ SYSTEM_PROMPT = (
     "You are the content strategist for a social media team. Given a brand, "
     "its products/offers, and where topics should come from, write concrete, "
     "publish-ready post ideas for ONE day. You are a marketer, not a text "
-    "generator: every caption is written for one goal, with one angle.\n"
+    "generator: every post is about one pillar, written for one goal, with one "
+    "angle.\n"
+    "\n"
+    "People follow a page for what it gives them, not for ads. A feed where "
+    "every post pitches the product gets ignored — so most posts should be "
+    "worth reading even for someone who never buys, and only some sell.\n"
     "\n"
     "For each idea return:\n"
+    "- pillar: what the post is about — one of:\n" + _PILLAR_LIST + "\n"
     "- goal: what this post is for — one of:\n" + _GOAL_LIST + "\n"
-    "- angle: the marketing angle — one of:\n" + _ANGLE_LIST + "\n"
+    "- angle: how it's told — one of:\n" + _ANGLE_LIST + "\n"
+    "  Pick the angle that suits the pillar (direct_offer only for promotion; "
+    "social_proof only for proof).\n"
     "- title: a short, specific working title (under 70 chars) — not a generic "
     "label like 'Product tip'.\n"
-    "- insight: 1-2 sentences on WHY this goal and angle, for the human "
-    "reviewing it — the audience need, trend, or product fact it plays off.\n"
+    "- insight: 1-2 sentences on WHY this pillar, goal and angle, for the human "
+    "reviewing it — the audience need, moment, or product fact it plays off.\n"
     "- caption: a ready-to-post caption in the brand's audience language, "
-    "built on the CAPTION STRUCTURE below, told the chosen angle's way, with "
-    "the goal's call-to-action strength.\n"
-    "- fit_score: your OWN honest 0-100 self-check of this specific idea — "
-    "how directly it's grounded in the product facts actually given (not "
-    "generic brand-appropriate filler), and how clear/specific the angle is. "
-    "100 = built directly from a real product fact provided. Below ~40 = "
-    "you're mostly guessing or being generic. Score each idea independently "
-    "and honestly — don't inflate it. A caption whose ✓ list doesn't name "
-    "specific capabilities from the product info scores below 40.\n"
+    "built on the structure for its pillar below, told the chosen angle's way, "
+    "with the goal's call-to-action strength.\n"
+    "- fit_score: your OWN honest 0-100 self-check of this specific idea. For a "
+    "selling pillar: how directly it's grounded in the product facts actually "
+    "given — a caption whose ✓ list doesn't name specific capabilities from the "
+    "product info scores below 40. For any other pillar: how clearly it serves "
+    "THIS brand's audience (the people who'd buy these products) and how "
+    "specific and genuinely useful or engaging it is — generic filler that any "
+    "page could post, or a tip with invented statistics, scores below 40. "
+    "100 = excellent; below ~40 = you're mostly guessing or being generic. "
+    "Score each idea independently and honestly — don't inflate it.\n"
     "\n"
-    "CAPTION STRUCTURE — every caption, every angle. A reader who has never "
-    "heard of the product must finish it knowing what problem it solves and "
-    "what it actually does:\n"
+    "VALUE STRUCTURE — every pillar that doesn't sell (educate, local_moment, "
+    "relatable, community, behind_scenes). The reader gets something from the "
+    "post itself:\n"
+    "1. Hook (first line): about the reader's world, not the product.\n"
+    "2. The value: the tip or steps, the moment, the question, the story — "
+    "specific and concrete, the part people save, share or answer.\n"
+    "3. Brand touch (optional): at most one light line that connects it back to "
+    "the brand — never a ✓ feature list, never a hard sell.\n"
+    "4. Call to action per the goal — usually a question, 'save this' or "
+    "'share with a friend'.\n"
+    "Roughly 40-120 words. General advice and well-known facts are fine; "
+    "never invent statistics, studies or quotes.\n"
+    "\n"
+    "CAPTION STRUCTURE — the selling pillars (product, proof, promotion). A "
+    "reader who has never heard of the product must finish it knowing what "
+    "problem it solves and what it actually does:\n"
     "1. Hook (first line): the customer's pain or wish in their own words — "
     "never a bland 'Meet X, your intelligent …' intro.\n"
     "2. Why it hurts (1 line): what that problem costs them — lost sales, "
@@ -120,7 +202,8 @@ SYSTEM_PROMPT = (
     "no # headings. Make it easy to scan on a phone:\n"
     "- The hook alone on the first line.\n"
     "- A blank line between every block — never one dense paragraph.\n"
-    "- The capability list: one per line starting with '✓ ' (how_to steps may "
+    "- A list (selling pillars always have one): one per line starting with "
+    "'✓ ' (how_to steps may "
     "use '1.' '2.' '3.'), parallel in form, short enough to read at a glance, "
     "with no full stop at the end.\n"
     "- Where it fits, one short flow line with arrows that sums up the value "
@@ -130,16 +213,20 @@ SYSTEM_PROMPT = (
     "- 0-3 emoji in total, each with a purpose. No hashtag spam — at most "
     "2-3 relevant ones at the very end.\n"
     "\n"
-    "Ideas must be genuinely distinct from each other: use a DIFFERENT angle "
-    "for each idea where you can, and mix goals across the batch (not every "
-    "post should be a sales pitch). Stay grounded in the product info given — "
+    "Ideas must be genuinely distinct from each other: a DIFFERENT pillar and "
+    "angle for each idea where you can, and mixed goals. The PILLAR MIX: at "
+    "most about 1 in 3 ideas from a selling pillar (product, proof, promotion), "
+    "and never two selling ideas in a row; at most one promotion per 5 ideas. "
+    "If the brief lists the pillars of recent posts, don't repeat them — fill "
+    "what's missing. If what has worked for this brand favours a pillar, lean "
+    "towards it but keep the mix. Stay grounded in the product info given — "
     "don't invent products, prices, free trials, discounts, links or claims "
     "that weren't provided; if the offer or link isn't in the product info, "
     "use a call to action that doesn't need one (e.g. 'send us a message').\n"
     "\n"
     "Respond with ONLY a JSON object: "
-    '{"ideas": [{"goal": "...", "angle": "...", "title": "...", "insight": "...", '
-    '"caption": "...", "fit_score": 0}, ...]} '
+    '{"ideas": [{"pillar": "...", "goal": "...", "angle": "...", "title": "...", '
+    '"insight": "...", "caption": "...", "fit_score": 0}, ...]} '
     "— no prose, no markdown fences."
 )
 
@@ -268,7 +355,9 @@ KHMER_GUIDE = (
     "Two Khmer captions with the right voice and layout — examples from OTHER "
     "brands: copy only their tone, wording style and rhythm; take facts, offers, "
     "prices and product names ONLY from this brand's product info above, and "
-    "don't make every caption look like them:\n---\n"
+    "don't make every caption look like them. Both are selling posts; a "
+    "non-selling pillar keeps the same voice but follows the VALUE STRUCTURE — "
+    "no ✓ feature list, no pitch:\n---\n"
     + KHMER_EXAMPLE + "\n---"
 )
 
@@ -292,8 +381,12 @@ def _is_khmer(brand_lang: str) -> bool:
 
 WEEK_GUIDE = (
     "\n\nTHIS IS A WEEK PLAN, not one day: the ideas are spread across the coming "
-    "week, one per post slot. Rotate products and angles so the week feels "
-    "varied — no two neighbouring ideas on the same product or format."
+    "week, one per post slot. Build it like a content calendar: rotate pillars, "
+    "products and angles so the week feels varied — no two neighbouring ideas "
+    "on the same pillar, product or format, selling ideas spread apart, and a "
+    "local_moment on the day it belongs to when one falls in the week. Give "
+    'each idea a "day": the date (YYYY-MM-DD) from the plan days in the brief '
+    "that it is written for, filling the days evenly in date order."
 )
 
 
@@ -417,12 +510,22 @@ def _brief(
     count: int,
     voice_examples: str = "",
     learnings: str = "",
+    days: list[date] | None = None,
+    recent_pillars: list[str] | None = None,
 ) -> str:
     lines = [
         f"Brand: {brand_name}" + (f" (write in: {brand_lang})" if brand_lang else ""),
         f"How many ideas: {count}",
         f"Where topics should come from: {topic_source or 'general good judgement for this brand'}",
     ]
+    if days:
+        lines.append(
+            ("Plan days: " if len(days) > 1 else "Posting on: ")
+            + ", ".join(f"{d.isoformat()} ({d.strftime('%A')})" for d in days)
+        )
+    recent = [PILLARS[p][0] for p in recent_pillars or [] if p in PILLARS]
+    if recent:
+        lines.append("Pillars of this brand's most recent AI posts (newest first): " + ", ".join(recent))
     if products:
         lines.append("\nProducts / offers on file:")
         for p in products:
@@ -459,9 +562,13 @@ def generate_ideas(
     voice_examples: str = "",
     learnings: str = "",
     week: bool = False,
+    days: list[date] | None = None,
+    recent_pillars: list[str] | None = None,
 ) -> list[dict]:
     """``week=True``: plan ideas spread over a week (app/weekly.py) rather
-    than one day's batch."""
+    than one day's batch — ``days`` are the plan days, and each idea comes
+    back with the ``day`` (ISO date) it's for, or "" if the AI gave none.
+    ``recent_pillars`` (newest first) lets a daily batch rotate pillars."""
     cfg = get_settings()
     khmer = _is_khmer(brand_lang)
     # Khmer quality depends heavily on the model — a Khmer brand can use its own
@@ -470,10 +577,16 @@ def generate_ideas(
     parsed = _chat(
         [
             {"role": "system", "content": _system_prompt(brand_lang, week)},
-            {"role": "user", "content": _brief(brand_name, brand_lang, products, topic_source, count, voice_examples, learnings)},
+            {
+                "role": "user",
+                "content": _brief(
+                    brand_name, brand_lang, products, topic_source, count, voice_examples, learnings, days, recent_pillars
+                ),
+            },
         ],
         model,
     )
+    day_isos = {d.isoformat() for d in days or []}
 
     ideas = parsed.get("ideas") if isinstance(parsed, dict) else None
     if not isinstance(ideas, list) or not ideas:
@@ -493,6 +606,8 @@ def generate_ideas(
             fit_score = 0
         angle = str(idea.get("angle") or "").strip().lower()
         goal = str(idea.get("goal") or "").strip().lower()
+        pillar = str(idea.get("pillar") or "").strip().lower()
+        day = str(idea.get("day") or "").strip()[:10]
         cleaned.append(
             {
                 "title": title[:200],
@@ -503,6 +618,8 @@ def generate_ideas(
                 # groups by these, so a typo would become its own "angle".
                 "angle": angle if angle in ANGLES else "",
                 "goal": goal if goal in GOALS else "",
+                "pillar": pillar if pillar in PILLARS else "",
+                "day": day if day in day_isos else "",
             }
         )
     if not cleaned:
@@ -547,15 +664,19 @@ def image_prompt_for_idea(brand_name: str, brand_lang: str, idea: dict, products
     return "\n".join(lines)
 
 
-def video_prompt_for_idea(brand_name: str, brand_lang: str, idea: dict, products: list[Product]) -> str:
+def video_prompt_for_idea(
+    brand_name: str, brand_lang: str, idea: dict, products: list[Product], first_frame: bool = False
+) -> str:
     """An 8-second video brief for one already-written idea — the video twin of
-    ``image_prompt_for_idea``, used by auto-generate's daily video."""
+    ``image_prompt_for_idea``, used by auto-generate's daily video. Written as
+    a short timed shot plan (one subject, one action, one camera move), which
+    Sora follows far better than a long description. ``first_frame``: the clip
+    starts from the product's brand-kit photo."""
     lines = [
-        f"An 8-second, vertical 9:16 cinematic social video for {brand_name}"
-        + (f" (audience: {brand_lang})" if brand_lang else "")
-        + ", made for Reels / TikTok / Shorts. One continuous shot, no cuts.",
-        f"Post topic: {idea.get('title', '')}.",
-        f"Caption it goes with: {idea.get('caption', '')[:300]}",
+        f"SHOT: vertical 9:16, 8 seconds, one continuous shot for {brand_name}'s "
+        "Reels / TikTok / Shorts; one smooth camera move (slow push-in, orbit or tracking).",
+        f"TOPIC: {idea.get('title', '')}.",
+        f"CAPTION IT GOES WITH (for the idea only — don't show its words): {idea.get('caption', '')[:300]}",
     ]
     if products:
         lines.append("Real product facts to stay accurate to (don't invent others):")
@@ -564,11 +685,23 @@ def video_prompt_for_idea(brand_name: str, brand_lang: str, idea: dict, products
             if p.description:
                 entry += f": {p.description[:300]}"
             lines.append(entry)
+    if first_frame:
+        lines.append(
+            "START: the clip opens on the attached product photo as its exact first frame — keep the "
+            "product exactly as shown and bring the picture to life with the camera move, light "
+            "shifting across it and gentle movement around it."
+        )
     lines.append(
-        "Open on a strong, scroll-stopping visual in the first second; one clear subject and "
-        "action; smooth, deliberate camera movement (slow push-in, orbit or tracking shot); "
-        "premium commercial lighting; photorealistic. Upbeat background music and natural ambient "
-        "sound, no voiceover or dialogue. No on-screen text, captions, logos or watermarks."
+        "ACTION: 0-2s a scroll-stopping image already in motion; 2-6s one clear action by one "
+        "subject; 6-8s settle and hold on the final image (the product, the result or a happy "
+        "reaction). Show real-life moments, not phone or computer screens; Cambodian people and "
+        "places where people appear."
+    )
+    lines.append(
+        "LOOK & SOUND: premium commercial lighting, photorealistic; upbeat background music and "
+        "natural ambient sound, no voiceover or dialogue.\n"
+        "AVOID: on-screen text, captions, logos, watermarks, readable screens, morphing objects, "
+        "sudden cuts."
     )
     return "\n".join(lines)
 
@@ -581,7 +714,11 @@ FACT_CHECK_PROMPT = (
     "information: prices, discounts, numbers, features, integrations, guarantees, "
     "results, availability, awards or comparisons. Ignore tone, opinions, "
     "greetings, calls to action and general benefits that follow directly from a "
-    "listed feature. Write each issue in short plain English, quoting the claim.\n"
+    "listed feature. Many captions aren't about the product at all (tips, holidays, "
+    "questions, everyday moments): general advice and common knowledge are fine "
+    "there — flag only claims about this brand or its products, and made-up "
+    "statistics, studies or quotes. Write each issue in short plain English, "
+    "quoting the claim.\n"
     'Respond with ONLY a JSON object: {"results": [["issue", ...], ...]} — one '
     "list per caption, same order; an empty list means nothing unsupported."
 )

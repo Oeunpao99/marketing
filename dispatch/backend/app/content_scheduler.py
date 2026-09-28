@@ -102,13 +102,17 @@ def _pick_video_idea(ideas: list[dict]) -> int:
 
 
 def _generate_video_for(
-    brand: Brand | _AutoBrand, idea: dict, products: list[Product | _AutoProduct]
+    brand: Brand | _AutoBrand,
+    idea: dict,
+    products: list[Product | _AutoProduct],
+    first_frame: bytes | None = None,
 ) -> int | None:
     """Best-effort: render an 8s video for this idea (auto-generate's daily
     video, on the cheaper AUTO_VIDEO_MODEL) and wait for it, returning the
     Video id — or None, so the caller can fall back to an image. The job is a
     normal GenerationJob, so it shows in the Library and is charged to the
-    workspace's AI credit when it finishes."""
+    workspace's AI credit when it finishes. ``first_frame``: the product's
+    brand-kit photo (``_first_frame_for``), so the clip shows the real product."""
     import time as _time
 
     from app import billing
@@ -124,9 +128,9 @@ def _generate_video_for(
     except billing.OutOfCredit:
         log.info("auto video skipped for brand %s: out of AI credit", brand.id)
         return None
-    prompt = video_prompt_for_idea(brand.name, brand.lang, idea, products)
+    prompt = video_prompt_for_idea(brand.name, brand.lang, idea, products, first_frame=first_frame is not None)
     try:
-        provider, provider_job_id = video_gen.start_job(prompt, "9:16", 8, model=model)
+        provider, provider_job_id = video_gen.start_job(prompt, "9:16", 8, first_frame, model=model)
     except video_gen.VideoGenError as exc:
         log.warning("auto video failed to start for brand %s: %s", brand.id, exc)
         return None
@@ -167,6 +171,15 @@ def _generate_video_for(
         return None
     finally:
         db.close()
+
+
+def _first_frame_for(db: Session, brand_id: int, idea: dict) -> bytes | None:
+    """The brand-kit photo of the product an idea is about (its name is in the
+    title or caption), to start its video from — None when it names none."""
+    from app.brand_kit import product_for_idea, product_photo
+
+    product_id = product_for_idea(db, brand_id, idea)
+    return product_photo(db, brand_id, product_id) if product_id is not None else None
 
 
 def _poster_kit_for(
@@ -321,7 +334,12 @@ def schedule_draft_as_post(db: Session, draft: Draft, on_day: date | None = None
         )
 
     post = Post(
-        brand_id=draft.brand_id, video_id=draft.video_id, title=draft.title, status="scheduled", angle=draft.angle or ""
+        brand_id=draft.brand_id,
+        video_id=draft.video_id,
+        title=draft.title,
+        status="scheduled",
+        angle=draft.angle or "",
+        pillar=draft.pillar or "",
     )
     db.add(post)
     db.flush()
@@ -376,8 +394,23 @@ def _write_batch(
     report(5, f"Writing {count} idea{'s' if count != 1 else ''}…", ideas_end)
     try:
         learnings = brand_learnings(db, brand.id)["prompt"] if automation.learn_from_results else ""
+        # So a small daily batch still rotates pillars instead of repeating yesterday's.
+        recent_pillars = db.scalars(
+            select(Draft.pillar)
+            .where(Draft.brand_id == brand.id, Draft.pillar != "", Draft.status != "rejected")
+            .order_by(Draft.id.desc())
+            .limit(6)
+        ).all()
         ideas = generate_ideas(
-            brand.name, brand.lang, list(products), automation.topic_source, count, brand.voice_examples or "", learnings
+            brand.name,
+            brand.lang,
+            list(products),
+            automation.topic_source,
+            count,
+            brand.voice_examples or "",
+            learnings,
+            days=[today],
+            recent_pillars=list(recent_pillars),
         )
     except ContentAIError:
         db.commit()  # release the lock even though this attempt failed
@@ -396,6 +429,7 @@ def _write_batch(
             source="ai-auto",
             status="waiting",  # set for real below, once media (if any) is attached
             fit_score=idea.get("fit_score"),
+            pillar=idea.get("pillar") or "",
             angle=idea.get("angle") or "",
             goal=idea.get("goal") or "",
             fact_issues=checks[n] if checks is not None else None,
@@ -416,11 +450,12 @@ def _write_batch(
         # Brand kit per image (template / product photo / logo), gathered here
         # on the run's own session so the image threads don't need the DB.
         kits = [_poster_kit_for(db, automation, brand.id, idea, n, today) for n, idea in enumerate(ideas)]
+        first_frame = _first_frame_for(db, brand.id, ideas[video_n]) if video_n >= 0 else None
         pool = ThreadPoolExecutor(max_workers=_MAX_PARALLEL_MEDIA, thread_name_prefix="auto-media")
         try:
             futures = {
                 (
-                    pool.submit(_generate_video_for, brand_args, idea, product_args)
+                    pool.submit(_generate_video_for, brand_args, idea, product_args, first_frame)
                     if n == video_n
                     else pool.submit(_generate_media_for, brand_args, idea, product_args, kits[n])
                 ): n

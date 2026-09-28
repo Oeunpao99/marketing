@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { FiArrowDownRight, FiArrowUpRight, FiCalendar, FiCheck, FiRefreshCw, FiTrendingUp, FiX } from 'react-icons/fi'
 import { api } from '../api/client'
-import { angleText } from '../lib/angles'
+import { PILLAR_LABELS, SELLING_PILLARS, angleText, pillarChipClass } from '../lib/angles'
 import { colorForBrand } from '../lib/brandColor'
 import { useStore } from '../store'
 import { PLAT } from '../data/brands'
@@ -313,11 +313,24 @@ function Report({ report, brand }) {
   )
 }
 
+// [[pillar, count], …] in PILLAR_LABELS order, and how many of them sell.
+function pillarMix(items) {
+  const counts = {}
+  for (const i of items) if (PILLAR_LABELS[i.pillar]) counts[i.pillar] = (counts[i.pillar] || 0) + 1
+  return {
+    pillars: Object.keys(PILLAR_LABELS)
+      .filter((p) => counts[p])
+      .map((p) => [p, counts[p]]),
+    selling: items.filter((i) => SELLING_PILLARS.includes(i.pillar)).length,
+  }
+}
+
 function PlanCard({ plan, autoMedia, busy, running, onApprove, onDismiss, onReplan, onRemove, onSaveCaption }) {
   const byDay = {}
   for (const item of plan.items) (byDay[item.day] ||= []).push(item)
   const n = plan.items.length
   const flagged = plan.items.filter((i) => i.fact_issues?.length).length
+  const mix = pillarMix(plan.items)
 
   return (
     <section className={`${card} overflow-hidden`}>
@@ -348,6 +361,19 @@ function PlanCard({ plan, autoMedia, busy, running, onApprove, onDismiss, onRepl
           : 'Approving puts each idea on your Calendar on its day. Turn on “Generate media” in Auto-generate to have images made and posts scheduled automatically.'}{' '}
         Remove anything you don’t want first.
       </p>
+      {mix.pillars.length > 0 && (
+        <div className="px-5 pt-3 flex items-center gap-1.5 flex-wrap text-[11.5px]">
+          <span className="font-semibold text-ink-500 mr-0.5">This week’s mix</span>
+          {mix.pillars.map(([p, count]) => (
+            <span key={p} className={`rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${pillarChipClass(p)}`}>
+              {PILLAR_LABELS[p]} {count > 1 && `×${count}`}
+            </span>
+          ))}
+          <span className="text-ink-400 ml-0.5">
+            · {mix.selling} of {n} sell{mix.selling === 1 ? 's' : ''}, the rest give value
+          </span>
+        </div>
+      )}
 
       <div className="p-5 space-y-5">
         {Object.entries(byDay).map(([day, items]) => (
@@ -379,10 +405,18 @@ function PlanItem({ item, onRemove, onSave }) {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <span className={`font-semibold text-[13px] text-ink-900 ${khmer(item.title)}`}>{item.title}</span>
+            {PILLAR_LABELS[item.pillar] && (
+              <span
+                className={`rounded-full px-1.5 py-px text-[10px] font-semibold ${pillarChipClass(item.pillar)}`}
+                title="What this post is about — most posts give value, only some sell"
+              >
+                {PILLAR_LABELS[item.pillar]}
+              </span>
+            )}
             {typeof item.fit_score === 'number' && (
               <span
                 className="rounded-full bg-ink-100 px-1.5 py-px text-[10px] font-bold text-ink-600"
-                title="AI's own self-check: how grounded this idea is in real product facts"
+                title="AI's own self-check: how specific and well-grounded this idea is for your brand"
               >
                 {item.fit_score}% fit
               </span>

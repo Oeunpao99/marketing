@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
-import { angleText } from '../lib/angles'
+import { PILLAR_LABELS, angleText, pillarChipClass } from '../lib/angles'
 import { colorForBrand } from '../lib/brandColor'
 import { useStore } from '../store'
 
@@ -101,9 +101,17 @@ export default function ReviewPage() {
                         <span
                           className="inline-flex items-center rounded-full px-1.5 py-px text-[10px] font-bold"
                           style={{ color, background: `${color}14` }}
-                          title="AI's own self-check: how grounded this idea is in real product facts"
+                          title="AI's own self-check: how specific and well-grounded this idea is for your brand"
                         >
                           {r.fitScore}% fit
+                        </span>
+                      )}
+                      {PILLAR_LABELS[r.pillar] && (
+                        <span
+                          className={`inline-flex items-center rounded-full px-1.5 py-px text-[10px] font-semibold ${pillarChipClass(r.pillar)}`}
+                          title="What this post is about — most posts give value, only some sell"
+                        >
+                          {PILLAR_LABELS[r.pillar]}
                         </span>
                       )}
                       {angleText(r.angle, r.goal) && (

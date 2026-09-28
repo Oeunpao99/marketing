@@ -234,10 +234,10 @@ export default function OnboardingTour() {
             </span>
           )}
           <div className="min-w-0 flex-1">
-            <h2 id="tour-title" className="text-[14px] font-semibold leading-snug text-ink-900">
+            <h2 id="tour-title" className="text-[15px] font-bold leading-snug text-brand">
               {step.title}
             </h2>
-            <p className="mt-1.5 text-[12.5px] leading-relaxed text-ink-500">{step.body}</p>
+            <p className="mt-2 text-[13px] leading-[1.6] text-ink-700">{step.body}</p>
           </div>
           <button
             type="button"
@@ -250,12 +250,12 @@ export default function OnboardingTour() {
         </div>
 
         <div className={`flex items-center gap-2 ${centred ? 'mt-5' : 'mt-4'}`}>
-          <span className="text-[11px] font-medium text-ink-400 tabular-nums">
+          <span className="text-[11.5px] font-semibold text-ink-600 tabular-nums">
             {index + 1} of {steps.length}
           </span>
           <span className="flex-1 flex gap-1">
             {steps.map((s, i) => (
-              <span key={s.id} className={`h-1 flex-1 rounded-full ${i <= index ? 'bg-brand' : 'bg-ink-200'}`} />
+              <span key={s.id} className={`h-1.5 flex-1 rounded-full ${i <= index ? 'bg-brand' : 'bg-ink-300'}`} />
             ))}
           </span>
           {index > 0 && (

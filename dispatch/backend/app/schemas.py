@@ -254,7 +254,9 @@ class DraftBase(BaseModel):
     # The AI's own 0-100 self-check of how well this idea is grounded in the
     # brand's real product facts (app/content_ai.py) — null for hand-made drafts.
     fit_score: int | None = None
-    # Marketing angle / goal the AI wrote the caption with ("" = hand-made).
+    # Content pillar / marketing angle / goal the AI wrote the caption with
+    # ("" = hand-made).
+    pillar: str = ""
     angle: str = ""
     goal: str = ""
     # Claims in the caption the fact-check couldn't find in the product info.

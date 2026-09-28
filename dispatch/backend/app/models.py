@@ -206,6 +206,9 @@ class Post(Base, TimestampMixin):
     # copied off its Draft) — "" for hand-written posts. app/learning.py
     # compares angles to learn which ones work for the brand.
     angle: Mapped[str] = mapped_column(String(30), default="", server_default="")
+    # Its content pillar (content_ai.PILLARS, e.g. "educate"), same source and
+    # purpose as angle.
+    pillar: Mapped[str] = mapped_column(String(30), default="", server_default="")
     # Where it was made: "contentflow" (here) or "native" — posted straight on
     # the platform and imported from a connected Page (app/importer.py), so
     # Analytics can badge it and still count it.
@@ -278,9 +281,10 @@ class Draft(Base, TimestampMixin):
     # The AI's own 0-100 self-check of how well this idea is grounded in the
     # brand's real product facts — null for hand-made drafts.
     fit_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    # How the AI wrote the caption: marketing angle (content_ai.ANGLES, e.g.
-    # "problem_solution") and goal (content_ai.GOALS, e.g. "sales") — "" for
-    # hand-made drafts.
+    # How the AI wrote the caption: content pillar (content_ai.PILLARS, e.g.
+    # "educate"), marketing angle (content_ai.ANGLES, e.g. "problem_solution")
+    # and goal (content_ai.GOALS, e.g. "sales") — "" for hand-made drafts.
+    pillar: Mapped[str] = mapped_column(String(30), default="", server_default="")
     angle: Mapped[str] = mapped_column(String(30), default="", server_default="")
     goal: Mapped[str] = mapped_column(String(20), default="", server_default="")
     # Claims the automatic fact-check couldn't find in the brand's product

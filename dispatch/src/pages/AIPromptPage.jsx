@@ -194,6 +194,10 @@ export default function AIPromptPage() {
   const kitTemplate = kitTemplates.find((t) => t.id === kit.templateId)
   const kitProduct = kitProducts.find((p) => p.id === kit.productId)
   const kitOn = isImage && !!(kitTemplate || kitProduct || (kit.logo && kitLogo))
+  // Instant video: the chosen product photo becomes the clip's first frame
+  // (an attached image takes its place).
+  const isClip = type === 'video' && !isStory
+  const videoFrame = isClip && !refImg && !!kitProduct
 
   useEffect(() => {
     if (!brand && brands.length) setBrand(brands[0].slug)
@@ -523,6 +527,7 @@ export default function AIPromptPage() {
           seconds: turn.seconds,
           brand_id: turn.brandId,
           reference_url: turn.refUrl || '',
+          product_id: turn.refUrl ? null : (turn.kit?.productId ?? null),
         })
         trackJob(res.id, 'video')
         patchTurn(turn.id, { jobId: res.id })
@@ -605,7 +610,11 @@ export default function AIPromptPage() {
       brandName: brandObj?.name || '',
       refUrl: refImg?.url || '',
       refPreview: refImg?.previewUrl || '',
-      kit: !isStory && kitOn ? { ...kit, logo: kit.logo && !!kitLogo } : null,
+      kit: videoFrame
+        ? { templateId: null, productId: kit.productId, logo: false }
+        : !isStory && kitOn
+          ? { ...kit, logo: kit.logo && !!kitLogo }
+          : null,
       status: 'working',
       startedAt: Date.now(),
     }
@@ -627,9 +636,11 @@ export default function AIPromptPage() {
         type,
         template,
         aspect_ratio: ratio,
+        seconds,
         style,
         topic: idea,
-        has_reference: isImage && !!refImg && !kitOn,
+        // Video: an attached image or product photo is the clip's first frame.
+        has_reference: isImage ? !!refImg && !kitOn : !!refImg || videoFrame,
         brand_kit: kitOn,
       })
       setText(res.prompt)
@@ -910,6 +921,16 @@ export default function AIPromptPage() {
             </div>
           )}
 
+          {intent === 'create' && videoFrame && (
+            <div className="flex flex-wrap items-center gap-1.5 px-4 pt-3.5">
+              <span className="text-[11px] font-semibold text-ink-400">Starts from:</span>
+              <KitChip onRemove={() => setKit((k) => ({ ...k, productId: null }))}>
+                <img src={kitSrc(kitPhotos.find((a) => a.product_id === kitProduct.id)?.url)} alt="" className="h-5 w-5 rounded-sm object-cover" />
+                {kitProduct.name}
+              </KitChip>
+            </div>
+          )}
+
           {intent === 'create' && kitOn && (
             <div className="flex flex-wrap items-center gap-1.5 px-4 pt-3.5">
               <span className="text-[11px] font-semibold text-ink-400">Brand kit:</span>
@@ -1009,7 +1030,7 @@ export default function AIPromptPage() {
               <FiPaperclip size={15} />
             </label>
 
-            {intent === 'create' && isImage && (
+            {intent === 'create' && (isImage || isClip) && (
               // Phones: not `relative`, so the panel anchors to the whole
               // composer box (full width) instead of running off the right edge.
               <div className="sm:relative" ref={kitRef}>
@@ -1017,15 +1038,20 @@ export default function AIPromptPage() {
                   type="button"
                   onClick={() => setKitOpen((v) => !v)}
                   className={`h-9 px-2.5 rounded-full inline-flex items-center gap-1.5 text-[12px] font-medium transition-colors ${
-                    kitOpen || kitOn ? 'bg-brand-soft text-brand' : 'text-ink-600 hover:bg-ink-100'
+                    kitOpen || kitOn || videoFrame ? 'bg-brand-soft text-brand' : 'text-ink-600 hover:bg-ink-100'
                   }`}
-                  title="Use your brand kit — a poster template, a product photo and your logo"
+                  title={
+                    isClip
+                      ? 'Start the video from a product photo in your brand kit, so it shows the real product'
+                      : 'Use your brand kit — a poster template, a product photo and your logo'
+                  }
                 >
                   <FiLayers size={15} />
                   <span className="hidden sm:inline">Brand kit</span>
                 </button>
                 {kitOpen && (
                   <KitPopover
+                    video={isClip}
                     kit={kit}
                     setKit={setKit}
                     templates={kitTemplates}
@@ -1906,30 +1932,43 @@ function KitChip({ children, onRemove }) {
 
 /** The composer's Brand kit popover: which template to follow, which product
  *  photo to feature, and whether to put the logo on. */
-function KitPopover({ kit, setKit, templates, logo, products, onManage }) {
-  const empty = !templates.length && !logo && !products.length
+// ``video``: Instant video only uses a product photo, as the clip's first frame.
+function KitPopover({ video = false, kit, setKit, templates, logo, products, onManage }) {
+  const empty = video ? !products.length : !templates.length && !logo && !products.length
   return (
     <div className="absolute inset-x-2 bottom-full z-30 mb-2 max-h-[60vh] overflow-y-auto rounded-2xl border border-ink-200 bg-white p-4 shadow-[0_12px_40px_rgba(16,24,40,0.16)] sm:inset-x-auto sm:bottom-11 sm:left-0 sm:mb-0 sm:w-[340px]">
       {empty ? (
         <div className="text-[12.5px] leading-relaxed text-ink-600">
-          Add your logo, product photos and posters you like — every image can then follow your style.
+          {video
+            ? 'Add product photos to your brand kit — a video can then start from the real product instead of one the AI invents.'
+            : 'Add your logo, product photos and posters you like — every image can then follow your style.'}
           <button type="button" onClick={onManage} className="mt-2 block font-semibold text-brand hover:underline">
             Set up the brand kit →
           </button>
         </div>
       ) : (
         <div className="space-y-4">
-          <div>
-            <div className="mb-1.5 text-[11.5px] font-semibold text-ink-700">Follow a poster template</div>
-            {templates.length ? (
-              <TemplatePicker templates={templates} value={kit.templateId} onChange={(templateId) => setKit((k) => ({ ...k, templateId }))} />
-            ) : (
-              <div className="text-[11.5px] text-ink-400">No templates yet.</div>
-            )}
-          </div>
+          {!video && (
+            <div>
+              <div className="mb-1.5 text-[11.5px] font-semibold text-ink-700">Follow a poster template</div>
+              {templates.length ? (
+                <TemplatePicker templates={templates} value={kit.templateId} onChange={(templateId) => setKit((k) => ({ ...k, templateId }))} />
+              ) : (
+                <div className="text-[11.5px] text-ink-400">No templates yet.</div>
+              )}
+            </div>
+          )}
           {products.length > 0 && (
             <div>
-              <div className="mb-1.5 text-[11.5px] font-semibold text-ink-700">Show a product photo</div>
+              <div className="mb-1.5 text-[11.5px] font-semibold text-ink-700">
+                {video ? 'Start the video from a product photo' : 'Show a product photo'}
+              </div>
+              {video && (
+                <p className="mb-1.5 text-[11px] leading-snug text-ink-500">
+                  The photo is the first frame and the AI brings it to life, so the video shows your real product.
+                  Use a photo without people’s faces.
+                </p>
+              )}
               <Select
                 value={kit.productId ?? ''}
                 onChange={(v) => setKit((k) => ({ ...k, productId: v === '' ? null : v }))}
@@ -1938,7 +1977,7 @@ function KitPopover({ kit, setKit, templates, logo, products, onManage }) {
               />
             </div>
           )}
-          {logo && (
+          {logo && !video && (
             <div className="flex items-center justify-between gap-3">
               <span className="flex items-center gap-2 text-[12px] font-semibold text-ink-700">
                 <img src={kitSrc(logo.url)} alt="" className="h-6 w-6 object-contain" /> Put my logo on it

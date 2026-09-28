@@ -81,6 +81,74 @@ REFINE_PROMPT = (
     "'no on-screen text, no captions'."
 )
 
+# Video has its own writer: the image format above (TYPOGRAPHY, COLOR PALETTE,
+# 300+ words) overloads a 4-12s clip — Sora follows a short, timed shot plan
+# with one subject, one action and one camera move far better, and garbles any
+# text it's asked to draw.
+VIDEO_SYSTEM_PROMPT = (
+    "You write prompts for AI video models (Sora / Veo class) that make short "
+    "social clips. Turn the user's brief into ONE ready-to-run prompt for a "
+    "single clip.\n"
+    "\n"
+    "OUTPUT FORMAT — only the prompt text, no preamble, no markdown symbols, "
+    "70-140 words, as these labelled lines:\n"
+    "SHOT: format and length (e.g. 'vertical 9:16, 8 seconds'), one continuous "
+    "shot, the lens and ONE camera move (slow push-in, orbit, tracking, "
+    "handheld follow or locked-off).\n"
+    "SUBJECT & SETTING: who or what is on screen (look, clothes, age range for "
+    "people), where, time of day.\n"
+    "ACTION: timed beats that fit the length — 0-2s: a scroll-stopping first "
+    "image already in motion; then the main action; last 1-2s: settle and hold "
+    "on the final image (the product, the result or the person's reaction). "
+    "4s = one beat, 8s = two or three, 12s = three or four. Never more.\n"
+    "LIGHT & LOOK: lighting, colour grade, style (e.g. photorealistic, "
+    "commercial, warm natural light).\n"
+    "SOUND: the music style and ambient sound; a voiceover or dialogue line "
+    "only if the brief asks for one — quoted, short enough to say in the time.\n"
+    "AVOID: no on-screen text, captions, subtitles, logos or watermarks; no "
+    "readable phone or computer screens; no morphing objects, extra fingers or "
+    "sudden cuts.\n"
+    "\n"
+    "WHAT MAKES A CLIP WORK\n"
+    "- One subject, one main action, one camera move. Video models fall apart "
+    "when a short clip is asked to show many things.\n"
+    "- Describe only what the camera can see — never abstract words like "
+    "'efficient', 'innovative' or 'seamless'.\n"
+    "- Software, apps and services: don't try to show the screen (models draw "
+    "unreadable UI). Show the real-life moment instead — the person's "
+    "problem, then their relief or the result.\n"
+    "- A Cambodian brand's clip should look local where it fits: Cambodian "
+    "people, Phnom Penh streets, shops, markets, homes and offices.\n"
+    "- Text, logos and the call to action are added on top of the clip later — "
+    "never ask the model to draw them.\n"
+    "- Product accuracy: if the brief lists the brand's real products, ground "
+    "the scene in them and don't invent features, numbers or claims; if none "
+    "are listed, keep the scene generic and don't invent a product.\n"
+    "- Keep it safe and appropriate for social platforms."
+)
+
+VIDEO_REFINE_PROMPT = (
+    "You write prompts for AI video models. You are given an existing video "
+    "prompt and the user's feedback. Return ONE improved prompt that applies "
+    "the feedback and keeps everything else.\n"
+    "- Output ONLY the prompt text — no preamble or markdown symbols.\n"
+    "- Keep the same labelled lines (SHOT, SUBJECT & SETTING, ACTION, LIGHT & "
+    "LOOK, SOUND, AVOID) and stay within 70-140 words — one subject, one main "
+    "action, one camera move, timed beats that fit the clip length.\n"
+    "- Keep the AVOID line: no on-screen text, captions, logos or readable screens."
+)
+
+# The clip starts from an image (a product photo from the brand kit, or one
+# the person attached): Sora uses it as the exact first frame.
+_VIDEO_FIRST_FRAME = (
+    "IMPORTANT: the clip starts from an attached image, used as its exact first "
+    "frame. Write the prompt as that image coming to life: keep the product and "
+    "everything in the picture exactly as it is (never redesign it), and "
+    "describe only the motion — the camera move, light shifting across it, and "
+    "gentle movement around it (a hand reaching in, steam, fabric, background "
+    "life). Don't describe a different opening scene."
+)
+
 
 class PromptRequest(BaseModel):
     brand: str = ""
@@ -92,6 +160,7 @@ class PromptRequest(BaseModel):
     type: str = "image"          # image | video
     template: str = ""
     aspect_ratio: str = "1:1"
+    seconds: int = 8             # video clip length
     style: str = "photorealistic"
     topic: str = ""
     mood: str = ""
@@ -118,7 +187,7 @@ def _user_brief(r: PromptRequest, products: list[Product]) -> str:
     lines = [
         f"Brand: {r.brand or 'unnamed brand'}"
         + (f" (audience language: {r.brand_language})" if r.brand_language else ""),
-        f"Deliverable: {r.type}",
+        f"Deliverable: {r.type}" + (f", {r.seconds} seconds long" if r.type == "video" else ""),
         f"Template: {r.template or 'general social asset'}",
         f"Aspect ratio: {r.aspect_ratio}",
         f"Visual style: {r.style}",
@@ -137,7 +206,10 @@ def _user_brief(r: PromptRequest, products: list[Product]) -> str:
             if p.highlights:
                 entry += f" | highlights: {p.highlights}"
             lines.append(entry)
-    if r.brand_kit:
+    if r.type == "video":
+        if r.has_reference:
+            lines.append(_VIDEO_FIRST_FRAME)
+    elif r.brand_kit:
         lines.append(
             "IMPORTANT: the brand's own poster template, product photo and/or logo are "
             "attached to the image request separately, with their own instructions — the "
@@ -157,17 +229,18 @@ def _user_brief(r: PromptRequest, products: list[Product]) -> str:
 
 
 def _messages(req: PromptRequest, products: list[Product]) -> list[dict]:
+    video = req.type == "video"
     if req.prior_prompt.strip() and req.feedback.strip():
         user = (
             f"Existing prompt:\n{req.prior_prompt.strip()}\n\n"
             f"Feedback to apply:\n{req.feedback.strip()}"
         )
         return [
-            {"role": "system", "content": REFINE_PROMPT},
+            {"role": "system", "content": VIDEO_REFINE_PROMPT if video else REFINE_PROMPT},
             {"role": "user", "content": user},
         ]
     return [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": VIDEO_SYSTEM_PROMPT if video else SYSTEM_PROMPT},
         {"role": "user", "content": _user_brief(req, products)},
     ]
 
