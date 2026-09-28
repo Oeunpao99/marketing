@@ -1,14 +1,6 @@
 import { PLAT } from '../../data/brands'
 import { colorForBrand } from '../../lib/brandColor'
-import PlatformIcon from '../ui/PlatformIcon'
-
-const PLAT_COLORS = {
-  Facebook: 'text-[#1877F2]',
-  Instagram: 'text-[#E4405F]',
-  TikTok: 'text-[#000000]',
-  YouTube: 'text-[#FF0000]',
-  Telegram: 'text-[#229ED9]',
-}
+import PlatformIcon, { PLAT_BRAND_CLASS as PLAT_COLORS } from '../ui/PlatformIcon'
 
 export default function ChannelPicker({ brands, channels, selectedChannels, toggle }) {
   return (

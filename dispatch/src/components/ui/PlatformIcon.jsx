@@ -33,6 +33,19 @@ export const PLAT_ICONS = {
   ),
 }
 
+// Each platform's own brand colour, for its icon wherever a post or channel
+// is labelled. (Charts use the categorical slots in insights/Overview instead —
+// those are tuned to tell series apart, not to match the brands.) TikTok's
+// black is ink-900 so it flips to light in dark mode.
+export const PLAT_BRAND_CLASS = {
+  Facebook: 'text-[#1877F2]',
+  Instagram: 'text-[#E4405F]',
+  TikTok: 'text-ink-900',
+  YouTube: 'text-[#FF0000]',
+  Telegram: 'text-[#229ED9]',
+  LinkedIn: 'text-[#0A66C2]',
+}
+
 export default function PlatformIcon({ name, className }) {
   const Icon = PLAT_ICONS[name]
   if (!Icon) return null

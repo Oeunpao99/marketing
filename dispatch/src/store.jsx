@@ -38,10 +38,24 @@ function groupTargets(targets) {
         scheduledFor: t.scheduled_for,
         _statuses: [],
         _errors: [],
+        // One per channel, for the Dashboard charts (a post to 2 Pages = 2 deliveries).
+        deliveries: [],
+        media: t.video_url ? { url: t.video_url, kind: t.media_kind || "video" } : null,
+        // Latest saved numbers, summed over the post's channels; null = none reported.
+        stats: null,
       };
       byPost.set(key, card);
     }
     card.targetIds.push(t.id);
+    card.deliveries.push({
+      platform: t.platform_slug || "",
+      status: t.status,
+      at: t.published_at || t.scheduled_for,
+    });
+    for (const k of ["views", "likes", "comments", "shares"]) {
+      const v = t.metrics?.[k];
+      if (typeof v === "number") card.stats = { ...card.stats, [k]: (card.stats?.[k] || 0) + v };
+    }
     if (t.channel && !card.c.includes(t.channel)) card.c.push(t.channel);
     card._statuses.push(t.status);
     if (t.error) card._errors.push(t.error);

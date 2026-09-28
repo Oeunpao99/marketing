@@ -1,6 +1,6 @@
 // Building blocks for the Analytics tabs (Overview · Performance · Content ·
 // Insights & Actions). Same chart rules as Overview.jsx: platform colours from
-// platformHue (fixed order, validated), accent = slot-1 blue, hairline axes,
+// platformHue (fixed brand colours), accent = Facebook blue, hairline axes,
 // text in ink tokens, every number also printed as text.
 import { Link } from 'react-router-dom'
 import {
@@ -17,7 +17,7 @@ import {
   FiRepeat,
   FiTarget,
 } from 'react-icons/fi'
-import { fmtNum, platformHue } from './Overview'
+import { fmtNum, platformHue, platformIconClass } from './Overview'
 
 const ACCENT = '#2a78d6'
 export const cardCls = 'rounded-2xl border border-ink-200/60 bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]'
@@ -145,7 +145,7 @@ export function PlatformBars({ rows, icons }) {
         return (
           <li key={r.slug} className="py-3.5 first:pt-0 last:pb-0">
             <div className="mb-2 flex items-center gap-2.5">
-              <span className="grid h-7 w-7 place-items-center rounded-lg text-white" style={{ background: platformHue(r.slug) }}>
+              <span className={`grid h-7 w-7 place-items-center rounded-lg ${platformIconClass(r.slug)}`} style={{ background: platformHue(r.slug) }}>
                 <Icon size={13} aria-hidden="true" />
               </span>
               <span className="text-[13px] font-semibold text-ink-900">{r.label}</span>
@@ -210,7 +210,7 @@ export function TopContentGrid({ rows, icons, mediaSrc, onOpen, engagementOf }) 
               )}
               <span className="absolute left-2.5 top-2.5 rounded-full bg-white/95 px-2 py-0.5 text-[11px] font-bold text-ink-800 shadow-sm">#{i + 1}</span>
               <span
-                className="absolute right-2.5 top-2.5 grid h-6 w-6 place-items-center rounded-full text-white ring-2 ring-white"
+                className={`absolute right-2.5 top-2.5 grid h-6 w-6 place-items-center rounded-full ring-2 ring-white ${platformIconClass(it.platform_slug)}`}
                 style={{ background: platformHue(it.platform_slug) }}
               >
                 <Icon size={11} aria-hidden="true" />

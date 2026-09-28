@@ -11,7 +11,7 @@ import {
   FiGrid,
 } from 'react-icons/fi'
 import { axisMax } from '../../pages/InsightsPage'
-import { monotonePath, platformHue } from './Overview'
+import { monotonePath, platformHue, platformIconClass } from './Overview'
 
 const ACCENT = '#2a78d6'
 const TZ = 'Asia/Phnom_Penh'
@@ -299,7 +299,7 @@ export function MoreFromChannel({ post, items, icons, engagementOf, onOpen }) {
           return (
             <li key={p.target_id}>
               <button type="button" onClick={() => onOpen(p)} className="flex w-full items-center gap-3 py-2.5 text-left hover:bg-ink-50/60">
-                <span className="grid h-8 w-8 flex-none place-items-center rounded-lg text-white" style={{ background: platformHue(p.platform_slug) }}>
+                <span className={`grid h-8 w-8 flex-none place-items-center rounded-lg ${platformIconClass(p.platform_slug)}`} style={{ background: platformHue(p.platform_slug) }}>
                   <Icon size={13} aria-hidden="true" />
                 </span>
                 <span className="min-w-0 flex-1">

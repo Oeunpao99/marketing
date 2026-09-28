@@ -220,6 +220,23 @@ def today(db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)
         .where(scope(PostTarget, ws))
         .order_by(PostTarget.scheduled_for.nulls_last(), PostTarget.id)
     ).all()
+    from app.media import kind_for
+
+    # The latest saved numbers per published delivery (collected every few
+    # hours and on each Analytics visit) — no platform calls on this 6s poll.
+    posted_ids = [t.id for t in targets if t.status == "posted"]
+    metrics = (
+        dict(
+            db.execute(
+                select(MetricSnapshot.target_id, MetricSnapshot.metrics)
+                .where(MetricSnapshot.target_id.in_(posted_ids))
+                .order_by(MetricSnapshot.target_id, MetricSnapshot.taken_at.desc())
+                .distinct(MetricSnapshot.target_id)
+            ).all()
+        )
+        if posted_ids
+        else {}
+    )
     out = []
     for t in targets:
         ch = chans.get(t.channel_id)
@@ -236,13 +253,17 @@ def today(db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)
                 "brand_slug": brand.slug if brand else None,
                 "brand_name": brand.name if brand else "?",
                 "channel": plat.name if plat else "?",
+                "platform_slug": plat.slug if plat else "",
                 "title": t.title or (t.post.title if t.post else ""),
                 "caption": t.caption,
                 "status": t.status,
+                "published_at": t.published_at,
                 "error": t.error or "",
                 "video_id": video.id if video else None,
                 "video_filename": video.filename if video else None,
                 "video_url": video.url if video else None,
+                "media_kind": kind_for(video.url, None) if video and video.url else None,
+                "metrics": metrics.get(t.id),
             }
         )
     return out

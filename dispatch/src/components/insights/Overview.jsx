@@ -21,10 +21,22 @@ import {
   FiMessageCircle,
 } from 'react-icons/fi'
 
-// Fixed platform → categorical slot (never re-ranked by the data on screen).
+// Fixed platform → colour (never re-ranked by the data on screen): each
+// platform's own brand colour, by the owner's choice, so a chart reads like
+// the apps people know. Trade-off, measured with the dataviz validator:
+// Facebook / LinkedIn / Telegram are all blues and YouTube / Instagram both
+// reds, so colour alone can't separate them — every chart keeps the 2px
+// surface gaps, names each platform (with its logo) in the legend, and shows
+// the numbers in a table or tooltip. TikTok is its black — ink-900, which
+// turns near-white in dark mode so it never vanishes on the dark surface.
+// That's a CSS variable: use platformHue in style={{}}, never an SVG
+// attribute, and put platformIconClass on anything drawn on top of it.
 const PLATFORM_ORDER = ['facebook', 'instagram', 'tiktok', 'linkedin', 'telegram', 'youtube']
-const SLOTS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300']
+const SLOTS = ['#1877F2', '#E4405F', 'rgb(var(--ink-900))', '#0A66C2', '#229ED9', '#FF0000']
 export const platformHue = (slug) => SLOTS[PLATFORM_ORDER.indexOf(slug)] ?? '#898781'
+// Icon colour on a platformHue background: white, except on TikTok's ink-900,
+// where it's ink-50 so the pair inverts together in dark mode.
+export const platformIconClass = (slug) => (slug === 'tiktok' ? 'text-ink-50' : 'text-white')
 const SURFACE = '#ffffff'
 const ACCENT = SLOTS[0]
 
@@ -253,7 +265,7 @@ export function Donut({ segments, size = 84, label }) {
               cy={c}
               r={r}
               fill="none"
-              stroke={platformHue(s.slug)}
+              style={{ stroke: platformHue(s.slug) }}
               strokeWidth={hover === s.slug ? stroke + 3 : stroke}
               strokeDasharray={`${dash} ${circ - dash}`}
               strokeDashoffset={off}
