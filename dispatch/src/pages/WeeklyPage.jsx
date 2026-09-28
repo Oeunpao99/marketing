@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { FiAlertTriangle, FiArrowDownRight, FiArrowUpRight, FiCalendar, FiCheck, FiRefreshCw, FiTrendingUp, FiUsers, FiX, FiZap } from 'react-icons/fi'
+import { FiAlertTriangle, FiArrowDownRight, FiArrowUpRight, FiAward, FiCalendar, FiCheck, FiRefreshCw, FiTrendingUp, FiUsers, FiX, FiZap } from 'react-icons/fi'
 import { api } from '../api/client'
 import { GOAL_LABELS, PILLAR_LABELS, SELLING_PILLARS, angleText, pillarChipClass } from '../lib/angles'
 import { colorForBrand } from '../lib/brandColor'
@@ -175,7 +175,7 @@ export default function WeeklyPage() {
         </div>
       ) : (
         data && (
-          <div className="space-y-5">
+          <div className="space-y-4">
             {report && <Report report={report} brand={brand} advisor={ready ? plan.report?.advisor : null} />}
 
             {ready ? (
@@ -223,40 +223,209 @@ function JobBar({ job }) {
   )
 }
 
-function Stat({ label, now, before }) {
-  const change = now != null && before > 0 ? Math.round(((now - before) / before) * 100) : null
+// ── shared bits ───────────────────────────────────────────────────────────
+const ACCENT = '#2a78d6'
+const pctChange = (now, before) => (now != null && before > 0 ? Math.round(((now - before) / before) * 100) : null)
+
+/** ↑ 24% / ↓ 12% vs the week before — arrow + colour, never colour alone. */
+function Change({ now, before, big = false }) {
+  const c = pctChange(now, before)
+  if (c == null || c === 0) return null
+  const up = c > 0
+  const Icon = up ? FiArrowUpRight : FiArrowDownRight
   return (
-    <div className="rounded-xl bg-ink-50/70 px-4 py-3">
-      <div className="text-[11px] font-semibold text-ink-500">{label}</div>
-      <div className="mt-1 flex items-baseline gap-2">
-        <span className="text-[22px] font-bold text-ink-900 tabular-nums">{now ?? '—'}</span>
-        {change !== null && change !== 0 && (
-          <span
-            className={`inline-flex items-center text-[11.5px] font-semibold ${
-              change > 0 ? 'text-emerald-700' : 'text-red-600'
-            }`}
-          >
-            {change > 0 ? <FiArrowUpRight size={13} /> : <FiArrowDownRight size={13} />}
-            {Math.abs(change)}%
-          </span>
-        )}
+    <span
+      className={`inline-flex items-center gap-0.5 rounded-full font-semibold tabular-nums ${
+        up ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'
+      } ${big ? 'px-2.5 py-1 text-[13px]' : 'px-1.5 py-px text-[11px]'}`}
+    >
+      <Icon size={big ? 14 : 11} aria-hidden="true" />
+      {Math.abs(c)}%
+    </span>
+  )
+}
+
+/** The page reads as three numbered steps: what happened → what the AI
+ *  recommends → your plan. */
+function StepTitle({ n, title, sub, children }) {
+  return (
+    <div className="flex flex-wrap items-end justify-between gap-3 pt-2">
+      <div className="flex items-center gap-3">
+        <span className="grid h-7 w-7 flex-none place-items-center rounded-full bg-ink-900 text-[12.5px] font-bold text-ink-50">{n}</span>
+        <div>
+          <h2 className="text-[16px] font-bold leading-tight tracking-tight text-ink-900">{title}</h2>
+          {sub && <p className="text-[12px] text-ink-500">{sub}</p>}
+        </div>
       </div>
-      <div className="text-[11px] text-ink-400">week before: {before ?? '—'}</div>
+      {children}
     </div>
   )
 }
 
-/** The advisor: last week's numbers, then What worked / What to improve /
- *  Your audience — the AI's summary when a plan was just written, else the
- *  measured rules on their own — and the recommendation for next week. */
+// ── Step 1 + 2 ────────────────────────────────────────────────────────────
 function Report({ report, brand, advisor }) {
+  return (
+    <>
+      <StepTitle n={1} title="What happened" sub={`${dayLabel(report.from)} – ${dayLabel(report.to)}, compared with the week before`} />
+      <Hero report={report} brand={brand} />
+      <StepTitle n={2} title="What the AI recommends" sub="Worked out from your own posts — click “Why?” to see the numbers" />
+      <Advice report={report} advisor={advisor} />
+    </>
+  )
+}
+
+/** One card: the headline number, two supporting numbers, the best post —
+ *  and the day-by-day chart beside them. */
+function Hero({ report, brand }) {
+  const t = report.this_week || {}
+  const l = report.last_week || {}
+  return (
+    <section className={`${card} grid gap-6 p-6 lg:grid-cols-[300px_minmax(0,1fr)]`}>
+      <div className="flex flex-col">
+        <div className="flex items-center gap-2 text-[12.5px] font-medium text-ink-500">
+          <span className="h-2 w-2 rounded-full" style={{ background: colorForBrand(brand.slug) }} />
+          Engagement this week
+        </div>
+        <div className="mt-1 flex items-center gap-3">
+          <span className="text-[48px] font-bold leading-none tracking-tight tabular-nums text-ink-900">{t.engagement ?? 0}</span>
+          <Change now={t.engagement} before={l.engagement} big />
+        </div>
+        <p className="mt-2 text-[12.5px] text-ink-500">
+          likes + comments + shares · week before: <b className="font-semibold text-ink-700">{l.engagement ?? 0}</b>
+        </p>
+
+        <div className="mt-5 grid grid-cols-2 gap-3">
+          <div>
+            <div className="text-[11.5px] text-ink-500">Posts</div>
+            <div className="mt-0.5 flex items-center gap-1.5">
+              <span className="text-[20px] font-bold tabular-nums text-ink-900">{t.posts ?? 0}</span>
+              <Change now={t.posts} before={l.posts} />
+            </div>
+          </div>
+          <div>
+            <div className="text-[11.5px] text-ink-500">Views</div>
+            <div className="mt-0.5 flex items-center gap-1.5">
+              <span className="text-[20px] font-bold tabular-nums text-ink-900">{t.views ?? '—'}</span>
+              <Change now={t.views} before={l.views} />
+            </div>
+          </div>
+        </div>
+
+        {t.top && (
+          <Link to={`/insights/${t.top.target_id}`} className="mt-5 flex items-center gap-2.5 rounded-xl bg-amber-50/70 px-3 py-2.5 hover:bg-amber-50">
+            <FiAward size={15} className="flex-none text-amber-700" aria-hidden="true" />
+            <span className="min-w-0 flex-1">
+              <span className="block text-[10.5px] font-bold uppercase tracking-[.05em] text-amber-800">Best post</span>
+              <span className={`block truncate text-[12.5px] font-medium text-ink-900 ${khmer(t.top.title)}`}>{t.top.title || 'Untitled'}</span>
+            </span>
+            <span className="flex-none text-right text-[11px] text-ink-500">
+              <b className="block text-[14px] text-ink-900">{t.top.engagement}</b>
+              {PLAT[t.top.platform]?.name || t.top.platform}
+            </span>
+          </Link>
+        )}
+        {t.posts > 0 && t.measured < t.posts && (
+          <p className="mt-3 text-[11px] text-ink-400">
+            Numbers from {t.measured} of {t.posts} posts so far — open Analytics to refresh the rest.
+          </p>
+        )}
+      </div>
+
+      {report.daily?.length > 0 ? (
+        <DailyEngagement daily={report.daily} />
+      ) : (
+        <div className="grid place-items-center rounded-xl bg-ink-50 text-[12px] text-ink-400">The day-by-day chart appears after the next plan.</div>
+      )}
+    </section>
+  )
+}
+
+/** Engagement per day for two weeks: the week before in a lighter step of
+ *  the same hue, this week solid — hover a day for its posts and engagement. */
+function DailyEngagement({ daily }) {
+  const [hover, setHover] = useState(null)
+  const H = 190
+  const max = Math.max(1, ...daily.map((d) => d.engagement))
+  const half = Math.floor(daily.length / 2)
+  const peak = daily.reduce((a, d) => (d.engagement > a.engagement ? d : a), daily[0])
+  const total = (from, to) => daily.slice(from, to).reduce((s, d) => s + d.engagement, 0)
+  return (
+    <figure className="flex min-w-0 flex-col">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <figcaption className="text-[13px] font-semibold text-ink-800">Engagement per day</figcaption>
+        <div className="flex items-center gap-4 text-[11.5px] text-ink-500">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm" style={{ background: ACCENT, opacity: 0.3 }} /> Week before <b className="text-ink-700">{total(0, half)}</b>
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm" style={{ background: ACCENT }} /> This week <b className="text-ink-700">{total(half)}</b>
+          </span>
+        </div>
+      </div>
+      <div className="relative mt-auto">
+        {[0.5, 1].map((g) => (
+          <div key={g} className="absolute inset-x-0 border-t border-dashed border-ink-100" style={{ top: H - g * (H - 20) }} />
+        ))}
+        <div className="absolute inset-x-0 border-t border-ink-300" style={{ top: H }} />
+        {/* where "this week" starts */}
+        <div className="absolute bottom-0 border-l border-dashed border-ink-300" style={{ left: `${(half / daily.length) * 100}%`, top: 0, height: H }} />
+        <div className="relative flex items-end gap-1.5 sm:gap-2" style={{ height: H }}>
+          {daily.map((d, i) => (
+            <div
+              key={d.date}
+              className="relative flex h-full flex-1 cursor-default items-end justify-center"
+              onMouseEnter={(e) => setHover({ d, x: e.currentTarget.offsetLeft + e.currentTarget.offsetWidth / 2 })}
+              onMouseLeave={() => setHover(null)}
+            >
+              <div
+                className="w-full max-w-[30px] rounded-t-[5px] transition-opacity"
+                style={{
+                  height: d.engagement ? Math.max(4, (d.engagement / max) * (H - 20)) : 2,
+                  background: d.engagement ? ACCENT : 'rgb(var(--ink-200))',
+                  opacity: hover && hover.d !== d ? 0.5 : i < half && d.engagement ? 0.3 : 1,
+                }}
+              />
+              {d === peak && d.engagement > 0 && (
+                <span className="absolute text-[11px] font-bold tabular-nums text-ink-800" style={{ bottom: (d.engagement / max) * (H - 20) + 4 }}>
+                  {d.engagement}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+        {hover && (
+          <div
+            className="pointer-events-none absolute top-0 z-20 -translate-x-1/2 -translate-y-[calc(100%+4px)] whitespace-nowrap rounded-lg bg-night-900 px-2.5 py-1.5 text-[11.5px] text-white shadow-lg"
+            style={{ left: hover.x }}
+          >
+            <div className="font-semibold">{dayLabel(hover.d.date)}</div>
+            <div>
+              {hover.d.engagement} engagement · {hover.d.posts} post{hover.d.posts === 1 ? '' : 's'}
+            </div>
+          </div>
+        )}
+        <div className="mt-2 flex gap-1.5 sm:gap-2">
+          {daily.map((d, i) => (
+            <span key={d.date} className={`flex-1 text-center text-[10.5px] leading-4 ${i === daily.length - 1 ? 'font-bold text-ink-900' : 'text-ink-400'}`}>
+              {new Date(`${d.date}T00:00`).toLocaleDateString('en-GB', { weekday: 'narrow' })}
+              <span className="block">{Number(d.date.slice(8))}</span>
+            </span>
+          ))}
+        </div>
+      </div>
+    </figure>
+  )
+}
+
+/** What worked / what to improve / your audience in one card — one sentence
+ *  each, the numbers behind a "Why?" — and next week's recommendation. */
+function Advice({ report, advisor }) {
   const t = report.this_week || {}
   const rules = report.rules || []
   const weak = report.weak_rules || []
   const topics = Object.values(report.pillar_stats || {}).sort((a, b) => b.avg - a.avg)
-  const topTopic = topics[0]
   const maxAvg = Math.max(0.1, ...topics.map((s) => s.avg))
-  const cards = [
+  const cols = [
     {
       key: 'worked',
       icon: FiTrendingUp,
@@ -269,7 +438,7 @@ function Report({ report, brand, advisor }) {
           : t.top
             ? `Your best post was “${t.top.title}” with ${t.top.engagement} engagement.`
             : 'Not enough results yet — patterns show up after a week or two of posting.'),
-      evidence: rules,
+      why: rules,
     },
     {
       key: 'improve',
@@ -277,142 +446,90 @@ function Report({ report, brand, advisor }) {
       tone: 'bg-amber-50 text-amber-700',
       title: 'What to improve',
       text: advisor?.improve || (weak[0] ? `${weak[0].text}.` : 'Nothing is clearly lagging yet — keep the mix varied.'),
-      evidence: weak,
+      why: weak,
     },
     {
       key: 'audience',
       icon: FiUsers,
       tone: 'bg-brand-soft text-brand',
-      title: 'Your audience responds to',
+      title: 'Your audience likes',
       text:
         advisor?.audience ||
-        (topTopic
-          ? `${topTopic.label} posts — ${topTopic.avg} engagement per post (${topTopic.posts} posts).`
-          : 'We’ll learn this as your AI posts collect likes and comments.'),
-      evidence: [],
+        (topics[0] ? `${topics[0].label} posts — ${topics[0].avg} engagement each.` : 'We’ll learn this as your posts collect likes and comments.'),
+      why: [],
     },
   ]
   return (
-    <>
-      <ThisWeek report={report} brand={brand} />
-
-      <div className="grid gap-4 md:grid-cols-3">
-        {cards.map((c) => (
-          <section key={c.key} className={`${card} p-5`}>
+    <section className={`${card} overflow-hidden`}>
+      <div className="grid divide-y divide-ink-100 md:grid-cols-3 md:divide-x md:divide-y-0">
+        {cols.map((c) => (
+          <div key={c.key} className="p-5">
             <div className="flex items-center gap-2.5">
-              <span className={`grid h-8 w-8 flex-none place-items-center rounded-lg ${c.tone}`}>
-                <c.icon size={15} aria-hidden="true" />
+              <span className={`grid h-9 w-9 flex-none place-items-center rounded-xl ${c.tone}`}>
+                <c.icon size={16} aria-hidden="true" />
               </span>
-              <h3 className="text-[13.5px] font-semibold text-ink-900">{c.title}</h3>
+              <h3 className="text-[14px] font-semibold text-ink-900">{c.title}</h3>
             </div>
-            <p className="mt-3 text-[13px] leading-relaxed text-ink-800">{c.text}</p>
-            {c.evidence.length > 0 && (
-              <ul className="mt-3 space-y-1.5 border-t border-ink-100 pt-3">
-                {c.evidence.slice(0, 3).map((r) => (
-                  <li key={r.id} className="text-[11.5px] leading-snug text-ink-500">
-                    <span className="text-ink-700">{r.text}</span> · {r.evidence}
-                  </li>
-                ))}
-              </ul>
-            )}
+            <p className="mt-3 text-[13.5px] leading-relaxed text-ink-700">{c.text}</p>
             {c.key === 'audience' && topics.length > 0 && (
-              <ul className="mt-3 space-y-2 border-t border-ink-100 pt-3">
-                {topics.slice(0, 4).map((s) => (
+              <ul className="mt-4 space-y-2.5">
+                {topics.slice(0, 3).map((s) => (
                   <li key={s.label} className="text-[11.5px]">
                     <div className="flex justify-between gap-2 text-ink-600">
                       <span>{s.label}</span>
-                      <span className="tabular-nums">
-                        <b className="font-semibold text-ink-800">{s.avg}</b> / post · {s.posts}
-                      </span>
+                      <b className="font-semibold tabular-nums text-ink-800">{s.avg}</b>
                     </div>
-                    <div className="mt-1 h-1.5 rounded-full bg-ink-100">
+                    <div className="mt-1 h-2 rounded-full bg-ink-100">
                       <div className="h-full rounded-full bg-brand" style={{ width: `${(s.avg / maxAvg) * 100}%` }} />
                     </div>
                   </li>
                 ))}
               </ul>
             )}
-          </section>
+            {c.why.length > 0 && (
+              <details className="group mt-3">
+                <summary className="cursor-pointer list-none text-[12px] font-semibold text-brand hover:underline">
+                  Why? <span className="group-open:hidden">▸</span>
+                  <span className="hidden group-open:inline">▾</span>
+                </summary>
+                <ul className="mt-2 space-y-1.5">
+                  {c.why.slice(0, 4).map((r) => (
+                    <li key={r.id} className="text-[11.5px] leading-snug text-ink-500">
+                      <span className="text-ink-700">{r.text}</span> — {r.evidence}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </div>
         ))}
       </div>
 
       {advisor?.recommendation && (
-        <section className="flex flex-col gap-3 rounded-2xl border border-brand/20 bg-brand-soft px-5 py-4 sm:flex-row sm:items-center">
+        <div className="flex flex-col gap-3 border-t border-brand/15 bg-brand-soft px-5 py-4 sm:flex-row sm:items-center">
           <span className="grid h-10 w-10 flex-none place-items-center rounded-xl bg-brand text-white">
             <FiZap size={18} aria-hidden="true" />
           </span>
           <div className="min-w-0 flex-1">
-            <div className="text-[11px] font-bold uppercase tracking-[.06em] text-brand">AI recommendation for next week</div>
-            <p className="mt-0.5 text-[14px] font-semibold leading-snug text-ink-900">{advisor.recommendation}</p>
+            <div className="text-[11px] font-bold uppercase tracking-[.06em] text-brand">Next week, focus on</div>
+            <p className="mt-0.5 text-[15px] font-semibold leading-snug text-ink-900">{advisor.recommendation}</p>
           </div>
           {advisor.focus?.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {advisor.focus.map((f) => (
-                <span key={f} className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${pillarChipClass(f)}`}>
+                <span key={f} className={`rounded-full px-2.5 py-1 text-[11.5px] font-semibold ${pillarChipClass(f)}`}>
                   {PILLAR_LABELS[f]}
                 </span>
               ))}
             </div>
           )}
-        </section>
-      )}
-    </>
-  )
-}
-
-/** "Your content this week": engagement, posts and views vs the week before,
- *  and the best post. */
-function ThisWeek({ report, brand }) {
-  const t = report.this_week || {}
-  const l = report.last_week || {}
-  const color = colorForBrand(brand.slug)
-  return (
-    <section className={`${card} p-5`}>
-      <div className="flex items-center gap-2">
-        <span className="w-[3px] h-[18px] rounded-full" style={{ background: color }} />
-        <h2 className="text-[14.5px] font-bold text-ink-900">Your content this week</h2>
-        <span className="text-[11.5px] text-ink-400">
-          {dayLabel(report.from)} – {dayLabel(report.to)}
-        </span>
-      </div>
-
-      <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <Stat label="Engagement" now={t.engagement} before={l.engagement} />
-        <Stat label="Posts published" now={t.posts} before={l.posts} />
-        {(t.views != null || l.views != null) && <Stat label="Views" now={t.views} before={l.views} />}
-      </div>
-      {t.posts > 0 && t.measured < t.posts && (
-        <p className="mt-2 text-[11px] text-ink-400">
-          Numbers from {t.measured} of {t.posts} posts — the rest haven’t been measured yet (open Analytics to refresh).
-        </p>
-      )}
-
-      {t.top && (
-        <Link
-          to={`/insights/${t.top.target_id}`}
-          className="mt-4 flex items-center gap-3 rounded-xl border border-ink-100 px-4 py-3 hover:bg-ink-50"
-        >
-          <span className="text-[11px] font-semibold text-ink-500 flex-none">Best post</span>
-          <span className={`min-w-0 flex-1 truncate text-[12.5px] text-ink-800 ${khmer(t.top.title)}`}>
-            {t.top.title || 'Untitled'}
-          </span>
-          <span className="flex-none text-[11.5px] text-ink-500">
-            {PLAT[t.top.platform]?.name || t.top.platform} · <b className="text-ink-800">{t.top.engagement}</b> engagement
-          </span>
-        </Link>
-      )}
-
-      {!(report.rules || []).length && (
-        <p className="mt-3 text-[11.5px] text-ink-400">
-          Not enough results to find patterns yet
-          {report.learned_from ? ` (${report.learned_from} post${report.learned_from === 1 ? '' : 's'} with numbers)` : ''} — the
-          advice gets sharper as posts collect likes and comments.
-        </p>
+        </div>
       )}
     </section>
   )
 }
 
+// ── Step 3: the plan ──────────────────────────────────────────────────────
 // [[pillar, count], …] in PILLAR_LABELS order, and how many of them sell.
 function pillarMix(items) {
   const counts = {}
@@ -431,107 +548,123 @@ function PlanCard({ plan, autoMedia, busy, running, onApprove, onDismiss, onRepl
   const n = plan.items.length
   const flagged = plan.items.filter((i) => i.fact_issues?.length).length
   const mix = pillarMix(plan.items)
+  const value = n - mix.selling
 
   return (
-    <section className={`${card} overflow-hidden`}>
-      <header className="px-5 py-4 border-b border-ink-100 flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <h2 className="text-[14.5px] font-bold text-ink-900">Your weekly plan</h2>
-          <div className="text-[11.5px] text-ink-500">
-            {dayLabel(plan.starts_on)} – {dayLabel(plan.ends_on)} · {n} post{n === 1 ? '' : 's'}
-            {flagged > 0 && <span className="text-amber-700"> · {flagged} to check</span>}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
+    <>
+      <StepTitle n={3} title="Your plan for next week" sub={`${dayLabel(plan.starts_on)} – ${dayLabel(plan.ends_on)} · ${n} post${n === 1 ? '' : 's'}`}>
+        <div className="flex items-center gap-1">
           <button type="button" disabled={!!busy || running} onClick={onReplan} className="btn-ghost px-3 py-1.5" title="Write a fresh plan">
             <FiRefreshCw size={13} /> Rewrite
           </button>
           <button type="button" disabled={!!busy || running} onClick={onDismiss} className="btn-ghost px-3 py-1.5">
             Skip this week
           </button>
-          <button type="button" disabled={!!busy || running || n === 0} onClick={onApprove} className="btn-primary px-4 py-1.5">
-            {autoMedia ? <FiZap size={14} /> : <FiCheck size={14} />}
+        </div>
+      </StepTitle>
+
+      <section className={`${card} overflow-hidden`}>
+        {/* the mix, as one bar: value vs selling */}
+        {n > 0 && (
+          <div className="border-b border-ink-100 px-5 py-4">
+            {mix.pillars.length > 0 ? (
+              <>
+                <div className="flex flex-wrap items-center justify-between gap-2 text-[12.5px]">
+                  <span className="font-semibold text-ink-800">
+                    {value} give value <span className="font-normal text-ink-400">·</span> {mix.selling} sell
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {mix.pillars.map(([p, count]) => (
+                      <span key={p} className={`rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${pillarChipClass(p)}`}>
+                        {PILLAR_LABELS[p]}
+                        {count > 1 ? ` ×${count}` : ''}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="mt-2.5 flex h-2 gap-[2px] overflow-hidden rounded-full">
+                  <div className="bg-brand" style={{ width: `${(value / n) * 100}%` }} />
+                  {mix.selling > 0 && <div className="bg-amber-400" style={{ width: `${(mix.selling / n) * 100}%` }} />}
+                </div>
+              </>
+            ) : (
+              <p className="text-[12px] text-ink-500">
+                This plan was written before topics existed — press <b>Rewrite</b> for a plan with a topic and goal on every post.
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* the week board: one column per day */}
+        {n > 0 ? (
+          <div className="grid grid-cols-1 gap-3 p-5 sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-7">
+            {Object.entries(byDay).map(([day, items]) => (
+              <div key={day} className="flex min-w-0 flex-col gap-2">
+                <div className="flex items-baseline gap-1.5 border-b border-ink-100 pb-1.5">
+                  <span className="text-[13px] font-bold text-ink-900">
+                    {new Date(`${day}T00:00`).toLocaleDateString('en-GB', { weekday: 'short' })}
+                  </span>
+                  <span className="text-[11.5px] text-ink-400">
+                    {new Date(`${day}T00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                  </span>
+                </div>
+                {items.map((i) => (
+                  <div
+                    key={i.key}
+                    className="rounded-xl bg-ink-50/70 p-2.5"
+                    title={i.insight || i.title}
+                  >
+                    <div className={`line-clamp-3 text-[12px] font-medium leading-snug text-ink-900 ${khmer(i.title)}`}>{i.title}</div>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1 text-[10.5px]">
+                      {PILLAR_LABELS[i.pillar] && <span className="font-semibold text-ink-600">{PILLAR_LABELS[i.pillar]}</span>}
+                      {GOAL_LABELS[i.goal] && <span className="text-ink-400">· {GOAL_LABELS[i.goal]}</span>}
+                      {i.fact_issues?.length > 0 && <span className="font-semibold text-amber-700">· check</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="p-5 text-[12.5px] text-ink-500">You removed every idea — rewrite the plan or skip this week.</p>
+        )}
+
+        {/* the one action */}
+        <div className="flex flex-col gap-3 border-t border-ink-100 bg-ink-50/50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-[12px] text-ink-500">
+            {autoMedia
+              ? 'Makes an image for every post and schedules each one on its day, at your best time.'
+              : 'Puts every idea on your Calendar on its day. Turn on “Generate media” in Auto-generate to have images made and posts scheduled too.'}
+            {flagged > 0 && <span className="ml-1 font-semibold text-amber-700">{flagged} caption{flagged === 1 ? '' : 's'} to check first.</span>}
+          </p>
+          <button type="button" disabled={!!busy || running || n === 0} onClick={onApprove} className="btn-primary flex-none px-5 py-2 text-[13px]">
+            {autoMedia ? <FiZap size={15} /> : <FiCheck size={15} />}
             {busy === 'approve' ? 'Working…' : autoMedia ? `Generate all content (${n})` : `Approve plan (${n})`}
           </button>
         </div>
-      </header>
-      <p className="px-5 pt-3 text-[11.5px] text-ink-500">
-        {autoMedia
-          ? 'Approving makes an image for each post and schedules it on its day, on your connected channels.'
-          : 'Approving puts each idea on your Calendar on its day. Turn on “Generate media” in Auto-generate to have images made and posts scheduled automatically.'}{' '}
-        Remove anything you don’t want first.
-      </p>
-      {mix.pillars.length > 0 && (
-        <div className="px-5 pt-3 flex items-center gap-1.5 flex-wrap text-[11.5px]">
-          <span className="font-semibold text-ink-500 mr-0.5">This week’s mix</span>
-          {mix.pillars.map(([p, count]) => (
-            <span key={p} className={`rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${pillarChipClass(p)}`}>
-              {PILLAR_LABELS[p]} {count > 1 && `×${count}`}
-            </span>
-          ))}
-          <span className="text-ink-400 ml-0.5">
-            · {mix.selling} of {n} sell{mix.selling === 1 ? 's' : ''}, the rest give value
-          </span>
-        </div>
-      )}
 
-      {/* Day · Content · Topic · Goal — the week at a glance */}
-      {n > 0 && (
-        <div className="px-5 pt-4 overflow-x-auto">
-          <table className="w-full min-w-[520px] text-left text-[12.5px]">
-            <thead>
-              <tr className="border-b border-ink-100 text-[11px] font-semibold uppercase tracking-[.05em] text-ink-400">
-                <th className="py-2 pr-3 w-28">Day</th>
-                <th className="py-2 pr-3">Content</th>
-                <th className="py-2 pr-3 w-40">Topic</th>
-                <th className="py-2 w-28">Goal</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-ink-100">
-              {plan.items.map((i) => (
-                <tr key={i.key}>
-                  <td className="py-2.5 pr-3 font-semibold text-ink-700 whitespace-nowrap">{dayLabel(i.day)}</td>
-                  <td className={`py-2.5 pr-3 text-ink-900 ${khmer(i.title)}`}>
-                    <span className="line-clamp-1">{i.title}</span>
-                  </td>
-                  <td className="py-2.5 pr-3">
-                    {PILLAR_LABELS[i.pillar] ? (
-                      <span className={`rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${pillarChipClass(i.pillar)}`}>{PILLAR_LABELS[i.pillar]}</span>
-                    ) : (
-                      <span className="text-ink-300">—</span>
-                    )}
-                  </td>
-                  <td className="py-2.5 text-ink-600">{GOAL_LABELS[i.goal] || '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <details className="group px-5 pb-5 pt-3" open={flagged > 0}>
-        <summary className="cursor-pointer list-none py-2 text-[12.5px] font-semibold text-brand hover:underline">
-          <span className="group-open:hidden">Review and edit the captions ▸</span>
-          <span className="hidden group-open:inline">Hide the captions ▾</span>
-          {flagged > 0 && <span className="ml-2 font-normal text-amber-700">{flagged} to check</span>}
-        </summary>
-        <div className="mt-2 space-y-5">
-          {Object.entries(byDay).map(([day, items]) => (
-            <div key={day}>
-              <div className="mb-2 flex items-center gap-2 text-[12px] font-semibold text-ink-700">
-                <FiCalendar size={13} className="text-ink-400" /> {dayLabel(day)}
+        <details className="group border-t border-ink-100 px-5 py-3" open={flagged > 0}>
+          <summary className="cursor-pointer list-none text-[12.5px] font-semibold text-brand hover:underline">
+            <span className="group-open:hidden">Review and edit the captions ▸</span>
+            <span className="hidden group-open:inline">Hide the captions ▾</span>
+          </summary>
+          <div className="mt-3 space-y-5 pb-2">
+            {Object.entries(byDay).map(([day, items]) => (
+              <div key={day}>
+                <div className="mb-2 flex items-center gap-2 text-[12px] font-semibold text-ink-700">
+                  <FiCalendar size={13} className="text-ink-400" /> {dayLabel(day)}
+                </div>
+                <div className="space-y-2.5">
+                  {items.map((item) => (
+                    <PlanItem key={item.key} item={item} onRemove={() => onRemove(item.key)} onSave={(c) => onSaveCaption(item.key, c)} />
+                  ))}
+                </div>
               </div>
-              <div className="space-y-2.5">
-                {items.map((item) => (
-                  <PlanItem key={item.key} item={item} onRemove={() => onRemove(item.key)} onSave={(c) => onSaveCaption(item.key, c)} />
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </details>
-      {n === 0 && <p className="px-5 pb-5 text-[12.5px] text-ink-500">You removed every idea — rewrite the plan or skip this week.</p>}
-    </section>
+            ))}
+          </div>
+        </details>
+      </section>
+    </>
   )
 }
 
@@ -630,6 +763,8 @@ const DRAFT_STATUS = {
 function NoPlan({ plan, data, busy, onPlan }) {
   const approved = plan?.status === 'approved'
   return (
+    <>
+    <StepTitle n={3} title="Your plan for next week" />
     <section className={`${card} p-5`}>
       {approved ? (
         <>
@@ -681,5 +816,6 @@ function NoPlan({ plan, data, busy, onPlan }) {
         </div>
       )}
     </section>
+    </>
   )
 }

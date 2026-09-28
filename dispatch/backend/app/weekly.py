@@ -128,6 +128,33 @@ def _period(db: Session, brand_id: int, since: datetime, until: datetime) -> dic
     }
 
 
+def _daily(db: Session, brand_id: int, days: int, now: datetime) -> list[dict]:
+    """Posts and engagement per Phnom Penh day for the last ``days`` days
+    (oldest first) — the advisor's day-by-day chart."""
+    today = now.astimezone(PHNOM_PENH).date()
+    out = {today - timedelta(days=n): {"posts": 0, "engagement": 0} for n in range(days)}
+    since = datetime.combine(min(out), time(0), PHNOM_PENH)
+    targets = db.scalars(
+        select(PostTarget)
+        .join(Post, Post.id == PostTarget.post_id)
+        .where(Post.brand_id == brand_id, PostTarget.status == "posted", PostTarget.published_at >= since)
+    ).all()
+    latest: dict[int, MetricSnapshot] = {}
+    if targets:
+        for s in db.scalars(
+            select(MetricSnapshot).where(MetricSnapshot.target_id.in_([t.id for t in targets])).order_by(MetricSnapshot.taken_at)
+        ):
+            latest[s.target_id] = s
+    for t in targets:
+        day = out.get(t.published_at.astimezone(PHNOM_PENH).date())
+        if day is None:
+            continue
+        day["posts"] += 1
+        snap = latest.get(t.id)
+        day["engagement"] += int(_engagement(snap.metrics) or 0) if snap else 0
+    return [{"date": d.isoformat(), **v} for d, v in sorted(out.items())]
+
+
 def build_report(db: Session, brand_id: int, learnings: dict | None = None) -> dict:
     now = datetime.now(UTC)
     week = timedelta(days=PLAN_DAYS)
@@ -137,6 +164,7 @@ def build_report(db: Session, brand_id: int, learnings: dict | None = None) -> d
         "to": now.astimezone(PHNOM_PENH).date().isoformat(),
         "this_week": _period(db, brand_id, now - week, now),
         "last_week": _period(db, brand_id, now - 2 * week, now - week),
+        "daily": _daily(db, brand_id, 2 * PLAN_DAYS, now),
         "rules": learnings.get("rules", []),
         "weak_rules": learnings.get("weak_rules", []),
         "pillar_stats": learnings.get("pillar_stats", {}),

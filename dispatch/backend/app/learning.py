@@ -55,7 +55,20 @@ def _window(hour: int):
 
 
 def _x(r: float) -> str:
+    """"2.3×" — or "far" when the other side had nothing (never "inf×")."""
+    if r == float("inf"):
+        return "far"
     return f"{r:.0f}×" if r >= 10 else f"{r:.1f}×"
+
+
+def _paren_x(r: float) -> str:
+    """" (2.3×)" after a sentence, or nothing when the ratio is "far"."""
+    return "" if r == float("inf") else f" ({_x(r)})"
+
+
+# Against a side with no engagement at all, a rule needs at least this much
+# per post — 0.4 vs 0 is noise, not a pattern.
+MIN_VS_ZERO = 1.0
 
 
 def _compare(a: list[float], b: list[float]):
@@ -64,7 +77,7 @@ def _compare(a: list[float], b: list[float]):
         return None
     ma, mb = mean(a), mean(b)
     if mb <= 0:
-        return (float("inf") if ma > 0 else 1.0), ma, mb
+        return (float("inf") if ma >= MIN_VS_ZERO else 1.0), ma, mb
     return ma / mb, ma, mb
 
 
@@ -308,7 +321,7 @@ def brand_learnings(db: Session, brand_id: int) -> dict:
             rules.append(
                 {
                     "id": "hashtags",
-                    "text": f"{text} ({_x(c[0])})",
+                    "text": f"{text}{_paren_x(c[0])}",
                     "evidence": f"{c[1]:.1f} vs {c[2]:.1f} per post",
                 }
             )
@@ -337,7 +350,7 @@ def brand_learnings(db: Session, brand_id: int) -> dict:
             rules.append(
                 {
                     "id": "length",
-                    "text": f"{text} ({_x(c[0])})",
+                    "text": f"{text}{_paren_x(c[0])}",
                     "evidence": f"{c[1]:.1f} vs {c[2]:.1f} per post",
                 }
             )
