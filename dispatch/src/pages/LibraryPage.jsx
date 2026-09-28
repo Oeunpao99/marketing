@@ -16,6 +16,7 @@ import {
 } from 'react-icons/fi'
 import { api } from '../api/client'
 import AutoTextarea from '../components/ui/AutoTextarea'
+import MarkdownText from '../components/ui/MarkdownText'
 import Select from '../components/ui/Select'
 import { ANGLE_LABELS, GOAL_LABELS } from '../lib/angles'
 import { colorForBrand } from '../lib/brandColor'
@@ -529,8 +530,8 @@ function DetailPanel({ it, busy, onClose, onUse, onDelete, onRewrite, onSaved, s
             <FiChevronDown size={13} className={`transition-transform ${showPrompt ? 'rotate-180' : ''}`} />
           </button>
           {showPrompt && (
-            <div className="mt-1.5 rounded-xl bg-ink-50 p-3 text-[11.5px] leading-relaxed text-ink-600 whitespace-pre-line">
-              {it.prompt}
+            <div className="mt-1.5 rounded-xl bg-ink-50 p-3">
+              <MarkdownText text={it.prompt} />
               {it.total_tokens > 0 && <div className="mt-2 font-mono text-[10.5px] text-ink-400">{it.total_tokens.toLocaleString()} tokens</div>}
             </div>
           )}

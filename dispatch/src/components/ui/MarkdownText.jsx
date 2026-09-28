@@ -1,5 +1,6 @@
 /* Renders the small subset of markdown the product descriptions use:
-   headings, **bold**, "- / * / •" bullet lists, and paragraphs. Everything
+   headings, **bold**, "- / * / •" bullet lists, "1." numbered lists and
+   paragraphs. Everything
    else falls through as plain text — safe since we never inject HTML. */
 
 function inlineParts(text) {
@@ -23,9 +24,10 @@ export default function MarkdownText({ text }) {
 
   const blocks = []
   let bullets = []
+  let listType = 'ul'
   const flushBullets = () => {
     if (bullets.length) {
-      blocks.push({ type: 'ul', items: bullets })
+      blocks.push({ type: listType, items: bullets })
       bullets = []
     }
   }
@@ -34,11 +36,15 @@ export default function MarkdownText({ text }) {
     const trimmed = line.trim()
     const heading = trimmed.match(/^(#{1,3})\s+(.*)$/)
     const bullet = trimmed.match(/^[-*•]\s+(.*)$/)
+    const numbered = trimmed.match(/^\d+[.)]\s+(.*)$/)
     if (heading) {
       flushBullets()
       blocks.push({ type: 'h', level: heading[1].length, text: heading[2] })
-    } else if (bullet) {
-      bullets.push(bullet[1])
+    } else if (bullet || numbered) {
+      const type = numbered ? 'ol' : 'ul'
+      if (type !== listType) flushBullets()
+      listType = type
+      bullets.push((numbered || bullet)[1])
     } else {
       flushBullets()
       if (trimmed) blocks.push({ type: 'p', text: trimmed })
@@ -63,6 +69,20 @@ export default function MarkdownText({ text }) {
             >
               <Inline text={b.text} />
             </div>
+          )
+        }
+        if (b.type === 'ol') {
+          return (
+            <ol key={i} className="space-y-1">
+              {b.items.map((item, j) => (
+                <li key={j} className="flex items-start gap-2 text-[12px] text-ink-600 leading-relaxed">
+                  <span className="min-w-[14px] flex-none font-semibold text-brand tabular-nums">{j + 1}.</span>
+                  <span>
+                    <Inline text={item} />
+                  </span>
+                </li>
+              ))}
+            </ol>
           )
         }
         if (b.type === 'ul') {
