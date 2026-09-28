@@ -770,20 +770,22 @@ export default function AIPromptPage() {
     <div className="w-full px-5 lg:px-10 animate-fade flex flex-col min-h-[calc(100dvh-7.5rem-env(safe-area-inset-bottom))] lg:min-h-[calc(100dvh-3.5rem)]">
       {/* Page header — pinned under the top bar while the thread scrolls. */}
       <div className="sticky top-14 z-20 -mx-5 lg:-mx-10 px-5 lg:px-10 bg-canvas/90 backdrop-blur-md">
-        <div className="mx-auto w-full lg:w-4/5 flex items-center justify-between gap-3 py-4">
-          <div>
-            <h1 className="text-[22px] font-bold text-ink-900 tracking-tight leading-tight">AI Agent</h1>
-            <p className="mt-0.5 text-[12.5px] text-ink-500">
+        {/* Phones: one compact row (the header stays pinned, so every line of
+            it hides the thread) — the description shows from sm up. */}
+        <div className="mx-auto w-full lg:w-4/5 flex items-center justify-between gap-2 sm:gap-3 py-2.5 sm:py-4">
+          <div className="min-w-0">
+            <h1 className="text-[19px] sm:text-[22px] font-bold text-ink-900 tracking-tight leading-tight">AI Agent</h1>
+            <p className="mt-0.5 hidden sm:block text-[12.5px] text-ink-500">
               Ask about your marketing, or describe an image or video to create.
             </p>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex flex-none items-center gap-0.5 sm:gap-1">
             {meter ? (
               <button
                 type="button"
                 onClick={openBilling}
                 title="Your AI use since you opened this page, and the workspace's credit left this month — click for details"
-                className="mr-1.5 inline-flex h-8 items-center gap-1.5 rounded-full bg-white/80 px-3 text-[11px] text-ink-500 ring-1 ring-ink-200 hover:ring-brand/40 hover:text-ink-700 transition"
+                className="mr-1 sm:mr-1.5 inline-flex h-8 flex-none items-center gap-1.5 whitespace-nowrap rounded-full bg-white/80 px-2.5 sm:px-3 text-[11px] text-ink-500 ring-1 ring-ink-200 hover:ring-brand/40 hover:text-ink-700 transition"
               >
                 <span className="hidden md:inline tabular-nums">{fmtTok(meter.session_tokens || sessionTokens)} tokens</span>
                 <span className="hidden md:inline text-ink-300">·</span>
