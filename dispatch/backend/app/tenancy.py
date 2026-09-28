@@ -18,6 +18,7 @@ from app.database import get_db
 from app.models import (
     Automation,
     Brand,
+    BrandAsset,
     Channel,
     CreditEntry,
     Draft,
@@ -80,7 +81,7 @@ def scope(model, ws: int):
         return None
     if model in (Brand, Video, GenerationJob, TeamMember, VideoStory, CreditEntry):
         return model.workspace_id == ws
-    if model in (Channel, Post, Draft, Automation, Product, WeeklyPlan):
+    if model in (Channel, Post, Draft, Automation, Product, WeeklyPlan, BrandAsset):
         return model.brand_id.in_(brand_ids(ws))
     if model is PostTarget:
         return PostTarget.post_id.in_(select(Post.id).where(Post.brand_id.in_(brand_ids(ws))))

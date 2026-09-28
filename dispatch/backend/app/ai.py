@@ -101,6 +101,9 @@ class PromptRequest(BaseModel):
     feedback: str = ""
     # The user attached a reference image the model will edit / build on.
     has_reference: bool = False
+    # Brand kit images (template / product photo / logo) go with the request
+    # (app/brand_kit.py) — the prompt should carry only the new content.
+    brand_kit: bool = False
 
 
 class PromptResponse(BaseModel):
@@ -134,7 +137,16 @@ def _user_brief(r: PromptRequest, products: list[Product]) -> str:
             if p.highlights:
                 entry += f" | highlights: {p.highlights}"
             lines.append(entry)
-    if r.has_reference:
+    if r.brand_kit:
+        lines.append(
+            "IMPORTANT: the brand's own poster template, product photo and/or logo are "
+            "attached to the image request separately, with their own instructions — the "
+            "design, colours, layout and logo come from them. Write ONLY the content of "
+            "the new poster, 80-160 words, as short labelled lines: HEADLINE (exact text, "
+            "short), SUBHEADING / DETAILS (exact text, optional), SUBJECT & SCENE (what is "
+            "shown), KEY MESSAGE. No style, colour, lighting, camera or layout sections."
+        )
+    elif r.has_reference:
         lines.append(
             "IMPORTANT: the user is attaching a REFERENCE IMAGE. Write the prompt as an "
             "EDIT / ENHANCE instruction that builds on that image — say what to keep from "

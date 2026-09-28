@@ -1218,7 +1218,6 @@ export default function InsightsPage() {
                 icons={PLATFORM_ICONS}
                 labels={PLATFORM_LABELS}
                 onPosts={showPostsOf}
-                onFilter={(r) => r.brandSlug && setBrandFilter(r.brandSlug)}
                 onPlan={() => navigate('/new')}
               />
             )}

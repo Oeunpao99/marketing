@@ -355,8 +355,21 @@ def _image_bytes(data: dict) -> bytes:
     raise VideoGenError("Image service returned no image.")
 
 
+def _image_file(data: bytes, n: int) -> tuple[str, bytes, str]:
+    """A multipart file tuple named by the image's real type (sniffed)."""
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        ext, mime = "png", "image/png"
+    elif data[:3] == b"\xff\xd8\xff":
+        ext, mime = "jpg", "image/jpeg"
+    elif data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        ext, mime = "webp", "image/webp"
+    else:
+        ext, mime = "png", "image/png"
+    return (f"reference-{n}.{ext}", data, mime)
+
+
 def _azure_image(
-    prompt: str, aspect_ratio: str, reference: bytes | None = None
+    prompt: str, aspect_ratio: str, reference: bytes | list[bytes] | None = None
 ) -> tuple[bytes, dict]:
     s = get_settings()
     # Uses the dedicated image resource if set, else falls back to the chat one.
@@ -368,13 +381,16 @@ def _azure_image(
     size = _IMG_SIZES.get(aspect_ratio, "1024x1024")
     auth = {"api-key": key, "Authorization": f"Bearer {key}"}
 
-    if reference is not None:
-        # Edit / build on the uploaded reference image.
+    refs = [r for r in (reference if isinstance(reference, list) else [reference]) if r]
+    if refs:
+        # Edit / build on the reference image(s) — several go up as image[]
+        # (brand kit: template, product photo, logo; app/brand_kit.py).
+        field = "image" if len(refs) == 1 else "image[]"
         resp = _post_with_retry(
             f"{base}/images/edits",
             auth,
             data={"model": deployment, "prompt": prompt, "size": size, "n": "1"},
-            files={"image": ("reference.png", reference, "image/png")},
+            files=[(field, _image_file(r, i + 1)) for i, r in enumerate(refs)],
         )
     else:
         resp = _post_with_retry(
@@ -390,9 +406,9 @@ def _azure_image(
 
 
 def _gemini_image(
-    prompt: str, aspect_ratio: str, reference: bytes | None = None
+    prompt: str, aspect_ratio: str, reference: bytes | list[bytes] | None = None
 ) -> tuple[bytes, dict]:
-    if reference is not None:
+    if reference:
         raise VideoGenError("Reference images need IMAGE_PROVIDER=azure_openai.")
     key = _gemini_key()
     model = get_settings().gemini_image_model
@@ -418,7 +434,7 @@ _IMAGE_PROVIDERS = {"azure_openai": _azure_image, "gemini_imagen": _gemini_image
 
 
 def generate_image(
-    prompt: str, aspect_ratio: str, reference: bytes | None = None
+    prompt: str, aspect_ratio: str, reference: bytes | list[bytes] | None = None
 ) -> tuple[str, bytes, dict]:
     s = get_settings()
     if not s.image_generation_enabled:
@@ -657,6 +673,11 @@ class ImageIn(BaseModel):
     brand_id: int | None = None
     # A "/media/..." url the user already uploaded — the model edits / builds on it.
     reference_url: str = ""
+    # Brand kit (app/brand_kit.py): a poster template to follow, a product whose
+    # photo to feature, and whether to put the brand's logo on it.
+    template_id: int | None = None
+    product_id: int | None = None
+    use_logo: bool = False
 
 
 @router.post("/image", response_model=VideoJobOut, status_code=201)
@@ -682,6 +703,19 @@ def create_image(
         reference = read_media(payload.reference_url)
         if reference is None:
             raise HTTPException(400, "Reference image not found.")
+    references: bytes | list[bytes] | None = reference
+    guide = ""
+    if payload.brand_id is not None and (payload.template_id or payload.product_id or payload.use_logo):
+        from app.brand_kit import gather
+
+        references, guide = gather(
+            db,
+            payload.brand_id,
+            template_id=payload.template_id,
+            product_id=payload.product_id,
+            logo=payload.use_logo,
+            extra=reference,
+        )
 
     job = GenerationJob(
         workspace_id=ws,
@@ -697,11 +731,16 @@ def create_image(
     db.add(job)
     db.commit()
     db.refresh(job)
-    threading.Thread(target=_render_image, args=(job.id, reference), daemon=True, name=f"image-{job.id}").start()
+    threading.Thread(
+        target=_render_image, args=(job.id, references, guide), daemon=True, name=f"image-{job.id}"
+    ).start()
     return _out(job, None)
 
 
-def _render_image(job_id: int, reference: bytes | None) -> None:
+def _render_image(job_id: int, reference: bytes | list[bytes] | None, guide: str = "") -> None:
+    """``guide`` (brand-kit instructions naming each reference image) goes in
+    front of the prompt for the model only — the job keeps the person's own
+    prompt, which the Library shows and the caption writer reads."""
     db = SessionLocal()
     try:
         job = db.get(GenerationJob, job_id)
@@ -711,7 +750,7 @@ def _render_image(job_id: int, reference: bytes | None) -> None:
             with image_slot():
                 job.status = "running"  # commit sets updated_at = render start
                 db.commit()
-                provider, blob, usage = generate_image(job.prompt, job.aspect_ratio, reference)
+                provider, blob, usage = generate_image(guide + job.prompt, job.aspect_ratio, reference)
         except VideoGenError as exc:
             job.status, job.error = "failed", str(exc)
             db.commit()

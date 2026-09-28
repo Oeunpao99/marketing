@@ -305,6 +305,10 @@ class AutomationBase(BaseModel):
     # Use what has worked for this brand (app/learning.py) when writing and
     # scheduling.
     learn_from_results: bool = True
+    # Brand kit for auto-made images: {"template_ids": [..], "logo": bool,
+    # "product_photos": bool} (app/brand_kit.py). Ids from another brand are
+    # ignored at generation time.
+    poster_kit: dict = {}
 
 
 class AutomationCreate(AutomationBase):
@@ -322,6 +326,7 @@ class AutomationUpdate(BaseModel):
     auto_channel_ids: list[int] | None = None
     post_at: time | None = None
     learn_from_results: bool | None = None
+    poster_kit: dict | None = None
 
 
 class AutomationOut(TimestampsOut, AutomationBase):

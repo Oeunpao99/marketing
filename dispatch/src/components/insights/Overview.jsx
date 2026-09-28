@@ -15,7 +15,6 @@ import {
   FiArrowUpRight,
   FiChevronDown,
   FiCornerUpRight,
-  FiExternalLink,
   FiGrid,
   FiHeart,
   FiImage,
@@ -474,7 +473,7 @@ const BRAND_HUES = {
 }
 const brandHue = (slug) => BRAND_HUES[slug] || 'rgb(var(--ink-500))'
 
-export function ChannelScoreboard({ rows, icons, labels, rankBy = 'engagement', perPost = false, onPosts, onFilter, onPlan }) {
+export function ChannelScoreboard({ rows, icons, labels, rankBy = 'engagement', perPost = false, onPosts, onPlan }) {
   const [collapsed, setCollapsed] = useState(() => new Set())
   const metric = RANK_BY.find((m) => m.id === rankBy) || RANK_BY[0]
   const fmt = metric.id === 'rate' ? pct : perPost && metric.avg ? fmtAvg : fmtNum
@@ -625,14 +624,6 @@ export function ChannelScoreboard({ rows, icons, labels, rankBy = 'engagement', 
                           )}
                         </div>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => onFilter(r)}
-                        className="grid h-7 w-7 flex-none place-items-center rounded-lg text-ink-400 hover:bg-ink-100 hover:text-ink-800"
-                        title={`Show only ${r.brand} across the page`}
-                      >
-                        <FiExternalLink size={13} />
-                      </button>
                     </li>
                   )
                 })}

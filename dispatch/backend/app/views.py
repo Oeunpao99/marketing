@@ -516,6 +516,7 @@ def auto_view(db: Session = Depends(get_db), ws: int = Depends(current_workspace
             "last_run_on": a.last_run_on,
             "run": run_status(a.id),
             "learn_from_results": a.learn_from_results,
+            "poster_kit": a.poster_kit or {},
             "learnings": {k: v for k, v in brand_learnings(db, a.brand_id).items() if k in ("posts", "rules", "post_hours")},
         }
         for a in sorted(autos, key=lambda x: x.brand_id)

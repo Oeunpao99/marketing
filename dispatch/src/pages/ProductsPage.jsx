@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import AutoTextarea from '../components/ui/AutoTextarea'
 import { createPortal } from 'react-dom'
+import { useLocation } from 'react-router-dom'
 import { FiX } from 'react-icons/fi'
 import { api } from '../api/client'
 import { colorForBrand } from '../lib/brandColor'
 import { useStore } from '../store'
 import MarkdownText from '../components/ui/MarkdownText'
 import Select from '../components/ui/Select'
+import { BrandKitPanel, ProductPhoto } from '../components/brandkit/BrandKit'
 
 const EMPTY_FORM = { name: '', description: '', highlights: '' }
 const PREVIEW_CHARS = 340
@@ -20,12 +22,23 @@ export default function ProductsPage() {
   const [busy, setBusy] = useState(false)
   const [expanded, setExpanded] = useState({}) // id -> show the full description
   const [confirmItem, setConfirmItem] = useState(null) // product awaiting delete
+  // "products" or "kit" — the brand kit (logo, poster templates) lives here too.
+  const location = useLocation()
+  const [view, setView] = useState(location.state?.view === 'kit' ? 'kit' : 'products')
+  const [assets, setAssets] = useState([]) // brand-kit items, every brand
 
   const load = () => api.get('/products').then(setItems).catch(() => setItems([]))
 
   useEffect(() => {
     load()
+    api.get('/brand-kit').then(setAssets).catch(() => setAssets([]))
   }, [])
+
+  // The brand kit is per brand — "All" shows the first one.
+  const kitBrand = brands.find((b) => b.slug === brandFilter) || brands[0]
+  const photoFor = (p) => assets.find((a) => a.kind === 'product' && a.product_id === p.id)
+  const savePhoto = (saved) =>
+    setAssets((xs) => [...xs.filter((x) => !(x.kind === 'product' && x.product_id === saved.product_id)), saved])
 
   const filtered = useMemo(() => {
     if (!items) return []
@@ -93,19 +106,43 @@ export default function ProductsPage() {
           <p className="page-sub mt-1">
             What each brand sells or offers — the AI reads this in{' '}
             <span className="font-semibold text-ink-700">Auto-generate</span> to write ideas grounded in real facts instead of guessing.
+            The brand kit gives its images your real logo, product photos and poster style.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={startNew}
-          disabled={!brands.length}
-          className="btn-primary flex-none"
-        >
-          + Add product
-        </button>
+        {view === 'products' && (
+          <button
+            type="button"
+            onClick={startNew}
+            disabled={!brands.length}
+            className="btn-primary flex-none"
+          >
+            + Add product
+          </button>
+        )}
+      </div>
+
+      <div className="mb-5 inline-flex rounded-xl border border-ink-200 bg-white p-0.5" role="tablist" aria-label="Section">
+        {[
+          ['products', 'Products'],
+          ['kit', 'Brand kit'],
+        ].map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={view === id}
+            onClick={() => setView(id)}
+            className={`rounded-[10px] px-4 py-1.5 text-[13px] font-medium transition-colors duration-150 ${
+              view === id ? 'bg-brand-soft text-brand' : 'text-ink-700 hover:bg-ink-50'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       <div className="flex flex-wrap items-center gap-2 mb-6">
+        {view === 'products' && (
         <button
           type="button"
           onClick={() => setBrandFilter('all')}
@@ -118,20 +155,23 @@ export default function ProductsPage() {
             {items?.length ?? 0}
           </span>
         </button>
+        )}
         {brands.map((b) => (
           <button
             key={b.id}
             type="button"
             onClick={() => setBrandFilter(b.slug)}
             className={`px-3.5 py-2 rounded-xl border text-[12px] font-semibold flex items-center gap-2 transition-all duration-150 ${
-              brandFilter === b.slug ? 'border-brand-line bg-brand-soft text-brand' : 'border-ink-200 text-ink-600 hover:border-brand-line'
+              (view === 'kit' ? kitBrand?.id === b.id : brandFilter === b.slug) ? 'border-brand-line bg-brand-soft text-brand' : 'border-ink-200 text-ink-600 hover:border-brand-line'
             }`}
           >
             <span className="w-2 h-2 rounded-full flex-none" style={{ background: colorForBrand(b.slug) }} />
             {b.name}
-            <span className={`font-mono text-[10px] ${brandFilter === b.slug ? 'text-brand' : 'text-ink-400'}`}>
-              {items?.filter((p) => p.brand_id === b.id).length ?? 0}
-            </span>
+            {view === 'products' && (
+              <span className={`font-mono text-[10px] ${brandFilter === b.slug ? 'text-brand' : 'text-ink-400'}`}>
+                {items?.filter((p) => p.brand_id === b.id).length ?? 0}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -148,7 +188,13 @@ export default function ProductsPage() {
         />
       )}
 
-      {items === null ? (
+      {view === 'kit' ? (
+        kitBrand ? (
+          <BrandKitPanel brand={kitBrand} assets={assets} setAssets={setAssets} showToast={showToast} />
+        ) : (
+          <div className="py-20 text-center text-[13px] text-ink-500">Create a brand first.</div>
+        )
+      ) : items === null ? (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="rounded-2xl border border-ink-100 bg-white p-5 space-y-3">
@@ -180,6 +226,7 @@ export default function ProductsPage() {
               onToggleExpanded={() => setExpanded((e) => ({ ...e, [p.id]: !e[p.id] }))}
               onEdit={() => startEdit(p)}
               onDelete={() => setConfirmItem(p)}
+              photo={<ProductPhoto product={p} photo={photoFor(p)} onSaved={savePhoto} showToast={showToast} />}
             />
           ))}
         </div>
@@ -222,7 +269,7 @@ export default function ProductsPage() {
   )
 }
 
-function ProductCard({ product, brandColor, brandName, expanded, onToggleExpanded, onEdit, onDelete }) {
+function ProductCard({ product, brandColor, brandName, expanded, onToggleExpanded, onEdit, onDelete, photo }) {
   const parts = (product.highlights || '').split(/[;\n]+/).map((s) => s.trim()).filter(Boolean)
   const long = (product.description || '').length > PREVIEW_CHARS
 
@@ -239,7 +286,10 @@ function ProductCard({ product, brandColor, brandName, expanded, onToggleExpande
       </div>
 
       <div className="px-4 pt-3.5 pb-1 flex-1">
-        <h3 className="font-bold text-ink-900 text-[14px] leading-snug">{product.name}</h3>
+        <div className="flex items-start gap-3">
+          {photo}
+          <h3 className="min-w-0 pt-1 font-bold text-ink-900 text-[14px] leading-snug">{product.name}</h3>
+        </div>
         {product.description && (
           <div className="mt-2">
             <div className={long && !expanded ? 'relative max-h-[150px] overflow-hidden' : ''}>

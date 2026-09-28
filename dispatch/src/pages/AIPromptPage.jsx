@@ -10,6 +10,7 @@ import {
   FiEdit2,
   FiFilm,
   FiImage,
+  FiLayers,
   FiMaximize2,
   FiMessageCircle,
   FiPaperclip,
@@ -31,6 +32,7 @@ import { handoff } from '../lib/handoff'
 import { colorForBrand } from '../lib/brandColor'
 import { trackJob, untrackJob } from '../lib/genJobs'
 import { fmtUSD } from '../lib/money'
+import { kitSrc, TemplatePicker } from '../components/brandkit/BrandKit'
 
 // AI Agent — one chat for both asking and creating. A message that reads
 // like a question ("how is my engagement?", "what should I post next?") goes
@@ -154,6 +156,13 @@ export default function AIPromptPage() {
   const [style, setStyle] = useState(STYLES[0])
   const [template, setTemplate] = useState(TEMPLATES.image[0])
   const [settingsOpen, setSettingsOpen] = useState(false)
+  // Brand kit (Products → Brand kit): a poster template to follow, a product
+  // photo to feature and the logo — sent along with image requests.
+  const [kitOpen, setKitOpen] = useState(false)
+  const [kitAssets, setKitAssets] = useState([])
+  const [kitProducts, setKitProducts] = useState([])
+  const [kit, setKit] = useState({ templateId: null, productId: null, logo: false })
+  const kitRef = useRef(null)
 
   // composer
   const [text, setText] = useState('')
@@ -180,6 +189,12 @@ export default function AIPromptPage() {
   const isStory = type === 'video' && videoMode === 'story'
   const storyVoice = voice ?? (VOICES.includes(brandObj?.lang) ? brandObj.lang : 'English')
   const working = turns.some((t) => t.status === 'working')
+  const kitTemplates = kitAssets.filter((a) => a.kind === 'template')
+  const kitLogo = kitAssets.find((a) => a.kind === 'logo')
+  const kitPhotos = kitAssets.filter((a) => a.kind === 'product')
+  const kitTemplate = kitTemplates.find((t) => t.id === kit.templateId)
+  const kitProduct = kitProducts.find((p) => p.id === kit.productId)
+  const kitOn = isImage && !!(kitTemplate || kitProduct || (kit.logo && kitLogo))
 
   useEffect(() => {
     if (!brand && brands.length) setBrand(brands[0].slug)
@@ -208,6 +223,34 @@ export default function AIPromptPage() {
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
   }, [settingsOpen])
+
+  // The brand kit follows the chosen brand; its logo is on by default.
+  useEffect(() => {
+    const id = brandObj?.id
+    setKit({ templateId: null, productId: null, logo: false })
+    if (id == null) return
+    let live = true
+    Promise.all([api.get(`/brand-kit?brand_id=${id}`), api.get('/products')])
+      .then(([assets, products]) => {
+        if (!live) return
+        setKitAssets(assets)
+        setKitProducts(products.filter((p) => p.brand_id === id))
+        setKit((k) => ({ ...k, logo: assets.some((a) => a.kind === 'logo') }))
+      })
+      .catch(() => live && setKitAssets([]))
+    return () => {
+      live = false
+    }
+  }, [brandObj?.id])
+
+  useEffect(() => {
+    if (!kitOpen) return
+    const onDown = (e) => {
+      if (!kitRef.current?.contains(e.target)) setKitOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [kitOpen])
 
   // Animate progress while anything renders.
   useEffect(() => {
@@ -448,6 +491,9 @@ export default function AIPromptPage() {
           aspect_ratio: turn.ratio,
           brand_id: turn.brandId,
           reference_url: turn.refUrl || '',
+          template_id: turn.kit?.templateId ?? null,
+          product_id: turn.kit?.productId ?? null,
+          use_logo: !!turn.kit?.logo,
         })
         if (res.video) {
           patchTurn(turn.id, { status: 'done', video: res.video, tokens: res.total_tokens, cost: res.cost_usd })
@@ -560,6 +606,7 @@ export default function AIPromptPage() {
       brandName: brandObj?.name || '',
       refUrl: refImg?.url || '',
       refPreview: refImg?.previewUrl || '',
+      kit: !isStory && kitOn ? { ...kit, logo: kit.logo && !!kitLogo } : null,
       status: 'working',
       startedAt: Date.now(),
     }
@@ -583,7 +630,8 @@ export default function AIPromptPage() {
         aspect_ratio: ratio,
         style,
         topic: idea,
-        has_reference: isImage && !!refImg,
+        has_reference: isImage && !!refImg && !kitOn,
+        brand_kit: kitOn,
       })
       setText(res.prompt)
       addTokens(res.total_tokens)
@@ -863,6 +911,30 @@ export default function AIPromptPage() {
             </div>
           )}
 
+          {intent === 'create' && kitOn && (
+            <div className="flex flex-wrap items-center gap-1.5 px-4 pt-3.5">
+              <span className="text-[11px] font-semibold text-ink-400">Brand kit:</span>
+              {kitTemplate && (
+                <KitChip onRemove={() => setKit((k) => ({ ...k, templateId: null }))}>
+                  <img src={kitSrc(kitTemplate.url)} alt="" className="h-5 w-4 rounded-sm object-cover" />
+                  {kitTemplate.name || 'Template'}
+                </KitChip>
+              )}
+              {kitProduct && (
+                <KitChip onRemove={() => setKit((k) => ({ ...k, productId: null }))}>
+                  <img src={kitSrc(kitPhotos.find((a) => a.product_id === kitProduct.id)?.url)} alt="" className="h-5 w-5 rounded-sm object-cover" />
+                  {kitProduct.name}
+                </KitChip>
+              )}
+              {kit.logo && kitLogo && (
+                <KitChip onRemove={() => setKit((k) => ({ ...k, logo: false }))}>
+                  <img src={kitSrc(kitLogo.url)} alt="" className="h-5 w-5 object-contain" />
+                  Logo
+                </KitChip>
+              )}
+            </div>
+          )}
+
           <AutoTextarea
             minRows={1}
             maxRows={10}
@@ -937,6 +1009,32 @@ export default function AIPromptPage() {
               <input type="file" accept="image/*" className="hidden" onChange={attach} />
               <FiPaperclip size={15} />
             </label>
+
+            {intent === 'create' && isImage && (
+              <div className="relative" ref={kitRef}>
+                <button
+                  type="button"
+                  onClick={() => setKitOpen((v) => !v)}
+                  className={`h-9 px-2.5 rounded-full inline-flex items-center gap-1.5 text-[12px] font-medium transition-colors ${
+                    kitOpen || kitOn ? 'bg-brand-soft text-brand' : 'text-ink-600 hover:bg-ink-100'
+                  }`}
+                  title="Use your brand kit — a poster template, a product photo and your logo"
+                >
+                  <FiLayers size={15} />
+                  <span className="hidden sm:inline">Brand kit</span>
+                </button>
+                {kitOpen && (
+                  <KitPopover
+                    kit={kit}
+                    setKit={setKit}
+                    templates={kitTemplates}
+                    logo={kitLogo}
+                    products={kitProducts.filter((p) => kitPhotos.some((a) => a.product_id === p.id))}
+                    onManage={() => navigate('/products', { state: { view: 'kit' } })}
+                  />
+                )}
+              </div>
+            )}
 
             {intent === 'create' && (
             <button
@@ -1801,6 +1899,78 @@ function Setting({ label, children }) {
     <div>
       <div className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-ink-400">{label}</div>
       {children}
+    </div>
+  )
+}
+
+
+function KitChip({ children, onRemove }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-brand-line bg-brand-soft py-0.5 pl-1 pr-1.5 text-[11.5px] font-semibold text-brand">
+      {children}
+      <button type="button" onClick={onRemove} className="grid h-4 w-4 place-items-center rounded-full hover:bg-brand/15" aria-label="Remove">
+        <FiX size={10} />
+      </button>
+    </span>
+  )
+}
+
+/** The composer's Brand kit popover: which template to follow, which product
+ *  photo to feature, and whether to put the logo on. */
+function KitPopover({ kit, setKit, templates, logo, products, onManage }) {
+  const empty = !templates.length && !logo && !products.length
+  return (
+    <div className="absolute bottom-11 left-0 z-30 w-[340px] max-w-[calc(100vw-2rem)] rounded-2xl border border-ink-200 bg-white p-4 shadow-[0_12px_40px_rgba(16,24,40,0.16)]">
+      {empty ? (
+        <div className="text-[12.5px] leading-relaxed text-ink-600">
+          Add your logo, product photos and posters you like — every image can then follow your style.
+          <button type="button" onClick={onManage} className="mt-2 block font-semibold text-brand hover:underline">
+            Set up the brand kit →
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div>
+            <div className="mb-1.5 text-[11.5px] font-semibold text-ink-700">Follow a poster template</div>
+            {templates.length ? (
+              <TemplatePicker templates={templates} value={kit.templateId} onChange={(templateId) => setKit((k) => ({ ...k, templateId }))} />
+            ) : (
+              <div className="text-[11.5px] text-ink-400">No templates yet.</div>
+            )}
+          </div>
+          {products.length > 0 && (
+            <div>
+              <div className="mb-1.5 text-[11.5px] font-semibold text-ink-700">Show a product photo</div>
+              <Select
+                value={kit.productId ?? ''}
+                onChange={(v) => setKit((k) => ({ ...k, productId: v === '' ? null : v }))}
+                options={[{ value: '', label: 'No product photo' }, ...products.map((p) => ({ value: p.id, label: p.name }))]}
+                buttonClassName="text-[12px]"
+              />
+            </div>
+          )}
+          {logo && (
+            <div className="flex items-center justify-between gap-3">
+              <span className="flex items-center gap-2 text-[12px] font-semibold text-ink-700">
+                <img src={kitSrc(logo.url)} alt="" className="h-6 w-6 object-contain" /> Put my logo on it
+              </span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={kit.logo}
+                aria-label="Put my logo on it"
+                onClick={() => setKit((k) => ({ ...k, logo: !k.logo }))}
+                className={`relative h-5 w-9 flex-none rounded-full transition-colors duration-150 ${kit.logo ? 'bg-brand' : 'bg-ink-200'}`}
+              >
+                <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-[left] duration-150 ${kit.logo ? 'left-[18px]' : 'left-0.5'}`} />
+              </button>
+            </div>
+          )}
+          <button type="button" onClick={onManage} className="text-[11.5px] font-semibold text-ink-500 hover:text-brand">
+            Manage brand kit →
+          </button>
+        </div>
+      )}
     </div>
   )
 }

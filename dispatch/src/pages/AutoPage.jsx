@@ -10,6 +10,7 @@ import PlatformIcon from '../components/ui/PlatformIcon'
 import AutoTextarea from '../components/ui/AutoTextarea'
 import Select from '../components/ui/Select'
 import { seedRuns, startRun, useAutoRuns, useSmoothProgress } from '../lib/autoRuns'
+import { kitSrc, TemplatePicker } from '../components/brandkit/BrandKit'
 
 const TOPIC_SOURCES = [
   { value: 'Trending in Cambodia + your topic bank', short: 'Trending + topic bank' },
@@ -478,6 +479,8 @@ function SettingsDrawer({ a, channels, run, running, onUpdate, onBrandUpdate, on
               </>
             )}
           </Section>
+
+          {a.auto_media && <PosterKitSection a={a} onUpdate={onUpdate} />}
         </div>
 
         <footer className="px-6 py-4 border-t border-ink-100 flex items-center justify-between gap-3">
@@ -564,5 +567,81 @@ function Toggle({ on, onChange }) {
         className={`absolute top-[2px] left-[2px] w-[15px] h-[15px] rounded-full bg-white shadow transition-transform duration-150 ${on ? 'translate-x-[15px]' : ''}`}
       />
     </button>
+  )
+}
+
+
+/** Auto-made images follow the brand kit (Products → Brand kit): templates
+ *  take turns, the product photo matches the idea's product, logo on top. */
+function PosterKitSection({ a, onUpdate }) {
+  const [assets, setAssets] = useState(null)
+  useEffect(() => {
+    let live = true
+    api
+      .get(`/brand-kit?brand_id=${a.brand_id}`)
+      .then((xs) => live && setAssets(xs))
+      .catch(() => live && setAssets([]))
+    return () => {
+      live = false
+    }
+  }, [a.brand_id])
+
+  const kit = a.poster_kit || {}
+  const set = (patch) => onUpdate({ poster_kit: { ...kit, ...patch } })
+  const templates = (assets || []).filter((x) => x.kind === 'template')
+  const logo = (assets || []).find((x) => x.kind === 'logo')
+  const photos = (assets || []).filter((x) => x.kind === 'product').length
+  const chosen = (kit.template_ids || []).filter((id) => templates.some((t) => t.id === id))
+
+  return (
+    <Section title="Image style">
+      {assets === null ? (
+        <div className="h-24 rounded-xl skeleton" />
+      ) : !templates.length && !logo && !photos ? (
+        <p className="rounded-xl bg-ink-50 px-3.5 py-3 text-[12px] leading-relaxed text-ink-600">
+          Add your logo, product photos and posters you like in{' '}
+          <Link to="/products" state={{ view: 'kit' }} className="font-semibold text-brand hover:underline">
+            Products → Brand kit
+          </Link>{' '}
+          and every auto-made image can follow your style.
+        </p>
+      ) : (
+        <>
+          {templates.length > 0 && (
+            <Field label="Follow these poster templates">
+              <TemplatePicker templates={templates} value={chosen} multiple onChange={(ids) => set({ template_ids: ids })} />
+              <p className="mt-1.5 text-[11px] text-ink-400">
+                {chosen.length > 1
+                  ? 'They take turns — a different one each image.'
+                  : chosen.length === 1
+                    ? 'Every image follows this design.'
+                    : 'None picked — images are designed from the idea alone.'}
+              </p>
+            </Field>
+          )}
+          {photos > 0 && (
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-[12px] font-semibold text-ink-800">Use real product photos</div>
+                <div className="text-[11px] text-ink-500">When an idea is about a product with a photo, show that exact product</div>
+              </div>
+              <Toggle on={!!kit.product_photos} onChange={(v) => set({ product_photos: v })} />
+            </div>
+          )}
+          {logo && (
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <img src={kitSrc(logo.url)} alt="" className="h-7 w-7 flex-none object-contain" />
+                <div>
+                  <div className="text-[12px] font-semibold text-ink-800">Put my logo on every image</div>
+                  <div className="text-[11px] text-ink-500">Placed as-is, never redrawn</div>
+                </div>
+              </div>
+              <Toggle on={!!kit.logo} onChange={(v) => set({ logo: v })} />
+            </div>
+          )}
+        </>
+      )}
+    </Section>
   )
 }

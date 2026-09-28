@@ -363,6 +363,10 @@ class Automation(Base, TimestampMixin):
     # brand into the idea brief, and auto-schedule at its best-performing
     # hour when post_at isn't set. On by default; the page has a switch.
     learn_from_results: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
+    # Brand kit for auto-made images (app/brand_kit.py): {"template_ids": [..],
+    # "logo": bool, "product_photos": bool}. Templates rotate one per image;
+    # empty = images are made from the text brief only, as before.
+    poster_kit: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, server_default="{}", nullable=False)
 
 
 @event.listens_for(Brand, "after_insert")
@@ -390,6 +394,32 @@ class Product(Base, TimestampMixin):
     description: Mapped[str] = mapped_column(Text, default="")
     # Freeform bullet points — selling points, pricing, offers, audience notes.
     highlights: Mapped[str] = mapped_column(Text, default="")
+
+
+class BrandAsset(Base, TimestampMixin):
+    """A brand-kit file the image AI builds on (app/brand_kit.py):
+
+    - ``logo``     — the brand's logo (one per brand), placed on posters as-is.
+    - ``product``  — a real photo of one of its products (``product_id``), so a
+      poster shows the actual product instead of an invented one.
+    - ``template`` — a poster the brand likes (its own or an inspiration): new
+      posters copy its layout, colours and style with fresh content. ``note``
+      says what to keep ("headline top-right, blue background").
+
+    The bytes live in media_blobs like every upload, but these aren't Library
+    items, so there's no Video row."""
+
+    __tablename__ = "brand_assets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    brand_id: Mapped[int] = mapped_column(ForeignKey("brands.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(12))
+    url: Mapped[str] = mapped_column(String(500))
+    name: Mapped[str] = mapped_column(String(120), default="", server_default="")
+    note: Mapped[str] = mapped_column(Text, default="", server_default="")
+    product_id: Mapped[int | None] = mapped_column(
+        ForeignKey("products.id", ondelete="CASCADE"), nullable=True, index=True
+    )
 
 
 class AgentChat(Base, TimestampMixin):

@@ -169,8 +169,37 @@ def _generate_video_for(
         db.close()
 
 
+def _poster_kit_for(
+    db: Session, automation: Automation, brand_id: int, idea: dict, n: int, day: date
+) -> tuple[list[bytes], str]:
+    """Reference images + instructions from the brand kit for idea ``n``
+    (Automation.poster_kit): templates take turns — a different one each
+    image and each day — the product photo follows the product the idea is
+    about, and the logo goes on every poster when switched on."""
+    from app.brand_kit import gather, product_for_idea
+    from app.models import BrandAsset
+
+    kit = automation.poster_kit or {}
+    wanted = [int(t) for t in kit.get("template_ids") or [] if str(t).isdigit()]
+    # Only templates that still exist (one may have been deleted since).
+    live = set(
+        db.scalars(
+            select(BrandAsset.id).where(
+                BrandAsset.brand_id == brand_id, BrandAsset.kind == "template", BrandAsset.id.in_(wanted or [0])
+            )
+        ).all()
+    )
+    templates = [t for t in wanted if t in live]
+    template_id = templates[(day.toordinal() + n) % len(templates)] if templates else None
+    product_id = product_for_idea(db, brand_id, idea) if kit.get("product_photos") else None
+    return gather(db, brand_id, template_id=template_id, product_id=product_id, logo=bool(kit.get("logo")))
+
+
 def _generate_media_for(
-    brand: Brand | _AutoBrand, idea: dict, products: list[Product | _AutoProduct]
+    brand: Brand | _AutoBrand,
+    idea: dict,
+    products: list[Product | _AutoProduct],
+    kit: tuple[list[bytes], str] = ([], ""),
 ) -> int | None:
     """Best-effort: render an image for this idea and store it as a Video
     row, returning its id — or None if generation fails, so the caller falls
@@ -196,7 +225,8 @@ def _generate_media_for(
         return None
     try:
         with video_gen.image_slot():
-            provider, blob, usage = video_gen.generate_image(prompt, "9:16")
+            refs, guide = kit
+            provider, blob, usage = video_gen.generate_image(guide + prompt, "9:16", refs or None)
     except video_gen.VideoGenError as exc:
         log.warning("auto-media image generation failed for brand %s: %s", brand.id, exc)
         return None
@@ -383,11 +413,16 @@ def _write_batch(
         # One video a day — for the idea that scored best — and an image for
         # the rest, all in parallel. A video that fails falls back to an image.
         video_n = _pick_video_idea(ideas) if get_settings().video_generation_enabled else -1
+        # Brand kit per image (template / product photo / logo), gathered here
+        # on the run's own session so the image threads don't need the DB.
+        kits = [_poster_kit_for(db, automation, brand.id, idea, n, today) for n, idea in enumerate(ideas)]
         pool = ThreadPoolExecutor(max_workers=_MAX_PARALLEL_MEDIA, thread_name_prefix="auto-media")
         try:
             futures = {
-                pool.submit(
-                    _generate_video_for if n == video_n else _generate_media_for, brand_args, idea, product_args
+                (
+                    pool.submit(_generate_video_for, brand_args, idea, product_args)
+                    if n == video_n
+                    else pool.submit(_generate_media_for, brand_args, idea, product_args, kits[n])
                 ): n
                 for n, idea in enumerate(ideas)
             }
@@ -396,7 +431,7 @@ def _write_batch(
                 n = futures[fut]
                 media_ids[n] = fut.result()
                 if media_ids[n] is None and n == video_n:
-                    media_ids[n] = _generate_media_for(brand_args, ideas[n], product_args)
+                    media_ids[n] = _generate_media_for(brand_args, ideas[n], product_args, kits[n])
                 done += 1
                 report(
                     check_end + span * done // len(ideas),
