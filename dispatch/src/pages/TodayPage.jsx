@@ -9,7 +9,7 @@ import { phnomPenhDay, phnomPenhDate, fullDayLabel } from '../lib/tz'
 import DateRangePicker, { inRange } from '../components/ui/DateRangePicker'
 import { FiCheck, FiCheckCircle, FiClock, FiEdit3, FiEye, FiInbox, FiLayers, FiRefreshCw, FiSend, FiShare2, FiZap } from 'react-icons/fi'
 import { DeltaText } from '../components/insights/Overview'
-import { DailyStackedBars, DonutWithTable, Insights, useDashboardStats } from '../components/today/DashboardCharts'
+import { BestTimeHeatmap, DailyStackedBars, DonutWithTable, Insights, useDashboardStats } from '../components/today/DashboardCharts'
 
 const PER_PAGE = 10 // queue posts per page
 
@@ -218,6 +218,17 @@ export default function TodayPage() {
             <DonutWithTable segments={stats.statusSegments} centerLabel="deliveries" emptyText="No deliveries in this period." />
           ) : (
             <div className="h-[132px] rounded-xl skeleton" />
+          )}
+        </ChartCard>
+        <ChartCard
+          className="xl:col-span-3"
+          title="Best time to post"
+          sub="Average engagement per post by day and time — the AI uses this to plan your strongest posts"
+        >
+          {queueReady ? (
+            <BestTimeHeatmap heat={stats.heat} best={stats.bestSlot} posts={stats.heatPosts} />
+          ) : (
+            <div className="h-[220px] rounded-xl skeleton" />
           )}
         </ChartCard>
       </div>

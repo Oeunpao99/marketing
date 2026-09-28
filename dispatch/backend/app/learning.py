@@ -37,6 +37,7 @@ _WINDOWS = [
     ("evening", "the evening (6–10 PM)", 18, 22),
     ("night", "late at night (10 PM–6 AM)", 22, 30),
 ]
+_WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 _HASHTAG = re.compile(r"#[\w]+", re.UNICODE)
 _SHORT = 150  # characters
 
@@ -132,7 +133,8 @@ def _posts(db: Session, brand_id: int) -> list[dict]:
 
 def brand_learnings(db: Session, brand_id: int) -> dict:
     """{"posts": n, "rules": [{"id","text","evidence"}], "post_hours": {slug: "HH:MM"},
-    "top_captions": [...], "prompt": str} — empty rules when there's too little data."""
+    "best_days": {slug: "Thursday"}, "top_captions": [...], "prompt": str} — empty
+    rules when there's too little data."""
     posts = _posts(db, brand_id)
     rules: list[dict] = []
     post_hours: dict[str, str] = {}
@@ -211,6 +213,34 @@ def brand_learnings(db: Session, brand_id: int) -> dict:
                     "text": f"On {slug.capitalize()}, posts in {best[1]} get {_x(c[0])} more engagement",
                     "evidence": f"{c[1]:.1f} vs {c[2]:.1f} per post — auto-posts go out at {h:02d}:00",
                 }
+            )
+
+    # Best day of the week, per platform — the Weekly plan puts its strongest
+    # ideas there (the AI sees the plan days with their weekday names).
+    best_days: dict[str, str] = {}
+    for slug in sorted({p["platform"] for p in posts if p["platform"]}):
+        by_day: dict[int, list[float]] = {}
+        for p in posts:
+            if p["platform"] == slug and p["published_at"]:
+                by_day.setdefault(p["published_at"].astimezone(PHNOM_PENH).weekday(), []).append(p["engagement"])
+        best = max(by_day, key=lambda d: mean(by_day[d]), default=None)
+        if best is None:
+            continue
+        rest = [e for d, es in by_day.items() if d != best for e in es]
+        c = _compare(by_day[best], rest)
+        if c and c[0] >= RATIO:
+            day = _WEEKDAYS[best]
+            best_days[slug] = day
+            rules.append(
+                {
+                    "id": f"day-{slug}",
+                    "text": f"On {slug.capitalize()}, {day} posts get {_x(c[0])} more engagement",
+                    "evidence": f"{c[1]:.1f} vs {c[2]:.1f} per post ({len(by_day[best])} vs {len(rest)} posts)",
+                }
+            )
+            guidance.append(
+                f"On {slug.capitalize()}, {day}s get the most engagement — put the strongest idea of the "
+                f"week on a {day} and keep weaker or selling posts off it."
             )
 
     # Questions → comments
@@ -300,6 +330,7 @@ def brand_learnings(db: Session, brand_id: int) -> dict:
         "posts": len(posts),
         "rules": rules,
         "post_hours": post_hours,
+        "best_days": best_days,
         "top_captions": top_captions,
         "prompt": prompt,
     }

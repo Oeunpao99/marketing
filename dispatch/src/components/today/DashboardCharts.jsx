@@ -13,7 +13,7 @@
 // a legend with numbers.
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { FiAlertTriangle, FiArrowRight, FiBarChart2, FiCalendar, FiCheckCircle, FiTrendingDown, FiTrendingUp, FiPieChart } from 'react-icons/fi'
+import { FiAlertTriangle, FiArrowRight, FiBarChart2, FiCalendar, FiCheckCircle, FiClock, FiTrendingDown, FiTrendingUp, FiPieChart } from 'react-icons/fi'
 import { PLAT } from '../../data/brands'
 import PlatformIcon, { PLAT_BRAND_CLASS } from '../ui/PlatformIcon'
 import { platformHue } from '../insights/Overview'
@@ -134,6 +134,44 @@ export function useDashboardStats(queue, channels) {
         }.`,
       })
     }
+    // Best time to post: average engagement per post by weekday × time of day
+    // (Phnom Penh), from every published delivery that has numbers. Same time
+    // windows as the backend's learning rules (app/learning.py).
+    const cells = Array.from({ length: 7 }, () => DAY_SLOTS.map(() => ({ sum: 0, n: 0 })))
+    let allSum = 0
+    let allN = 0
+    for (const d of all) {
+      const m = d.metrics
+      if (d.status !== 'posted' || !m || !d.at || !ENG_KEYS.some((k) => typeof m[k] === 'number')) continue
+      const e = ENG_KEYS.reduce((s, k) => s + (typeof m[k] === 'number' ? m[k] : 0), 0)
+      const { wd, hour } = phnomPenhWhen(d.at)
+      const cell = cells[wd][slotOf(hour)]
+      cell.sum += e
+      cell.n += 1
+      allSum += e
+      allN += 1
+    }
+    const heat = cells.map((row) => row.map((c) => ({ n: c.n, avg: c.n ? c.sum / c.n : null })))
+    let bestSlot = null
+    heat.forEach((row, wd) =>
+      row.forEach((c, si) => {
+        if (c.n >= 2 && c.avg > 0 && (!bestSlot || c.avg > bestSlot.avg)) bestSlot = { wd, si, ...c }
+      }),
+    )
+    const overallAvg = allN ? allSum / allN : 0
+    if (bestSlot && allN >= 6) {
+      const slot = DAY_SLOTS[bestSlot.si]
+      const ratio = overallAvg ? bestSlot.avg / overallAvg : null
+      insights.push({
+        tone: 'good',
+        icon: FiClock,
+        text: `Best time to post: ${WEEKDAYS_LONG[bestSlot.wd]} ${slot.label.toLowerCase()} (${slot.range}) — ${bestSlot.avg.toFixed(1)} engagement per post (${bestSlot.n} posts)${
+          ratio && ratio >= 1.2 ? `, ${ratio.toFixed(1)}× your average` : ''
+        }.`,
+        hint: 'The AI plans your strongest posts for your best days and times.',
+      })
+    }
+
     const busiest = days.filter((d) => !d.future).sort((a, b) => b.total - a.total)[0]
     if (busiest?.total > 1) {
       insights.push({ tone: 'info', icon: FiBarChart2, text: `Busiest day in the last 2 weeks: ${shortDay(busiest.date)}, with ${busiest.total} posts.` })
@@ -156,8 +194,108 @@ export function useDashboardStats(queue, channels) {
       upcomingDays: nextDays.length,
       emptyAhead,
       insights,
+      heat,
+      heatPosts: allN,
+      bestSlot,
     }
   }, [queue, channels])
+}
+
+// ── Best time to post ─────────────────────────────────────────────────────
+const ENG_KEYS = ['likes', 'comments', 'shares']
+const DAY_SLOTS = [
+  { label: 'Morning', range: '6–11', from: 6, to: 11 },
+  { label: 'Midday', range: '11–14', from: 11, to: 14 },
+  { label: 'Afternoon', range: '14–18', from: 14, to: 18 },
+  { label: 'Evening', range: '18–22', from: 18, to: 22 },
+  { label: 'Night', range: '22–6', from: 22, to: 30 },
+]
+const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const WEEKDAYS_LONG = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+const slotOf = (hour) => DAY_SLOTS.findIndex((s) => (hour >= s.from && hour < s.to) || (hour + 24 >= s.from && hour + 24 < s.to))
+const whenFmt = new Intl.DateTimeFormat('en-GB', { weekday: 'short', hour: '2-digit', hour12: false, timeZone: 'Asia/Phnom_Penh' })
+function phnomPenhWhen(iso) {
+  const parts = Object.fromEntries(whenFmt.formatToParts(new Date(iso)).map((p) => [p.type, p.value]))
+  return { wd: Math.max(0, WEEKDAYS.indexOf(parts.weekday)), hour: Number(parts.hour) % 24 }
+}
+// One hue, light → dark (sequential): more engagement = deeper blue.
+const HEAT_HUE = '42, 120, 214'
+
+/** Weekday × time-of-day grid of average engagement per post, deeper = more,
+ *  the best slot outlined. Every cell prints its number; hover for the count. */
+export function BestTimeHeatmap({ heat, best, posts }) {
+  const max = Math.max(0, ...heat.flat().map((c) => c.avg || 0))
+  if (posts < 6 || !(max > 0)) {
+    return (
+      <p className="rounded-xl bg-ink-50 px-4 py-6 text-center text-[12.5px] leading-relaxed text-ink-500">
+        The map fills in once about 6 posts have likes, comments or shares — it shows which days and times get you the most engagement.
+      </p>
+    )
+  }
+  return (
+    <div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[520px] border-separate [border-spacing:3px] text-center">
+          <thead>
+            <tr>
+              <th className="w-24" />
+              {WEEKDAYS.map((d) => (
+                <th key={d} className="pb-1 text-[11px] font-semibold text-ink-500">
+                  {d}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {DAY_SLOTS.map((slot, si) => (
+              <tr key={slot.label}>
+                <th className="pr-2 text-left align-middle">
+                  <div className="text-[11.5px] font-semibold text-ink-700">{slot.label}</div>
+                  <div className="text-[10.5px] font-normal text-ink-400">{slot.range}</div>
+                </th>
+                {WEEKDAYS.map((d, wd) => {
+                  const c = heat[wd][si]
+                  const t = c.avg ? 0.15 + 0.85 * (c.avg / max) : 0
+                  const isBest = best && best.wd === wd && best.si === si
+                  return (
+                    <td
+                      key={d}
+                      title={
+                        c.n
+                          ? `${WEEKDAYS_LONG[wd]} ${slot.label.toLowerCase()}: ${c.avg.toFixed(1)} engagement per post (${c.n} post${c.n === 1 ? '' : 's'})`
+                          : `${WEEKDAYS_LONG[wd]} ${slot.label.toLowerCase()}: no posts with numbers`
+                      }
+                      className={`h-10 rounded-md text-[11.5px] font-semibold tabular-nums ${c.n ? '' : 'bg-ink-50 text-ink-300'} ${
+                        isBest ? 'ring-2 ring-ink-900' : ''
+                      }`}
+                      style={c.n ? { background: `rgba(${HEAT_HUE}, ${t})`, color: t > 0.55 ? '#fff' : 'rgb(var(--ink-800))' } : undefined}
+                    >
+                      {c.n ? (c.avg >= 10 ? Math.round(c.avg) : c.avg.toFixed(1)) : '·'}
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px] text-ink-500">
+        <span className="inline-flex items-center gap-2">
+          Less
+          <span className="h-2 w-24 rounded-full" style={{ background: `linear-gradient(to right, rgba(${HEAT_HUE},0.15), rgba(${HEAT_HUE},1))` }} />
+          More engagement per post
+        </span>
+        <span>
+          {best && (
+            <>
+              <span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm align-middle ring-2 ring-ink-900" /> best slot ·{' '}
+            </>
+          )}
+          from {posts} posts with numbers · Phnom Penh time
+        </span>
+      </div>
+    </div>
+  )
 }
 
 function Tip({ x, children }) {

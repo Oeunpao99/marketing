@@ -51,6 +51,7 @@ function groupTargets(targets) {
       platform: t.platform_slug || "",
       status: t.status,
       at: t.published_at || t.scheduled_for,
+      metrics: t.metrics || null, // latest saved reading — the best-time heatmap
     });
     for (const k of ["views", "likes", "comments", "shares"]) {
       const v = t.metrics?.[k];
