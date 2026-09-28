@@ -34,20 +34,23 @@ import { canOpen } from "../../lib/access";
 
 // Same two-tier shape as the reference: a flat core nav up top, then labeled
 // sections. Every entry is a real page — nothing here points nowhere.
+// `tour` is the anchor the first-run spotlight points at (lib/tour.js). Only
+// the main lists get one — the "Most used" shortcuts are the same links and
+// would be a second element with the same name.
 const CORE = [
   { to: "/", end: true, icon: FiGrid, label: "Dashboard", badge: "queue" },
-  { to: "/channels", icon: FiSmartphone, label: "Platforms", expand: "platforms" },
-  { to: "/review", icon: FiFileText, label: "Content", badge: "review" },
-  { to: "/calendar", icon: FiCalendar, label: "Calendar" },
+  { to: "/channels", icon: FiSmartphone, label: "Platforms", expand: "platforms", tour: "channels" },
+  { to: "/review", icon: FiFileText, label: "Content", badge: "review", tour: "review" },
+  { to: "/calendar", icon: FiCalendar, label: "Calendar", tour: "calendar" },
   { to: "/library", icon: FiImage, label: "Media Library", badge: "library" },
-  { to: "/new", icon: FiEdit, label: "Compose" },
+  { to: "/new", icon: FiEdit, label: "Compose", tour: "new" },
 ];
 
 const SECTIONS = [
   {
     label: "AI Studio",
     items: [
-      { to: "/ai", icon: FiZap, label: "AI Agent" },
+      { to: "/ai", icon: FiZap, label: "AI Agent", tour: "ai" },
       { to: "/weekly", icon: FiClipboard, label: "Weekly plan" },
       { to: "/auto", icon: FiRepeat, label: "Auto-generate" },
       { to: "/products", icon: FiPackage, label: "Products" },
@@ -171,7 +174,7 @@ export default function Sidebar({ collapsed = false }) {
     return null;
   };
 
-  const navItem = ({ to, end, icon: Icon, label, badge, expand, uses }) => {
+  const navItem = ({ to, end, icon: Icon, label, badge, expand, uses, tour }) => {
     if (!canOpen(user, to)) return null; // not in this person's access
     const count = badgeFor(badge);
     if (collapsed) {
@@ -180,6 +183,7 @@ export default function Sidebar({ collapsed = false }) {
           key={to + label}
           to={to}
           end={end}
+          data-tour={tour}
           title={count != null ? `${label} (${count})` : label}
           aria-label={label}
           className={({ isActive }) =>
@@ -198,6 +202,7 @@ export default function Sidebar({ collapsed = false }) {
         <NavLink
           to={to}
           end={end}
+          data-tour={tour}
           className={({ isActive }) =>
             `group flex items-center gap-3 w-full px-3 py-[7px] rounded-lg text-[13px] transition-colors duration-150 ${
               isActive
@@ -444,7 +449,7 @@ export default function Sidebar({ collapsed = false }) {
                 <FiStar size={11} className="text-brand fill-current" aria-hidden="true" /> Most used
               </div>
             )}
-            <div className={collapsed ? "space-y-1" : "space-y-0.5"}>{mostUsed.map(navItem)}</div>
+            <div className={collapsed ? "space-y-1" : "space-y-0.5"}>{mostUsed.map((i) => navItem({ ...i, tour: null }))}</div>
             <div className={`my-3 border-t border-ink-200/70 ${collapsed ? "mx-2" : "mx-0"}`} />
           </>
         )}

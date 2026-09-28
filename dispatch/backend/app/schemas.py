@@ -401,6 +401,9 @@ class LoginIn(BaseModel):
 class UserOut(ORMModel):
     id: int
     workspace_id: int
+    # So the client can tell a brand-new account from an established one (the
+    # first-run spotlight tour only opens for new accounts).
+    created_at: datetime
     workspace_name: str = ""
     name: str
     email: str

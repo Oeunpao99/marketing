@@ -376,6 +376,23 @@ html.dark .cf-halo { background-color: rgb(var(--brand) / .45); }
   .cf-mark-in, .cf-letter, .cf-word, .cf-fade-late { animation: none !important; opacity: 1 !important; }
 }
 
+/* ── First-run spotlight tour (components/layout/OnboardingTour.jsx) ──────
+   A ring around the one piece of navigation the step is talking about, with
+   a halo that breathes out and fades. The dim and the hole are drawn in the
+   component's SVG mask — this is only the ring. */
+.tour-ring {
+  box-shadow: 0 0 0 2px rgb(var(--brand) / 0.9);
+  animation: tour-halo 1.9s ease-out infinite;
+}
+@keyframes tour-halo {
+  0%   { box-shadow: 0 0 0 2px rgb(var(--brand) / 0.9), 0 0 0 0 rgb(var(--brand) / 0.4); }
+  70%  { box-shadow: 0 0 0 2px rgb(var(--brand) / 0.9), 0 0 0 16px rgb(var(--brand) / 0); }
+  100% { box-shadow: 0 0 0 2px rgb(var(--brand) / 0.9), 0 0 0 16px rgb(var(--brand) / 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tour-ring { animation: none; }
+}
+
 /* ── Phones: typing ────────────────────────────────────────────────────────
    iPhone zooms the whole page into any text box whose text is under 16px (and
    the page then looks cut off on the right) — so on touch screens every text

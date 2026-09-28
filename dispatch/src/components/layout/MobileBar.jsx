@@ -86,7 +86,7 @@ export default function MobileBar() {
             <FiSun size={18} strokeWidth={2.2} />
             Today
           </NavLink>
-          <NavLink to="/calendar" className={tabCls}>
+          <NavLink to="/calendar" data-tour="m-calendar" className={tabCls}>
             <FiCalendar size={18} strokeWidth={2.2} />
             Calendar
           </NavLink>
@@ -96,6 +96,7 @@ export default function MobileBar() {
             <button
               type="button"
               onClick={() => navigate("/ai")}
+              data-tour="m-ai"
               className={`w-12 h-12 rounded-2xl gradient-brand text-white grid place-items-center shadow-glow-lg ${
                 pathname === "/ai" ? "ring-4 ring-brand/20" : "animate-ai-pulse"
               }`}
@@ -105,7 +106,7 @@ export default function MobileBar() {
             </button>
           </div>
 
-          <NavLink to="/review" className={tabCls}>
+          <NavLink to="/review" data-tour="m-review" className={tabCls}>
             {reviewCount > 0 && (
               <span className="absolute top-1 right-[24%] min-w-[15px] h-[15px] px-0.5 rounded-full bg-brand text-white text-[10px] font-bold grid place-items-center">
                 {reviewCount}

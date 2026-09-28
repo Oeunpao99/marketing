@@ -6,6 +6,7 @@ import {
   FiBriefcase,
   FiCalendar,
   FiCheck,
+  FiCompass,
   FiCreditCard,
   FiDroplet,
   FiVideo,
@@ -31,6 +32,7 @@ import { disablePush, enablePush, pushStatus, sendTestPush } from '../../lib/pus
 import { ACCENTS, applyAccent, applyTheme, DEFAULT_ACCENT, normalizeAccent, THEMES } from '../../lib/theme'
 import { promptInstall, useInstallState } from '../../lib/pwa'
 import { APP_VERSION, applyUpdate, latestVersion } from '../../lib/update'
+import { openTour } from '../../lib/tour'
 import { TZ } from '../../lib/tz'
 import Select from '../ui/Select'
 import { fmtUSD } from '../../lib/money'
@@ -146,7 +148,7 @@ export default function SettingsModal({ open, onClose, showToast, initialTab = n
           </div>
 
           <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-5">
-            {tab === 'profile' && <ProfileTab showToast={showToast} />}
+            {tab === 'profile' && <ProfileTab showToast={showToast} onClose={onClose} />}
             {tab === 'appearance' && <AppearanceTab showToast={showToast} />}
             {tab === 'notifications' && <NotificationsTab showToast={showToast} />}
             {tab === 'security' && <SecurityTab showToast={showToast} onClose={onClose} />}
@@ -162,7 +164,7 @@ export default function SettingsModal({ open, onClose, showToast, initialTab = n
 }
 
 // ── Profile ───────────────────────────────────────────────────────────────
-function ProfileTab({ showToast }) {
+function ProfileTab({ showToast, onClose }) {
   const { user, updateMe } = useAuth()
   const initial = { name: user?.name || '', email: user?.email || '', timezone: user?.timezone || 'UTC+7' }
   const [form, setForm] = useState(initial)
@@ -213,6 +215,25 @@ function ProfileTab({ showToast }) {
       </Row>
 
       <SaveBar dirty={dirty} saving={saving} onSave={save} onReset={() => setForm(initial)} />
+
+      <section className="space-y-2.5 border-t border-ink-100 pt-6">
+        <SectionTitle
+          title="Help"
+          sub="New here, or want the five-minute version of what each part does?"
+        />
+        <button
+          type="button"
+          // The tour is its own overlay — get this modal out of the way first.
+          onClick={() => {
+            onClose()
+            openTour()
+          }}
+          className="btn-outline"
+        >
+          <FiCompass size={15} />
+          Take the tour again
+        </button>
+      </section>
     </div>
   )
 }

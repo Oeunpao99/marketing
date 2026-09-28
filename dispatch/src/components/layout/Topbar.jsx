@@ -118,6 +118,7 @@ export default function Topbar({ onToggleSidebar }) {
 
       <Link
         to="/new"
+        data-tour="topbar-compose"
         className="inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-brand text-white text-[13px] font-semibold hover:bg-brand-dark transition-colors duration-150"
       >
         <FiEdit size={16} />
@@ -126,6 +127,7 @@ export default function Topbar({ onToggleSidebar }) {
 
       <Link
         to="/ai"
+        data-tour="topbar-ai"
         className="hidden sm:grid w-9 h-9 place-items-center rounded-lg text-ink-600 hover:bg-ink-100"
         aria-label="AI Agent"
         title="AI Agent — ask or create"

@@ -6,6 +6,7 @@ import MobileBar from './MobileBar'
 import AIAssistant from '../ai/AIAssistant'
 import CreateBrandDrawer from './CreateBrandDrawer'
 import AppUpdate from './AppUpdate'
+import OnboardingTour from './OnboardingTour'
 import { useStore } from '../../store'
 import { useAutoRunWatcher } from '../../lib/autoRuns'
 import { useGenJobWatcher } from '../../lib/genJobs'
@@ -88,6 +89,7 @@ export default function Shell({ children }) {
       <AIAssistant />
       <CreateBrandDrawer />
       <AppUpdate />
+      <OnboardingTour />
     </div>
   )
 }
