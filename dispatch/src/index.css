@@ -375,3 +375,32 @@ html.dark .cf-halo { background-color: rgb(var(--brand) / .45); }
 @media (prefers-reduced-motion: reduce) {
   .cf-mark-in, .cf-letter, .cf-word, .cf-fade-late { animation: none !important; opacity: 1 !important; }
 }
+
+/* ── Phones: typing ────────────────────────────────────────────────────────
+   iPhone zooms the whole page into any text box whose text is under 16px (and
+   the page then looks cut off on the right) — so on touch screens every text
+   box uses 16px. Pinch-zoom still works. */
+@media (hover: none) and (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* While the on-screen keyboard is up (src/lib/keyboard.js): the phone tab bar
+   gets out of the way and a docked typing box sits right on the keyboard,
+   like a messaging app's comment box. */
+.kb-open .kb-hide {
+  display: none !important;
+}
+@media (max-width: 1023px) {
+  .kb-open .composer-dock {
+    bottom: var(--kb, 0px) !important;
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.5rem !important;
+  }
+  .kb-open .kb-hide-hint {
+    display: none !important;
+  }
+}

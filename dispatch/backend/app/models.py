@@ -624,3 +624,29 @@ class TeamMember(Base, TimestampMixin):
     is_active: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default="true", nullable=False
     )
+    # Which features an editor may use (app/access.py FEATURES keys); null =
+    # everything. Owners and admins always have everything.
+    access: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
+
+
+class WorkspaceInvite(Base, TimestampMixin):
+    """A join link (app/auth.py): whoever opens it sets their own name, email
+    and password and joins the workspace with this role and access. Only a
+    hash of the token is stored — the link is shown once, when it's made."""
+
+    __tablename__ = "workspace_invites"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
+    created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("team_members.id", ondelete="SET NULL"), nullable=True
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    role: Mapped[str] = mapped_column(String(20), default="editor")
+    access: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
+    label: Mapped[str] = mapped_column(String(120), default="", server_default="")
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # null = any number of people may use it until it expires.
+    max_uses: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    uses: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    revoked: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)

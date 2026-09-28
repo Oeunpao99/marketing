@@ -8,7 +8,6 @@ import {
   FiCopy,
   FiDownload,
   FiEdit2,
-  FiFilm,
   FiImage,
   FiLayers,
   FiMaximize2,
@@ -863,7 +862,7 @@ export default function AIPromptPage() {
       </div>
 
       {/* composer */}
-      <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] lg:bottom-0 z-20 -mx-5 lg:-mx-10 px-5 lg:px-10 pb-5 pt-6 bg-gradient-to-t from-canvas via-canvas to-transparent">
+      <div className="composer-dock sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] lg:bottom-0 z-20 -mx-5 lg:-mx-10 px-5 lg:px-10 pb-5 pt-6 bg-gradient-to-t from-canvas via-canvas to-transparent">
         <div
           ref={composerRef}
           onDragOver={(e) => {
@@ -1011,7 +1010,9 @@ export default function AIPromptPage() {
             </label>
 
             {intent === 'create' && isImage && (
-              <div className="relative" ref={kitRef}>
+              // Phones: not `relative`, so the panel anchors to the whole
+              // composer box (full width) instead of running off the right edge.
+              <div className="sm:relative" ref={kitRef}>
                 <button
                   type="button"
                   onClick={() => setKitOpen((v) => !v)}
@@ -1092,7 +1093,7 @@ export default function AIPromptPage() {
             </div>
           </div>
         </div>
-        <p className="mt-2 text-center text-[10.5px] text-ink-400">
+        <p className="kb-hide-hint mt-2 text-center text-[10.5px] text-ink-400">
           Enter to send · Shift + Enter for a new line · answers use your own brands, products and post numbers
         </p>
       </div>
@@ -1732,175 +1733,163 @@ function IconBtn({ title, onClick, children }) {
   )
 }
 
-// Two columns: "what" (type, kind, size) on the left, "how" (length, brand)
-// on the right; the storyboard voiceover and the ✦ prompt options run full
-// width below. Stacks into one column on phones.
+// One column, one row per setting (label left, choices right) — only the rows
+// that apply to what's being made. The ✦ prompt-writer options are tucked
+// under "More options" since most people never change them.
 const RATIO_SHORT = { '9:16': 'Reels', '1:1': 'Feed', '16:9': 'YouTube' }
-const VOICE_SHORT = { English: 'English', Khmer: 'Khmer', 'Khmer + English': 'Khmer + English', '': 'None' }
+const VOICE_SHORT = { English: 'English', Khmer: 'Khmer', 'Khmer + English': 'Both', '': 'None' }
+
+/** A tiny outline of the frame shape, so sizes read at a glance. */
+function RatioShape({ id }) {
+  const [w, h] = { '9:16': [9, 15], '1:1': [13, 13], '16:9': [17, 10] }[id] || [13, 13]
+  return <span className="inline-block flex-none rounded-[2px] border-[1.5px] border-current" style={{ width: w, height: h }} aria-hidden="true" />
+}
 
 function SettingsPopover({
   type, setType, ratio, setRatio, seconds, setSeconds, videoMode, setVideoMode, storySeconds, setStorySeconds,
   voice, setVoice, brands, brand, setBrand, style, setStyle, template, setTemplate,
 }) {
+  const [more, setMore] = useState(false)
+  const story = type === 'video' && videoMode === 'story'
   const seg = (on) =>
-    `flex-1 h-8 rounded-lg text-[12px] font-semibold inline-flex items-center justify-center gap-1.5 transition-colors ${
+    `h-8 min-w-0 flex-1 rounded-lg px-2 text-[12px] font-semibold inline-flex items-center justify-center gap-1.5 whitespace-nowrap transition-colors ${
       on ? 'bg-white text-brand shadow-sm' : 'text-ink-600 hover:text-ink-900'
     }`
-  const chip = (on) =>
-    `h-8 px-2.5 rounded-lg border text-[11.5px] font-medium transition-colors ${
-      on ? 'border-brand/40 bg-brand-soft text-brand' : 'border-ink-200 text-ink-600 hover:border-ink-300'
-    }`
-  // Narrow equal-width buttons (lengths): no side padding, allowed to shrink.
-  const tight = (on) => `${chip(on).replace('px-2.5', 'px-0')} min-w-0 flex-1`
-  const story = type === 'video' && videoMode === 'story'
+  const ratios = RATIOS.filter((r) => !(story && r.id === '1:1'))
+  const ratioOn = (id) => ratio === id || (story && ratio === '1:1' && id === '9:16')
 
   return (
-    <div className="absolute bottom-full left-0 mb-2 w-[460px] max-w-[calc(100vw-40px)] rounded-2xl border border-ink-200/80 bg-white p-4 shadow-[0_18px_50px_-12px_rgba(16,24,40,0.28)] animate-fadein">
-      <div className="grid gap-x-4 gap-y-3.5 sm:grid-cols-2">
-        {/* what to make */}
-        <div className="space-y-3.5">
-          <div className="flex rounded-xl bg-ink-100 p-1">
-            <button type="button" className={seg(type === 'image')} onClick={() => setType('image')}>
-              <FiImage size={14} /> Image
-            </button>
-            <button type="button" className={seg(type === 'video')} onClick={() => setType('video')}>
-              <FiVideo size={14} /> Video
-            </button>
-          </div>
-
-          {type === 'video' && (
-            <Setting label="Kind of video">
-              <div className="grid grid-cols-2 gap-1.5">
-                {[
-                  { id: 'clip', icon: <FiVideo size={13} />, title: 'Instant', sub: '1 clip · 4–12s' },
-                  { id: 'story', icon: <FiFilm size={13} />, title: 'Storyboard', sub: 'Scenes · 16–64s' },
-                ].map((m) => (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => setVideoMode(m.id)}
-                    className={`${chip(videoMode === m.id)} h-auto py-1.5 text-left`}
-                  >
-                    <div className="inline-flex items-center gap-1.5 font-semibold">
-                      {m.icon}
-                      {m.title}
-                    </div>
-                    <div className="text-[10px] leading-tight text-ink-400">{m.sub}</div>
-                  </button>
-                ))}
-              </div>
-            </Setting>
-          )}
-
-          <Setting label="Size">
-            <div className="flex gap-1.5">
-              {RATIOS.filter((r) => !(story && r.id === '1:1')).map((r) => (
-                <button
-                  key={r.id}
-                  type="button"
-                  title={r.sub}
-                  onClick={() => setRatio(r.id)}
-                  className={`${chip(ratio === r.id || (story && ratio === '1:1' && r.id === '9:16'))} h-auto flex-1 py-1 text-left`}
-                >
-                  <div className="font-semibold">{r.id}</div>
-                  <div className="text-[10px] leading-tight opacity-70">{RATIO_SHORT[r.id]}</div>
-                </button>
-              ))}
-            </div>
-          </Setting>
-        </div>
-
-        {/* how */}
-        <div className="space-y-3.5">
-          {type === 'video' && !story && (
-            <Setting label="Length">
-              <div className="flex gap-1.5">
-                {LENGTHS.map((n) => (
-                  <button key={n} type="button" onClick={() => setSeconds(n)} className={tight(seconds === n)}>
-                    {n}s
-                  </button>
-                ))}
-              </div>
-            </Setting>
-          )}
-
-          {story && (
-            <>
-              <Setting label={`Length · ${storySeconds / 8} scenes of 8s`}>
-                <div className="flex gap-1">
-                  {STORY_LENGTHS.map((n) => (
-                    <button key={n} type="button" onClick={() => setStorySeconds(n)} className={tight(storySeconds === n)}>
-                      {n}s
-                    </button>
-                  ))}
-                </div>
-              </Setting>
-            </>
-          )}
-
-          <Setting label="Brand">
-            <Select
-              size="sm"
-              value={brand || ''}
-              onChange={setBrand}
-              options={brands.map((b) => ({ value: b.slug, label: b.name, color: colorForBrand(b.slug) }))}
-            />
-          </Setting>
-        </div>
+    <div className="absolute bottom-full left-0 mb-2 w-[360px] max-w-[calc(100vw-40px)] rounded-2xl border border-ink-200/80 bg-white p-3.5 shadow-[0_18px_50px_-12px_rgba(16,24,40,0.28)] animate-fadein">
+      <div className="flex rounded-xl bg-ink-100 p-1">
+        <button type="button" className={seg(type === 'image')} onClick={() => setType('image')}>
+          <FiImage size={14} /> Image
+        </button>
+        <button type="button" className={seg(type === 'video')} onClick={() => setType('video')}>
+          <FiVideo size={14} /> Video
+        </button>
       </div>
 
-      {story && (
-        <div className="mt-3.5">
-          <Setting label="Voiceover">
-            <div className="flex rounded-xl bg-ink-100 p-1">
+      <div className="mt-2 divide-y divide-ink-100">
+        {type === 'video' && (
+          <Row label="Type" hint={story ? 'Several 8s scenes joined, with a voiceover' : 'One clip, ready in a few minutes'}>
+            <Segmented>
+              <button type="button" className={seg(!story)} onClick={() => setVideoMode('clip')}>
+                Quick clip
+              </button>
+              <button type="button" className={seg(story)} onClick={() => setVideoMode('story')}>
+                Story
+              </button>
+            </Segmented>
+          </Row>
+        )}
+
+        {type === 'video' && (
+          <Row label="Length" hint={story ? `${storySeconds / 8} scenes` : undefined}>
+            <Segmented>
+              {(story ? STORY_LENGTHS : LENGTHS).map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => (story ? setStorySeconds(n) : setSeconds(n))}
+                  className={`${seg((story ? storySeconds : seconds) === n)} px-0 text-[11.5px]`}
+                >
+                  {n}s
+                </button>
+              ))}
+            </Segmented>
+          </Row>
+        )}
+
+        <Row label="Size">
+          <Segmented>
+            {ratios.map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                title={r.sub}
+                onClick={() => setRatio(r.id)}
+                className={`${seg(ratioOn(r.id))} h-auto flex-col gap-0 py-1`}
+              >
+                <span className="inline-flex items-center gap-1.5">
+                  <RatioShape id={r.id} />
+                  {r.id}
+                </span>
+                <span className="text-[10px] font-medium leading-tight opacity-70">{RATIO_SHORT[r.id]}</span>
+              </button>
+            ))}
+          </Segmented>
+        </Row>
+
+        {story && (
+          <Row label="Voice">
+            <Segmented>
               {[...VOICES, ''].map((v) => (
                 <button
                   key={v || 'none'}
                   type="button"
                   title={v || 'No voiceover'}
                   onClick={() => setVoice(v)}
-                  className={`${seg(voice === v)} h-7 whitespace-nowrap px-1 text-[11.5px]`}
+                  className={`${seg(voice === v)} px-0 text-[11.5px]`}
                 >
                   {VOICE_SHORT[v]}
                 </button>
               ))}
-            </div>
-          </Setting>
+            </Segmented>
+          </Row>
+        )}
+
+        <Row label="Brand">
+          <Select
+            size="sm"
+            align="right"
+            value={brand || ''}
+            onChange={setBrand}
+            options={brands.map((b) => ({ value: b.slug, label: b.name, color: colorForBrand(b.slug) }))}
+          />
+        </Row>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setMore((v) => !v)}
+        aria-expanded={more}
+        className="mt-1 flex w-full items-center gap-1.5 rounded-lg px-1 py-1.5 text-[11.5px] font-medium text-ink-500 hover:text-ink-800"
+      >
+        <span className={`inline-block transition-transform duration-150 ${more ? 'rotate-90' : ''}`}>›</span>
+        More options
+        {!more && <span className="ml-auto truncate text-ink-400">{template} · {style}</span>}
+      </button>
+      {more && (
+        <div className="space-y-2 rounded-xl bg-ink-50 p-2.5">
+          <p className="text-[11px] leading-snug text-ink-500">
+            Used by <span className="text-brand">✦</span> Write it for me when it turns your idea into a full prompt.
+          </p>
+          <div className="flex gap-2">
+            <Select size="sm" className="min-w-0 flex-1" value={template} onChange={setTemplate} options={TEMPLATES[type].map((x) => ({ value: x }))} />
+            <Select size="sm" align="right" className="min-w-0 flex-1" value={style} onChange={setStyle} options={STYLES.map((x) => ({ value: x }))} />
+          </div>
         </div>
       )}
+    </div>
+  )
+}
 
-      {/* ✦ prompt writer options */}
-      <div className="mt-3.5 flex flex-wrap items-center gap-2 border-t border-ink-100 pt-3">
-        <span className="text-[10.5px] text-ink-400">
-          <span className="text-brand">✦</span> Write it for me uses
-        </span>
-        <Select
-          size="sm"
-          className="min-w-0 flex-1"
-          value={template}
-          onChange={setTemplate}
-          options={TEMPLATES[type].map((x) => ({ value: x }))}
-        />
-        <Select
-          size="sm"
-          align="right"
-          className="min-w-0 flex-1"
-          value={style}
-          onChange={setStyle}
-          options={STYLES.map((x) => ({ value: x }))}
-        />
+function Row({ label, hint, children }) {
+  return (
+    <div className="flex items-center gap-3 py-2.5">
+      <div className="w-14 flex-none">
+        <div className="text-[12px] font-semibold text-ink-700">{label}</div>
+      </div>
+      <div className="min-w-0 flex-1">
+        {children}
+        {hint && <div className="mt-1 text-[10.5px] text-ink-400">{hint}</div>}
       </div>
     </div>
   )
 }
 
-function Setting({ label, children }) {
-  return (
-    <div>
-      <div className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-ink-400">{label}</div>
-      {children}
-    </div>
-  )
+function Segmented({ children }) {
+  return <div className="flex rounded-xl bg-ink-100 p-0.5">{children}</div>
 }
 
 
@@ -1920,7 +1909,7 @@ function KitChip({ children, onRemove }) {
 function KitPopover({ kit, setKit, templates, logo, products, onManage }) {
   const empty = !templates.length && !logo && !products.length
   return (
-    <div className="absolute bottom-11 left-0 z-30 w-[340px] max-w-[calc(100vw-2rem)] rounded-2xl border border-ink-200 bg-white p-4 shadow-[0_12px_40px_rgba(16,24,40,0.16)]">
+    <div className="absolute inset-x-2 bottom-full z-30 mb-2 max-h-[60vh] overflow-y-auto rounded-2xl border border-ink-200 bg-white p-4 shadow-[0_12px_40px_rgba(16,24,40,0.16)] sm:inset-x-auto sm:bottom-11 sm:left-0 sm:mb-0 sm:w-[340px]">
       {empty ? (
         <div className="text-[12.5px] leading-relaxed text-ink-600">
           Add your logo, product photos and posters you like — every image can then follow your style.

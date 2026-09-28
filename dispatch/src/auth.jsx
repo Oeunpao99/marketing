@@ -69,6 +69,14 @@ export function AuthProvider({ children }) {
         .then(finish),
     [],
   )
+  // Invite links (JoinPage): create the login, then sign in with the result —
+  // two steps so the page can leave /join/… in the same render it signs in.
+  const acceptInvite = useCallback(
+    (token, name, email, password) => api.post(`/auth/join/${token}`, { name, email, password }),
+    [],
+  )
+  const signInWith = useCallback((res) => finish(res), [])
+
   const logout = useCallback(() => {
     navigator.clearAppBadge?.().catch?.(() => {})
     tokenStore.set(null)
@@ -94,7 +102,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, login, register, logout, renameWorkspace, updateMe, updatePrefs }}
+      value={{ user, loading, login, register, logout, renameWorkspace, updateMe, updatePrefs, acceptInvite, signInWith }}
     >
       {children}
     </AuthContext.Provider>

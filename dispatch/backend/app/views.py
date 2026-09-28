@@ -599,9 +599,34 @@ def library_view(db: Session = Depends(get_db), ws: int = Depends(current_worksp
                 "caption_angle": v.caption_angle or "",
                 "caption_status": v.caption_status or ("ready" if v.caption else ""),
                 "posted_count": posted.get(v.id, 0),
+                # When it finished — the page marks items newer than the
+                # person's last visit as "New" (POST /library/seen).
+                "ready_at": v.created_at,
             }
         )
     return out
+
+
+def _library_seen_at(user: TeamMember) -> datetime:
+    """When this person last opened the Library — before their first visit,
+    when their account was made (so a new member isn't shown everything)."""
+    raw = (user.preferences or {}).get("library_seen_at")
+    if raw:
+        try:
+            return datetime.fromisoformat(raw)
+        except ValueError:
+            pass
+    return user.created_at
+
+
+@router.post("/library/seen")
+def library_seen(db: Session = Depends(get_db), user: TeamMember = Depends(get_current_user)):
+    """Opening the Library: clears the sidebar's "new" badge. Returns the
+    previous visit's time so the page can still mark this visit's new items."""
+    previous = _library_seen_at(user)
+    user.preferences = {**(user.preferences or {}), "library_seen_at": datetime.now(UTC).isoformat()}
+    db.commit()
+    return {"previous": previous}
 
 
 class LibraryCaptionIn(BaseModel):
@@ -990,7 +1015,9 @@ def collect_snapshots(db: Session) -> int:
 
 
 @router.get("/sidebar")
-def sidebar_counts(db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+def sidebar_counts(db: Session = Depends(get_db), user: TeamMember = Depends(get_current_user)):
+    ws = user.workspace_id
+
     def count(model, *where):
         return db.scalar(
             select(func.count()).select_from(model).where(scope(model, ws), *where)
@@ -1001,6 +1028,17 @@ def sidebar_counts(db: Session = Depends(get_db), ws: int = Depends(current_work
     queued = count(PostTarget)
     waiting = count(Draft, Draft.status == "waiting")
     library = count(GenerationJob, GenerationJob.video_id.is_not(None), GenerationJob.kind != "scene")
+    # Finished since this person last opened the Library — the sidebar badge.
+    library_new = db.scalar(
+        select(func.count())
+        .select_from(GenerationJob)
+        .join(Video, Video.id == GenerationJob.video_id)
+        .where(
+            scope(GenerationJob, ws),
+            GenerationJob.kind != "scene",
+            Video.created_at > _library_seen_at(user),
+        )
+    )
     per_brand = dict(
         db.execute(
             select(Post.brand_id, func.count(PostTarget.id))
@@ -1016,6 +1054,7 @@ def sidebar_counts(db: Session = Depends(get_db), ws: int = Depends(current_work
         "today_count": queued or 0,
         "waiting_count": waiting or 0,
         "library_count": library or 0,
+        "library_new": library_new or 0,
         "brands": [
             {"id": b.id, "slug": b.slug, "name": b.name, "posts": per_brand.get(b.id, 0)}
             for b in brands

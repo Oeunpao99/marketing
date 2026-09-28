@@ -25,6 +25,7 @@ import {
 } from "react-icons/fi";
 import { useAuth } from "../../auth";
 import { colorForBrand } from "../../lib/brandColor";
+import { canOpen } from "../../lib/access";
 import { useNotifications } from "../../lib/notifications";
 import { useStore } from "../../store";
 import { openCreateBrand } from "./CreateBrandDrawer";
@@ -57,7 +58,7 @@ const tabCls = ({ isActive }) =>
   }`;
 
 export default function MobileBar() {
-  const { review } = useStore();
+  const { review, libraryNew } = useStore();
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const [moreOpen, setMoreOpen] = useState(false);
@@ -77,7 +78,7 @@ export default function MobileBar() {
   return (
     <>
       <nav
-        className="fixed inset-x-0 bottom-0 z-30 lg:hidden bg-white/60 backdrop-blur-2xl backdrop-saturate-150 border-t border-white/70 shadow-[0_-8px_24px_-12px_rgba(16,24,40,0.18)] pb-[env(safe-area-inset-bottom)]"
+        className="kb-hide fixed inset-x-0 bottom-0 z-30 lg:hidden bg-white/60 backdrop-blur-2xl backdrop-saturate-150 border-t border-white/70 shadow-[0_-8px_24px_-12px_rgba(16,24,40,0.18)] pb-[env(safe-area-inset-bottom)]"
         aria-label="Mobile navigation"
       >
         <div className="grid grid-cols-5 items-stretch h-14">
@@ -117,11 +118,14 @@ export default function MobileBar() {
           <button
             type="button"
             onClick={() => setMoreOpen(true)}
-            className={`flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold transition-colors ${
+            className={`relative flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold transition-colors ${
               moreOpen || inMore ? "text-brand" : "text-ink-400"
             }`}
-            aria-label="More"
+            aria-label={libraryNew > 0 ? `More — ${libraryNew} new in Library` : "More"}
           >
+            {libraryNew > 0 && (
+              <span className="absolute top-1.5 right-[30%] h-2 w-2 rounded-full bg-brand ring-2 ring-white" />
+            )}
             <FiMenu size={18} strokeWidth={2.2} />
             More
           </button>
@@ -134,8 +138,9 @@ export default function MobileBar() {
 }
 
 function MoreSheet({ onClose }) {
-  const { brands, activeBrand, switchBrand, showToast } = useStore();
+  const { brands, activeBrand, switchBrand, showToast, libraryNew } = useStore();
   const { user, logout } = useAuth();
+  const modules = MODULES.filter((m) => canOpen(user, m.to));
   const { count } = useNotifications();
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -218,7 +223,7 @@ function MoreSheet({ onClose }) {
 
         {/* every module */}
         <div className="grid grid-cols-4 gap-2">
-          {MODULES.map((m) => {
+          {modules.map((m) => {
             const on = m.to === "/" ? pathname === "/" : pathname.startsWith(m.to);
             return (
               <button
@@ -230,11 +235,16 @@ function MoreSheet({ onClose }) {
                 }`}
               >
                 <span
-                  className={`grid h-10 w-10 place-items-center rounded-xl ${
+                  className={`relative grid h-10 w-10 place-items-center rounded-xl ${
                     on ? "bg-white text-brand shadow-sm" : "bg-ink-50 text-ink-600"
                   }`}
                 >
                   <m.icon size={18} />
+                  {m.to === "/library" && libraryNew > 0 && (
+                    <span className="absolute -right-1.5 -top-1.5 grid h-[17px] min-w-[17px] place-items-center rounded-full bg-brand px-1 text-[10px] font-bold text-white">
+                      {libraryNew}
+                    </span>
+                  )}
                 </span>
                 <span className="leading-tight text-center">{m.label}</span>
               </button>

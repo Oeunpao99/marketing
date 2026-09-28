@@ -50,8 +50,11 @@ const STATUS_FILTERS = [
 
 export default function LibraryPage() {
   const navigate = useNavigate()
-  const { brands, showToast } = useStore()
+  const { brands, showToast, setLibraryNew } = useStore()
   const [items, setItems] = useState(null)
+  // When they last looked, before this visit — anything finished after it is
+  // tagged "New" for the whole visit (the sidebar badge clears right away).
+  const [seenBefore, setSeenBefore] = useState(null)
   const [brandFilter, setBrandFilter] = useState('all')
   const [kindFilter, setKindFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -63,10 +66,26 @@ export default function LibraryPage() {
 
   useEffect(() => {
     load()
-    const onFocus = () => load()
+    // Being on the page counts as seeing what lands while it's open, too.
+    const markSeen = (first) =>
+      api
+        .post('/views/library/seen')
+        .then((r) => {
+          if (first) setSeenBefore(new Date(r.previous).getTime())
+          setLibraryNew(0)
+        })
+        .catch(() => {})
+    markSeen(true)
+    const onFocus = () => {
+      load()
+      markSeen(false)
+    }
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
-  }, [load])
+  }, [load, setLibraryNew])
+
+  const isNew = (it) => seenBefore != null && it.ready_at && new Date(it.ready_at).getTime() > seenBefore
+  const newCount = (items || []).filter(isNew).length
 
   // Captions are written in the background right after a render — keep
   // checking while any is still being written.
@@ -146,7 +165,14 @@ export default function LibraryPage() {
   return (
     <div className="w-full px-5 lg:px-8 py-7 animate-fadein">
       <div className="mb-6">
-        <h1 className="text-[24px] font-bold text-ink-900 tracking-tight leading-tight">Library</h1>
+        <h1 className="flex items-center gap-2.5 text-[24px] font-bold text-ink-900 tracking-tight leading-tight">
+          Library
+          {newCount > 0 && (
+            <span className="rounded-full bg-brand-soft px-2.5 py-0.5 text-[12px] font-semibold tracking-normal text-brand">
+              {newCount} new since your last visit
+            </span>
+          )}
+        </h1>
         <p className="mt-1 text-[13px] text-ink-600">
           Every image and video the AI made — each with a caption ready to post. Pick one and you’re one click from publishing.
         </p>
@@ -211,6 +237,7 @@ export default function LibraryPage() {
             <LibraryCard
               key={it.id}
               it={it}
+              isNew={isNew(it)}
               busy={!!writing[it.id]}
               onOpen={() => setOpenId(it.id)}
               onUse={() => usePost(it)}
@@ -296,7 +323,7 @@ function CaptionState({ it, busy, onWrite }) {
   )
 }
 
-function LibraryCard({ it, busy, onOpen, onUse, onWrite, onDelete }) {
+function LibraryCard({ it, isNew, busy, onOpen, onUse, onWrite, onDelete }) {
   const [menu, setMenu] = useState(false)
   const caption = it.caption || ''
   return (
@@ -318,11 +345,18 @@ function LibraryCard({ it, busy, onOpen, onUse, onWrite, onDelete }) {
           {it.kind === 'image' ? <FiImage size={10} /> : <FiPlay size={10} />}
           {it.kind === 'video' && it.seconds ? `${it.seconds}s` : it.kind}
         </span>
-        {it.posted_count > 0 && (
-          <span className="absolute right-2 top-2 rounded-md bg-white/90 px-1.5 py-0.5 text-[10px] font-bold text-ink-700">
-            Posted{it.posted_count > 1 ? ` · ${it.posted_count}×` : ''}
-          </span>
-        )}
+        <span className="absolute right-2 top-2 flex flex-col items-end gap-1">
+          {isNew && (
+            <span className="rounded-md bg-brand px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm">
+              New
+            </span>
+          )}
+          {it.posted_count > 0 && (
+            <span className="rounded-md bg-white/90 px-1.5 py-0.5 text-[10px] font-bold text-ink-700">
+              Posted{it.posted_count > 1 ? ` · ${it.posted_count}×` : ''}
+            </span>
+          )}
+        </span>
       </button>
 
       <div role="button" tabIndex={0} onClick={onOpen} onKeyDown={(e) => e.key === 'Enter' && onOpen()} className="flex-1 cursor-pointer p-3 text-left">

@@ -149,7 +149,7 @@ export default function LoginPage() {
 }
 
 // ── left: what ContentFlow is, with a floating product preview ─────────────
-function BrandPanel() {
+export function BrandPanel() {
   return (
     <aside className="hidden lg:flex relative overflow-hidden flex-col justify-center px-14 xl:px-20 py-14 bg-[#0A1B38] text-white">
       {/* light + grid */}
@@ -252,7 +252,7 @@ function Preview() {
 // and the tagline cycles through what the product does (index.css "cf-*").
 const DOES = ['written', 'designed', 'scheduled', 'published']
 
-function BrandLockup() {
+export function BrandLockup() {
   const [i, setI] = useState(0)
   useEffect(() => {
     const t = setInterval(() => setI((n) => (n + 1) % DOES.length), 2200)
@@ -295,11 +295,11 @@ function BrandLockup() {
   )
 }
 
-const inputCls =
+export const inputCls =
   'w-full h-11 bg-white border border-ink-200 rounded-xl px-3.5 text-[13px] text-ink-800 placeholder:text-ink-300 ' +
   'focus:outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 transition-all duration-150'
 
-function Field({ label, children }) {
+export function Field({ label, children }) {
   return (
     <label className="block">
       <span className="block font-semibold text-[11.5px] text-ink-700 mb-1.5">{label}</span>

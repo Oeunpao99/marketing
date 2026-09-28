@@ -1,6 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { hideSplash } from "./lib/splash";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./auth";
 import Shell from "./components/layout/Shell";
 import MaintenanceOverlay from "./components/ui/MaintenanceOverlay";
@@ -13,6 +13,7 @@ import ChannelsPage from "./pages/ChannelsPage";
 import CreateBrandPage from "./pages/CreateBrandPage";
 import InsightsPage from "./pages/InsightsPage";
 import InsightsPostPage from "./pages/InsightsPostPage";
+import JoinPage from "./pages/JoinPage";
 import LegalPage from "./pages/LegalPage";
 import LibraryPage from "./pages/LibraryPage";
 import LoginPage from "./pages/LoginPage";
@@ -24,10 +25,36 @@ import TodayPage from "./pages/TodayPage";
 import VideoStoryPage from "./pages/VideoStoryPage";
 import WeeklyPage from "./pages/WeeklyPage";
 import { StoreProvider, useStore } from "./store";
+import { canOpen } from "./lib/access";
 
 function ToastHost() {
   const { toast } = useStore();
   return <Toast message={toast} />;
+}
+
+// A page this person's access doesn't include (Settings → Team) — say so
+// instead of a page full of errors. The server refuses those calls anyway.
+function NoAccess() {
+  const navigate = useNavigate();
+  return (
+    <div className="grid min-h-[60vh] place-items-center px-6">
+      <div className="max-w-sm text-center">
+        <div className="text-[17px] font-bold text-ink-900">This part isn’t in your access</div>
+        <p className="mt-1.5 text-[13px] leading-relaxed text-ink-500">
+          A workspace owner or admin can add it for you under Settings → Team.
+        </p>
+        <button type="button" onClick={() => navigate("/")} className="btn-primary mt-5">
+          Go to the Dashboard
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Guarded({ children }) {
+  const { user } = useAuth();
+  const { pathname } = useLocation();
+  return canOpen(user, pathname) ? children : <NoAccess />;
 }
 
 function Portal() {
@@ -35,6 +62,7 @@ function Portal() {
     <StoreProvider>
       <BrowserRouter>
         <Shell>
+          <Guarded>
           <Routes>
             <Route path="/" element={<TodayPage />} />
             <Route path="/new" element={<NewPostPage />} />
@@ -53,6 +81,7 @@ function Portal() {
             <Route path="/insights/:targetId" element={<InsightsPostPage />} />
             <Route path="/post/:index" element={<PostDetailPage />} />
           </Routes>
+          </Guarded>
         </Shell>
         <ToastHost />
       </BrowserRouter>
@@ -60,8 +89,12 @@ function Portal() {
   );
 }
 
+const JOIN_RE = /^\/join\/([A-Za-z0-9_-]+)\/?$/;
+
 function Gate() {
   const { user, loading } = useAuth();
+  // An invite link (/join/<token>) — shown until they join or leave it.
+  const [joinToken, setJoinToken] = useState(() => window.location.pathname.match(JOIN_RE)?.[1] || null);
 
   // Launch splash (index.html) fades out once we know who's signed in.
   useEffect(() => {
@@ -75,6 +108,7 @@ function Gate() {
       </div>
     );
   }
+  if (joinToken) return <JoinPage token={joinToken} onDone={() => setJoinToken(null)} />;
   return user ? <Portal /> : <LoginPage />;
 }
 

@@ -11,6 +11,8 @@ import {
   FiVideo,
   FiImage,
   FiEdit3,
+  FiCopy,
+  FiLink,
   FiLock,
   FiLogOut,
   FiMonitor,
@@ -1258,10 +1260,28 @@ function TeamTab({ showToast }) {
   const canManage = user?.role === 'owner' || user?.role === 'admin'
   const [members, setMembers] = useState(null)
   const [adding, setAdding] = useState(false)
+  const [inviting, setInviting] = useState(false)
+  const [invites, setInvites] = useState([])
+  const [features, setFeatures] = useState([])
+  const [accessFor, setAccessFor] = useState(null) // member id whose access is open
 
   useEffect(() => {
     api.get('/auth/members').then(setMembers).catch(() => setMembers([]))
+    api.get('/auth/features').then(setFeatures).catch(() => setFeatures([]))
   }, [])
+  useEffect(() => {
+    if (canManage) api.get('/auth/invites').then(setInvites).catch(() => setInvites([]))
+  }, [canManage])
+
+  const revoke = async (inv) => {
+    try {
+      await api.del(`/auth/invites/${inv.id}`)
+      setInvites((xs) => xs.filter((x) => x.id !== inv.id))
+      showToast('Link turned off')
+    } catch (e) {
+      showToast(e.message)
+    }
+  }
 
   const update = async (m, patch) => {
     try {
@@ -1291,12 +1311,48 @@ function TeamTab({ showToast }) {
           title="People in this workspace"
           sub={canManage ? 'Add teammates and choose what they can do.' : 'Only an owner or admin can manage the team.'}
         />
-        {canManage && !adding && (
-          <button type="button" onClick={() => setAdding(true)} className="btn-primary flex-none">
-            <FiUserPlus size={14} /> Add member
-          </button>
+        {canManage && !adding && !inviting && (
+          <div className="flex flex-none gap-2">
+            <button type="button" onClick={() => setAdding(true)} className="btn-outline">
+              <FiUserPlus size={14} /> Add member
+            </button>
+            <button type="button" onClick={() => setInviting(true)} className="btn-primary">
+              <FiLink size={14} /> Invite with a link
+            </button>
+          </div>
         )}
       </div>
+
+      {inviting && (
+        <InvitePanel
+          features={features}
+          onClose={() => setInviting(false)}
+          onCreated={(inv) => setInvites((xs) => [inv, ...xs])}
+          showToast={showToast}
+        />
+      )}
+
+      {canManage && invites.length > 0 && (
+        <div className="rounded-2xl border border-ink-200">
+          <div className="border-b border-ink-100 px-4 py-2.5 text-[12px] font-semibold text-ink-700">Open invite links</div>
+          <div className="divide-y divide-ink-100">
+            {invites.map((inv) => (
+              <div key={inv.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 text-[12px]">
+                <FiLink size={13} className="flex-none text-ink-400" />
+                <span className="font-semibold text-ink-800">{inv.label || `${ROLE_LABEL[inv.role]} invite`}</span>
+                <span className="text-ink-500">
+                  {ROLE_LABEL[inv.role]} · {accessSummary(inv.role, inv.access, features)} ·{' '}
+                  {inv.max_uses == null ? `${inv.uses} joined` : `${inv.uses}/${inv.max_uses} used`} · until{' '}
+                  {new Date(inv.expires_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                </span>
+                <button type="button" onClick={() => revoke(inv)} className="ml-auto font-semibold text-ink-500 hover:text-red-600">
+                  Turn off
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {adding && (
         <AddMember
@@ -1349,6 +1405,21 @@ function TeamTab({ showToast }) {
                       options={['admin', 'editor'].map((r) => ({ value: r, label: ROLE_LABEL[r], hint: ROLE_HINT[r] }))}
                     />
                   )}
+                  {m.role === 'editor' &&
+                    (locked ? (
+                      <span className="text-[11.5px] text-ink-400">· {accessSummary(m.role, m.access, features)}</span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setAccessFor(accessFor === m.id ? null : m.id)}
+                        className={`h-8 rounded-lg px-2.5 text-[12px] font-medium ${
+                          accessFor === m.id ? 'bg-brand-soft text-brand' : 'text-ink-600 hover:bg-ink-100'
+                        }`}
+                        title="Choose which features they can use"
+                      >
+                        Access: {accessSummary(m.role, m.access, features)}
+                      </button>
+                    ))}
                   {!locked && (
                     <div className="flex items-center gap-1">
                       <button
@@ -1370,6 +1441,20 @@ function TeamTab({ showToast }) {
                     </div>
                   )}
                   </div>
+                  {accessFor === m.id && m.role === 'editor' && !locked && (
+                    <div className="basis-full">
+                      <AccessEditor
+                        features={features}
+                        value={m.access}
+                        saveLabel="Save access"
+                        onCancel={() => setAccessFor(null)}
+                        onSave={async (access) => {
+                          await update(m, access == null ? { all_access: true } : { access })
+                          setAccessFor(null)
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -1382,6 +1467,226 @@ function TeamTab({ showToast }) {
           </li>
         ))}
       </ul>
+    </div>
+  )
+}
+
+/** "Everything" or "Only 3 of 9" — how much of the app an editor can use. */
+function accessSummary(role, access, features) {
+  if (role !== 'editor' || access == null) return 'Everything'
+  if (!access.length) return 'View only'
+  if (access.length <= 2 && features.length) {
+    return access.map((k) => features.find((f) => f.key === k)?.label || k).join(', ')
+  }
+  return `${access.length} of ${features.length || access.length} features`
+}
+
+/** Pick what an editor can use: everything, or only the ticked features.
+ *  Dashboard and Calendar are always visible. */
+function AccessEditor({ features, value, onSave, onCancel, saveLabel = 'Save', onChange }) {
+  const [mode, setMode] = useState(value == null ? 'all' : 'some')
+  const [picked, setPicked] = useState(() => new Set(value || features.map((f) => f.key)))
+  const [saving, setSaving] = useState(false)
+  // Features can arrive after this opens — start "Only what I pick" from all ticked.
+  useEffect(() => {
+    if (value == null && features.length) setPicked((s) => (s.size ? s : new Set(features.map((f) => f.key))))
+  }, [features, value])
+  const result = mode === 'all' ? null : features.map((f) => f.key).filter((k) => picked.has(k))
+  useEffect(() => {
+    onChange?.(result)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, picked])
+  const toggle = (k) =>
+    setPicked((s) => {
+      const next = new Set(s)
+      next.has(k) ? next.delete(k) : next.add(k)
+      return next
+    })
+
+  return (
+    <div className="mt-1 rounded-xl border border-ink-200 bg-ink-50/60 p-3">
+      <div className="inline-flex rounded-lg bg-white p-0.5 ring-1 ring-ink-200">
+        {[
+          ['all', 'Everything'],
+          ['some', 'Only what I pick'],
+        ].map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setMode(id)}
+            className={`rounded-md px-3 py-1 text-[12px] font-semibold ${mode === id ? 'bg-brand-soft text-brand' : 'text-ink-600 hover:text-ink-900'}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {mode === 'some' && (
+        <div className="mt-3 grid gap-1.5 sm:grid-cols-2">
+          {features.map((f) => (
+            <label key={f.key} className="flex cursor-pointer items-start gap-2.5 rounded-lg bg-white px-2.5 py-2 ring-1 ring-ink-100 hover:ring-brand-line">
+              <input type="checkbox" className="mt-0.5 accent-brand" checked={picked.has(f.key)} onChange={() => toggle(f.key)} />
+              <span className="min-w-0">
+                <span className="block text-[12px] font-semibold text-ink-800">{f.label}</span>
+                <span className="block text-[11px] leading-snug text-ink-500">{f.desc}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+      )}
+      <p className="mt-2 text-[11px] text-ink-400">Dashboard and Calendar are always visible. Admins always have everything.</p>
+      {onSave && (
+        <div className="mt-2.5 flex justify-end gap-2">
+          <button type="button" onClick={onCancel} className="btn-ghost">
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={async () => {
+              setSaving(true)
+              try {
+                await onSave(result)
+              } finally {
+                setSaving(false)
+              }
+            }}
+            className="btn-primary disabled:opacity-50"
+          >
+            {saving ? 'Saving…' : saveLabel}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Make an invite link: role, what they can use, how long it works and for
+ *  how many people. The link itself is only shown here, once. */
+function InvitePanel({ features, onClose, onCreated, showToast }) {
+  const [role, setRole] = useState('editor')
+  const [access, setAccess] = useState(null)
+  const [days, setDays] = useState(7)
+  const [multi, setMulti] = useState(false)
+  const [label, setLabel] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [link, setLink] = useState(null)
+
+  const create = async () => {
+    setBusy(true)
+    try {
+      const inv = await api.post('/auth/invites', {
+        role,
+        access: role === 'editor' ? access : null,
+        expires_days: days,
+        max_uses: multi ? null : 1,
+        label: label.trim(),
+      })
+      const url = `${window.location.origin}/join/${inv.token}`
+      setLink(url)
+      onCreated(inv)
+      try {
+        await navigator.clipboard.writeText(url)
+        showToast('Invite link copied')
+      } catch {
+        /* the copy button is right there */
+      }
+    } catch (e) {
+      showToast(e.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const seg = (on) => `rounded-md px-3 py-1 text-[12px] font-semibold ${on ? 'bg-brand-soft text-brand' : 'text-ink-600 hover:text-ink-900'}`
+
+  if (link) {
+    return (
+      <div className="space-y-3 rounded-2xl border border-brand/25 bg-brand-soft/30 p-4 animate-fadein">
+        <div className="text-[13px] font-semibold text-ink-900">Your invite link is ready</div>
+        <div className="flex gap-2">
+          <input readOnly value={link} onFocus={(e) => e.target.select()} className={`${input} font-mono text-[12px]`} />
+          <button
+            type="button"
+            onClick={() => navigator.clipboard.writeText(link).then(() => showToast('Copied'), () => {})}
+            className="btn-primary flex-none"
+          >
+            <FiCopy size={14} /> Copy
+          </button>
+        </div>
+        <p className="text-[11.5px] leading-relaxed text-ink-500">
+          Send it by Telegram, Messenger or email. {multi ? 'Anyone with it can join' : 'One person can use it'} until{' '}
+          {new Date(Date.now() + days * 86400000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}. They set their
+          own name, email and password. For safety this is the only time the link is shown — you can turn it off below any time.
+        </p>
+        <div className="flex justify-end">
+          <button type="button" onClick={onClose} className="btn-ghost">
+            Done
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4 rounded-2xl border border-brand/25 bg-brand-soft/30 p-4 animate-fadein">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <div className="mb-1.5 text-[12px] font-semibold text-ink-800">They join as</div>
+          <div className="inline-flex rounded-lg bg-white p-0.5 ring-1 ring-ink-200">
+            <button type="button" onClick={() => setRole('editor')} className={seg(role === 'editor')}>
+              Editor
+            </button>
+            <button type="button" onClick={() => setRole('admin')} className={seg(role === 'admin')}>
+              Admin
+            </button>
+          </div>
+          <p className="mt-1 text-[11px] text-ink-500">{ROLE_HINT[role]}</p>
+        </div>
+        <div>
+          <div className="mb-1.5 text-[12px] font-semibold text-ink-800">Link works for</div>
+          <div className="flex flex-wrap gap-2">
+            <div className="inline-flex rounded-lg bg-white p-0.5 ring-1 ring-ink-200">
+              {[1, 7, 30].map((d) => (
+                <button key={d} type="button" onClick={() => setDays(d)} className={seg(days === d)}>
+                  {d === 1 ? '1 day' : `${d} days`}
+                </button>
+              ))}
+            </div>
+            <div className="inline-flex rounded-lg bg-white p-0.5 ring-1 ring-ink-200">
+              <button type="button" onClick={() => setMulti(false)} className={seg(!multi)}>
+                1 person
+              </button>
+              <button type="button" onClick={() => setMulti(true)} className={seg(multi)}>
+                Many people
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {role === 'editor' && (
+        <div>
+          <div className="mb-1.5 text-[12px] font-semibold text-ink-800">What they can use</div>
+          <AccessEditor features={features} value={null} onChange={setAccess} />
+        </div>
+      )}
+
+      <input
+        value={label}
+        onChange={(e) => setLabel(e.target.value)}
+        placeholder="Note for yourself (optional) — e.g. Dara, content writer"
+        className={input}
+        maxLength={120}
+      />
+
+      <div className="flex justify-end gap-2">
+        <button type="button" onClick={onClose} className="btn-ghost">
+          Cancel
+        </button>
+        <button type="button" onClick={create} disabled={busy} className="btn-primary disabled:opacity-50">
+          <FiLink size={14} /> {busy ? 'Creating…' : 'Create link'}
+        </button>
+      </div>
     </div>
   )
 }

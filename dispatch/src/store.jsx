@@ -81,6 +81,8 @@ export function StoreProvider({ children }) {
   const [autoReady, setAutoReady] = useState(false);
   const [channelsReady, setChannelsReady] = useState(false);
   const [libraryCount, setLibraryCount] = useState(0);
+  // Finished since this person last opened the Library (sidebar badge).
+  const [libraryNew, setLibraryNew] = useState(0);
   const [toast, setToast] = useState(null);
   const pollRef = useRef(null);
 
@@ -100,7 +102,10 @@ export function StoreProvider({ children }) {
     () =>
       api
         .get("/views/sidebar")
-        .then((s) => setLibraryCount(s?.library_count || 0))
+        .then((s) => {
+          setLibraryCount(s?.library_count || 0);
+          setLibraryNew(s?.library_new || 0);
+        })
         .catch(() => {}),
     [],
   );
@@ -238,6 +243,8 @@ export function StoreProvider({ children }) {
         refreshQueue,
         queueReady,
         libraryCount,
+        libraryNew,
+        setLibraryNew,
         refreshCounts,
         review,
         setReview,

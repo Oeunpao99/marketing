@@ -30,6 +30,7 @@ import SettingsModal from "./SettingsModal";
 import { openCreateBrand } from "./CreateBrandDrawer";
 import Notifications from "./Notifications";
 import { useNotifications } from "../../lib/notifications";
+import { canOpen } from "../../lib/access";
 
 // Same two-tier shape as the reference: a flat core nav up top, then labeled
 // sections. Every entry is a real page — nothing here points nowhere.
@@ -38,7 +39,7 @@ const CORE = [
   { to: "/channels", icon: FiSmartphone, label: "Platforms", expand: "platforms" },
   { to: "/review", icon: FiFileText, label: "Content", badge: "review" },
   { to: "/calendar", icon: FiCalendar, label: "Calendar" },
-  { to: "/library", icon: FiImage, label: "Media Library" },
+  { to: "/library", icon: FiImage, label: "Media Library", badge: "library" },
   { to: "/new", icon: FiEdit, label: "Compose" },
 ];
 
@@ -96,7 +97,7 @@ function recordVisit(route) {
 // ``collapsed`` = the slim icon rail (Shell's sidebar toggle): icons only,
 // labels as hover tooltips, counts as dots, menus open beside the rail.
 export default function Sidebar({ collapsed = false }) {
-  const { brands, channels, queue, review, activeBrand, switchBrand, showToast } = useStore();
+  const { brands, channels, queue, review, activeBrand, switchBrand, showToast, libraryNew } = useStore();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -166,10 +167,12 @@ export default function Sidebar({ collapsed = false }) {
   const badgeFor = (badge) => {
     if (badge === "review" && reviewCount > 0) return reviewCount;
     if (badge === "queue" && queue.length > 0) return queue.length;
+    if (badge === "library" && libraryNew > 0) return libraryNew;
     return null;
   };
 
   const navItem = ({ to, end, icon: Icon, label, badge, expand, uses }) => {
+    if (!canOpen(user, to)) return null; // not in this person's access
     const count = badgeFor(badge);
     if (collapsed) {
       return (
@@ -220,9 +223,17 @@ export default function Sidebar({ collapsed = false }) {
                   {uses}
                 </span>
               )}
-              {count != null && (
-                <span className="text-[11px] font-semibold text-ink-500 tabular-nums">{count}</span>
-              )}
+              {count != null &&
+                (badge === "library" ? (
+                  <span
+                    title={`${count} new since you last looked`}
+                    className="rounded-full bg-brand px-1.5 py-px text-[10px] font-bold text-white tabular-nums"
+                  >
+                    {count} new
+                  </span>
+                ) : (
+                  <span className="text-[11px] font-semibold text-ink-500 tabular-nums">{count}</span>
+                ))}
               {expand && (
                 <button
                   type="button"
@@ -439,7 +450,7 @@ export default function Sidebar({ collapsed = false }) {
         )}
         <div className={collapsed ? "space-y-1" : "space-y-0.5"}>{CORE.map(navItem)}</div>
 
-        {SECTIONS.map((section) => (
+        {SECTIONS.filter((section) => section.items.some((i) => canOpen(user, i.to))).map((section) => (
           <div key={section.label}>
             <div className={`my-3 border-t border-ink-200/70 ${collapsed ? "mx-2" : "mx-0"}`} />
             {!collapsed && <div className="px-3 mb-1.5 text-[12px] font-medium text-ink-500">{section.label}</div>}

@@ -1,7 +1,10 @@
 export default function Toast({ message }) {
   return (
     <div
-      className={`fixed left-1/2 bottom-7 -translate-x-1/2 z-50 toast-enter ${
+      // Above every drawer / dialog (they go up to z-[120]) so a message
+      // about what you just did in one is never hidden behind it; below the
+      // maintenance screen (z-[10000]).
+      className={`fixed left-1/2 bottom-7 -translate-x-1/2 z-[200] toast-enter ${
         message ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0 pointer-events-none'
       }`}
     >

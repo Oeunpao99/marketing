@@ -410,6 +410,8 @@ class UserOut(ORMModel):
     role: str = "editor"
     is_active: bool = True
     preferences: dict[str, Any] = Field(default_factory=dict)
+    # Features this person may use (app/access.py); null = everything.
+    access: list[str] | None = None
 
 
 class WorkspaceUpdate(BaseModel):

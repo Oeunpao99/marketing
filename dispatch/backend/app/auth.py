@@ -6,7 +6,9 @@ owner — each sign-up is its own isolated account (app/tenancy.py).
 
 from __future__ import annotations
 
+import hashlib
 import ipaddress
+import secrets
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -15,8 +17,9 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Brand, LoginEvent, TeamMember, Workspace
+from app.models import Brand, LoginEvent, TeamMember, Workspace, WorkspaceInvite
 from app.schemas import AuthOut, LoginIn, RegisterIn, UserOut, WorkspaceUpdate
+from app import access as feature_access
 from app import sessions
 from app.security import create_token, hash_password, verify_password
 from app.tenancy import MANAGER_ROLES, get_current_user, require_manager
@@ -315,6 +318,7 @@ def _member_out(m: TeamMember) -> dict:
         "is_active": m.is_active,
         "can_login": bool(m.password_hash),
         "created_at": m.created_at,
+        "access": m.access,
     }
 
 
@@ -338,6 +342,7 @@ class MemberIn(BaseModel):
     email: str = Field(min_length=3, max_length=160)
     role: str = "editor"
     password: str = Field(min_length=8, max_length=128)
+    access: list[str] | None = None
 
 
 @router.post("/members", status_code=201)
@@ -355,6 +360,7 @@ def add_member(payload: MemberIn, manager: TeamMember = Depends(require_manager)
         role=payload.role,
         password_hash=hash_password(payload.password),
         is_active=True,
+        access=feature_access.clean(payload.access) if payload.role == "editor" else None,
     )
     db.add(m)
     db.commit()
@@ -365,6 +371,10 @@ def add_member(payload: MemberIn, manager: TeamMember = Depends(require_manager)
 class MemberUpdate(BaseModel):
     role: str | None = None
     is_active: bool | None = None
+    # Editor feature access: a list of app/access.py keys; send
+    # "all_access": true to go back to everything.
+    access: list[str] | None = None
+    all_access: bool = False
 
 
 @router.patch("/members/{member_id}")
@@ -382,6 +392,10 @@ def update_member(
         m.role = payload.role
     if payload.is_active is not None:
         m.is_active = payload.is_active
+    if payload.all_access or m.role != "editor":
+        m.access = None
+    elif payload.access is not None:
+        m.access = feature_access.clean(payload.access)
     db.commit()
     db.refresh(m)
     return _member_out(m)
@@ -397,3 +411,160 @@ def remove_member(member_id: int, manager: TeamMember = Depends(require_manager)
     db.delete(m)
     db.commit()
     return None
+
+
+# ── Invite links ──────────────────────────────────────────────────────────
+# An owner/admin makes a link (role, feature access, expiry, how many people);
+# whoever opens it picks their own name, email and password and is signed in
+# to this workspace. Only the token's hash is stored — the link is shown once.
+_INVITE_DAYS = {1, 7, 30}
+
+
+def _hash(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def _invite_usable(inv: WorkspaceInvite | None) -> bool:
+    return (
+        inv is not None
+        and not inv.revoked
+        and inv.expires_at > datetime.now(UTC)
+        and (inv.max_uses is None or inv.uses < inv.max_uses)
+    )
+
+
+def _invite_out(inv: WorkspaceInvite) -> dict:
+    return {
+        "id": inv.id,
+        "role": inv.role,
+        "access": inv.access,
+        "label": inv.label,
+        "expires_at": inv.expires_at,
+        "max_uses": inv.max_uses,
+        "uses": inv.uses,
+        "active": _invite_usable(inv),
+        "created_at": inv.created_at,
+    }
+
+
+class InviteIn(BaseModel):
+    role: str = "editor"
+    access: list[str] | None = None
+    label: str = Field(default="", max_length=120)
+    expires_days: int = 7
+    # 1 = a single person; null = anyone with the link until it expires.
+    max_uses: int | None = 1
+
+
+@router.get("/features")
+def features(user: TeamMember = Depends(get_current_user)):
+    """The features an editor's access can include (Team page checkboxes)."""
+    return [{"key": k, "label": label, "desc": desc} for k, (label, desc) in feature_access.FEATURES.items()]
+
+
+@router.get("/invites")
+def list_invites(manager: TeamMember = Depends(require_manager), db: Session = Depends(get_db)):
+    rows = db.scalars(
+        select(WorkspaceInvite)
+        .where(WorkspaceInvite.workspace_id == manager.workspace_id, WorkspaceInvite.revoked.is_(False))
+        .order_by(WorkspaceInvite.id.desc())
+    ).all()
+    return [_invite_out(i) for i in rows if _invite_usable(i)]
+
+
+@router.post("/invites", status_code=201)
+def create_invite(payload: InviteIn, manager: TeamMember = Depends(require_manager), db: Session = Depends(get_db)):
+    if payload.role not in ("admin", "editor"):
+        raise HTTPException(422, "Role must be admin or editor.")
+    if payload.expires_days not in _INVITE_DAYS:
+        raise HTTPException(422, "Links last 1, 7 or 30 days.")
+    if payload.max_uses is not None and not 1 <= payload.max_uses <= 100:
+        raise HTTPException(422, "A link can be used by 1 to 100 people.")
+    token = secrets.token_urlsafe(24)
+    inv = WorkspaceInvite(
+        workspace_id=manager.workspace_id,
+        created_by=manager.id,
+        token_hash=_hash(token),
+        role=payload.role,
+        access=feature_access.clean(payload.access) if payload.role == "editor" else None,
+        label=payload.label.strip(),
+        expires_at=datetime.now(UTC) + timedelta(days=payload.expires_days),
+        max_uses=payload.max_uses,
+    )
+    db.add(inv)
+    db.commit()
+    db.refresh(inv)
+    return {**_invite_out(inv), "token": token}
+
+
+@router.delete("/invites/{invite_id}", status_code=204)
+def revoke_invite(invite_id: int, manager: TeamMember = Depends(require_manager), db: Session = Depends(get_db)):
+    inv = db.get(WorkspaceInvite, invite_id)
+    if inv is None or inv.workspace_id != manager.workspace_id:
+        raise HTTPException(404, "Invite not found.")
+    inv.revoked = True
+    db.commit()
+    return None
+
+
+def _open_invite(db: Session, token: str) -> WorkspaceInvite:
+    inv = db.scalar(select(WorkspaceInvite).where(WorkspaceInvite.token_hash == _hash(token or "")))
+    if not _invite_usable(inv):
+        raise HTTPException(404, "This invite link has expired or was already used. Ask for a new one.")
+    return inv
+
+
+@router.get("/join/{token}")
+def invite_info(token: str, db: Session = Depends(get_db)):
+    """Public: what the join page shows before someone signs up."""
+    inv = _open_invite(db, token)
+    ws = db.get(Workspace, inv.workspace_id)
+    inviter = db.get(TeamMember, inv.created_by) if inv.created_by else None
+    return {
+        "workspace_name": ws.name if ws else "",
+        "invited_by": inviter.name if inviter else "",
+        "role": inv.role,
+        "access": [
+            feature_access.FEATURES[k][0] for k in (inv.access or []) if k in feature_access.FEATURES
+        ] if inv.access is not None else None,
+    }
+
+
+class JoinIn(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    email: str = Field(min_length=3, max_length=160)
+    password: str = Field(min_length=8, max_length=128)
+
+
+@router.post("/join/{token}", response_model=AuthOut, status_code=201)
+def join(token: str, payload: JoinIn, request: Request, db: Session = Depends(get_db)):
+    """Public: create this person's login in the invite's workspace and sign
+    them in. The invite row is locked so a single-use link can't be used twice
+    by two people at the same moment."""
+    inv = db.scalar(
+        select(WorkspaceInvite).where(WorkspaceInvite.token_hash == _hash(token or "")).with_for_update()
+    )
+    if not _invite_usable(inv):
+        raise HTTPException(404, "This invite link has expired or was already used. Ask for a new one.")
+    email = _clean_email(payload.email)
+    if _email_taken(db, email):
+        raise HTTPException(409, "An account with that email already exists — sign in instead, or use another email.")
+    name = payload.name.strip()
+    user = TeamMember(
+        workspace_id=inv.workspace_id,
+        name=name,
+        email=email,
+        initials=_initials(name),
+        role=inv.role,
+        password_hash=hash_password(payload.password),
+        is_active=True,
+        access=inv.access if inv.role == "editor" else None,
+    )
+    db.add(user)
+    inv.uses += 1
+    db.commit()
+    db.refresh(user)
+    record_login(db, request, email, "signup", user)
+    token_out = create_token(user.id)
+    sessions.start(token_out, user, request)
+    return AuthOut(token=token_out, user=_user_out(db, user))

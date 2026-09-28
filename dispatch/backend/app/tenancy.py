@@ -55,6 +55,9 @@ def get_current_user(
     from app.billing import bind_user  # local import: billing imports this module
 
     sessions.touch(db, authorization[7:].strip(), user, request)  # signed out elsewhere → 401
+    from app import access  # local import: access imports this module
+
+    access.check(request, user)  # an editor limited to some features → 403 on the rest
     bind_user(user)  # AI calls in this request are charged to their workspace
     return user
 
