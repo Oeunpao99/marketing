@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { FaLinkedin } from "react-icons/fa";
-import { FiGrid } from "react-icons/fi";
+import { FiGrid, FiTrash2 } from "react-icons/fi";
 import {
   SiFacebook,
   SiInstagram,
@@ -11,6 +11,7 @@ import {
 } from "react-icons/si";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
+import { useAuth } from "../auth";
 import Tag from "../components/ui/Tag";
 import { PLAT } from "../data/brands";
 import { colorForBrand } from "../lib/brandColor";
@@ -47,6 +48,41 @@ export default function ChannelsPage() {
   const [confirming, setConfirming] = useState(null);
   const [pending, setPending] = useState(null);
   const [disconnecting, setDisconnecting] = useState(false);
+
+  // Delete a brand (owners / admins): a preview of what goes with it, and the
+  // brand's name typed out before the button unlocks.
+  const { user } = useAuth();
+  const canManage = user?.role === "owner" || user?.role === "admin";
+  const [removing, setRemoving] = useState(null); // { brand, usage | null }
+  const [typedName, setTypedName] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
+  const askDeleteBrand = async (b) => {
+    setRemoving({ brand: b, usage: null });
+    setTypedName("");
+    try {
+      const usage = await api.get(`/views/brands/${b.id}/delete-preview`);
+      setRemoving((cur) => (cur?.brand.id === b.id ? { ...cur, usage } : cur));
+    } catch (e) {
+      showToast(`Could not check this brand — ${e.message}`);
+      setRemoving(null);
+    }
+  };
+
+  const deleteBrand = async () => {
+    if (!removing || deleting) return;
+    setDeleting(true);
+    try {
+      await api.del(`/views/brands/${removing.brand.id}`);
+      await refreshChannels();
+      showToast(`${removing.brand.name} deleted`);
+      setRemoving(null);
+    } catch (e) {
+      showToast(`Could not delete — ${e.message}`);
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const askDisconnect = async (c) => {
     setConfirming(c);
@@ -261,6 +297,17 @@ export default function ChannelsPage() {
                   >
                     + Add platform
                   </button>
+                  {canManage && (
+                    <button
+                      type="button"
+                      onClick={() => askDeleteBrand(b)}
+                      title={`Delete ${b.name}`}
+                      aria-label={`Delete ${b.name}`}
+                      className="grid h-[26px] w-[26px] place-items-center rounded-lg border border-ink-200 text-ink-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600 transition-all duration-150"
+                    >
+                      <FiTrash2 size={12} />
+                    </button>
+                  )}
                 </div>
               </header>
               {!rows.length && (
@@ -379,6 +426,79 @@ export default function ChannelsPage() {
                   className="px-3.5 py-1.5 rounded-xl bg-red-600 text-white text-[12px] font-semibold hover:bg-red-700 disabled:opacity-50 transition-all duration-150"
                 >
                   {disconnecting ? "Disconnecting…" : "Disconnect"}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
+      {removing &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[110] grid place-items-center glass-overlay p-4 animate-fadein"
+            onClick={() => !deleting && setRemoving(null)}
+          >
+            <div
+              className="w-full max-w-[440px] rounded-3xl glass-panel p-5"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-2 text-[14px] font-bold text-ink-800">
+                <FiTrash2 size={15} className="text-red-600" />
+                Delete {removing.brand.name}?
+              </div>
+              <p className="mt-2 text-[12px] text-ink-600 leading-relaxed">
+                This permanently removes the brand from ContentFlow. Posts already published on
+                Facebook, TikTok and other platforms stay there — only ContentFlow’s copy goes.
+                Images and videos stay in your Library.
+              </p>
+              <div className="mt-3 rounded-xl bg-ink-50 px-3 py-2.5 text-[11.5px] text-ink-700">
+                {removing.usage === null ? (
+                  "Checking what belongs to this brand…"
+                ) : (
+                  <>
+                    <div className="font-semibold text-ink-800 mb-1">Also deleted:</div>
+                    <ul className="space-y-0.5">
+                      <li>{removing.usage.channels} connected channel{removing.usage.channels === 1 ? "" : "s"} and their saved logins</li>
+                      <li>{removing.usage.posts} post{removing.usage.posts === 1 ? "" : "s"} and their stats in Analytics</li>
+                      <li>{removing.usage.drafts} idea{removing.usage.drafts === 1 ? "" : "s"}, {removing.usage.products} product{removing.usage.products === 1 ? "" : "s"}, its auto-generate settings and weekly plans</li>
+                    </ul>
+                    {removing.usage.queued > 0 && (
+                      <div className="mt-1.5 font-semibold text-red-700">
+                        {removing.usage.queued} scheduled post{removing.usage.queued === 1 ? "" : "s"} will never go out.
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+              <label className="mt-4 block">
+                <span className="block text-[11.5px] text-ink-600 mb-1.5">
+                  Type <span className="font-semibold text-ink-900">{removing.brand.name}</span> to confirm
+                </span>
+                <input
+                  autoFocus
+                  value={typedName}
+                  onChange={(e) => setTypedName(e.target.value)}
+                  className="input"
+                  placeholder={removing.brand.name}
+                />
+              </label>
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  disabled={deleting}
+                  onClick={() => setRemoving(null)}
+                  className="btn-ghost px-3.5 py-1.5"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={deleting || removing.usage === null || typedName.trim() !== removing.brand.name.trim()}
+                  onClick={deleteBrand}
+                  className="px-3.5 py-1.5 rounded-xl bg-red-600 text-white text-[12px] font-semibold hover:bg-red-700 disabled:opacity-50 transition-all duration-150"
+                >
+                  {deleting ? "Deleting…" : "Delete brand"}
                 </button>
               </div>
             </div>

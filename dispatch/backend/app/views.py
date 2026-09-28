@@ -31,11 +31,13 @@ from app.models import (
     Platform,
     Post,
     PostTarget,
+    Product,
+    TeamMember,
     Video,
 )
 from app.publishers import PublishError, publish, verify_telegram
 from app.security import sign_payload, verify_payload
-from app.tenancy import current_workspace_id, owned, scope
+from app.tenancy import MANAGER_ROLES, current_workspace_id, get_current_user, owned, scope
 
 log = logging.getLogger("app.views")
 
@@ -1059,6 +1061,44 @@ def import_channel_posts(channel_id: int, db: Session = Depends(get_db), ws: int
     except meta.MetaError as exc:
         raise HTTPException(502, str(exc)) from exc
     return {"imported": added, "days": importer.LOOKBACK_DAYS}
+
+
+# ── delete a brand ────────────────────────────────────────────────────────
+def _brand_usage(db: Session, brand_id: int) -> dict:
+    def count(q) -> int:
+        return db.scalar(select(func.count()).select_from(q.subquery())) or 0
+
+    post_ids = select(Post.id).where(Post.brand_id == brand_id)
+    return {
+        "channels": count(select(Channel.id).where(Channel.brand_id == brand_id, Channel.status == "live")),
+        "posts": count(post_ids),
+        "queued": count(
+            select(PostTarget.id).where(PostTarget.post_id.in_(post_ids), PostTarget.status.in_(("queued", "posting")))
+        ),
+        "drafts": count(select(Draft.id).where(Draft.brand_id == brand_id)),
+        "products": count(select(Product.id).where(Product.brand_id == brand_id)),
+    }
+
+
+@router.get("/brands/{brand_id}/delete-preview")
+def brand_delete_preview(brand_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    """What deleting this brand would remove — shown in the confirm step."""
+    brand = owned(db, Brand, brand_id, ws)
+    return {"id": brand.id, "name": brand.name, **_brand_usage(db, brand.id)}
+
+
+@router.delete("/brands/{brand_id}", status_code=204)
+def delete_brand(brand_id: int, db: Session = Depends(get_db), user: TeamMember = Depends(get_current_user)):
+    """Delete a brand and everything that belongs only to it: its channels
+    (and saved logins), posts and their stats, ideas, products, automation and
+    weekly plans (database cascades). Queued posts never go out. Images and
+    videos stay in the workspace Library. Owners and admins only."""
+    if user.role not in MANAGER_ROLES:
+        raise HTTPException(403, "Only a workspace owner or admin can delete a brand.")
+    brand = owned(db, Brand, brand_id, user.workspace_id)
+    db.delete(brand)
+    db.commit()
+    return None
 
 
 @router.get("/channels/{channel_id}/pending")

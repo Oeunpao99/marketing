@@ -123,6 +123,8 @@ def build_router(r: Resource) -> APIRouter:
     ):
         can_write(user)
         obj = owned(db, Model, item_id, user.workspace_id, r.singular)
+        if Model is Brand and user.role not in MANAGER_ROLES:
+            raise HTTPException(403, "Only a workspace owner or admin can delete a brand.")
         if Model is TeamMember and obj.id == user.id:
             raise HTTPException(400, "You can't remove yourself.")
         db.delete(obj)
