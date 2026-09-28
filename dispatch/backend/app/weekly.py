@@ -138,8 +138,80 @@ def build_report(db: Session, brand_id: int, learnings: dict | None = None) -> d
         "this_week": _period(db, brand_id, now - week, now),
         "last_week": _period(db, brand_id, now - 2 * week, now - week),
         "rules": learnings.get("rules", []),
+        "weak_rules": learnings.get("weak_rules", []),
+        "pillar_stats": learnings.get("pillar_stats", {}),
         "learned_from": learnings.get("posts", 0),
     }
+
+
+# ── the advisor's summary (what worked / improve / audience / next) ───────
+ADVISOR_PROMPT = (
+    "You are this brand's social media strategist writing the weekly summary a busy "
+    "business owner reads in 20 seconds. Use ONLY the DATA given: quote its real "
+    "numbers, never invent numbers, trends, competitors or audience traits. Plain, "
+    "friendly English, 1-2 short sentences per field. When the data is thin (few "
+    "posts, no measured patterns) say so honestly and base the advice on the plan.\n"
+    "Fields:\n"
+    "- worked: what did best, with its numbers.\n"
+    "- improve: what did worst or what's missing, with its numbers, and one concrete fix.\n"
+    "- audience: what this audience seems to respond to, judged only from the topic and "
+    "format numbers.\n"
+    "- recommendation: next week's focus in one sentence, matching the plan given "
+    "(e.g. 'Focus on education and questions: 3 tip posts and 2 polls, one promotion').\n"
+    "- focus: the 1-2 topic keys the week leans on, from the plan's topics.\n"
+    'Respond with ONLY a JSON object: {"worked": "...", "improve": "...", '
+    '"audience": "...", "recommendation": "...", "focus": ["..."]}'
+)
+
+
+def advisor_summary(brand: Brand, report: dict, items: list[dict]) -> dict | None:
+    """One short AI call turning the measured report + the new plan into the
+    Weekly page's advisor text. Best-effort: None if it fails (the page then
+    shows the measured rules on their own)."""
+    from app.config import get_settings
+    from app.content_ai import PILLARS, _chat
+
+    this, last = report.get("this_week", {}), report.get("last_week", {})
+    lines = [
+        f"Brand: {brand.name}",
+        f"Last 7 days: {this.get('posts', 0)} posts, {this.get('engagement', 0)} engagement"
+        + (f", {this['views']} views" if this.get("views") is not None else ""),
+        f"The 7 days before: {last.get('posts', 0)} posts, {last.get('engagement', 0)} engagement"
+        + (f", {last['views']} views" if last.get("views") is not None else ""),
+    ]
+    if this.get("top"):
+        lines.append(f"Best post last week: \"{this['top']['title']}\" on {this['top']['platform']} ({this['top']['engagement']} engagement)")
+    lines.append(f"Posts measured over the last 90 days: {report.get('learned_from', 0)}")
+    for label, key in (("What worked (measured)", "rules"), ("What lagged (measured)", "weak_rules")):
+        rows = report.get(key) or []
+        lines.append(f"{label}:" + ("".join(f"\n- {r['text']} ({r['evidence']})" for r in rows) if rows else " none clear yet"))
+    stats = report.get("pillar_stats") or {}
+    if stats:
+        lines.append(
+            "Engagement per topic: "
+            + "; ".join(f"{s['label']} {s['avg']} per post ({s['posts']} posts)" for s in sorted(stats.values(), key=lambda s: -s["avg"]))
+        )
+    lines.append(
+        "Next week's plan: "
+        + "; ".join(
+            f"{date.fromisoformat(i['day']).strftime('%a %d %b')} {PILLARS.get(i.get('pillar'), ('?',))[0]} ({i.get('goal') or '-'})"
+            for i in items
+        )
+    )
+    try:
+        out = _chat(
+            [{"role": "system", "content": ADVISOR_PROMPT}, {"role": "user", "content": "\n".join(lines)}],
+            get_settings().azure_openai_deployment,
+            max_tokens=1500,
+        )
+    except ContentAIError as exc:
+        log.warning("weekly advisor summary failed for brand %s: %s", brand.id, exc)
+        return None
+    if not isinstance(out, dict):
+        return None
+    summary = {k: str(out.get(k) or "").strip()[:400] for k in ("worked", "improve", "audience", "recommendation")}
+    summary["focus"] = [f for f in (out.get("focus") or []) if f in PILLARS][:2]
+    return summary if any(summary[k] for k in ("worked", "improve", "recommendation")) else None
 
 
 # ── plan ──────────────────────────────────────────────────────────────────
@@ -213,6 +285,8 @@ def build_plan(db: Session, brand_id: int, starts_on: date | None = None, step=l
         for n, idea in enumerate(ideas)
     ]
     items.sort(key=lambda i: i["day"])
+    step(90, "Writing your weekly summary…")
+    report["advisor"] = advisor_summary(brand, report, items)
     for old in db.scalars(
         select(WeeklyPlan).where(WeeklyPlan.brand_id == brand_id, WeeklyPlan.status == "ready")
     ):

@@ -2,6 +2,15 @@ export const BRAND_COLOR = 'rgb(var(--brand))'
 
 export const isKhmer = (s) => /[ក-៿᧠-᧿]/.test(s || '')
 
+/** A post's title, or — when it's only an uploaded file's name
+ *  ("ai-23.png", "90b433aa-….jpg") — the first line of its caption. */
+export function postTitle(title, caption) {
+  const t = (title || '').trim()
+  if (t && !/\.(jpe?g|png|webp|gif|mp4|mov|webm|m4v)$/i.test(t) && t !== 'Untitled video') return t
+  const first = (caption || '').split('\n').find((l) => l.trim())
+  return first ? first.trim() : t || 'Untitled post'
+}
+
 export function timeOf(iso) {
   if (!iso) return '--:--'
   const d = new Date(iso)

@@ -168,6 +168,7 @@ def brand_learnings(db: Session, brand_id: int) -> dict:
     # Content pillar (content_ai.PILLARS) and marketing angle (content_ai.ANGLES)
     # — only AI-written posts carry them, so each is compared against the
     # others of its kind, never against hand-made posts.
+    grouped: dict[str, dict[str, list[float]]] = {}
     for field, known, noun, share in (
         ("pillar", PILLARS, "topics", "lean the pillar mix towards it (without breaking the mix rules)"),
         ("angle", ANGLES, "angles", "use it for about half of the ideas, and vary the rest"),
@@ -176,6 +177,7 @@ def brand_learnings(db: Session, brand_id: int) -> dict:
         for p in posts:
             if p[field] in known:
                 by_key.setdefault(p[field], []).append(p["engagement"])
+        grouped[field] = by_key
         best = max(by_key, key=lambda k: mean(by_key[k]), default=None)
         if best is None:
             continue
@@ -191,6 +193,40 @@ def brand_learnings(db: Session, brand_id: int) -> dict:
                 }
             )
             guidance.append(f"The {best} {field} ({label}: {recipe}) works best here — {share}.")
+
+    # What didn't work — the weakest format / topic / angle, on the same
+    # evidence bar (each side ≥ MIN_POSTS, the others beat it by RATIO). The
+    # Weekly plan's "What to improve" shows these, and the AI uses them less.
+    weak_rules: list[dict] = []
+    kind_names = {"video": "Video", "image": "Image", "text": "Text-only"}
+    for rid, bucket, name_of, noun in (
+        ("weak-format", by_kind, lambda k: kind_names.get(k, k), "formats"),
+        ("weak-pillar", grouped.get("pillar", {}), lambda k: PILLARS[k][0], "topics"),
+        ("weak-angle", grouped.get("angle", {}), lambda k: ANGLES[k][0], "angles"),
+    ):
+        if len(bucket) < 2:
+            continue
+        worst = min(bucket, key=lambda k: mean(bucket[k]))
+        rest = [e for k, es in bucket.items() if k != worst for e in es]
+        c = _compare(rest, bucket[worst])  # how much better everything else does
+        if c and c[0] >= RATIO:
+            name = name_of(worst)
+            gap = "far" if c[0] == float("inf") else _x(c[0])
+            weak_rules.append(
+                {
+                    "id": rid,
+                    "key": worst,
+                    "text": f"“{name}” posts lag behind — your other {noun} get {gap} more engagement",
+                    "evidence": f"{c[2]:.1f} vs {c[1]:.1f} per post ({len(bucket[worst])} vs {len(rest)} posts)",
+                }
+            )
+            guidance.append(f"{name} posts underperform for this brand — use them less, and make the ones you do post count.")
+
+    # Engagement per topic, for the Weekly plan's advisor summary.
+    pillar_stats = {
+        k: {"label": PILLARS[k][0], "posts": len(es), "avg": round(mean(es), 1)}
+        for k, es in grouped.get("pillar", {}).items()
+    }
 
     # Timing, per platform (each platform's audience keeps its own hours)
     for slug in sorted({p["platform"] for p in posts if p["platform"]}):
@@ -329,6 +365,8 @@ def brand_learnings(db: Session, brand_id: int) -> dict:
     return {
         "posts": len(posts),
         "rules": rules,
+        "weak_rules": weak_rules,
+        "pillar_stats": pillar_stats,
         "post_hours": post_hours,
         "best_days": best_days,
         "top_captions": top_captions,

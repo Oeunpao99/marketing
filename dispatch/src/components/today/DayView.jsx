@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FiCalendar, FiClock, FiEye, FiHeart, FiMessageCircle, FiPlay, FiShare2, FiZap } from 'react-icons/fi'
 import { colorForBrand } from '../../lib/brandColor'
+import { postTitle } from '../../lib/format'
 import { useStore } from '../../store'
 import { phnomPenhDate, phnomPenhDay, dayLabel } from '../../lib/tz'
 import PlatformIcon, { PLAT_BRAND_CLASS } from '../ui/PlatformIcon'
@@ -12,14 +13,7 @@ const mediaBase = window.location.port === '5173' ? 'http://localhost:8000' : ''
 const mediaSrc = (url) => (!url ? null : /^https?:\/\//i.test(url) ? url : `${mediaBase}${url}`)
 const compact = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 })
 
-/** A post's title, or \u2014 when it's only an uploaded file's name
- *  ("90b433aa-\u2026.jpg") \u2014 the first line of its caption. */
-function displayTitle(q) {
-  const t = (q.ttl || '').trim()
-  if (t && !/\.(jpe?g|png|webp|gif|mp4|mov|webm|m4v)$/i.test(t) && t !== 'Untitled video') return t
-  const first = (q.cap || '').split('\n').find((l) => l.trim())
-  return first ? first.trim() : t || 'Untitled post'
-}
+const displayTitle = (q) => postTitle(q.ttl, q.cap)
 
 /** The post's image or video (first frame, with a play mark), or the brand
  *  initial for a text-only post. */

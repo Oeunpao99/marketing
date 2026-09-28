@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { FiArrowDownRight, FiArrowUpRight, FiCalendar, FiCheck, FiRefreshCw, FiTrendingUp, FiX } from 'react-icons/fi'
+import { FiAlertTriangle, FiArrowDownRight, FiArrowUpRight, FiCalendar, FiCheck, FiRefreshCw, FiTrendingUp, FiUsers, FiX, FiZap } from 'react-icons/fi'
 import { api } from '../api/client'
-import { PILLAR_LABELS, SELLING_PILLARS, angleText, pillarChipClass } from '../lib/angles'
+import { GOAL_LABELS, PILLAR_LABELS, SELLING_PILLARS, angleText, pillarChipClass } from '../lib/angles'
 import { colorForBrand } from '../lib/brandColor'
 import { useStore } from '../store'
 import { PLAT } from '../data/brands'
@@ -148,9 +148,9 @@ export default function WeeklyPage() {
     <div className="w-full px-5 lg:px-8 py-7 animate-fadein">
       <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-[24px] font-bold text-ink-900 tracking-tight leading-tight">Weekly plan</h1>
+          <h1 className="text-[24px] font-bold text-ink-900 tracking-tight leading-tight">AI Content Advisor</h1>
           <p className="mt-1 text-[13px] text-ink-600">
-            How last week went, and next week’s posts written from what works — approve in one tap.
+            What worked last week, what to change, and next week’s plan — generate it all in one tap.
           </p>
         </div>
         {brands.length > 1 && (
@@ -176,7 +176,7 @@ export default function WeeklyPage() {
       ) : (
         data && (
           <div className="space-y-5">
-            {report && <Report report={report} brand={brand} />}
+            {report && <Report report={report} brand={brand} advisor={ready ? plan.report?.advisor : null} />}
 
             {ready ? (
               <PlanCard
@@ -246,24 +246,139 @@ function Stat({ label, now, before }) {
   )
 }
 
-function Report({ report, brand }) {
+/** The advisor: last week's numbers, then What worked / What to improve /
+ *  Your audience — the AI's summary when a plan was just written, else the
+ *  measured rules on their own — and the recommendation for next week. */
+function Report({ report, brand, advisor }) {
+  const t = report.this_week || {}
+  const rules = report.rules || []
+  const weak = report.weak_rules || []
+  const topics = Object.values(report.pillar_stats || {}).sort((a, b) => b.avg - a.avg)
+  const topTopic = topics[0]
+  const maxAvg = Math.max(0.1, ...topics.map((s) => s.avg))
+  const cards = [
+    {
+      key: 'worked',
+      icon: FiTrendingUp,
+      tone: 'bg-emerald-50 text-emerald-700',
+      title: 'What worked',
+      text:
+        advisor?.worked ||
+        (rules[0]
+          ? `${rules[0].text}.`
+          : t.top
+            ? `Your best post was “${t.top.title}” with ${t.top.engagement} engagement.`
+            : 'Not enough results yet — patterns show up after a week or two of posting.'),
+      evidence: rules,
+    },
+    {
+      key: 'improve',
+      icon: FiAlertTriangle,
+      tone: 'bg-amber-50 text-amber-700',
+      title: 'What to improve',
+      text: advisor?.improve || (weak[0] ? `${weak[0].text}.` : 'Nothing is clearly lagging yet — keep the mix varied.'),
+      evidence: weak,
+    },
+    {
+      key: 'audience',
+      icon: FiUsers,
+      tone: 'bg-brand-soft text-brand',
+      title: 'Your audience responds to',
+      text:
+        advisor?.audience ||
+        (topTopic
+          ? `${topTopic.label} posts — ${topTopic.avg} engagement per post (${topTopic.posts} posts).`
+          : 'We’ll learn this as your AI posts collect likes and comments.'),
+      evidence: [],
+    },
+  ]
+  return (
+    <>
+      <ThisWeek report={report} brand={brand} />
+
+      <div className="grid gap-4 md:grid-cols-3">
+        {cards.map((c) => (
+          <section key={c.key} className={`${card} p-5`}>
+            <div className="flex items-center gap-2.5">
+              <span className={`grid h-8 w-8 flex-none place-items-center rounded-lg ${c.tone}`}>
+                <c.icon size={15} aria-hidden="true" />
+              </span>
+              <h3 className="text-[13.5px] font-semibold text-ink-900">{c.title}</h3>
+            </div>
+            <p className="mt-3 text-[13px] leading-relaxed text-ink-800">{c.text}</p>
+            {c.evidence.length > 0 && (
+              <ul className="mt-3 space-y-1.5 border-t border-ink-100 pt-3">
+                {c.evidence.slice(0, 3).map((r) => (
+                  <li key={r.id} className="text-[11.5px] leading-snug text-ink-500">
+                    <span className="text-ink-700">{r.text}</span> · {r.evidence}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {c.key === 'audience' && topics.length > 0 && (
+              <ul className="mt-3 space-y-2 border-t border-ink-100 pt-3">
+                {topics.slice(0, 4).map((s) => (
+                  <li key={s.label} className="text-[11.5px]">
+                    <div className="flex justify-between gap-2 text-ink-600">
+                      <span>{s.label}</span>
+                      <span className="tabular-nums">
+                        <b className="font-semibold text-ink-800">{s.avg}</b> / post · {s.posts}
+                      </span>
+                    </div>
+                    <div className="mt-1 h-1.5 rounded-full bg-ink-100">
+                      <div className="h-full rounded-full bg-brand" style={{ width: `${(s.avg / maxAvg) * 100}%` }} />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        ))}
+      </div>
+
+      {advisor?.recommendation && (
+        <section className="flex flex-col gap-3 rounded-2xl border border-brand/20 bg-brand-soft px-5 py-4 sm:flex-row sm:items-center">
+          <span className="grid h-10 w-10 flex-none place-items-center rounded-xl bg-brand text-white">
+            <FiZap size={18} aria-hidden="true" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="text-[11px] font-bold uppercase tracking-[.06em] text-brand">AI recommendation for next week</div>
+            <p className="mt-0.5 text-[14px] font-semibold leading-snug text-ink-900">{advisor.recommendation}</p>
+          </div>
+          {advisor.focus?.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {advisor.focus.map((f) => (
+                <span key={f} className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${pillarChipClass(f)}`}>
+                  {PILLAR_LABELS[f]}
+                </span>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+    </>
+  )
+}
+
+/** "Your content this week": engagement, posts and views vs the week before,
+ *  and the best post. */
+function ThisWeek({ report, brand }) {
   const t = report.this_week || {}
   const l = report.last_week || {}
-  const rules = report.rules || []
   const color = colorForBrand(brand.slug)
   return (
     <section className={`${card} p-5`}>
       <div className="flex items-center gap-2">
         <span className="w-[3px] h-[18px] rounded-full" style={{ background: color }} />
-        <h2 className="text-[14.5px] font-bold text-ink-900">Last 7 days</h2>
+        <h2 className="text-[14.5px] font-bold text-ink-900">Your content this week</h2>
         <span className="text-[11.5px] text-ink-400">
           {dayLabel(report.from)} – {dayLabel(report.to)}
         </span>
       </div>
 
       <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <Stat label="Posts published" now={t.posts} before={l.posts} />
         <Stat label="Engagement" now={t.engagement} before={l.engagement} />
+        <Stat label="Posts published" now={t.posts} before={l.posts} />
         {(t.views != null || l.views != null) && <Stat label="Views" now={t.views} before={l.views} />}
       </div>
       {t.posts > 0 && t.measured < t.posts && (
@@ -287,28 +402,13 @@ function Report({ report, brand }) {
         </Link>
       )}
 
-      <div className="mt-4">
-        <h3 className="text-[11px] font-semibold uppercase tracking-[.06em] text-ink-400">What’s working</h3>
-        {rules.length ? (
-          <ul className="mt-2 space-y-2">
-            {rules.map((r) => (
-              <li key={r.id} className="flex items-start gap-2 text-[12px]">
-                <FiTrendingUp size={13} className="mt-0.5 flex-none text-emerald-700" aria-hidden="true" />
-                <span>
-                  <span className="font-medium text-ink-900">{r.text}</span>
-                  <span className="block text-[11px] text-ink-500">{r.evidence}</span>
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="mt-2 text-[12px] text-ink-500">
-            Not enough results to find patterns yet
-            {report.learned_from ? ` (${report.learned_from} post${report.learned_from === 1 ? '' : 's'} with numbers)` : ''}.
-            The plan gets sharper as posts collect likes and comments.
-          </p>
-        )}
-      </div>
+      {!(report.rules || []).length && (
+        <p className="mt-3 text-[11.5px] text-ink-400">
+          Not enough results to find patterns yet
+          {report.learned_from ? ` (${report.learned_from} post${report.learned_from === 1 ? '' : 's'} with numbers)` : ''} — the
+          advice gets sharper as posts collect likes and comments.
+        </p>
+      )}
     </section>
   )
 }
@@ -336,7 +436,7 @@ function PlanCard({ plan, autoMedia, busy, running, onApprove, onDismiss, onRepl
     <section className={`${card} overflow-hidden`}>
       <header className="px-5 py-4 border-b border-ink-100 flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <h2 className="text-[14.5px] font-bold text-ink-900">Next week’s plan</h2>
+          <h2 className="text-[14.5px] font-bold text-ink-900">Your weekly plan</h2>
           <div className="text-[11.5px] text-ink-500">
             {dayLabel(plan.starts_on)} – {dayLabel(plan.ends_on)} · {n} post{n === 1 ? '' : 's'}
             {flagged > 0 && <span className="text-amber-700"> · {flagged} to check</span>}
@@ -350,8 +450,8 @@ function PlanCard({ plan, autoMedia, busy, running, onApprove, onDismiss, onRepl
             Skip this week
           </button>
           <button type="button" disabled={!!busy || running || n === 0} onClick={onApprove} className="btn-primary px-4 py-1.5">
-            <FiCheck size={14} />
-            {busy === 'approve' ? 'Approving…' : autoMedia ? `Approve & schedule ${n}` : `Approve ${n}`}
+            {autoMedia ? <FiZap size={14} /> : <FiCheck size={14} />}
+            {busy === 'approve' ? 'Working…' : autoMedia ? `Generate all content (${n})` : `Approve plan (${n})`}
           </button>
         </div>
       </header>
@@ -375,21 +475,62 @@ function PlanCard({ plan, autoMedia, busy, running, onApprove, onDismiss, onRepl
         </div>
       )}
 
-      <div className="p-5 space-y-5">
-        {Object.entries(byDay).map(([day, items]) => (
-          <div key={day}>
-            <div className="mb-2 flex items-center gap-2 text-[12px] font-semibold text-ink-700">
-              <FiCalendar size={13} className="text-ink-400" /> {dayLabel(day)}
-            </div>
-            <div className="space-y-2.5">
-              {items.map((item) => (
-                <PlanItem key={item.key} item={item} onRemove={() => onRemove(item.key)} onSave={(c) => onSaveCaption(item.key, c)} />
+      {/* Day · Content · Topic · Goal — the week at a glance */}
+      {n > 0 && (
+        <div className="px-5 pt-4 overflow-x-auto">
+          <table className="w-full min-w-[520px] text-left text-[12.5px]">
+            <thead>
+              <tr className="border-b border-ink-100 text-[11px] font-semibold uppercase tracking-[.05em] text-ink-400">
+                <th className="py-2 pr-3 w-28">Day</th>
+                <th className="py-2 pr-3">Content</th>
+                <th className="py-2 pr-3 w-40">Topic</th>
+                <th className="py-2 w-28">Goal</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-ink-100">
+              {plan.items.map((i) => (
+                <tr key={i.key}>
+                  <td className="py-2.5 pr-3 font-semibold text-ink-700 whitespace-nowrap">{dayLabel(i.day)}</td>
+                  <td className={`py-2.5 pr-3 text-ink-900 ${khmer(i.title)}`}>
+                    <span className="line-clamp-1">{i.title}</span>
+                  </td>
+                  <td className="py-2.5 pr-3">
+                    {PILLAR_LABELS[i.pillar] ? (
+                      <span className={`rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${pillarChipClass(i.pillar)}`}>{PILLAR_LABELS[i.pillar]}</span>
+                    ) : (
+                      <span className="text-ink-300">—</span>
+                    )}
+                  </td>
+                  <td className="py-2.5 text-ink-600">{GOAL_LABELS[i.goal] || '—'}</td>
+                </tr>
               ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <details className="group px-5 pb-5 pt-3" open={flagged > 0}>
+        <summary className="cursor-pointer list-none py-2 text-[12.5px] font-semibold text-brand hover:underline">
+          <span className="group-open:hidden">Review and edit the captions ▸</span>
+          <span className="hidden group-open:inline">Hide the captions ▾</span>
+          {flagged > 0 && <span className="ml-2 font-normal text-amber-700">{flagged} to check</span>}
+        </summary>
+        <div className="mt-2 space-y-5">
+          {Object.entries(byDay).map(([day, items]) => (
+            <div key={day}>
+              <div className="mb-2 flex items-center gap-2 text-[12px] font-semibold text-ink-700">
+                <FiCalendar size={13} className="text-ink-400" /> {dayLabel(day)}
+              </div>
+              <div className="space-y-2.5">
+                {items.map((item) => (
+                  <PlanItem key={item.key} item={item} onRemove={() => onRemove(item.key)} onSave={(c) => onSaveCaption(item.key, c)} />
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
-        {n === 0 && <p className="text-[12.5px] text-ink-500">You removed every idea — rewrite the plan or skip this week.</p>}
-      </div>
+          ))}
+        </div>
+      </details>
+      {n === 0 && <p className="px-5 pb-5 text-[12.5px] text-ink-500">You removed every idea — rewrite the plan or skip this week.</p>}
     </section>
   )
 }
