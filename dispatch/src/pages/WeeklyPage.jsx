@@ -617,6 +617,11 @@ function PlanCard({ plan, autoMedia, busy, running, onApprove, onDismiss, onRepl
                     <div className={`line-clamp-3 text-[12px] font-medium leading-snug text-ink-900 ${khmer(i.title)}`}>{i.title}</div>
                     <div className="mt-1.5 flex flex-wrap items-center gap-1 text-[10.5px]">
                       {PILLAR_LABELS[i.pillar] && <span className="font-semibold text-ink-600">{PILLAR_LABELS[i.pillar]}</span>}
+                      {i.meme && (
+                        <span className="rounded-full bg-amber-50 px-1.5 py-px font-semibold text-amber-800" title="Goes out as a meme poster">
+                          😄 Meme
+                        </span>
+                      )}
                       {GOAL_LABELS[i.goal] && <span className="text-ink-400">· {GOAL_LABELS[i.goal]}</span>}
                       {i.fact_issues?.length > 0 && <span className="font-semibold text-amber-700">· check</span>}
                     </div>
@@ -705,6 +710,13 @@ function PlanItem({ item, onRemove, onSave }) {
             )}
           </div>
           {item.insight && <p className="mt-1 text-[11.5px] text-ink-500 italic leading-relaxed">{item.insight}</p>}
+          {item.meme && (
+            <div className="mt-2 rounded-lg border border-ink-100 bg-white px-3 py-2">
+              <div className="text-[10.5px] font-bold uppercase tracking-[.05em] text-amber-700">😄 Meme poster</div>
+              <p className={`mt-0.5 whitespace-pre-line text-[13px] font-bold leading-snug text-ink-900 ${khmer(item.meme.top)}`}>{item.meme.top}</p>
+              <p className="mt-1 text-[11.5px] text-ink-500">Photo: {item.meme.scene}</p>
+            </div>
+          )}
         </div>
         <button
           type="button"

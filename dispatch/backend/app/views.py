@@ -541,6 +541,7 @@ def auto_view(db: Session = Depends(get_db), ws: int = Depends(current_workspace
             "run": run_status(a.id),
             "learn_from_results": a.learn_from_results,
             "poster_kit": a.poster_kit or {},
+            "subjects": a.subjects or [],
             "learnings": {k: v for k, v in brand_learnings(db, a.brand_id).items() if k in ("posts", "rules", "post_hours")},
         }
         for a in sorted(autos, key=lambda x: x.brand_id)
@@ -2408,7 +2409,7 @@ def _draft_media_job(draft_id: int, kind: str) -> None:
             return
         billing.bind(brand.workspace_id)
         products = [_product_snapshot(p) for p in db.scalars(select(Product).where(Product.brand_id == brand.id)).all()]
-        idea = {"title": d.title, "caption": d.body}
+        idea = {"title": d.title, "caption": d.body, "meme": d.meme}
         if kind == "video":
             first_frame = _first_frame_for(db, brand.id, idea)
             video_id = _generate_video_for(_brand_snapshot(brand), idea, products, first_frame)

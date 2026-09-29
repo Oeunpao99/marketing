@@ -156,6 +156,15 @@ SYSTEM_PROMPT = (
     "- caption: a ready-to-post caption in the brand's audience language, "
     "built on the structure for its pillar below, told the chosen angle's way, "
     "with the goal's call-to-action strength.\n"
+    "- meme: ONLY for the relatable pillar — the post goes out as a meme poster "
+    "(setup text above a funny photo), the kind people share. An object "
+    '{"top": "...", "scene": "..."}: top = the setup text drawn above the photo, '
+    "in the brand's audience language, 1-2 short lines (max 70 characters, a \\n "
+    "between setup and punchline line, e.g. 'Customer: \"Price?\" at 2 AM\\nMe, the "
+    "shop owner:'); scene = in English, one sentence describing the photo that is "
+    "the punchline — a candid, funny, relatable reaction (a person or an animal), "
+    "with no words in it. Keep it kind: laugh with the audience, never at a group "
+    "of people. For every other pillar: null.\n"
     "- fit_score: your OWN honest 0-100 self-check of this specific idea. For a "
     "selling pillar: how directly it's grounded in the product facts actually "
     "given — a caption whose ✓ list doesn't name specific capabilities from the "
@@ -219,14 +228,17 @@ SYSTEM_PROMPT = (
     "and never two selling ideas in a row; at most one promotion per 5 ideas. "
     "If the brief lists the pillars of recent posts, don't repeat them — fill "
     "what's missing. If what has worked for this brand favours a pillar, lean "
-    "towards it but keep the mix. Stay grounded in the product info given — "
+    "towards it but keep the mix. If the brief gives SUBJECTS for this batch, "
+    "build each idea around one of them, one subject per idea (the pillar, "
+    "angle and goal still apply — a subject is what it's about, the pillar is "
+    "what kind of post it is). Stay grounded in the product info given — "
     "don't invent products, prices, free trials, discounts, links or claims "
     "that weren't provided; if the offer or link isn't in the product info, "
     "use a call to action that doesn't need one (e.g. 'send us a message').\n"
     "\n"
     "Respond with ONLY a JSON object: "
     '{"ideas": [{"pillar": "...", "goal": "...", "angle": "...", "title": "...", '
-    '"insight": "...", "caption": "...", "fit_score": 0}, ...]} '
+    '"insight": "...", "caption": "...", "meme": null, "fit_score": 0}, ...]} '
     "— no prose, no markdown fences."
 )
 
@@ -512,6 +524,7 @@ def _brief(
     learnings: str = "",
     days: list[date] | None = None,
     recent_pillars: list[str] | None = None,
+    subjects: list[str] | None = None,
 ) -> str:
     lines = [
         f"Brand: {brand_name}" + (f" (write in: {brand_lang})" if brand_lang else ""),
@@ -526,6 +539,8 @@ def _brief(
     recent = [PILLARS[p][0] for p in recent_pillars or [] if p in PILLARS]
     if recent:
         lines.append("Pillars of this brand's most recent AI posts (newest first): " + ", ".join(recent))
+    if subjects:
+        lines.append("SUBJECTS for this batch (one per idea): " + "; ".join(subjects))
     if products:
         lines.append("\nProducts / offers on file:")
         for p in products:
@@ -553,6 +568,16 @@ def _brief(
     return "\n".join(lines)
 
 
+def pick_subjects(subjects: list[str] | None, count: int, offset: int) -> list[str]:
+    """The next ``count`` subjects from the person's list, starting at
+    ``offset`` and wrapping round — so each day / batch covers different
+    ones and the whole list comes round in turn. [] when none are set."""
+    subs = [s.strip() for s in subjects or [] if s and s.strip()]
+    if not subs or count < 1:
+        return []
+    return [subs[(offset + i) % len(subs)] for i in range(min(count, len(subs)))]
+
+
 def generate_ideas(
     brand_name: str,
     brand_lang: str,
@@ -564,6 +589,7 @@ def generate_ideas(
     week: bool = False,
     days: list[date] | None = None,
     recent_pillars: list[str] | None = None,
+    subjects: list[str] | None = None,
 ) -> list[dict]:
     """``week=True``: plan ideas spread over a week (app/weekly.py) rather
     than one day's batch — ``days`` are the plan days, and each idea comes
@@ -580,7 +606,7 @@ def generate_ideas(
             {
                 "role": "user",
                 "content": _brief(
-                    brand_name, brand_lang, products, topic_source, count, voice_examples, learnings, days, recent_pillars
+                    brand_name, brand_lang, products, topic_source, count, voice_examples, learnings, days, recent_pillars, subjects
                 ),
             },
         ],
@@ -608,6 +634,15 @@ def generate_ideas(
         goal = str(idea.get("goal") or "").strip().lower()
         pillar = str(idea.get("pillar") or "").strip().lower()
         day = str(idea.get("day") or "").strip()[:10]
+        # Relatable ideas go out as a meme poster (app/meme.py).
+        meme = idea.get("meme") if pillar == "relatable" else None
+        meme = (
+            {"top": str(meme.get("top") or "").strip()[:140], "scene": str(meme.get("scene") or "").strip()[:500]}
+            if isinstance(meme, dict)
+            else None
+        )
+        if meme and not (meme["top"] and meme["scene"]):
+            meme = None
         cleaned.append(
             {
                 "title": title[:200],
@@ -620,6 +655,7 @@ def generate_ideas(
                 "goal": goal if goal in GOALS else "",
                 "pillar": pillar if pillar in PILLARS else "",
                 "day": day if day in day_isos else "",
+                "meme": meme,
             }
         )
     if not cleaned:
@@ -636,6 +672,8 @@ def generate_ideas(
         for idea, caption in zip(result, polished):
             idea["caption"] = _fix_khmer_punctuation(caption)
             idea["title"] = _fix_khmer_punctuation(idea["title"])
+            if idea.get("meme"):
+                idea["meme"]["top"] = _fix_khmer_punctuation(idea["meme"]["top"])
     return result
 
 

@@ -32,7 +32,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app import billing
-from app.content_ai import ContentAIError, fact_check, generate_ideas
+from app.content_ai import ContentAIError, fact_check, generate_ideas, pick_subjects
 from app.content_scheduler import (
     PHNOM_PENH,
     _MAX_PARALLEL_MEDIA,
@@ -290,18 +290,21 @@ def build_plan(db: Session, brand_id: int, starts_on: date | None = None, step=l
     for c, chunk in enumerate(chunks):
         span = f"{chunk[0]:%a}" if len(chunk) == 1 else f"{chunk[0]:%a} – {chunk[-1]:%a}"
         step(20 + 60 * c // len(chunks), f"Writing ideas for {span} ({len(ideas)} of {count} done)…")
+        n_batch = min(len(chunk) * per_day, count - len(ideas))
         try:
             batch = generate_ideas(
                 brand.name,
                 brand.lang,
                 list(products),
                 automation.topic_source,
-                min(len(chunk) * per_day, count - len(ideas)),
+                n_batch,
                 brand.voice_examples or "",
                 learnings["prompt"] if automation.learn_from_results else "",
                 week=True,
                 days=chunk,
                 recent_pillars=[i["pillar"] for i in reversed(ideas) if i.get("pillar")][:8],
+                # Same date rotation as the daily run, so the list comes round in turn.
+                subjects=pick_subjects(automation.subjects, n_batch, chunk[0].toordinal() * per_day),
             )
         except ContentAIError:
             if not ideas:
@@ -329,6 +332,7 @@ def build_plan(db: Session, brand_id: int, starts_on: date | None = None, step=l
             "pillar": idea.get("pillar") or "",
             "angle": idea.get("angle") or "",
             "goal": idea.get("goal") or "",
+            "meme": idea.get("meme"),
             "fact_issues": checks[n] if checks is not None else None,
         }
         for n, idea in enumerate(ideas)
@@ -447,7 +451,7 @@ def _media_job(brand_id: int, draft_ids: list[int]) -> None:
         # product photo and logo — gathered here so the image threads don't
         # need the DB.
         automation = db.scalar(select(Automation).where(Automation.brand_id == brand_id))
-        ideas = [{"title": d.title, "caption": d.body} for d in drafts]
+        ideas = [{"title": d.title, "caption": d.body, "meme": d.meme} for d in drafts]
         kits = [
             _poster_kit_for(db, automation, brand_id, idea, n, d.planned_for or _today()) if automation else ([], "")
             for n, (idea, d) in enumerate(zip(ideas, drafts))
@@ -672,6 +676,7 @@ def weekly_approve(
             status="approved",
             fit_score=i.get("fit_score"),
             pillar=i.get("pillar") or "",
+            meme=i.get("meme"),
             angle=i.get("angle") or "",
             goal=i.get("goal") or "",
             fact_issues=i.get("fact_issues"),

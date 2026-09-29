@@ -23,7 +23,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.content_ai import ContentAIError, fact_check, generate_ideas, image_prompt_for_idea, video_prompt_for_idea
+from app.content_ai import (
+    ContentAIError,
+    fact_check,
+    generate_ideas,
+    image_prompt_for_idea,
+    pick_subjects,
+    video_prompt_for_idea,
+)
 from app.learning import brand_learnings, learned_time
 from app.database import SessionLocal
 from app.models import Automation, Brand, Channel, Draft, Post, PostTarget, Product, Video
@@ -96,9 +103,10 @@ _VIDEO_POLL = 10
 
 
 def _pick_video_idea(ideas: list[dict]) -> int:
-    """The idea that gets the day's video: the highest fit score (first on a tie)."""
+    """The idea that gets the day's video: the highest fit score (first on a
+    tie) — never a meme idea while there's another, since a meme is an image."""
     scores = [(i.get("fit_score") or 0) for i in ideas]
-    return max(range(len(ideas)), key=lambda n: (scores[n], -n))
+    return max(range(len(ideas)), key=lambda n: (not ideas[n].get("meme"), scores[n], -n))
 
 
 def _generate_video_for(
@@ -230,7 +238,18 @@ def _generate_media_for(
 
     from app import billing
 
-    prompt = image_prompt_for_idea(brand.name, brand.lang, idea, products)
+    # A relatable idea goes out as a meme poster: the model draws only the
+    # funny photo (square, no brand template — it should look like a real
+    # meme, not an ad) and app/meme.py adds the setup text above it.
+    meme = idea.get("meme") or {}
+    is_meme = bool(meme.get("top") and meme.get("scene"))
+    if is_meme:
+        from app.meme import meme_photo_prompt
+
+        prompt, ratio, refs, guide = meme_photo_prompt(meme["scene"]), "1:1", [], ""
+    else:
+        prompt, ratio = image_prompt_for_idea(brand.name, brand.lang, idea, products), "9:16"
+        refs, guide = kit
     try:
         billing.require(brand.workspace_id, billing.IMAGE_HOLD)
     except billing.OutOfCredit:
@@ -238,21 +257,32 @@ def _generate_media_for(
         return None
     try:
         with video_gen.image_slot():
-            refs, guide = kit
-            provider, blob, usage = video_gen.generate_image(guide + prompt, "9:16", refs or None)
+            provider, blob, usage = video_gen.generate_image(guide + prompt, ratio, refs or None)
     except video_gen.VideoGenError as exc:
         log.warning("auto-media image generation failed for brand %s: %s", brand.id, exc)
         return None
 
+    ext, mime, resolution, tag = ".png", "image/png", "1024x1536", "ai-auto-image"
+    if is_meme:
+        from app.meme import image_size, render_meme
+
+        try:
+            blob = render_meme(blob, meme["top"], brand.name)
+            ext, mime, tag = ".jpg", "image/jpeg", "ai-auto-meme"
+            resolution = "x".join(map(str, image_size(blob)))
+        except Exception:  # noqa: BLE001 — a plain photo beats losing the post
+            log.exception("meme render failed for brand %s — posting the photo alone", brand.id)
+            resolution = "1024x1024"
+
     db = SessionLocal()
     try:
-        url = store_blob(db, blob, ".png", "image/png")
+        url = store_blob(db, blob, ext, mime)
         job = GenerationJob(
             workspace_id=brand.workspace_id,
             brand_id=brand.id,
             kind="image",
-            prompt=prompt,
-            aspect_ratio="9:16",
+            prompt=(f"MEME TEXT: {meme['top']}\n\n" if is_meme else "") + prompt,
+            aspect_ratio=ratio,
             seconds=0,
             provider=provider,
             status="succeeded",
@@ -265,11 +295,11 @@ def _generate_media_for(
         v = Video(
             workspace_id=brand.workspace_id,
             brand_id=brand.id,
-            filename=f"auto-{brand.slug}-{int(datetime.now(PHNOM_PENH).timestamp())}.png",
-            resolution="1024x1536",
+            filename=f"auto-{brand.slug}-{int(datetime.now(PHNOM_PENH).timestamp())}{ext}",
+            resolution=resolution,
             size_bytes=len(blob),
             source="ai",
-            tag="ai-auto-image",
+            tag=tag,
             url=url,
             caption=idea.get("caption") or "",
             caption_angle=idea.get("angle") or "",
@@ -411,6 +441,8 @@ def _write_batch(
             learnings,
             days=[today],
             recent_pillars=list(recent_pillars),
+            # Rotated by date, so each day takes the next subjects in the list.
+            subjects=pick_subjects(automation.subjects, count, today.toordinal() * count),
         )
     except ContentAIError:
         db.commit()  # release the lock even though this attempt failed
@@ -430,6 +462,7 @@ def _write_batch(
             status="waiting",  # set for real below, once media (if any) is attached
             fit_score=idea.get("fit_score"),
             pillar=idea.get("pillar") or "",
+            meme=idea.get("meme"),
             angle=idea.get("angle") or "",
             goal=idea.get("goal") or "",
             fact_issues=checks[n] if checks is not None else None,

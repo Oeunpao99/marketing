@@ -157,7 +157,8 @@ def _snapshot(db: Session, ws: int, focus_brand_id: int | None) -> str:
         if a:
             lines.append(
                 f"Auto-generate: {'ON' if a.enabled else 'off'}, {a.videos_per_day}/day at {a.run_at:%H:%M}, "
-                f"topics: {a.topic_source or '-'}, review first: {a.require_approval}, auto images: {a.auto_media}"
+                f"topics: {a.topic_source or '-'}, subjects: {', '.join(a.subjects or []) or '-'}, "
+                f"review first: {a.require_approval}, auto images: {a.auto_media}"
             )
         # Measured from this brand's own posts (app/learning.py) — the same
         # rules the Weekly plan and Auto-generate follow.

@@ -1,7 +1,7 @@
 """Pydantic v2 schemas: one Read / Create / Update trio per model."""
 
 from datetime import date, datetime, time
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
@@ -311,6 +311,8 @@ class AutomationBase(BaseModel):
     # "product_photos": bool} (app/brand_kit.py). Ids from another brand are
     # ignored at generation time.
     poster_kit: dict = {}
+    # Subjects the AI rotates through (content_ai.pick_subjects).
+    subjects: list[str] = []
 
 
 class AutomationCreate(AutomationBase):
@@ -329,6 +331,7 @@ class AutomationUpdate(BaseModel):
     post_at: time | None = None
     learn_from_results: bool | None = None
     poster_kit: dict | None = None
+    subjects: list[Annotated[str, Field(min_length=1, max_length=80)]] | None = Field(default=None, max_length=20)
 
 
 class AutomationOut(TimestampsOut, AutomationBase):

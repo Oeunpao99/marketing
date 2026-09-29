@@ -82,6 +82,10 @@ html.dark {
   html, body {
     @apply m-0 p-0 bg-canvas text-ink-900 antialiased;
     font-family: 'Inter', 'Khmer OS Siemreap', system-ui, sans-serif;
+    /* No elastic "bounce" past the top/bottom (Chrome on Windows touchpads,
+       Safari): it dragged the whole app — pinned sidebar, top bar and the AI
+       Agent's composer — off the edges and showed empty grey around them. */
+    overscroll-behavior: none;
   }
   * { @apply box-border; }
   button, input, select, textarea { @apply font-[inherit] text-[inherit]; }

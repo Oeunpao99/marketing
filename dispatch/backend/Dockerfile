@@ -7,6 +7,12 @@ FROM python:3.12-slim
 # fast way to get uv without a separate install step.
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 
+# libraqm (+ harfbuzz / fribidi): complex-script text shaping for Pillow, so
+# the Khmer text on meme posters (app/meme.py) renders correctly.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libraqm0 \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # Dependencies first, isolated from app code, so editing a .py file doesn't

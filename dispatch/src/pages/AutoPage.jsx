@@ -19,6 +19,77 @@ const TOPIC_SOURCES = [
   { value: 'AI news feeds', short: 'AI news' },
 ]
 
+// Ready-made subjects for "Subjects to write about" — the AI rotates through
+// the ones picked (plus any typed in), a few per day (content_ai.pick_subjects).
+const SUBJECT_PRESETS = [
+  'Online selling tips',
+  'Customer service',
+  'AI & technology explained',
+  'Business growth & marketing',
+  'Saving time & productivity',
+  'Local events & holidays',
+  'How to use our product',
+  'Industry knowledge',
+]
+const MAX_SUBJECTS = 20
+
+/** Tick the subjects the AI should rotate through, or add your own. */
+function SubjectPicker({ value, onChange }) {
+  const [draft, setDraft] = useState('')
+  const has = (s) => value.some((v) => v.toLowerCase() === s.toLowerCase())
+  const toggle = (s) => onChange(has(s) ? value.filter((v) => v.toLowerCase() !== s.toLowerCase()) : [...value, s].slice(0, MAX_SUBJECTS))
+  const add = () => {
+    const s = draft.trim().slice(0, 80)
+    if (s && !has(s)) onChange([...value, s].slice(0, MAX_SUBJECTS))
+    setDraft('')
+  }
+  const custom = value.filter((v) => !SUBJECT_PRESETS.some((p) => p.toLowerCase() === v.toLowerCase()))
+  const chip = (on) =>
+    `inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11.5px] font-medium transition-colors ${
+      on ? 'border-brand bg-brand-soft text-brand' : 'border-ink-200 bg-white text-ink-600 hover:border-ink-300'
+    }`
+  return (
+    <div>
+      <div className="flex flex-wrap gap-1.5">
+        {SUBJECT_PRESETS.map((s) => (
+          <button key={s} type="button" onClick={() => toggle(s)} aria-pressed={has(s)} className={chip(has(s))}>
+            {has(s) && <span aria-hidden="true">✓</span>}
+            {s}
+          </button>
+        ))}
+        {custom.map((s) => (
+          <button key={s} type="button" onClick={() => toggle(s)} className={chip(true)} title="Remove">
+            ✓ {s} <FiX size={11} aria-hidden="true" />
+          </button>
+        ))}
+      </div>
+      <div className="mt-2 flex gap-2">
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              add()
+            }
+          }}
+          maxLength={80}
+          placeholder="Add your own, e.g. Khmer New Year sales"
+          className={input}
+        />
+        <button type="button" onClick={add} disabled={!draft.trim() || value.length >= MAX_SUBJECTS} className="btn-outline flex-none px-3">
+          Add
+        </button>
+      </div>
+      <p className="mt-1.5 text-[11px] leading-snug text-ink-400">
+        {value.length
+          ? `The AI rotates through these ${value.length} — a few each day — and still mixes tips, questions and product posts.`
+          : 'None picked — the AI chooses subjects from your products.'}
+      </p>
+    </div>
+  )
+}
+
 const card = 'bg-white rounded-2xl border border-ink-200/60 shadow-[0_1px_2px_rgba(16,24,40,0.04)]'
 const input =
   'w-full bg-white border border-ink-200 rounded-xl px-3 py-2 text-[12.5px] focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/15'
@@ -396,6 +467,9 @@ function SettingsDrawer({ a, channels, run, running, onUpdate, onBrandUpdate, on
                 options={TOPIC_SOURCES}
                 onChange={(topic_source) => onUpdate({ topic_source })}
               />
+            </Field>
+            <Field label="Subjects to write about">
+              <SubjectPicker value={a.subjects || []} onChange={(subjects) => onUpdate({ subjects })} />
             </Field>
           </Section>
 

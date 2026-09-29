@@ -297,6 +297,9 @@ class Draft(Base, TimestampMixin):
     pillar: Mapped[str] = mapped_column(String(30), default="", server_default="")
     angle: Mapped[str] = mapped_column(String(30), default="", server_default="")
     goal: Mapped[str] = mapped_column(String(20), default="", server_default="")
+    # Relatable ideas: {"top": setup text, "scene": the funny photo} — their
+    # image is made as a meme poster (app/meme.py). Null otherwise.
+    meme: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     # Claims the automatic fact-check couldn't find in the brand's product
     # info (content_ai.fact_check). Empty list = checked, nothing flagged;
     # null = not checked (hand-made draft, or the check itself failed).
@@ -385,6 +388,10 @@ class Automation(Base, TimestampMixin):
     # "logo": bool, "product_photos": bool}. Templates rotate one per image;
     # empty = images are made from the text brief only, as before.
     poster_kit: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, server_default="{}", nullable=False)
+    # Subjects the AI rotates through ("Online selling tips", "AI & technology
+    # explained", …) — preset or typed by the person. Each day's / batch's
+    # ideas get the next few (content_ai.pick_subjects). Empty = the AI picks.
+    subjects: Mapped[list[str]] = mapped_column(JSONB, default=list, server_default="[]", nullable=False)
 
 
 @event.listens_for(Brand, "after_insert")
