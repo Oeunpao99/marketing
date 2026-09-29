@@ -374,10 +374,11 @@ def _seo_and_social(host: str, page: dict) -> tuple[list[dict], list[dict], dict
             im = _fetch(image_url, max_bytes=8_000_000, hops=4)
             size = None
             if im["status"] == 200:
-                from PIL import Image
-                import io
-
                 try:
+                    import io
+
+                    from PIL import Image
+
                     size = Image.open(io.BytesIO(im["body"])).size
                 except Exception:  # noqa: BLE001
                     size = None
@@ -563,6 +564,11 @@ def _ai_summary(host: str, sections: list[dict], preview: dict, score: int) -> d
 def run_check(host: str, with_ai: bool = True, step=lambda _p, _s: None) -> dict:
     """The full check for one domain. Never raises for a site problem — a
     site that's down comes back as a report that says so."""
+    def _broken(key: str, exc: Exception) -> list[dict]:
+        # One part failing on an odd site shouldn't lose the whole report.
+        log.exception("website %s: %s check failed", host, key)
+        return [_item(f"{key}_error", "Couldn't finish this part", "info", f"Something went wrong checking this ({exc.__class__.__name__}) — try again later.")]
+
     step(10, "Checking the website is online…")
     health, page, tls = _health(host)
     sections = [{"key": "health", "items": health}]
@@ -570,15 +576,25 @@ def run_check(host: str, with_ai: bool = True, step=lambda _p, _s: None) -> dict
     ps: dict = {}
     if page is not None:
         step(30, "Reading the page for SEO and the share preview…")
-        seo, social, preview = _seo_and_social(host, page)
+        try:
+            seo, social, preview = _seo_and_social(host, page)
+        except Exception as exc:  # noqa: BLE001
+            seo = social = _broken("seo", exc)
         sections += [{"key": "seo", "items": seo}, {"key": "social", "items": social}]
         step(45, "Asking Google for its speed scores (about a minute)…")
-        with ThreadPoolExecutor(max_workers=2) as pool:
-            mob, desk = pool.submit(_pagespeed, page["url"], "mobile"), pool.submit(_pagespeed, page["url"], "desktop")
-            ps = {"mobile": mob.result(), "desktop": desk.result()}
-        sections.append({"key": "speed", "items": _speed_items(ps)})
+        try:
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                mob, desk = pool.submit(_pagespeed, page["url"], "mobile"), pool.submit(_pagespeed, page["url"], "desktop")
+                ps = {"mobile": mob.result(), "desktop": desk.result()}
+            speed = _speed_items(ps)
+        except Exception as exc:  # noqa: BLE001
+            ps, speed = {}, _broken("speed", exc)
+        sections.append({"key": "speed", "items": speed})
     step(80, "Checking the domain and email…")
-    domain_items, domain_info = _domain(host)
+    try:
+        domain_items, domain_info = _domain(host)
+    except Exception as exc:  # noqa: BLE001
+        domain_items, domain_info = _broken("domain", exc), {"root": _registrable(host)}
     sections.append({"key": "domain", "items": domain_items})
     for s in sections:
         s["title"] = SECTION_TITLES[s["key"]]
