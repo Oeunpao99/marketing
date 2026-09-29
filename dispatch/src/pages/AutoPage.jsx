@@ -307,8 +307,10 @@ export default function AutoPage() {
             <div className="glass-panel rounded-3xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
               <h3 className="text-[15.5px] font-bold text-ink-900 tracking-tight">Regenerate today’s ideas?</h3>
               <p className="mt-2 text-[12.5px] text-ink-500 leading-relaxed">
-                Today’s batch for <b className="text-ink-800">{confirmRegen.brand_name}</b> is replaced with a fresh
-                one. Anything already <b>posted for real</b> is left alone. This can’t be undone.
+                All of today’s AI posts for <b className="text-ink-800">{confirmRegen.brand_name}</b> that haven’t gone
+                out yet — from the daily run and the weekly plan — are replaced with a fresh batch: new captions, new
+                images, new times. Anything already <b>posted</b> (or sending right now) is left alone, and posts you
+                made yourself are never touched. This can’t be undone.
               </p>
               <p className="mt-2 text-[12px] text-ink-400">
                 It runs in the background — you’ll see the progress on the brand’s row and can keep working.

@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import (
+    Website,
     Automation,
     Brand,
     BrandAsset,
@@ -82,7 +83,7 @@ def scope(model, ws: int):
     Returns None for shared, global tables (Platform)."""
     if model is Platform:
         return None
-    if model in (Brand, Video, GenerationJob, TeamMember, VideoStory, CreditEntry):
+    if model in (Brand, Video, GenerationJob, TeamMember, VideoStory, CreditEntry, Website):
         return model.workspace_id == ws
     if model in (Channel, Post, Draft, Automation, Product, WeeklyPlan, BrandAsset):
         return model.brand_id.in_(brand_ids(ws))

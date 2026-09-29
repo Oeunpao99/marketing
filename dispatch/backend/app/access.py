@@ -27,6 +27,7 @@ FEATURES: dict[str, tuple[str, str]] = {
     "products": ("Products & brand kit", "Add or change products, logo and poster templates"),
     "channels": ("Platforms", "Connect, disconnect and import from Pages and accounts"),
     "insights": ("Analytics", "Post results and insights"),
+    "website": ("Website check", "Website health, SEO, speed and domain checks"),
 }
 
 _W = {"POST", "PUT", "PATCH", "DELETE"}
@@ -48,6 +49,7 @@ RULES: list[tuple[str, set[str] | None, re.Pattern[str]]] = [
     ("channels", None, re.compile(r"^/views/oauth/")),
     ("channels", _W, re.compile(r"^/channels(/|$)")),
     ("insights", None, re.compile(r"^/views/insights(/|$)")),
+    ("website", None, re.compile(r"^/website(/|$)")),
 ]
 
 

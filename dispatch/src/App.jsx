@@ -24,6 +24,7 @@ import ReviewPage from "./pages/ReviewPage";
 import TodayPage from "./pages/TodayPage";
 import VideoStoryPage from "./pages/VideoStoryPage";
 import WeeklyPage from "./pages/WeeklyPage";
+import WebsitePage from "./pages/WebsitePage";
 import { StoreProvider, useStore } from "./store";
 import { canOpen } from "./lib/access";
 
@@ -72,6 +73,7 @@ function Portal() {
             <Route path="/channels/add" element={<AddChannelPage />} />
             <Route path="/auto" element={<AutoPage />} />
             <Route path="/weekly" element={<WeeklyPage />} />
+            <Route path="/website" element={<WebsitePage />} />
             <Route path="/products" element={<ProductsPage />} />
             <Route path="/story" element={<VideoStoryPage />} />
             <Route path="/calendar" element={<CalendarPage />} />

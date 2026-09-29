@@ -8,6 +8,7 @@ import {
   FiChevronDown,
   FiEdit,
   FiFileText,
+  FiGlobe,
   FiGrid,
   FiImage,
   FiInbox,
@@ -58,7 +59,10 @@ const SECTIONS = [
   },
   {
     label: "Analytics",
-    items: [{ to: "/insights", icon: FiBarChart2, label: "Overview" }],
+    items: [
+      { to: "/insights", icon: FiBarChart2, label: "Overview" },
+      { to: "/website", icon: FiGlobe, label: "Website check" },
+    ],
   },
 ];
 

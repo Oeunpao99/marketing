@@ -62,6 +62,10 @@ class Settings(BaseSettings):
     azure_openai_video_deployment: str = "sora-2"
     azure_openai_video_api_version: str = "preview"
 
+    # Website check (app/website.py): Google PageSpeed Insights key. Optional —
+    # without one Google allows only a few checks a day.
+    pagespeed_api_key: str = ""
+
     # gemini_veo — Google AI Studio / Gemini API key + a Veo model id.
     gemini_api_key: str = ""
     gemini_video_model: str = "veo-3.1-fast-generate-preview"

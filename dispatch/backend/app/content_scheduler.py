@@ -610,11 +610,15 @@ def force_regenerate(db: Session, automation_id: int, report: Report = _no_repor
 
     report(2, "Clearing today's old batch…", 5)
     today = _today()
+    # Every AI post planned for today — the daily batch AND today's slot of an
+    # approved weekly plan — so "Regenerate" really replaces what's scheduled
+    # instead of adding a second batch on top. Hand-made posts aren't drafts
+    # with these sources, so they're never touched.
     old_drafts = db.scalars(
         select(Draft).where(
             Draft.brand_id == automation.brand_id,
             Draft.planned_for == today,
-            Draft.source == "ai-auto",
+            Draft.source.in_(("ai-auto", "ai-weekly")),
         )
     ).all()
 
@@ -627,8 +631,9 @@ def force_regenerate(db: Session, automation_id: int, report: Report = _no_repor
         )
         if post is not None:
             targets = db.scalars(select(PostTarget).where(PostTarget.post_id == post.id)).all()
-            if any(t.status == "posted" for t in targets):
-                # Already went out for real somewhere — don't touch it.
+            if any(t.status in ("posted", "posting") for t in targets):
+                # Already went out somewhere, or is going out right now —
+                # don't touch it.
                 kept_live += 1
                 continue
             for t in targets:
@@ -778,6 +783,14 @@ def _tick() -> dict:
         except Exception:  # noqa: BLE001 - never let the weekly plan sink the daily run
             db.rollback()
             log.exception("weekly plan tick failed")
+        try:
+            from app.website import auto_tick as website_tick  # weekly website re-checks
+
+            if started := website_tick(db, now):
+                log.info("content scheduler: %d website check(s) started", started)
+        except Exception:  # noqa: BLE001 - never let a website check sink the daily run
+            db.rollback()
+            log.exception("website check tick failed")
         return {"checked": len(due_ids), "written": written, "failed": failed}
     finally:
         db.close()

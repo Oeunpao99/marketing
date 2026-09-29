@@ -680,3 +680,24 @@ class WorkspaceInvite(Base, TimestampMixin):
     max_uses: Mapped[int | None] = mapped_column(Integer, nullable=True)
     uses: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     revoked: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+
+
+class Website(Base, TimestampMixin):
+    """A brand's website, checked for health, SEO, share preview, Google
+    speed scores and domain / email safety (app/website.py) — on demand and
+    weekly, with a push when something breaks. One per brand."""
+
+    __tablename__ = "websites"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
+    brand_id: Mapped[int] = mapped_column(ForeignKey("brands.id", ondelete="CASCADE"), unique=True, index=True)
+    domain: Mapped[str] = mapped_column(String(253))
+    # The latest full report (sections, items, Google scores, AI summary).
+    result: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    # [{"at": iso, "score": n, "mobile": n}] — newest last, the last 26 checks.
+    history: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list, server_default="[]", nullable=False)
+    # Problems already pushed ({"down": iso, ...}), so each alerts once.
+    alerted: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, server_default="{}", nullable=False)
