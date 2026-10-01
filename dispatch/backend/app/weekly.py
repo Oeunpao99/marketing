@@ -247,13 +247,15 @@ def advisor_summary(brand: Brand, report: dict, items: list[dict]) -> dict | Non
 
 # ── plan ──────────────────────────────────────────────────────────────────
 def _free_days(db: Session, brand_id: int, start: date) -> list[date]:
-    """Days in the plan window an approved plan hasn't already filled."""
+    """Days in the plan window an approved plan hasn't already filled. A
+    post rejected in Calendar frees its day, so it can be planned again."""
     days = [start + timedelta(days=n) for n in range(PLAN_DAYS)]
     taken = set(
         db.scalars(
             select(Draft.planned_for).where(
                 Draft.brand_id == brand_id,
                 Draft.source == "ai-weekly",
+                Draft.status != "rejected",
                 Draft.planned_for >= days[0],
                 Draft.planned_for <= days[-1],
             )
@@ -638,6 +640,7 @@ def weekly_edit_item(
         value = getattr(payload, field)
         if value is not None and value.strip():
             item[field] = value.strip()
+            item["edited"] = True  # the page asks before a Rewrite throws this away
     plan.items = items
     db.commit()
     return item
@@ -646,7 +649,13 @@ def weekly_edit_item(
 @router.delete("/{plan_id}/items/{key}", status_code=204)
 def weekly_remove_item(plan_id: int, key: str, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
     plan = _ready_plan(db, plan_id, ws, lock=True)
-    plan.items = [i for i in plan.items if i["key"] != key]
+    kept = [i for i in plan.items if i["key"] != key]
+    if len(kept) < len(plan.items):
+        # counted so the page can warn before a Rewrite brings them back
+        report = dict(plan.report or {})
+        report["removed"] = report.get("removed", 0) + 1
+        plan.report = report
+    plan.items = kept
     db.commit()
 
 

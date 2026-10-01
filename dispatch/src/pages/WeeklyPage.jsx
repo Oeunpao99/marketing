@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { FiAlertTriangle, FiArrowDownRight, FiArrowUpRight, FiCalendar, FiCheck, FiRefreshCw, FiTrendingUp, FiUsers, FiX, FiZap } from 'react-icons/fi'
 import { api } from '../api/client'
@@ -27,6 +28,7 @@ export default function WeeklyPage() {
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState('')
+  const [confirmRewrite, setConfirmRewrite] = useState(null)
   const poll = useRef(null)
 
   const load = useCallback(async () => {
@@ -74,7 +76,16 @@ export default function WeeklyPage() {
     return () => clearInterval(poll.current)
   }, [job?.status, brand?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Rewrite replaces the waiting plan — ask first if the user has changed it.
+  const askRewrite = () => {
+    const edited = data.plan.items.filter((i) => i.edited).length
+    const removed = data.plan.report?.removed || 0
+    if (edited || removed) setConfirmRewrite({ edited, removed })
+    else planNow()
+  }
+
   const planNow = async () => {
+    setConfirmRewrite(null)
     setBusy('plan')
     try {
       const j = await api.post(`/weekly/plan?brand_id=${brand.id}`)
@@ -123,6 +134,7 @@ export default function WeeklyPage() {
     setItems((items) => items.filter((i) => i.key !== key))
     try {
       await api.del(`/weekly/${data.plan.id}/items/${key}`)
+      setData((d) => ({ ...d, plan: { ...d.plan, report: { ...d.plan.report, removed: (d.plan.report?.removed || 0) + 1 } } }))
     } catch (e) {
       setItems(() => before)
       showToast(`Could not remove — ${e.message}`)
@@ -130,7 +142,7 @@ export default function WeeklyPage() {
   }
 
   const saveCaption = async (key, caption) => {
-    setItems((items) => items.map((i) => (i.key === key ? { ...i, caption } : i)))
+    setItems((items) => items.map((i) => (i.key === key ? { ...i, caption, edited: true } : i)))
     try {
       await api.patch(`/weekly/${data.plan.id}/items/${key}`, { caption })
     } catch (e) {
@@ -186,6 +198,10 @@ export default function WeeklyPage() {
 
       {running && !planning && <JobBar job={job} />}
 
+      {confirmRewrite && (
+        <RewriteDialog {...confirmRewrite} onCancel={() => setConfirmRewrite(null)} onConfirm={planNow} />
+      )}
+
       {data === null && !error ? (
         <div className={`${card} p-6 space-y-3`}>
           <div className="h-4 w-1/3 rounded skeleton" />
@@ -209,7 +225,7 @@ export default function WeeklyPage() {
                 running={running}
                 onApprove={approve}
                 onDismiss={dismiss}
-                onReplan={planNow}
+                onReplan={askRewrite}
                 onRemove={removeItem}
                 onSaveCaption={saveCaption}
               />
@@ -1000,6 +1016,11 @@ function NoPlan({ plan, data, busy, onPlan }) {
               )
             })}
           </ul>
+          {plan.drafts.some((d) => d.status === 'rejected') && data.free_days > 0 && (
+            <p className="mt-3 rounded-lg bg-brand-soft px-3 py-2 text-[12px] text-ink-700">
+              You removed some posts — their days are free again. Plan them to fill the gaps.
+            </p>
+          )}
           <div className="mt-4 flex items-center gap-2 flex-wrap">
             <Link to="/calendar" className="btn-outline">
               Open Calendar
@@ -1163,5 +1184,35 @@ function WeeklyPlanning({ brand, job }) {
         </div>
       </div>
     </section>
+  )
+}
+
+/** Asked before Rewrite throws away the user's changes to the waiting plan. */
+function RewriteDialog({ edited, removed, onCancel, onConfirm }) {
+  const changes = [
+    edited > 0 && `${edited} edited caption${edited === 1 ? '' : 's'}`,
+    removed > 0 && `${removed} removed post${removed === 1 ? '' : 's'}`,
+  ].filter(Boolean)
+  return createPortal(
+    <div className="fixed inset-0 z-[110] glass-overlay flex items-center justify-center p-4 animate-fadein" onClick={onCancel}>
+      <div role="dialog" aria-modal="true" className="glass-panel w-full max-w-sm rounded-3xl p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="grid h-10 w-10 place-items-center rounded-full bg-amber-50 text-amber-700">
+          <FiRefreshCw size={18} aria-hidden="true" />
+        </div>
+        <h2 className="mt-4 text-[15.5px] font-bold text-ink-900">Rewrite the whole plan?</h2>
+        <p className="mt-2 text-[12.5px] leading-relaxed text-ink-500">
+          The AI writes a brand-new plan and replaces this one. Your changes will be lost: {changes.join(' and ')}.
+        </p>
+        <div className="mt-6 flex justify-end gap-2">
+          <button type="button" onClick={onCancel} className="btn-outline">
+            Keep my plan
+          </button>
+          <button type="button" onClick={onConfirm} className="btn-primary">
+            Rewrite
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
   )
 }

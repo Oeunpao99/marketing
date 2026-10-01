@@ -646,12 +646,13 @@ def run_automation(
         db.commit()  # release the row lock
         return None
     # An approved weekly plan (app/weekly.py) already covers today — don't
-    # write a second batch on top of it.
+    # write a second batch on top of it (unless its posts were rejected).
     if db.scalar(
         select(Draft.id).where(
             Draft.brand_id == automation.brand_id,
             Draft.planned_for == today,
             Draft.source == "ai-weekly",
+            Draft.status != "rejected",
         ).limit(1)
     ):
         automation.last_run_on = today
