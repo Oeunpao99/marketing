@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import (
+    ActivityPlan,
     Website,
     Automation,
     Brand,
@@ -85,7 +86,7 @@ def scope(model, ws: int):
         return None
     if model in (Brand, Video, GenerationJob, TeamMember, VideoStory, CreditEntry, Website):
         return model.workspace_id == ws
-    if model in (Channel, Post, Draft, Automation, Product, WeeklyPlan, BrandAsset):
+    if model in (Channel, Post, Draft, Automation, Product, WeeklyPlan, BrandAsset, ActivityPlan):
         return model.brand_id.in_(brand_ids(ws))
     if model is PostTarget:
         return PostTarget.post_id.in_(select(Post.id).where(Post.brand_id.in_(brand_ids(ws))))

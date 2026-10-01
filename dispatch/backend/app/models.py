@@ -21,6 +21,7 @@ from sqlalchemy import (
     String,
     Text,
     Time,
+    UniqueConstraint,
     event,
     func,
     text,
@@ -599,6 +600,26 @@ class WeeklyPlan(Base, TimestampMixin):
     approved_by: Mapped[int | None] = mapped_column(
         ForeignKey("team_members.id", ondelete="SET NULL"), nullable=True
     )
+
+
+class ActivityPlan(Base, TimestampMixin):
+    """A brand's weekly activity plan (app/activity.py): the 1-3 goals the AI
+    picked for the week and the team's day-by-day to-do list to reach them —
+    a shared checklist everyone in the workspace ticks. One per brand per
+    week (Monday-Sunday, Phnom Penh). Not in app/registry.py: no generic CRUD."""
+
+    __tablename__ = "activity_plans"
+    __table_args__ = (UniqueConstraint("brand_id", "week_start", name="uq_activity_plan_brand_week"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    brand_id: Mapped[int] = mapped_column(ForeignKey("brands.id", ondelete="CASCADE"), index=True)
+    week_start: Mapped[date] = mapped_column(Date, index=True)  # the Monday
+    # [{"title", "why", "measure"}]
+    goals: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list, server_default="[]", nullable=False)
+    focus: Mapped[str] = mapped_column(String(400), default="", server_default="")
+    # [{"id", "day": "YYYY-MM-DD", "category": content|engagement|growth|review,
+    #   "title", "detail", "goal": index|None, "done", "done_by", "done_at", "custom"}]
+    tasks: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list, server_default="[]", nullable=False)
 
 
 class VideoStory(Base, TimestampMixin):

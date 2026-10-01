@@ -26,6 +26,7 @@ from app.views import public_router as views_public_router
 from app.views import router as views_router
 from app.weekly import router as weekly_router
 from app.website import router as website_router
+from app.activity import router as activity_router
 
 logging.basicConfig(level=logging.INFO)
 settings = get_settings()
@@ -136,6 +137,7 @@ api.include_router(brand_kit_router, dependencies=authed)
 api.include_router(views_router, dependencies=authed)
 api.include_router(weekly_router, dependencies=authed)
 api.include_router(website_router, dependencies=authed)
+api.include_router(activity_router, dependencies=authed)
 api.include_router(views_public_router)
 app.include_router(api)
 app.include_router(media_serve_router)

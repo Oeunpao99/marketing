@@ -65,21 +65,30 @@ def _tint(c: tuple[int, int, int], amount: float) -> tuple[int, int, int]:
 def poster_photo_prompt(pillar: str, scene: str) -> str:
     """The image brief for a poster's picture — no text in it (the poster's
     words are drawn on by render_poster)."""
-    style = {
-        "quote": "a calm, atmospheric photo with plenty of empty, softly lit space — it sits behind large text",
-        "trend": "a modern, bright, optimistic image about new technology in everyday use",
-        "comparison": "one wide scene of the situation the post compares, with the action spread across "
-        "the whole width (the left half is shown in grey as 'before', the right in colour as 'after')",
-        "community": "one friendly person or object centred in the frame with space around it — it is "
-        "shown cropped to a small circle",
-    }.get(pillar, "a clean, bright, friendly image that shows the idea at a glance")
-    return (
-        f"A social media poster picture: {scene.strip()}. Style: {style}. Photorealistic or a clean "
-        "modern 3D illustration, one clear subject, simple uncluttered background, soft natural "
-        "light. Where people or places appear, set it in Cambodia (Cambodian people, Phnom Penh "
-        "shops, homes and offices). Absolutely no text, letters, numbers, captions, signs with "
-        "words, screens with readable text, logos or watermarks anywhere in the image."
-    )
+    framing = {
+        "quote": "a wide, atmospheric frame with lots of calm, dark space — it sits behind large white text",
+        "trend": "a striking frame with a sense of something new arriving — dusk or neon light works well",
+        "comparison": "one wide scene with the action spread across the whole width (the left half is "
+        "shown in grey as 'before', the right in colour as 'after')",
+        "community": "one person centred in the frame with space around them, looking warm and real — it "
+        "is shown cropped to a small circle",
+    }.get(pillar, "the subject in the centre to upper part of the frame, the moment clear at a glance")
+    return f"{CAMBODIA_PHOTO}\nThe moment: {scene.strip()}\nFraming: {framing}."
+
+
+# The look every auto-made photo shares: real Cambodian life shot like a
+# documentary, not stock — the user found the office-around-a-laptop look dull.
+CAMBODIA_PHOTO = (
+    "A cinematic documentary photograph taken in Cambodia — real life, not stock photography. "
+    "Real Cambodian people in real places: street-side shops, market stalls, cafés, home "
+    "businesses, tuk-tuks, riverside streets of Phnom Penh or Siem Reap. Candid and natural — "
+    "people busy doing something, not posing or smiling at the camera. Shot on a full-frame "
+    "camera with a 35mm lens, shallow depth of field, rich but natural colour, real light "
+    "(warm morning sun, golden hour, shop lights at night, rain on the street), real texture "
+    "and detail. Never: office workers around a laptop, people pointing at screens, "
+    "handshakes, posed smiling teams, glossy corporate looks. Absolutely no text, letters, "
+    "numbers, signs with words, readable screens, logos or watermarks anywhere in the image."
+)
 
 
 # ── text helpers ──────────────────────────────────────────────────────────

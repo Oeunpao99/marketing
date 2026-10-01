@@ -862,6 +862,14 @@ def _tick() -> dict:
         except Exception:  # noqa: BLE001 - never let a website check sink the daily run
             db.rollback()
             log.exception("website check tick failed")
+        try:
+            from app.activity import auto_tick as activity_tick  # Monday activity plans
+
+            if started := activity_tick(db, now):
+                log.info("content scheduler: %d activity plan(s) started", started)
+        except Exception:  # noqa: BLE001 - never let an activity plan sink the daily run
+            db.rollback()
+            log.exception("activity plan tick failed")
         return {"checked": len(due_ids), "written": written, "failed": failed}
     finally:
         db.close()
