@@ -161,6 +161,9 @@ export default function AIPromptPage() {
   const [kitOpen, setKitOpen] = useState(false)
   const [kitAssets, setKitAssets] = useState([])
   const [kitProducts, setKitProducts] = useState([])
+  // The one product an image / video is about (Settings → Product) — the
+  // prompt writer then uses only it, so a brand's products never get mixed.
+  const [productId, setProductId] = useState(null)
   const [kit, setKit] = useState({ templateId: null, productId: null, logo: false })
   const kitRef = useRef(null)
 
@@ -232,6 +235,7 @@ export default function AIPromptPage() {
   useEffect(() => {
     const id = brandObj?.id
     setKit({ templateId: null, productId: null, logo: false })
+    setProductId(null)
     if (id == null) return
     let live = true
     Promise.all([api.get(`/brand-kit?brand_id=${id}`), api.get('/products')])
@@ -598,6 +602,7 @@ export default function AIPromptPage() {
         topic: sug.brief,
         has_reference: kind === 'video' && !!productId,
         brand_kit: kind === 'image' && !!productId,
+        product_id: productId,
       })
       addTokens(res.total_tokens)
       patchTurn(turn.id, { prompt: res.prompt })
@@ -669,6 +674,8 @@ export default function AIPromptPage() {
         // Video: an attached image or product photo is the clip's first frame.
         has_reference: isImage ? !!refImg && !kitOn : !!refImg || videoFrame,
         brand_kit: kitOn,
+        // The product picked in Settings, else the one whose photo is in the brand kit.
+        product_id: productId ?? kit.productId ?? null,
       })
       setText(res.prompt)
       addTokens(res.total_tokens)
@@ -1047,6 +1054,17 @@ export default function AIPromptPage() {
                   setStyle={setStyle}
                   template={template}
                   setTemplate={setTemplate}
+                  products={kitProducts}
+                  product={productId}
+                  setProduct={(id) => {
+                    setProductId(id)
+                    // Keep the brand-kit photo on the same product, so text and picture agree.
+                    setKit((k) =>
+                      k.productId && k.productId !== id
+                        ? { ...k, productId: kitPhotos.some((a) => a.product_id === id) ? id : null }
+                        : k,
+                    )
+                  }}
                 />
               )}
             </div>
@@ -1810,6 +1828,7 @@ function RatioShape({ id }) {
 function SettingsPopover({
   type, setType, ratio, setRatio, seconds, setSeconds, videoMode, setVideoMode, storySeconds, setStorySeconds,
   voice, setVoice, brands, brand, setBrand, style, setStyle, template, setTemplate,
+  products = [], product, setProduct,
 }) {
   const [more, setMore] = useState(false)
   const story = type === 'video' && videoMode === 'story'
@@ -1909,6 +1928,18 @@ function SettingsPopover({
             options={brands.map((b) => ({ value: b.slug, label: b.name, color: colorForBrand(b.slug) }))}
           />
         </Row>
+
+        {products.length > 1 && (
+          <Row label="Product" hint={product ? undefined : 'The AI picks the product your idea is about'}>
+            <Select
+              size="sm"
+              align="right"
+              value={product ?? ''}
+              onChange={(v) => setProduct(v === '' ? null : Number(v))}
+              options={[{ value: '', label: 'Let AI choose' }, ...products.map((p) => ({ value: p.id, label: p.name }))]}
+            />
+          </Row>
+        )}
       </div>
 
       <button

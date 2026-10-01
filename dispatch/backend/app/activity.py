@@ -147,6 +147,18 @@ def _plan_days(start: date) -> list[date]:
     return [d for d in (start + timedelta(days=i) for i in range(7)) if d >= today] or [start + timedelta(days=6)]
 
 
+def _product_lines(products: list[Product]) -> list[str]:
+    lines = []
+    for p in products[:12]:
+        entry = f"- {p.name}"
+        if p.description:
+            entry += f": {' '.join(p.description.split())[:400]}"
+        if p.highlights:
+            entry += f" | highlights: {' '.join(p.highlights.split())[:300]}"
+        lines.append(entry)
+    return lines
+
+
 def _data(db: Session, brand: Brand, start: date) -> str:
     from app.weekly import build_report  # local: weekly imports the scheduler too
 
@@ -168,10 +180,30 @@ def _data(db: Session, brand: Brand, start: date) -> str:
     )
     tw, lw = report["this_week"], report["last_week"]
     days = _plan_days(start)
+    recent = [
+        i.get("product", "")
+        for ideas in db.scalars(
+            select(ActivityPlan.ideas)
+            .where(ActivityPlan.brand_id == brand.id, ActivityPlan.week_start < start)
+            .order_by(ActivityPlan.week_start.desc())
+            .limit(2)
+        ).all()
+        for i in ideas or []
+        if i.get("product")
+    ]
+    slots = [
+        f"{slug} {s['day']} {s['hour']:02d}:00"
+        for slug, by_day in learned.get("best_slots", {}).items()
+        for s in by_day.values()
+    ]
     lines = [
         f"Brand: {brand.name}" + (f" — {brand.note}" if brand.note else ""),
         f"Audience language: {brand.lang or 'not set'}",
-        "Products: " + ("; ".join(p.name for p in products) if products else "none on file"),
+        "",
+        "PRODUCTS:",
+        *(_product_lines(products) or ["- none on file"]),
+        "Products featured in recent weeks' ideas: " + (", ".join(recent) if recent else "none yet"),
+        "",
         "Connected platforms: " + (", ".join(platforms) if platforms else "none connected yet"),
         "Days to plan (earlier days of this week are already over — no tasks for them): "
         + ", ".join(f"{d.isoformat()} ({d:%A})" for d in days),
@@ -183,6 +215,7 @@ def _data(db: Session, brand: Brand, start: date) -> str:
         "What has measurably worked: " + ("; ".join(r["text"] for r in learned.get("rules", [])) or "nothing measured yet"),
         "What did worse: " + ("; ".join(r["text"] for r in learned.get("weak_rules", [])) or "nothing measured yet"),
         f"Drafts waiting for review: {waiting}",
+        "Best posting times measured: " + ("; ".join(slots) if slots else "not measured yet"),
         "",
         "This week's posts:",
         *(_week_posts(db, brand.id, start) or ["- nothing planned or scheduled yet"]),
@@ -194,40 +227,64 @@ def _data(db: Session, brand: Brand, start: date) -> str:
 
 
 PLAN_PROMPT = (
-    "You are the marketing lead of a small Cambodian business's social media team, planning "
-    "the team's week. You get DATA about this brand. Use ONLY it: never invent numbers, posts, "
-    "customers, competitors or results.\n"
+    "You are the creative marketing lead of a small Cambodian business. Each week you come up "
+    "with content ideas that could make the brand's PRODUCTS spread — the kind people watch "
+    "twice, share with a friend or save — and plan the team's week to make them happen. You get "
+    "DATA about the brand. Use ONLY it: never invent product features, prices, offers, "
+    "customers, numbers or results.\n"
     "\n"
-    "1. Pick the week's GOALS yourself: 1-3 goals that matter most right now, judged from the "
-    "data (e.g. engagement fell → win back comments; drafts piling up → clear the review "
-    "queue; nothing planned → fill the week; a topic works → do more of it; no platforms "
-    "connected → connect one first). Each goal: {\"title\": short and measurable where the data "
-    "allows — base any target on last week's real numbers (e.g. 'More comments than last "
-    "week's 12'), never a made-up figure; \"why\": one sentence quoting the data; \"measure\": "
-    "how the team will know on Sunday}.\n"
-    "2. focus: one sentence — the week in plain words.\n"
-    "3. tasks: for EACH of the days to plan, 2-4 tasks for the team (Saturday and Sunday lighter). "
-    "Each task: {\"day\": \"YYYY-MM-DD\", \"category\": one of content | engagement | growth | "
-    "review, \"title\": starts with a verb, under 70 characters, \"detail\": 1 sentence — "
-    "exactly what to do and why, \"goal\": the index (0, 1, 2) of the goal it serves}.\n"
-    "   - content: prepare what the coming posts need, a day or two BEFORE they go out — take "
-    "real photos, record a short video, approve or fix a draft, check product facts. Name "
-    "the actual post from the data.\n"
-    "   - engagement: reply to comments and messages on a post from 'Recent posts' (already "
-    "published), or on a scheduled post the day after it goes out; answer the inbox. Never on a "
-    "draft that isn't published yet.\n"
-    "   - growth: follow up people who asked about price or ordering, share the best recent "
-    "post where the audience is, ask a happy customer for a review or photo.\n"
-    "   - review: check a specific post's results and note why it worked or didn't; the last "
-    "day ends with a short week review against the goals.\n"
-    "   Every task small enough to finish in under 30 minutes, practical for a small team, "
-    "and different from the others — no filler like 'stay consistent' or 'be creative'.\n"
+    "1. ideas: 2-3 content ideas for this week, each built around ONE specific product from the "
+    "data (use its exact name; prefer products not featured in recent weeks). Each idea:\n"
+    "   {\"product\": exact product name, \"title\": the idea in under 70 characters, "
+    "\"format\": one of short video | photo carousel | before & after | challenge | giveaway | "
+    "behind the scenes | customer story | how-to demo | myth vs fact | trend remix, "
+    "\"hook\": the first 2 seconds or first line that stops the scroll — concrete, in the "
+    "audience's world, "
+    "\"why_viral\": one sentence — why people would share, comment or save it (surprise, a "
+    "useful trick, a relatable pain, a deal worth telling a friend about, a funny moment), "
+    "\"platform\": the connected platform it fits best, "
+    "\"how\": 2-3 sentences — what the post shows, step by step, using the product's REAL "
+    "capabilities from the data}.\n"
+    "   Make them specific and bold, not generic advice: a real Cambodian moment, a clear "
+    "before/after or a surprising demo. Different formats across the ideas.\n"
+    "2. goals: 1-3 goals for the week tied to the ideas and the data, e.g. 'Product B's demo "
+    "video gets more views than our usual video' or 'Get 20 comments on the giveaway post'. "
+    "Base any number on last week's real numbers, never a made-up figure. Each goal: "
+    "{\"title\", \"why\": one sentence quoting the data, \"measure\": how the team will know on "
+    "Sunday}.\n"
+    "3. focus: one sentence — the week in plain words, naming the products.\n"
+    "4. tasks: for EACH of the days to plan, 2-4 tasks (Saturday and Sunday lighter) that take "
+    "the ideas from plan to published to pushed: write the script or shot list → prepare "
+    "props, location, people → film or shoot → edit and write the caption → post at the "
+    "best time → reply to every comment, share it where the audience is, follow up people "
+    "who ask the price → check its results. Spread each idea's steps over the week in a "
+    "sensible order. A few tasks may handle the week's other posts in the data (approve a "
+    "waiting draft, reply on a recent post). The last day ends with a short review against "
+    "the goals.\n"
+    "   Each task: {\"day\": \"YYYY-MM-DD\", \"category\": one of content | engagement | growth | "
+    "review, \"title\": starts with a verb, under 70 characters, names the product or post, "
+    "\"detail\": 1 sentence — exactly what to do, \"idea\": the index (0, 1, 2) of the idea it "
+    "builds or null, \"goal\": the index of the goal it serves or null}.\n"
+    "   Every task small enough for under an hour, practical for a small team — no filler "
+    "like 'stay consistent' or 'be creative'. Engagement tasks only on posts that are "
+    "published or scheduled, the day after they go out.\n"
+    "If the data has no products, build the ideas around the brand's service or the brand "
+    "itself and say in focus that adding products to the Products page would sharpen them.\n"
     "Plain, friendly English.\n"
-    'Respond with ONLY a JSON object: {"goals": [...], "focus": "...", "tasks": [...]}'
+    'Respond with ONLY a JSON object: {"ideas": [...], "goals": [...], "focus": "...", '
+    '"tasks": [...]}'
 )
 
 
-def _clean(raw: dict, days: list[date]) -> tuple[list[dict], str, list[dict]]:
+IDEA_FIELDS = {"product": 200, "title": 120, "format": 40, "hook": 200, "why_viral": 300, "platform": 30, "how": 600}
+
+
+def _clean(raw: dict, days: list[date]) -> tuple[list[dict], list[dict], str, list[dict]]:
+    ideas = [
+        {k: " ".join(str(i.get(k) or "").split())[:n] for k, n in IDEA_FIELDS.items()}
+        for i in (raw.get("ideas") or [])[:3]
+        if isinstance(i, dict) and i.get("title")
+    ]
     goals = [
         {k: " ".join(str(g.get(k) or "").split())[:200] for k in ("title", "why", "measure")}
         for g in (raw.get("goals") or [])[:3]
@@ -247,6 +304,7 @@ def _clean(raw: dict, days: list[date]) -> tuple[list[dict], str, list[dict]]:
         per_day[day] = per_day.get(day, 0) + 1
         cat = str(t.get("category") or "").lower()
         goal = t.get("goal")
+        idea = t.get("idea")
         tasks.append(
             {
                 "id": uuid.uuid4().hex[:10],
@@ -255,6 +313,7 @@ def _clean(raw: dict, days: list[date]) -> tuple[list[dict], str, list[dict]]:
                 "title": title,
                 "detail": " ".join(str(t.get("detail") or "").split())[:300],
                 "goal": goal if isinstance(goal, int) and 0 <= goal < len(goals) else None,
+                "idea": idea if isinstance(idea, int) and 0 <= idea < len(ideas) else None,
                 "done": False,
                 "done_by": "",
                 "done_at": None,
@@ -262,7 +321,7 @@ def _clean(raw: dict, days: list[date]) -> tuple[list[dict], str, list[dict]]:
             }
         )
     tasks.sort(key=lambda t: t["day"])
-    return goals, focus, tasks
+    return ideas, goals, focus, tasks
 
 
 def build_plan(db: Session, brand_id: int, start: date, step=lambda _p, _u, _s: None) -> ActivityPlan:
@@ -277,8 +336,8 @@ def build_plan(db: Session, brand_id: int, start: date, step=lambda _p, _u, _s: 
     days = _plan_days(start)
     step(5, 20, "Reading last week's results…")
     data = _data(db, brand, start)
-    step(20, 28, "Looking at this week's posts and drafts…")
-    step(28, 92, "Picking this week's goals and writing the tasks…")
+    step(20, 28, "Looking at your products and this week's posts…")
+    step(28, 92, "Coming up with ideas for your products and planning the tasks…")
     raw = _chat(
         [{"role": "system", "content": PLAN_PROMPT}, {"role": "user", "content": data}],
         get_settings().azure_openai_deployment,
@@ -287,7 +346,7 @@ def build_plan(db: Session, brand_id: int, start: date, step=lambda _p, _u, _s: 
     step(92, 99, "Putting the checklist together…")
     if not isinstance(raw, dict):
         raise ContentAIError("The AI returned no plan.")
-    goals, focus, tasks = _clean(raw, days)
+    ideas, goals, focus, tasks = _clean(raw, days)
     if not tasks:
         raise ContentAIError("The AI returned no tasks.")
     plan = db.scalar(select(ActivityPlan).where(ActivityPlan.brand_id == brand_id, ActivityPlan.week_start == start))
@@ -297,7 +356,7 @@ def build_plan(db: Session, brand_id: int, start: date, step=lambda _p, _u, _s: 
     else:
         kept = [t for t in plan.tasks if t.get("done") or t.get("custom")]
         tasks = kept + tasks
-    plan.goals, plan.focus, plan.tasks = goals, focus, tasks
+    plan.ideas, plan.goals, plan.focus, plan.tasks = ideas, goals, focus, tasks
     db.commit()
     db.refresh(plan)
     return plan
@@ -415,6 +474,7 @@ def _out(plan: ActivityPlan | None) -> dict | None:
         "id": plan.id,
         "brand_id": plan.brand_id,
         "week_start": plan.week_start.isoformat(),
+        "ideas": plan.ideas,
         "goals": plan.goals,
         "focus": plan.focus,
         "tasks": plan.tasks,

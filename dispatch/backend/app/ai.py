@@ -157,6 +157,9 @@ class PromptRequest(BaseModel):
     # app/models.py's Product) — same idea as app/content_ai.py's daily
     # content generator, just for the image/video prompt writer instead.
     brand_id: int | None = None
+    # The one product this image/video is about (a brand can have several) —
+    # the brief then uses only it, so products never get mixed in one asset.
+    product_id: int | None = None
     type: str = "image"          # image | video
     template: str = ""
     aspect_ratio: str = "1:1"
@@ -198,7 +201,15 @@ def _user_brief(r: PromptRequest, products: list[Product]) -> str:
     if r.extra.strip():
         lines.append(f"Extra art direction: {r.extra.strip()}")
     if products:
-        lines.append("\nThis brand's real products/offers on file (ground the scene in these):")
+        if r.product_id is not None and len(products) == 1:
+            lines.append("\nTHE PRODUCT this asset is about — show and describe only this one:")
+        elif len(products) > 1:
+            lines.append(
+                "\nThis brand has several products. The asset is about ONE of them — the one the "
+                "topic names or fits best. Never mix products or their features in one asset:"
+            )
+        else:
+            lines.append("\nThis brand's real product/offer on file (ground the scene in it):")
         for p in products:
             entry = f"- {p.name}"
             if p.description:
@@ -258,6 +269,11 @@ def build_prompt(req: PromptRequest, db: Session = Depends(get_db), ws: int = De
         if req.brand_id is not None
         else []
     )
+    if req.product_id is not None:
+        # Only a product of this brand counts — anything else is ignored, not an error.
+        products = [p for p in products if p.id == req.product_id] or products
+        if len(products) != 1:
+            req.product_id = None
 
     billing.require(ws)
     base = cfg.azure_openai_endpoint.rstrip("/")

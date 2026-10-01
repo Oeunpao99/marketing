@@ -8,9 +8,11 @@ import {
   FiRefreshCw,
   FiTarget,
   FiX,
+  FiZap,
 } from 'react-icons/fi'
 import { api } from '../api/client'
 import { colorForBrand } from '../lib/brandColor'
+import { PLAT } from '../data/brands'
 import { fullDayLabel } from '../lib/tz'
 import { useSmoothProgress } from '../lib/autoRuns'
 import { useStore } from '../store'
@@ -132,7 +134,7 @@ export default function ActivityPage() {
         <div>
           <h1 className="text-[24px] font-bold leading-tight tracking-tight text-ink-900">Activity plan</h1>
           <p className="mt-1 text-[13px] text-ink-600">
-            This week's goals and what the team does each day to reach them — the AI plans it from your results and posts.
+            Content ideas that could make your products spread, and the team's day-by-day steps to make them happen.
           </p>
         </div>
         {brands.length > 1 && (
@@ -196,9 +198,9 @@ export default function ActivityPage() {
           </div>
           <h2 className="text-[17px] font-bold text-ink-900">No plan for this week yet</h2>
           <p className="mx-auto mt-1.5 max-w-[52ch] text-[12.5px] leading-relaxed text-ink-500">
-            The AI picks this week's goals from your results, then gives the team a short to-do list for each day — preparing
-            photos and videos, replying to comments, following up customers, and checking what worked. Brands with
-            Auto-generate on get one every Monday morning.
+            The AI comes up with 2–3 content ideas for your products — the kind people share — and turns them into a to-do
+            list for each day: script, film, edit, post at your best time, reply and follow up buyers, then check what
+            worked. Brands with Auto-generate on get one every Monday morning.
           </p>
           <button type="button" onClick={generate} className="btn-primary mt-5 px-4">
             Plan this week
@@ -261,6 +263,57 @@ export default function ActivityPage() {
             </ol>
           </section>
 
+          {/* the week's product ideas */}
+          {plan.ideas?.length > 0 && (
+            <section>
+              <h2 className="mb-2.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[.06em] text-ink-400">
+                <FiZap size={12} /> This week's content ideas
+              </h2>
+              <div className="grid gap-3 md:grid-cols-3">
+                {plan.ideas.map((idea, n) => {
+                  const mine = tasks.filter((t) => t.idea === n)
+                  const ok = mine.filter((t) => t.done).length
+                  return (
+                    <article key={n} className={`${card} flex flex-col p-4`}>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="rounded-md bg-ink-900 px-1.5 py-0.5 text-[10.5px] font-bold text-ink-50">Idea {n + 1}</span>
+                        {idea.product && (
+                          <span className="rounded-md bg-brand-soft px-1.5 py-0.5 text-[10.5px] font-semibold text-brand">{idea.product}</span>
+                        )}
+                        <span className="text-[11px] text-ink-500">
+                          {[idea.format, idea.platform && PLAT[idea.platform]?.name].filter(Boolean).join(' · ')}
+                        </span>
+                      </div>
+                      <h3 className="mt-2 text-[14px] font-bold leading-snug text-ink-900">{idea.title}</h3>
+                      {idea.hook && (
+                        <p className="mt-2 rounded-lg bg-canvas px-2.5 py-2 text-[12px] italic leading-snug text-ink-800">“{idea.hook}”</p>
+                      )}
+                      {idea.why_viral && (
+                        <p className="mt-2 text-[11.5px] leading-relaxed text-ink-600">
+                          <span className="font-semibold text-ink-800">Why it can spread:</span> {idea.why_viral}
+                        </p>
+                      )}
+                      {idea.how && <p className="mt-1.5 text-[11.5px] leading-relaxed text-ink-500">{idea.how}</p>}
+                      {mine.length > 0 && (
+                        <div className="mt-auto pt-3">
+                          <div className="flex justify-between text-[11px] font-semibold">
+                            <span className="text-ink-600">Steps</span>
+                            <span className="text-brand">
+                              {ok} of {mine.length}
+                            </span>
+                          </div>
+                          <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-ink-100">
+                            <div className="h-full rounded-full bg-brand transition-all duration-500" style={{ width: `${(100 * ok) / mine.length}%` }} />
+                          </div>
+                        </div>
+                      )}
+                    </article>
+                  )
+                })}
+              </div>
+            </section>
+          )}
+
           {/* the days */}
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {data.days.map((day) => (
@@ -287,10 +340,10 @@ export default function ActivityPage() {
 // kind slide in and get ticked — and a real progress bar (the backend reports
 // its steps; useSmoothProgress creeps forward between them).
 const SAMPLE_TASKS = [
-  { cat: 'content', text: 'Take 3 real photos for Thursday’s post' },
-  { cat: 'engagement', text: 'Reply to comments on yesterday’s post' },
+  { cat: 'content', text: 'Write the script for the product video' },
+  { cat: 'content', text: 'Film the 15-second demo at the shop' },
+  { cat: 'engagement', text: 'Reply to every comment on the video' },
   { cat: 'growth', text: 'Follow up people who asked the price' },
-  { cat: 'review', text: 'Check which post got the most comments' },
 ]
 const CYCLE = 6 // seconds — one pass of the pencil over the four lines
 const LINES = [
@@ -368,7 +421,7 @@ export function PlanningAnimation({ brand, job }) {
           const cat = CATEGORY[t.cat]
           return (
             <li
-              key={t.cat}
+              key={t.text}
               className="ap-task flex items-center gap-2.5 rounded-xl border border-ink-100 bg-canvas px-3 py-2"
               style={{ animationDelay: `${i * 0.8}s` }}
             >
@@ -448,6 +501,7 @@ function DayCard({ day, today, past, tasks, onToggle, onAdd, onRemove }) {
                 {t.detail && !t.done && <p className="mt-0.5 text-[11.5px] leading-relaxed text-ink-500">{t.detail}</p>}
                 <div className="mt-1 flex flex-wrap items-center gap-1.5">
                   <span className={`rounded-md px-1.5 py-0.5 text-[10.5px] font-semibold ${cat.cls}`}>{cat.label}</span>
+                  {t.idea != null && <span className="text-[10.5px] font-semibold text-ink-600">Idea {t.idea + 1}</span>}
                   {t.goal != null && <span className="text-[10.5px] font-medium text-ink-400">Goal {t.goal + 1}</span>}
                   {t.done && t.done_by && <span className="text-[10.5px] text-ink-400">✓ {t.done_by}</span>}
                 </div>

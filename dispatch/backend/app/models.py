@@ -614,6 +614,9 @@ class ActivityPlan(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     brand_id: Mapped[int] = mapped_column(ForeignKey("brands.id", ondelete="CASCADE"), index=True)
     week_start: Mapped[date] = mapped_column(Date, index=True)  # the Monday
+    # The week's content ideas, each for one product:
+    # [{"product", "title", "format", "hook", "why_viral", "platform", "how"}]
+    ideas: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list, server_default="[]", nullable=False)
     # [{"title", "why", "measure"}]
     goals: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list, server_default="[]", nullable=False)
     focus: Mapped[str] = mapped_column(String(400), default="", server_default="")
