@@ -9,6 +9,7 @@ import { PLAT } from '../data/brands'
 import PlatformIcon from '../components/ui/PlatformIcon'
 import AutoTextarea from '../components/ui/AutoTextarea'
 import Select from '../components/ui/Select'
+import { fullDayLabel, phnomPenhClock, phnomPenhDay } from '../lib/tz'
 import { seedRuns, startRun, useAutoRuns, useSmoothProgress } from '../lib/autoRuns'
 import { kitSrc, TemplatePicker } from '../components/brandkit/BrandKit'
 
@@ -445,6 +446,7 @@ function SettingsDrawer({ a, channels, run, running, onUpdate, onBrandUpdate, on
               <Toggle on={a.learn_from_results} onChange={(v) => onUpdate({ learn_from_results: v })} />
             </div>
             {a.learn_from_results && <Learned learnings={a.learnings} />}
+            <PostingTimes a={a} />
           </Section>
 
           <Section title="Schedule">
@@ -609,6 +611,72 @@ function Learned({ learnings }) {
       ))}
       <li className="pt-1 text-[11px] text-ink-500">From your last {learnings.posts} posts with numbers · updates as new results come in</li>
     </ul>
+  )
+}
+
+// Why an auto-post goes out when it does (views._upcoming_auto_posts).
+const WHY = {
+  slot: { label: 'Best slot', cls: 'bg-emerald-50 text-emerald-700' },
+  hour: { label: 'Best hour', cls: 'bg-emerald-50 text-emerald-700' },
+  test: { label: 'Testing a new time', cls: 'bg-amber-50 text-amber-700' },
+  fixed: { label: 'Your fixed time', cls: 'bg-ink-50 text-ink-600' },
+  default: { label: 'Default time', cls: 'bg-ink-50 text-ink-600' },
+  moved: { label: 'Set another way', cls: 'bg-ink-50 text-ink-600' },
+}
+
+/** Each platform's best day + time slots (app/learning.py best_slots) and
+ *  the next auto-posts with the reason for their time. */
+function PostingTimes({ a }) {
+  const slots = a.learn_from_results ? Object.entries(a.learnings?.best_slots || {}) : []
+  const upcoming = a.upcoming || []
+  if (!slots.length && !upcoming.length) return null
+  return (
+    <div className="space-y-3 rounded-xl border border-ink-100 p-3">
+      {slots.map(([slug, days]) => (
+        <div key={slug}>
+          <div className="mb-1.5 flex items-center gap-1.5 text-[11.5px] font-semibold text-ink-700">
+            <PlatformIcon name={PLAT[slug]?.name} className="text-ink-500" /> Best slots on {PLAT[slug]?.name || slug}
+          </div>
+          <ul className="flex flex-wrap gap-1.5">
+            {Object.values(days)
+              .sort((x, y) => y.avg - x.avg)
+              .map((s) => (
+                <li
+                  key={s.day}
+                  title={`${s.avg} engagement per post from ${s.posts} posts${s.ratio ? ` — ${s.ratio}× the rest` : ''}`}
+                  className="rounded-lg bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-700"
+                >
+                  {s.day.slice(0, 3)} {String(s.hour).padStart(2, '0')}:00 · {s.avg}/post
+                </li>
+              ))}
+          </ul>
+        </div>
+      ))}
+      {upcoming.length > 0 && (
+        <div>
+          <div className="mb-1.5 text-[11.5px] font-semibold text-ink-700">Next auto-posts</div>
+          <ul className="space-y-1">
+            {upcoming.map((u, n) => (
+              <li key={n} className="flex items-center gap-2 text-[11.5px]">
+                <PlatformIcon name={PLAT[u.platform]?.name} className="flex-none text-ink-500" />
+                <span className="w-[86px] flex-none tabular-nums text-ink-800">
+                  {fullDayLabel(phnomPenhDay(u.at)).weekday.slice(0, 3)} {phnomPenhClock(u.at)}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-ink-500">{u.title}</span>
+                <span className={`flex-none rounded-md px-1.5 py-0.5 text-[10.5px] font-semibold ${(WHY[u.why] || WHY.default).cls}`}>
+                  {(WHY[u.why] || WHY.default).label}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <p className="text-[11px] leading-relaxed text-ink-500">
+        {a.post_at
+          ? `Posts go out at your fixed time (${a.post_at}). Clear it to let the AI use your best times.`
+          : 'Recent results count more, and about 1 post in 5 tries a less-used time so the best time stays up to date.'}
+      </p>
+    </div>
   )
 }
 

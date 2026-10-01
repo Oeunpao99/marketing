@@ -3,6 +3,10 @@
 // (keys must match).
 export const PILLAR_LABELS = {
   educate: 'Education',
+  trend: "What's new",
+  comparison: 'Comparison',
+  benefit: 'Why it matters',
+  quote: 'Quote',
   local_moment: 'Local moment',
   relatable: 'Relatable',
   community: 'Community',

@@ -19,19 +19,21 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, date, datetime, time, timedelta, timezone
 from typing import NamedTuple
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.content_ai import (
+    SELLING_PILLARS,
     ContentAIError,
     fact_check,
     generate_ideas,
     image_prompt_for_idea,
     pick_subjects,
+    selling_days,
     video_prompt_for_idea,
 )
-from app.learning import brand_learnings, learned_time
+from app.learning import brand_learnings, pick_time
 from app.database import SessionLocal
 from app.models import Automation, Brand, Channel, Draft, Post, PostTarget, Product, Video
 
@@ -324,6 +326,21 @@ def _slot_on(day: date, platform_slug: str, now: datetime, override: time | None
     return candidate if candidate > now else _next_slot(platform_slug, now, override)
 
 
+def _learned_slot(learned: dict | None, slug: str, now: datetime, on_day: date | None, seed: int) -> datetime:
+    """The posting moment from this brand's results (learning.pick_time —
+    that weekday's best slot, the platform's best hour, or now and then a
+    test of another time), else the platform default. Without ``on_day``:
+    today if that time is still ahead, else tomorrow's."""
+    if on_day:
+        return _slot_on(on_day, slug, now, pick_time(learned, slug, on_day, seed)[0])
+    for day in (now.date(), now.date() + timedelta(days=1)):
+        t = pick_time(learned, slug, day, seed)[0] or _default_time_for(slug)
+        candidate = datetime.combine(day, t, tzinfo=PHNOM_PENH)
+        if candidate > now:
+            return candidate
+    return candidate + timedelta(days=1)
+
+
 def schedule_draft_as_post(db: Session, draft: Draft, on_day: date | None = None) -> Post:
     """Turn an auto-media draft into a real, queued Post — every channel the
     brand has actually connected, at that platform's usual posting time
@@ -385,21 +402,35 @@ def schedule_draft_as_post(db: Session, draft: Draft, on_day: date | None = None
     )
     for ch in channels:
         slug = ch.platform.slug if ch.platform else ""
-        at = override_time or (learned_time(learned, slug) if learned else None)
+        if override_time:
+            when = _slot_on(on_day, slug, now, override_time) if on_day else _next_slot(slug, now, override_time)
+        else:
+            when = _learned_slot(learned, slug, now, on_day, post.id)
         db.add(
             PostTarget(
                 post_id=post.id,
                 channel_id=ch.id,
                 caption=draft.body,
                 title=draft.title,
-                scheduled_for=(
-                    _slot_on(on_day, slug, now, at) if on_day else _next_slot(slug, now, at)
-                ),
+                scheduled_for=when,
                 status="queued",
             )
         )
     db.flush()
     return post
+
+
+def last_selling_day(db: Session, brand_id: int, before: date) -> date | None:
+    """The day of the brand's last product / proof / promotion idea before
+    ``before`` — where the awareness → product rhythm picks up from."""
+    return db.scalar(
+        select(func.max(Draft.planned_for)).where(
+            Draft.brand_id == brand_id,
+            Draft.pillar.in_(SELLING_PILLARS),
+            Draft.status != "rejected",
+            Draft.planned_for < before,
+        )
+    )
 
 
 def _write_batch(
@@ -443,6 +474,8 @@ def _write_batch(
             recent_pillars=list(recent_pillars),
             # Rotated by date, so each day takes the next subjects in the list.
             subjects=pick_subjects(automation.subjects, count, today.toordinal() * count),
+            # Awareness days between product posts (content_ai.SELLING_GAP_DAYS).
+            selling_days=selling_days([today], last_selling_day(db, brand.id, today)),
         )
     except ContentAIError:
         db.commit()  # release the lock even though this attempt failed

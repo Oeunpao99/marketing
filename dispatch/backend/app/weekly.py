@@ -32,7 +32,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app import billing
-from app.content_ai import ContentAIError, fact_check, generate_ideas, pick_subjects
+from app.content_ai import SELLING_PILLARS, ContentAIError, fact_check, generate_ideas, pick_subjects, selling_days
 from app.content_scheduler import (
     PHNOM_PENH,
     _MAX_PARALLEL_MEDIA,
@@ -41,6 +41,7 @@ from app.content_scheduler import (
     _poster_kit_for,
     _product_snapshot,
     _today,
+    last_selling_day,
     schedule_draft_as_post,
 )
 from app.database import SessionLocal, get_db
@@ -286,11 +287,15 @@ def build_plan(db: Session, brand_id: int, starts_on: date | None = None, step=l
     # a few per call gets each the same room as the daily run's. Each batch
     # hears the pillars already used, so the week still mixes and rotates.
     ideas: list[dict] = []
+    last_selling = last_selling_day(db, brand_id, days[0])
     chunks = [days[i : i + CHUNK_DAYS] for i in range(0, len(days), CHUNK_DAYS)]
     for c, chunk in enumerate(chunks):
         span = f"{chunk[0]:%a}" if len(chunk) == 1 else f"{chunk[0]:%a} – {chunk[-1]:%a}"
         step(20 + 60 * c // len(chunks), f"Writing ideas for {span} ({len(ideas)} of {count} done)…")
         n_batch = min(len(chunk) * per_day, count - len(ideas))
+        # The awareness → product rhythm carries on across batches.
+        planned = [date.fromisoformat(i["day"]) for i in ideas if i.get("pillar") in SELLING_PILLARS]
+        allowed = selling_days(chunk, max([d for d in (last_selling, *planned) if d], default=None))
         try:
             batch = generate_ideas(
                 brand.name,
@@ -305,6 +310,7 @@ def build_plan(db: Session, brand_id: int, starts_on: date | None = None, step=l
                 recent_pillars=[i["pillar"] for i in reversed(ideas) if i.get("pillar")][:8],
                 # Same date rotation as the daily run, so the list comes round in turn.
                 subjects=pick_subjects(automation.subjects, n_batch, chunk[0].toordinal() * per_day),
+                selling_days=allowed,
             )
         except ContentAIError:
             if not ideas:

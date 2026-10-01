@@ -135,30 +135,39 @@ export function useDashboardStats(queue, channels) {
       })
     }
     // Best time to post: average engagement per post by weekday × time of day
-    // (Phnom Penh), from every published delivery that has numbers. Same time
-    // windows as the backend's learning rules (app/learning.py).
-    const cells = Array.from({ length: 7 }, () => DAY_SLOTS.map(() => ({ sum: 0, n: 0 })))
+    // (Phnom Penh). Same rules as the AI's (app/learning.py): the last
+    // LOOKBACK_DAYS only, newer posts counting more (HALF_LIFE_DAYS), and a
+    // post only once it's SETTLE_HOURS old — before that it's still
+    // collecting likes and would make its slot look weak.
+    const cells = Array.from({ length: 7 }, () => DAY_SLOTS.map(() => ({ sum: 0, w: 0, n: 0 })))
     let allSum = 0
+    let allW = 0
     let allN = 0
+    const nowMs = Date.now()
     for (const d of all) {
       const m = d.metrics
       if (d.status !== 'posted' || !m || !d.at || !ENG_KEYS.some((k) => typeof m[k] === 'number')) continue
+      const ageDays = (nowMs - new Date(d.at).getTime()) / 86400000
+      if (!(ageDays >= SETTLE_HOURS / 24 && ageDays <= LOOKBACK_DAYS)) continue
       const e = ENG_KEYS.reduce((s, k) => s + (typeof m[k] === 'number' ? m[k] : 0), 0)
+      const w = 0.5 ** (ageDays / HALF_LIFE_DAYS)
       const { wd, hour } = phnomPenhWhen(d.at)
       const cell = cells[wd][slotOf(hour)]
-      cell.sum += e
+      cell.sum += w * e
+      cell.w += w
       cell.n += 1
-      allSum += e
+      allSum += w * e
+      allW += w
       allN += 1
     }
-    const heat = cells.map((row) => row.map((c) => ({ n: c.n, avg: c.n ? c.sum / c.n : null })))
+    const heat = cells.map((row) => row.map((c) => ({ n: c.n, avg: c.n ? c.sum / c.w : null })))
     let bestSlot = null
     heat.forEach((row, wd) =>
       row.forEach((c, si) => {
         if (c.n >= 2 && c.avg > 0 && (!bestSlot || c.avg > bestSlot.avg)) bestSlot = { wd, si, ...c }
       }),
     )
-    const overallAvg = allN ? allSum / allN : 0
+    const overallAvg = allW ? allSum / allW : 0
     if (bestSlot && allN >= 6) {
       const slot = DAY_SLOTS[bestSlot.si]
       const ratio = overallAvg ? bestSlot.avg / overallAvg : null
@@ -203,6 +212,10 @@ export function useDashboardStats(queue, channels) {
 
 // ── Best time to post ─────────────────────────────────────────────────────
 const ENG_KEYS = ['likes', 'comments', 'shares']
+// Mirrors app/learning.py LOOKBACK_DAYS / HALF_LIFE_DAYS / SETTLE.
+const LOOKBACK_DAYS = 90
+const HALF_LIFE_DAYS = 30
+const SETTLE_HOURS = 48
 const DAY_SLOTS = [
   { label: 'Morning', range: '6–11', from: 6, to: 11 },
   { label: 'Midday', range: '11–14', from: 11, to: 14 },
@@ -257,20 +270,33 @@ export function BestTimeHeatmap({ heat, best, posts }) {
                   const c = heat[wd][si]
                   const t = c.avg ? 0.15 + 0.85 * (c.avg / max) : 0
                   const isBest = best && best.wd === wd && best.si === si
+                  // One post is a hint, not a pattern — shown faded and never the best slot.
+                  const thin = c.n === 1
                   return (
                     <td
                       key={d}
                       title={
                         c.n
-                          ? `${WEEKDAYS_LONG[wd]} ${slot.label.toLowerCase()}: ${c.avg.toFixed(1)} engagement per post (${c.n} post${c.n === 1 ? '' : 's'})`
+                          ? `${WEEKDAYS_LONG[wd]} ${slot.label.toLowerCase()}: ${c.avg.toFixed(1)} engagement per post (${c.n} post${c.n === 1 ? '' : 's'})${
+                              thin ? ' — only 1 post, not enough to trust yet' : ''
+                            }`
                           : `${WEEKDAYS_LONG[wd]} ${slot.label.toLowerCase()}: no posts with numbers`
                       }
-                      className={`h-10 rounded-md text-[11.5px] font-semibold tabular-nums ${c.n ? '' : 'bg-ink-50 text-ink-300'} ${
+                      className={`h-11 rounded-md text-[11.5px] font-semibold leading-tight tabular-nums ${c.n ? '' : 'bg-ink-50 text-ink-300'} ${
                         isBest ? 'ring-2 ring-ink-900' : ''
-                      }`}
+                      } ${thin ? 'opacity-50' : ''}`}
                       style={c.n ? { background: `rgba(${HEAT_HUE}, ${t})`, color: t > 0.55 ? '#fff' : 'rgb(var(--ink-800))' } : undefined}
                     >
-                      {c.n ? (c.avg >= 10 ? Math.round(c.avg) : c.avg.toFixed(1)) : '·'}
+                      {c.n ? (
+                        <>
+                          {c.avg >= 10 ? Math.round(c.avg) : c.avg.toFixed(1)}
+                          <span className="block text-[9.5px] font-normal opacity-75">
+                            {c.n} post{c.n === 1 ? '' : 's'}
+                          </span>
+                        </>
+                      ) : (
+                        '·'
+                      )}
                     </td>
                   )
                 })}
@@ -291,7 +317,8 @@ export function BestTimeHeatmap({ heat, best, posts }) {
               <span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm align-middle ring-2 ring-ink-900" /> best slot ·{' '}
             </>
           )}
-          from {posts} posts with numbers · Phnom Penh time
+          from {posts} posts in the last 90 days (newer count more; posts under 2 days old wait for their numbers) · faded = only 1 post · Phnom
+          Penh time
         </span>
       </div>
     </div>

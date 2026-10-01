@@ -375,11 +375,28 @@ export default function WebsitePage() {
           {running && <JobBar job={job} />}
 
           {!r && !running && (
-            <section className={`${card} p-6 text-center text-[13px] text-ink-500`}>
-              No results yet.{' '}
-              <button type="button" onClick={recheck} className="font-semibold text-brand hover:underline">
-                Check now
-              </button>
+            <section className={`${card} mx-auto max-w-2xl p-7 text-center`}>
+              <div
+                className={`mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl ${
+                  job?.status === 'failed' ? 'bg-red-500/10 text-red-600' : 'bg-brand-soft text-brand'
+                }`}
+              >
+                {job?.status === 'failed' ? <FiAlertTriangle size={24} /> : <FiGlobe size={24} />}
+              </div>
+              <h2 className="text-[17px] font-bold text-ink-900">{site.domain}</h2>
+              <p className="mx-auto mt-1.5 max-w-[52ch] text-[12.5px] leading-relaxed text-ink-500">
+                {job?.status === 'failed'
+                  ? job.error || 'The last check didn’t finish.'
+                  : 'Not checked yet — run the first check to see how the website is doing.'}
+              </p>
+              <div className="mt-5 flex flex-wrap justify-center gap-2">
+                <button type="button" onClick={recheck} className="btn-primary px-4">
+                  <FiRefreshCw size={13} /> {job?.status === 'failed' ? 'Try again' : 'Check now'}
+                </button>
+                <button type="button" onClick={() => setEditing(true)} className="btn-ghost px-4">
+                  Change website
+                </button>
+              </div>
             </section>
           )}
 

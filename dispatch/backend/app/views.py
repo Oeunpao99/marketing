@@ -521,6 +521,7 @@ def auto_view(db: Session = Depends(get_db), ws: int = Depends(current_workspace
 
     brands = _brand_map(db, ws)
     autos = _scoped(db, Automation, ws)
+    learned = {a.id: brand_learnings(db, a.brand_id) for a in autos}
     return [
         {
             "id": a.id,
@@ -542,10 +543,50 @@ def auto_view(db: Session = Depends(get_db), ws: int = Depends(current_workspace
             "learn_from_results": a.learn_from_results,
             "poster_kit": a.poster_kit or {},
             "subjects": a.subjects or [],
-            "learnings": {k: v for k, v in brand_learnings(db, a.brand_id).items() if k in ("posts", "rules", "post_hours")},
+            "learnings": {
+                k: v for k, v in learned[a.id].items() if k in ("posts", "rules", "post_hours", "best_slots")
+            },
+            "upcoming": _upcoming_auto_posts(db, a, learned[a.id]),
         }
         for a in sorted(autos, key=lambda x: x.brand_id)
     ]
+
+
+def _upcoming_auto_posts(db: Session, a: Automation, learned: dict) -> list[dict]:
+    """The brand's next few queued AI posts and why each goes out when it
+    does — the same reasons content_scheduler._learned_slot used (a
+    weekday's best slot, the platform's best hour, a test of another time,
+    the fixed "post at" time, or the default); "moved" if someone changed it."""
+    from app.content_scheduler import PHNOM_PENH, _default_time_for
+    from app.learning import pick_time
+
+    rows = db.execute(
+        select(PostTarget, Post, Platform.slug)
+        .join(Post, Post.id == PostTarget.post_id)
+        .join(Channel, Channel.id == PostTarget.channel_id)
+        .join(Platform, Platform.id == Channel.platform_id)
+        .where(
+            Post.brand_id == a.brand_id,
+            Post.pillar != "",  # written by the AI
+            PostTarget.status == "queued",
+            PostTarget.scheduled_for > datetime.now(UTC),
+        )
+        .order_by(PostTarget.scheduled_for)
+        .limit(6)
+    ).all()
+    out = []
+    for target, post, slug in rows:
+        at = target.scheduled_for.astimezone(PHNOM_PENH)
+        if a.post_at:
+            why = "fixed" if at.time().replace(second=0) == a.post_at.replace(second=0) else "moved"
+        else:
+            t, why = pick_time(learned if a.learn_from_results else None, slug, at.date(), post.id)
+            if (t or _default_time_for(slug)).hour != at.hour:
+                why = "moved"
+            why = why or "default"
+        slot = (learned.get("best_slots", {}).get(slug, {}) or {}).get(str(at.weekday())) if why == "slot" else None
+        out.append({"at": target.scheduled_for, "platform": slug, "title": post.title, "why": why, "slot": slot})
+    return out
 
 
 @router.post("/auto/{automation_id}/run-now", status_code=202)

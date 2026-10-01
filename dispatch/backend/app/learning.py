@@ -8,15 +8,22 @@ thin data never turns into confident-sounding advice. Posts from platforms
 that report no engagement (LinkedIn personal, Telegram) are simply not used.
 
 Used by app/content_scheduler.py: ``prompt`` goes into the idea-writing brief
-(app/content_ai.py), ``post_hours`` sets the auto-schedule time per platform
-when the person hasn't fixed one. Shown on the Auto-generate page via
-/views/auto.
+(app/content_ai.py), and pick_time() sets each auto-post's time from
+``best_slots`` / ``post_hours`` when the person hasn't fixed one. Shown on
+the Auto-generate page via /views/auto.
+
+Timing follows the audience as it changes: posts are weighted by age (a
+HALF_LIFE_DAYS half-life, so last week counts more than two months ago), a
+post only counts once it's SETTLE old (a few-hours-old post hasn't collected
+its likes yet), and 1 auto-post in TEST_EVERY goes out at a less-tried time
+so a better slot can still be found. The Dashboard heatmap
+(src/components/today/DashboardCharts.jsx) uses the same rules.
 """
 
 from __future__ import annotations
 
 import re
-from datetime import UTC, datetime, time, timedelta, timezone
+from datetime import UTC, date, datetime, time, timedelta, timezone
 from statistics import mean, median
 
 from sqlalchemy import select
@@ -29,6 +36,11 @@ PHNOM_PENH = timezone(timedelta(hours=7))
 LOOKBACK_DAYS = 90
 MIN_POSTS = 2  # per side of any comparison
 RATIO = 1.25  # how much better one side must be before it becomes a rule
+HALF_LIFE_DAYS = 30  # a post this old counts half as much as a new one
+SETTLE = timedelta(hours=48)  # younger posts are still collecting engagement
+TEST_EVERY = 5  # 1 auto-post in this many tries a less-used time
+# The hour a test post goes out in each window (night is never tested).
+_TEST_HOURS = {"morning": 9, "midday": 12, "afternoon": 16, "evening": 19}
 
 _WINDOWS = [
     ("morning", "the morning (6–11 AM)", 6, 11),
@@ -81,8 +93,33 @@ def _compare(a: list[float], b: list[float]):
     return ma / mb, ma, mb
 
 
+def _wmean(posts: list[dict], prior: float | None = None) -> float:
+    """Engagement per post, newer posts counting more (their ``w``). With
+    ``prior`` (the overall average), pulled towards it as if one more fresh
+    post sat at the average — so a group of only old posts (small total
+    weight) can't outrank recent evidence on stale numbers alone."""
+    total = sum(p["w"] for p in posts)
+    eng = sum(p["w"] * p["engagement"] for p in posts)
+    if prior is not None:
+        return (eng + prior) / (total + 1)
+    return eng / total if total else 0.0
+
+
+def _wcompare(a: list[dict], b: list[dict]):
+    """_compare for post dicts, on recency-weighted averages, each side
+    pulled towards the pooled average by how little recent evidence it has."""
+    if len(a) < MIN_POSTS or len(b) < MIN_POSTS:
+        return None
+    pooled = _wmean(a + b)
+    ma, mb = _wmean(a, pooled), _wmean(b, pooled)
+    if mb <= 0:
+        return (float("inf") if ma >= MIN_VS_ZERO else 1.0), ma, mb
+    return ma / mb, ma, mb
+
+
 def _posts(db: Session, brand_id: int) -> list[dict]:
-    since = datetime.now(UTC) - timedelta(days=LOOKBACK_DAYS)
+    now = datetime.now(UTC)
+    since = now - timedelta(days=LOOKBACK_DAYS)
     targets = db.scalars(
         select(PostTarget)
         .join(Post, Post.id == PostTarget.post_id)
@@ -90,6 +127,7 @@ def _posts(db: Session, brand_id: int) -> list[dict]:
             Post.brand_id == brand_id,
             PostTarget.status == "posted",
             PostTarget.published_at >= since,
+            PostTarget.published_at <= now - SETTLE,
         )
     ).all()
     if not targets:
@@ -136,6 +174,7 @@ def _posts(db: Session, brand_id: int) -> list[dict]:
                 "caption": t.caption or "",
                 "kind": (kind_for(url, None) if url else None) or "text",
                 "engagement": eng,
+                "w": 0.5 ** ((now - t.published_at).total_seconds() / 86400 / HALF_LIFE_DAYS),
                 "comments": snap.metrics.get("comments"),
                 "angle": post.angle if post else "",
                 "pillar": post.pillar if post else "",
@@ -241,20 +280,23 @@ def brand_learnings(db: Session, brand_id: int) -> dict:
         for k, es in grouped.get("pillar", {}).items()
     }
 
-    # Timing, per platform (each platform's audience keeps its own hours)
-    for slug in sorted({p["platform"] for p in posts if p["platform"]}):
+    # Timing, per platform (each platform's audience keeps its own hours), on
+    # recency-weighted averages so it follows the audience as it changes.
+    platforms = sorted({p["platform"] for p in posts if p["platform"] and p["published_at"]})
+    local = {p["target_id"]: p["published_at"].astimezone(PHNOM_PENH) for p in posts if p["published_at"]}
+    windows_tried: dict[str, dict[str, int]] = {}
+    for slug in platforms:
         mine = [p for p in posts if p["platform"] == slug and p["published_at"]]
         groups: dict[tuple, list[dict]] = {}
         for p in mine:
-            groups.setdefault(_window(p["published_at"].astimezone(PHNOM_PENH).hour), []).append(p)
-        best = max(groups, key=lambda w: mean(p["engagement"] for p in groups[w]), default=None)
+            groups.setdefault(_window(local[p["target_id"]].hour), []).append(p)
+        windows_tried[slug] = {w[0]: len(ps) for w, ps in groups.items()}
+        best = max(groups, key=lambda w: _wmean(groups[w], _wmean(mine)), default=None)
         if best is None:
             continue
-        rest = [p["engagement"] for w, ps in groups.items() if w != best for p in ps]
-        c = _compare([p["engagement"] for p in groups[best]], rest)
+        c = _wcompare(groups[best], [p for w, ps in groups.items() if w != best for p in ps])
         if c and c[0] >= RATIO:
-            hours = [p["published_at"].astimezone(PHNOM_PENH).hour for p in groups[best]]
-            h = int(median(hours))
+            h = int(median(local[p["target_id"]].hour for p in groups[best]))
             post_hours[slug] = f"{h:02d}:00"
             rules.append(
                 {
@@ -267,16 +309,16 @@ def brand_learnings(db: Session, brand_id: int) -> dict:
     # Best day of the week, per platform — the Weekly plan puts its strongest
     # ideas there (the AI sees the plan days with their weekday names).
     best_days: dict[str, str] = {}
-    for slug in sorted({p["platform"] for p in posts if p["platform"]}):
-        by_day: dict[int, list[float]] = {}
+    for slug in platforms:
+        by_day: dict[int, list[dict]] = {}
         for p in posts:
             if p["platform"] == slug and p["published_at"]:
-                by_day.setdefault(p["published_at"].astimezone(PHNOM_PENH).weekday(), []).append(p["engagement"])
-        best = max(by_day, key=lambda d: mean(by_day[d]), default=None)
+                by_day.setdefault(local[p["target_id"]].weekday(), []).append(p)
+        best = max(by_day, key=lambda d: _wmean(by_day[d], _wmean([p for ps in by_day.values() for p in ps])), default=None)
         if best is None:
             continue
-        rest = [e for d, es in by_day.items() if d != best for e in es]
-        c = _compare(by_day[best], rest)
+        rest = [p for d, ps in by_day.items() if d != best for p in ps]
+        c = _wcompare(by_day[best], rest)
         if c and c[0] >= RATIO:
             day = _WEEKDAYS[best]
             best_days[slug] = day
@@ -291,6 +333,35 @@ def brand_learnings(db: Session, brand_id: int) -> dict:
                 f"On {slug.capitalize()}, {day}s get the most engagement — put the strongest idea of the "
                 f"week on a {day} and keep weaker or selling posts off it."
             )
+
+    # Best day + time slot, per platform and weekday (the Dashboard heatmap's
+    # cells): a weekday gets a slot when one window that day has ≥ MIN_POSTS
+    # posts and beats the platform's other posts by RATIO. pick_time() posts
+    # at that slot's usual hour on that weekday.
+    best_slots: dict[str, dict[str, dict]] = {}
+    for slug in platforms:
+        mine = [p for p in posts if p["platform"] == slug and p["published_at"]]
+        cells: dict[tuple[int, tuple], list[dict]] = {}
+        for p in mine:
+            at = local[p["target_id"]]
+            cells.setdefault((at.weekday(), _window(at.hour)), []).append(p)
+        for wd in range(7):
+            options = [(w, ps) for (d, w), ps in cells.items() if d == wd and len(ps) >= MIN_POSTS]
+            if not options:
+                continue
+            w, ps = max(options, key=lambda o: _wmean(o[1], _wmean(mine)))
+            ids = {p["target_id"] for p in ps}
+            c = _wcompare(ps, [p for p in mine if p["target_id"] not in ids])
+            if c and c[0] >= RATIO:
+                best_slots.setdefault(slug, {})[str(wd)] = {
+                    "day": _WEEKDAYS[wd],
+                    "window": w[0],
+                    "label": w[1],
+                    "hour": int(median(local[p["target_id"]].hour for p in ps)),
+                    "avg": round(c[1], 1),
+                    "ratio": None if c[0] == float("inf") else round(c[0], 1),
+                    "posts": len(ps),
+                }
 
     # Questions → comments
     with_c = [p for p in posts if p["comments"] is not None]
@@ -382,9 +453,32 @@ def brand_learnings(db: Session, brand_id: int) -> dict:
         "pillar_stats": pillar_stats,
         "post_hours": post_hours,
         "best_days": best_days,
+        "best_slots": best_slots,
+        "windows_tried": windows_tried,
         "top_captions": top_captions,
         "prompt": prompt,
     }
+
+
+def pick_time(learnings: dict | None, platform_slug: str, day: date, seed: int) -> tuple[time | None, str]:
+    """When an auto-post goes out on ``day`` for this platform, and why:
+    "test" (every TEST_EVERY-th post by ``seed`` — the least-tried window, so
+    the AI keeps finding out whether another time works better), "slot" (that
+    weekday's best slot), "hour" (the platform's best hour) — or (None, "")
+    for the default time. ``learnings`` None = learning is off."""
+    if learnings is None:
+        return None, ""
+    if seed % TEST_EVERY == 0:
+        tried = learnings.get("windows_tried", {}).get(platform_slug, {})
+        keys = list(_TEST_HOURS)
+        # Fewest posts first; ties rotate with the seed so tests spread out.
+        key = min(keys, key=lambda k: (tried.get(k, 0), (keys.index(k) - seed // TEST_EVERY) % len(keys)))
+        return time(_TEST_HOURS[key]), "test"
+    slot = learnings.get("best_slots", {}).get(platform_slug, {}).get(str(day.weekday()))
+    if slot:
+        return time(slot["hour"]), "slot"
+    t = learned_time(learnings, platform_slug)
+    return (t, "hour") if t else (None, "")
 
 
 def learned_time(learnings: dict, platform_slug: str) -> time | None:

@@ -29,8 +29,37 @@ from app.models import Product
 PILLARS: dict[str, tuple[str, str]] = {
     "educate": (
         "Education / tips",
-        "useful know-how from the audience's world — a tip, a mistake to avoid, how "
-        "something works, a quick checklist — worth saving even if they never buy",
+        "useful know-how about the brand's field (for a tech brand: the technology "
+        "itself) — a tip, a mistake to avoid, how something works, a quick "
+        "checklist — worth saving even if they never buy; about the subject, not "
+        "the product",
+    ),
+    "trend": (
+        "What's new",
+        "raise awareness of a newer technology, method or shift in the brand's "
+        "field — what it is, in plain words, and why people are starting to use it; "
+        "only developments you are sure are real and already available — no "
+        "invented launches, version numbers, dates or figures, and don't claim "
+        "anything is 'just released'",
+    ),
+    "comparison": (
+        "Comparison",
+        "an honest side-by-side the audience wonders about — the old way vs the new "
+        "way, option A vs option B (e.g. cloud vs on-premise) — with who each one "
+        "suits; general approaches, never named competitors",
+    ),
+    "benefit": (
+        "Why it matters",
+        "the real benefits of a technology or practice in the brand's field — what "
+        "it changes for a business or a person (time, cost, safety, growth), with "
+        "an everyday example; the benefit of the idea, not of the product",
+    ),
+    "quote": (
+        "Quote",
+        "a short, strong quote about the field, work or progress, plus 1-2 lines "
+        "on what it means for the reader; only a well-known quote whose exact "
+        "wording and author you are certain of — otherwise an original line in the "
+        "brand's voice with no author named",
     ),
     "local_moment": (
         "Local moment",
@@ -72,6 +101,21 @@ PILLARS: dict[str, tuple[str, str]] = {
 # The pillars that pitch the product (the CAPTION STRUCTURE below); the rest use
 # the VALUE STRUCTURE. A batch keeps these to about 1 in 3.
 SELLING_PILLARS = ("product", "proof", "promotion")
+# The rhythm: at least this many awareness days between two selling days, so
+# people get value from the page before it pitches again.
+SELLING_GAP_DAYS = 2
+
+
+def selling_days(days: list[date], last_selling: date | None) -> list[date]:
+    """Which of ``days`` may carry a selling post, given the day of the
+    brand's last one — the first day more than SELLING_GAP_DAYS after it,
+    then every SELLING_GAP_DAYS + 1 days."""
+    out: list[date] = []
+    for d in sorted(days):
+        if last_selling is None or (d - last_selling).days > SELLING_GAP_DAYS:
+            out.append(d)
+            last_selling = d
+    return out
 
 _PILLAR_LIST = "\n".join(
     f"  - {k} ({label}{', sells' if k in SELLING_PILLARS else ''}): {recipe}."
@@ -111,7 +155,8 @@ ANGLES: dict[str, tuple[str, str]] = {
     "how_to": (
         "Tip / how-to",
         "hook = a problem they can fix today; the list is 3-5 numbered steps "
-        "that use the product's capabilities",
+        "(for a selling pillar the steps use the product's capabilities; "
+        "otherwise general steps anyone can follow)",
     ),
     "social_proof": (
         "Social proof",
@@ -175,16 +220,18 @@ SYSTEM_PROMPT = (
     "100 = excellent; below ~40 = you're mostly guessing or being generic. "
     "Score each idea independently and honestly — don't inflate it.\n"
     "\n"
-    "VALUE STRUCTURE — every pillar that doesn't sell (educate, local_moment, "
-    "relatable, community, behind_scenes). The reader gets something from the "
-    "post itself:\n"
-    "1. Hook (first line): about the reader's world, not the product.\n"
-    "2. The value: the tip or steps, the moment, the question, the story — "
-    "specific and concrete, the part people save, share or answer.\n"
-    "3. Brand touch (optional): at most one light line that connects it back to "
-    "the brand — never a ✓ feature list, never a hard sell.\n"
-    "4. Call to action per the goal — usually a question, 'save this' or "
-    "'share with a friend'.\n"
+    "VALUE STRUCTURE — every pillar that doesn't sell (all but product, proof "
+    "and promotion). These build awareness and trust — the reader gets "
+    "something from the post itself, and it must still be worth posting if the "
+    "brand's name were removed:\n"
+    "1. Hook (first line): about the reader's world or the subject, not the product.\n"
+    "2. The value: the tip or steps, the trend explained, the comparison, the "
+    "benefit, the quote, the moment, the question, the story — specific and "
+    "concrete, the part people save, share or answer.\n"
+    "3. Don't name or describe the product, its features or its price — no ✓ "
+    "feature list, no sell. behind_scenes may talk about the brand itself.\n"
+    "4. Call to action per the goal — usually a question, 'save this', "
+    "'share with a friend' or 'follow for more'.\n"
     "Roughly 40-120 words. General advice and well-known facts are fine; "
     "never invent statistics, studies or quotes.\n"
     "\n"
@@ -223,9 +270,12 @@ SYSTEM_PROMPT = (
     "2-3 relevant ones at the very end.\n"
     "\n"
     "Ideas must be genuinely distinct from each other: a DIFFERENT pillar and "
-    "angle for each idea where you can, and mixed goals. The PILLAR MIX: at "
-    "most about 1 in 3 ideas from a selling pillar (product, proof, promotion), "
-    "and never two selling ideas in a row; at most one promotion per 5 ideas. "
+    "angle for each idea where you can, and mixed goals. The RHYTHM: build "
+    "awareness first — about 2 days of non-selling posts (educate, trend, "
+    "comparison, benefit, quote, ...) — then one selling post (product, "
+    "proof, promotion), then awareness again. The brief says how many selling "
+    "ideas this batch may have and on which days — never more; 0 means every "
+    "idea is a non-selling pillar. At most one promotion per 5 ideas. "
     "If the brief lists the pillars of recent posts, don't repeat them — fill "
     "what's missing. If what has worked for this brand favours a pillar, lean "
     "towards it but keep the mix. If the brief gives SUBJECTS for this batch, "
@@ -525,6 +575,7 @@ def _brief(
     days: list[date] | None = None,
     recent_pillars: list[str] | None = None,
     subjects: list[str] | None = None,
+    selling_days: list[date] | None = None,
 ) -> str:
     lines = [
         f"Brand: {brand_name}" + (f" (write in: {brand_lang})" if brand_lang else ""),
@@ -539,6 +590,13 @@ def _brief(
     recent = [PILLARS[p][0] for p in recent_pillars or [] if p in PILLARS]
     if recent:
         lines.append("Pillars of this brand's most recent AI posts (newest first): " + ", ".join(recent))
+    if selling_days is not None:
+        lines.append(
+            "Selling ideas allowed in this batch: 0 — awareness days, every idea a non-selling pillar"
+            if not selling_days
+            else f"Selling ideas allowed in this batch: at most {len(selling_days)}, only on "
+            + ", ".join(f"{d.isoformat()} ({d.strftime('%A')})" for d in selling_days)
+        )
     if subjects:
         lines.append("SUBJECTS for this batch (one per idea): " + "; ".join(subjects))
     if products:
@@ -590,11 +648,14 @@ def generate_ideas(
     days: list[date] | None = None,
     recent_pillars: list[str] | None = None,
     subjects: list[str] | None = None,
+    selling_days: list[date] | None = None,
 ) -> list[dict]:
     """``week=True``: plan ideas spread over a week (app/weekly.py) rather
     than one day's batch — ``days`` are the plan days, and each idea comes
     back with the ``day`` (ISO date) it's for, or "" if the AI gave none.
-    ``recent_pillars`` (newest first) lets a daily batch rotate pillars."""
+    ``recent_pillars`` (newest first) lets a daily batch rotate pillars.
+    ``selling_days`` (see selling_days()) caps the product posts: at most one
+    per listed day, none when it's empty; None = no cap."""
     cfg = get_settings()
     khmer = _is_khmer(brand_lang)
     # Khmer quality depends heavily on the model — a Khmer brand can use its own
@@ -606,11 +667,15 @@ def generate_ideas(
             {
                 "role": "user",
                 "content": _brief(
-                    brand_name, brand_lang, products, topic_source, count, voice_examples, learnings, days, recent_pillars, subjects
+                    brand_name, brand_lang, products, topic_source, count, voice_examples, learnings, days, recent_pillars, subjects,
+                    selling_days,
                 ),
             },
         ],
         model,
+        # The budget covers the model's hidden reasoning too (~2.5k tokens
+        # here) — at 4k it sometimes ran out before writing any JSON.
+        max_tokens=10000,
     )
     day_isos = {d.isoformat() for d in days or []}
 
@@ -660,6 +725,8 @@ def generate_ideas(
         )
     if not cleaned:
         raise ContentAIError("AI service returned no usable ideas.")
+    if selling_days is not None:
+        cleaned = _keep_rhythm(cleaned, selling_days)
 
     # Self-eval filter: drop weakly-grounded ideas before they ever become a
     # Draft. If every idea in this batch fails the bar, keep the single
@@ -675,6 +742,24 @@ def generate_ideas(
             if idea.get("meme"):
                 idea["meme"]["top"] = _fix_khmer_punctuation(idea["meme"]["top"])
     return result
+
+
+def _keep_rhythm(ideas: list[dict], allowed: list[date]) -> list[dict]:
+    """Hold a batch to its selling days: the best-scoring selling ideas up to
+    one per allowed day (moved onto a free allowed day if the AI put them
+    elsewhere), the rest dropped — unless that would leave nothing at all."""
+    free = [d.isoformat() for d in allowed]
+    selling = sorted((i for i in ideas if i["pillar"] in SELLING_PILLARS), key=lambda i: -i["fit_score"])
+    keep = []
+    for idea in selling:
+        if not free:
+            break
+        if idea["day"] not in free:
+            idea["day"] = free[0]
+        free.remove(idea["day"])
+        keep.append(id(idea))
+    out = [i for i in ideas if i["pillar"] not in SELLING_PILLARS or id(i) in keep]
+    return out or ideas
 
 
 def image_prompt_for_idea(brand_name: str, brand_lang: str, idea: dict, products: list[Product]) -> str:
