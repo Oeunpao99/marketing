@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { FiAlertTriangle, FiArrowDownRight, FiArrowUpRight, FiAward, FiCalendar, FiCheck, FiRefreshCw, FiTrendingUp, FiUsers, FiX, FiZap } from 'react-icons/fi'
+import { FiAlertTriangle, FiArrowDownRight, FiArrowUpRight, FiCalendar, FiCheck, FiRefreshCw, FiTrendingUp, FiUsers, FiX, FiZap } from 'react-icons/fi'
 import { api } from '../api/client'
 import { GOAL_LABELS, PILLAR_LABELS, SELLING_PILLARS, angleText, pillarChipClass } from '../lib/angles'
 import { colorForBrand } from '../lib/brandColor'
+import { useSmoothProgress } from '../lib/autoRuns'
 import { useStore } from '../store'
 import { PLAT } from '../data/brands'
 import AutoTextarea from '../components/ui/AutoTextarea'
@@ -16,6 +17,8 @@ const card = 'bg-white rounded-2xl border border-ink-200/60 shadow-[0_1px_2px_rg
 
 const dayLabel = (iso) =>
   new Date(`${iso}T00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+// "Tue 6 Oct", or "Tue 6 Oct – Mon 12 Oct" for more than one day.
+const dayRange = (a, b) => (a === b ? dayLabel(a) : `${dayLabel(a)} – ${dayLabel(b)}`)
 const khmer = (text) => (/[ក-៿]/.test(text || '') ? 'font-khmer' : '')
 
 export default function WeeklyPage() {
@@ -54,6 +57,11 @@ export default function WeeklyPage() {
           return
         }
         clearInterval(poll.current)
+        if (next.status === 'done' && next.kind === 'plan') {
+          // let the planning screen show 100% for a moment before the plan
+          setData((d) => (d ? { ...d, job: { ...next, status: 'running', progress: 100 } } : d))
+          await new Promise((r) => setTimeout(r, 900))
+        }
         if (next.status === 'failed') showToast(next.error || 'Something went wrong')
         else if (next.kind === 'media') showToast(next.step || 'Posts scheduled')
         else showToast("Next week's plan is ready")
@@ -143,6 +151,7 @@ export default function WeeklyPage() {
   const ready = plan?.status === 'ready'
   const report = ready ? plan.report : data?.report
   const running = job?.status === 'running'
+  const planning = running && job.kind === 'plan'
 
   return (
     <div className="w-full px-5 lg:px-8 py-7 animate-fadein">
@@ -150,8 +159,17 @@ export default function WeeklyPage() {
         <div>
           <h1 className="text-[24px] font-bold text-ink-900 tracking-tight leading-tight">AI Content Advisor</h1>
           <p className="mt-1 text-[13px] text-ink-600">
-            What worked last week, what to change, and next week’s plan — generate it all in one tap.
+            Your weekly check-in: see how your posts did, what the AI learned from them, and approve next week’s posts.
           </p>
+          <ol className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-ink-500">
+            {['See your results', 'AI learns what works', 'Approve next week’s posts'].map((s, i) => (
+              <li key={s} className="flex items-center gap-2">
+                {i > 0 && <span className="text-ink-300">→</span>}
+                <span className="grid h-5 w-5 place-items-center rounded-full bg-ink-100 text-[10.5px] font-bold text-ink-700">{i + 1}</span>
+                {s}
+              </li>
+            ))}
+          </ol>
         </div>
         {brands.length > 1 && (
           <Select
@@ -166,7 +184,7 @@ export default function WeeklyPage() {
 
       {error && <p className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-[12.5px] text-red-700">{error}</p>}
 
-      {running && <JobBar job={job} />}
+      {running && !planning && <JobBar job={job} />}
 
       {data === null && !error ? (
         <div className={`${card} p-6 space-y-3`}>
@@ -176,9 +194,14 @@ export default function WeeklyPage() {
       ) : (
         data && (
           <div className="space-y-4">
-            {report && <Report report={report} brand={brand} advisor={ready ? plan.report?.advisor : null} />}
+            {report && <Report report={report} advisor={ready ? plan.report?.advisor : null} />}
 
-            {ready ? (
+            {planning ? (
+              <>
+                <StepTitle n={3} title="Your plan for next week" />
+                <WeeklyPlanning brand={brand.name} job={job} />
+              </>
+            ) : ready ? (
               <PlanCard
                 plan={plan}
                 autoMedia={data.auto_media}
@@ -263,80 +286,152 @@ function StepTitle({ n, title, sub, children }) {
 }
 
 // ── Step 1 + 2 ────────────────────────────────────────────────────────────
-function Report({ report, brand, advisor }) {
+function Report({ report, advisor }) {
   return (
     <>
-      <StepTitle n={1} title="What happened" sub={`${dayLabel(report.from)} – ${dayLabel(report.to)}, compared with the week before`} />
-      <Hero report={report} brand={brand} />
-      <StepTitle n={2} title="What the AI recommends" sub="Worked out from your own posts — click “Why?” to see the numbers" />
-      <Advice report={report} advisor={advisor} />
+      <StepTitle n={1} title="How last week went" sub={`${dayLabel(report.from)} – ${dayLabel(report.to)}, compared with the 7 days before`} />
+      <Summary report={report} />
+      <Hero report={report} />
+      <StepTitle
+        n={2}
+        title="What the AI learned"
+        sub={`Lessons from your own posts (last 90 days${report.learned_from ? `, ${report.learned_from} posts with results` : ''}) — the AI already uses them`}
+      />
+      <Lessons report={report} advisor={advisor} />
     </>
   )
 }
 
-/** One card: the headline number, two supporting numbers, the best post —
- *  and the day-by-day chart beside them. */
-function Hero({ report, brand }) {
+/** The week in plain sentences, worked out from the numbers below it. */
+function takeaways(report) {
   const t = report.this_week || {}
   const l = report.last_week || {}
+  const daily = report.daily || []
+  const eng = t.engagement ?? 0
+  const before = l.engagement ?? 0
+  const out = []
+
+  if (t.posts > 0 && !t.measured) {
+    out.push({ tone: 'flat', text: `Results for this week’s ${t.posts} post${t.posts === 1 ? '' : 's'} aren’t in yet — check back in a day.` })
+  } else if (eng === 0 && before === 0) {
+    out.push({ tone: 'flat', text: 'No likes, comments or shares in the last two weeks yet. Keep posting — the AI learns as reactions come in.' })
+  } else if (eng > before) {
+    out.push({ tone: 'up', text: `People reacted more: ${eng} likes, comments and shares this week, up from ${before} the week before.` })
+  } else if (eng < before) {
+    out.push({ tone: 'down', text: `People reacted less: ${eng} likes, comments and shares this week, down from ${before} the week before.` })
+  } else {
+    out.push({ tone: 'flat', text: `Same as the week before: ${eng} likes, comments and shares.` })
+  }
+
+  if (t.measured > 0) {
+    const per = eng / t.measured
+    const each = per < 10 ? per.toFixed(1) : Math.round(per)
+    out.push(
+      per < 1 && t.posts >= 7
+        ? { tone: 'down', text: `Each post got only ${each} reactions on average — most posts get almost none. Making each post stronger will help more than posting more.` }
+        : { tone: 'flat', text: `Each post got ${each} reactions on average.` },
+    )
+  }
+
+  const week = daily.slice(Math.floor(daily.length / 2))
+  const peak = week.reduce((a, d) => (d.engagement > (a?.engagement ?? 0) ? d : a), null)
+  if (peak) {
+    out.push({
+      tone: 'up',
+      text: `Best day: ${dayLabel(peak.date)} — ${peak.engagement} reactions from ${peak.posts} post${peak.posts === 1 ? '' : 's'}.`,
+    })
+  }
+  if (t.top) {
+    out.push({
+      tone: 'up',
+      text: `Best post: “${t.top.title || 'Untitled'}” on ${PLAT[t.top.platform]?.name || t.top.platform} — ${t.top.engagement} reactions.`,
+      link: `/insights/${t.top.target_id}`,
+    })
+  }
+  return out
+}
+
+const TONE = {
+  up: { icon: FiArrowUpRight, cls: 'bg-emerald-50 text-emerald-700' },
+  down: { icon: FiArrowDownRight, cls: 'bg-amber-50 text-amber-700' },
+  flat: { icon: FiCheck, cls: 'bg-ink-100 text-ink-600' },
+}
+
+function Summary({ report }) {
+  const t = report.this_week || {}
   return (
-    <section className={`${card} grid gap-6 p-6 lg:grid-cols-[300px_minmax(0,1fr)]`}>
-      <div className="flex flex-col">
-        <div className="flex items-center gap-2 text-[12.5px] font-medium text-ink-500">
-          <span className="h-2 w-2 rounded-full" style={{ background: colorForBrand(brand.slug) }} />
-          Engagement this week
-        </div>
-        <div className="mt-1 flex items-center gap-3">
-          <span className="text-[48px] font-bold leading-none tracking-tight tabular-nums text-ink-900">{t.engagement ?? 0}</span>
-          <Change now={t.engagement} before={l.engagement} big />
-        </div>
-        <p className="mt-2 text-[12.5px] text-ink-500">
-          likes + comments + shares · week before: <b className="font-semibold text-ink-700">{l.engagement ?? 0}</b>
+    <section className={`${card} p-5`}>
+      <div className="text-[11px] font-bold uppercase tracking-[.06em] text-ink-500">In short</div>
+      <ul className="mt-3 space-y-2.5">
+        {takeaways(report).map((k) => {
+          const tone = TONE[k.tone]
+          const body = <span className={`text-[13.5px] leading-snug text-ink-800 ${khmer(k.text)}`}>{k.text}</span>
+          return (
+            <li key={k.text} className="flex items-start gap-2.5">
+              <span className={`mt-px grid h-5 w-5 flex-none place-items-center rounded-full ${tone.cls}`}>
+                <tone.icon size={12} aria-hidden="true" />
+              </span>
+              {k.link ? (
+                <Link to={k.link} className="hover:underline">
+                  {body}
+                </Link>
+              ) : (
+                body
+              )}
+            </li>
+          )
+        })}
+      </ul>
+      {t.posts > 0 && t.measured < t.posts && (
+        <p className="mt-4 rounded-lg bg-ink-50 px-3 py-2 text-[11.5px] text-ink-500">
+          Results are in for {t.measured} of your {t.posts} posts so far — the rest are still being collected (open
+          Analytics to refresh them now).
         </p>
-
-        <div className="mt-5 grid grid-cols-2 gap-3">
-          <div>
-            <div className="text-[11.5px] text-ink-500">Posts</div>
-            <div className="mt-0.5 flex items-center gap-1.5">
-              <span className="text-[20px] font-bold tabular-nums text-ink-900">{t.posts ?? 0}</span>
-              <Change now={t.posts} before={l.posts} />
-            </div>
-          </div>
-          <div>
-            <div className="text-[11.5px] text-ink-500">Views</div>
-            <div className="mt-0.5 flex items-center gap-1.5">
-              <span className="text-[20px] font-bold tabular-nums text-ink-900">{t.views ?? '—'}</span>
-              <Change now={t.views} before={l.views} />
-            </div>
-          </div>
-        </div>
-
-        {t.top && (
-          <Link to={`/insights/${t.top.target_id}`} className="mt-5 flex items-center gap-2.5 rounded-xl bg-amber-50/70 px-3 py-2.5 hover:bg-amber-50">
-            <FiAward size={15} className="flex-none text-amber-700" aria-hidden="true" />
-            <span className="min-w-0 flex-1">
-              <span className="block text-[10.5px] font-bold uppercase tracking-[.05em] text-amber-800">Best post</span>
-              <span className={`block truncate text-[12.5px] font-medium text-ink-900 ${khmer(t.top.title)}`}>{t.top.title || 'Untitled'}</span>
-            </span>
-            <span className="flex-none text-right text-[11px] text-ink-500">
-              <b className="block text-[14px] text-ink-900">{t.top.engagement}</b>
-              {PLAT[t.top.platform]?.name || t.top.platform}
-            </span>
-          </Link>
-        )}
-        {t.posts > 0 && t.measured < t.posts && (
-          <p className="mt-3 text-[11px] text-ink-400">
-            Numbers from {t.measured} of {t.posts} posts so far — open Analytics to refresh the rest.
-          </p>
-        )}
-      </div>
-
-      {report.daily?.length > 0 ? (
-        <DailyEngagement daily={report.daily} />
-      ) : (
-        <div className="grid place-items-center rounded-xl bg-ink-50 text-[12px] text-ink-400">The day-by-day chart appears after the next plan.</div>
       )}
     </section>
+  )
+}
+
+/** Four numbers, each with what it means — and the day-by-day chart. */
+function Hero({ report }) {
+  const t = report.this_week || {}
+  const l = report.last_week || {}
+  const per = (p) => (p.measured > 0 ? Math.round(((p.engagement ?? 0) / p.measured) * 10) / 10 : null)
+  const tiles = [
+    // no results collected yet → "—", not a misleading 0
+    { label: 'Reactions', now: t.measured > 0 || !t.posts ? (t.engagement ?? 0) : null, before: l.engagement, hint: 'Likes + comments + shares on your posts' },
+    { label: 'Reactions per post', now: per(t), before: per(l), hint: 'The best sign of post quality' },
+    { label: 'Views', now: t.views ?? null, before: l.views, hint: 'Times your posts were seen' },
+    { label: 'Posts published', now: t.posts ?? 0, before: l.posts, hint: 'Across all your channels' },
+  ]
+  return (
+    <>
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {tiles.map((x) => (
+          <div key={x.label} className={`${card} p-4`}>
+            <div className="text-[12px] font-medium text-ink-500">{x.label}</div>
+            <div className="mt-1 flex items-center gap-2">
+              <span className="text-[26px] font-bold leading-none tracking-tight tabular-nums text-ink-900">{x.now ?? '—'}</span>
+              {x.now != null && <Change now={x.now} before={x.before} />}
+            </div>
+            <div className="mt-1.5 text-[11.5px] leading-snug text-ink-400">
+              {x.now == null && t.posts > 0 ? 'Results not collected yet' : x.hint}
+              {x.before != null && <> · week before: {x.before}</>}
+            </div>
+          </div>
+        ))}
+      </section>
+
+      {report.daily?.length > 0 && (
+        <section className={`${card} p-6`}>
+          <DailyEngagement daily={report.daily} />
+          <p className="mt-3 text-[11.5px] text-ink-400">
+            Each bar is the reactions on posts published that day. Left of the dashed line is the week before; right is
+            this week. Hover a bar for details.
+          </p>
+        </section>
+      )}
+    </>
   )
 }
 
@@ -417,96 +512,132 @@ function DailyEngagement({ daily }) {
   )
 }
 
-/** What worked / what to improve / your audience in one card — one sentence
- *  each, the numbers behind a "Why?" — and next week's recommendation. */
-function Advice({ report, advisor }) {
-  const t = report.this_week || {}
-  const rules = report.rules || []
-  const weak = report.weak_rules || []
-  const topics = Object.values(report.pillar_stats || {}).sort((a, b) => b.avg - a.avg)
-  const maxAvg = Math.max(0.1, ...topics.map((s) => s.avg))
-  const cols = [
+// learning.py writes each lesson's numbers into its evidence line — "0.8 vs
+// 0.7 per post (13 vs 40 posts)" — read them back so the card can draw them.
+const EVIDENCE = /^([\d.]+) vs ([\d.]+) (comments )?per post(?: \((\d+) vs (\d+) posts\))?/
+function readRule(r) {
+  const m = EVIDENCE.exec(r.evidence || '')
+  const times = /(\d+(?:\.\d+)?)×/.exec(r.text || '')
+  return {
+    a: m ? Number(m[1]) : null,
+    b: m ? Number(m[2]) : null,
+    unit: m?.[3] ? 'comments' : 'reactions',
+    na: m?.[4] ? Number(m[4]) : null,
+    nb: m?.[5] ? Number(m[5]) : null,
+    times: times ? `${times[1]}×` : null,
+  }
+}
+
+/** How much to trust a lesson — by the smaller side's post count. */
+function sureness(na, nb) {
+  if (na == null || nb == null) return null
+  const n = Math.min(na, nb)
+  if (n < 5) return { label: 'Early hint', cls: 'bg-amber-50 text-amber-800', tip: `Only ${n} posts on one side — could change as more results come in.` }
+  if (n < 15) return { label: 'Likely', cls: 'bg-brand-soft text-brand', tip: `Based on ${na} vs ${nb} posts.` }
+  return { label: 'Strong', cls: 'bg-emerald-50 text-emerald-700', tip: `Based on ${na} vs ${nb} posts.` }
+}
+
+/** What the AI does with a lesson (mirrors the guidance in learning.py). */
+function ruleAction(r) {
+  const id = r.id || ''
+  if (id.startsWith('weak-')) return 'The AI uses this less in your next plans.'
+  if (id.startsWith('timing-')) {
+    const at = /go out at (\d\d:\d\d)/.exec(r.evidence || '')
+    return at ? `Auto-posts on this platform now go out at ${at[1]}.` : 'Auto-posts use this time.'
+  }
+  if (id.startsWith('day-')) return 'The week’s strongest idea goes on this day.'
+  return (
     {
-      key: 'worked',
-      icon: FiTrendingUp,
-      tone: 'bg-emerald-50 text-emerald-700',
-      title: 'What worked',
-      text:
-        advisor?.worked ||
-        (rules[0]
-          ? `${rules[0].text}.`
-          : t.top
-            ? `Your best post was “${t.top.title}” with ${t.top.engagement} engagement.`
-            : 'Not enough results yet — patterns show up after a week or two of posting.'),
-      why: rules,
-    },
-    {
-      key: 'improve',
-      icon: FiAlertTriangle,
-      tone: 'bg-amber-50 text-amber-700',
-      title: 'What to improve',
-      text: advisor?.improve || (weak[0] ? `${weak[0].text}.` : 'Nothing is clearly lagging yet — keep the mix varied.'),
-      why: weak,
-    },
-    {
-      key: 'audience',
-      icon: FiUsers,
-      tone: 'bg-brand-soft text-brand',
-      title: 'Your audience likes',
-      text:
-        advisor?.audience ||
-        (topics[0] ? `${topics[0].label} posts — ${topics[0].avg} engagement each.` : 'We’ll learn this as your posts collect likes and comments.'),
-      why: [],
-    },
+      format: 'The AI favours this format in your plans.',
+      pillar: 'The AI leans your topic mix towards it.',
+      angle: 'The AI writes about half the ideas this way.',
+      subject: 'This subject now comes round twice as often.',
+      questions: 'Captions now end with a short question.',
+      hashtags: 'Captions follow this for hashtags.',
+      length: 'Captions follow this for length.',
+    }[id] || 'The AI uses this when writing your posts.'
+  )
+}
+
+const fmt1 = (n) => (Number.isInteger(n) ? n : n.toFixed(1))
+
+function LessonCard({ rule, weak }) {
+  const v = readRule(rule)
+  const sure = sureness(v.na, v.nb)
+  const max = Math.max(v.a ?? 0, v.b ?? 0, 0.1)
+  const bars = v.a != null && [
+    { label: 'These posts', value: v.a, n: v.na, strong: true },
+    { label: 'Your other posts', value: v.b, n: v.nb, strong: false },
   ]
   return (
-    <section className={`${card} overflow-hidden`}>
-      <div className="grid divide-y divide-ink-100 md:grid-cols-3 md:divide-x md:divide-y-0">
-        {cols.map((c) => (
-          <div key={c.key} className="p-5">
-            <div className="flex items-center gap-2.5">
-              <span className={`grid h-9 w-9 flex-none place-items-center rounded-xl ${c.tone}`}>
-                <c.icon size={16} aria-hidden="true" />
-              </span>
-              <h3 className="text-[14px] font-semibold text-ink-900">{c.title}</h3>
-            </div>
-            <p className="mt-3 text-[13.5px] leading-relaxed text-ink-700">{c.text}</p>
-            {c.key === 'audience' && topics.length > 0 && (
-              <ul className="mt-4 space-y-2.5">
-                {topics.slice(0, 3).map((s) => (
-                  <li key={s.label} className="text-[11.5px]">
-                    <div className="flex justify-between gap-2 text-ink-600">
-                      <span>{s.label}</span>
-                      <b className="font-semibold tabular-nums text-ink-800">{s.avg}</b>
-                    </div>
-                    <div className="mt-1 h-2 rounded-full bg-ink-100">
-                      <div className="h-full rounded-full bg-brand" style={{ width: `${(s.avg / maxAvg) * 100}%` }} />
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {c.why.length > 0 && (
-              <details className="group mt-3">
-                <summary className="cursor-pointer list-none text-[12px] font-semibold text-brand hover:underline">
-                  Why? <span className="group-open:hidden">▸</span>
-                  <span className="hidden group-open:inline">▾</span>
-                </summary>
-                <ul className="mt-2 space-y-1.5">
-                  {c.why.slice(0, 4).map((r) => (
-                    <li key={r.id} className="text-[11.5px] leading-snug text-ink-500">
-                      <span className="text-ink-700">{r.text}</span> — {r.evidence}
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            )}
-          </div>
-        ))}
+    <div className={`${card} flex flex-col p-5`}>
+      <div className="flex items-start gap-3">
+        <span
+          className={`grid h-11 min-w-[44px] flex-none place-items-center rounded-xl px-2 text-[15px] font-bold tabular-nums ${
+            weak ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'
+          }`}
+        >
+          {v.times || (weak ? <FiAlertTriangle size={17} aria-hidden="true" /> : <FiTrendingUp size={17} aria-hidden="true" />)}
+        </span>
+        <p className="min-w-0 flex-1 text-[13.5px] font-medium leading-snug text-ink-900">{rule.text}.</p>
+        {sure && (
+          <span title={sure.tip} className={`flex-none rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${sure.cls}`}>
+            {sure.label}
+          </span>
+        )}
       </div>
 
+      {bars ? (
+        <div className="mt-4 space-y-2">
+          {bars.map((b) => (
+            <div key={b.label} className="text-[11.5px]">
+              <div className="flex justify-between gap-2 text-ink-500">
+                <span>
+                  {b.label}
+                  {b.n != null && <span className="text-ink-400"> · {b.n} posts</span>}
+                </span>
+                <span className="tabular-nums">
+                  <b className="font-semibold text-ink-800">{fmt1(b.value)}</b> {v.unit} / post
+                </span>
+              </div>
+              <div className="mt-1 h-2 rounded-full bg-ink-100">
+                <div
+                  className={`h-full rounded-full ${b.strong === !weak ? 'bg-brand' : 'bg-ink-300'}`}
+                  style={{ width: `${Math.max(2, (b.value / max) * 100)}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-3 text-[11.5px] text-ink-500">{rule.evidence}</p>
+      )}
+
+      <p className="mt-auto flex items-start gap-1.5 pt-4 text-[12px] text-ink-600">
+        <FiCheck size={13} className="mt-0.5 flex-none text-brand" aria-hidden="true" />
+        <span>
+          <b className="font-semibold text-ink-800">Applied automatically:</b> {ruleAction(rule)}
+        </span>
+      </p>
+    </div>
+  )
+}
+
+/** Step 2: each lesson the AI measured from this brand's posts, as a card
+ *  with its numbers, how sure it is and what the AI now does about it. */
+function Lessons({ report, advisor }) {
+  const rules = report.rules || []
+  const weak = report.weak_rules || []
+  const topics = Object.values(report.pillar_stats || {})
+    .filter((s) => s.posts > 0)
+    .sort((a, b) => b.avg - a.avg)
+  const showTopics = topics.length > 1 && topics.some((s) => s.avg > 0)
+  const maxAvg = Math.max(0.1, ...topics.map((s) => s.avg))
+
+  return (
+    <div className="space-y-4">
       {advisor?.recommendation && (
-        <div className="flex flex-col gap-3 border-t border-brand/15 bg-brand-soft px-5 py-4 sm:flex-row sm:items-center">
+        <section className="flex flex-col gap-3 rounded-2xl border border-brand/15 bg-brand-soft px-5 py-4 sm:flex-row sm:items-center">
           <span className="grid h-10 w-10 flex-none place-items-center rounded-xl bg-brand text-white">
             <FiZap size={18} aria-hidden="true" />
           </span>
@@ -523,9 +654,73 @@ function Advice({ report, advisor }) {
               ))}
             </div>
           )}
-        </div>
+        </section>
       )}
-    </section>
+
+      {rules.length + weak.length === 0 ? (
+        <section className={`${card} p-5 text-[13px] leading-relaxed text-ink-600`}>
+          <b className="text-ink-900">No clear lessons yet.</b> The AI compares your posts against each other (for
+          example videos vs images, mornings vs evenings). It only shows a lesson when there are enough posts on both
+          sides and one clearly does better. Keep posting and this fills in.
+        </section>
+      ) : (
+        <>
+          {rules.length > 0 && (
+            <div>
+              <h3 className="mb-2 flex items-center gap-2 text-[13px] font-semibold text-ink-800">
+                <FiTrendingUp size={14} className="text-emerald-600" aria-hidden="true" /> Doing well — do more of this
+              </h3>
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {rules.map((r) => (
+                  <LessonCard key={r.id} rule={r} />
+                ))}
+              </div>
+            </div>
+          )}
+          {weak.length > 0 && (
+            <div>
+              <h3 className="mb-2 flex items-center gap-2 text-[13px] font-semibold text-ink-800">
+                <FiAlertTriangle size={14} className="text-amber-600" aria-hidden="true" /> Not working — do less of this
+              </h3>
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {weak.map((r) => (
+                  <LessonCard key={r.id} rule={r} weak />
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {showTopics && (
+        <section className={`${card} p-5`}>
+          <div className="flex items-center gap-2.5">
+            <span className="grid h-9 w-9 flex-none place-items-center rounded-xl bg-brand-soft text-brand">
+              <FiUsers size={16} aria-hidden="true" />
+            </span>
+            <div>
+              <h3 className="text-[14px] font-semibold text-ink-900">Which topics your audience reacts to</h3>
+              <p className="text-[11.5px] text-ink-500">Average likes + comments + shares per post, last 90 days</p>
+            </div>
+          </div>
+          <ul className="mt-4 grid gap-x-8 gap-y-3 md:grid-cols-2">
+            {topics.map((s) => (
+              <li key={s.label} className="text-[12px]">
+                <div className="flex justify-between gap-2 text-ink-600">
+                  <span>
+                    {s.label} <span className="text-ink-400">· {s.posts} posts</span>
+                  </span>
+                  <b className="font-semibold tabular-nums text-ink-800">{s.avg}</b>
+                </div>
+                <div className="mt-1 h-2 rounded-full bg-ink-100">
+                  <div className="h-full rounded-full bg-brand" style={{ width: `${Math.max(1, (s.avg / maxAvg) * 100)}%` }} />
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </div>
   )
 }
 
@@ -552,7 +747,7 @@ function PlanCard({ plan, autoMedia, busy, running, onApprove, onDismiss, onRepl
 
   return (
     <>
-      <StepTitle n={3} title="Your plan for next week" sub={`${dayLabel(plan.starts_on)} – ${dayLabel(plan.ends_on)} · ${n} post${n === 1 ? '' : 's'}`}>
+      <StepTitle n={3} title="Your plan for next week" sub={`${dayRange(plan.starts_on, plan.ends_on)} · ${n} post${n === 1 ? '' : 's'} written by the AI using the lessons above`}>
         <div className="flex items-center gap-1">
           <button type="button" disabled={!!busy || running} onClick={onReplan} className="btn-ghost px-3 py-1.5" title="Write a fresh plan">
             <FiRefreshCw size={13} /> Rewrite
@@ -785,9 +980,14 @@ function NoPlan({ plan, data, busy, onPlan }) {
               <FiCheck size={13} />
             </span>
             <h2 className="text-[14.5px] font-bold text-ink-900">
-              Plan approved · {dayLabel(plan.starts_on)} – {dayLabel(plan.ends_on)}
+              Plan approved · {dayRange(plan.starts_on, plan.ends_on)}
             </h2>
           </div>
+          <p className="mt-1 text-[12px] text-ink-500">
+            These posts are on your Calendar. <b className="font-medium text-ink-700">Scheduled</b> = will post by itself ·{' '}
+            <b className="font-medium text-ink-700">On calendar</b> = idea saved, still needs an image or a time ·{' '}
+            <b className="font-medium text-ink-700">Needs review</b> = check it before it goes out.
+          </p>
           <ul className="mt-3 divide-y divide-ink-100">
             {plan.drafts.map((d) => {
               const s = DRAFT_STATUS[d.status] || { label: d.status, cls: 'bg-ink-100 text-ink-600' }
@@ -806,7 +1006,7 @@ function NoPlan({ plan, data, busy, onPlan }) {
             </Link>
             {data.free_days > 0 && (
               <button type="button" disabled={busy} onClick={onPlan} className="btn-primary">
-                Plan the next {data.free_days} day{data.free_days === 1 ? '' : 's'}
+                Plan the next {data.free_days} free day{data.free_days === 1 ? '' : 's'}
               </button>
             )}
           </div>
@@ -829,5 +1029,139 @@ function NoPlan({ plan, data, busy, onPlan }) {
       )}
     </section>
     </>
+  )
+}
+
+// ── the waiting screen while the plan is written ──────────────────────────
+// Live, not a loop: weekly.build_plan reports its stage (10 reading, 20–80
+// writing in batches with "(n of m done)", 80 fact-check, 90 summary), so the
+// post slots fill as ideas are really written and the checklist follows the
+// real stage; useSmoothProgress eases the bar between reports.
+const PLAN_STAGES = [
+  { at: 2, label: 'Reading last week’s results' },
+  { at: 20, label: 'Writing post ideas and captions' },
+  { at: 80, label: 'Fact-checking against your products' },
+  { at: 90, label: 'Writing your weekly summary' },
+]
+
+const weeklyPlanningCss = `
+.wp-shimmer { background: linear-gradient(90deg, rgb(var(--ink-100)) 0%, rgb(var(--ink-50)) 50%, rgb(var(--ink-100)) 100%); background-size: 200% 100%; animation: wp-shimmer 1.4s linear infinite; }
+@keyframes wp-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+.wp-pop { animation: wp-pop .45s cubic-bezier(.2,1.4,.4,1) both; }
+@keyframes wp-pop { from { opacity: 0; transform: translateY(8px) scale(.9); } to { opacity: 1; transform: none; } }
+.wp-write { animation: wp-write 1.1s ease-in-out infinite; }
+@keyframes wp-write { 0%, 100% { transform: translate(0, 0) rotate(-10deg); } 50% { transform: translate(10px, -2px) rotate(6deg); } }
+.wp-pulse { animation: wp-pulse 1.6s ease-in-out infinite; }
+@keyframes wp-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgb(var(--brand) / .35); } 50% { box-shadow: 0 0 0 10px rgb(var(--brand) / 0); } }
+@media (prefers-reduced-motion: reduce) { .wp-shimmer, .wp-pop, .wp-write, .wp-pulse { animation: none !important; } }
+`
+
+function WeeklyPlanning({ brand, job }) {
+  const progress = useSmoothProgress({
+    progress: job?.progress || 0,
+    // ease towards the next real checkpoint, never past it
+    upto: Math.min(PLAN_STAGES.find((s) => s.at > (job?.progress || 0))?.at ?? 100, (job?.progress || 0) + 15),
+  })
+  const real = job?.progress || 0
+  const counted = /\((\d+) of (\d+) done\)/.exec(job?.step || '')
+  const total = counted ? Number(counted[2]) : 7
+  const done = real >= 80 ? total : counted ? Number(counted[1]) : 0
+  const stage = PLAN_STAGES.reduce((i, s, n) => (real >= s.at ? n : i), 0)
+  const finished = real >= 100
+
+  return (
+    <section className={`${card} grid gap-8 p-6 lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)] lg:p-8`}>
+      <style>{weeklyPlanningCss}</style>
+
+      {/* left: what it's doing, the real stages, the progress */}
+      <div className="flex flex-col">
+        <div className="flex items-center gap-3">
+          <span className="wp-pulse grid h-12 w-12 flex-none place-items-center rounded-2xl bg-brand text-white">
+            <FiZap size={22} aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-[16px] font-bold leading-snug text-ink-900">
+              {finished ? 'Your plan is ready!' : `The AI is planning ${brand}’s next week…`}
+            </h2>
+            <p className="mt-0.5 text-[12.5px] text-ink-500">{finished ? 'Opening it now…' : job?.step || 'Starting…'}</p>
+          </div>
+        </div>
+
+        <ol className="mt-6 space-y-2.5">
+          {PLAN_STAGES.map((s, i) => {
+            const state = finished || i < stage ? 'done' : i === stage ? 'now' : 'next'
+            return (
+              <li key={s.label} className="flex items-center gap-2.5 text-[13px]">
+                <span
+                  className={`grid h-5 w-5 flex-none place-items-center rounded-full ${
+                    state === 'done' ? 'bg-brand text-white' : state === 'now' ? 'border-2 border-brand' : 'border-2 border-ink-200'
+                  }`}
+                >
+                  {state === 'done' && <FiCheck size={11} strokeWidth={3} aria-hidden="true" />}
+                  {state === 'now' && <span className="h-2 w-2 animate-pulse rounded-full bg-brand" />}
+                </span>
+                <span className={state === 'next' ? 'text-ink-400' : state === 'now' ? 'font-semibold text-ink-900' : 'text-ink-600'}>
+                  {s.label}
+                </span>
+              </li>
+            )
+          })}
+        </ol>
+
+        <div className="mt-auto pt-6">
+          <div className="flex items-baseline justify-between text-[12px]">
+            <span className="font-semibold text-ink-700">{finished ? 'Done' : 'Progress'}</span>
+            <span className="font-bold tabular-nums text-brand">{finished ? 100 : progress}%</span>
+          </div>
+          <div className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-ink-100">
+            <div className="h-full rounded-full bg-brand transition-[width] duration-300 ease-out" style={{ width: `${finished ? 100 : progress}%` }} />
+          </div>
+          <p className="mt-2 text-[11px] leading-snug text-ink-400">
+            Usually a few minutes. It keeps going in the background — you can leave this page and come back.
+          </p>
+        </div>
+      </div>
+
+      {/* right: the posts being written — filled from the real count */}
+      <div className="min-w-0">
+        <div className="mb-3 flex items-baseline justify-between text-[12.5px]">
+          <span className="font-semibold text-ink-700">Posts written</span>
+          <span className="tabular-nums text-ink-500">
+            <b className="text-[15px] text-ink-900">{done}</b> of {counted || real >= 80 ? total : '…'}
+          </span>
+        </div>
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 xl:grid-cols-7">
+          {Array.from({ length: total }, (_, i) => {
+            const isDone = i < done
+            const isNow = !isDone && i === done && real >= 20 && real < 80
+            return (
+              <div
+                key={`${i}-${isDone}`}
+                className={`relative h-[92px] rounded-xl p-2.5 ${
+                  isDone ? 'wp-pop bg-brand-soft' : isNow ? 'wp-shimmer' : 'border border-dashed border-ink-200'
+                }`}
+              >
+                <span className={`text-[10.5px] font-semibold ${isDone ? 'text-brand' : 'text-ink-300'}`}>Post {i + 1}</span>
+                {isDone && (
+                  <>
+                    <span className="absolute right-2 top-2 grid h-4 w-4 place-items-center rounded-full bg-brand text-white">
+                      <FiCheck size={10} strokeWidth={3} aria-hidden="true" />
+                    </span>
+                    <span className="mt-2 block h-1.5 w-3/4 rounded-full bg-brand/40" />
+                    <span className="mt-1.5 block h-1.5 w-1/2 rounded-full bg-brand/25" />
+                    <span className="mt-1.5 block h-1.5 w-2/3 rounded-full bg-brand/25" />
+                  </>
+                )}
+                {isNow && (
+                  <span className="wp-write absolute left-4 top-9 text-[20px]" aria-hidden="true">
+                    ✏️
+                  </span>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </section>
   )
 }

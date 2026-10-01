@@ -64,6 +64,39 @@ def _font(size: int, weight: str = "Bold") -> ImageFont.FreeTypeFont:
     return f
 
 
+# Typographic characters the AI likes to write, and what to draw instead when
+# the font has no glyph for them (they'd come out as an empty box).
+_LOOKALIKE = {
+    "‐": "-", "‑": "-", "‒": "-", "–": "-", "—": "-", "−": "-",
+    " ": " ", " ": " ", " ": " ", " ": " ", " ": " ",
+    "‘": "'", "’": "'", "“": '"', "”": '"', "…": "...",
+}
+
+
+@lru_cache(maxsize=4096)
+def _has_glyph(ch: str) -> bool:
+    """Whether the font draws ``ch`` itself rather than its 'missing' box —
+    told by comparing its shape with that of a private-use character."""
+    def shape(c: str) -> bytes:
+        img = Image.new("L", (64, 64))
+        ImageDraw.Draw(img).text((8, 4), c, font=_font(40), fill=255)
+        return img.tobytes()
+
+    return shape(ch) != shape("")
+
+
+def drawable(text: str) -> str:
+    """``text`` with every character the font can't draw swapped for a plain
+    lookalike or dropped. Khmer, ASCII, joiners and line breaks pass as-is."""
+    out = []
+    for ch in text or "":
+        if ch.isascii() or ord(ch) in _KHMER or ch in "​‌‍" or _has_glyph(ch):
+            out.append(ch)
+        elif ch in _LOOKALIKE:
+            out.append(_LOOKALIKE[ch])
+    return "".join(out)
+
+
 def _has_khmer(text: str) -> bool:
     return any(ord(ch) in _KHMER for ch in text)
 
@@ -135,7 +168,8 @@ def _fit(text: str, width: int) -> tuple[ImageFont.FreeTypeFont, list[str]]:
 def render_meme(photo: bytes, top: str, brand: str = "") -> bytes:
     """Setup text on a white band above the photo (cropped square), with a
     small brand tag in the photo's corner. Returns a JPEG."""
-    top = " ".join(top.replace("\r", "").split(" ")).strip()
+    top = drawable(" ".join(top.replace("\r", "").split(" ")).strip())
+    brand = drawable(brand)
     if _has_khmer(top) and not features.check("raqm"):
         log.warning("meme: Khmer text but Pillow has no raqm — install libraqm for correct shaping")
 

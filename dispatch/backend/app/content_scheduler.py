@@ -259,7 +259,7 @@ def _generate_media_for(
     elif poster:
         from app.poster import poster_photo_prompt
 
-        prompt, ratio, refs, guide = poster_photo_prompt(idea.get("pillar") or "", poster["scene"]), "1:1", [], ""
+        prompt, ratio, refs, guide = poster_photo_prompt(idea.get("pillar") or "", poster["scene"], poster.get("headline", "")), "1:1", [], ""
     else:
         prompt, ratio = image_prompt_for_idea(brand.name, brand.lang, idea, products), "9:16"
         refs, guide = kit

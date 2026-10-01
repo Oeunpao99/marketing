@@ -28,7 +28,7 @@ import logging
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps, features
 
-from app.meme import _font, _has_khmer, _wrap
+from app.meme import _font, _has_khmer, _wrap, drawable
 
 log = logging.getLogger("app.poster")
 
@@ -62,18 +62,22 @@ def _tint(c: tuple[int, int, int], amount: float) -> tuple[int, int, int]:
     return tuple(round(v + (255 - v) * amount) for v in c)
 
 
-def poster_photo_prompt(pillar: str, scene: str) -> str:
+def poster_photo_prompt(pillar: str, scene: str, headline: str = "") -> str:
     """The image brief for a poster's picture — no text in it (the poster's
-    words are drawn on by render_poster)."""
+    words are drawn on by render_poster). ``headline`` is the poster's
+    headline, so the picture is made for that exact post."""
     framing = {
         "quote": "a wide, atmospheric frame with lots of calm, dark space — it sits behind large white text",
-        "trend": "a striking frame with a sense of something new arriving — dusk or neon light works well",
-        "comparison": "one wide scene with the action spread across the whole width (the left half is "
-        "shown in grey as 'before', the right in colour as 'after')",
+        "trend": "a striking frame with a sense of something new arriving — dusk or neon light works well; "
+        "the new technology itself is clearly in the shot",
+        "comparison": "one wide frame split down the middle: the LEFT half shows the old way (e.g. a tired "
+        "owner doing it by hand), the RIGHT half the new way in action (e.g. the phone replying "
+        "by itself) — the left half is shown in grey as 'before', the right in colour as 'after'",
         "community": "one person centred in the frame with space around them, looking warm and real — it "
         "is shown cropped to a small circle",
     }.get(pillar, "the subject in the centre to upper part of the frame, the moment clear at a glance")
-    return f"{CAMBODIA_PHOTO}\nThe moment: {scene.strip()}\nFraming: {framing}."
+    about = f"\nThe post is about: {headline.strip()} — the picture must make that clear at a glance." if headline else ""
+    return f"{CAMBODIA_PHOTO}{about}\nThe moment: {scene.strip()}\nFraming: {framing}."
 
 
 # The look every auto-made photo shares: real Cambodian life shot like a
@@ -85,9 +89,13 @@ CAMBODIA_PHOTO = (
     "people busy doing something, not posing or smiling at the camera. Shot on a full-frame "
     "camera with a 35mm lens, shallow depth of field, rich but natural colour, real light "
     "(warm morning sun, golden hour, shop lights at night, rain on the street), real texture "
-    "and detail. Never: office workers around a laptop, people pointing at screens, "
-    "handshakes, posed smiling teams, glossy corporate looks. Absolutely no text, letters, "
-    "numbers, signs with words, readable screens, logos or watermarks anywhere in the image."
+    "and detail. The picture must SHOW what the post is about: when the topic is technology, "
+    "AI, an app or online selling, the technology is in the shot, in use — a phone or laptop "
+    "in someone's hands with chat bubbles, replies or a dashboard on screen drawn as soft, "
+    "blurred, unreadable shapes and colours. Never: corporate offices, posed smiling teams "
+    "around a laptop, handshakes, glossy stock looks. Absolutely no readable text, letters, "
+    "numbers, signs with words, logos or watermarks anywhere in the image — screens show "
+    "shapes and colours only."
 )
 
 
@@ -390,6 +398,12 @@ def _community_poster(canvas, photo, p: dict, accent, brand: str) -> None:
 def render_poster(photo: bytes, pillar: str, poster: dict, brand: str = "", slug: str = "") -> bytes:
     """The topic poster for ``pillar`` with the idea's ``poster`` text over
     ``photo``. Returns a JPEG. Raises ValueError for a pillar without a layout."""
+    # Characters the font can't draw (e.g. a non-breaking hyphen) would show as boxes.
+    poster = {
+        k: [drawable(t) for t in v] if isinstance(v, list) else drawable(v) if isinstance(v, str) else v
+        for k, v in poster.items()
+    }
+    brand = drawable(brand)
     texts = [poster.get("headline", ""), *poster.get("points", []), *poster.get("left", []), *poster.get("right", [])]
     if any(_has_khmer(t) for t in texts) and not features.check("raqm"):
         log.warning("poster: Khmer text but Pillow has no raqm — install libraqm for correct shaping")
