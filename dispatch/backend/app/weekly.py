@@ -667,6 +667,69 @@ def weekly_dismiss(plan_id: int, db: Session = Depends(get_db), ws: int = Depend
     return {"id": plan.id, "status": plan.status}
 
 
+@router.post("/{plan_id}/regenerate")
+def weekly_regenerate(plan_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    """Throw away an approved plan's posts from tomorrow on — their queued
+    posts are cancelled and the drafts rejected, which frees those days — then
+    write a fresh plan for them (a new "ready" plan to review and approve).
+    Anything already out, or going out within the edit lock, is kept."""
+    from app.views import _editable
+
+    owned(db, WeeklyPlan, plan_id, ws, "Plan")
+    plan = db.get(WeeklyPlan, plan_id)
+    if plan.status != "approved":
+        raise HTTPException(409, "Only an approved plan can be regenerated — use Rewrite on a waiting one.")
+    running = job_status(plan.brand_id)
+    if running and running["status"] == "running":
+        raise HTTPException(409, "Still working on this brand — try again in a moment.")
+
+    now = datetime.now(UTC)
+    first = max(plan.starts_on, _today() + timedelta(days=1))
+    drafts = db.scalars(
+        select(Draft)
+        .where(
+            Draft.brand_id == plan.brand_id,
+            Draft.source == "ai-weekly",
+            Draft.status != "rejected",
+            Draft.planned_for >= first,
+            Draft.planned_for <= plan.ends_on,
+        )
+        .with_for_update()
+    ).all()
+    freed = kept = 0
+    for d in drafts:
+        # schedule_draft_as_post doesn't link back to the draft: its post is
+        # the brand's scheduled one with this draft's media and title.
+        posts = (
+            db.scalars(
+                select(Post).where(
+                    Post.brand_id == d.brand_id,
+                    Post.video_id == d.video_id,
+                    Post.title == d.title,
+                    Post.status == "scheduled",
+                )
+            ).all()
+            if d.video_id is not None
+            else []
+        )
+        targets = [t for p in posts for t in db.scalars(select(PostTarget).where(PostTarget.post_id == p.id).with_for_update())]
+        if any(not _editable(t, now) for t in targets):
+            kept += 1  # already out (or about to go) on some channel — leave it
+            continue
+        for t in targets:
+            db.delete(t)
+        db.flush()
+        for p in posts:
+            db.delete(p)
+        d.status = "rejected"
+        freed += 1
+    db.commit()
+    if not freed:
+        raise HTTPException(409, "Nothing left to regenerate — these posts have already gone out.")
+    job = _start_job(plan.brand_id, "plan", _build_job)
+    return {"freed": freed, "kept": kept, "job": job}
+
+
 @router.post("/{plan_id}/approve")
 def weekly_approve(
     plan_id: int,

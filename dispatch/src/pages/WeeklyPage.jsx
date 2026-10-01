@@ -29,6 +29,7 @@ export default function WeeklyPage() {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState('')
   const [confirmRewrite, setConfirmRewrite] = useState(null)
+  const [confirmRegen, setConfirmRegen] = useState(false)
   const poll = useRef(null)
 
   const load = useCallback(async () => {
@@ -90,6 +91,21 @@ export default function WeeklyPage() {
     try {
       const j = await api.post(`/weekly/plan?brand_id=${brand.id}`)
       setData((d) => ({ ...d, job: j }))
+    } catch (e) {
+      showToast(e.message)
+    } finally {
+      setBusy('')
+    }
+  }
+
+  // An approved plan: cancel its posts from tomorrow on and write a new plan.
+  const regenerate = async () => {
+    setConfirmRegen(false)
+    setBusy('plan')
+    try {
+      const out = await api.post(`/weekly/${data.plan.id}/regenerate`)
+      if (out.kept) showToast(`${out.kept} post${out.kept === 1 ? ' is' : 's are'} already going out — kept`)
+      setData((d) => ({ ...d, job: out.job }))
     } catch (e) {
       showToast(e.message)
     } finally {
@@ -201,6 +217,15 @@ export default function WeeklyPage() {
       {confirmRewrite && (
         <RewriteDialog {...confirmRewrite} onCancel={() => setConfirmRewrite(null)} onConfirm={planNow} />
       )}
+      {confirmRegen && (
+        <ConfirmBox
+          title="Regenerate this week’s plan?"
+          text="The AI writes new posts for every day from tomorrow on. The posts already scheduled for those days are cancelled, and their images stay in your Media Library. Posts that already went out stay as they are. You’ll review the new plan before anything is scheduled."
+          confirm="Regenerate"
+          onCancel={() => setConfirmRegen(false)}
+          onConfirm={regenerate}
+        />
+      )}
 
       {data === null && !error ? (
         <div className={`${card} p-6 space-y-3`}>
@@ -235,6 +260,7 @@ export default function WeeklyPage() {
                 data={data}
                 busy={busy === 'plan' || running}
                 onPlan={planNow}
+                onRegenerate={() => setConfirmRegen(true)}
               />
             )}
           </div>
@@ -983,7 +1009,7 @@ const DRAFT_STATUS = {
   rejected: { label: 'Removed', cls: 'bg-ink-100 text-ink-500' },
 }
 
-function NoPlan({ plan, data, busy, onPlan }) {
+function NoPlan({ plan, data, busy, onPlan, onRegenerate }) {
   const approved = plan?.status === 'approved'
   return (
     <>
@@ -1025,6 +1051,11 @@ function NoPlan({ plan, data, busy, onPlan }) {
             <Link to="/calendar" className="btn-outline">
               Open Calendar
             </Link>
+            {plan.drafts.some((d) => d.status !== 'rejected' && d.day > new Date().toLocaleDateString('en-CA')) && (
+              <button type="button" disabled={busy} onClick={onRegenerate} className="btn-outline" title="Write new posts for the days from tomorrow on">
+                <FiRefreshCw size={13} /> Regenerate plan
+              </button>
+            )}
             {data.free_days > 0 && (
               <button type="button" disabled={busy} onClick={onPlan} className="btn-primary">
                 Plan the next {data.free_days} free day{data.free_days === 1 ? '' : 's'}
@@ -1193,22 +1224,33 @@ function RewriteDialog({ edited, removed, onCancel, onConfirm }) {
     edited > 0 && `${edited} edited caption${edited === 1 ? '' : 's'}`,
     removed > 0 && `${removed} removed post${removed === 1 ? '' : 's'}`,
   ].filter(Boolean)
+  return (
+    <ConfirmBox
+      title="Rewrite the whole plan?"
+      text={`The AI writes a brand-new plan and replaces this one. Your changes will be lost: ${changes.join(' and ')}.`}
+      cancel="Keep my plan"
+      confirm="Rewrite"
+      onCancel={onCancel}
+      onConfirm={onConfirm}
+    />
+  )
+}
+
+function ConfirmBox({ title, text, confirm, cancel = 'Cancel', onCancel, onConfirm }) {
   return createPortal(
     <div className="fixed inset-0 z-[110] glass-overlay flex items-center justify-center p-4 animate-fadein" onClick={onCancel}>
       <div role="dialog" aria-modal="true" className="glass-panel w-full max-w-sm rounded-3xl p-6" onClick={(e) => e.stopPropagation()}>
         <div className="grid h-10 w-10 place-items-center rounded-full bg-amber-50 text-amber-700">
           <FiRefreshCw size={18} aria-hidden="true" />
         </div>
-        <h2 className="mt-4 text-[15.5px] font-bold text-ink-900">Rewrite the whole plan?</h2>
-        <p className="mt-2 text-[12.5px] leading-relaxed text-ink-500">
-          The AI writes a brand-new plan and replaces this one. Your changes will be lost: {changes.join(' and ')}.
-        </p>
+        <h2 className="mt-4 text-[15.5px] font-bold text-ink-900">{title}</h2>
+        <p className="mt-2 text-[12.5px] leading-relaxed text-ink-500">{text}</p>
         <div className="mt-6 flex justify-end gap-2">
           <button type="button" onClick={onCancel} className="btn-outline">
-            Keep my plan
+            {cancel}
           </button>
           <button type="button" onClick={onConfirm} className="btn-primary">
-            Rewrite
+            {confirm}
           </button>
         </div>
       </div>
