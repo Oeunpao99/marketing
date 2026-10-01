@@ -178,6 +178,7 @@ def _posts(db: Session, brand_id: int) -> list[dict]:
                 "comments": snap.metrics.get("comments"),
                 "angle": post.angle if post else "",
                 "pillar": post.pillar if post else "",
+                "subject": post.subject if post else "",
             }
         )
     return out
@@ -273,6 +274,30 @@ def brand_learnings(db: Session, brand_id: int) -> dict:
                 }
             )
             guidance.append(f"{name} posts underperform for this brand — use them less, and make the ones you do post count.")
+
+    # Subjects (Automation.subjects) — each against the brand's other subject
+    # posts, recency-weighted. subject_scores = how many times the usual
+    # engagement each one gets (MIN_POSTS+ posts only); content_ai.pick_subjects
+    # brings the strong ones round more often, so no prompt guidance needed.
+    by_subject: dict[str, list[dict]] = {}
+    for p in posts:
+        if p["subject"]:
+            by_subject.setdefault(p["subject"], []).append(p)
+    subject_scores: dict[str, float] = {}
+    for subj, ps in by_subject.items():
+        c = _wcompare(ps, [p for s, others in by_subject.items() if s != subj for p in others])
+        if c and c[0] != float("inf"):
+            subject_scores[subj] = round(c[0], 2)
+    if subject_scores:
+        top = max(subject_scores, key=subject_scores.get)
+        if subject_scores[top] >= RATIO:
+            rules.append(
+                {
+                    "id": "subject",
+                    "text": f"Posts about “{top}” get {_x(subject_scores[top])} more engagement than your other subjects",
+                    "evidence": f"{len(by_subject[top])} posts — it now comes round twice as often",
+                }
+            )
 
     # Engagement per topic, for the Weekly plan's advisor summary.
     pillar_stats = {
@@ -454,6 +479,7 @@ def brand_learnings(db: Session, brand_id: int) -> dict:
         "post_hours": post_hours,
         "best_days": best_days,
         "best_slots": best_slots,
+        "subject_scores": subject_scores,
         "windows_tried": windows_tried,
         "top_captions": top_captions,
         "prompt": prompt,

@@ -309,7 +309,14 @@ def build_plan(db: Session, brand_id: int, starts_on: date | None = None, step=l
                 days=chunk,
                 recent_pillars=[i["pillar"] for i in reversed(ideas) if i.get("pillar")][:8],
                 # Same date rotation as the daily run, so the list comes round in turn.
-                subjects=pick_subjects(automation.subjects, n_batch, chunk[0].toordinal() * per_day),
+                subjects=pick_subjects(
+                    automation.subjects,
+                    n_batch,
+                    chunk[0].toordinal() * per_day,
+                    selling_slots=len(allowed),
+                    product_names=[p.name for p in products],
+                    scores=learnings.get("subject_scores") if automation.learn_from_results else None,
+                ),
                 selling_days=allowed,
             )
         except ContentAIError:
@@ -336,9 +343,11 @@ def build_plan(db: Session, brand_id: int, starts_on: date | None = None, step=l
             "insight": idea["insight"],
             "fit_score": idea.get("fit_score"),
             "pillar": idea.get("pillar") or "",
+            "subject": idea.get("subject") or "",
             "angle": idea.get("angle") or "",
             "goal": idea.get("goal") or "",
             "meme": idea.get("meme"),
+            "poster": idea.get("poster"),
             "fact_issues": checks[n] if checks is not None else None,
         }
         for n, idea in enumerate(ideas)
@@ -457,7 +466,7 @@ def _media_job(brand_id: int, draft_ids: list[int]) -> None:
         # product photo and logo — gathered here so the image threads don't
         # need the DB.
         automation = db.scalar(select(Automation).where(Automation.brand_id == brand_id))
-        ideas = [{"title": d.title, "caption": d.body, "meme": d.meme} for d in drafts]
+        ideas = [{"title": d.title, "caption": d.body, "meme": d.meme, "pillar": d.pillar, "poster": d.poster} for d in drafts]
         kits = [
             _poster_kit_for(db, automation, brand_id, idea, n, d.planned_for or _today()) if automation else ([], "")
             for n, (idea, d) in enumerate(zip(ideas, drafts))
@@ -682,7 +691,9 @@ def weekly_approve(
             status="approved",
             fit_score=i.get("fit_score"),
             pillar=i.get("pillar") or "",
+            subject=i.get("subject") or "",
             meme=i.get("meme"),
+            poster=i.get("poster"),
             angle=i.get("angle") or "",
             goal=i.get("goal") or "",
             fact_issues=i.get("fact_issues"),

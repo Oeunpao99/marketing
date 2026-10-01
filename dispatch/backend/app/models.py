@@ -211,6 +211,8 @@ class Post(Base, TimestampMixin):
     # Its content pillar (content_ai.PILLARS, e.g. "educate"), same source and
     # purpose as angle.
     pillar: Mapped[str] = mapped_column(String(30), default="", server_default="")
+    # Which of Automation.subjects it was written on — same source and purpose.
+    subject: Mapped[str] = mapped_column(String(80), default="", server_default="")
     # Where it was made: "contentflow" (here) or "native" — posted straight on
     # the platform and imported from a connected Page (app/importer.py), so
     # Analytics can badge it and still count it.
@@ -297,9 +299,14 @@ class Draft(Base, TimestampMixin):
     pillar: Mapped[str] = mapped_column(String(30), default="", server_default="")
     angle: Mapped[str] = mapped_column(String(30), default="", server_default="")
     goal: Mapped[str] = mapped_column(String(20), default="", server_default="")
+    # The subject (one of Automation.subjects) the idea was written on, or "".
+    subject: Mapped[str] = mapped_column(String(80), default="", server_default="")
     # Relatable ideas: {"top": setup text, "scene": the funny photo} — their
     # image is made as a meme poster (app/meme.py). Null otherwise.
     meme: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    # Educate / benefit / comparison / trend / quote / community ideas: the
+    # text for their topic poster (app/poster.py, content_ai.py "poster").
+    poster: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     # Claims the automatic fact-check couldn't find in the brand's product
     # info (content_ai.fact_check). Empty list = checked, nothing flagged;
     # null = not checked (hand-made draft, or the check itself failed).

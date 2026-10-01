@@ -544,7 +544,7 @@ def auto_view(db: Session = Depends(get_db), ws: int = Depends(current_workspace
             "poster_kit": a.poster_kit or {},
             "subjects": a.subjects or [],
             "learnings": {
-                k: v for k, v in learned[a.id].items() if k in ("posts", "rules", "post_hours", "best_slots")
+                k: v for k, v in learned[a.id].items() if k in ("posts", "rules", "post_hours", "best_slots", "subject_scores")
             },
             "upcoming": _upcoming_auto_posts(db, a, learned[a.id]),
         }
@@ -1182,6 +1182,7 @@ def schedule(payload: ScheduleIn, db: Session = Depends(get_db), ws: int = Depen
         status="scheduled",
         angle=idea.angle if idea else "",
         pillar=idea.pillar if idea else "",
+        subject=idea.subject if idea else "",
     )
     db.add(post)
     db.flush()
@@ -1718,6 +1719,7 @@ def repost_target(
         status="scheduled",
         angle=post.angle or "",
         pillar=post.pillar or "",
+        subject=post.subject or "",
     )
     db.add(new)
     db.flush()
@@ -2450,7 +2452,7 @@ def _draft_media_job(draft_id: int, kind: str) -> None:
             return
         billing.bind(brand.workspace_id)
         products = [_product_snapshot(p) for p in db.scalars(select(Product).where(Product.brand_id == brand.id)).all()]
-        idea = {"title": d.title, "caption": d.body, "meme": d.meme}
+        idea = {"title": d.title, "caption": d.body, "meme": d.meme, "pillar": d.pillar, "poster": d.poster}
         if kind == "video":
             first_frame = _first_frame_for(db, brand.id, idea)
             video_id = _generate_video_for(_brand_snapshot(brand), idea, products, first_frame)

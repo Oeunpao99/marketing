@@ -68,12 +68,46 @@ def _has_khmer(text: str) -> bool:
     return any(ord(ch) in _KHMER for ch in text)
 
 
+def _can_break_before(text: str, i: int) -> bool:
+    """A safe line break before text[i] inside a run with no spaces: a zero-
+    width space, or a Khmer base letter (consonant / independent vowel) not
+    joined to the one before by a coeng (U+17D2) — never inside a cluster."""
+    ch = text[i]
+    if text[i - 1] == "​":
+        return True
+    return 0x1780 <= ord(ch) <= 0x17B3 and text[i - 1] != "្"
+
+
+def _split_long(word: str, font: ImageFont.FreeTypeFont, width: int) -> list[str]:
+    """A word wider than ``width`` (Khmer writes whole phrases without
+    spaces) cut at safe break points into pieces that fit."""
+    if font.getlength(word) <= width:
+        return [word]
+    points = [i for i in range(1, len(word)) if _can_break_before(word, i)] + [len(word)]
+    pieces, start = [], 0
+    while start < len(word):
+        best = best_word = None
+        for b in points:
+            if b <= start:
+                continue
+            if font.getlength(word[start:b]) > width:
+                break
+            best = b
+            if b == len(word) or word[b - 1] == "​":
+                best_word = b  # a real word boundary — preferred over a cluster break
+        # One cluster wider than the line on its own: it goes alone.
+        best = best_word or best or next(b for b in points if b > start)
+        pieces.append(word[start:best])
+        start = best
+    return pieces
+
+
 def _wrap(text: str, font: ImageFont.FreeTypeFont, width: int) -> list[str]:
-    """Greedy wrap on spaces (Khmer puts spaces only between phrases, so a
-    long Khmer phrase may stay on one line — the caller shrinks the font)."""
+    """Greedy wrap on spaces; a run too wide for one line (Khmer puts spaces
+    only between phrases) is split at safe Khmer break points."""
     lines: list[str] = []
     for para in text.split("\n"):
-        words = para.split(" ")
+        words = [piece for w in para.split(" ") for piece in _split_long(w, font, width)]
         line = ""
         for w in words:
             test = f"{line} {w}".strip()

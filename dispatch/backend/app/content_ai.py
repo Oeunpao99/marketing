@@ -13,6 +13,7 @@ told), so a batch isn't the same generic caption N times.
 from __future__ import annotations
 
 import json
+import re
 from datetime import date
 
 import httpx
@@ -20,6 +21,7 @@ import httpx
 from app import billing
 from app.config import get_settings
 from app.models import Product
+from app.poster import clean_poster
 
 # Content pillars — WHAT a post is about — key → (label, recipe). A feed of
 # nothing but product pitches bores people, so most pillars give the reader
@@ -210,6 +212,31 @@ SYSTEM_PROMPT = (
     "the punchline — a candid, funny, relatable reaction (a person or an animal), "
     "with no words in it. Keep it kind: laugh with the audience, never at a group "
     "of people. For every other pillar: null.\n"
+    "- poster: ONLY for educate, benefit, comparison, trend, quote and community "
+    "— the post's image is a designed poster for its topic, and this is the text "
+    "drawn on it, in the brand's audience language. Poster text is read in a "
+    "second: short, plain, no emoji, no hashtags, no full stops at the end of "
+    "points. Khmer poster text: put a zero-width space (\\u200b) between words, "
+    "so lines break between words, not inside one. An object "
+    '{"headline": "...", "points": ["..."], "left_title": "", "left": [], '
+    '"right_title": "", "right": [], "author": "", "scene": "..."}:\n'
+    "  - educate: headline = the promise (max 60 chars); points = 3-4 steps or "
+    "tips, max 45 chars each.\n"
+    "  - benefit: headline (max 60 chars); points = 3 benefits, max 45 chars each.\n"
+    "  - comparison: headline = 'A vs B' (max 50 chars); left_title / right_title "
+    "= the two sides, max 18 chars each (the old or usual way on the left); "
+    "left / right = 3 short points each, max 32 chars, matching each other line "
+    "by line.\n"
+    "  - trend: headline = what it is (max 60 chars); points = one line in plain "
+    "words on why it matters (max 100 chars).\n"
+    "  - quote: headline = the quote itself (max 160 chars); author = its author, "
+    "or the brand's name for an original line.\n"
+    "  - community: headline = the question (max 60 chars); points = 2-4 answer "
+    "options, max 32 chars each.\n"
+    "  scene (every pillar here) = in English, one sentence describing the "
+    "picture at the top of the poster — what the topic looks like in real life; "
+    "no text, screens or logos in it. Unused fields stay empty. For every other "
+    "pillar: null.\n"
     "- fit_score: your OWN honest 0-100 self-check of this specific idea. For a "
     "selling pillar: how directly it's grounded in the product facts actually "
     "given — a caption whose ✓ list doesn't name specific capabilities from the "
@@ -281,14 +308,16 @@ SYSTEM_PROMPT = (
     "towards it but keep the mix. If the brief gives SUBJECTS for this batch, "
     "build each idea around one of them, one subject per idea (the pillar, "
     "angle and goal still apply — a subject is what it's about, the pillar is "
-    "what kind of post it is). Stay grounded in the product info given — "
+    "what kind of post it is), and return it as the idea's \"subject\", copied "
+    "exactly; a subject marked [product] goes to the selling idea. Without "
+    "SUBJECTS, \"subject\" is \"\". Stay grounded in the product info given — "
     "don't invent products, prices, free trials, discounts, links or claims "
     "that weren't provided; if the offer or link isn't in the product info, "
     "use a call to action that doesn't need one (e.g. 'send us a message').\n"
     "\n"
     "Respond with ONLY a JSON object: "
-    '{"ideas": [{"pillar": "...", "goal": "...", "angle": "...", "title": "...", '
-    '"insight": "...", "caption": "...", "meme": null, "fit_score": 0}, ...]} '
+    '{"ideas": [{"pillar": "...", "subject": "...", "goal": "...", "angle": "...", "title": "...", '
+    '"insight": "...", "caption": "...", "meme": null, "poster": null, "fit_score": 0}, ...]} '
     "— no prose, no markdown fences."
 )
 
@@ -301,35 +330,73 @@ class ContentAIError(RuntimeError):
     pass
 
 
+# Thai characters accidentally emitted by multilingual tokenizers
+THAI_TO_KHMER: dict[str, str] = {
+    "อัตโนมัติ": "ស្វ័យប្រវត្តិ",
+    "ทีม": "ក្រុមការងារ",
+    "ระบบ": "ប្រព័ន្ធ",
+    "ลูกค้า": "អតិថិជន",
+}
+
+# Dangerous literal machine-translation calques from English
+CALQUE_REPLACEMENTS: list[tuple[str, str]] = [
+    (r"Comment\s+មកសួរច្បាប់\s+មកជម្រាប", "Comment ប្រាប់ខាងក្រោម"),
+    (r"Comment\s+មកសួរច្បាប់", "Comment ខាងក្រោម"),
+    (r"មកសួរច្បាប់", "ខាងក្រោម"),
+    (r"សួរច្បាប់", "ខាងក្រោម"),
+    (r"សុំច្បាប់", "ខាងក្រោម"),
+    (r"មកជម្រាប", "ប្រាប់"),
+    (r"តោះមើលផ្នែកដែលខុសគ្នា", "មួយណាស្រួលជាង?"),
+    (r"ទប់ស្កាត់\s+lead", "មិនឱ្យបាត់បង់ lead"),
+    (r"កម្រិតឆ្លើយតបសកម្ម", "ឆ្លើយតបរហ័ស"),
+]
+
+
+def _fix_khmer_punctuation(text: str) -> str:
+    """Clean Khmer text: fix punctuation, replace machine-translated calques,
+    and strip/replace accidental Thai script bleed."""
+    if not text:
+        return text
+    # 1. Fix Devanagari danda
+    text = text.replace("।", "។").replace("॥", "៕")
+    # 2. Fix Thai script bleed
+    for th, kh in THAI_TO_KHMER.items():
+        text = text.replace(th, kh)
+    text = re.sub(r"[\u0e00-\u0e7f]+", "", text)
+    # 3. Fix common catastrophic machine-translation calques
+    for pat, rep in CALQUE_REPLACEMENTS:
+        text = re.sub(pat, rep, text)
+    return text
+
+
 # What makes Khmer read as "translated" — shared by the writer (KHMER_GUIDE)
 # and the second-pass native editor (POLISH_PROMPT).
 KHMER_NATURAL = (
-    "What makes Khmer sound translated or stiff — avoid all of it:\n"
-    "- English sentence order and English idioms carried over ('take your "
-    "business to the next level', 'game-changer', 'unlock'); say the idea the "
-    "way a Cambodian would say it out loud.\n"
-    "- Formal / written-register filler: នូវ, ត្រូវបាន (passive), ធ្វើការ + verb "
-    "(write ឆ្លើយ, not ធ្វើការឆ្លើយតប), stacked ការ-nouns (ការធ្វើឲ្យប្រសើរឡើងនូវ…), "
-    "ក្នុងការ, ដែលជា, ជាមួយនឹង when a simpler word works.\n"
-    "- Repeating របស់អ្នក in every sentence — once is enough; drop it when the "
-    "owner is obvious.\n"
-    "- Mixing ways of addressing the reader: pick one (អ្នក, or បង for a "
-    "friendly shop voice; លោកអ្នក only for a formal brand) and keep it — follow "
-    "the brand's real captions if given.\n"
-    "- Starting every question with តើ; end questions naturally (…ទេ? …មែនទេ? "
-    "…អត់?) and use តើ only when it reads naturally.\n"
-    "- Product-definition sentences ('X គឺជា…ដែល…', 'X គឺជាដំណោះស្រាយ…'); say what "
-    "it does for them instead ('X ជួយ…', 'មាន X ហើយ មិនបាច់…ទៀតទេ').\n"
-    "- Ad-copy clichés nobody says out loud: យើងខ្ញុំមានសេចក្តីរីករាយ…, "
-    "អតិថិជនជាទីគោរព, ដំណោះស្រាយដ៏ល្អឥតខ្ចោះ, បដិវត្តន៍, ដ៏អស្ចារ្យ / ទំនើបបំផុត in "
-    "every line, លើកកម្ពស់អាជីវកម្ម, នាំមកនូវបទពិសោធន៍ថ្មី.\n"
-    "- Every sentence the same length and shape (the tell-tale machine rhythm); "
-    "mix a short punchy line with a longer one.\n"
-    "Do: short spoken sentences; everyday words (ឆ្លើយ, ជួយ, លក់, ទិញ, ឆាប់, "
-    "ស្រួល, ភ្ញៀវ for a shop's customers); keep the words local pages write in "
-    "English in Latin script — Inbox, Message, Comment, Share, Page, Live, Order, "
-    "Staff, Link, AI, app, Facebook, TikTok, Telegram; ។ ends a sentence (never "
-    "'.' and not after ✓ list lines or after a '?').\n"
+    "WHAT MAKES KHMER SOUND ROBOTIC / TRANSLATED — AVOID AT ALL COSTS:\n"
+    "- CRITICAL BANNED LITERAL TRANSLATIONS (Calques from English that sound bizarre or wrong in Khmer):\n"
+    "  * NEVER translate 'leave a comment' as anything with 'ច្បាប់' (ច្បាប់ = law or leave of absence/day off!). "
+    "'Comment មកសួរច្បាប់' or 'សុំច្បាប់' is completely wrong. Write 'Comment ខាងក្រោម', 'Comment ប្រាប់ខាងក្រោមមកបង', "
+    "or 'សាក Comment មតិបងៗមើល៍'.\n"
+    "  * NEVER translate 'let us know' as 'មកជម្រាប'. Write 'ប្រាប់', 'ចែករំលែក', or 'ឱ្យដឹង'.\n"
+    "  * NEVER translate 'reminder / remind' as 'ការចងចាំ' (ការចងចាំ = human brain memory!). Write 'ការរំលឹក', 'សាររំលឹក', or 'ផ្ញើសាររំលឹក'.\n"
+    "  * NEVER translate 'prevent losing leads' as 'ទប់ស្កាត់ lead' (ទប់ស្កាត់ = crackdown/suppression/prevention of crime/disease!). "
+    "Write 'មិនឱ្យបាត់បង់ភ្ញៀវ', 'តាមភ្ញៀវជាប់', or 'កុំឱ្យរបូតភ្ញៀវ'.\n"
+    "  * NEVER translate 'active response' as 'កម្រិតឆ្លើយតបសកម្ម'. Write 'ឆ្លើយតបរហ័សទាន់ចិត្ត', 'ឆ្លើយភ្ញៀវភ្លាមៗ មិនឱ្យចាំយូរ'.\n"
+    "  * NEVER translate 'let's look at the differences' as 'តោះមើលផ្នែកដែលខុសគ្នា'. Write 'មួយណាស្រួលជាង?', 'ខុសគ្នាយ៉ាងម៉េចខ្លះ?', 'មកប្រៀបធៀបគ្នាទាំងអស់គ្នា៖'.\n"
+    "  * NEVER write 'បទពិសោធន៍អ្នករបៀបណា?'. Write 'ចុះសម្រាប់បងៗវិញ?', 'ចុះអាជីវកម្មបងវិញ?', 'តើបងៗធ្លាប់ជួបបញ្ហានេះដែរទេ?'.\n"
+    "  * NEVER write 'កើតការយឺតយ៉ាវ'. Write 'ឆ្លើយភ្ញៀវមិនទាន់', 'ស្ទះសារ', 'រង់ចាំយូរ'.\n"
+    "  * NEVER translate 'closing sales / sales deals' as 'ការទិញលក់'. Write 'ការលក់' or 'បិទការលក់'.\n"
+    "  * NEVER write 'ល្អសម្រាប់ទិញម្ដងម្កាល'. Write 'សមស្របសម្រាប់អាជីវកម្មទើបចាប់ផ្ដើម ឬមានភ្ញៀវឆាតតិច'.\n"
+    "  * NEVER write 'សម្រេចចិត្តយឺតច្រើនដង'. Write 'ភ្ញៀវចាំយូរ អាចប្ដូរចិត្តទៅទិញកន្លែងផ្សេង'.\n"
+    "- PRONOUNS & ADDRESS: Default to 'បង' (singular customer) or 'បងៗ' (the whole audience). Refer to the brand as 'យើង', 'ហាងយើង', "
+    "or the brand name. NEVER address the audience as 'អ្នក' or 'របស់អ្នក' in social posts — 'អ្នក' sounds like Google Translate or a textbook.\n"
+    "- NATURAL QUESTIONS: Do NOT start questions with 'តើ'. End questions naturally with '...ទេ?', '...មែនទេ?', '...អត់?', '...មួយណាជាង?'.\n"
+    "- SCRIPT PURITY: Write strictly in Khmer script (or Latin script for tech terms). NEVER mix Thai characters (e.g. NEVER write Thai words like 'อัตโนมัติ' or 'ทีม'; write Khmer 'ស្វ័យប្រវត្តិ', 'ក្រុមការងារ' or 'Staff').\n"
+    "- FORMAL REGISTER FILLERS TO AVOID: នូវ, ត្រូវបាន (passive), ធ្វើការ + verb (write ឆ្លើយ not ធ្វើការឆ្លើយតប), stacked ការ-nouns (ការធ្វើឲ្យប្រសើរឡើងនូវ…), ក្នុងការ, ដែលជា, ជាមួយនឹង.\n"
+    "- Product-definition sentences ('X គឺជា…ដែល…', 'X គឺជាដំណោះស្រាយ…'); say what it does for them instead ('X ជួយ…', 'មាន X ហើយ មិនបាច់…ទៀតទេ').\n"
+    "- Ad-copy clichés nobody says out loud: យើងខ្ញុំមានសេចក្តីរីករាយ…, អតិថិជនជាទីគោរព, ដំណោះស្រាយដ៏ល្អឥតខ្ចោះ, បដិវត្តន៍, ដ៏អស្ចារ្យ / ទំនើបបំផុត in every line, លើកកម្ពស់អាជីវកម្ម, នាំមកនូវបទពិសោធន៍ថ្មី.\n"
+    "- LATIN TECH TERMS: Keep words Cambodian social pages write in Latin: Inbox, Message, Comment, Share, Page, Live, Order, Staff, Link, AI, Follow-up, 24/7, Facebook, TikTok, Telegram.\n"
+    "- PUNCTUATION: Use Khmer khan (។) to end sentences where appropriate, never English dot (.). Never put ។ after a question mark or after list bullets.\n"
 )
 
 # How Cambodian online sellers actually write a selling post — the voice the
@@ -356,10 +423,25 @@ KHMER_SELLING = (
     "a line sounds like a government notice or a translated brochure, rewrite it.\n"
 )
 
-# Two captions from OTHER brands in the voice we want (a service and a shop) —
-# the model copies examples more than it follows rules, so these must follow
-# every rule above.
+# Examples in the voice we want across different post types (comparison, selling, shop):
 KHMER_EXAMPLE = (
+    "# EXAMPLE 1 — COMPARISON POST (Manual vs Automated / Old way vs New way):\n"
+    "Follow-up ភ្ញៀវដោយដៃ vs ប្រើប្រព័ន្ធស្វ័យប្រវត្តិ — មួយណាស្រួលជាងសម្រាប់អាជីវកម្មបង? 🤔\n"
+    "\n"
+    "👉 ឆ្លើយដោយដៃ (Manual)៖\n"
+    "• សមស្របសម្រាប់អាជីវកម្មទើបចាប់ផ្ដើម ឬភ្ញៀវឆាតតិច\n"
+    "• ងាយស្ទះសារ ឆ្លើយភ្ញៀវមិនទាន់ពេល Message ចូលច្រើន\n"
+    "• ភ្ញៀវរង់ចាំយូរ អាចប្ដូរចិត្តទៅទិញកន្លែងផ្សេង\n"
+    "\n"
+    "👉 ប្រើស្វ័យប្រវត្តិ (Automated)៖\n"
+    "• ឆ្លើយតបភ្ញៀវភ្លាមៗ 24/7 តាមសំណួរញឹកញាប់\n"
+    "• ជួយ Follow-up និងផ្ញើសាររំលឹកភ្ញៀវស្វ័យប្រវត្តិ មិនឱ្យបាត់បង់ភ្ញៀវ\n"
+    "• ទុកពេលឱ្យក្រុមការងារផ្ដោតលើការបិទការលក់សំខាន់ៗ\n"
+    "\n"
+    "ចុះសម្រាប់បងៗវិញ ពេញចិត្តវិធីមួយណាជាង?\n"
+    "Comment \"ដៃ\" ឬ \"ស្វ័យប្រវត្តិ\" ចែករំលែកខាងក្រោមបានណា 👇\n"
+    "---\n"
+    "# EXAMPLE 2 — SELLING / PRODUCT SPOTLIGHT (Chumnouykar AI):\n"
     "Inbox ចូលច្រើន តែឆ្លើយមិនទាន់? 😥\n"
     "\n"
     "ភ្ញៀវសួរតម្លៃហើយរង់ចាំយូរ គេក៏ទៅទិញហាងផ្សេងបាត់។\n"
@@ -375,6 +457,7 @@ KHMER_EXAMPLE = (
     "\n"
     "សាកប្រើ FREE 14 ថ្ងៃ មិនបាច់ប្រើកាតធនាគារ 👉 Inbox មកឥឡូវនេះបាន!\n"
     "---\n"
+    "# EXAMPLE 3 — SHOP SELLING (Online store):\n"
     "បងៗធ្លាប់ជួបទេ? ទិញអាវតាមអនឡាញ ពេលមកដល់មិនដូចរូបសោះ 😅\n"
     "\n"
     "នៅហាងយើង រូបថតផ្ទាល់ពីទំនិញពិតៗ ✨\n"
@@ -397,7 +480,7 @@ KHMER_GUIDE = (
     "- Think and compose directly in Khmer. Never translate an English sentence "
     "word by word; if a phrase would sound odd said out loud in Phnom Penh, rephrase it.\n"
     "- Keep brand names, product names and app/tech words (Facebook, Telegram, "
-    "TikTok, Messenger, AI, chatbot, app, link, inbox, page) in the Latin form "
+    "TikTok, Messenger, AI, chatbot, app, link, inbox, page, Follow-up) in the Latin form "
     "Cambodians normally write them in — don't force Khmer transliterations of them.\n"
     "- Short sentences and short paragraphs; line breaks between ideas; emoji "
     "sparingly, the way local pages use them.\n"
@@ -406,7 +489,7 @@ KHMER_GUIDE = (
     "- Prices and numbers the way local posts write them (e.g. $5, 20,000 ៛, 24/7).\n"
     "- Write the call to action (at the strength the idea's goal calls for) the way "
     "local pages do — e.g. inviting people to inbox the page or comment below — "
-    "not a stiff translated one.\n"
+    "never a stiff, translated one.\n"
     "- The title and insight are for the internal team: write the title in Khmer "
     "too, but the insight may be in English.\n"
     "- In Khmer the CAPTION STRUCTURE is a guide, not a form to fill: merge 'why "
@@ -414,27 +497,19 @@ KHMER_GUIDE = (
     "short spoken phrases. If the brand's real captions are given, their voice "
     "wins over everything here.\n"
     "\n" + KHMER_NATURAL + "\n" + KHMER_SELLING + "\n"
-    "Two Khmer captions with the right voice and layout — examples from OTHER "
+    "Khmer captions with the right voice and layout — examples from OTHER "
     "brands: copy only their tone, wording style and rhythm; take facts, offers, "
     "prices and product names ONLY from this brand's product info above, and "
-    "don't make every caption look like them. Both are selling posts; a "
-    "non-selling pillar keeps the same voice but follows the VALUE STRUCTURE — "
-    "no ✓ feature list, no pitch:\n---\n"
+    "don't make every caption look like them:\n---\n"
     + KHMER_EXAMPLE + "\n---"
 )
 
 MIXED_GUIDE = (
     "\n\nLANGUAGE — this brand's audience mixes Khmer and English: write the caption "
     "mainly in natural spoken Khmer, with English only for the terms Cambodians "
-    "normally say in English (app names, tech words, product names).\n"
+    "normally say in English (app names, tech words, product names, Follow-up, AI).\n"
     "\n" + KHMER_NATURAL + "\n" + KHMER_SELLING
 )
-
-
-def _fix_khmer_punctuation(text: str) -> str:
-    """Models sometimes emit the Devanagari danda (। ॥) where Khmer uses its
-    own khan (។ ៕) — visually close, but wrong to a Khmer reader."""
-    return text.replace("।", "។").replace("॥", "៕")
 
 
 def _is_khmer(brand_lang: str) -> bool:
@@ -514,20 +589,19 @@ def _note(messages: list[dict]) -> str:
 
 
 POLISH_PROMPT = (
-    "You are a native Cambodian copy editor who runs social media pages for local "
-    "brands. You'll get Khmer social media captions written by another writer. "
-    "Rewrite each one so it reads like a real Cambodian page admin wrote it: "
-    "natural everyday spoken Khmer, correct spelling, no word-by-word translation "
-    "feel, no stiff formal/literary wording. Read each line out loud in your head — "
-    "if a Cambodian seller wouldn't say it that way, rebuild the sentence, don't "
-    "just swap words; a line that already sounds natural stays as it is.\n"
-    "Keep every fact, product name, price, number, link and hashtag exactly as "
-    "given — don't add claims, offers or urgency. Keep brand, product and app "
-    "names (Facebook, Telegram, TikTok, AI, …) in Latin script. Keep the overall "
-    "shape: hook first, blank lines between blocks, the same ✓ / numbered list "
-    "items (reword them freely, shorter is better), arrows, emoji, link, and the "
-    "call to action last. You may merge or split sentences inside a block and cut "
-    "filler words.\n"
+    "You are an expert native Cambodian copy editor who manages social media for top local "
+    "brands in Phnom Penh. You'll receive Khmer social media captions that were drafted from English prompts. "
+    "Many have awkward, robotic, word-by-word machine translations. Your job is to rewrite each caption "
+    "so it sounds 100% natural, warm, and authentic — the way real Cambodian page admins and sellers chat with followers.\n"
+    "\n"
+    "CRITICAL EDITING RULES:\n"
+    "- Read each line out loud: if a Cambodian would never say it that way, rebuild the sentence into natural spoken Khmer.\n"
+    "- Eradicate literal English calques (e.g. NEVER allow 'សួរច្បាប់', 'មកជម្រាប', 'ការចងចាំ' for reminders, 'កម្រិតឆ្លើយតបសកម្ម', 'ទប់ស្កាត់ lead', 'តោះមើលផ្នែកដែលខុសគ្នា').\n"
+    "- Ensure natural audience address: use 'បង' / 'បងៗ' (never 'អ្នក' or 'របស់អ្នក').\n"
+    "- Remove any Thai script/words (e.g. ทีม → ក្រុមការងារ/Staff, อัตโนมัติ → ស្វ័យប្រវត្តិ).\n"
+    "- Keep every factual detail, product name, price, number, link and hashtag exactly as given — don't invent offers or urgency.\n"
+    "- Keep brand, product and tech terms in Latin script (Inbox, Message, Comment, Follow-up, AI, Facebook, TikTok, Telegram).\n"
+    "- Keep the clean structure: hook first, blank lines between blocks, list items short and punchy, and friendly CTA last.\n"
     "\n" + KHMER_NATURAL + "\n" + KHMER_SELLING + "\n"
     'Respond with ONLY a JSON object: {"captions": ["...", ...]} — same count and '
     "order as the input."
@@ -555,13 +629,14 @@ def _polish_khmer(captions: list[str], model: str, voice_examples: str = "") -> 
                 {"role": "user", "content": json.dumps({"captions": captions}, ensure_ascii=False)},
             ],
             model,
+            max_tokens=8000,
         )
         out = data.get("captions") if isinstance(data, dict) else None
         if isinstance(out, list) and len(out) == len(captions) and all(isinstance(c, str) and c.strip() for c in out):
-            return [c.strip() for c in out]
+            return [_fix_khmer_punctuation(c.strip()) for c in out]
     except ContentAIError:
         pass
-    return captions
+    return [_fix_khmer_punctuation(c) for c in captions]
 
 
 def _brief(
@@ -598,7 +673,11 @@ def _brief(
             + ", ".join(f"{d.isoformat()} ({d.strftime('%A')})" for d in selling_days)
         )
     if subjects:
-        lines.append("SUBJECTS for this batch (one per idea): " + "; ".join(subjects))
+        names = [p.name for p in products]
+        lines.append(
+            "SUBJECTS for this batch (one per idea): "
+            + "; ".join(f"{s} [product]" if is_selling_subject(s, names) else s for s in subjects)
+        )
     if products:
         lines.append("\nProducts / offers on file:")
         for p in products:
@@ -626,14 +705,67 @@ def _brief(
     return "\n".join(lines)
 
 
-def pick_subjects(subjects: list[str] | None, count: int, offset: int) -> list[str]:
+# A subject about the brand's own product belongs on a selling day (the
+# awareness posts can't name the product) — told by these words or a product's
+# name in it, e.g. the "How to use our product" preset.
+_SELLING_SUBJECT_WORDS = ("product", "our ", "offer", "promotion", "discount", "price", "demo", "feature")
+
+
+def is_selling_subject(subject: str, product_names: list[str] | tuple = ()) -> bool:
+    low = f" {subject.lower()} "
+    return any(w in low for w in _SELLING_SUBJECT_WORDS) or any(
+        n and len(n) > 2 and n.lower() in low for n in product_names
+    )
+
+
+def _rotate(subs: list[str], n: int, offset: int, scores: dict[str, float]) -> list[str]:
+    """``n`` distinct subjects from a rotation where proven ones (scores ≥
+    SUBJECT_FAVOUR) come round twice per cycle and the rest once — so what
+    gets engagement is written about more, and everything still gets a turn."""
+    if not subs or n < 1:
+        return []
+    cycle = subs + [s for s in subs if scores.get(s, 0) >= SUBJECT_FAVOUR]
+    out: list[str] = []
+    for i in range(len(cycle)):
+        s = cycle[(offset + i) % len(cycle)]
+        if s not in out:
+            out.append(s)
+        if len(out) == n:
+            break
+    return out
+
+
+# A subject whose posts get this many times the brand's usual engagement
+# (learning.py subject_scores) comes round twice as often.
+SUBJECT_FAVOUR = 1.25
+
+
+def pick_subjects(
+    subjects: list[str] | None,
+    count: int,
+    offset: int,
+    selling_slots: int | None = None,
+    product_names: list[str] | tuple = (),
+    scores: dict[str, float] | None = None,
+) -> list[str]:
     """The next ``count`` subjects from the person's list, starting at
     ``offset`` and wrapping round — so each day / batch covers different
-    ones and the whole list comes round in turn. [] when none are set."""
+    ones and the whole list comes round in turn. [] when none are set.
+
+    ``selling_slots`` (how many selling ideas the batch may have, see
+    selling_days): product subjects only fill those, the other subjects the
+    awareness ideas; None = no split. ``scores`` (learning.py
+    subject_scores) brings the subjects that get engagement round more often."""
     subs = [s.strip() for s in subjects or [] if s and s.strip()]
     if not subs or count < 1:
         return []
-    return [subs[(offset + i) % len(subs)] for i in range(min(count, len(subs)))]
+    scores = scores or {}
+    if selling_slots is None:
+        return _rotate(subs, min(count, len(subs)), offset, scores)
+    selling = [s for s in subs if is_selling_subject(s, product_names)]
+    value = [s for s in subs if s not in selling] or subs  # only product subjects ticked
+    out = _rotate(selling, min(selling_slots, count), offset, scores)
+    return out + [s for s in _rotate(value, count, offset, scores) if s not in out][: count - len(out)]
 
 
 def generate_ideas(
@@ -699,6 +831,9 @@ def generate_ideas(
         goal = str(idea.get("goal") or "").strip().lower()
         pillar = str(idea.get("pillar") or "").strip().lower()
         day = str(idea.get("day") or "").strip()[:10]
+        # Back to the person's exact wording (learning.py groups by it).
+        said = str(idea.get("subject") or "").replace("[product]", "").strip().lower()
+        subject = next((s for s in subjects or [] if s.strip().lower() == said), "")
         # Relatable ideas go out as a meme poster (app/meme.py).
         meme = idea.get("meme") if pillar == "relatable" else None
         meme = (
@@ -708,6 +843,8 @@ def generate_ideas(
         )
         if meme and not (meme["top"] and meme["scene"]):
             meme = None
+        # Topic posters (app/poster.py) — None when unusable, the post then gets a plain photo.
+        poster = clean_poster(pillar, idea.get("poster"))
         cleaned.append(
             {
                 "title": title[:200],
@@ -719,8 +856,10 @@ def generate_ideas(
                 "angle": angle if angle in ANGLES else "",
                 "goal": goal if goal in GOALS else "",
                 "pillar": pillar if pillar in PILLARS else "",
+                "subject": subject.strip()[:80],
                 "day": day if day in day_isos else "",
                 "meme": meme,
+                "poster": poster,
             }
         )
     if not cleaned:
@@ -741,6 +880,12 @@ def generate_ideas(
             idea["title"] = _fix_khmer_punctuation(idea["title"])
             if idea.get("meme"):
                 idea["meme"]["top"] = _fix_khmer_punctuation(idea["meme"]["top"])
+            if idea.get("poster"):
+                p = idea["poster"]
+                for k in ("headline", "left_title", "right_title", "author"):
+                    p[k] = _fix_khmer_punctuation(p[k])
+                for k in ("points", "left", "right"):
+                    p[k] = [_fix_khmer_punctuation(t) for t in p[k]]
     return result
 
 

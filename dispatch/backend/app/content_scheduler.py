@@ -106,9 +106,12 @@ _VIDEO_POLL = 10
 
 def _pick_video_idea(ideas: list[dict]) -> int:
     """The idea that gets the day's video: the highest fit score (first on a
-    tie) — never a meme idea while there's another, since a meme is an image."""
+    tie) — never a meme or topic-poster idea while there's another, since
+    their text only works on an image."""
     scores = [(i.get("fit_score") or 0) for i in ideas]
-    return max(range(len(ideas)), key=lambda n: (not ideas[n].get("meme"), scores[n], -n))
+    return max(
+        range(len(ideas)), key=lambda n: (not (ideas[n].get("meme") or ideas[n].get("poster")), scores[n], -n)
+    )
 
 
 def _generate_video_for(
@@ -245,10 +248,18 @@ def _generate_media_for(
     # meme, not an ad) and app/meme.py adds the setup text above it.
     meme = idea.get("meme") or {}
     is_meme = bool(meme.get("top") and meme.get("scene"))
+    # Educate / benefit / comparison / trend / quote / community ideas get a
+    # topic poster (app/poster.py): the model draws only the picture — no brand
+    # template, the poster layout is the design — and the text goes on after.
+    poster = None if is_meme else idea.get("poster")
     if is_meme:
         from app.meme import meme_photo_prompt
 
         prompt, ratio, refs, guide = meme_photo_prompt(meme["scene"]), "1:1", [], ""
+    elif poster:
+        from app.poster import poster_photo_prompt
+
+        prompt, ratio, refs, guide = poster_photo_prompt(idea.get("pillar") or "", poster["scene"]), "1:1", [], ""
     else:
         prompt, ratio = image_prompt_for_idea(brand.name, brand.lang, idea, products), "9:16"
         refs, guide = kit
@@ -275,6 +286,17 @@ def _generate_media_for(
         except Exception:  # noqa: BLE001 — a plain photo beats losing the post
             log.exception("meme render failed for brand %s — posting the photo alone", brand.id)
             resolution = "1024x1024"
+    elif poster:
+        from app.meme import image_size
+        from app.poster import render_poster
+
+        try:
+            blob = render_poster(blob, idea.get("pillar") or "", poster, brand.name, brand.slug)
+            ext, mime, tag = ".jpg", "image/jpeg", "ai-auto-poster"
+            resolution = "x".join(map(str, image_size(blob)))
+        except Exception:  # noqa: BLE001 — a plain photo beats losing the post
+            log.exception("poster render failed for brand %s — posting the picture alone", brand.id)
+            resolution = "1024x1024"
 
     db = SessionLocal()
     try:
@@ -283,7 +305,10 @@ def _generate_media_for(
             workspace_id=brand.workspace_id,
             brand_id=brand.id,
             kind="image",
-            prompt=(f"MEME TEXT: {meme['top']}\n\n" if is_meme else "") + prompt,
+            prompt=(
+                f"MEME TEXT: {meme['top']}\n\n" if is_meme else f"POSTER: {poster['headline']}\n\n" if poster else ""
+            )
+            + prompt,
             aspect_ratio=ratio,
             seconds=0,
             provider=provider,
@@ -387,6 +412,7 @@ def schedule_draft_as_post(db: Session, draft: Draft, on_day: date | None = None
         status="scheduled",
         angle=draft.angle or "",
         pillar=draft.pillar or "",
+        subject=draft.subject or "",
     )
     db.add(post)
     db.flush()
@@ -454,7 +480,10 @@ def _write_batch(
     ideas_end, check_end = (45, 55) if media else (70, 95)
     report(5, f"Writing {count} idea{'s' if count != 1 else ''}…", ideas_end)
     try:
-        learnings = brand_learnings(db, brand.id)["prompt"] if automation.learn_from_results else ""
+        learned = brand_learnings(db, brand.id) if automation.learn_from_results else {}
+        learnings = learned.get("prompt", "")
+        # Awareness days between product posts (content_ai.SELLING_GAP_DAYS).
+        sell_days = selling_days([today], last_selling_day(db, brand.id, today))
         # So a small daily batch still rotates pillars instead of repeating yesterday's.
         recent_pillars = db.scalars(
             select(Draft.pillar)
@@ -472,10 +501,17 @@ def _write_batch(
             learnings,
             days=[today],
             recent_pillars=list(recent_pillars),
-            # Rotated by date, so each day takes the next subjects in the list.
-            subjects=pick_subjects(automation.subjects, count, today.toordinal() * count),
-            # Awareness days between product posts (content_ai.SELLING_GAP_DAYS).
-            selling_days=selling_days([today], last_selling_day(db, brand.id, today)),
+            # Rotated by date, so each day takes the next subjects in the list —
+            # product subjects only on a product day, proven subjects more often.
+            subjects=pick_subjects(
+                automation.subjects,
+                count,
+                today.toordinal() * count,
+                selling_slots=len(sell_days),
+                product_names=[p.name for p in products],
+                scores=learned.get("subject_scores"),
+            ),
+            selling_days=sell_days,
         )
     except ContentAIError:
         db.commit()  # release the lock even though this attempt failed
@@ -495,7 +531,9 @@ def _write_batch(
             status="waiting",  # set for real below, once media (if any) is attached
             fit_score=idea.get("fit_score"),
             pillar=idea.get("pillar") or "",
+            subject=idea.get("subject") or "",
             meme=idea.get("meme"),
+            poster=idea.get("poster"),
             angle=idea.get("angle") or "",
             goal=idea.get("goal") or "",
             fact_issues=checks[n] if checks is not None else None,

@@ -34,8 +34,24 @@ const SUBJECT_PRESETS = [
 ]
 const MAX_SUBJECTS = 20
 
+// Mirrors content_ai._SELLING_SUBJECT_WORDS: these subjects only go on product days.
+const SELLING_SUBJECT = /product|our |offer|promotion|discount|price|demo|feature/i
+
+/** What a subject's posts have done (learning.py subject_scores, × the usual
+ *  engagement) and whether it waits for a product day. */
+function SubjectNote({ subject, score }) {
+  const product = SELLING_SUBJECT.test(` ${subject} `)
+  return (
+    <>
+      {score >= 1.25 && <span className="font-semibold text-emerald-700">↑{score.toFixed(1)}×</span>}
+      {score != null && score <= 0.8 && <span className="text-ink-400">{score.toFixed(1)}×</span>}
+      {product && <span className="text-ink-400">· product days</span>}
+    </>
+  )
+}
+
 /** Tick the subjects the AI should rotate through, or add your own. */
-function SubjectPicker({ value, onChange }) {
+function SubjectPicker({ value, onChange, scores = {} }) {
   const [draft, setDraft] = useState('')
   const has = (s) => value.some((v) => v.toLowerCase() === s.toLowerCase())
   const toggle = (s) => onChange(has(s) ? value.filter((v) => v.toLowerCase() !== s.toLowerCase()) : [...value, s].slice(0, MAX_SUBJECTS))
@@ -56,11 +72,12 @@ function SubjectPicker({ value, onChange }) {
           <button key={s} type="button" onClick={() => toggle(s)} aria-pressed={has(s)} className={chip(has(s))}>
             {has(s) && <span aria-hidden="true">✓</span>}
             {s}
+            {has(s) && <SubjectNote subject={s} score={scores[s]} />}
           </button>
         ))}
         {custom.map((s) => (
           <button key={s} type="button" onClick={() => toggle(s)} className={chip(true)} title="Remove">
-            ✓ {s} <FiX size={11} aria-hidden="true" />
+            ✓ {s} <SubjectNote subject={s} score={scores[s]} /> <FiX size={11} aria-hidden="true" />
           </button>
         ))}
       </div>
@@ -84,7 +101,7 @@ function SubjectPicker({ value, onChange }) {
       </div>
       <p className="mt-1.5 text-[11px] leading-snug text-ink-400">
         {value.length
-          ? `The AI rotates through these ${value.length} — a few each day — and still mixes tips, questions and product posts.`
+          ? `The AI rotates through these ${value.length} — a few each day. Subjects that get more engagement (↑) come round more often; product subjects wait for a product day.`
           : 'None picked — the AI chooses subjects from your products.'}
       </p>
     </div>
@@ -473,7 +490,11 @@ function SettingsDrawer({ a, channels, run, running, onUpdate, onBrandUpdate, on
               />
             </Field>
             <Field label="Subjects to write about">
-              <SubjectPicker value={a.subjects || []} onChange={(subjects) => onUpdate({ subjects })} />
+              <SubjectPicker
+                value={a.subjects || []}
+                onChange={(subjects) => onUpdate({ subjects })}
+                scores={a.learn_from_results ? a.learnings?.subject_scores || {} : {}}
+              />
             </Field>
           </Section>
 
