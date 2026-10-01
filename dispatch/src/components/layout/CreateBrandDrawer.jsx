@@ -114,6 +114,7 @@ export default function CreateBrandDrawer() {
                 required
                 autoFocus
                 value={form.name}
+                maxLength={120}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 placeholder="e.g. Chumnouykar"
                 className={inputClass}
@@ -122,6 +123,7 @@ export default function CreateBrandDrawer() {
             <Field label="Language" hint="The AI writes this brand's content in this language.">
               <input
                 value={form.lang}
+                maxLength={60}
                 onChange={(e) => setForm({ ...form, lang: e.target.value })}
                 placeholder="English, Khmer, or English + Khmer"
                 className={inputClass}
@@ -132,6 +134,7 @@ export default function CreateBrandDrawer() {
                 minRows={4}
                 maxRows={12}
                 value={form.note}
+                maxLength={2000}
                 onChange={(e) => setForm({ ...form, note: e.target.value })}
                 placeholder="What this brand publishes"
                 className={inputClass}

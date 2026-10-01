@@ -8,16 +8,17 @@ pillar in POSTER_PILLARS; the text comes from the idea's ``poster`` object
 (content_ai.py). 1080×1350 (4:5) — the feed size Facebook and Instagram
 show largest.
 
-    educate / benefit       comparison            trend            quote          community
-    ┌──────────┐            ┌──────────┐          ┌──────────┐     ┌──────────┐   ┌──────────┐
-    │  photo   │            │  photo   │          │          │     │ “        │   │  photo   │
-    ├──────────┤            ├──────────┤          │  photo   │     │  quote   │   ├──────────┤
-    │ Headline │            │ Headline │          ├──────────┤     │  text    │   │ Question?│
-    │ ① step   │            │ old │ new│          │ Headline │     │ — author │   │ (A) ...  │
-    │ ② step   │            │ • ..│✓ ..│          │ one line │     │ (photo,  │   │ (B) ...  │
-    │ ③ step   │            │ • ..│✓ ..│          │          │     │  dimmed) │   │          │
-    │ ▪ brand  │            │ ▪ brand  │          │ ▪ brand  │     │ ▪ brand  │   │ ▪ brand  │
-    └──────────┘            └──────────┘          └──────────┘     └──────────┘   └──────────┘
+Each topic has its own base, so it's recognisable in a feed at a glance:
+
+    educate        benefit        comparison       trend (dark)    quote          community (colour)
+    ┌────────┐     ┌────────┐     ┌────────┐       ┌────────┐      ┌────────┐     ┌────────┐
+    │ photo  │     │ photo  │     │grey│col│       │ photo  │      │ “      │     │  (◯)   │
+    ├────────┤     ├────────┤     │ VS │   │       │ fades  │      │ quote  │     │Question│
+    │Headline│     │Headline│     ├────────┤       │ NEW    │      │ text   │     │(A) ... │
+    │① step  │     │[✓][✓]  │     │Headline│       │Headline│      │—author │     │(B) ... │
+    │② step  │     │[✓]     │     │✗ ..│✓ ..│       │ glow + │      │(photo, │     │(C) ... │
+    │▪ brand │     │▪ brand │     │▪ brand │       │ grid   │      │ dimmed)│     │▪ brand │
+    └────────┘     └────────┘     └────────┘       └────────┘      └────────┘     └────────┘
 """
 
 from __future__ import annotations
@@ -25,7 +26,7 @@ from __future__ import annotations
 import io
 import logging
 
-from PIL import Image, ImageDraw, ImageFont, features
+from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps, features
 
 from app.meme import _font, _has_khmer, _wrap
 
@@ -67,7 +68,10 @@ def poster_photo_prompt(pillar: str, scene: str) -> str:
     style = {
         "quote": "a calm, atmospheric photo with plenty of empty, softly lit space — it sits behind large text",
         "trend": "a modern, bright, optimistic image about new technology in everyday use",
-        "comparison": "one clear image that shows the difference or the change the post is about",
+        "comparison": "one wide scene of the situation the post compares, with the action spread across "
+        "the whole width (the left half is shown in grey as 'before', the right in colour as 'after')",
+        "community": "one friendly person or object centred in the frame with space around it — it is "
+        "shown cropped to a small circle",
     }.get(pillar, "a clean, bright, friendly image that shows the idea at a glance")
     return (
         f"A social media poster picture: {scene.strip()}. Style: {style}. Photorealistic or a clean "
@@ -176,70 +180,141 @@ def _list_poster(canvas, photo, p: dict, accent, brand: str, numbered: bool) -> 
 
 
 def _comparison_poster(canvas, photo, p: dict, accent, brand: str) -> None:
-    min_band = 380
+    """A before / after split: the picture's left half in grey (the old way),
+    the right half in colour (the new way), VS on the seam; the points sit
+    below in two matching columns."""
     font, lines, lh = _fit(p["headline"], W - 2 * PAD, 2, 58, 36)
-    head_h = 44 + lh * len(lines) + 30
-    gutter = 40
-    cw = (W - 2 * PAD - gutter) // 2
-    top, limit = min_band + head_h, H - 130
-    lx, rx = PAD, PAD + cw + gutter
-    inner = cw - 2 * 34
-    # Lay both sides out first, so the two cards share one height that fits
-    # the longer side — no empty card bottoms.
-    sides = []
-    for x, title, items, dark in ((lx, p["left_title"], p["left"], False), (rx, p["right_title"], p["right"], True)):
-        tfont, tlines, tlh = _fit(title, inner, 2, 44, 30)
-        head = 34 + tlh * len(tlines) + 18 + 26
-        block = _points_block(items[:4], inner - 44, limit - top - head - 34, big=34, small=24, max_lines=3)
-        _, wrapped, plh, gap = block
-        need = head + sum(len(w) * plh for w in wrapped) + gap * (len(wrapped) - 1) + 40
-        sides.append((x, dark, tfont, tlines, tlh, block, need))
-    cards_h = min(limit - top, max(s[-1] for s in sides))
-    # The photo takes the height the text doesn't need, so nothing sits empty.
-    band = max(min_band, min(640, limit - 20 - cards_h - head_h))
-    canvas.paste(_cover(photo, W, band), (0, 0))
+    col = (W - 2 * PAD - 60) // 2
+    lx, rx = PAD, PAD + col + 60
+    min_band, limit = 460, H - 130
+    head_h = 40 + lh * len(lines) + 36
+    blocks = [
+        _points_block(items[:4], col - 50, limit - min_band - head_h, big=42, small=24, max_lines=3)
+        for items in (p["left"], p["right"])
+    ]
+    cols_h = max(sum(len(w) * b[2] for w in b[1]) + b[3] * (len(b[1]) - 1) for b in blocks)
+    band = max(min_band, min(820, limit - head_h - cols_h - 10))
+
+    pic = _cover(photo, W, band)
+    half = W // 2
+    old = ImageOps.grayscale(pic.crop((0, 0, half, band))).convert("RGB")
+    old = Image.blend(old, Image.new("RGB", old.size, (40, 40, 48)), 0.25)
+    canvas.paste(pic, (0, 0))
+    canvas.paste(old, (0, 0))
     draw = ImageDraw.Draw(canvas)
-    _text(draw, (PAD, band + 44), lines, font, INK, lh, center_w=W - 2 * PAD)
-    top = band + head_h
-    bottom = top + cards_h
-    draw.rounded_rectangle((lx, top, lx + cw, bottom), radius=28, fill=WHITE, outline=(209, 213, 219), width=3)
-    draw.rounded_rectangle((rx, top, rx + cw, bottom), radius=28, fill=accent)
-    for x, dark, tfont, tlines, tlh, (pfont, wrapped, plh, gap), _ in sides:
-        ty = _text(draw, (x + 34, top + 34), tlines, tfont, WHITE if dark else INK, tlh, center_w=inner) + 18
-        draw.line((x + 34, ty, x + cw - 34, ty), fill=_tint(accent, 0.45) if dark else (229, 231, 235), width=3)
-        ty += 26
-        bx = x + 34
+    draw.rectangle((half - 3, 0, half + 3, band), fill=WHITE)
+    # Each side's name as a pill on its half of the picture.
+    for x0, x1, title, fill in ((0, half, p["left_title"], (55, 65, 81)), (half, W, p["right_title"], accent)):
+        tfont, tlines, _ = _fit(title, half - 2 * PAD, 1, 40, 26)
+        tw = tfont.getlength(tlines[0]) + 56
+        cx = (x0 + x1) / 2
+        top = band - 92
+        draw.rounded_rectangle((cx - tw / 2, top, cx + tw / 2, top + 64), radius=32, fill=fill)
+        draw.text((cx - tw / 2 + 28, top + 32 - _line_h(tfont) / 2 - 1), tlines[0], font=tfont, fill=WHITE)
+    r = 54
+    cy = band // 2
+    draw.ellipse((half - r, cy - r, half + r, cy + r), fill=INK, outline=WHITE, width=6)
+    vf = _font(38, "Bold")
+    draw.text((half - vf.getlength("VS") / 2, cy - _line_h(vf) / 2 - 1), "VS", font=vf, fill=WHITE)
+
+    y = _text(draw, (PAD, band + 40), lines, font, INK, lh, center_w=W - 2 * PAD) + 36
+    draw.line((W // 2, y, W // 2, y + cols_h), fill=(209, 213, 219), width=3)
+    for x, (pfont, wrapped, plh, gap), good in ((lx, blocks[0], False), (rx, blocks[1], True)):
+        ty = y
         for wl in wrapped:
             cy = ty + plh // 2
-            if dark:
-                _check(draw, bx + 12, cy + 2, 24, WHITE)
+            if good:
+                draw.ellipse((x, cy - 17, x + 34, cy + 17), fill=accent)
+                _check(draw, x + 17, cy + 1, 18, WHITE)
             else:
-                draw.ellipse((bx + 4, cy - 7, bx + 18, cy + 7), fill=(156, 163, 175))
-            ty = _text(draw, (bx + 44, ty), wl, pfont, WHITE if dark else MUTED, plh) + gap
-    # The VS badge across the gap between the cards.
-    r = 46
-    cx, cy = W // 2, top + 70
-    draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=INK, outline=_tint(accent, 0.94), width=8)
-    vf = _font(34, "Bold")
-    draw.text((cx - vf.getlength("VS") / 2, cy - _line_h(vf) / 2 - 1), "VS", font=vf, fill=WHITE)
+                draw.line((x + 7, cy - 9, x + 25, cy + 9), fill=(156, 163, 175), width=5)
+                draw.line((x + 7, cy + 9, x + 25, cy - 9), fill=(156, 163, 175), width=5)
+            ty = _text(draw, (x + 50, ty), wl, pfont, INK if good else MUTED, plh) + gap
     _brand_tag(draw, brand, accent, H - PAD - 34)
 
 
+DARK = (11, 15, 30)
+
+
 def _trend_poster(canvas, photo, p: dict, accent, brand: str) -> None:
+    """New tech: a dark poster — the picture fades into the night, a soft glow
+    in the brand colour, a faint grid, light text."""
+    canvas.paste(DARK, (0, 0, W, H))
     band = 760
-    canvas.paste(_cover(photo, W, band), (0, 0))
+    pic = _cover(photo, W, band)
+    fade = Image.new("L", (W, band), 255)
+    fd = ImageDraw.Draw(fade)
+    for i in range(300):
+        fd.line((0, band - 300 + i, W, band - 300 + i), fill=int(255 * (1 - i / 300)))
+    canvas.paste(pic, (0, 0), fade)
+
+    glow = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    gd = ImageDraw.Draw(glow)
+    gd.ellipse((W - 520, band - 120, W + 180, band + 520), fill=(*accent, 150))
+    gd.ellipse((-260, H - 300, 300, H + 200), fill=(*accent, 90))
+    glow = glow.filter(ImageFilter.GaussianBlur(130))
+    grid = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    gg = ImageDraw.Draw(grid)
+    for gx in range(0, W, 72):
+        gg.line((gx, band - 80, gx, H), fill=(255, 255, 255, 14), width=1)
+    for gy in range(band - 80, H, 72):
+        gg.line((0, gy, W, gy), fill=(255, 255, 255, 14), width=1)
+    base = Image.alpha_composite(Image.alpha_composite(canvas.convert("RGBA"), glow), grid)
+    canvas.paste(base.convert("RGB"))
+
     draw = ImageDraw.Draw(canvas)
-    # A "new" pill riding on the photo's lower edge.
     pf = _font(30, "Bold")
     label = "NEW"
     pw = int(pf.getlength(label)) + 56
-    draw.rounded_rectangle((PAD, band - 30, PAD + pw, band + 30), radius=30, fill=accent)
-    draw.text((PAD + 28, band - _line_h(pf) / 2 - 2), label, font=pf, fill=WHITE)
-    font, lines, lh = _fit(p["headline"], W - 2 * PAD, 3, 64, 38)
-    y = _text(draw, (PAD, band + 64), lines, font, INK, lh) + 18
+    top = band - 70
+    draw.rounded_rectangle((PAD, top, PAD + pw, top + 60), radius=30, fill=accent)
+    draw.text((PAD + 28, top + 30 - _line_h(pf) / 2 - 2), label, font=pf, fill=WHITE)
+    font, lines, lh = _fit(p["headline"], W - 2 * PAD, 3, 66, 38)
+    y = _text(draw, (PAD, band + 26), lines, font, WHITE, lh) + 22
     if p["points"]:
         sfont, slines, slh = _fit(p["points"][0], W - 2 * PAD, 3, 38, 28, "Regular")
-        _text(draw, (PAD, y), slines, sfont, MUTED, slh)
+        _text(draw, (PAD, y), slines, sfont, (203, 213, 225), slh)
+    _brand_tag(draw, brand, accent, H - PAD - 34, on_dark=True)
+
+
+def _benefit_poster(canvas, photo, p: dict, accent, brand: str) -> None:
+    """Why it matters: the benefits as icon tiles (a row of 2-3, or 2×2),
+    not a list."""
+    font, lines, lh = _fit(p["headline"], W - 2 * PAD, 2, 60, 38)
+    points = p["points"][:4]
+    cols = 2 if len(points) in (2, 4) else 3
+    rows = (len(points) + cols - 1) // cols
+    gap = 28
+    tw = (W - 2 * PAD - gap * (cols - 1)) // cols
+    icon = 92
+    inner = tw - 40
+    # One text size for all tiles: the biggest at which each fits 4 lines.
+    for size in range(44, 23, -2):
+        tfont = _font(size, "SemiBold")
+        wrapped = [_wrap(t, tfont, inner) for t in points]
+        if all(len(w) <= 4 and all(tfont.getlength(ln) <= inner for ln in w) for w in wrapped):
+            break
+    wrapped = [w[:4] for w in wrapped]
+    tlh = _line_h(tfont)
+    tile_h = 36 + icon + 26 + max(len(w) for w in wrapped) * tlh + 34
+    grid_h = rows * tile_h + gap * (rows - 1)
+    head_h = 46 + lh * len(lines) + 34
+    band = max(360, min(800, H - 130 - head_h - grid_h))
+    canvas.paste(_cover(photo, W, band), (0, 0))
+    draw = ImageDraw.Draw(canvas)
+    y = _text(draw, (PAD, band + 46), lines, font, INK, lh, center_w=W - 2 * PAD) + 34
+    for n, wl in enumerate(wrapped):
+        r, c = divmod(n, cols)
+        # A last row with fewer tiles is centred.
+        in_row = min(cols, len(points) - r * cols)
+        x0 = PAD + (W - 2 * PAD - (in_row * tw + gap * (in_row - 1))) // 2 + c * (tw + gap)
+        y0 = y + r * (tile_h + gap)
+        draw.rounded_rectangle((x0, y0, x0 + tw, y0 + tile_h), radius=30, fill=WHITE)
+        cx, cy = x0 + tw // 2, y0 + 36 + icon // 2
+        draw.ellipse((cx - icon // 2, cy - icon // 2, cx + icon // 2, cy + icon // 2), fill=_tint(accent, 0.85))
+        draw.ellipse((cx - 30, cy - 30, cx + 30, cy + 30), fill=accent)
+        _check(draw, cx, cy + 2, 30, WHITE)
+        _text(draw, (x0 + 20, y0 + 36 + icon + 26), wl, tfont, INK, tlh, center_w=inner)
     _brand_tag(draw, brand, accent, H - PAD - 34)
 
 
@@ -262,18 +337,36 @@ def _quote_poster(canvas, photo, p: dict, accent, brand: str) -> None:
 
 
 def _community_poster(canvas, photo, p: dict, accent, brand: str) -> None:
-    band = 480
-    canvas.paste(_cover(photo, W, band), (0, 0))
+    """A poll card: the brand colour all over, a big faint "?", the picture
+    in a circle, the question in large white text and A-D answer buttons."""
+    canvas.paste(accent, (0, 0, W, H))
+    mark = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    qf = _font(900, "Bold")
+    ImageDraw.Draw(mark).text((W - 520, -120), "?", font=qf, fill=(255, 255, 255, 28))
+    canvas.paste(Image.alpha_composite(canvas.convert("RGBA"), mark).convert("RGB"))
     draw = ImageDraw.Draw(canvas)
-    font, lines, lh = _fit(p["headline"], W - 2 * PAD, 3, 62, 38)
-    y = _text(draw, (PAD, band + 52), lines, font, INK, lh) + 30
+
+    font, lines, lh = _fit(p["headline"], W - 2 * PAD, 3, 66, 40)
     options = p["points"][:4]
+    # Size it all first, then centre the block — fewer answers, bigger photo.
+    d = 300 if len(options) <= 3 else 250
+    head = d + 50 + lh * len(lines) + 40
+    row = min(112, (H - 140 - 90 - head - 18 * (len(options) - 1)) // max(1, len(options)))
+    total = head + len(options) * row + 18 * max(0, len(options) - 1)
+    y0 = max(70, (H - 120 - total) // 2)
+
+    circle = _cover(photo, d, d)
+    m = Image.new("L", (d, d), 0)
+    ImageDraw.Draw(m).ellipse((0, 0, d, d), fill=255)
+    x0 = (W - d) // 2
+    draw.ellipse((x0 - 10, y0 - 10, x0 + d + 10, y0 + d + 10), fill=WHITE)
+    canvas.paste(circle, (x0, y0), m)
+
+    y = _text(draw, (PAD, y0 + d + 50), lines, font, WHITE, lh, center_w=W - 2 * PAD) + 40
     if options:
-        avail = H - 130 - y
-        row = min(118, (avail - 18 * (len(options) - 1)) // len(options))
         for n, opt in enumerate(options):
             top = y + n * (row + 18)
-            draw.rounded_rectangle((PAD, top, W - PAD, top + row), radius=row // 2, fill=WHITE, outline=_tint(accent, 0.55), width=3)
+            draw.rounded_rectangle((PAD, top, W - PAD, top + row), radius=row // 2, fill=WHITE)
             r = row // 2 - 12
             cx, cy = PAD + 12 + r, top + row // 2
             draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=accent)
@@ -282,7 +375,7 @@ def _community_poster(canvas, photo, p: dict, accent, brand: str) -> None:
             draw.text((cx - lf.getlength(letter) / 2, cy - _line_h(lf) / 2 - 1), letter, font=lf, fill=WHITE)
             tfont, tlines, tlh = _fit(opt, W - PAD - (cx + r + 24) - 40, 1, 38, 24, "Medium")
             draw.text((cx + r + 24, cy - tlh / 2), tlines[0], font=tfont, fill=INK)
-    _brand_tag(draw, brand, accent, H - PAD - 34)
+    _brand_tag(draw, brand, WHITE, H - PAD - 34, on_dark=True)
 
 
 def render_poster(photo: bytes, pillar: str, poster: dict, brand: str = "", slug: str = "") -> bytes:
@@ -294,8 +387,10 @@ def render_poster(photo: bytes, pillar: str, poster: dict, brand: str = "", slug
     accent = accent_for(slug or brand)
     canvas = Image.new("RGB", (W, H), _tint(accent, 0.94))
     img = Image.open(io.BytesIO(photo)).convert("RGB")
-    if pillar in ("educate", "benefit"):
-        _list_poster(canvas, img, poster, accent, brand, numbered=pillar == "educate")
+    if pillar == "educate":
+        _list_poster(canvas, img, poster, accent, brand, numbered=True)
+    elif pillar == "benefit":
+        _benefit_poster(canvas, img, poster, accent, brand)
     elif pillar == "comparison":
         _comparison_poster(canvas, img, poster, accent, brand)
     elif pillar == "trend":

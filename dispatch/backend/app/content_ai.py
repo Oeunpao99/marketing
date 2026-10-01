@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import re
+import unicodedata
 from datetime import date
 
 import httpx
@@ -363,10 +364,24 @@ def _fix_khmer_punctuation(text: str) -> str:
     for th, kh in THAI_TO_KHMER.items():
         text = text.replace(th, kh)
     text = re.sub(r"[\u0e00-\u0e7f]+", "", text)
-    # 3. Fix common catastrophic machine-translation calques
+    # 3. Any other script's letters (Korean, Bengali, Chinese, ... seen in real
+    # output) \u2014 a Khmer post only ever needs Khmer and Latin letters.
+    text = "".join(ch for ch in text if not _foreign_letter(ch))
+    # 4. Fix common catastrophic machine-translation calques
     for pat, rep in CALQUE_REPLACEMENTS:
         text = re.sub(pat, rep, text)
     return text
+
+
+def _foreign_letter(ch: str) -> bool:
+    """A letter or vowel sign from a script other than Khmer and Latin."""
+    if ch.isascii() or unicodedata.category(ch)[0] not in "LM":
+        return False
+    return not unicodedata.name(ch, "").startswith(("KHMER", "LATIN", "COMBINING"))
+
+
+def has_foreign_letters(text: str) -> bool:
+    return any(_foreign_letter(ch) for ch in text or "")
 
 
 # What makes Khmer read as "translated" — shared by the writer (KHMER_GUIDE)
@@ -535,9 +550,10 @@ def _system_prompt(brand_lang: str, week: bool = False) -> str:
     return base + (MIXED_GUIDE if mixed else KHMER_GUIDE)
 
 
-def _chat(messages: list[dict], model: str, max_tokens: int = 4000) -> dict:
+def _chat(messages: list[dict], model: str, max_tokens: int = 4000, effort: str = "") -> dict:
     """One JSON-mode chat completion against Azure OpenAI; returns the parsed
-    JSON object the model replied with."""
+    JSON object the model replied with. ``effort``: the reasoning effort
+    ("low" … "high") for reasoning models; "" = the model's default."""
     cfg = get_settings()
     if not cfg.azure_openai_api_key or not cfg.azure_openai_endpoint:
         raise ContentAIError("AI service is not configured.")
@@ -559,6 +575,7 @@ def _chat(messages: list[dict], model: str, max_tokens: int = 4000) -> dict:
                 "messages": messages,
                 "response_format": {"type": "json_object"},
                 "max_completion_tokens": max_tokens,
+                **({"reasoning_effort": effort} if effort else {}),
             },
             timeout=120.0,
         )
@@ -594,6 +611,20 @@ POLISH_PROMPT = (
     "Many have awkward, robotic, word-by-word machine translations. Your job is to rewrite each caption "
     "so it sounds 100% natural, warm, and authentic — the way real Cambodian page admins and sellers chat with followers.\n"
     "\n"
+    "CORRECTNESS FIRST — check every caption word by word before anything else:\n"
+    "- Every Khmer word must be a real, correctly spelled word that fits its meaning. Typical errors "
+    "in these drafts: misspellings (ជំហាន់ → ជំហាន, ថែរក្សភាព → ថែរក្សា, ចូលមាសួរ → ចូលមកសួរ), a "
+    "real word in the wrong meaning (ទិដ្ឋាការ = visa, not phone number → លេខទូរសព្ទ; កាប់ = chop → "
+    "ប្រមូល / តាមដាន leads; ពត៌មាន → ព័ត៌មាន; សំនួរ → សំណួរ), and invented words or nonsense phrases (e.g. 'AI chatbots សាច់ភ្លឺ').\n"
+    "- Any letter from another script — Korean (환), Thai (โพสต์, นะ), Bengali (া), Chinese — is an "
+    "error: rewrite that word in Khmer.\n"
+    "- No doubled words (បានបាន), no broken half-English words, no sentence fragments.\n"
+    "- Every sentence must make complete sense on first reading. If you can't tell what a sentence "
+    "means, rewrite it simply from the caption's idea — or drop it if the caption works without it.\n"
+    "- Prefer short, common, everyday words over rare or literary ones: simple and correct beats "
+    "fancy and wrong.\n"
+    "- Numbered lists count 1, 2, 3 — never repeat a number.\n"
+    "\n"
     "CRITICAL EDITING RULES:\n"
     "- Read each line out loud: if a Cambodian would never say it that way, rebuild the sentence into natural spoken Khmer.\n"
     "- Eradicate literal English calques (e.g. NEVER allow 'សួរច្បាប់', 'មកជម្រាប', 'ការចងចាំ' for reminders, 'កម្រិតឆ្លើយតបសកម្ម', 'ទប់ស្កាត់ lead', 'តោះមើលផ្នែកដែលខុសគ្នា').\n"
@@ -603,21 +634,44 @@ POLISH_PROMPT = (
     "- Keep brand, product and tech terms in Latin script (Inbox, Message, Comment, Follow-up, AI, Facebook, TikTok, Telegram).\n"
     "- Keep the clean structure: hook first, blank lines between blocks, list items short and punchy, and friendly CTA last.\n"
     "\n" + KHMER_NATURAL + "\n" + KHMER_SELLING + "\n"
+    "Some items are short titles or poster lines, not full captions: correct them the same way but "
+    "keep them just as short, with no added emoji or calls to action.\n"
     'Respond with ONLY a JSON object: {"captions": ["...", ...]} — same count and '
     "order as the input."
 )
 
 
-def _polish_khmer(captions: list[str], model: str, voice_examples: str = "") -> list[str]:
-    """Second pass for Khmer: a separate 'native editor' call that rewrites the
-    captions for natural local phrasing. Best-effort — on any failure the
-    original captions are kept rather than losing the batch."""
+# A Khmer-only brand (not "Khmer + English"): English only where Cambodians
+# really write it, so posts don't drift into half-English.
+KHMER_ONLY_NOTE = (
+    "\n\nThis brand writes in KHMER ONLY: use Khmer words wherever a common Khmer word exists "
+    "(ភ្ញៀវ not lead/customer, រក្សាទុក not Save, តាមដាន not Follow, ម៉ោងមមាញឹក not peak, និន្នាការ "
+    "not trend). Keep Latin only for brand/product names, app names and the few tech words "
+    "listed above (AI, Inbox, Message, Comment, Facebook, Telegram, TikTok, 24/7)."
+)
+
+
+def _polish_khmer(
+    captions: list[str], model: str, voice_examples: str = "", khmer_only: bool = False, keep: list[str] | None = None
+) -> list[str]:
+    """Second pass for Khmer: a separate 'native editor' call that checks
+    correctness (real words, spelling, no foreign letters, sentences that make
+    sense) and rewrites for natural local phrasing — at high reasoning effort,
+    since a small model writing Khmer slips on exactly these. Best-effort — on
+    any failure the original captions are kept rather than losing the batch."""
     try:
         data = _chat(
             [
                 {
                     "role": "system",
                     "content": POLISH_PROMPT
+                    + (KHMER_ONLY_NOTE if khmer_only else "")
+                    + (
+                        "\n\nNames to copy EXACTLY as written, never translated or respelled: "
+                        + ", ".join(k for k in keep if k)
+                        if keep
+                        else ""
+                    )
                     + (
                         "\n\nThis brand's real captions, for voice reference only:\n---\n"
                         + voice_examples.strip()[:3000]
@@ -629,7 +683,10 @@ def _polish_khmer(captions: list[str], model: str, voice_examples: str = "") -> 
                 {"role": "user", "content": json.dumps({"captions": captions}, ensure_ascii=False)},
             ],
             model,
-            max_tokens=8000,
+            # High effort: the editor reasons through each line (most of this
+            # budget is that hidden reasoning, billed only as used).
+            max_tokens=24000,
+            effort="high",
         )
         out = data.get("captions") if isinstance(data, dict) else None
         if isinstance(out, list) and len(out) == len(captions) and all(isinstance(c, str) and c.strip() for c in out):
@@ -874,18 +931,27 @@ def generate_ideas(
     result = survivors or [max(cleaned, key=lambda i: i["fit_score"])]
 
     if khmer:
-        polished = _polish_khmer([i["caption"] for i in result], model, voice_examples)
-        for idea, caption in zip(result, polished):
-            idea["caption"] = _fix_khmer_punctuation(caption)
-            idea["title"] = _fix_khmer_punctuation(idea["title"])
+        # Every piece of Khmer a reader sees goes through the editor in one
+        # call — captions, titles, meme text and poster lines — as a flat
+        # list, put back in place by position afterwards.
+        slots: list[tuple[dict, str, int | None]] = []
+        for idea in result:
+            slots += [(idea, "caption", None), (idea, "title", None)]
             if idea.get("meme"):
-                idea["meme"]["top"] = _fix_khmer_punctuation(idea["meme"]["top"])
-            if idea.get("poster"):
-                p = idea["poster"]
-                for k in ("headline", "left_title", "right_title", "author"):
-                    p[k] = _fix_khmer_punctuation(p[k])
-                for k in ("points", "left", "right"):
-                    p[k] = [_fix_khmer_punctuation(t) for t in p[k]]
+                slots.append((idea["meme"], "top", None))
+            if p := idea.get("poster"):
+                slots += [(p, k, None) for k in ("headline", "left_title", "right_title") if p[k]]
+                slots += [(p, k, n) for k in ("points", "left", "right") for n in range(len(p[k]))]
+        texts = [obj[key] if n is None else obj[key][n] for obj, key, n in slots]
+        names = [brand_name, *(p.name for p in products)]
+        polished = _polish_khmer(
+            texts, model, voice_examples, khmer_only="english" not in (brand_lang or "").lower(), keep=names
+        )
+        for (obj, key, n), text in zip(slots, polished, strict=True):
+            if n is None:
+                obj[key] = text
+            else:
+                obj[key][n] = text
     return result
 
 

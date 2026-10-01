@@ -12,7 +12,7 @@ inject the per-resource Pydantic schemas as real class objects below.
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DataError, IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -85,6 +85,9 @@ def build_router(r: Resource) -> APIRouter:
         except IntegrityError as exc:
             db.rollback()
             raise HTTPException(409, _integrity_message(exc)) from exc
+        except DataError as exc:  # e.g. a value longer than its column
+            db.rollback()
+            raise HTTPException(422, "One of the values is too long — please shorten it.") from exc
         db.refresh(obj)
         return obj
 
@@ -110,6 +113,9 @@ def build_router(r: Resource) -> APIRouter:
         except IntegrityError as exc:
             db.rollback()
             raise HTTPException(409, _integrity_message(exc)) from exc
+        except DataError as exc:  # e.g. a value longer than its column
+            db.rollback()
+            raise HTTPException(422, "One of the values is too long — please shorten it.") from exc
         db.refresh(obj)
         return obj
 

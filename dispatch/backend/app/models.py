@@ -101,7 +101,7 @@ class Brand(Base, TimestampMixin):
     slug: Mapped[str] = mapped_column(String(40), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(120))
     lang: Mapped[str] = mapped_column(String(60), default="")
-    note: Mapped[str] = mapped_column(String(200), default="")
+    note: Mapped[str] = mapped_column(String(2000), default="")
     # A few real captions in this brand's voice — content_ai.py shows them to
     # the model as a style reference (style only, never a source of facts).
     voice_examples: Mapped[str] = mapped_column(Text, default="", server_default="")

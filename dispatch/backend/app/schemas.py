@@ -36,10 +36,12 @@ class TimestampsOut(ORMModel):
 
 # ── Brand ────────────────────────────────────────────────────────────────
 class BrandBase(BaseModel):
-    slug: str
-    name: str
-    lang: str = ""
-    note: str = ""
+    # Limits match the brands columns (models.Brand), so a too-long value is a
+    # clear 422 instead of a database error.
+    slug: str = Field(max_length=40)
+    name: str = Field(min_length=1, max_length=120)
+    lang: str = Field(default="", max_length=60)
+    note: str = Field(default="", max_length=2000)
     # A few real captions in this brand's voice — the AI matches their style.
     voice_examples: str = ""
 
@@ -49,10 +51,10 @@ class BrandCreate(BrandBase):
 
 
 class BrandUpdate(BaseModel):
-    slug: str | None = None
-    name: str | None = None
-    lang: str | None = None
-    note: str | None = None
+    slug: str | None = Field(default=None, max_length=40)
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    lang: str | None = Field(default=None, max_length=60)
+    note: str | None = Field(default=None, max_length=2000)
     voice_examples: str | None = None
 
 
