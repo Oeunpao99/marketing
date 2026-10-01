@@ -453,6 +453,17 @@ def _build_job(brand_id: int) -> None:
         db.close()
 
 
+def _media_with_retry(*args):
+    """_generate_media_for, tried once more if it fails — most failures are a
+    busy or timed-out image service, and one miss would leave that day with
+    no post."""
+    video_id = _generate_media_for(*args)
+    if video_id is None:
+        log.info("weekly plan: image failed for %r — trying once more", args[1].get("title"))
+        video_id = _generate_media_for(*args)
+    return video_id
+
+
 def _media_job(brand_id: int, draft_ids: list[int]) -> None:
     """Make an image for each approved plan draft, then schedule it on its day."""
     billing.bind_brand(brand_id)
@@ -474,7 +485,7 @@ def _media_job(brand_id: int, draft_ids: list[int]) -> None:
             for n, (idea, d) in enumerate(zip(ideas, drafts))
         ]
         futures = {
-            pool.submit(_generate_media_for, brand_args, ideas[n], product_args, kits[n]): d
+            pool.submit(_media_with_retry, brand_args, ideas[n], product_args, kits[n]): d
             for n, d in enumerate(drafts)
         }
         done = scheduled = 0
@@ -547,6 +558,8 @@ def auto_tick(db: Session, now: datetime) -> int:
 
 # ── API ───────────────────────────────────────────────────────────────────
 def _plan_out(db: Session, plan: WeeklyPlan | None) -> dict | None:
+    from app.views import _media_running  # drafts given media from Calendar / this page
+
     if plan is None:
         return None
     drafts = []
@@ -572,7 +585,14 @@ def _plan_out(db: Session, plan: WeeklyPlan | None) -> dict | None:
         "created_at": plan.created_at,
         "approved_at": plan.approved_at,
         "drafts": [
-            {"id": d.id, "day": d.planned_for, "title": d.title, "status": d.status, "has_media": d.video_id is not None}
+            {
+                "id": d.id,
+                "day": d.planned_for,
+                "title": d.title,
+                "status": d.status,
+                "has_media": d.video_id is not None,
+                "media_pending": d.id in _media_running,
+            }
             for d in drafts
         ],
     }

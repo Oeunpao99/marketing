@@ -85,6 +85,29 @@ export default function WeeklyPage() {
     else planNow()
   }
 
+  // An approved post whose image failed: make one (views.make_draft_media),
+  // which schedules it on its day once the image is ready.
+  const makeImage = async (draftId) => {
+    try {
+      await api.post(`/views/drafts/${draftId}/media`, { kind: 'image' })
+      setData((d) => ({
+        ...d,
+        plan: { ...d.plan, drafts: d.plan.drafts.map((x) => (x.id === draftId ? { ...x, media_pending: true } : x)) },
+      }))
+      showToast('Making the image — about 30 seconds. It’s scheduled as soon as it’s ready.')
+    } catch (e) {
+      showToast(`Couldn’t start — ${e.message}`)
+    }
+  }
+
+  // While an image is being made, refresh until it's done.
+  const mediaPending = data?.plan?.drafts?.some((d) => d.media_pending)
+  useEffect(() => {
+    if (!mediaPending) return
+    const id = setInterval(load, 5000)
+    return () => clearInterval(id)
+  }, [mediaPending, load])
+
   const planNow = async () => {
     setConfirmRewrite(null)
     setBusy('plan')
@@ -261,6 +284,7 @@ export default function WeeklyPage() {
                 busy={busy === 'plan' || running}
                 onPlan={planNow}
                 onRegenerate={() => setConfirmRegen(true)}
+                onMakeImage={makeImage}
               />
             )}
           </div>
@@ -1004,12 +1028,12 @@ function PlanItem({ item, onRemove, onSave }) {
 
 const DRAFT_STATUS = {
   scheduled: { label: 'Scheduled', cls: 'bg-emerald-50 text-emerald-700' },
-  approved: { label: 'On calendar', cls: 'bg-brand-soft text-brand' },
+  approved: { label: 'Not scheduled yet', cls: 'bg-amber-50 text-amber-700' },
   waiting: { label: 'Needs review', cls: 'bg-amber-50 text-amber-700' },
   rejected: { label: 'Removed', cls: 'bg-ink-100 text-ink-500' },
 }
 
-function NoPlan({ plan, data, busy, onPlan, onRegenerate }) {
+function NoPlan({ plan, data, busy, onPlan, onRegenerate, onMakeImage }) {
   const approved = plan?.status === 'approved'
   return (
     <>
@@ -1027,7 +1051,7 @@ function NoPlan({ plan, data, busy, onPlan, onRegenerate }) {
           </div>
           <p className="mt-1 text-[12px] text-ink-500">
             These posts are on your Calendar. <b className="font-medium text-ink-700">Scheduled</b> = will post by itself ·{' '}
-            <b className="font-medium text-ink-700">On calendar</b> = idea saved, still needs an image or a time ·{' '}
+            <b className="font-medium text-ink-700">Not scheduled yet</b> = no image yet, so it won’t post until you make one ·{' '}
             <b className="font-medium text-ink-700">Needs review</b> = check it before it goes out.
           </p>
           <ul className="mt-3 divide-y divide-ink-100">
@@ -1037,6 +1061,26 @@ function NoPlan({ plan, data, busy, onPlan, onRegenerate }) {
                 <li key={d.id} className="py-2 flex items-center gap-3 text-[12.5px]">
                   <span className="w-[88px] flex-none text-ink-500">{dayLabel(d.day)}</span>
                   <span className={`min-w-0 flex-1 truncate text-ink-800 ${khmer(d.title)}`}>{d.title}</span>
+                  {d.status === 'approved' && d.day >= new Date().toLocaleDateString('en-CA') && (
+                    d.media_pending ? (
+                      <span className="flex-none inline-flex items-center gap-1.5 text-[11.5px] font-medium text-brand">
+                        <FiRefreshCw size={12} className="animate-spin" aria-hidden="true" /> Making image…
+                      </span>
+                    ) : d.has_media ? (
+                      <Link to="/calendar" className="flex-none text-[11.5px] font-semibold text-amber-700 hover:underline" title="It has an image but couldn’t be scheduled — open it in Calendar">
+                        Couldn’t schedule — open
+                      </Link>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => onMakeImage(d.id)}
+                        className="flex-none rounded-lg bg-brand-soft px-2.5 py-1 text-[11.5px] font-semibold text-brand hover:bg-brand hover:text-white"
+                        title="No image yet, so it won’t post — make one and it’s scheduled automatically"
+                      >
+                        Make image
+                      </button>
+                    )
+                  )}
                   <span className={`flex-none rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${s.cls}`}>{s.label}</span>
                 </li>
               )
