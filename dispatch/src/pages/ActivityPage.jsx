@@ -12,6 +12,7 @@ import {
 import { api } from '../api/client'
 import { colorForBrand } from '../lib/brandColor'
 import { fullDayLabel } from '../lib/tz'
+import { useSmoothProgress } from '../lib/autoRuns'
 import { useStore } from '../store'
 import Select from '../components/ui/Select'
 
@@ -66,14 +67,19 @@ export default function ActivityPage() {
     poll.current = setInterval(async () => {
       try {
         const next = await api.get(`/activity/job?brand_id=${brand.id}`)
-        if (next.status === 'running') return
+        if (next.status === 'running') return setData((d) => (d ? { ...d, job: next } : d))
         clearInterval(poll.current)
-        if (next.status === 'failed') showToast(next.error || 'Making the plan failed')
-        load()
+        if (next.status === 'failed') {
+          showToast(next.error || 'Making the plan failed')
+          return load()
+        }
+        // Let the bar reach 100% and the last tick land before the plan appears.
+        setData((d) => (d ? { ...d, job: { ...next, status: 'running', progress: 100, upto: 100, step: 'Your week is ready!' } } : d))
+        setTimeout(load, 900)
       } catch {
         /* try again next tick */
       }
-    }, 3000)
+    }, 2000)
     return () => clearInterval(poll.current)
   }, [running, brand?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -181,12 +187,8 @@ export default function ActivityPage() {
 
       {data === null ? (
         <div className={`${card} h-48 skeleton`} />
-      ) : running && !plan ? (
-        <section className={`${card} p-8 text-center`}>
-          <FiRefreshCw size={22} className="mx-auto mb-3 animate-spin text-brand" />
-          <div className="text-[14px] font-semibold text-ink-900">Planning {brand.name}'s week…</div>
-          <p className="mt-1 text-[12.5px] text-ink-500">Reading your results and this week's posts — about a minute.</p>
-        </section>
+      ) : running ? (
+        <PlanningAnimation brand={brand.name} job={job} />
       ) : !plan ? (
         <section className={`${card} mx-auto max-w-2xl p-7 text-center`}>
           <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-brand-soft text-brand">
@@ -277,6 +279,123 @@ export default function ActivityPage() {
         </div>
       )}
     </div>
+  )
+}
+
+// ── the waiting screen ────────────────────────────────────────────────────
+// A notebook the pencil writes in, line by line, while example tasks of each
+// kind slide in and get ticked — and a real progress bar (the backend reports
+// its steps; useSmoothProgress creeps forward between them).
+const SAMPLE_TASKS = [
+  { cat: 'content', text: 'Take 3 real photos for Thursday’s post' },
+  { cat: 'engagement', text: 'Reply to comments on yesterday’s post' },
+  { cat: 'growth', text: 'Follow up people who asked the price' },
+  { cat: 'review', text: 'Check which post got the most comments' },
+]
+const CYCLE = 6 // seconds — one pass of the pencil over the four lines
+const LINES = [
+  { y: 44, w: 62 },
+  { y: 62, w: 70 },
+  { y: 80, w: 54 },
+  { y: 98, w: 66 },
+]
+
+const planningCss = `
+.ap-pencil { animation: ap-pencil ${CYCLE}s ease-in-out infinite; }
+@keyframes ap-pencil {
+  ${LINES.map((l, i) => {
+    const a = i * 25
+    return `${a}% { transform: translate(132px, ${l.y - 3}px) rotate(-8deg); }
+  ${a + 21}% { transform: translate(${132 + l.w}px, ${l.y - 3}px) rotate(4deg); }`
+  }).join('\n  ')}
+  100% { transform: translate(132px, ${LINES[0].y - 3}px) rotate(-8deg); }
+}
+${LINES.map((l, i) => {
+  const a = i * 25
+  return `.ap-line-${i} { stroke-dasharray: ${l.w}; animation: ap-line-${i} ${CYCLE}s linear infinite; }
+@keyframes ap-line-${i} { 0%, ${a}% { stroke-dashoffset: ${l.w}; } ${a + 21}%, 96% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: ${l.w}; } }`
+}).join('\n')}
+.ap-task { opacity: 0; animation: ap-task ${CYCLE}s ease-out infinite; }
+@keyframes ap-task { 0% { opacity: 0; transform: translateY(10px); } 7%, 88% { opacity: 1; transform: none; } 96%, 100% { opacity: 0; transform: translateY(-4px); } }
+.ap-tick { animation: ap-tick ${CYCLE}s ease-out infinite; }
+@keyframes ap-tick { 0%, 14% { transform: scale(0); } 19% { transform: scale(1.25); } 23%, 88% { transform: scale(1); } 96%, 100% { transform: scale(0); } }
+.ap-float { animation: ap-float 3s ease-in-out infinite; }
+@keyframes ap-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) {
+  .ap-pencil, .ap-task, .ap-tick, .ap-float, [class^='ap-line-'] { animation: none !important; opacity: 1; stroke-dashoffset: 0; transform: none; }
+}
+`
+
+export function PlanningAnimation({ brand, job }) {
+  const progress = useSmoothProgress(job)
+  return (
+    <section className={`${card} mx-auto max-w-2xl px-6 py-8 text-center`}>
+      <style>{planningCss}</style>
+      <svg viewBox="0 0 240 132" className="ap-float mx-auto h-[150px] w-auto text-brand" aria-hidden="true">
+        {/* the open notebook */}
+        <ellipse cx="120" cy="124" rx="96" ry="5" style={{ fill: 'rgb(var(--ink-200))' }} opacity="0.6" />
+        <path d="M120 22 C 96 12, 50 12, 22 20 L 22 116 C 50 108, 96 108, 120 118 Z" style={{ fill: 'rgb(var(--surface))', stroke: 'rgb(var(--ink-300))' }} strokeWidth="2" />
+        <path d="M120 22 C 144 12, 190 12, 218 20 L 218 116 C 190 108, 144 108, 120 118 Z" style={{ fill: 'rgb(var(--surface))', stroke: 'rgb(var(--ink-300))' }} strokeWidth="2" />
+        <line x1="120" y1="22" x2="120" y2="118" style={{ stroke: 'rgb(var(--ink-300))' }} strokeWidth="2" />
+        {/* left page: the week's goals, already written */}
+        <circle cx="44" cy="42" r="7" fill="none" stroke="currentColor" strokeWidth="2.5" />
+        <circle cx="44" cy="42" r="2.5" fill="currentColor" />
+        {[42, 58, 74, 90].map((y, i) => (
+          <line key={y} x1={i ? 36 : 58} y1={y} x2={i ? 100 - i * 6 : 100} y2={y} style={{ stroke: 'rgb(var(--ink-200))' }} strokeWidth="4" strokeLinecap="round" />
+        ))}
+        {/* right page: the lines the pencil is writing */}
+        {LINES.map((l, i) => (
+          <line key={i} className={`ap-line-${i}`} x1="132" y1={l.y} x2={132 + l.w} y2={l.y} stroke="currentColor" strokeWidth="4" strokeLinecap="round" opacity="0.75" />
+        ))}
+        {/* the pencil — its tip is at the group's origin */}
+        <g className="ap-pencil">
+          <g transform="rotate(35)">
+            <polygon points="0,0 -4,-9 4,-9" fill="#f5c58a" />
+            <polygon points="0,0 -1.4,-3.2 1.4,-3.2" style={{ fill: 'rgb(var(--ink-800))' }} />
+            <rect x="-4" y="-34" width="8" height="25" rx="1" fill="#f59e0b" />
+            <rect x="-4" y="-38" width="8" height="5" fill="#d1d5db" />
+            <rect x="-4" y="-43" width="8" height="6" rx="2" fill="#f472b6" />
+          </g>
+        </g>
+      </svg>
+
+      <div className="mt-3 text-[15px] font-bold text-ink-900">Planning {brand}'s week…</div>
+      <p className="mt-1 text-[12.5px] text-ink-500">{job?.step || 'Starting…'}</p>
+
+      {/* example tasks flowing in, one of each kind */}
+      <ul className="mx-auto mt-5 max-w-sm space-y-2 text-left">
+        {SAMPLE_TASKS.map((t, i) => {
+          const cat = CATEGORY[t.cat]
+          return (
+            <li
+              key={t.cat}
+              className="ap-task flex items-center gap-2.5 rounded-xl border border-ink-100 bg-canvas px-3 py-2"
+              style={{ animationDelay: `${i * 0.8}s` }}
+            >
+              <span className="grid h-[18px] w-[18px] flex-none place-items-center rounded-md border-2 border-brand">
+                <span className="ap-tick grid h-full w-full place-items-center bg-brand text-white" style={{ animationDelay: `${i * 0.8}s` }}>
+                  <FiCheck size={11} strokeWidth={3} />
+                </span>
+              </span>
+              <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-ink-800">{t.text}</span>
+              <span className={`flex-none rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${cat.cls}`}>{cat.label}</span>
+            </li>
+          )
+        })}
+      </ul>
+
+      {/* real progress */}
+      <div className="mx-auto mt-6 max-w-sm">
+        <div className="flex items-baseline justify-between text-[12px]">
+          <span className="font-semibold text-ink-700">{progress >= 100 ? 'Your week is ready!' : 'Writing your plan'}</span>
+          <span className="font-bold tabular-nums text-brand">{progress}%</span>
+        </div>
+        <div className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-ink-100">
+          <div className="h-full rounded-full bg-brand transition-[width] duration-300 ease-out" style={{ width: `${progress}%` }} />
+        </div>
+        <p className="mt-2 text-[11px] text-ink-400">About a minute — the AI reads your results and this week's posts first.</p>
+      </div>
+    </section>
   )
 }
 

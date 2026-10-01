@@ -265,19 +265,26 @@ def _clean(raw: dict, days: list[date]) -> tuple[list[dict], str, list[dict]]:
     return goals, focus, tasks
 
 
-def build_plan(db: Session, brand_id: int, start: date) -> ActivityPlan:
+def build_plan(db: Session, brand_id: int, start: date, step=lambda _p, _u, _s: None) -> ActivityPlan:
     """Writes (or rewrites) the brand's plan for the week starting ``start``.
-    Ticked tasks and the team's own tasks from an earlier version are kept."""
+    Ticked tasks and the team's own tasks from an earlier version are kept.
+    ``step(progress, upto, text)`` reports where it is — the page's progress
+    bar creeps from ``progress`` towards ``upto`` until the next step."""
     brand = db.get(Brand, brand_id)
     if brand is None:
         raise ContentAIError("Brand not found.")
     billing.bind_brand(brand_id)  # often runs in a worker thread: charge the brand's workspace
     days = _plan_days(start)
+    step(5, 20, "Reading last week's results…")
+    data = _data(db, brand, start)
+    step(20, 28, "Looking at this week's posts and drafts…")
+    step(28, 92, "Picking this week's goals and writing the tasks…")
     raw = _chat(
-        [{"role": "system", "content": PLAN_PROMPT}, {"role": "user", "content": _data(db, brand, start)}],
+        [{"role": "system", "content": PLAN_PROMPT}, {"role": "user", "content": data}],
         get_settings().azure_openai_deployment,
         max_tokens=12000,
     )
+    step(92, 99, "Putting the checklist together…")
     if not isinstance(raw, dict):
         raise ContentAIError("The AI returned no plan.")
     goals, focus, tasks = _clean(raw, days)
@@ -310,10 +317,28 @@ def job_status(brand_id: int) -> dict | None:
         return {k: v for k, v in j.items() if not k.startswith("_")} if j else None
 
 
+def _step(brand_id: int, progress: int, upto: int, text: str) -> None:
+    with _jobs_lock:
+        if brand_id in _jobs:
+            _jobs[brand_id].update(progress=progress, upto=upto, step=text, _at=datetime.now(UTC))
+
+
+def _running(start: date) -> dict:
+    return {
+        "status": "running",
+        "week_start": start.isoformat(),
+        "progress": 2,
+        "upto": 5,
+        "step": "Starting…",
+        "error": "",
+        "_at": datetime.now(UTC),
+    }
+
+
 def _run_job(brand_id: int, start: date) -> None:
     db = SessionLocal()
     try:
-        build_plan(db, brand_id, start)
+        build_plan(db, brand_id, start, step=lambda p, u, s: _step(brand_id, p, u, s))
         status, error = "done", ""
     except ContentAIError as exc:
         db.rollback()
@@ -325,14 +350,20 @@ def _run_job(brand_id: int, start: date) -> None:
     finally:
         db.close()
     with _jobs_lock:
-        _jobs[brand_id] = {**_jobs.get(brand_id, {}), "status": status, "error": error, "_at": datetime.now(UTC)}
+        _jobs[brand_id] = {
+            **_jobs.get(brand_id, {}),
+            "status": status,
+            "error": error,
+            **({"progress": 100, "upto": 100, "step": "Done"} if status == "done" else {}),
+            "_at": datetime.now(UTC),
+        }
 
 
 def start_job(brand_id: int, start: date) -> dict:
     with _jobs_lock:
         if (_jobs.get(brand_id) or {}).get("status") == "running":
             raise HTTPException(409, "Already planning this brand's week — give it a minute.")
-        _jobs[brand_id] = {"status": "running", "week_start": start.isoformat(), "error": "", "_at": datetime.now(UTC)}
+        _jobs[brand_id] = _running(start)
     threading.Thread(target=_run_job, args=(brand_id, start), daemon=True, name=f"activity-{brand_id}").start()
     return job_status(brand_id)
 
@@ -348,7 +379,7 @@ def _auto_run(pairs: list[tuple[int, date]]) -> None:
             with _jobs_lock:
                 if (_jobs.get(brand_id) or {}).get("status") == "running":
                     continue
-                _jobs[brand_id] = {"status": "running", "week_start": start.isoformat(), "error": "", "_at": datetime.now(UTC)}
+                _jobs[brand_id] = _running(start)
             _run_job(brand_id, start)
     finally:
         _auto_running.release()
