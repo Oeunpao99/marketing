@@ -241,6 +241,23 @@ export default function PostDetailPage() {
           <FiArrowLeft size={16} /> Back to Dashboard
         </Link>
         <div className="flex items-center gap-2">
+          {q.postId != null && (
+            <button
+              type="button"
+              onClick={() => {
+                try {
+                  navigator.clipboard.writeText(`P${q.postId}`);
+                  showToast(`Post code P${q.postId} copied`);
+                } catch {
+                  showToast(`Post code: P${q.postId}`);
+                }
+              }}
+              title="Put this code in the post's chat link (t.me/YourBot?start=P…, m.me/YourPage?ref=P…) so leads from it are linked to this post"
+              className="rounded-full bg-ink-100 px-3 py-1.5 font-mono text-[12px] font-semibold text-ink-700 hover:bg-ink-200/70"
+            >
+              Post code P{q.postId}
+            </button>
+          )}
           {canEdit && !editing && (
             <button type="button" onClick={() => setEditing(true)} className="btn-outline" title="Change the caption, time or channels before it goes out">
               <FiEdit3 size={14} /> Edit post

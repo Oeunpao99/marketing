@@ -6,7 +6,7 @@ import Shell from "./components/layout/Shell";
 import MaintenanceOverlay from "./components/ui/MaintenanceOverlay";
 import Toast from "./components/ui/Toast";
 import AddChannelPage from "./pages/AddChannelPage";
-import AIPromptPage from "./pages/AIPromptPage";
+import ContentStudioPage from "./pages/ContentStudioPage";
 import AutoPage from "./pages/AutoPage";
 import CalendarPage from "./pages/CalendarPage";
 import ChannelsPage from "./pages/ChannelsPage";
@@ -22,6 +22,8 @@ import PostDetailPage from "./pages/PostDetailPage";
 import ProductsPage from "./pages/ProductsPage";
 import ReviewPage from "./pages/ReviewPage";
 import TodayPage from "./pages/TodayPage";
+import CommandPage from "./pages/CommandPage";
+import LeadsPage from "./pages/LeadsPage";
 import VideoStoryPage from "./pages/VideoStoryPage";
 import WeeklyPage from "./pages/WeeklyPage";
 import WebsitePage from "./pages/WebsitePage";
@@ -67,6 +69,8 @@ function Portal() {
           <Guarded>
           <Routes>
             <Route path="/" element={<TodayPage />} />
+            <Route path="/command" element={<CommandPage />} />
+            <Route path="/leads" element={<LeadsPage />} />
             <Route path="/new" element={<NewPostPage />} />
             <Route path="/review" element={<ReviewPage />} />
             <Route path="/channels" element={<ChannelsPage />} />
@@ -79,7 +83,7 @@ function Portal() {
             <Route path="/products" element={<ProductsPage />} />
             <Route path="/story" element={<VideoStoryPage />} />
             <Route path="/calendar" element={<CalendarPage />} />
-            <Route path="/ai" element={<AIPromptPage />} />
+            <Route path="/ai" element={<ContentStudioPage />} />
             <Route path="/library" element={<LibraryPage />} />
             <Route path="/insights" element={<InsightsPage />} />
             <Route path="/insights/:targetId" element={<InsightsPostPage />} />

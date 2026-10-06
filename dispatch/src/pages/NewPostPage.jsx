@@ -425,7 +425,7 @@ export default function NewPostPage() {
       </div>
 
       {postMode === "post" && (
-        <div className="fixed inset-0 z-50 bg-night-950/40 backdrop-blur-md flex items-center justify-center p-4 animate-fadein">
+        <div className="fixed inset-0 z-50 bg-night-950/30 flex items-center justify-center p-4 animate-fadein">
           <div className="glass-strong rounded-3xl p-8 flex flex-col items-center gap-4 max-w-xs w-full text-center">
             <CircularProgress percent={postPct} size={128} stroke={11}>
               {postDone ? (

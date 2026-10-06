@@ -83,7 +83,8 @@ export default function Shell({ children }) {
       <Sidebar collapsed={collapsed} />
       <div className="min-w-0 flex flex-col pb-[calc(4rem+env(safe-area-inset-bottom))] lg:pb-0">
         <Topbar onToggleSidebar={toggle} />
-        <main className="min-w-0 mx-auto w-full max-w-[1480px]">{children}</main>
+        {/* Every page uses the full width, starting right at the sidebar. */}
+        <main className="min-w-0 w-full">{children}</main>
       </div>
       <MobileBar />
       <AIAssistant />

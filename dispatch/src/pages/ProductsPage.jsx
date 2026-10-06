@@ -235,7 +235,7 @@ export default function ProductsPage() {
       {/* Delete confirmation */}
       {confirmItem && (
         <div
-          className="fixed inset-0 z-50 bg-night-950/40 backdrop-blur-md flex items-center justify-center p-4 animate-fadein"
+          className="fixed inset-0 z-50 bg-night-950/30 flex items-center justify-center p-4 animate-fadein"
           onClick={() => setConfirmItem(null)}
         >
           <div

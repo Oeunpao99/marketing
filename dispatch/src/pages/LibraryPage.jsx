@@ -37,11 +37,6 @@ function when(iso) {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
-const chip = (on) =>
-  `px-3 py-1.5 rounded-xl border text-[12px] font-semibold flex items-center gap-2 transition-all duration-150 ${
-    on ? 'border-brand-line bg-brand-soft text-brand' : 'border-ink-200 bg-white text-ink-600 hover:border-brand-line'
-  }`
-
 const STATUS_FILTERS = [
   { id: 'all', name: 'Everything' },
   { id: 'ready', name: 'Caption ready' },
@@ -178,29 +173,60 @@ export default function LibraryPage() {
         </p>
       </div>
 
-      {/* Filters */}
-      <div className="mb-6 flex flex-wrap items-center gap-2">
-        {brandTabs.map((t) => (
-          <button key={t.id} type="button" onClick={() => setBrandFilter(t.id)} className={chip(brandFilter === t.id)}>
-            {t.id !== 'all' && t.id !== 'none' && (
-              <span className="w-2 h-2 rounded-full flex-none" style={{ background: colorForBrand(t.id) }} />
-            )}
-            {t.name}
-            {counts[t.id] != null && <span className="text-ink-400 font-medium">{counts[t.id]}</span>}
+      {/* Filters: brand and status as dropdowns, type as tabs */}
+      <div className="mb-6 flex flex-wrap items-center gap-2.5">
+        <div className="inline-flex rounded-xl bg-ink-100/70 p-1" role="tablist" aria-label="Type">
+          {[
+            ['all', 'All'],
+            ['image', 'Images'],
+            ['video', 'Videos'],
+          ].map(([k, label]) => (
+            <button
+              key={k}
+              type="button"
+              role="tab"
+              aria-selected={kindFilter === k}
+              onClick={() => setKindFilter(k)}
+              className={`rounded-lg px-4 py-1.5 text-[12.5px] font-semibold transition-colors ${
+                kindFilter === k ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-500 hover:text-ink-800'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <Select
+          value={brandFilter}
+          onChange={setBrandFilter}
+          aria-label="Brand"
+          buttonClassName="min-w-[170px] font-medium"
+          options={brandTabs.map((t) => ({
+            value: t.id,
+            label: t.name,
+            hint: counts[t.id] != null ? `${counts[t.id]} item${counts[t.id] === 1 ? '' : 's'}` : undefined,
+            color: t.id !== 'all' && t.id !== 'none' ? colorForBrand(t.id) : undefined,
+          }))}
+        />
+        <Select
+          value={statusFilter}
+          onChange={setStatusFilter}
+          aria-label="Status"
+          buttonClassName="min-w-[150px] font-medium"
+          options={STATUS_FILTERS.map((f) => ({ value: f.id, label: f.name }))}
+        />
+        {(brandFilter !== 'all' || kindFilter !== 'all' || statusFilter !== 'all') && (
+          <button
+            type="button"
+            onClick={() => {
+              setBrandFilter('all')
+              setKindFilter('all')
+              setStatusFilter('all')
+            }}
+            className="text-[12px] font-semibold text-brand hover:underline"
+          >
+            Clear filters
           </button>
-        ))}
-        <span className="mx-1 h-5 w-px bg-ink-200" />
-        {['all', 'image', 'video'].map((k) => (
-          <button key={k} type="button" onClick={() => setKindFilter(k)} className={chip(kindFilter === k)}>
-            {k === 'all' ? 'All types' : k === 'image' ? 'Images' : 'Videos'}
-          </button>
-        ))}
-        <span className="mx-1 h-5 w-px bg-ink-200" />
-        {STATUS_FILTERS.map((f) => (
-          <button key={f.id} type="button" onClick={() => setStatusFilter(f.id)} className={chip(statusFilter === f.id)}>
-            {f.name}
-          </button>
-        ))}
+        )}
       </div>
 
       {/* Grid */}
@@ -226,7 +252,7 @@ export default function LibraryPage() {
             Generate an image or video in the AI agent — it lands here with a caption ready.
           </div>
           {!items.length && (
-            <button type="button" onClick={() => navigate('/ai')} className="btn-primary mt-4">
+            <button type="button" onClick={() => navigate('/ai?tab=images')} className="btn-primary mt-4">
               Open the AI agent
             </button>
           )}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   FiBarChart2,
@@ -7,106 +7,81 @@ import {
   FiClipboard,
   FiCheck,
   FiChevronDown,
-  FiEdit,
   FiFileText,
+  FiFilm,
   FiGlobe,
-  FiGrid,
+  FiHome,
   FiImage,
-  FiInbox,
   FiLogOut,
   FiPackage,
   FiRepeat,
   FiSearch,
   FiSettings,
-  FiSmartphone,
-  FiStar,
-  FiZap,
+  FiSliders,
+  FiUserCheck,
 } from "react-icons/fi";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { api } from "../../api/client";
 import { useAuth } from "../../auth";
-import { PLAT } from "../../data/brands";
 import { useStore } from "../../store";
 import { colorForBrand } from "../../lib/brandColor";
-import PlatformIcon from "../ui/PlatformIcon";
 import SettingsModal from "./SettingsModal";
 import { openCreateBrand } from "./CreateBrandDrawer";
-import Notifications from "./Notifications";
-import { useNotifications } from "../../lib/notifications";
 import { canOpen } from "../../lib/access";
 
-// Same two-tier shape as the reference: a flat core nav up top, then labeled
-// sections. Every entry is a real page — nothing here points nowhere.
-// `tour` is the anchor the first-run spotlight points at (lib/tour.js). Only
-// the main lists get one — the "Most used" shortcuts are the same links and
-// would be a second element with the same name.
-const CORE = [
-  { to: "/", end: true, icon: FiGrid, label: "Dashboard", badge: "queue" },
-  { to: "/channels", icon: FiSmartphone, label: "Platforms", expand: "platforms", tour: "channels" },
-  { to: "/review", icon: FiFileText, label: "Content", badge: "review", tour: "review" },
-  { to: "/calendar", icon: FiCalendar, label: "Calendar", tour: "calendar" },
-  { to: "/library", icon: FiImage, label: "Media Library", badge: "library" },
-  { to: "/new", icon: FiEdit, label: "Compose", tour: "new" },
-];
-
-const SECTIONS = [
+// The boss's six places, in his order. Pages that belong to one of them sit
+// under it as sub-pages (`sub`), shown only while you're in that section, so
+// the sidebar stays his six lines. The first sub-page is the section's own page.
+// `tour` is the anchor the first-run spotlight points at (lib/tour.js); a step
+// whose anchor isn't on screen is simply skipped.
+const BOSS = [
+  { to: "/command", icon: FiHome, label: "Command center" },
   {
-    label: "AI Studio",
-    items: [
-      { to: "/ai", icon: FiZap, label: "AI Agent", tour: "ai" },
-      { to: "/weekly", icon: FiClipboard, label: "Weekly plan" },
+    to: "/weekly",
+    icon: FiClipboard,
+    label: "Plan & best time",
+    badge: "plan",
+    sub: [
+      { to: "/weekly", icon: FiClipboard, label: "Weekly plan", badge: "plan" },
+      { to: "/review", icon: FiFileText, label: "Approvals", badge: "review", tour: "review" },
+      { to: "/calendar", icon: FiCalendar, label: "Calendar", tour: "calendar" },
       { to: "/activity", icon: FiCheckSquare, label: "Activity plan" },
-      { to: "/auto", icon: FiRepeat, label: "Auto-generate" },
-      { to: "/products", icon: FiPackage, label: "Products" },
     ],
   },
   {
-    label: "Analytics",
-    items: [
-      { to: "/insights", icon: FiBarChart2, label: "Overview" },
+    to: "/ai",
+    icon: FiFilm,
+    label: "Content studio",
+    tour: "ai",
+    sub: [
+      { to: "/ai", icon: FiFilm, label: "Studio" },
+      { to: "/library", icon: FiImage, label: "Media Library", badge: "library" },
+    ],
+  },
+  { to: "/leads", icon: FiUserCheck, label: "Leads & hand-off", badge: "leads" },
+  { to: "/insights", icon: FiBarChart2, label: "Insights & sales" },
+  {
+    to: "/channels",
+    icon: FiSliders,
+    label: "Setup",
+    dot: "setup",
+    tour: "channels",
+    sub: [
+      { to: "/channels", icon: FiSliders, label: "Channels" },
+      { to: "/auto", icon: FiRepeat, label: "Autopilot" },
       { to: "/website", icon: FiGlobe, label: "Website check" },
+      { to: "/products", icon: FiPackage, label: "Products & brand kit" },
     ],
   },
 ];
 
-// "Most used": which pages this person opens, kept per browser (a personal
-// shortcut, like the collapsed-sidebar setting) — timestamps per page for the
-// last USAGE_DAYS. The top few show in their own section with a badge.
-const USAGE_KEY = "cf_nav_usage";
-const USAGE_DAYS = 30;
-const MOST_USED_MAX = 3;
-const MOST_USED_MIN_OPENS = 3; // don't call a page "most used" after one visit
-// Dashboard is always first anyway; Platforms carries its own submenu.
-const TRACKED = [...CORE, ...SECTIONS.flatMap((s) => s.items)].filter((i) => !i.end && !i.expand);
-
-function readUsage() {
-  try {
-    return JSON.parse(localStorage.getItem(USAGE_KEY)) || {};
-  } catch {
-    return {};
-  }
-}
-
-function recordVisit(route) {
-  const since = Date.now() - USAGE_DAYS * 86400000;
-  const usage = readUsage();
-  const next = {};
-  for (const [r, times] of Object.entries(usage)) {
-    const kept = (Array.isArray(times) ? times : []).filter((t) => t >= since);
-    if (kept.length) next[r] = kept;
-  }
-  next[route] = [...(next[route] || []), Date.now()].slice(-200);
-  try {
-    localStorage.setItem(USAGE_KEY, JSON.stringify(next));
-  } catch {
-    // storage blocked (private window) — the section just stays empty
-  }
-  return next;
-}
+const OPEN_KEY = "cf_nav_open_sections";
+const onPath = (pathname, to) => pathname === to || pathname.startsWith(`${to}/`);
 
 // ``collapsed`` = the slim icon rail (Shell's sidebar toggle): icons only,
 // labels as hover tooltips, counts as dots, menus open beside the rail.
 export default function Sidebar({ collapsed = false }) {
-  const { brands, channels, queue, review, activeBrand, switchBrand, showToast, libraryNew } = useStore();
+  const { brands, channels, channelsReady, auto, queue, review, activeBrand, switchBrand, showToast, libraryNew } = useStore();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -115,34 +90,56 @@ export default function Sidebar({ collapsed = false }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [brandOpen, setBrandOpen] = useState(false);
   const [brandQuery, setBrandQuery] = useState("");
-  const [notifOpen, setNotifOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
-  const [platformsOpen, setPlatformsOpen] = useState(pathname.startsWith("/channels"));
-  const [usage, setUsage] = useState(readUsage);
-
-  // Count a visit each time a tracked page is opened.
+  // Sections whose sub-pages are showing. Going into a section opens it; it
+  // stays open (others too) until its chevron closes it. Remembered per browser.
+  const [openSections, setOpenSections] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem(OPEN_KEY)) || [];
+    } catch {
+      return [];
+    }
+  });
+  const saveOpen = (list) => {
+    try {
+      localStorage.setItem(OPEN_KEY, JSON.stringify(list));
+    } catch {
+      /* private window — just not remembered */
+    }
+    return list;
+  };
   useEffect(() => {
-    const item = TRACKED.find((i) => pathname === i.to || pathname.startsWith(`${i.to}/`));
-    if (item) setUsage(recordVisit(item.to));
+    const here = BOSS.find((b) => b.sub?.some((x) => onPath(pathname, x.to)));
+    if (here) setOpenSections((list) => (list.includes(here.label) ? list : saveOpen([...list, here.label])));
   }, [pathname]);
+  const [planCount, setPlanCount] = useState(0); // weekly-plan posts waiting for a yes
+  const [leadCount, setLeadCount] = useState(0); // qualified leads waiting for a rep
 
-  const mostUsed = useMemo(() => {
-    const since = Date.now() - USAGE_DAYS * 86400000;
-    return TRACKED.map((item) => ({
-      ...item,
-      uses: (usage[item.to] || []).filter((t) => t >= since).length,
-    }))
-      .filter((i) => i.uses >= MOST_USED_MIN_OPENS)
-      .sort((a, b) => b.uses - a.uses)
-      .slice(0, MOST_USED_MAX);
-  }, [usage]);
+  // The Plan & best time badge: cheap, so refreshed on every page change and each minute.
+  useEffect(() => {
+    let alive = true;
+    const load = () =>
+      api
+        .get("/command/counts")
+        .then((r) => {
+          if (!alive) return;
+          setPlanCount(r.plan || 0);
+          setLeadCount(r.leads || 0);
+        })
+        .catch(() => {});
+    load();
+    const id = setInterval(load, 60000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [pathname]);
 
   const active = brands.find((b) => b.slug === activeBrand) || brands[0];
   const filteredBrands = brands.filter((b) =>
     b.name.toLowerCase().includes(brandQuery.trim().toLowerCase()),
   );
   const reviewCount = (review || []).length;
-  const { count: notifCount } = useNotifications();
   const brandChannels = channels.filter((c) => c.b === active?.slug);
 
   useEffect(() => {
@@ -159,7 +156,6 @@ export default function Sidebar({ collapsed = false }) {
       if (event.key === "Escape") {
         setSearchOpen(false);
         setBrandOpen(false);
-        setNotifOpen(false);
         setUserOpen(false);
       }
     };
@@ -173,16 +169,56 @@ export default function Sidebar({ collapsed = false }) {
     };
   }, []);
 
+  // Setup shows a red dot while the brand can't post: nothing connected, or a channel to reconnect.
+  const setupIssue =
+    channelsReady && !!active && (!brandChannels.some((c) => c.s === "live") || brandChannels.some((c) => c.s === "soon"));
+  const dotTitle = brandChannels.some((c) => c.s === "live")
+    ? "A channel needs reconnecting"
+    : "Connect a Page or account to start posting";
+  const autoRow = (auto || []).find((a) => a.brand_slug === active?.slug);
+  const autopilot = !autoRow?.enabled
+    ? { title: "Off", note: "Turn on Auto-generate so the AI writes and posts every day." }
+    : autoRow.require_approval
+      ? { title: "Ask me first", note: "Every post waits for your yes before it goes out." }
+      : {
+          title: "Ask me weekly",
+          note: "Weekly plans, and any post with a price, offer or customer name that isn’t checked, wait for your yes.",
+        };
+
   const badgeFor = (badge) => {
+    if (badge === "plan" && planCount > 0) return planCount;
+    if (badge === "leads" && leadCount > 0) return leadCount;
     if (badge === "review" && reviewCount > 0) return reviewCount;
     if (badge === "queue" && queue.length > 0) return queue.length;
     if (badge === "library" && libraryNew > 0) return libraryNew;
     return null;
   };
 
-  const navItem = ({ to, end, icon: Icon, label, badge, expand, uses, tour }) => {
+  const pillFor = (badge, count) =>
+    badge === "library" ? (
+      <span title={`${count} new since you last looked`} className="rounded-full bg-brand px-1.5 py-px text-[10px] font-bold text-white tabular-nums">
+        {count} new
+      </span>
+    ) : badge === "plan" ? (
+      <span title={`${count} post${count === 1 ? "" : "s"} waiting for your approval`} className="rounded-full bg-brand px-2 py-px text-[11px] font-bold text-white tabular-nums">
+        {count}
+      </span>
+    ) : badge === "leads" ? (
+      <span title={`${count} qualified lead${count === 1 ? "" : "s"} waiting for a rep`} className="rounded-full bg-orange-600 px-2 py-px text-[11px] font-bold text-white tabular-nums">
+        {count}
+      </span>
+    ) : badge === "review" ? (
+      <span title={`${count} idea${count === 1 ? "" : "s"} waiting for your OK`} className="rounded-full bg-orange-600 px-2 py-px text-[11px] font-bold text-white tabular-nums">
+        {count}
+      </span>
+    ) : (
+      <span className="text-[11px] font-semibold text-ink-500 tabular-nums">{count}</span>
+    );
+
+  const navItem = ({ to, end, icon: Icon, label, badge, tour, top, dot }) => {
     if (!canOpen(user, to)) return null; // not in this person's access
     const count = badgeFor(badge);
+    const showDot = dot === "setup" && setupIssue;
     if (collapsed) {
       return (
         <NavLink
@@ -199,7 +235,9 @@ export default function Sidebar({ collapsed = false }) {
           }
         >
           <Icon size={18} aria-hidden="true" />
-          {count != null && <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-brand ring-2 ring-canvas-soft" />}
+          {(count != null || showDot) && (
+            <span className={`absolute top-2 right-2 w-2 h-2 rounded-full ring-2 ring-canvas-soft ${showDot ? "bg-red-500" : "bg-brand"}`} />
+          )}
         </NavLink>
       );
     }
@@ -210,7 +248,7 @@ export default function Sidebar({ collapsed = false }) {
           end={end}
           data-tour={tour}
           className={({ isActive }) =>
-            `group flex items-center gap-3 w-full px-3 py-[7px] rounded-lg text-[13px] transition-colors duration-150 ${
+            `group flex items-center gap-3 w-full px-3 py-[9px] rounded-lg text-[13px] transition-colors duration-150 ${
               isActive
                 ? "bg-brand-soft text-brand font-semibold"
                 : "text-ink-700 font-medium hover:bg-ink-100/80 hover:text-ink-900"
@@ -225,70 +263,111 @@ export default function Sidebar({ collapsed = false }) {
                 aria-hidden="true"
               />
               <span className="flex-1 truncate">{label}</span>
-              {uses != null && (
-                <span
-                  title={`Opened ${uses} time${uses === 1 ? "" : "s"} in the last ${USAGE_DAYS} days`}
-                  className="inline-flex items-center gap-0.5 rounded-full bg-brand-soft px-1.5 py-px text-[10px] font-bold text-brand tabular-nums"
-                >
-                  <FiStar size={9} className="fill-current" aria-hidden="true" />
-                  {uses}
-                </span>
-              )}
               {count != null &&
-                (badge === "library" ? (
-                  <span
-                    title={`${count} new since you last looked`}
-                    className="rounded-full bg-brand px-1.5 py-px text-[10px] font-bold text-white tabular-nums"
-                  >
-                    {count} new
-                  </span>
+                (top || badge === "library" ? (
+                  pillFor(badge, count)
                 ) : (
                   <span className="text-[11px] font-semibold text-ink-500 tabular-nums">{count}</span>
                 ))}
-              {expand && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setPlatformsOpen((v) => !v);
-                  }}
-                  className="-mr-1 p-1 rounded text-ink-400 hover:text-ink-700"
-                  aria-label={platformsOpen ? "Collapse platforms" : "Expand platforms"}
-                >
-                  <FiChevronDown
-                    size={16}
-                    className={`transition-transform duration-200 ${platformsOpen ? "rotate-180" : ""}`}
-                  />
-                </button>
-              )}
+              {showDot && <span title={dotTitle} className="h-2 w-2 flex-none rounded-full bg-red-500" />}
             </>
           )}
         </NavLink>
 
-        {expand === "platforms" && platformsOpen && (
-          <div className="mt-0.5 mb-1 ml-[22px] pl-3 border-l border-ink-200 space-y-0.5">
-            {brandChannels.length === 0 ? (
-              <div className="px-2 py-1.5 text-[11.5px] text-ink-400">No channels yet</div>
-            ) : (
-              brandChannels.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => navigate("/channels")}
-                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left text-[12px] text-ink-600 hover:bg-ink-100/80 hover:text-ink-900"
-                >
-                  <PlatformIcon name={PLAT[c.p]?.name} className="text-ink-500 flex-none" />
-                  <span className="flex-1 truncate">{c.h || PLAT[c.p]?.name || c.p}</span>
-                  <span
-                    className={`w-1.5 h-1.5 rounded-full flex-none ${
-                      c.s === "live" ? "bg-emerald-500" : c.s === "soon" ? "bg-amber-400" : "bg-ink-300"
-                    }`}
-                    title={c.s === "live" ? "Connected" : c.s === "soon" ? "Reconnect soon" : "Not connected"}
-                  />
-                </button>
-              ))
+      </div>
+    );
+  };
+
+  // A section line, and — while you're in the section — its sub-pages. Closed,
+  // its badge adds up the counts waiting inside it.
+  const section = (item) => {
+    if (!item.sub) return navItem({ ...item, top: true });
+    const subs = item.sub.filter((x) => canOpen(user, x.to));
+    if (!canOpen(user, item.to) && !subs.length) return null;
+    const here = subs.some((x) => onPath(pathname, x.to));
+    const open = openSections.includes(item.label);
+    const toggle = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setOpenSections((list) => saveOpen(open ? list.filter((l) => l !== item.label) : [...list, item.label]));
+    };
+    const own = badgeFor(item.badge) || 0;
+    const inside = subs.filter((x) => x.badge !== item.badge).reduce((n, x) => n + (badgeFor(x.badge) || 0), 0);
+    const total = own + (open ? 0 : inside);
+    const kind = item.badge || subs.find((x) => badgeFor(x.badge))?.badge;
+    const Icon = item.icon;
+    const showDot = item.dot === "setup" && setupIssue;
+
+    if (collapsed) {
+      return (
+        <div key={item.label} className="space-y-1">
+          <NavLink
+            to={item.to}
+            data-tour={item.tour}
+            title={total ? `${item.label} (${total})` : item.label}
+            aria-label={item.label}
+            className={`relative mx-auto grid h-10 w-10 place-items-center rounded-xl transition-colors duration-150 ${
+              open ? "bg-brand-soft text-brand" : "text-ink-500 hover:bg-ink-100/80 hover:text-ink-800"
+            }`}
+          >
+            <Icon size={18} aria-hidden="true" />
+            {(total > 0 || showDot) && (
+              <span className={`absolute right-2 top-2 h-2 w-2 rounded-full ring-2 ring-canvas-soft ${showDot ? "bg-red-500" : "bg-brand"}`} />
             )}
+          </NavLink>
+          {open && subs.slice(1).map((x) => navItem(x))}
+        </div>
+      );
+    }
+
+    return (
+      <div key={item.label}>
+        <div className="relative">
+          <NavLink
+            to={item.to}
+            data-tour={item.tour}
+            className={`group flex w-full items-center gap-3 rounded-lg py-[9px] pl-3 pr-10 text-[13px] transition-colors duration-150 ${
+              here ? "font-semibold text-ink-900" : "font-medium text-ink-700 hover:bg-ink-100/80 hover:text-ink-900"
+            }`}
+          >
+            <Icon size={17} className={`flex-none ${here ? "text-brand" : "text-ink-500 group-hover:text-ink-700"}`} aria-hidden="true" />
+            <span className="flex-1 truncate">{item.label}</span>
+            {total > 0 && !open && pillFor(kind, total)}
+            {showDot && <span title={dotTitle} className="h-2 w-2 flex-none rounded-full bg-red-500" />}
+          </NavLink>
+          <button
+            type="button"
+            onClick={toggle}
+            aria-expanded={open}
+            aria-label={open ? `Hide ${item.label} pages` : `Show ${item.label} pages`}
+            className="absolute right-1.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-ink-400 hover:bg-ink-200/70 hover:text-ink-700"
+          >
+            <FiChevronDown size={15} className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`} aria-hidden="true" />
+          </button>
+        </div>
+        {open && (
+          <div className="mb-1.5 ml-[22px] mt-1 space-y-1 border-l border-ink-200 pl-2.5">
+            {subs.map((x, i) => (
+              <NavLink
+                key={x.to + x.label}
+                to={x.to}
+                end={i === 0}
+                data-tour={x.tour}
+                className={({ isActive }) =>
+                  `group flex items-center gap-2.5 rounded-lg px-3 py-[8px] text-[12.5px] transition-colors ${
+                    isActive ? "bg-brand-soft font-semibold text-brand" : "font-medium text-ink-600 hover:bg-ink-100/80 hover:text-ink-900"
+                  }`
+                }
+              >
+                {({ isActive }) => (
+                  <>
+                    <x.icon size={15} className={`flex-none ${isActive ? "text-brand" : "text-ink-400 group-hover:text-ink-600"}`} aria-hidden="true" />
+                    <span className="flex-1 truncate">{x.label}</span>
+                    {badgeFor(x.badge) != null && pillFor(x.badge, badgeFor(x.badge))}
+                  </>
+                )}
+              </NavLink>
+            ))}
           </div>
         )}
       </div>
@@ -448,62 +527,21 @@ export default function Sidebar({ collapsed = false }) {
       </div>
 
       <nav className={`flex-1 overflow-y-auto side-scroll pb-3 ${collapsed ? "px-2" : "px-3"}`}>
-        {mostUsed.length > 0 && (
-          <>
-            {!collapsed && (
-              <div className="px-3 mb-1.5 flex items-center gap-1.5 text-[12px] font-medium text-ink-500">
-                <FiStar size={11} className="text-brand fill-current" aria-hidden="true" /> Most used
-              </div>
-            )}
-            <div className={collapsed ? "space-y-1" : "space-y-0.5"}>{mostUsed.map((i) => navItem({ ...i, tour: null }))}</div>
-            <div className={`my-3 border-t border-ink-200/70 ${collapsed ? "mx-2" : "mx-0"}`} />
-          </>
-        )}
-        <div className={collapsed ? "space-y-1" : "space-y-0.5"}>{CORE.map(navItem)}</div>
-
-        {SECTIONS.filter((section) => section.items.some((i) => canOpen(user, i.to))).map((section) => (
-          <div key={section.label}>
-            <div className={`my-3 border-t border-ink-200/70 ${collapsed ? "mx-2" : "mx-0"}`} />
-            {!collapsed && <div className="px-3 mb-1.5 text-[12px] font-medium text-ink-500">{section.label}</div>}
-            <div className={collapsed ? "space-y-1" : "space-y-0.5"}>{section.items.map(navItem)}</div>
-          </div>
-        ))}
-
-        <div className={`my-3 border-t border-ink-200/70 ${collapsed ? "mx-2" : "mx-0"}`} />
-        <div className="space-y-0.5">
-          <div className="relative">
-            {collapsed ? (
-              <button
-                type="button"
-                onClick={() => setNotifOpen((v) => !v)}
-                title={notifCount > 0 ? `Inbox (${notifCount})` : "Inbox"}
-                aria-label="Inbox"
-                className="relative mx-auto grid place-items-center w-10 h-10 rounded-xl text-ink-500 hover:bg-ink-100/80 hover:text-ink-800 transition-colors duration-150"
-              >
-                <FiInbox size={18} />
-                {notifCount > 0 && (
-                  <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-red-500 ring-2 ring-canvas-soft" />
-                )}
-              </button>
-            ) : (
-            <button
-              type="button"
-              onClick={() => setNotifOpen((v) => !v)}
-              className="group flex items-center gap-3 w-full px-3 py-[7px] rounded-lg text-[13px] font-medium text-ink-700 hover:bg-ink-100/80 hover:text-ink-900 transition-colors duration-150"
-            >
-              <FiInbox size={17} className="flex-none text-ink-500 group-hover:text-ink-700" />
-              <span className="flex-1 text-left">Inbox</span>
-              {notifCount > 0 && (
-                <span className="text-[11px] font-semibold text-ink-500 tabular-nums">{notifCount}</span>
-              )}
-            </button>
-            )}
-          </div>
-        </div>
+        <div className={collapsed ? "space-y-1.5" : "space-y-1"}>{BOSS.map(section)}</div>
       </nav>
 
       {/* Footer: settings + user */}
       <div className={`pb-3 ${collapsed ? "px-2" : "px-3"}`}>
+        {!collapsed && auto && (
+          <NavLink
+            to="/auto"
+            className="mb-3 block rounded-xl border border-ink-200/70 bg-white px-3 py-2.5 transition-colors hover:border-ink-300"
+          >
+            <span className="block text-[11px] text-ink-500">Autopilot</span>
+            <span className="block text-[13px] font-bold leading-tight text-ink-900">{autopilot.title}</span>
+            <span className="mt-0.5 block text-[11.5px] leading-snug text-ink-500">{autopilot.note}</span>
+          </NavLink>
+        )}
         <div className="border-t border-ink-200/70 pt-3 mb-2">
           <button
             type="button"
@@ -589,7 +627,6 @@ export default function Sidebar({ collapsed = false }) {
       </div>
 
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} showToast={showToast} initialTab={settingsTab} />
-      <Notifications open={notifOpen} onClose={() => setNotifOpen(false)} anchor={collapsed ? "rail" : "bottom"} />
       <SearchModal
         open={searchOpen}
         onClose={() => setSearchOpen(false)}

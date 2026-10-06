@@ -326,7 +326,7 @@ export default function CalendarPage() {
           <div className="mt-4 flex items-center justify-center gap-2">
             <button
               type="button"
-              onClick={() => navigate('/ai')}
+              onClick={() => navigate('/ai?tab=images')}
               className="btn-primary"
             >
               Plan with the AI Agent

@@ -19,6 +19,7 @@ const PAGE_FEATURE = [
   ['/insights', 'insights'],
   ['/website', 'website'],
   ['/activity', 'activity'],
+  ['/leads', 'leads'],
 ]
 
 export const featureForPath = (path) =>

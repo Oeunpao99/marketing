@@ -3,15 +3,12 @@ import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import {
   FiCheckCircle,
-  FiClock,
   FiDownload,
   FiEdit3,
   FiFilm,
-  FiLayers,
   FiPlay,
   FiRefreshCw,
   FiTrash2,
-  FiVideo,
   FiVolume2,
   FiVolumeX,
   FiX,
@@ -269,56 +266,6 @@ export default function StoryEditor({ storyId, compact = false, onDeleted }) {
   const locked = RUNNING.includes(story.status)
   const draft = story.status === 'draft'
 
-  const actions = (
-    <div className="flex flex-wrap items-center gap-2">
-      {!locked && onDeleted && (
-        <button type="button" onClick={() => setDeleteConfirm(true)} className="btn-danger px-3" aria-label="Delete story">
-          <FiTrash2 size={14} />
-        </button>
-      )}
-      {draft && (
-        <>
-          <button type="button" onClick={saveChanges} disabled={!dirty || !!busy} className="btn-outline">
-            {busy === 'save' ? 'Saving…' : 'Save changes'}
-          </button>
-          <button type="button" onClick={() => setRenderConfirm(true)} disabled={!!busy || !story.title.trim()} className="btn-primary">
-            <FiZap size={14} /> Approve & render
-          </button>
-        </>
-      )}
-      {story.status === 'review' && (
-        <button type="button" onClick={combine} disabled={!!busy || !allDone} className="btn-primary">
-          {busy === 'combine' ? 'Starting…' : <><FiFilm size={14} /> Join into one video</>}
-        </button>
-      )}
-      {story.status === 'done' && story.final_video?.url && (
-        <button type="button" onClick={useFinal} className="btn-primary">
-          <FiPlay size={14} /> Use in a post
-        </button>
-      )}
-    </div>
-  )
-
-  const scenes = (
-    <div className={compact ? 'grid gap-3 sm:grid-cols-2' : 'space-y-3'}>
-      {story.scenes.map((scene, index) => (
-        <SceneCard
-          key={scene.key}
-          scene={scene}
-          index={index}
-          story={story}
-          compact={compact}
-          editable={draft}
-          busy={busy}
-          onChange={(change) => updateScene(scene.key, change)}
-          onRedo={() =>
-            setRedoEdit({ scene, visual: scene.visual || '', voiceover: scene.voiceover || '', on_screen: scene.on_screen || '' })
-          }
-        />
-      ))}
-    </div>
-  )
-
   const showFinal = story.status === 'done' || story.status === 'combining' || story.final_video
 
   const dialogs = (
@@ -326,7 +273,7 @@ export default function StoryEditor({ storyId, compact = false, onDeleted }) {
         {renderConfirm && (
           <ConfirmDialog
             title="Approve this storyboard?"
-            text={`The video service will render ${story.scenes.length} clips for “${story.title}”. You can leave this page while it runs.`}
+            text={`The video service will render ${story.scenes.length} clips for “${story.title}”${story.estimated_cost != null ? ` — about $${Number(story.estimated_cost).toFixed(2)} of AI credit` : ''}. You can leave this page while it runs.`}
             confirm="Approve & render"
             onCancel={() => setRenderConfirm(false)}
             onConfirm={startRender}
@@ -381,163 +328,395 @@ export default function StoryEditor({ storyId, compact = false, onDeleted }) {
           onUseFinal={useFinal}
           onLibrary={() => navigate('/library')}
         />
+        <div className="mt-2 text-right">
+          <button type="button" onClick={() => navigate(`/ai?tab=video&story=${story.id}`)} className="text-[11.5px] font-semibold text-brand hover:underline">
+            Open in studio view →
+          </button>
+        </div>
         {dialogs}
       </>
     )
   }
 
+  const voice = story.language ? `${story.language} voice-over` : 'No voice-over'
+  const redoOf = (scene) =>
+    setRedoEdit({ scene, visual: scene.visual || '', voiceover: scene.voiceover || '', on_screen: scene.on_screen || '' })
+
   return (
-    <div className="animate-fadein">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="animate-fadein space-y-5">
+      {/* What this video is, and the one next action */}
+      <section className={`${card} flex flex-wrap items-center justify-between gap-4 p-5`}>
         <div className="min-w-0 flex-1">
           {draft ? (
             <input
               value={story.title}
               onChange={(event) => updateStory({ title: event.target.value })}
               maxLength={200}
-              className={`w-full max-w-3xl bg-transparent ${
-                compact ? 'text-[17px] font-bold' : 'text-[25px] lg:text-[29px] font-display'
-              } text-ink-900 tracking-tight focus:outline-none focus:ring-2 focus:ring-brand/15 rounded-lg px-1 -ml-1`}
-              aria-label="Story title"
+              className="-ml-1 w-full max-w-3xl rounded-lg bg-transparent px-1 text-[20px] font-bold tracking-tight text-ink-900 focus:outline-none focus:ring-2 focus:ring-brand/15"
+              aria-label="Video title"
             />
           ) : (
-            <h2 className={`${compact ? 'text-[17px] font-bold text-ink-900' : 'page-title'} break-words`}>{story.title}</h2>
+            <h2 className="break-words text-[20px] font-bold tracking-tight text-ink-900">“{story.title}”</h2>
           )}
-          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11.5px] text-ink-500">
-            <StatusPill status={story.status} />
-            {brand && (
-              <span className="inline-flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full" style={{ background: colorForBrand(brand.slug) }} />
-                {brand.name}
-              </span>
-            )}
-            <span>{story.scenes.length} scenes</span>
-            <span>{story.total_seconds}s</span>
-            <span>{story.aspect_ratio}</span>
-            <span className="inline-flex items-center gap-1">
-              {story.language ? <FiVolume2 size={12} /> : <FiVolumeX size={12} />}
-              {story.language || 'No voiceover'}
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-ink-500">
+            <span>
+              {story.scenes.length} short AI clip{story.scenes.length === 1 ? '' : 's'} → one {story.total_seconds} s video ·{' '}
+              {story.aspect_ratio === '9:16' ? 'vertical 9:16' : 'landscape 16:9'} · {voice}
             </span>
+            <StatusPill status={story.status} />
+            {!draft && <span>{done} of {story.scenes.length} clips ready</span>}
             {dirty && draft && <span className="font-semibold text-amber-600">Unsaved changes</span>}
           </div>
+          {!draft && (
+            <div className="mt-3 flex max-w-xl gap-1" aria-label={`${done} of ${story.scenes.length} clips ready`}>
+              {story.scenes.map((s, i) => (
+                <span
+                  key={s.key}
+                  className={`h-1.5 flex-1 rounded-full ${
+                    s.state === 'done'
+                      ? `bg-gradient-to-r ${ROLE_COLOR[roleKey(s, i, story.scenes.length)]}`
+                      : s.state === 'failed'
+                        ? 'bg-red-400'
+                        : s.state === 'rendering'
+                          ? 'bg-brand/50 animate-pulse-glow'
+                          : 'bg-ink-200'
+                  }`}
+                />
+              ))}
+            </div>
+          )}
         </div>
-        {actions}
-      </div>
-
-      {draft && compact && (
-        <p className="mt-3 text-[11.5px] text-ink-500">
-          Review and edit the storyboard below, then <b>Approve & render</b> — each scene becomes its own clip, and you join them into one video at the end.
-        </p>
-      )}
+        <div className="flex flex-wrap items-center gap-2">
+          {!locked && onDeleted && (
+            <button type="button" onClick={() => setDeleteConfirm(true)} className="btn-danger px-3" aria-label="Delete video">
+              <FiTrash2 size={14} />
+            </button>
+          )}
+          {draft && (
+            <>
+              <button type="button" onClick={saveChanges} disabled={!dirty || !!busy} className="btn-outline">
+                {busy === 'save' ? 'Saving…' : 'Save'}
+              </button>
+              <button type="button" onClick={() => setRenderConfirm(true)} disabled={!!busy || !story.title.trim()} className="btn-primary">
+                <FiZap size={14} /> Generate clips
+                {story.estimated_cost != null && <span className="opacity-75">· ${Number(story.estimated_cost).toFixed(2)}</span>}
+              </button>
+            </>
+          )}
+          {(story.status === 'review' || story.status === 'rendering') && (
+            <button
+              type="button"
+              onClick={combine}
+              disabled={!!busy || !allDone || story.status !== 'review'}
+              className="btn-primary"
+              title={allDone ? '' : 'Every clip has to be ready first'}
+            >
+              <FiFilm size={14} /> {busy === 'combine' ? 'Starting…' : 'Combine & render'}
+            </button>
+          )}
+          {story.status === 'combining' && <span className="text-[12px] font-semibold text-brand">Joining the clips…</span>}
+          {story.status === 'done' && story.final_video?.url && (
+            <button type="button" onClick={useFinal} className="btn-primary">
+              <FiPlay size={14} /> Use in a post
+            </button>
+          )}
+        </div>
+      </section>
 
       {story.error && (
-        <div className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-[12px] leading-relaxed text-red-700">{story.error}</div>
+        <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-[12px] leading-relaxed text-red-700">{story.error}</div>
+      )}
+      {story.status === 'review' && failed > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] text-amber-800">
+          {failed} clip{failed === 1 ? '' : 's'} could not be made. Press Redo on {failed === 1 ? 'it' : 'them'} (you can change the text first), then combine.
+        </div>
       )}
 
-      {locked && (
-        <div className={`${card} mt-4 p-4`}>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5">
-              <span className="w-5 h-5 rounded-full border-2 border-brand/20 border-t-brand animate-spin" />
-              <div>
-                <div className="text-[12.5px] font-semibold text-ink-800">
-                  {story.status === 'combining' ? 'Joining the finished clips' : 'Rendering video scenes'}
-                </div>
-                <div className="mt-0.5 text-[10.5px] text-ink-400">
-                  {story.status === 'combining' ? 'Creating the final MP4' : `${done} of ${story.scenes.length} scenes ready`}
-                </div>
-              </div>
-            </div>
-            <span className="text-[10.5px] text-ink-400">You can leave this page — we'll notify you</span>
+      {showFinal && <ResultCard story={story} voice={voice} onUseFinal={useFinal} onLibrary={() => navigate('/library')} />}
+
+      <div className="grid items-start gap-5 xl:grid-cols-[minmax(280px,340px)_minmax(0,1fr)] 2xl:grid-cols-[360px_minmax(0,1fr)]">
+        {/* ── Brief ── */}
+        <aside className={`${card} space-y-4 p-5 xl:sticky xl:top-20`}>
+          <div>
+            <h3 className="text-[15px] font-semibold text-ink-900">Brief</h3>
+            {brand && (
+              <p className="mt-0.5 inline-flex items-center gap-1.5 text-[12px] text-ink-500">
+                <span className="h-2 w-2 rounded-full" style={{ background: colorForBrand(brand.slug) }} />
+                {brand.name}
+              </p>
+            )}
           </div>
-          <div className="mt-3 flex gap-1">
-            {story.scenes.map((scene) => (
-              <span
+          <div>
+            <div className="label">What this video should do</div>
+            <FoldText text={story.idea} />
+          </div>
+          <dl className="grid grid-cols-2 gap-x-3 gap-y-2.5 text-[12px]">
+            <dt className="text-ink-500">Language</dt>
+            <dd className="text-right font-semibold text-ink-800">{voice}</dd>
+            <dt className="text-ink-500">Format</dt>
+            <dd className="text-right font-semibold text-ink-800">{story.aspect_ratio}</dd>
+            <dt className="text-ink-500">Length</dt>
+            <dd className="text-right font-semibold text-ink-800">{story.total_seconds} s · {story.scenes.length} clips</dd>
+            {story.estimated_cost != null && (
+              <>
+                <dt className="text-ink-500">Clips cost</dt>
+                <dd className="text-right font-semibold text-ink-800">≈ ${Number(story.estimated_cost).toFixed(2)} AI credit</dd>
+              </>
+            )}
+          </dl>
+          {draft ? (
+            <SharedLook story={story} editable bare onChange={(style) => updateStory({ style })} />
+          ) : (
+            <div>
+              <div className="label">Shared look (used in every clip)</div>
+              <FoldText text={story.style || 'No shared look was provided.'} lines={4} />
+            </div>
+          )}
+          <div className="rounded-xl bg-ink-50/70 px-3.5 py-3 text-[11.5px] leading-relaxed text-ink-500">
+            The AI is told to use only facts from your product info. Logo, colours and prices inside the clips aren’t
+            checked automatically — watch the clips before you post.
+          </div>
+        </aside>
+
+        {/* ── Clips, timeline, result ── */}
+        <div className="min-w-0 space-y-5">
+          {draft && (
+            <p className="text-[12px] text-ink-500">
+              Check each clip — change any text — then <b className="text-ink-700">Generate clips</b>. Nothing is made, or charged, before that.
+            </p>
+          )}
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+            {story.scenes.map((scene, index) => (
+              <ClipCard
                 key={scene.key}
-                className={`h-1.5 flex-1 rounded-full ${
-                  scene.state === 'done'
-                    ? 'bg-emerald-500'
-                    : scene.state === 'failed'
-                      ? 'bg-red-500'
-                      : scene.state === 'rendering'
-                        ? 'bg-brand animate-pulse-glow'
-                        : 'bg-ink-200'
-                }`}
+                scene={scene}
+                index={index}
+                story={story}
+                editable={draft}
+                busy={busy}
+                onChange={(change) => updateScene(scene.key, change)}
+                onRedo={() => redoOf(scene)}
               />
             ))}
           </div>
+          <Timeline story={story} />
         </div>
-      )}
-
-      {story.status === 'review' && failed > 0 && (
-        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] text-amber-800">
-          {failed} scene{failed === 1 ? '' : 's'} could not be rendered. Edit and redo the failed scene{failed === 1 ? '' : 's'}, then join the video.
-        </div>
-      )}
-
-      {compact ? (
-        <div className="mt-4 space-y-4">
-          {showFinal && <FinalVideo story={story} compact onUseFinal={useFinal} onLibrary={() => navigate('/library')} />}
-          <SharedLook story={story} editable={draft} onChange={(style) => updateStory({ style })} />
-          {scenes}
-        </div>
-      ) : (
-        <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px] items-start">
-          <div className="space-y-4">
-            <section className={`${card} p-5`}>
-              <div className="flex items-center gap-2">
-                <FiFilm size={15} className="text-brand" />
-                <h2 className="text-[14px] font-bold text-ink-900">Storyboard</h2>
-              </div>
-              <div className="mt-4 rounded-xl bg-ink-50/70 p-4">
-                <div className="text-[10.5px] font-semibold uppercase tracking-[.06em] text-ink-400">Original idea</div>
-                <p className="mt-1.5 text-[12px] leading-relaxed text-ink-700">{story.idea}</p>
-              </div>
-              <div className="mt-4">
-                <SharedLook story={story} editable={draft} bare onChange={(style) => updateStory({ style })} />
-              </div>
-            </section>
-            {scenes}
-          </div>
-
-          <aside className="space-y-4 xl:sticky xl:top-20">
-            {showFinal ? (
-              <FinalVideo story={story} onUseFinal={useFinal} onLibrary={() => navigate('/library')} />
-            ) : (
-              <div className={`${card} p-5`}>
-                <div className="w-10 h-10 rounded-xl bg-brand-soft text-brand grid place-items-center">
-                  {story.status === 'review' ? <FiLayers size={18} /> : <FiVideo size={18} />}
-                </div>
-                <h2 className="mt-3 text-[14px] font-bold text-ink-900">
-                  {story.status === 'review' ? 'Ready to join' : 'Review before rendering'}
-                </h2>
-                <p className="mt-1.5 text-[11.5px] leading-relaxed text-ink-500">
-                  {story.status === 'review'
-                    ? `Every clip will be joined in order into one ${story.aspect_ratio} MP4 and added to the Library.`
-                    : 'Edit the title, shared look, and each scene. Once approved, the video service renders every clip in the background.'}
-                </p>
-                <div className="mt-4 space-y-2 text-[11px] text-ink-500">
-                  <div className="flex justify-between"><span>Scenes</span><b className="text-ink-800">{story.scenes.length}</b></div>
-                  <div className="flex justify-between"><span>Length</span><b className="text-ink-800">{story.total_seconds}s</b></div>
-                  <div className="flex justify-between"><span>Format</span><b className="text-ink-800">{story.aspect_ratio}</b></div>
-                </div>
-                {story.status === 'review' ? (
-                  <button type="button" onClick={combine} disabled={!!busy || !allDone} className="btn-primary w-full mt-5">
-                    <FiFilm size={14} /> Join into one video
-                  </button>
-                ) : draft ? (
-                  <button type="button" onClick={() => setRenderConfirm(true)} disabled={!!busy || !story.title.trim()} className="btn-primary w-full mt-5">
-                    <FiZap size={14} /> Approve & render
-                  </button>
-                ) : null}
-              </div>
-            )}
-          </aside>
-        </div>
-      )}
+      </div>
 
       {dialogs}
     </div>
+  )
+}
+
+// ── the studio layout's parts ─────────────────────────────────────────────
+// Each clip's job in the story. The AI names it (app/story.py); older stories
+// get one by position.
+const ROLE_NAMES = { hook: 'Hook', problem: 'Problem', solution: 'Solution', proof: 'Proof', cta: 'Call to action' }
+const MIDDLE_ROLES = ['problem', 'solution', 'proof']
+const ROLE_COLOR = {
+  hook: 'from-amber-600 to-amber-800',
+  problem: 'from-rose-600 to-rose-800',
+  solution: 'from-sky-600 to-sky-800',
+  proof: 'from-emerald-600 to-emerald-800',
+  cta: 'from-violet-600 to-violet-800',
+  video: 'from-ink-700 to-ink-900',
+}
+
+function roleKey(scene, index, count) {
+  if (ROLE_NAMES[scene.role]) return scene.role
+  if (count === 1) return 'video'
+  if (index === 0) return 'hook'
+  if (index === count - 1) return 'cta'
+  return MIDDLE_ROLES[(index - 1) % MIDDLE_ROLES.length]
+}
+const roleName = (scene, index, count) => ROLE_NAMES[roleKey(scene, index, count)] || 'Video'
+
+function ClipCard({ scene, index, story, editable, busy, onChange, onRedo }) {
+  const count = story.scenes.length
+  const key = roleKey(scene, index, count)
+  const working = ['pending', 'rendering'].includes(scene.state) && !editable
+  const canRedo = !editable && story.status !== 'combining' && ['done', 'failed'].includes(scene.state)
+  const words = (scene.voiceover || '').trim() ? (scene.voiceover.trim().match(/\S+/g) || []).length : 0
+
+  return (
+    <article className={`${card} flex flex-col overflow-hidden transition-shadow hover:shadow-card-hover`}>
+      <div className={`relative bg-night-950 ${story.aspect_ratio === '9:16' ? 'aspect-[3/4]' : 'aspect-video'}`}>
+        {scene.video_url ? (
+          <video src={abs(scene.video_url)} controls preload="metadata" playsInline className="h-full w-full bg-black object-cover" />
+        ) : (
+          <div className={`flex h-full flex-col justify-end bg-gradient-to-br ${ROLE_COLOR[key]} p-3`}>
+            {working && (
+              <span className="absolute right-3 top-3 h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" aria-label="Making this clip" />
+            )}
+            <span className="text-[10.5px] font-semibold uppercase tracking-wider text-white/70">{ROLE_NAMES[key] || 'Video'}</span>
+            <span className="mt-0.5 line-clamp-2 text-[13.5px] font-bold leading-snug text-white">{scene.on_screen || ' '}</span>
+          </div>
+        )}
+        <span className="pointer-events-none absolute left-2.5 top-2.5 rounded-md bg-black/70 px-2 py-0.5 font-mono text-[11px] text-white">
+          Clip {index + 1} · {scene.seconds} s
+        </span>
+      </div>
+
+      <div className="flex flex-1 flex-col p-3.5">
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="text-[12px] font-semibold text-ink-900">{roleName(scene, index, count)}</span>
+          <span className="font-mono text-[10.5px] text-ink-400">
+            {timecode(scene.starts_at)}–{timecode(scene.starts_at + scene.seconds)}
+          </span>
+        </div>
+        {editable ? (
+          <div className="mt-2 space-y-2">
+            <AutoTextarea minRows={3} maxRows={10} maxLength={6000} value={scene.visual} onChange={(e) => onChange({ visual: e.target.value })} className={`${storyInput} text-[11.5px]`} aria-label={`Clip ${index + 1} picture`} />
+            {story.language && (
+              <AutoTextarea minRows={1} maxRows={5} maxLength={1000} value={scene.voiceover} onChange={(e) => onChange({ voiceover: e.target.value })} placeholder="What the narrator says" className={`${storyInput} text-[11.5px]`} aria-label={`Clip ${index + 1} voice-over`} />
+            )}
+            <input maxLength={80} value={scene.on_screen} onChange={(e) => onChange({ on_screen: e.target.value })} placeholder="On-screen text (Latin letters)" className={`${storyInput} text-[11.5px]`} aria-label={`Clip ${index + 1} on-screen text`} />
+            {story.language && (
+              <div className={`text-right text-[10px] ${words > scene.word_budget ? 'font-semibold text-amber-700' : 'text-ink-400'}`}>
+                {words}/{scene.word_budget} words fit in {scene.seconds} s
+              </div>
+            )}
+          </div>
+        ) : (
+          <>
+            <p className="mt-1 line-clamp-4 text-[11.5px] leading-relaxed text-ink-500" title={scene.visual}>{scene.visual}</p>
+            {scene.voiceover && <p className="mt-1.5 line-clamp-3 text-[11px] italic leading-relaxed text-ink-400">“{scene.voiceover}”</p>}
+          </>
+        )}
+        {scene.state === 'failed' && <p className="mt-2 text-[11px] leading-snug text-red-600">{scene.error || 'This clip could not be made.'}</p>}
+        <div className="mt-auto flex items-center justify-between pt-3">
+          <SceneState state={editable ? 'draft' : scene.state} />
+          {canRedo && (
+            <button type="button" onClick={onRedo} disabled={!!busy} className="text-[11.5px] font-semibold text-brand hover:underline disabled:opacity-50">
+              Redo
+            </button>
+          )}
+        </div>
+      </div>
+    </article>
+  )
+}
+
+// Long brief text, folded to a few lines with "Show all".
+function FoldText({ text, lines = 6 }) {
+  const [open, setOpen] = useState(false)
+  const long = (text || '').length > lines * 60 || (text || '').split('\n').length > lines
+  return (
+    <div className="rounded-xl border border-ink-100 bg-ink-50/60 px-3.5 py-3">
+      <p
+        className="whitespace-pre-line text-[12px] leading-relaxed text-ink-700"
+        style={!open && long ? { display: '-webkit-box', WebkitLineClamp: lines, WebkitBoxOrient: 'vertical', overflow: 'hidden' } : undefined}
+      >
+        {text}
+      </p>
+      {long && (
+        <button type="button" onClick={() => setOpen((o) => !o)} className="mt-1.5 text-[11.5px] font-semibold text-brand hover:underline">
+          {open ? 'Show less' : 'Show all'}
+        </button>
+      )}
+    </div>
+  )
+}
+
+// The finished video, first thing on the page: the player at its own shape on
+// a dark stage, and what to do with it beside it.
+function ResultCard({ story, voice, onUseFinal, onLibrary }) {
+  const vertical = story.aspect_ratio === '9:16'
+  if (!story.final_video?.url) {
+    return (
+      <section className={`${card} overflow-hidden`}>
+        <JoiningCanvas story={story} />
+      </section>
+    )
+  }
+  return (
+    <section className={`${card} grid overflow-hidden lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,1fr)]`}>
+      <div className="grid place-items-center bg-night-950 p-4">
+        <video
+          src={abs(story.final_video.url)}
+          controls
+          playsInline
+          className={`block rounded-xl bg-black object-contain ${vertical ? 'max-h-[68vh] w-auto' : 'max-h-[60vh] w-full'}`}
+        />
+      </div>
+      <div className="flex flex-col p-6">
+        <div className="flex items-center gap-2 text-[12px] font-semibold text-emerald-700">
+          <FiCheckCircle size={15} /> Your video is ready
+        </div>
+        <h3 className="mt-2 text-[19px] font-bold leading-snug tracking-tight text-ink-900">{story.title}</h3>
+        <div className="mt-3 flex flex-wrap gap-1.5 text-[11.5px] font-semibold text-ink-600">
+          {[`${story.total_seconds} s`, story.aspect_ratio, voice, `${story.scenes.length} clips`].map((t) => (
+            <span key={t} className="rounded-full bg-ink-100 px-2.5 py-1">
+              {t}
+            </span>
+          ))}
+        </div>
+        <div className="mt-4 flex gap-1">
+          {story.scenes.map((s, i) => (
+            <span
+              key={s.key}
+              style={{ flex: `${s.seconds} 1 0` }}
+              title={roleName(s, i, story.scenes.length)}
+              className={`h-2 rounded-full bg-gradient-to-r ${ROLE_COLOR[roleKey(s, i, story.scenes.length)]}`}
+            />
+          ))}
+        </div>
+        <p className="mt-4 text-[12px] leading-relaxed text-ink-500">
+          Saved to your Media Library. Watch it through once — check the logo, colours and any text — then put it in a post.
+        </p>
+        <div className="mt-auto grid gap-2 pt-6 sm:grid-cols-2">
+          <button type="button" onClick={onUseFinal} className="btn-primary justify-center sm:col-span-2">
+            <FiPlay size={14} /> Use in a post
+          </button>
+          <a href={abs(story.final_video.url)} download className="btn-outline justify-center">
+            <FiDownload size={13} /> Download
+          </a>
+          <button type="button" onClick={onLibrary} className="btn-outline justify-center">
+            Open in Library
+          </button>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function Timeline({ story }) {
+  const count = story.scenes.length
+  const draft = story.status === 'draft'
+  const bar = {
+    pending: 'bg-ink-200 text-ink-600',
+    rendering: 'bg-brand/50 text-white animate-pulse-glow',
+    failed: 'bg-red-200 text-red-800',
+    draft: 'bg-ink-100 text-ink-600',
+  }
+  const spoken = story.scenes.filter((s) => (s.voiceover || '').trim()).length
+  return (
+    <section className={`${card} p-5`}>
+      <div className="mb-3 flex items-baseline justify-between">
+        <h3 className="text-[15px] font-semibold text-ink-900">Timeline</h3>
+        <span className="font-mono text-[11.5px] text-ink-500">0:00 — {timecode(story.total_seconds)}</span>
+      </div>
+      <div className="flex gap-1">
+        {story.scenes.map((s, i) => (
+          <div
+            key={s.key}
+            style={{ flex: `${s.seconds} 1 0` }}
+            title={`${roleName(s, i, count)} · ${s.seconds} s`}
+            className={`truncate rounded-md px-2.5 py-2 text-[11px] font-semibold ${
+              !draft && s.state === 'done' ? `bg-gradient-to-r text-white ${ROLE_COLOR[roleKey(s, i, count)]}` : bar[draft ? 'draft' : s.state] || bar.draft
+            }`}
+          >
+            Clip {i + 1} · {roleName(s, i, count)}
+          </div>
+        ))}
+      </div>
+      <div className="mt-2 space-y-1.5 text-[11px] text-ink-500">
+        <div className="rounded-md bg-ink-50 px-3 py-1.5">
+          {story.language ? `Voice-over · ${story.language} · spoken inside each clip (${spoken} of ${count} clips)` : 'No voice-over'}
+        </div>
+        <div className="rounded-md bg-ink-50 px-3 py-1.5">On-screen text · drawn by the video model in each clip (Latin letters only)</div>
+      </div>
+    </section>
   )
 }
 
@@ -857,91 +1036,6 @@ function SharedLook({ story, editable, bare = false, onChange }) {
     </label>
   )
   return bare ? body : <section className={`${card} p-4`}>{body}</section>
-}
-
-function SceneCard({ scene, index, story, compact, editable, busy, onChange, onRedo }) {
-  const words = (scene.voiceover || '').trim() ? (scene.voiceover.trim().match(/\S+/g) || []).length : 0
-  const canRedo = story.status !== 'draft' && story.status !== 'combining' && !['pending', 'rendering'].includes(scene.state)
-  const previewClass =
-    story.aspect_ratio === '9:16' ? `aspect-[9/16] ${compact ? 'w-[150px]' : 'w-[190px]'}` : 'aspect-video w-full'
-
-  return (
-    <article className={`${card} overflow-hidden`}>
-      <header className="flex flex-wrap items-center gap-2.5 border-b border-ink-100 px-4 py-3">
-        <span className="w-7 h-7 rounded-lg bg-ink-900 text-ink-50 grid place-items-center text-[10.5px] font-bold flex-none">{index + 1}</span>
-        <div className="min-w-0">
-          <div className="text-[12px] font-semibold text-ink-800">Scene {index + 1}</div>
-          <div className="text-[10px] text-ink-400">{timecode(scene.starts_at)}–{timecode(scene.starts_at + scene.seconds)}</div>
-        </div>
-        <span className="ml-auto inline-flex items-center gap-1.5 text-[10.5px] text-ink-500">
-          <FiClock size={11} /> {scene.seconds}s
-        </span>
-        {!editable && <SceneState state={scene.state} />}
-      </header>
-
-      <div className="p-4">
-        {scene.video_url && (
-          <div className="mb-4 flex justify-center rounded-2xl bg-night-950 p-2">
-            <video
-              src={abs(scene.video_url)}
-              controls
-              preload="metadata"
-              playsInline
-              className={`${previewClass} max-h-[430px] rounded-xl bg-black object-contain`}
-            />
-          </div>
-        )}
-        {['pending', 'rendering'].includes(scene.state) && (
-          <div className={`mb-4 mx-auto ${story.aspect_ratio === '9:16' ? 'aspect-[9/16] w-[190px]' : 'aspect-video w-full'}`}>
-            <GeneratingCanvas stage={scene.state === 'rendering' ? 'Rendering this scene…' : 'Waiting for a render slot'} />
-          </div>
-        )}
-
-        <div className="space-y-3.5">
-          <label className="block">
-            <span className="label">Visual direction</span>
-            {editable ? (
-              <AutoTextarea minRows={2} maxRows={12} maxLength={6000} value={scene.visual} onChange={(event) => onChange({ visual: event.target.value })} className={storyInput} />
-            ) : (
-              <p className="text-[12px] leading-relaxed text-ink-700">{scene.visual}</p>
-            )}
-          </label>
-          <div className={compact ? 'space-y-3.5' : 'grid gap-3.5 sm:grid-cols-[minmax(0,1fr)_180px]'}>
-            <label className="block">
-              <span className="label">Voiceover</span>
-              {editable ? (
-                <AutoTextarea minRows={1} maxRows={6} maxLength={1000} value={scene.voiceover} onChange={(event) => onChange({ voiceover: event.target.value })} className={storyInput} />
-              ) : (
-                <p className="min-h-9 text-[12px] leading-relaxed text-ink-700">{scene.voiceover || 'No voiceover'}</p>
-              )}
-            </label>
-            <label className="block">
-              <span className="label">On-screen text</span>
-              {editable ? (
-                <input maxLength={80} value={scene.on_screen} onChange={(event) => onChange({ on_screen: event.target.value })} className={storyInput} />
-              ) : (
-                <p className="min-h-9 text-[12px] font-semibold text-ink-800">{scene.on_screen || '—'}</p>
-              )}
-            </label>
-          </div>
-        </div>
-
-        {editable && <div className="mt-3 text-right text-[10px] text-ink-400">{words}/{scene.word_budget} voiceover words</div>}
-        {scene.state === 'failed' && (
-          <div className="mt-3 rounded-xl border border-red-100 bg-red-50 px-3.5 py-3 text-[11px] leading-relaxed text-red-700">
-            {scene.error || 'This scene could not be rendered.'}
-          </div>
-        )}
-        {canRedo && (
-          <div className="mt-3 flex justify-end">
-            <button type="button" onClick={onRedo} disabled={!!busy} className="btn-outline px-3 py-1.5 text-[10.5px]">
-              <FiEdit3 size={12} /> {scene.state === 'failed' ? 'Edit & redo' : 'Edit & redo scene'}
-            </button>
-          </div>
-        )}
-      </div>
-    </article>
-  )
 }
 
 function SceneState({ state }) {

@@ -10,6 +10,7 @@ import {
   FiEdit,
   FiFileText,
   FiGrid,
+  FiHome,
   FiImage,
   FiLogOut,
   FiMenu,
@@ -20,6 +21,7 @@ import {
   FiSettings,
   FiSmartphone,
   FiSun,
+  FiUserCheck,
   FiX,
   FiZap,
 } from "react-icons/fi";
@@ -39,12 +41,14 @@ import { applyUpdate } from "../../lib/update";
 export const openMoreSheet = () => window.dispatchEvent(new Event("dispatch:open-more"));
 
 const MODULES = [
+  { to: "/command", icon: FiHome, label: "Command center" },
   { to: "/", icon: FiGrid, label: "Dashboard" },
   { to: "/review", icon: FiFileText, label: "Content" },
   { to: "/calendar", icon: FiCalendar, label: "Calendar" },
   { to: "/new", icon: FiEdit, label: "Compose" },
-  { to: "/ai", icon: FiZap, label: "AI Agent" },
-  { to: "/weekly", icon: FiClipboard, label: "Weekly plan" },
+  { to: "/ai", icon: FiZap, label: "Content studio" },
+  { to: "/leads", icon: FiUserCheck, label: "Leads" },
+  { to: "/weekly", icon: FiClipboard, label: "Plan & best time" },
   { to: "/auto", icon: FiRepeat, label: "Auto-generate" },
   { to: "/library", icon: FiImage, label: "Library" },
   { to: "/products", icon: FiPackage, label: "Products" },
@@ -95,7 +99,7 @@ export default function MobileBar() {
           <div className="flex items-center justify-center -mt-5">
             <button
               type="button"
-              onClick={() => navigate("/ai")}
+              onClick={() => navigate("/ai?tab=images")}
               data-tour="m-ai"
               className={`w-12 h-12 rounded-2xl gradient-brand text-white grid place-items-center shadow-glow-lg ${
                 pathname === "/ai" ? "ring-4 ring-brand/20" : "animate-ai-pulse"

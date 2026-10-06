@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
-import { FiAlertTriangle, FiArrowDownRight, FiArrowUpRight, FiCalendar, FiCheck, FiRefreshCw, FiTrendingUp, FiUsers, FiX, FiZap } from 'react-icons/fi'
+import { FiAlertTriangle, FiArrowDownRight, FiArrowUpRight, FiCalendar, FiCheck, FiRefreshCw, FiTrendingUp, FiUsers, FiZap } from 'react-icons/fi'
 import { api } from '../api/client'
-import { GOAL_LABELS, PILLAR_LABELS, SELLING_PILLARS, angleText, pillarChipClass } from '../lib/angles'
+import { PILLAR_LABELS, pillarChipClass } from '../lib/angles'
+import { goalOfItem, ruleAction } from '../lib/goals'
 import { colorForBrand } from '../lib/brandColor'
 import { useSmoothProgress } from '../lib/autoRuns'
 import { useStore } from '../store'
 import { PLAT } from '../data/brands'
-import AutoTextarea from '../components/ui/AutoTextarea'
 import Select from '../components/ui/Select'
+import BestTime from '../components/weekly/BestTime'
+import ContentGoals from '../components/weekly/ContentGoals'
+import PlanBoard from '../components/weekly/PlanBoard'
 
 // The weekly habit (backend app/weekly.py): how the last 7 days went, what the
 // AI learned, and next week's posts — trimmed here and approved in one tap.
@@ -30,6 +33,7 @@ export default function WeeklyPage() {
   const [busy, setBusy] = useState('')
   const [confirmRewrite, setConfirmRewrite] = useState(null)
   const [confirmRegen, setConfirmRegen] = useState(false)
+  const [filter, setFilter] = useState('') // content goal the posts are filtered to
   const poll = useRef(null)
 
   const load = useCallback(async () => {
@@ -80,7 +84,7 @@ export default function WeeklyPage() {
   // Rewrite replaces the waiting plan — ask first if the user has changed it.
   const askRewrite = () => {
     const edited = data.plan.items.filter((i) => i.edited).length
-    const removed = data.plan.report?.removed || 0
+    const removed = (data.plan.report?.removed || 0) + data.plan.items.filter((i) => i.state === 'skipped').length
     if (edited || removed) setConfirmRewrite({ edited, removed })
     else planNow()
   }
@@ -92,7 +96,11 @@ export default function WeeklyPage() {
       await api.post(`/views/drafts/${draftId}/media`, { kind: 'image' })
       setData((d) => ({
         ...d,
-        plan: { ...d.plan, drafts: d.plan.drafts.map((x) => (x.id === draftId ? { ...x, media_pending: true } : x)) },
+        plan: {
+          ...d.plan,
+          drafts: d.plan.drafts.map((x) => (x.id === draftId ? { ...x, media_pending: true } : x)),
+          items: d.plan.items.map((i) => (i.draft?.id === draftId ? { ...i, draft: { ...i.draft, media_pending: true } } : i)),
+        },
       }))
       showToast('Making the image — about 30 seconds. It’s scheduled as soon as it’s ready.')
     } catch (e) {
@@ -101,7 +109,7 @@ export default function WeeklyPage() {
   }
 
   // While an image is being made, refresh until it's done.
-  const mediaPending = data?.plan?.drafts?.some((d) => d.media_pending)
+  const mediaPending = data?.plan?.drafts?.some((d) => d.media_pending) || data?.plan?.items?.some((i) => i.draft?.media_pending)
   useEffect(() => {
     if (!mediaPending) return
     const id = setInterval(load, 5000)
@@ -136,17 +144,32 @@ export default function WeeklyPage() {
     }
   }
 
-  const approve = async () => {
+  // opts: {} = every waiting post · {unflagged_only: true} · {keys: [key]} = one post
+  const approve = async (opts = {}) => {
     setBusy('approve')
     try {
-      const out = await api.post(`/weekly/${data.plan.id}/approve`)
+      const out = await api.post(`/weekly/${data.plan.id}/approve`, opts)
+      const n = out.drafts
       showToast(
         out.making_media
-          ? `Approved — making images and scheduling ${out.drafts} posts in the background`
-          : `Approved — ${out.drafts} ideas added to your Calendar`,
+          ? `Approved — making images and scheduling ${n} post${n === 1 ? '' : 's'}`
+          : `Approved — ${n} post${n === 1 ? '' : 's'} added to your Calendar`,
       )
       refreshReview?.()
       await load()
+    } catch (e) {
+      showToast(e.message)
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const saveMix = async (mix) => {
+    setBusy('mix')
+    try {
+      const out = await api.put(`/weekly/mix?brand_id=${brand.id}`, { mix })
+      setData((d) => ({ ...d, mix: out.mix, mix_custom: out.mix_custom }))
+      showToast(mix ? 'Mix saved — the next plan follows it' : 'Back to the AI’s own mix')
     } catch (e) {
       showToast(e.message)
     } finally {
@@ -168,15 +191,16 @@ export default function WeeklyPage() {
 
   const setItems = (fn) => setData((d) => ({ ...d, plan: { ...d.plan, items: fn(d.plan.items) } }))
 
-  const removeItem = async (key) => {
+  // Skip / bring back one post — the plan closes once every post is decided.
+  const decide = async (key, action) => {
     const before = data.plan.items
-    setItems((items) => items.filter((i) => i.key !== key))
+    setItems((items) => items.map((i) => (i.key === key ? { ...i, state: action === 'skip' ? 'skipped' : undefined } : i)))
     try {
-      await api.del(`/weekly/${data.plan.id}/items/${key}`)
-      setData((d) => ({ ...d, plan: { ...d.plan, report: { ...d.plan.report, removed: (d.plan.report?.removed || 0) + 1 } } }))
+      await api.post(`/weekly/${data.plan.id}/items/${key}/${action}`)
+      if (action === 'skip') await load() // the plan may have just closed
     } catch (e) {
       setItems(() => before)
-      showToast(`Could not remove — ${e.message}`)
+      showToast(e.message)
     }
   }
 
@@ -203,34 +227,45 @@ export default function WeeklyPage() {
   const report = ready ? plan.report : data?.report
   const running = job?.status === 'running'
   const planning = running && job.kind === 'plan'
+  const makingMedia = running && job.kind === 'media'
+  const waiting = ready ? plan.items.filter((i) => !i.state) : []
+  const cleanCount = waiting.filter((i) => !i.fact_issues?.length).length
+  const counts = {}
+  for (const i of ready ? plan.items : []) if (i.state !== 'skipped') counts[goalOfItem(i)] = (counts[goalOfItem(i)] || 0) + 1
 
   return (
     <div className="w-full px-5 lg:px-8 py-7 animate-fadein">
       <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-[24px] font-bold text-ink-900 tracking-tight leading-tight">AI Content Advisor</h1>
-          <p className="mt-1 text-[13px] text-ink-600">
-            Your weekly check-in: see how your posts did, what the AI learned from them, and approve next week’s posts.
-          </p>
-          <ol className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-ink-500">
-            {['See your results', 'AI learns what works', 'Approve next week’s posts'].map((s, i) => (
-              <li key={s} className="flex items-center gap-2">
-                {i > 0 && <span className="text-ink-300">→</span>}
-                <span className="grid h-5 w-5 place-items-center rounded-full bg-ink-100 text-[10.5px] font-bold text-ink-700">{i + 1}</span>
-                {s}
-              </li>
-            ))}
-          </ol>
+          <h1 className="text-[24px] font-bold text-ink-900 tracking-tight leading-tight">Plan &amp; best time</h1>
+          <p className="mt-1 text-[13px] text-ink-600">AI content plan built from how your audience reacts, with the best time per channel</p>
         </div>
-        {brands.length > 1 && (
-          <Select
-            align="right"
-            value={brand.slug}
-            onChange={switchBrand}
-            buttonClassName="font-medium"
-            options={brands.map((b) => ({ value: b.slug, label: b.name, color: colorForBrand(b.slug) }))}
-          />
-        )}
+        <div className="flex flex-wrap items-center gap-2.5">
+          {ready && (
+            <>
+              <button type="button" disabled={!!busy || running} onClick={askRewrite} className="btn-outline px-4 py-2">
+                <FiRefreshCw size={14} /> Regenerate from latest results
+              </button>
+              <button
+                type="button"
+                disabled={!!busy || running || cleanCount === 0}
+                onClick={() => approve({ unflagged_only: true })}
+                className="btn-primary px-4 py-2"
+              >
+                {busy === 'approve' ? 'Working…' : `Approve all unflagged (${cleanCount})`}
+              </button>
+            </>
+          )}
+          {brands.length > 1 && (
+            <Select
+              align="right"
+              value={brand.slug}
+              onChange={switchBrand}
+              buttonClassName="font-medium"
+              options={brands.map((b) => ({ value: b.slug, label: b.name, color: colorForBrand(b.slug) }))}
+            />
+          )}
+        </div>
       </div>
 
       {error && <p className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-[12.5px] text-red-700">{error}</p>}
@@ -257,26 +292,43 @@ export default function WeeklyPage() {
         </div>
       ) : (
         data && (
-          <div className="space-y-4">
-            {report && <Report report={report} advisor={ready ? plan.report?.advisor : null} />}
+          <div className="space-y-5">
+            <ContentGoals
+              mix={data.mix}
+              custom={data.mix_custom}
+              perMonth={data.per_month}
+              counts={counts}
+              filter={filter}
+              onFilter={setFilter}
+              onSave={saveMix}
+              saving={busy === 'mix'}
+            />
 
             {planning ? (
-              <>
-                <StepTitle n={3} title="Your plan for next week" />
-                <WeeklyPlanning brand={brand.name} job={job} />
-              </>
+              <WeeklyPlanning brand={brand.name} job={job} />
             ) : ready ? (
-              <PlanCard
-                plan={plan}
-                autoMedia={data.auto_media}
-                busy={busy}
-                running={running}
-                onApprove={approve}
-                onDismiss={dismiss}
-                onReplan={askRewrite}
-                onRemove={removeItem}
-                onSaveCaption={saveCaption}
-              />
+              <>
+                <PlanBoard
+                  plan={plan}
+                  brandName={brand.name}
+                  report={report}
+                  mix={data.mix}
+                  autoMedia={data.auto_media}
+                  makingMedia={makingMedia}
+                  filter={filter}
+                  busy={busy || (running ? 'job' : '')}
+                  onApprove={approve}
+                  onSkip={(key) => decide(key, 'skip')}
+                  onUnskip={(key) => decide(key, 'unskip')}
+                  onSaveCaption={saveCaption}
+                  onMakeImage={makeImage}
+                />
+                <div className="flex justify-end">
+                  <button type="button" disabled={!!busy || running} onClick={dismiss} className="btn-ghost px-3 py-1.5 text-ink-500">
+                    Skip this week
+                  </button>
+                </div>
+              </>
             ) : (
               <NoPlan
                 plan={plan}
@@ -286,6 +338,20 @@ export default function WeeklyPage() {
                 onRegenerate={() => setConfirmRegen(true)}
                 onMakeImage={makeImage}
               />
+            )}
+
+            <BestTime data={data.best_time} />
+
+            {report && (
+              <details className="group" open={!ready}>
+                <summary className="cursor-pointer list-none text-[13px] font-semibold text-brand hover:underline">
+                  <span className="group-open:hidden">Show last week’s results and what the AI learned ▸</span>
+                  <span className="hidden group-open:inline">Hide last week’s results ▾</span>
+                </summary>
+                <div className="mt-3 space-y-4">
+                  <Report report={report} advisor={ready ? plan.report?.advisor : null} />
+                </div>
+              </details>
             )}
           </div>
         )
@@ -340,7 +406,9 @@ function StepTitle({ n, title, sub, children }) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-3 pt-2">
       <div className="flex items-center gap-3">
-        <span className="grid h-7 w-7 flex-none place-items-center rounded-full bg-ink-900 text-[12.5px] font-bold text-ink-50">{n}</span>
+        {n != null && (
+          <span className="grid h-7 w-7 flex-none place-items-center rounded-full bg-ink-900 text-[12.5px] font-bold text-ink-50">{n}</span>
+        )}
         <div>
           <h2 className="text-[16px] font-bold leading-tight tracking-tight text-ink-900">{title}</h2>
           {sub && <p className="text-[12px] text-ink-500">{sub}</p>}
@@ -355,11 +423,10 @@ function StepTitle({ n, title, sub, children }) {
 function Report({ report, advisor }) {
   return (
     <>
-      <StepTitle n={1} title="How last week went" sub={`${dayLabel(report.from)} – ${dayLabel(report.to)}, compared with the 7 days before`} />
+      <StepTitle title="How last week went" sub={`${dayLabel(report.from)} – ${dayLabel(report.to)}, compared with the 7 days before`} />
       <Summary report={report} />
       <Hero report={report} />
       <StepTitle
-        n={2}
         title="What the AI learned"
         sub={`Lessons from your own posts (last 90 days${report.learned_from ? `, ${report.learned_from} posts with results` : ''}) — the AI already uses them`}
       />
@@ -603,28 +670,6 @@ function sureness(na, nb) {
   return { label: 'Strong', cls: 'bg-emerald-50 text-emerald-700', tip: `Based on ${na} vs ${nb} posts.` }
 }
 
-/** What the AI does with a lesson (mirrors the guidance in learning.py). */
-function ruleAction(r) {
-  const id = r.id || ''
-  if (id.startsWith('weak-')) return 'The AI uses this less in your next plans.'
-  if (id.startsWith('timing-')) {
-    const at = /go out at (\d\d:\d\d)/.exec(r.evidence || '')
-    return at ? `Auto-posts on this platform now go out at ${at[1]}.` : 'Auto-posts use this time.'
-  }
-  if (id.startsWith('day-')) return 'The week’s strongest idea goes on this day.'
-  return (
-    {
-      format: 'The AI favours this format in your plans.',
-      pillar: 'The AI leans your topic mix towards it.',
-      angle: 'The AI writes about half the ideas this way.',
-      subject: 'This subject now comes round twice as often.',
-      questions: 'Captions now end with a short question.',
-      hashtags: 'Captions follow this for hashtags.',
-      length: 'Captions follow this for length.',
-    }[id] || 'The AI uses this when writing your posts.'
-  )
-}
-
 const fmt1 = (n) => (Number.isInteger(n) ? n : n.toFixed(1))
 
 function LessonCard({ rule, weak }) {
@@ -790,242 +835,6 @@ function Lessons({ report, advisor }) {
   )
 }
 
-// ── Step 3: the plan ──────────────────────────────────────────────────────
-// [[pillar, count], …] in PILLAR_LABELS order, and how many of them sell.
-function pillarMix(items) {
-  const counts = {}
-  for (const i of items) if (PILLAR_LABELS[i.pillar]) counts[i.pillar] = (counts[i.pillar] || 0) + 1
-  return {
-    pillars: Object.keys(PILLAR_LABELS)
-      .filter((p) => counts[p])
-      .map((p) => [p, counts[p]]),
-    selling: items.filter((i) => SELLING_PILLARS.includes(i.pillar)).length,
-  }
-}
-
-function PlanCard({ plan, autoMedia, busy, running, onApprove, onDismiss, onReplan, onRemove, onSaveCaption }) {
-  const byDay = {}
-  for (const item of plan.items) (byDay[item.day] ||= []).push(item)
-  const n = plan.items.length
-  const flagged = plan.items.filter((i) => i.fact_issues?.length).length
-  const mix = pillarMix(plan.items)
-  const value = n - mix.selling
-
-  return (
-    <>
-      <StepTitle n={3} title="Your plan for next week" sub={`${dayRange(plan.starts_on, plan.ends_on)} · ${n} post${n === 1 ? '' : 's'} written by the AI using the lessons above`}>
-        <div className="flex items-center gap-1">
-          <button type="button" disabled={!!busy || running} onClick={onReplan} className="btn-ghost px-3 py-1.5" title="Write a fresh plan">
-            <FiRefreshCw size={13} /> Rewrite
-          </button>
-          <button type="button" disabled={!!busy || running} onClick={onDismiss} className="btn-ghost px-3 py-1.5">
-            Skip this week
-          </button>
-        </div>
-      </StepTitle>
-
-      <section className={`${card} overflow-hidden`}>
-        {/* the mix, as one bar: value vs selling */}
-        {n > 0 && (
-          <div className="border-b border-ink-100 px-5 py-4">
-            {mix.pillars.length > 0 ? (
-              <>
-                <div className="flex flex-wrap items-center justify-between gap-2 text-[12.5px]">
-                  <span className="font-semibold text-ink-800">
-                    {value} give value <span className="font-normal text-ink-400">·</span> {mix.selling} sell
-                  </span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {mix.pillars.map(([p, count]) => (
-                      <span key={p} className={`rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${pillarChipClass(p)}`}>
-                        {PILLAR_LABELS[p]}
-                        {count > 1 ? ` ×${count}` : ''}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                <div className="mt-2.5 flex h-2 gap-[2px] overflow-hidden rounded-full">
-                  <div className="bg-brand" style={{ width: `${(value / n) * 100}%` }} />
-                  {mix.selling > 0 && <div className="bg-amber-400" style={{ width: `${(mix.selling / n) * 100}%` }} />}
-                </div>
-              </>
-            ) : (
-              <p className="text-[12px] text-ink-500">
-                This plan was written before topics existed — press <b>Rewrite</b> for a plan with a topic and goal on every post.
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* the week board: one column per day */}
-        {n > 0 ? (
-          <div className="grid grid-cols-1 gap-3 p-5 sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-7">
-            {Object.entries(byDay).map(([day, items]) => (
-              <div key={day} className="flex min-w-0 flex-col gap-2">
-                <div className="flex items-baseline gap-1.5 border-b border-ink-100 pb-1.5">
-                  <span className="text-[13px] font-bold text-ink-900">
-                    {new Date(`${day}T00:00`).toLocaleDateString('en-GB', { weekday: 'short' })}
-                  </span>
-                  <span className="text-[11.5px] text-ink-400">
-                    {new Date(`${day}T00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                  </span>
-                </div>
-                {items.map((i) => (
-                  <div
-                    key={i.key}
-                    className="rounded-xl bg-ink-50/70 p-2.5"
-                    title={i.insight || i.title}
-                  >
-                    <div className={`line-clamp-3 text-[12px] font-medium leading-snug text-ink-900 ${khmer(i.title)}`}>{i.title}</div>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-1 text-[10.5px]">
-                      {PILLAR_LABELS[i.pillar] && <span className="font-semibold text-ink-600">{PILLAR_LABELS[i.pillar]}</span>}
-                      {i.meme && (
-                        <span className="rounded-full bg-amber-50 px-1.5 py-px font-semibold text-amber-800" title="Goes out as a meme poster">
-                          😄 Meme
-                        </span>
-                      )}
-                      {GOAL_LABELS[i.goal] && <span className="text-ink-400">· {GOAL_LABELS[i.goal]}</span>}
-                      {i.fact_issues?.length > 0 && <span className="font-semibold text-amber-700">· check</span>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="p-5 text-[12.5px] text-ink-500">You removed every idea — rewrite the plan or skip this week.</p>
-        )}
-
-        {/* the one action */}
-        <div className="flex flex-col gap-3 border-t border-ink-100 bg-ink-50/50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-[12px] text-ink-500">
-            {autoMedia
-              ? 'Makes an image for every post and schedules each one on its day, at your best time.'
-              : 'Puts every idea on your Calendar on its day. Turn on “Generate media” in Auto-generate to have images made and posts scheduled too.'}
-            {flagged > 0 && <span className="ml-1 font-semibold text-amber-700">{flagged} caption{flagged === 1 ? '' : 's'} to check first.</span>}
-          </p>
-          <button type="button" disabled={!!busy || running || n === 0} onClick={onApprove} className="btn-primary flex-none px-5 py-2 text-[13px]">
-            {autoMedia ? <FiZap size={15} /> : <FiCheck size={15} />}
-            {busy === 'approve' ? 'Working…' : autoMedia ? `Generate all content (${n})` : `Approve plan (${n})`}
-          </button>
-        </div>
-
-        <details className="group border-t border-ink-100 px-5 py-3" open={flagged > 0}>
-          <summary className="cursor-pointer list-none text-[12.5px] font-semibold text-brand hover:underline">
-            <span className="group-open:hidden">Review and edit the captions ▸</span>
-            <span className="hidden group-open:inline">Hide the captions ▾</span>
-          </summary>
-          <div className="mt-3 space-y-5 pb-2">
-            {Object.entries(byDay).map(([day, items]) => (
-              <div key={day}>
-                <div className="mb-2 flex items-center gap-2 text-[12px] font-semibold text-ink-700">
-                  <FiCalendar size={13} className="text-ink-400" /> {dayLabel(day)}
-                </div>
-                <div className="space-y-2.5">
-                  {items.map((item) => (
-                    <PlanItem key={item.key} item={item} onRemove={() => onRemove(item.key)} onSave={(c) => onSaveCaption(item.key, c)} />
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </details>
-      </section>
-    </>
-  )
-}
-
-function PlanItem({ item, onRemove, onSave }) {
-  const [editing, setEditing] = useState(false)
-  const [text, setText] = useState(item.caption)
-  useEffect(() => setText(item.caption), [item.caption])
-
-  return (
-    <div className="rounded-xl border border-ink-100 px-4 py-3">
-      <div className="flex items-start gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className={`font-semibold text-[13px] text-ink-900 ${khmer(item.title)}`}>{item.title}</span>
-            {PILLAR_LABELS[item.pillar] && (
-              <span
-                className={`rounded-full px-1.5 py-px text-[10px] font-semibold ${pillarChipClass(item.pillar)}`}
-                title="What this post is about — most posts give value, only some sell"
-              >
-                {PILLAR_LABELS[item.pillar]}
-              </span>
-            )}
-            {typeof item.fit_score === 'number' && (
-              <span
-                className="rounded-full bg-ink-100 px-1.5 py-px text-[10px] font-bold text-ink-600"
-                title="AI's own self-check: how specific and well-grounded this idea is for your brand"
-              >
-                {item.fit_score}% fit
-              </span>
-            )}
-            {angleText(item.angle, item.goal) && (
-              <span
-                className="rounded-full bg-ink-100 px-1.5 py-px text-[10px] font-semibold text-ink-600"
-                title="The marketing angle and goal the AI wrote this caption for"
-              >
-                {angleText(item.angle, item.goal)}
-              </span>
-            )}
-          </div>
-          {item.insight && <p className="mt-1 text-[11.5px] text-ink-500 italic leading-relaxed">{item.insight}</p>}
-          {item.meme && (
-            <div className="mt-2 rounded-lg border border-ink-100 bg-white px-3 py-2">
-              <div className="text-[10.5px] font-bold uppercase tracking-[.05em] text-amber-700">😄 Meme poster</div>
-              <p className={`mt-0.5 whitespace-pre-line text-[13px] font-bold leading-snug text-ink-900 ${khmer(item.meme.top)}`}>{item.meme.top}</p>
-              <p className="mt-1 text-[11.5px] text-ink-500">Photo: {item.meme.scene}</p>
-            </div>
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={onRemove}
-          title="Remove from the plan"
-          className="w-7 h-7 flex-none grid place-items-center rounded-lg text-ink-400 hover:bg-red-50 hover:text-red-600"
-        >
-          <FiX size={14} />
-        </button>
-      </div>
-
-      {editing ? (
-        <AutoTextarea
-          autoFocus
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onBlur={() => {
-            setEditing(false)
-            if (text.trim() && text !== item.caption) onSave(text)
-          }}
-          className={`mt-2 w-full bg-white border border-brand rounded-xl px-3 py-2 text-[12.5px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-brand/15 ${khmer(text)}`}
-        />
-      ) : (
-        <p
-          onClick={() => setEditing(true)}
-          title="Click to edit"
-          className={`mt-2 cursor-text rounded-lg px-1 -mx-1 text-[12.5px] text-ink-800 whitespace-pre-line leading-relaxed hover:bg-ink-50 ${khmer(item.caption)}`}
-        >
-          {item.caption}
-        </p>
-      )}
-
-      {Array.isArray(item.fact_issues) && item.fact_issues.length > 0 && (
-        <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2.5">
-          <div className="text-[11.5px] font-semibold text-amber-800">Check before approving — not found in your product info:</div>
-          <ul className="mt-1 space-y-0.5">
-            {item.fact_issues.map((issue, i) => (
-              <li key={i} className="text-[11.5px] text-amber-900 leading-snug">
-                • {issue}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
-  )
-}
-
 const DRAFT_STATUS = {
   scheduled: { label: 'Scheduled', cls: 'bg-emerald-50 text-emerald-700' },
   approved: { label: 'Not scheduled yet', cls: 'bg-amber-50 text-amber-700' },
@@ -1037,7 +846,7 @@ function NoPlan({ plan, data, busy, onPlan, onRegenerate, onMakeImage }) {
   const approved = plan?.status === 'approved'
   return (
     <>
-    <StepTitle n={3} title="Your plan for next week" />
+    <StepTitle title="Next week’s plan" />
     <section className={`${card} p-5`}>
       {approved ? (
         <>

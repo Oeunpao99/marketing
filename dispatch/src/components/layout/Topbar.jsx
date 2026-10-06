@@ -1,5 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
-import { FiBell, FiChevronRight, FiEdit, FiMenu, FiSearch, FiSidebar, FiZap } from "react-icons/fi";
+import { FiBell, FiChevronRight, FiEdit, FiMenu, FiMoon, FiSearch, FiSidebar, FiSun, FiZap } from "react-icons/fi";
+import { applyTheme, isDark } from "../../lib/theme";
 import { openMoreSheet } from "./MobileBar";
 import { useEffect, useState } from "react";
 import Notifications from "./Notifications";
@@ -8,13 +9,15 @@ import { useStore } from "../../store";
 import { useNotifications } from "../../lib/notifications";
 
 const LABELS = {
+  "/command": "Command center",
+  "/leads": "Leads & hand-off",
   "/new": "Compose",
   "/review": "Content",
   "/calendar": "Calendar",
-  "/auto": "Auto-generate",
-  "/weekly": "Weekly plan",
+  "/auto": "Autopilot",
+  "/weekly": "Plan & best time",
   "/story": "Video story",
-  "/ai": "AI Agent",
+  "/ai": "Content studio",
   "/library": "Media Library",
   "/products": "Products",
   "/channels": "Platforms",
@@ -33,7 +36,16 @@ function labelFor(pathname) {
 export default function Topbar({ onToggleSidebar }) {
   const { pathname } = useLocation();
   const { review, channels } = useStore();
-  const { user } = useAuth();
+  const { user, updatePrefs } = useAuth();
+  // Light / dark in one click — the same setting as Settings → Appearance,
+  // saved on the user so it follows them to every device.
+  const [dark, setDark] = useState(isDark);
+  const toggleTheme = () => {
+    const next = isDark() ? "light" : "dark";
+    applyTheme(next);
+    setDark(next === "dark");
+    updatePrefs?.({ theme: next }).catch(() => {});
+  };
   const [notifOpen, setNotifOpen] = useState(false);
 
   // The mobile "More" sheet opens the inbox through this event.
@@ -99,6 +111,16 @@ export default function Topbar({ onToggleSidebar }) {
         </kbd>
       </button>
 
+      <button
+        type="button"
+        onClick={toggleTheme}
+        className="w-9 h-9 grid place-items-center rounded-lg text-ink-600 hover:bg-ink-100"
+        aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
+        title={dark ? "Light mode" : "Dark mode"}
+      >
+        {dark ? <FiSun size={18} /> : <FiMoon size={18} />}
+      </button>
+
       <div className="relative">
         <button
           type="button"
@@ -126,7 +148,7 @@ export default function Topbar({ onToggleSidebar }) {
       </Link>
 
       <Link
-        to="/ai"
+        to="/ai?tab=images"
         data-tour="topbar-ai"
         className="hidden sm:grid w-9 h-9 place-items-center rounded-lg text-ink-600 hover:bg-ink-100"
         aria-label="AI Agent"

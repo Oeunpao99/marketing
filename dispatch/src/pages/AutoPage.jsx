@@ -186,7 +186,7 @@ export default function AutoPage() {
     <div className="w-full px-5 lg:px-8 py-7 animate-fadein">
       <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-[24px] font-bold text-ink-900 tracking-tight leading-tight">Auto-generate</h1>
+          <h1 className="text-[24px] font-bold text-ink-900 tracking-tight leading-tight">Autopilot</h1>
           <p className="mt-1 text-[13px] text-ink-600">
             Daily AI-written ideas for each brand, grounded in its products.
           </p>

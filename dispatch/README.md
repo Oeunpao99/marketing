@@ -48,6 +48,7 @@ uv run python -m app.seed
 
 # f. run the API — http://localhost:8000/docs
 uv run python -m uvicorn app.main:app --reload --port 8000
+
 ```
 
 Leave this terminal running.

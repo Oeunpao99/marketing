@@ -342,16 +342,21 @@ export default function WebsitePage() {
         <div className={`${card} h-48 skeleton`} />
       ) : !site || editing ? (
         /* set the website */
-        <section className={`${card} mx-auto max-w-2xl p-7 text-center`}>
-          <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-brand-soft text-brand">
-            <FiGlobe size={24} />
-          </div>
-          <h2 className="text-[17px] font-bold text-ink-900">{site ? 'Change the website' : `Check ${brand.name}’s website`}</h2>
-          <p className="mx-auto mt-1.5 max-w-[52ch] text-[12.5px] leading-relaxed text-ink-500">
-            Enter the address. We check it’s online and secure, how Google sees it, how it looks when shared on Facebook
-            and Telegram, its speed, and the domain and email — then the AI lists what to fix first.
-          </p>
-          <div className="mx-auto mt-5 flex max-w-md gap-2">
+        <section className={`${card} p-6 lg:p-8`}>
+          <div className="grid items-center gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,460px)]">
+            <div className="flex items-start gap-4">
+              <div className="grid h-14 w-14 flex-none place-items-center rounded-2xl bg-brand-soft text-brand">
+                <FiGlobe size={24} />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-[18px] font-bold text-ink-900">{site ? 'Change the website' : `Check ${brand.name}’s website`}</h2>
+                <p className="mt-1.5 max-w-[70ch] text-[12.5px] leading-relaxed text-ink-500">
+                  Enter the address. We check it’s online and secure, how Google sees it, how it looks when shared on
+                  Facebook and Telegram, its speed, and the domain and email — then the AI lists what to fix first.
+                </p>
+              </div>
+            </div>
+          <div className="flex gap-2">
             <input
               value={domain}
               onChange={(e) => setDomain(e.target.value)}
@@ -364,32 +369,50 @@ export default function WebsitePage() {
               {busy ? 'Starting…' : 'Check'}
             </button>
           </div>
+          </div>
           {site && (
             <button type="button" onClick={() => setEditing(false)} className="mt-3 text-[12px] font-semibold text-ink-500 hover:text-ink-800">
               Cancel
             </button>
           )}
+          <div className="mt-6 grid gap-3 border-t border-ink-100 pt-6 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+            {[
+              ['Online & secure', 'Loads, has HTTPS, no broken redirects'],
+              ['Google', 'Title, description, sitemap and indexing'],
+              ['Share preview', 'How a link looks on Facebook and Telegram'],
+              ['Speed', 'Phone and desktop speed from Google PageSpeed'],
+              ['Domain & email', 'Renewal date, and email that won’t land in spam'],
+              ['What to fix first', 'The AI ranks the fixes, with steps — every week'],
+            ].map(([title, text]) => (
+              <div key={title} className="rounded-xl border border-ink-100 bg-ink-50/60 px-4 py-3">
+                <div className="text-[12.5px] font-semibold text-ink-900">{title}</div>
+                <div className="mt-0.5 text-[11.5px] leading-snug text-ink-500">{text}</div>
+              </div>
+            ))}
+          </div>
         </section>
       ) : (
         <div className="space-y-4">
           {running && <JobBar job={job} />}
 
           {!r && !running && (
-            <section className={`${card} mx-auto max-w-2xl p-7 text-center`}>
+            <section className={`${card} flex flex-wrap items-center gap-5 p-6 lg:p-8`}>
               <div
-                className={`mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl ${
+                className={`grid h-14 w-14 flex-none place-items-center rounded-2xl ${
                   job?.status === 'failed' ? 'bg-red-500/10 text-red-600' : 'bg-brand-soft text-brand'
                 }`}
               >
                 {job?.status === 'failed' ? <FiAlertTriangle size={24} /> : <FiGlobe size={24} />}
               </div>
-              <h2 className="text-[17px] font-bold text-ink-900">{site.domain}</h2>
-              <p className="mx-auto mt-1.5 max-w-[52ch] text-[12.5px] leading-relaxed text-ink-500">
+              <div className="min-w-0 flex-1">
+              <h2 className="text-[18px] font-bold text-ink-900">{site.domain}</h2>
+              <p className="mt-1 max-w-[70ch] text-[12.5px] leading-relaxed text-ink-500">
                 {job?.status === 'failed'
                   ? job.error || 'The last check didn’t finish.'
                   : 'Not checked yet — run the first check to see how the website is doing.'}
               </p>
-              <div className="mt-5 flex flex-wrap justify-center gap-2">
+              </div>
+              <div className="flex flex-wrap gap-2">
                 <button type="button" onClick={recheck} className="btn-primary px-4">
                   <FiRefreshCw size={13} /> {job?.status === 'failed' ? 'Try again' : 'Check now'}
                 </button>

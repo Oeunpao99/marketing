@@ -140,7 +140,7 @@ function restoreTurn(t) {
   return { ...t, status: 'failed', error: 'Interrupted when the page closed — try again.' }
 }
 
-export default function AIPromptPage() {
+export default function AIPromptPage({ embedded = false, preset = null }) {
   const navigate = useNavigate()
   const location = useLocation()
   const { showToast, brands, refreshCounts } = useStore()
@@ -160,6 +160,7 @@ export default function AIPromptPage() {
   // photo to feature and the logo — sent along with image requests.
   const [kitOpen, setKitOpen] = useState(false)
   const [kitAssets, setKitAssets] = useState([])
+  const [audiences, setAudiences] = useState([]) // audiences that brought this brand leads (Insights)
   const [kitProducts, setKitProducts] = useState([])
   // The one product an image / video is about (Settings → Product) — the
   // prompt writer then uses only it, so a brand's products never get mixed.
@@ -217,9 +218,35 @@ export default function AIPromptPage() {
       setText(idea)
       showToast('Idea loaded — press ✦ to turn it into a full prompt, or send it as is')
     }
-    navigate(location.pathname, { replace: true, state: null })
+    // Keep ?tab= — dropping it would switch the Content studio back to Video builder.
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: null })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    const id = brandObj?.id
+    setAudiences([])
+    if (id == null) return
+    let live = true
+    api
+      .get(`/views/insights/boosts?brand_id=${id}`)
+      .then((r) => live && setAudiences((r.what_works || []).filter((w) => w.field === 'audience').map((w) => w.value)))
+      .catch(() => {})
+    return () => {
+      live = false
+    }
+  }, [brandObj?.id])
+
+  // Opened from a Content studio tab: Images starts on making an image; Copy
+  // per channel starts on asking (captions and copy are written as answers).
+  useEffect(() => {
+    if (preset === 'images') {
+      setType('image')
+      setIntentPick('create')
+    } else if (preset === 'copy') {
+      setIntentPick('ask')
+    }
+  }, [preset])
 
   // Close the settings popover on an outside click.
   useEffect(() => {
@@ -779,12 +806,22 @@ export default function AIPromptPage() {
       <div className="sticky top-14 z-20 -mx-5 lg:-mx-10 px-5 lg:px-10 bg-canvas/90 backdrop-blur-md">
         {/* Phones: one compact row (the header stays pinned, so every line of
             it hides the thread) — the description shows from sm up. */}
-        <div className="mx-auto w-full lg:w-4/5 flex items-center justify-between gap-2 sm:gap-3 py-2.5 sm:py-4">
+        <div className="w-full flex items-center justify-between gap-2 sm:gap-3 py-2.5 sm:py-4">
           <div className="min-w-0">
-            <h1 className="text-[19px] sm:text-[22px] font-bold text-ink-900 tracking-tight leading-tight">AI Agent</h1>
-            <p className="mt-0.5 hidden sm:block text-[12.5px] text-ink-500">
-              Ask about your marketing, or describe an image or video to create.
-            </p>
+            {embedded ? (
+              <p className="text-[12.5px] text-ink-500">
+                {preset === 'copy'
+                  ? 'Ask for captions — say which channels, and the AI writes a version for each.'
+                  : 'Describe the image you want — your logo and poster templates are under Brand kit.'}
+              </p>
+            ) : (
+              <>
+                <h1 className="text-[19px] sm:text-[22px] font-bold text-ink-900 tracking-tight leading-tight">Content studio</h1>
+                <p className="mt-0.5 hidden sm:block text-[12.5px] text-ink-500">
+                  Ask about your marketing, or describe an image or video to create.
+                </p>
+              </>
+            )}
           </div>
           <div className="flex flex-none items-center gap-0.5 sm:gap-1">
             {meter ? (
@@ -837,7 +874,7 @@ export default function AIPromptPage() {
       </div>
 
       {/* The chat column — 80% of the page on desktop, centred. */}
-      <div className="mx-auto w-full lg:w-4/5 flex-1">
+      <div className="w-full flex-1">
         <div className="mt-2 space-y-8 pb-6">
           {turns.length === 0 && (
             <div className="pt-[14vh] pb-4 text-center">
@@ -922,7 +959,7 @@ export default function AIPromptPage() {
             if (!e.currentTarget.contains(e.relatedTarget)) setDragging(false)
           }}
           onDrop={onDrop}
-          className={`relative mx-auto w-full lg:w-4/5 rounded-3xl border bg-white shadow-[0_8px_30px_rgba(16,24,40,0.08)] transition-colors ${
+          className={`relative w-full rounded-3xl border bg-white shadow-[0_8px_30px_rgba(16,24,40,0.08)] transition-colors ${
             dragging ? 'border-brand ring-4 ring-brand/15' : 'border-ink-200 focus-within:border-brand/40'
           }`}
         >
@@ -988,6 +1025,28 @@ export default function AIPromptPage() {
                   Logo
                 </KitChip>
               )}
+            </div>
+          )}
+
+          {audiences.length > 0 && !writing && (
+            <div className="flex flex-wrap items-center gap-1.5 px-4 pt-3.5">
+              <span className="text-[11px] font-semibold text-ink-400" title="Audiences that have brought this brand leads">For:</span>
+              {audiences.map((a) => {
+                const line = `For: ${a}`
+                const on = text.includes(line)
+                return (
+                  <button
+                    key={a}
+                    type="button"
+                    onClick={() => setText((t) => (on ? t.replace(`\n${line}`, '').replace(line, '') : `${t.trimEnd()}${t.trim() ? '\n' : ''}${line}`))}
+                    className={`rounded-full px-2.5 py-1 text-[11.5px] font-medium transition-colors ${
+                      on ? 'bg-brand-soft text-brand ring-1 ring-brand-line' : 'bg-ink-100 text-ink-600 hover:bg-ink-200/70'
+                    }`}
+                  >
+                    {a}
+                  </button>
+                )
+              })}
             </div>
           )}
 

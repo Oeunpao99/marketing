@@ -1,5 +1,6 @@
-﻿import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import InsightsSalesView from '../components/insights/InsightsSalesView'
 import { buildFunnel, buildInsights } from '../lib/insightsEngine'
 import Pager from '../components/ui/Pager'
 import Select from '../components/ui/Select'
@@ -637,6 +638,19 @@ function ContentTypeChart({ rows, height = 260 }) {
 export default function InsightsPage() {
   const { brands, channels, showToast } = useStore()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const mode = searchParams.get('view') === 'analytics' ? 'analytics' : 'sales'
+  const setMode = (nextMode) => {
+    setSearchParams(
+      (prev) => {
+        const n = new URLSearchParams(prev)
+        if (nextMode === 'sales') n.delete('view')
+        else n.set('view', nextMode)
+        return n
+      },
+      { replace: true },
+    )
+  }
   const [items, setItems] = useState(null)
   const [brandFilter, setBrandFilter] = useState('all')
   const [typeFilter, setTypeFilter] = useState('all')
@@ -956,9 +970,17 @@ export default function InsightsPage() {
   }, [filtered, previous, days, channels, brands, brandFilter])
 
   // ── Tabs ────────────────────────────────────────────────────────────────
-  const [searchParams, setSearchParams] = useSearchParams()
   const tab = TABS.some((t) => t.id === searchParams.get('tab')) ? searchParams.get('tab') : 'overview'
-  const setTab = (id) => setSearchParams(id === 'overview' ? {} : { tab: id }, { replace: true })
+  const setTab = (id) =>
+    setSearchParams(
+      (prev) => {
+        const n = new URLSearchParams(prev)
+        if (id === 'overview') n.delete('tab')
+        else n.set('tab', id)
+        return n
+      },
+      { replace: true },
+    )
 
   const sumOf = (rows, key) =>
     rows.reduce((s, it) => s + (isResolved(it) ? (it.metrics || {})[key] || 0 : 0), 0)
@@ -1047,30 +1069,69 @@ export default function InsightsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items])
 
+  if (mode === 'sales') {
+    return (
+      <InsightsSalesView
+        items={items}
+        loading={loading}
+        onRefresh={load}
+        mode={mode}
+        onSwitchMode={setMode}
+      />
+    )
+  }
+
   return (
     <div className="w-full px-5 lg:px-8 pt-7 pb-28 animate-fadein">
       <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-[24px] font-bold text-ink-900 tracking-tight leading-tight">Analytics</h1>
+          <div className="flex items-center gap-2 mb-1.5">
+            <button
+              type="button"
+              onClick={() => setMode('sales')}
+              className="text-[12px] font-semibold text-brand hover:underline flex items-center gap-1"
+            >
+              ← Back to Insights & sales
+            </button>
+          </div>
+          <h1 className="text-[24px] font-bold text-ink-900 tracking-tight leading-tight">Analytics & Deep Dive</h1>
           <p className="mt-1 text-[13.5px] text-ink-600">
             Cross-platform performance overview for {range.label}.
           </p>
         </div>
-        <div className="inline-flex rounded-xl border border-ink-200 bg-white p-0.5" role="tablist" aria-label="Date range">
-          {DATE_RANGES.map((r) => (
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="inline-flex items-center rounded-xl border border-ink-200/80 bg-white p-0.5 shadow-xs">
             <button
-              key={r.id}
               type="button"
-              role="tab"
-              aria-selected={rangeId === r.id}
-              onClick={() => setRangeId(r.id)}
-              className={`px-3.5 py-1.5 rounded-[10px] text-[13px] font-medium transition-colors duration-150 ${
-                rangeId === r.id ? 'bg-brand-soft text-brand' : 'text-ink-700 hover:bg-ink-50'
-              }`}
+              onClick={() => setMode('sales')}
+              className="rounded-[9px] px-2.5 py-1 text-[12px] font-semibold text-ink-600 hover:text-ink-900 hover:bg-ink-50 transition-all"
             >
-              {r.short}
+              Goal view
             </button>
-          ))}
+            <button
+              type="button"
+              className="rounded-[9px] px-2.5 py-1 text-[12px] font-semibold bg-ink-900 text-white shadow-xs transition-all flex items-center gap-1.5"
+            >
+              <FiGrid size={13} />
+              Deep analytics
+            </button>
+          </div>
+          <div className="inline-flex rounded-xl border border-ink-200 bg-white p-0.5" role="tablist" aria-label="Date range">
+            {DATE_RANGES.map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                role="tab"
+                aria-selected={rangeId === r.id}
+                onClick={() => setRangeId(r.id)}
+                className={`px-3.5 py-1.5 rounded-[10px] text-[13px] font-medium transition-colors duration-150 ${
+                  rangeId === r.id ? 'bg-brand-soft text-brand' : 'text-ink-700 hover:bg-ink-50'
+                }`}
+              >
+                {r.short}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

@@ -12,7 +12,7 @@ export default function AIAssistant() {
   return (
     <button
       type="button"
-      onClick={() => navigate("/ai")}
+      onClick={() => navigate("/ai?tab=images")}
       className="hidden lg:grid fixed z-40 right-5 bottom-5 w-[52px] h-[52px] rounded-2xl place-items-center gradient-brand text-white shadow-glow-lg ring-1 ring-white/70 animate-ai-pulse active:scale-95 transition-transform"
       aria-label="Open AI Agent"
       title="AI Agent — ask or create"
