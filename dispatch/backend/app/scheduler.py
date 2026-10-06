@@ -79,7 +79,16 @@ def _snapshot_tick() -> int:
         imported = import_all(db)
         if imported:
             log.info("imported %d post(s) made outside ContentFlow", imported)
-        return collect_snapshots(db)
+        saved = collect_snapshots(db)
+        try:
+            from app.post_tags import auto_tag_all
+
+            read = auto_tag_all(db)
+            if read:
+                log.info("the AI read %d new post(s)", read)
+        except Exception:  # noqa: BLE001 - never let tagging stop the metrics collector
+            log.exception("auto-tagging failed")
+        return saved
     finally:
         db.close()
 

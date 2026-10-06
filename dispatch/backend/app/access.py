@@ -29,6 +29,7 @@ FEATURES: dict[str, tuple[str, str]] = {
     "insights": ("Analytics", "Post results and insights"),
     "website": ("Website check", "Website health, SEO, speed and domain checks"),
     "activity": ("Activity plan", "The team's weekly goals and day-by-day to-do list"),
+    "leads": ("Leads & hand-off", "See chatbot leads, hand them to the sales team, and manage the team"),
 }
 
 _W = {"POST", "PUT", "PATCH", "DELETE"}
@@ -52,6 +53,8 @@ RULES: list[tuple[str, set[str] | None, re.Pattern[str]]] = [
     ("insights", None, re.compile(r"^/views/insights(/|$)")),
     ("website", None, re.compile(r"^/website(/|$)")),
     ("activity", None, re.compile(r"^/activity(/|$)")),
+    ("leads", None, re.compile(r"^/leads(/|$)")),
+    ("leads", None, re.compile(r"^/sales-alerts(/|$)")),
 ]
 
 

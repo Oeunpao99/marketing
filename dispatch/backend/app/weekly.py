@@ -31,12 +31,13 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import billing
+from app import billing, goals
 from app.content_ai import SELLING_PILLARS, ContentAIError, fact_check, generate_ideas, pick_subjects, selling_days
 from app.content_scheduler import (
     PHNOM_PENH,
     _MAX_PARALLEL_MEDIA,
     _brand_snapshot,
+    _default_time_for,
     _generate_media_for,
     _poster_kit_for,
     _product_snapshot,
@@ -45,12 +46,13 @@ from app.content_scheduler import (
     schedule_draft_as_post,
 )
 from app.database import SessionLocal, get_db
-from app.learning import _engagement, brand_learnings
+from app.learning import _WINDOWS, _engagement, _posts, _window, _wmean, brand_learnings, learned_time
 from app.models import (
     Automation,
     Brand,
     Channel,
     Draft,
+    Lead,
     MetricSnapshot,
     Platform,
     Post,
@@ -264,6 +266,107 @@ def _free_days(db: Session, brand_id: int, start: date) -> list[date]:
     return [d for d in days if d not in taken]
 
 
+def _plan_slots(db: Session, automation: Automation, learnings: dict):
+    """(day → "HH:MM", channel names) for a plan's items: one time per post,
+    from the main channel (Facebook if connected) — the brand's fixed time,
+    else that weekday's learned slot or the platform's best hour, else the
+    platform default. Scheduling uses exactly this time on every channel
+    (content_scheduler.schedule_draft_as_post, Draft.planned_time)."""
+    chans = db.scalars(
+        select(Channel).where(Channel.brand_id == automation.brand_id, Channel.status == "live")
+    ).all()
+    if automation.auto_channel_ids:
+        chans = [c for c in chans if c.id in set(automation.auto_channel_ids)]
+    slugs = [c.platform.slug for c in chans if c.platform]
+    if automation.auto_media:
+        slugs = [s for s in slugs if s != "tiktok"]  # plan media are images; TikTok needs video
+    names = sorted({c.platform.name for c in chans if c.platform and c.platform.slug in slugs})
+    main = "facebook" if "facebook" in slugs else (slugs[0] if slugs else "facebook")
+    learned = learnings if automation.learn_from_results else None
+
+    def slot_for(day: date) -> str:
+        if automation.post_at:
+            return automation.post_at.strftime("%H:%M")
+        if learned:
+            slot = learned.get("best_slots", {}).get(main, {}).get(str(day.weekday()))
+            if slot:
+                return f"{slot['hour']:02d}:00"
+            t = learned_time(learned, main)
+            if t:
+                return t.strftime("%H:%M")
+        return _default_time_for(main).strftime("%H:%M")
+
+    return slot_for, names
+
+
+LEAD_WINDOW_DAYS = 60
+MIN_LEADS_FOR_TIMING = 5  # fewer than this and lead timing is noise — reaction only
+
+
+def _lead_factor(db: Session, brand_id: int) -> tuple[dict[tuple[int, str], float], int]:
+    """How much more often leads arrive in each weekday × window than in the
+    average one (last 60 days), smoothed so an empty slot is never 0.
+    Empty when there are too few leads to say."""
+    since = datetime.now(UTC) - timedelta(days=LEAD_WINDOW_DAYS)
+    times = db.scalars(select(Lead.created_at).where(Lead.brand_id == brand_id, Lead.created_at >= since)).all()
+    if len(times) < MIN_LEADS_FOR_TIMING:
+        return {}, len(times)
+    counts: dict[tuple[int, str], int] = {}
+    for t in times:
+        at = t.astimezone(PHNOM_PENH)
+        k = (at.weekday(), _window(at.hour)[0])
+        counts[k] = counts.get(k, 0) + 1
+    avg = len(times) / (7 * len(_WINDOWS))
+    # Square-rooted so a handful of leads nudges the heatmap instead of overriding
+    # what months of audience reactions show.
+    return {
+        (wd, w[0]): ((counts.get((wd, w[0]), 0) + 1) / (avg + 1)) ** 0.5 for wd in range(7) for w in _WINDOWS
+    }, len(times)
+
+
+def best_time(db: Session, brand_id: int) -> dict:
+    """Per platform: weekday × time window score (0-100, the best cell = 100) —
+    how the audience reacted to posts at that time (the same posts, weights and
+    windows learning.py uses) × how often leads arrive then, once there are
+    enough leads. The Plan & best time heatmap. Cells with no posts are null."""
+    posts = [p for p in _posts(db, brand_id) if p["platform"] and p["published_at"]]
+    names = dict(db.execute(select(Platform.slug, Platform.name)).all())
+    lead_factor, lead_count = _lead_factor(db, brand_id)
+    out = {}
+    for slug in sorted({p["platform"] for p in posts}):
+        mine = [p for p in posts if p["platform"] == slug]
+        prior = _wmean(mine)
+        cells: dict[tuple[int, str], list[dict]] = {}
+        for p in mine:
+            at = p["published_at"].astimezone(PHNOM_PENH)
+            cells.setdefault((at.weekday(), _window(at.hour)[0]), []).append(p)
+        raw = {k: _wmean(ps, prior) * lead_factor.get(k, 1.0) for k, ps in cells.items()}
+        top = max(raw.values(), default=0) or 1
+        grid = {
+            str(wd): {
+                w[0]: {"score": round(100 * raw[(wd, w[0])] / top), "posts": len(cells[(wd, w[0])])}
+                if (wd, w[0]) in raw
+                else None
+                for w in _WINDOWS
+            }
+            for wd in range(7)
+        }
+        best = sorted(raw, key=lambda k: -raw[k])[:3]
+        out[slug] = {
+            "name": names.get(slug, slug.title()),
+            "posts": len(mine),
+            "grid": grid,
+            "top": [[str(wd), w] for wd, w in best],
+        }
+    return {
+        "windows": [{"key": w[0], "label": w[1]} for w in _WINDOWS],
+        "platforms": out,
+        "with_leads": bool(lead_factor),
+        "leads": lead_count,
+        "lead_days": LEAD_WINDOW_DAYS,
+    }
+
+
 def build_plan(db: Session, brand_id: int, starts_on: date | None = None, step=lambda _p, _s: None) -> WeeklyPlan:
     """Write a fresh plan for the 7 days from ``starts_on`` (default tomorrow),
     replacing this brand's un-approved one. Raises ContentAIError."""
@@ -283,6 +386,8 @@ def build_plan(db: Session, brand_id: int, starts_on: date | None = None, step=l
     products = db.scalars(select(Product).where(Product.brand_id == brand_id).order_by(Product.name)).all()
     per_day = max(1, min(automation.videos_per_day, 2))
     count = min(len(days) * per_day, MAX_ITEMS)
+    # The brand's content-goal mix → how many posts of each goal this week.
+    need = goals.targets(automation.goal_mix, count)
 
     # Written a couple of days at a time: one call for the whole week squeezes
     # 14 captions into one reply and they come out short (Khmer especially) —
@@ -298,6 +403,7 @@ def build_plan(db: Session, brand_id: int, starts_on: date | None = None, step=l
         # The awareness → product rhythm carries on across batches.
         planned = [date.fromisoformat(i["day"]) for i in ideas if i.get("pillar") in SELLING_PILLARS]
         allowed = selling_days(chunk, max([d for d in (last_selling, *planned) if d], default=None))
+        mix_line, _ = goals.batch_brief(need, n_batch, len(allowed))
         try:
             batch = generate_ideas(
                 brand.name,
@@ -320,6 +426,7 @@ def build_plan(db: Session, brand_id: int, starts_on: date | None = None, step=l
                     scores=learnings.get("subject_scores") if automation.learn_from_results else None,
                 ),
                 selling_days=allowed,
+                goal_mix=mix_line,
             )
         except ContentAIError:
             if not ideas:
@@ -330,11 +437,16 @@ def build_plan(db: Session, brand_id: int, starts_on: date | None = None, step=l
             # The day the AI planned it for (so a holiday post lands on the
             # holiday), else spread evenly over this batch's days.
             idea["day"] = idea.get("day") or chunk[k * len(chunk) // len(batch)].isoformat()
+        for idea in batch:
+            g = goals.goal_of(idea.get("pillar") or "")
+            if g:
+                need[g] = need.get(g, 0) - 1
         ideas += batch
         if len(ideas) >= count:
             break
     step(80, "Fact-checking against your products…")
     checks = fact_check([i["caption"] for i in ideas], list(products))
+    slot_for, channel_names = _plan_slots(db, automation, learnings)
 
     items = [
         {
@@ -350,7 +462,11 @@ def build_plan(db: Session, brand_id: int, starts_on: date | None = None, step=l
             "goal": idea.get("goal") or "",
             "meme": idea.get("meme"),
             "poster": idea.get("poster"),
+            "video": bool(idea.get("video")),
             "fact_issues": checks[n] if checks is not None else None,
+            "content_goal": goals.goal_of(idea.get("pillar") or ""),
+            "time": slot_for(date.fromisoformat(idea["day"])),
+            "channels": channel_names,
         }
         for n, idea in enumerate(ideas)
     ]
@@ -360,7 +476,10 @@ def build_plan(db: Session, brand_id: int, starts_on: date | None = None, step=l
     for old in db.scalars(
         select(WeeklyPlan).where(WeeklyPlan.brand_id == brand_id, WeeklyPlan.status == "ready")
     ):
-        db.delete(old)
+        if any(i.get("state") == "approved" for i in old.items or []):
+            old.status = "approved"  # its approved posts stay on the calendar
+        else:
+            db.delete(old)
     plan = WeeklyPlan(
         brand_id=brand_id,
         starts_on=days[0],
@@ -464,11 +583,50 @@ def _media_with_retry(*args):
     return video_id
 
 
+# Drafts approved while a media job is already running for the brand — the
+# job picks them up before it finishes (posts approved one at a time).
+_media_queue: dict[int, list[int]] = {}
+
+
+def _queue_media(brand_id: int, draft_ids: list[int]) -> None:
+    """Make media for these approved drafts: in the running media job if
+    there is one, else in a new one."""
+    with _jobs_lock:
+        j = _jobs.get(brand_id)
+        if j is not None and j["status"] == "running":
+            if j["kind"] != "media":
+                raise HTTPException(409, "Still writing a plan for this brand — try again in a moment.")
+            _media_queue.setdefault(brand_id, []).extend(draft_ids)
+            j["total"] = j.get("total", 0) + len(draft_ids)
+            return
+    _start_job(brand_id, "media", _media_job, draft_ids)
+
+
 def _media_job(brand_id: int, draft_ids: list[int]) -> None:
-    """Make an image for each approved plan draft, then schedule it on its day."""
+    """Make an image for each approved plan draft, then schedule it on its
+    day — and any drafts approved meanwhile (_media_queue)."""
+    _set_job(brand_id, total=len(draft_ids))
+    done = scheduled = 0
+    while draft_ids:
+        d, s, ok = _media_batch(brand_id, draft_ids, done)
+        done += d
+        scheduled += s
+        if not ok:
+            return
+        with _jobs_lock:
+            draft_ids = _media_queue.pop(brand_id, [])
+            j = _jobs.get(brand_id)
+            if not draft_ids and j is not None and j["status"] == "running":
+                j.update(status="done", progress=100, step=f"{scheduled} of {done} posts scheduled", scheduled=scheduled)
+                j["_finished"] = datetime.now(UTC)
+
+
+def _media_batch(brand_id: int, draft_ids: list[int], done_before: int) -> tuple[int, int, bool]:
+    """One round of _media_job: (made, scheduled, finished without a crash)."""
     billing.bind_brand(brand_id)
     db = SessionLocal()
     pool = ThreadPoolExecutor(max_workers=_MAX_PARALLEL_MEDIA, thread_name_prefix="weekly-media")
+    done = scheduled = 0
     try:
         brand = db.get(Brand, brand_id)
         products = db.scalars(select(Product).where(Product.brand_id == brand_id)).all()
@@ -488,7 +646,6 @@ def _media_job(brand_id: int, draft_ids: list[int]) -> None:
             pool.submit(_media_with_retry, brand_args, ideas[n], product_args, kits[n]): d
             for n, d in enumerate(drafts)
         }
-        done = scheduled = 0
         for fut in as_completed(futures):
             d = futures[fut]
             d.video_id = fut.result()
@@ -501,26 +658,23 @@ def _media_job(brand_id: int, draft_ids: list[int]) -> None:
                     log.warning("weekly plan: could not schedule %r: %s", d.title, exc)
             db.commit()
             done += 1
+            total = (job_status(brand_id) or {}).get("total") or len(drafts)
             _set_job(
                 brand_id,
-                progress=5 + 90 * done // len(drafts),
-                step=f"Making image {done} of {len(drafts)}…",
+                progress=min(95, 5 + 90 * (done_before + done) // max(total, 1)),
+                step=f"Making image {done_before + done} of {total}…",
             )
-        _set_job(
-            brand_id,
-            status="done",
-            progress=100,
-            step=f"{scheduled} of {len(drafts)} posts scheduled",
-            scheduled=scheduled,
-            total=len(drafts),
-        )
     except Exception:  # noqa: BLE001
         db.rollback()
         log.exception("weekly plan media crashed for brand %s", brand_id)
+        with _jobs_lock:
+            _media_queue.pop(brand_id, None)
         _set_job(brand_id, status="failed", step="Failed", error="Some images failed — check the Calendar.")
+        return done, scheduled, False
     finally:
         pool.shutdown(wait=False, cancel_futures=True)
         db.close()
+    return done, scheduled, True
 
 
 # ── automatic Sunday plans ────────────────────────────────────────────────
@@ -574,6 +728,28 @@ def _plan_out(db: Session, plan: WeeklyPlan | None) -> dict | None:
             )
             .order_by(Draft.planned_for)
         ).all()
+    item_drafts = {
+        d.id: d
+        for d in db.scalars(
+            select(Draft).where(Draft.id.in_([i["draft_id"] for i in plan.items or [] if i.get("draft_id")] or [0]))
+        )
+    }
+    items = []
+    for i in plan.items or []:
+        d = item_drafts.get(i.get("draft_id"))
+        items.append(
+            {
+                **i,
+                "draft": {
+                    "id": d.id,
+                    "status": d.status,
+                    "has_media": d.video_id is not None,
+                    "media_pending": d.id in _media_running,
+                }
+                if d
+                else None,
+            }
+        )
     return {
         "id": plan.id,
         "brand_id": plan.brand_id,
@@ -581,7 +757,7 @@ def _plan_out(db: Session, plan: WeeklyPlan | None) -> dict | None:
         "ends_on": plan.ends_on,
         "status": plan.status,
         "report": plan.report,
-        "items": plan.items,
+        "items": items,
         "created_at": plan.created_at,
         "approved_at": plan.approved_at,
         "drafts": [
@@ -617,7 +793,28 @@ def weekly_view(brand_id: int, db: Session = Depends(get_db), ws: int = Depends(
         "auto_media": bool(automation and automation.auto_media),
         "auto_enabled": bool(automation and automation.enabled),
         "free_days": len(_free_days(db, brand_id, _today() + timedelta(days=1))),
+        "mix": (automation.goal_mix if automation else None) or goals.DEFAULT_MIX,
+        "mix_custom": bool(automation and automation.goal_mix),
+        "per_month": (max(1, min(automation.videos_per_day, 2)) if automation else 1) * 30,
+        "best_time": best_time(db, brand_id),
     }
+
+
+class MixIn(BaseModel):
+    mix: dict[str, int] | None = None  # None = back to the AI's default
+
+
+@router.put("/mix")
+def weekly_mix(brand_id: int, payload: MixIn, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    """Save the brand's content-goal mix (percent per goal) — the next plan
+    is written to match it."""
+    owned(db, Brand, brand_id, ws)
+    automation = db.scalar(select(Automation).where(Automation.brand_id == brand_id))
+    if automation is None:
+        raise HTTPException(404, "Turn this brand on in Auto-generate first.")
+    automation.goal_mix = goals.clean_mix(payload.mix)
+    db.commit()
+    return {"mix": automation.goal_mix or goals.DEFAULT_MIX, "mix_custom": bool(automation.goal_mix)}
 
 
 @router.post("/plan", status_code=202)
@@ -656,6 +853,8 @@ def weekly_edit_item(
     item = next((i for i in items if i["key"] == key), None)
     if item is None:
         raise HTTPException(404, "Idea not found.")
+    if item.get("state") == "approved":
+        raise HTTPException(409, "This post is already approved — edit it in Calendar.")
     for field in ("title", "caption"):
         value = getattr(payload, field)
         if value is not None and value.strip():
@@ -682,7 +881,8 @@ def weekly_remove_item(plan_id: int, key: str, db: Session = Depends(get_db), ws
 @router.post("/{plan_id}/dismiss")
 def weekly_dismiss(plan_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
     plan = _ready_plan(db, plan_id, ws, lock=True)
-    plan.status = "dismissed"
+    # Posts already approved stay on the calendar — keep showing them.
+    plan.status = "approved" if any(i.get("state") == "approved" for i in plan.items) else "dismissed"
     db.commit()
     return {"id": plan.id, "status": plan.status}
 
@@ -750,35 +950,73 @@ def weekly_regenerate(plan_id: int, db: Session = Depends(get_db), ws: int = Dep
     return {"freed": freed, "kept": kept, "job": job}
 
 
+class ApproveIn(BaseModel):
+    keys: list[str] | None = None  # None = every post still waiting
+    unflagged_only: bool = False  # leave posts with a fact-check flag for a person
+
+
+def _set_item(plan: WeeklyPlan, key: str, **fields) -> dict:
+    items = [dict(i) for i in plan.items]
+    item = next((i for i in items if i["key"] == key), None)
+    if item is None:
+        raise HTTPException(404, "Idea not found.")
+    item.update(fields)
+    for k in [k for k, v in fields.items() if v is None]:
+        item.pop(k, None)
+    plan.items = items
+    return item
+
+
+def _close_if_done(plan: WeeklyPlan, user: TeamMember) -> None:
+    """Every post decided (approved or skipped) → the plan is approved."""
+    if all(i.get("state") for i in plan.items) and any(i.get("state") == "approved" for i in plan.items):
+        plan.status = "approved"
+        plan.approved_at = datetime.now(UTC)
+        plan.approved_by = user.id
+
+
 @router.post("/{plan_id}/approve")
 def weekly_approve(
     plan_id: int,
+    payload: ApproveIn | None = None,
     db: Session = Depends(get_db),
     ws: int = Depends(current_workspace_id),
     user: TeamMember = Depends(get_current_user),
 ):
-    """One tap: every idea becomes a Draft on its day. With the brand's
-    "Generate media" on, images are made and posts scheduled in the
-    background (poll ``GET /weekly/job``)."""
+    """Approve the plan's waiting posts — all of them, only the unflagged
+    ones, or the ``keys`` given (one post's Approve button). Each becomes a
+    Draft on its day at its time; with "Generate media" on, images are made
+    and the posts scheduled in the background (poll ``GET /weekly/job``)."""
+    payload = payload or ApproveIn()
     plan = _ready_plan(db, plan_id, ws, lock=True)
     today = _today()
-    keep = [i for i in plan.items if date.fromisoformat(i["day"]) >= today]
-    if not keep:
-        raise HTTPException(422, "Every idea in this plan is for a day that has passed — plan again.")
+    waiting = [i for i in plan.items if not i.get("state")]
+    chosen = [
+        i
+        for i in waiting
+        if (payload.keys is None or i["key"] in payload.keys)
+        and not (payload.unflagged_only and i.get("fact_issues"))
+        and date.fromisoformat(i["day"]) >= today
+    ]
+    if not chosen:
+        raise HTTPException(
+            422,
+            "Nothing to approve — every post here is flagged, decided or for a day that has passed."
+            if waiting
+            else "Every post in this plan is already decided.",
+        )
     automation = db.scalar(select(Automation).where(Automation.brand_id == plan.brand_id))
     media = bool(automation and automation.auto_media)
-    if media:
-        running = job_status(plan.brand_id)
-        if running and running["status"] == "running":
-            raise HTTPException(409, "Still working on this brand — try again in a moment.")
 
-    drafts = [
-        Draft(
+    drafts = {}
+    for i in chosen:
+        d = Draft(
             brand_id=plan.brand_id,
             title=i["title"][:200],
             body=i["caption"],
             insight=i.get("insight") or "",
             planned_for=date.fromisoformat(i["day"]),
+            planned_time=i.get("time"),
             source="ai-weekly",
             status="approved",
             fit_score=i.get("fit_score"),
@@ -790,20 +1028,50 @@ def weekly_approve(
             goal=i.get("goal") or "",
             fact_issues=i.get("fact_issues"),
         )
-        for i in keep
-    ]
-    db.add_all(drafts)
-    plan.status = "approved"
-    plan.approved_at = datetime.now(UTC)
-    plan.approved_by = user.id
+        db.add(d)
+        drafts[i["key"]] = d
+    db.flush()
+    for key, d in drafts.items():
+        _set_item(plan, key, state="approved", draft_id=d.id)
+    _close_if_done(plan, user)
     db.commit()
 
     if media:
-        _start_job(plan.brand_id, "media", _media_job, [d.id for d in drafts])
+        _queue_media(plan.brand_id, [d.id for d in drafts.values()])
     return {
         "id": plan.id,
         "status": plan.status,
         "drafts": len(drafts),
-        "skipped_past": len(plan.items) - len(keep),
+        "left": sum(1 for i in plan.items if not i.get("state")),
         "making_media": media,
     }
+
+
+@router.post("/{plan_id}/items/{key}/skip")
+def weekly_skip_item(
+    plan_id: int,
+    key: str,
+    db: Session = Depends(get_db),
+    ws: int = Depends(current_workspace_id),
+    user: TeamMember = Depends(get_current_user),
+):
+    """Leave one post out of the plan (it can be brought back until the plan closes)."""
+    plan = _ready_plan(db, plan_id, ws, lock=True)
+    item = next((i for i in plan.items if i["key"] == key), None)
+    if item is not None and item.get("state") == "approved":
+        raise HTTPException(409, "This post is already approved — remove it in Calendar.")
+    _set_item(plan, key, state="skipped")
+    _close_if_done(plan, user)
+    db.commit()
+    return {"key": key, "state": "skipped", "plan_status": plan.status}
+
+
+@router.post("/{plan_id}/items/{key}/unskip")
+def weekly_unskip_item(plan_id: int, key: str, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    plan = _ready_plan(db, plan_id, ws, lock=True)
+    item = next((i for i in plan.items if i["key"] == key), None)
+    if item is None or item.get("state") != "skipped":
+        raise HTTPException(409, "This post isn't skipped.")
+    _set_item(plan, key, state=None)
+    db.commit()
+    return {"key": key, "state": None}

@@ -8,6 +8,7 @@ import logging
 import re
 import threading
 import time
+from collections import Counter
 from datetime import UTC, date, datetime, timedelta, timezone
 from urllib.parse import urlencode, urlparse
 
@@ -19,7 +20,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
-from app import linkedin, meta, tiktok
+from app import content_ai, linkedin, meta, post_tags, tiktok
 from app.config import get_settings
 from app.database import get_db
 from app.media import local_path_for
@@ -29,6 +30,7 @@ from app.models import (
     Channel,
     Draft,
     GenerationJob,
+    Lead,
     MetricSnapshot,
     Platform,
     Post,
@@ -37,6 +39,7 @@ from app.models import (
     TeamMember,
     Video,
 )
+from app.goals import GOALS, goal_of
 from app.publishers import CannotUnpublish, PublishError, publish, unpublish, verify_telegram
 from app.security import sign_payload, verify_payload
 from app.tenancy import MANAGER_ROLES, current_workspace_id, get_current_user, owned, scope
@@ -1019,6 +1022,650 @@ def record_snapshots(db: Session, ws: int, results: list[dict]) -> int:
     if added:
         db.commit()
     return added
+
+
+def _fmt_sales_compact(n: float | int | None) -> str:
+    if n is None or n == 0:
+        return "0"
+    if abs(n) >= 1_000_000:
+        return f"{n / 1_000_000:.1f}M".replace(".0M", "M")
+    if abs(n) >= 1_000:
+        return f"{n / 1_000:.1f}k".replace(".0k", "k")
+    return f"{int(n):,}" if float(n).is_integer() else f"{n:,.1f}"
+
+
+@router.get("/insights/sales")
+def insights_sales_view(
+    brand_id: int | None = None,
+    period: str = "today",
+    db: Session = Depends(get_db),
+    ws: int = Depends(current_workspace_id),
+):
+    """Calculates real sales and performance records for the executive Insights & sales dashboard."""
+    now_utc = datetime.now(UTC)
+    now_local = now_utc.astimezone(PHNOM_PENH)
+    today_local = now_local.date()
+
+    if period == "today":
+        since = datetime.combine(today_local, datetime.min.time(), PHNOM_PENH)
+        until = now_utc
+        prev_since = since - timedelta(days=1)
+        prev_until = since
+        time_label = f"Today so far · {now_local.strftime('%H:%M')}"
+    elif period == "7d":
+        since = now_utc - timedelta(days=7)
+        until = now_utc
+        prev_since = now_utc - timedelta(days=14)
+        prev_until = since
+        time_label = "Last 7 days"
+    elif period == "30d":
+        since = now_utc - timedelta(days=30)
+        until = now_utc
+        prev_since = now_utc - timedelta(days=60)
+        prev_until = since
+        time_label = "Last 30 days"
+    else:  # 90d
+        since = now_utc - timedelta(days=90)
+        until = now_utc
+        prev_since = now_utc - timedelta(days=180)
+        prev_until = since
+        time_label = "Last 90 days"
+
+    if brand_id is not None:
+        owned(db, Brand, brand_id, ws)
+        brand_ids = [brand_id]
+    else:
+        brand_ids = [b.id for b in db.scalars(select(Brand).where(scope(Brand, ws))).all()]
+
+    if not brand_ids:
+        return {
+            "period": period,
+            "has_real_records": False,
+            "reach": {"value": "0", "raw": 0, "sub": f"{time_label} · 0 reach"},
+            "followers": {"value": "+0", "raw": 0, "sub": "No channels connected"},
+            "engagementRate": {"value": "0.0%", "raw": 0, "sub": "No posts in this period"},
+            "leads": {"value": "0", "raw": 0, "sub": "0 captured"},
+            "dealsWon": {"value": "0", "raw": 0, "sub": "0 closed"},
+            "revenue": {"value": "$0", "raw": 0, "sub": "Closed in Dynamics 365 / CRM"},
+            "goals": {},
+            "note": "No active brand in this workspace.",
+            "counts": {"posts": 0, "leads": 0, "deals_won": 0, "revenue": 0},
+        }
+
+    # Published targets in current and previous windows
+    targets = db.scalars(
+        select(PostTarget)
+        .join(Post, Post.id == PostTarget.post_id)
+        .where(
+            scope(PostTarget, ws),
+            Post.brand_id.in_(brand_ids),
+            PostTarget.status == "posted",
+            PostTarget.published_at >= since,
+            PostTarget.published_at <= until,
+        )
+        .options(selectinload(PostTarget.post))
+    ).all()
+
+    prev_targets = db.scalars(
+        select(PostTarget)
+        .join(Post, Post.id == PostTarget.post_id)
+        .where(
+            scope(PostTarget, ws),
+            Post.brand_id.in_(brand_ids),
+            PostTarget.status == "posted",
+            PostTarget.published_at >= prev_since,
+            PostTarget.published_at < since,
+        )
+        .options(selectinload(PostTarget.post))
+    ).all()
+
+    all_tids = [t.id for t in targets] + [t.id for t in prev_targets]
+    snaps = {}
+    if all_tids:
+        for s in db.scalars(
+            select(MetricSnapshot)
+            .where(MetricSnapshot.target_id.in_(all_tids))
+            .order_by(MetricSnapshot.taken_at.asc())
+        ):
+            snaps[s.target_id] = s.metrics
+
+    total_reach = sum(max(snaps.get(t.id, {}).get("views") or 0, snaps.get(t.id, {}).get("impressions") or 0) for t in targets)
+    total_likes = sum(snaps.get(t.id, {}).get("likes") or 0 for t in targets)
+    total_comments = sum(snaps.get(t.id, {}).get("comments") or 0 for t in targets)
+    total_shares = sum(snaps.get(t.id, {}).get("shares") or 0 for t in targets)
+    total_eng = total_likes + total_comments + total_shares
+    eng_rate = round((total_eng / total_reach * 100), 1) if total_reach > 0 else 0.0
+
+    prev_reach = sum(max(snaps.get(t.id, {}).get("views") or 0, snaps.get(t.id, {}).get("impressions") or 0) for t in prev_targets)
+
+    if prev_reach > 0:
+        reach_diff = round(((total_reach - prev_reach) / prev_reach) * 100)
+        reach_pct = f"+{reach_diff}% vs prior" if reach_diff >= 0 else f"{reach_diff}% vs prior"
+    else:
+        reach_pct = ""
+
+    # Follower delta across channels
+    channels = db.scalars(select(Channel).where(Channel.brand_id.in_(brand_ids), Channel.status != "off")).all()
+    plat_slugs = dict(db.execute(select(Platform.id, Platform.slug)).all())
+    plat_delta = {}
+    total_follower_delta = 0
+    for c in channels:
+        pslug = plat_slugs.get(c.platform_id, "other")
+        cur_snap = db.scalars(
+            select(MetricSnapshot)
+            .where(MetricSnapshot.channel_id == c.id, MetricSnapshot.target_id.is_(None), MetricSnapshot.taken_at <= until)
+            .order_by(MetricSnapshot.taken_at.desc())
+            .limit(1)
+        ).first()
+        old_snap = db.scalars(
+            select(MetricSnapshot)
+            .where(MetricSnapshot.channel_id == c.id, MetricSnapshot.target_id.is_(None), MetricSnapshot.taken_at <= since)
+            .order_by(MetricSnapshot.taken_at.desc())
+            .limit(1)
+        ).first()
+        cur_c = (cur_snap.metrics.get("followers") or cur_snap.metrics.get("subscribers") or cur_snap.metrics.get("members") or 0) if cur_snap else 0
+        old_c = (old_snap.metrics.get("followers") or old_snap.metrics.get("subscribers") or old_snap.metrics.get("members") or 0) if old_snap else cur_c
+        diff = max(0, cur_c - old_c)
+        if diff > 0:
+            plat_delta[pslug] = plat_delta.get(pslug, 0) + diff
+            total_follower_delta += diff
+
+    if plat_delta and total_follower_delta > 0:
+        followers_sub = " · ".join(f"{k.upper() if len(k) <= 2 else k.capitalize()} {v}" for k, v in plat_delta.items())
+    else:
+        followers_sub = f"Across {len(channels)} connected channel{'s' if len(channels) != 1 else ''}"
+
+    # Leads
+    leads = db.scalars(
+        select(Lead)
+        .where(
+            Lead.brand_id.in_(brand_ids),
+            Lead.created_at >= since,
+            Lead.created_at <= until,
+        )
+    ).all()
+    total_leads = len(leads)
+    if total_leads > 0:
+        sources = [l.source for l in leads if l.source]
+        if sources:
+            counts = Counter(sources)
+            leads_sub = " · ".join(f"{cnt} from {src}" for src, cnt in counts.most_common(2))
+        else:
+            leads_sub = f"{total_leads} captured in {time_label.lower()}"
+    else:
+        leads_sub = f"0 in {time_label.lower()}"
+
+    # Deals Won & Revenue
+    won_leads = [l for l in leads if l.outcome == "won"]
+    closed_won = db.scalars(
+        select(Lead)
+        .where(
+            Lead.brand_id.in_(brand_ids),
+            Lead.outcome == "won",
+            Lead.closed_at >= since,
+            Lead.closed_at <= until,
+        )
+    ).all()
+    won_all = list({l.id: l for l in won_leads + list(closed_won)}.values())
+    deals_won = len(won_all)
+    revenue = sum(float(l.value_usd or 0) for l in won_all)
+    if deals_won > 0:
+        deals_sub = f"{deals_won} deal{'s' if deals_won > 1 else ''} closed from leads"
+        revenue_sub = "Closed in Dynamics 365 / CRM"
+    else:
+        deals_sub = f"0 closed in {time_label.lower()}"
+        revenue_sub = "Closed in Dynamics 365 / CRM"
+
+    # Goals Breakdown
+    goals_data = {}
+    for gid, gspec in GOALS.items():
+        g_targets = [t for t in targets if goal_of(t.post.pillar or "") == gid]
+        g_prev_targets = [t for t in prev_targets if goal_of(t.post.pillar or "") == gid]
+        count = len(g_targets)
+        prev_count = len(g_prev_targets)
+
+        if count == 0:
+            posts_display = "—"
+            result_text = "No post yet today" if period == "today" else f"No post in {time_label.lower()}"
+            change_text = "—"
+            status_text = "Waiting"
+        else:
+            posts_display = str(count)
+            status_text = "On track"
+            g_views = sum(snaps.get(t.id, {}).get("views") or 0 for t in g_targets)
+            g_reach = sum(max(snaps.get(t.id, {}).get("views") or 0, snaps.get(t.id, {}).get("impressions") or 0) for t in g_targets)
+            g_likes = sum(snaps.get(t.id, {}).get("likes") or 0 for t in g_targets)
+            g_comments = sum(snaps.get(t.id, {}).get("comments") or 0 for t in g_targets)
+            g_shares = sum(snaps.get(t.id, {}).get("shares") or 0 for t in g_targets)
+            g_saves = sum(snaps.get(t.id, {}).get("saves") or 0 for t in g_targets)
+            g_clicks = sum(snaps.get(t.id, {}).get("clicks") or 0 for t in g_targets)
+
+            if gid == "reach":
+                result_text = f"Reach {_fmt_sales_compact(g_reach)} · Impr. {_fmt_sales_compact(max(g_reach, g_views))}"
+            elif gid == "followers":
+                result_text = f"+{total_follower_delta} followers" if total_follower_delta > 0 else f"{count} post{'s' if count > 1 else ''} live"
+            elif gid == "awareness":
+                result_text = f"Reach {_fmt_sales_compact(g_reach)} · Views {_fmt_sales_compact(g_views)}"
+            elif gid == "engagement":
+                result_text = f"{g_comments} comments · {g_likes} reactions"
+            elif gid == "education":
+                result_text = f"{g_saves} saves · {g_shares} shares"
+            elif gid == "trust":
+                eng_r = ((g_likes + g_comments + g_shares) / max(g_reach, 1)) * 100
+                result_text = f"Engagement rate {eng_r:.1f}%"
+            elif gid == "authority":
+                result_text = f"{g_shares} shares · {g_comments} mentions"
+            elif gid == "solution":
+                result_text = f"{g_clicks} website clicks"
+            elif gid == "conversion":
+                result_text = f"{total_leads} leads generated"
+            else:
+                result_text = f"{count} post{'s' if count > 1 else ''}"
+
+            if prev_count > 0:
+                pct_diff = round(((count - prev_count) / prev_count) * 100)
+                change_text = f"+{pct_diff}%" if pct_diff >= 0 else f"{pct_diff}%"
+            else:
+                change_text = "—"
+
+        goals_data[gid] = {
+            "posts": posts_display,
+            "result": result_text,
+            "change": change_text,
+            "status": status_text,
+        }
+
+    # Footnote summary
+    today_since = datetime.combine(today_local, datetime.min.time(), PHNOM_PENH)
+    today_end = datetime.combine(today_local, datetime.max.time(), PHNOM_PENH)
+    live_today = db.scalars(
+        select(PostTarget)
+        .join(Post, Post.id == PostTarget.post_id)
+        .where(
+            scope(PostTarget, ws),
+            Post.brand_id.in_(brand_ids),
+            PostTarget.status == "posted",
+            PostTarget.published_at >= today_since,
+            PostTarget.published_at <= today_end,
+        )
+        .options(selectinload(PostTarget.post))
+    ).all()
+    queued_today = db.scalars(
+        select(PostTarget)
+        .join(Post, Post.id == PostTarget.post_id)
+        .where(
+            scope(PostTarget, ws),
+            Post.brand_id.in_(brand_ids),
+            PostTarget.status == "queued",
+            PostTarget.scheduled_for >= today_since,
+            PostTarget.scheduled_for <= today_end,
+        )
+        .options(selectinload(PostTarget.post))
+    ).all()
+
+    live_labels = [GOALS.get(goal_of(t.post.pillar or ""), {}).get("label") for t in live_today if goal_of(t.post.pillar or "")]
+    live_labels = sorted(list(set(filter(None, live_labels))))
+    queued_labels = [GOALS.get(goal_of(t.post.pillar or ""), {}).get("label") for t in queued_today if goal_of(t.post.pillar or "")]
+    queued_labels = sorted(list(set(filter(None, queued_labels))))
+
+    if period == "today":
+        parts = []
+        if live_labels:
+            parts.append(f"{' and '.join(live_labels)} posts are live.")
+        else:
+            parts.append("No posts live yet today.")
+        if queued_labels:
+            parts.append(f"{' and '.join(queued_labels)} posts go out tonight.")
+        note_text = f"Today so far: {' '.join(parts)}"
+    else:
+        note_text = f"{time_label} summary: {len(targets)} post target{'s' if len(targets) != 1 else ''} published across connected channels."
+
+    has_real_records = len(targets) > 0 or total_leads > 0 or deals_won > 0
+
+    # Calculate By Channel breakdown
+    plat_targets = {}
+    for t in targets:
+        ch = db.get(Channel, t.channel_id)
+        if ch:
+            pslug = plat_slugs.get(ch.platform_id, "other")
+            plat_targets.setdefault(pslug, []).append(t)
+
+    plat_leads = {}
+    for l in leads:
+        src = (l.source or "").lower()
+        if "facebook" in src or "fb" in src:
+            plat_leads.setdefault("facebook", []).append(l)
+        elif "tiktok" in src:
+            plat_leads.setdefault("tiktok", []).append(l)
+        elif "instagram" in src or "ig" in src:
+            plat_leads.setdefault("instagram", []).append(l)
+        elif "telegram" in src:
+            plat_leads.setdefault("telegram", []).append(l)
+        elif "youtube" in src:
+            plat_leads.setdefault("youtube", []).append(l)
+
+    channel_specs = [
+        {"name": "Facebook", "slug": "facebook", "default_reach": 2500, "default_follows": "+20", "default_leads": 2, "default_won": 1, "default_rev": "$3,200", "default_spend": "$0", "default_cpl": "$0.0"},
+        {"name": "TikTok", "slug": "tiktok", "default_reach": 2100, "default_follows": "+41", "default_leads": 2, "default_won": 0, "default_rev": "$0", "default_spend": "$0", "default_cpl": "$0.0"},
+        {"name": "Instagram", "slug": "instagram", "default_reach": 1100, "default_follows": "+16", "default_leads": 1, "default_won": 0, "default_rev": "$0", "default_spend": "—", "default_cpl": "—"},
+        {"name": "Telegram", "slug": "telegram", "default_reach": 480, "default_follows": "+6", "default_leads": 1, "default_won": 0, "default_rev": "$0", "default_spend": "—", "default_cpl": "organic"},
+        {"name": "YouTube", "slug": "youtube", "default_reach": 220, "default_follows": "+1", "default_leads": 0, "default_won": 0, "default_rev": "$0", "default_spend": "—", "default_cpl": "—"},
+    ]
+
+    by_channel_rows = []
+    for cs in channel_specs:
+        s = cs["slug"]
+        c_targets = plat_targets.get(s, [])
+        c_leads = plat_leads.get(s, [])
+        c_won = [l for l in c_leads if l.outcome == "won"]
+        c_rev = sum(float(l.value_usd or 0) for l in c_won)
+        c_reach = sum(max(snaps.get(t.id, {}).get("views") or 0, snaps.get(t.id, {}).get("impressions") or 0) for t in c_targets)
+        c_follows = plat_delta.get(s, 0)
+
+        by_channel_rows.append({
+            "channel": cs["name"],
+            "slug": s,
+            "reach": _fmt_sales_compact(c_reach) if c_reach > 0 else "0",
+            "follows": f"+{c_follows}" if c_follows > 0 else "+0",
+            "leads": len(c_leads),
+            "won": len(c_won),
+            "revenue": f"${c_rev:,.0f}" if c_rev > 0 else "$0",
+            # Paid spend isn't tracked yet — the page shows a dash, not a made-up figure.
+            "spend": "—",
+            "cost_per_lead": "—",
+        })
+
+    # Funnel — only the steps we really record. Chatbot conversations aren't
+    # tracked yet, so there is no "Chats" step.
+    funnel_qualified = len([l for l in leads if l.status in ("ready", "handed_off", "closed") or l.score >= 50])
+    funnel_opportunities = max(deals_won, len([l for l in leads if l.status in ("handed_off", "closed")]))
+    steps = [
+        ("Reach", total_reach, False),
+        ("Engaged", total_eng, False),
+        ("Leads", total_leads, True),
+        ("Qualified", funnel_qualified, True),
+        ("Opportunities", funnel_opportunities, True),
+        ("Won", deals_won, True),
+    ]
+    funnel_data = []
+    for i, (label, n, dark) in enumerate(steps):
+        before = steps[i - 1][1] if i else 0
+        funnel_data.append({
+            "stage": label,
+            "count": f"{n:,}",
+            "raw": n,
+            "pct": f"{n / before * 100:.1f}%".replace(".0%", "%") if i and before > 0 else None,
+            "width": max(6, round(n / max(steps[0][1], 1) * 100)) if i else 100,
+            "is_dark": dark,
+        })
+
+    # Content that sold — leads tied to the post that brought them in.
+    by_post: dict[int, dict] = {}
+    for l in leads:
+        if not l.post_id or not l.post:
+            continue
+        row = by_post.setdefault(l.post_id, {"title": l.post.title or "Untitled post", "leads": 0, "won": 0, "revenue": 0.0})
+        row["leads"] += 1
+        if l.outcome == "won":
+            row["won"] += 1
+            row["revenue"] += float(l.value_usd or 0)
+    ranked = sorted(by_post.values(), key=lambda r: (-r["revenue"], -r["won"], -r["leads"]))[:3]
+    content_sold = [
+        {
+            "title": r["title"],
+            "sub": f"{r['leads']} lead{'s' if r['leads'] != 1 else ''} · {r['won']} won",
+            "revenue": f"${r['revenue']:,.0f}",
+        }
+        for r in ranked
+    ]
+    tied = sum(1 for l in leads if l.post_id)
+
+    # What to change next — only things the numbers show, and only with enough posts.
+    recommendations = []
+    goal_posts = Counter(goal_of(t.post.pillar or "") for t in targets if goal_of(t.post.pillar or ""))
+    goal_leads = Counter(goal_of(l.post.pillar or "") for l in leads if l.post and goal_of(l.post.pillar or ""))
+    rates = {g: goal_leads[g] / goal_posts[g] for g in goal_posts if goal_posts[g] >= 3}
+    if len(rates) >= 2:
+        best = max(rates, key=rates.get)
+        worst = min(rates, key=rates.get)
+        if rates[best] > 0 and rates[best] >= 2 * rates[worst]:
+            recommendations.append({
+                "id": f"more_{best}",
+                "title": f"Make more {GOALS[best]['label']} posts",
+                "description": f"They brought {rates[best]:.1f} leads per post, against {rates[worst]:.1f} for {GOALS[worst]['label']}.",
+                "confidence": f"Based on {goal_posts[best] + goal_posts[worst]} posts",
+            })
+    plat_rates = {s: len(plat_leads.get(s, [])) / len(plat_targets[s]) for s in plat_targets if len(plat_targets[s]) >= 3}
+    if len(plat_rates) >= 2:
+        best = max(plat_rates, key=plat_rates.get)
+        if plat_rates[best] > 0:
+            recommendations.append({
+                "id": f"channel_{best}",
+                "title": f"{best.capitalize()} is your best lead channel",
+                "description": f"{plat_rates[best]:.1f} leads per post — more than any other channel you post on.",
+                "confidence": f"Based on {len(plat_targets[best])} posts",
+            })
+
+    return {
+        "period": period,
+        "has_real_records": has_real_records,
+        "reach": {
+            "value": _fmt_sales_compact(total_reach),
+            "raw": total_reach,
+            "sub": f"{time_label} · {reach_pct}" if reach_pct else (f"{time_label}" if total_reach > 0 else f"{time_label} · 0 reach"),
+        },
+        "followers": {
+            "value": f"+{total_follower_delta:,}" if total_follower_delta > 0 else "+0",
+            "raw": total_follower_delta,
+            "sub": followers_sub,
+        },
+        "engagementRate": {
+            "value": f"{eng_rate:.1f}%",
+            "raw": eng_rate,
+            "sub": f"Across {len(targets)} post{'s' if len(targets) != 1 else ''}" if targets else "No posts in this period",
+        },
+        "leads": {
+            "value": str(total_leads),
+            "raw": total_leads,
+            "sub": leads_sub,
+        },
+        "dealsWon": {
+            "value": str(deals_won),
+            "raw": deals_won,
+            "sub": deals_sub,
+        },
+        "revenue": {
+            "value": f"${revenue:,.0f}" if revenue > 0 else "$0",
+            "raw": revenue,
+            "sub": revenue_sub,
+        },
+        "goals": goals_data,
+        "note": note_text,
+        "counts": {
+            "posts": len(targets),
+            "leads": total_leads,
+            "deals_won": deals_won,
+            "revenue": revenue,
+        },
+        "by_channel": by_channel_rows,
+        "funnel": funnel_data,
+        "content_that_sold": content_sold,
+        "leads_tied_to_posts": tied,
+        "recommendations": recommendations,
+    }
+
+
+_BOOSTABLE = ("facebook", "instagram", "tiktok")  # platforms with a paid-boost product
+_BOOST_TIERS = (10, 25, 50)
+
+
+def _engagement(m: dict) -> int:
+    return sum(m.get(k) or 0 for k in ("likes", "comments", "shares", "saves"))
+
+
+@router.get("/insights/boosts")
+def insights_boosts(brand_id: int | None = None, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    """Which recent posts are worth a paid boost — worked out from the brand's own
+    numbers, no AI guesswork. A post qualifies when it beats its channel's average
+    engagement by a clear margin AND has leads linked to it (likes alone don't
+    sell). Nothing is sent to an ad account; this only recommends."""
+    if brand_id is not None:
+        owned(db, Brand, brand_id, ws)
+        brand_ids = [brand_id]
+    else:
+        brand_ids = [b.id for b in db.scalars(select(Brand).where(scope(Brand, ws))).all()]
+    if not brand_ids:
+        return {"items": [], "baseline_posts": 0, "can_judge_leads": False}
+
+    now = datetime.now(UTC)
+    rows = db.execute(
+        select(PostTarget, Post, Channel)
+        .join(Post, Post.id == PostTarget.post_id)
+        .join(Channel, Channel.id == PostTarget.channel_id)
+        .where(
+            scope(PostTarget, ws),
+            Post.brand_id.in_(brand_ids),
+            PostTarget.status == "posted",
+            PostTarget.published_at >= now - timedelta(days=60),
+        )
+    ).all()
+    plat_slugs = dict(db.execute(select(Platform.id, Platform.slug)).all())
+
+    tids = [t.id for t, _, _ in rows]
+    snaps: dict[int, dict] = {}
+    if tids:
+        for sn in db.scalars(select(MetricSnapshot).where(MetricSnapshot.target_id.in_(tids)).order_by(MetricSnapshot.taken_at.asc())):
+            snaps[sn.target_id] = sn.metrics  # the latest reading wins
+
+    lead_counts: Counter = Counter()
+    won_counts: Counter = Counter()
+    for pid, outcome in db.execute(select(Lead.post_id, Lead.outcome).where(Lead.brand_id.in_(brand_ids), Lead.post_id.is_not(None))):
+        lead_counts[pid] += 1
+        if outcome == "won":
+            won_counts[pid] += 1
+    can_judge_leads = bool(lead_counts)
+
+    # What each tagged post is about, and which of those labels bring leads.
+    posts_by_id = {post.id: post for _, post, _ in rows}
+    tagged = [p for p in posts_by_id.values() if p.content_tags]
+    works = post_tags.what_works(
+        [{"tags": p.content_tags, "leads": lead_counts.get(p.id, 0), "won": won_counts.get(p.id, 0)} for p in tagged]
+    )
+    works_by_label = {(w["field"], w["value"]): w for w in works}
+
+    # Channel baseline: average engagement of this platform's posts over 60 days.
+    by_plat: dict[str, list[int]] = {}
+    for t, _, ch in rows:
+        by_plat.setdefault(plat_slugs.get(ch.platform_id, "other"), []).append(_engagement(snaps.get(t.id, {})))
+
+    best: dict[int, dict] = {}  # one card per post — its strongest channel
+    for t, post, ch in rows:
+        slug = plat_slugs.get(ch.platform_id, "other")
+        age = now - t.published_at if t.published_at else timedelta(0)
+        if slug not in _BOOSTABLE or age < timedelta(hours=4) or age > timedelta(days=7):
+            continue
+        peers = by_plat.get(slug, [])
+        if len(peers) < 4:  # too few posts to say what "average" is
+            continue
+        m = snaps.get(t.id, {})
+        eng = _engagement(m)
+        avg = (sum(peers) - eng) / (len(peers) - 1)
+        if avg <= 0 or eng <= 0:
+            continue
+        ratio = eng / avg
+        leads = lead_counts.get(post.id, 0)
+        if ratio < 1.5:
+            continue
+        if leads:
+            kind = "boost"
+            tier = 50 if (ratio >= 3 or leads >= 3) else 25 if (ratio >= 2 or leads >= 2) else 10
+            reason = f"{ratio:.1f}× the usual engagement on {slug.capitalize()} and {leads} lead{'s' if leads > 1 else ''} came from it."
+        elif can_judge_leads:
+            kind, tier = "skip", None
+            reason = f"{ratio:.1f}× the usual engagement, but no leads came from it — likes, not buyers."
+        else:
+            kind, tier = "check", None
+            reason = f"{ratio:.1f}× the usual engagement. Link the leads it brought in (Leads & hand-off) to see if boosting would pay."
+        tags = post.content_tags or {}
+        if kind == "boost":
+            match = next(
+                (works_by_label[(f, tags[f])] for f in ("audience", "pain_point", "topic", "cta") if (f, tags.get(f)) in works_by_label),
+                None,
+            )
+            if match:
+                reason += (
+                    f" Posts with the same {match['label']} “{match['value']}” bring "
+                    f"{match['per_post']} leads each ({match['vs_average']}× your average)."
+                )
+        item = {
+            "post_id": post.id,
+            "title": post.title or t.title or "Untitled post",
+            "summary": tags.get("summary", ""),
+            "tags": {k: tags.get(k, "") for k in ("topic", "audience", "pain_point", "cta")} if tags else None,
+            "channel": slug,
+            "posted_at": t.published_at,
+            "kind": kind,
+            "ratio": round(ratio, 1),
+            "leads": leads,
+            "reach": max(m.get("views") or 0, m.get("impressions") or 0),
+            "reason": reason,
+            "budget": tier,
+            "tiers": list(_BOOST_TIERS),
+        }
+        if post.id not in best or item["ratio"] > best[post.id]["ratio"]:
+            best[post.id] = item
+
+    order = {"boost": 0, "check": 1, "skip": 2}
+    items = sorted(best.values(), key=lambda i: (order[i["kind"]], -i["ratio"]))
+    untagged = sum(1 for p in posts_by_id.values() if not p.content_tags)
+    return {
+        "items": items[:6],
+        "baseline_posts": len(rows),
+        "can_judge_leads": can_judge_leads,
+        "untagged": untagged,
+        "tagged": len(tagged),
+        "what_works": works,
+    }
+
+
+@router.post("/insights/tag-posts")
+def insights_tag_posts(brand_id: int | None = None, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    """Let the AI read the latest untagged published posts (up to a batch) and
+    label what each is about. Costs AI credit; refused when it runs out."""
+    if brand_id is not None:
+        owned(db, Brand, brand_id, ws)
+        brand_ids = [brand_id]
+    else:
+        brand_ids = [b.id for b in db.scalars(select(Brand).where(scope(Brand, ws))).all()]
+    if not brand_ids:
+        return {"tagged": 0, "remaining": 0}
+    since = datetime.now(UTC) - timedelta(days=60)
+    posted = (
+        select(PostTarget.post_id)
+        .where(PostTarget.status == "posted", PostTarget.published_at >= since, PostTarget.caption != "")
+        .group_by(PostTarget.post_id)
+        .subquery()
+    )
+    todo = db.scalars(
+        select(Post)
+        .where(scope(Post, ws), Post.brand_id.in_(brand_ids), Post.content_tags.is_(None), Post.id.in_(select(posted.c.post_id)))
+        .order_by(Post.id.desc())
+    ).all()
+    done = 0
+    labels_by_brand: dict[int, dict] = {}
+    try:
+        for post in todo[: post_tags.BATCH]:
+            if post.brand_id not in labels_by_brand:
+                known = db.scalars(select(Post).where(Post.brand_id == post.brand_id, Post.content_tags.is_not(None)).limit(200)).all()
+                labels_by_brand[post.brand_id] = post_tags.known_labels(known)
+            if post_tags.tag_post(db, post, labels_by_brand[post.brand_id]):
+                done += 1
+                db.commit()  # keep what is done if a later call fails
+    except content_ai.ContentAIError as exc:
+        db.commit()
+        if not done:
+            raise HTTPException(503, str(exc)) from exc
+    return {"tagged": done, "remaining": max(0, len(todo) - done)}
 
 
 @router.get("/insights/{target_id}/history")

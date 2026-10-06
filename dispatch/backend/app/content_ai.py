@@ -333,7 +333,9 @@ SYSTEM_PROMPT = (
     "idea is a non-selling pillar. At most one promotion per 5 ideas. "
     "If the brief lists the pillars of recent posts, don't repeat them — fill "
     "what's missing. If what has worked for this brand favours a pillar, lean "
-    "towards it but keep the mix. If the brief gives SUBJECTS for this batch, "
+    "towards it but keep the mix. If the brief gives a GOAL MIX, it overrides "
+    "the pillar choice: write exactly that many ideas of each goal, each with "
+    "one of the pillars listed for it. If the brief gives SUBJECTS for this batch, "
     "build each idea around one of them, one subject per idea (the pillar, "
     "angle and goal still apply — a subject is what it's about, the pillar is "
     "what kind of post it is), and return it as the idea's \"subject\", copied "
@@ -565,7 +567,10 @@ WEEK_GUIDE = (
     "on the same pillar, product or format, selling ideas spread apart, and a "
     "local_moment on the day it belongs to when one falls in the week. Give "
     'each idea a "day": the date (YYYY-MM-DD) from the plan days in the brief '
-    "that it is written for, filling the days evenly in date order."
+    "that it is written for, filling the days evenly in date order. Also give "
+    'each idea "video": true when it works much better as a short vertical video '
+    "than as a picture (a story, a before/after, a demo, a trend) — at most 3 a "
+    'week, and never for a meme or poster idea; every other idea gets "video": false.'
 )
 
 
@@ -737,6 +742,7 @@ def _brief(
     recent_pillars: list[str] | None = None,
     subjects: list[str] | None = None,
     selling_days: list[date] | None = None,
+    goal_mix: str = "",
 ) -> str:
     lines = [
         f"Brand: {brand_name}" + (f" (write in: {brand_lang})" if brand_lang else ""),
@@ -758,6 +764,8 @@ def _brief(
             else f"Selling ideas allowed in this batch: at most {len(selling_days)}, only on "
             + ", ".join(f"{d.isoformat()} ({d.strftime('%A')})" for d in selling_days)
         )
+    if goal_mix:
+        lines.append(goal_mix)
     if subjects:
         names = [p.name for p in products]
         lines.append(
@@ -867,6 +875,7 @@ def generate_ideas(
     recent_pillars: list[str] | None = None,
     subjects: list[str] | None = None,
     selling_days: list[date] | None = None,
+    goal_mix: str = "",
 ) -> list[dict]:
     """``week=True``: plan ideas spread over a week (app/weekly.py) rather
     than one day's batch — ``days`` are the plan days, and each idea comes
@@ -886,7 +895,7 @@ def generate_ideas(
                 "role": "user",
                 "content": _brief(
                     brand_name, brand_lang, products, topic_source, count, voice_examples, learnings, days, recent_pillars, subjects,
-                    selling_days,
+                    selling_days, goal_mix,
                 ),
             },
         ],
@@ -946,6 +955,8 @@ def generate_ideas(
                 "day": day if day in day_isos else "",
                 "meme": meme,
                 "poster": poster,
+                # Week plans only (WEEK_GUIDE): better as a short video, made in the Content studio.
+                "video": idea.get("video") is True and not meme and not poster,
             }
         )
     if not cleaned:

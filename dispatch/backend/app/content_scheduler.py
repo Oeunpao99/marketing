@@ -426,9 +426,18 @@ def schedule_draft_as_post(db: Session, draft: Draft, on_day: date | None = None
         if automation and automation.learn_from_results and not override_time
         else None
     )
+    # A weekly plan item goes out at the time the plan showed for it.
+    planned = None
+    if on_day and draft.planned_time:
+        try:
+            planned = time.fromisoformat(draft.planned_time)
+        except ValueError:
+            planned = None
     for ch in channels:
         slug = ch.platform.slug if ch.platform else ""
-        if override_time:
+        if planned:
+            when = _slot_on(on_day, slug, now, planned)
+        elif override_time:
             when = _slot_on(on_day, slug, now, override_time) if on_day else _next_slot(slug, now, override_time)
         else:
             when = _learned_slot(learned, slug, now, on_day, post.id)

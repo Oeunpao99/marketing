@@ -25,10 +25,13 @@ from app.models import (
     CreditEntry,
     Draft,
     GenerationJob,
+    Lead,
+    LeadAccount,
     Platform,
     Post,
     PostTarget,
     Product,
+    SalesRep,
     TeamMember,
     Video,
     VideoStory,
@@ -84,9 +87,9 @@ def scope(model, ws: int):
     Returns None for shared, global tables (Platform)."""
     if model is Platform:
         return None
-    if model in (Brand, Video, GenerationJob, TeamMember, VideoStory, CreditEntry, Website):
+    if model in (Brand, Video, GenerationJob, TeamMember, VideoStory, CreditEntry, Website, SalesRep, LeadAccount):
         return model.workspace_id == ws
-    if model in (Channel, Post, Draft, Automation, Product, WeeklyPlan, BrandAsset, ActivityPlan):
+    if model in (Channel, Post, Draft, Automation, Product, WeeklyPlan, BrandAsset, ActivityPlan, Lead):
         return model.brand_id.in_(brand_ids(ws))
     if model is PostTarget:
         return PostTarget.post_id.in_(select(Post.id).where(Post.brand_id.in_(brand_ids(ws))))

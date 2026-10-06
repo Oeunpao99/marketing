@@ -69,6 +69,8 @@ The video is made of separate AI-generated clips (one per scene) that are joined
   scene's prompt.
 - Story arc across the scenes: hook/problem → the product → how it helps (real product facts only)
   → proof/result → clear call to action in the last scene.
+- "role": this scene's job in the arc, exactly one of hook, problem, solution, proof, cta. The first scene is
+  "hook" and the last is "cta"; when there are 5 or more scenes use hook, problem, solution, proof, cta in that order.
 - "visual": what the camera sees and does in this shot, concrete and filmable (subject, action,
   setting, camera movement, mood). Mention the brand/product visually where natural. No text,
   logos or UI screenshots in the visual itself.
@@ -82,7 +84,7 @@ The video is made of separate AI-generated clips (one per scene) that are joined
 - Never invent product features, prices, numbers or claims that aren't in the product info.
 
 Reply as JSON: {"title": "<short title>", "style": "<one paragraph: characters, setting, palette,
-lighting, camera style, overall mood>", "scenes": [{"visual": "...", "voiceover": "...",
+lighting, camera style, overall mood>", "scenes": [{"role": "...", "visual": "...", "voiceover": "...",
 "on_screen": "..."}]} with exactly the requested number of scenes."""
 
 
@@ -179,6 +181,7 @@ def _story_out(db: Session, story: VideoStory) -> dict:
         "error": story.error,
         "scenes": scenes,
         "total_seconds": start,
+        "estimated_cost": round(sum(billing.video_cost(get_settings().video_provider, s["seconds"]) for s in story.scenes), 2),
         "final_video": (
             {"id": story.final_video_id, "url": urls.get(story.final_video_id)} if story.final_video_id else None
         ),
@@ -262,6 +265,7 @@ def create_story(
             {
                 "key": _key(),
                 "seconds": seconds,
+                "role": str(x.get("role") or "").strip().lower()[:12],
                 "visual": str(x.get("visual")).strip(),
                 "voiceover": _fix_khmer_punctuation(voice) if khmer else voice,
                 "on_screen": str(x.get("on_screen") or "").strip()[:80],

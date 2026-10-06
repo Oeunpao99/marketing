@@ -17,7 +17,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Brand, LoginEvent, TeamMember, Workspace, WorkspaceInvite
+from app.models import Brand, LoginEvent, SalesRep, TeamMember, Workspace, WorkspaceInvite
 from app.schemas import AuthOut, LoginIn, RegisterIn, UserOut, WorkspaceUpdate
 from app import access as feature_access
 from app import sessions
@@ -562,6 +562,11 @@ def join(token: str, payload: JoinIn, request: Request, db: Session = Depends(ge
     )
     db.add(user)
     inv.uses += 1
+    db.flush()
+    if inv.sales_rep_id:  # "Invite to portal" from Leads → Sales team
+        rep = db.get(SalesRep, inv.sales_rep_id)
+        if rep is not None and rep.workspace_id == inv.workspace_id and rep.member_id is None:
+            rep.member_id = user.id
     db.commit()
     db.refresh(user)
     record_login(db, request, email, "signup", user)

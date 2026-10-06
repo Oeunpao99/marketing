@@ -388,6 +388,24 @@ def brand_learnings(db: Session, brand_id: int) -> dict:
                     "posts": len(ps),
                 }
 
+    # What brings leads — labels the AI read in the brand's own posts (app/post_tags.py),
+    # joined to the leads linked to those posts. Only the two strongest are used.
+    from app.post_tags import brand_what_works
+
+    for w in brand_what_works(db, brand_id)[:2]:
+        what = w["value"].replace("_", " ")
+        rules.append(
+            {
+                "id": "leads",
+                "text": f"Posts with {w['label']} “{what}” bring {w['per_post']} leads each ({_x(w['vs_average'])} your average)",
+                "evidence": f"{w['leads']} leads from {w['posts']} posts" + (f", {w['won']} won" if w["won"] else ""),
+            }
+        )
+        guidance.append(
+            f"Posts with {w['label']} “{what}” bring the most leads for this brand — make more ideas of that kind, "
+            "but only inside the mix rules (never add selling posts beyond the limit)."
+        )
+
     # Questions → comments
     with_c = [p for p in posts if p["comments"] is not None]
     c = _compare(

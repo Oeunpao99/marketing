@@ -59,6 +59,17 @@ class Workspace(Base, TimestampMixin):
     # Billing plan (app/billing.py): "pro" gets PLAN_CREDIT["pro"] of AI credit
     # a month. Not editable through any API yet — there's no payment system.
     plan: Mapped[str] = mapped_column(String(20), default="pro", server_default="pro")
+    # Chatbot lead intake (app/leads.py, POST /api/intake/leads): only a hash of
+    # the secret key is kept — the key is shown once, when it is made — plus its
+    # last 4 characters so Setup can tell keys apart, and when a bot last sent a lead.
+    lead_intake_key_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True)
+    lead_intake_key_hint: Mapped[str] = mapped_column(String(8), default="", server_default="")
+    lead_intake_last_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Sales alerts (app/sales_alerts.py): the Telegram group hand-offs are posted
+    # to, its title for Setup, and the one-time "/connect CODE" while linking it.
+    sales_tg_chat_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    sales_tg_title: Mapped[str] = mapped_column(String(200), default="", server_default="")
+    sales_tg_code: Mapped[str | None] = mapped_column(String(12), nullable=True)
 
 
 class CreditEntry(Base):
@@ -218,6 +229,9 @@ class Post(Base, TimestampMixin):
     # the platform and imported from a connected Page (app/importer.py), so
     # Analytics can badge it and still count it.
     origin: Mapped[str] = mapped_column(String(20), default="contentflow", server_default="contentflow")
+    # What the post is about, read by the AI once it is published (app/post_tags.py):
+    # {"summary", "topic", "audience", "pain_point", "cta"}. Null until tagged.
+    content_tags: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
     targets: Mapped[list[PostTarget]] = relationship(
         back_populates="post", cascade="all, delete-orphan"
@@ -279,6 +293,10 @@ class Draft(Base, TimestampMixin):
     # The calendar day this idea is slotted for (app/content_scheduler.py sets
     # this to the Phnom Penh day it was written for; null for hand-made drafts).
     planned_for: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    # "HH:MM" Phnom Penh time the weekly plan showed for it — scheduling uses
+    # it on every channel (content_scheduler.schedule_draft_as_post); null =
+    # each platform's learned or default time.
+    planned_time: Mapped[str | None] = mapped_column(String(5), nullable=True)
     length_seconds: Mapped[int] = mapped_column(Integer, default=0)
     generated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
@@ -400,6 +418,9 @@ class Automation(Base, TimestampMixin):
     # explained", …) — preset or typed by the person. Each day's / batch's
     # ideas get the next few (content_ai.pick_subjects). Empty = the AI picks.
     subjects: Mapped[list[str]] = mapped_column(JSONB, default=list, server_default="[]", nullable=False)
+    # Percent per content goal (app/goals.py GOALS, e.g. {"reach": 15, ...}) the
+    # weekly plan fills; null = the AI's default mix (goals.DEFAULT_MIX).
+    goal_mix: Mapped[dict[str, int] | None] = mapped_column(JSONB, nullable=True)
 
 
 @event.listens_for(Brand, "after_insert")
@@ -711,6 +732,9 @@ class WorkspaceInvite(Base, TimestampMixin):
     max_uses: Mapped[int | None] = mapped_column(Integer, nullable=True)
     uses: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     revoked: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+    # Set when it was made from a sales rep's "Invite to portal": joining links
+    # the new login to that rep (app/auth.py join).
+    sales_rep_id: Mapped[int | None] = mapped_column(ForeignKey("sales_reps.id", ondelete="SET NULL"), nullable=True)
 
 
 class Website(Base, TimestampMixin):
@@ -732,3 +756,93 @@ class Website(Base, TimestampMixin):
     history: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list, server_default="[]", nullable=False)
     # Problems already pushed ({"down": iso, ...}), so each alerts once.
     alerted: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, server_default="{}", nullable=False)
+
+
+class SalesRep(Base, TimestampMixin):
+    """A salesperson leads are handed to (app/leads.py): which industries they
+    own, whether they are senior (regulated industries go to a senior rep) and
+    how many open leads they can carry. Shared across the workspace's brands."""
+
+    __tablename__ = "sales_reps"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    email: Mapped[str] = mapped_column(String(200), default="", server_default="")
+    phone: Mapped[str] = mapped_column(String(40), default="", server_default="")
+    # Telegram @username (without the @) — mentioned in the sales group on hand-off.
+    telegram: Mapped[str] = mapped_column(String(64), default="", server_default="")
+    # Their portal login, once they joined through "Invite to portal" (or were
+    # linked to an existing member) — lets them see "My leads" and update them.
+    member_id: Mapped[int | None] = mapped_column(
+        ForeignKey("team_members.id", ondelete="SET NULL"), nullable=True, unique=True
+    )
+    # Industries this rep owns, e.g. ["Retail", "E-commerce"] — matched loosely.
+    industries: Mapped[list[str]] = mapped_column(JSONB, default=list, server_default="[]", nullable=False)
+    senior: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
+    capacity: Mapped[int] = mapped_column(Integer, default=12, server_default="12")
+    active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
+
+
+class LeadAccount(Base, TimestampMixin):
+    """An existing customer and the rep who owns the account. The first
+    hand-off rule matches a new lead's phone, email or company against these
+    (a later Dynamics 365 sync would fill the same table)."""
+
+    __tablename__ = "lead_accounts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    phone: Mapped[str] = mapped_column(String(40), default="", server_default="")
+    email: Mapped[str] = mapped_column(String(200), default="", server_default="")
+    owner_rep_id: Mapped[int | None] = mapped_column(ForeignKey("sales_reps.id", ondelete="SET NULL"), nullable=True)
+    note: Mapped[str] = mapped_column(String(400), default="", server_default="")
+
+
+class Lead(Base, TimestampMixin):
+    """A lead a chatbot (or a person) captured for a brand: who they are, what
+    they need, a score, the last chat messages and, once handed over, the rep
+    and the routing decision that picked them. See app/leads.py."""
+
+    __tablename__ = "leads"
+    __table_args__ = (
+        Index("ix_leads_brand_status", "brand_id", "status"),
+        Index("ix_leads_brand_external", "brand_id", "external_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    brand_id: Mapped[int] = mapped_column(ForeignKey("brands.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(200))  # the company, else the person
+    industry: Mapped[str] = mapped_column(String(120), default="", server_default="")
+    source: Mapped[str] = mapped_column(String(120), default="", server_default="")  # "Telegram bot", "TikTok comment"
+    contact_name: Mapped[str] = mapped_column(String(120), default="", server_default="")
+    phone: Mapped[str] = mapped_column(String(40), default="", server_default="")
+    email: Mapped[str] = mapped_column(String(200), default="", server_default="")
+    summary: Mapped[str] = mapped_column(String(300), default="", server_default="")  # one line for the list
+    need: Mapped[str] = mapped_column(Text, default="", server_default="")
+    volume: Mapped[str] = mapped_column(String(120), default="", server_default="")
+    timeline: Mapped[str] = mapped_column(String(120), default="", server_default="")
+    score: Mapped[int] = mapped_column(Integer, default=0, server_default="0")  # 0-100: hot >= 70, warm >= 40
+    # qualifying (the bot is still asking) | ready (waiting for a rep) | handed_off | closed
+    status: Mapped[str] = mapped_column(String(14), default="qualifying", server_default="qualifying")
+    # [{"from": "customer" | "bot", "text": "..."}] — the last few messages
+    messages: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list, server_default="[]", nullable=False)
+    account_id: Mapped[int | None] = mapped_column(ForeignKey("lead_accounts.id", ondelete="SET NULL"), nullable=True)
+    rep_id: Mapped[int | None] = mapped_column(ForeignKey("sales_reps.id", ondelete="SET NULL"), nullable=True, index=True)
+    # The routing decision when handed over: {"rule", "reason", "compliance"}
+    route: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, server_default="{}", nullable=False)
+    handed_off_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    handed_off_by: Mapped[int | None] = mapped_column(ForeignKey("team_members.id", ondelete="SET NULL"), nullable=True)
+    first_contact_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    outcome: Mapped[str] = mapped_column(String(8), default="", server_default="")  # won | lost | "" (the bot closed it)
+    value_usd: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)  # what a won deal was worth
+    # The post that brought this lead in — what lets Insights show which content
+    # sold. Set by hand (or by the chatbot integration) and null when unknown.
+    post_id: Mapped[int | None] = mapped_column(ForeignKey("posts.id", ondelete="SET NULL"), nullable=True, index=True)
+    # The chatbot's own id for this conversation — a bot sending the same chat
+    # again updates this lead instead of adding a second one. "" when typed in.
+    external_id: Mapped[str] = mapped_column(String(120), default="", server_default="")
+
+    post: Mapped[Post | None] = relationship(lazy="selectin")

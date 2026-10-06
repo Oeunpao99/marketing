@@ -27,6 +27,10 @@ from app.views import router as views_router
 from app.weekly import router as weekly_router
 from app.website import router as website_router
 from app.activity import router as activity_router
+from app.command import router as command_router
+from app.leads import intake_router as leads_intake_router
+from app.leads import router as leads_router
+from app.sales_alerts import router as sales_alerts_router
 
 logging.basicConfig(level=logging.INFO)
 settings = get_settings()
@@ -138,7 +142,11 @@ api.include_router(views_router, dependencies=authed)
 api.include_router(weekly_router, dependencies=authed)
 api.include_router(website_router, dependencies=authed)
 api.include_router(activity_router, dependencies=authed)
+api.include_router(command_router, dependencies=authed)
+api.include_router(leads_router, dependencies=authed)
+api.include_router(sales_alerts_router, dependencies=authed)
 api.include_router(views_public_router)
+api.include_router(leads_intake_router)  # chatbots: X-ContentFlow-Key, no login
 app.include_router(api)
 app.include_router(media_serve_router)
 
