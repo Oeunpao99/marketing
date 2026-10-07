@@ -117,6 +117,12 @@ class Brand(Base, TimestampMixin):
     # A few real captions in this brand's voice — content_ai.py shows them to
     # the model as a style reference (style only, never a source of facts).
     voice_examples: Mapped[str] = mapped_column(Text, default="", server_default="")
+    # Chat link added to the end of every post when it is published
+    # (publishers.chat_link_line): the brand's Telegram bot username and/or
+    # Messenger page name, and the words before the link. Empty = no link.
+    chat_telegram: Mapped[str] = mapped_column(String(64), default="", server_default="")
+    chat_messenger: Mapped[str] = mapped_column(String(100), default="", server_default="")
+    chat_label: Mapped[str] = mapped_column(String(80), default="", server_default="")
 
     channels: Mapped[list[Channel]] = relationship(
         back_populates="brand", cascade="all, delete-orphan"

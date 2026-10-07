@@ -44,6 +44,10 @@ class BrandBase(BaseModel):
     note: str = Field(default="", max_length=2000)
     # A few real captions in this brand's voice — the AI matches their style.
     voice_examples: str = ""
+    # Chat link added to each published post (publishers.chat_link_line).
+    chat_telegram: str = Field(default="", max_length=64)
+    chat_messenger: str = Field(default="", max_length=100)
+    chat_label: str = Field(default="", max_length=80)
 
 
 class BrandCreate(BrandBase):
@@ -56,6 +60,9 @@ class BrandUpdate(BaseModel):
     lang: str | None = Field(default=None, max_length=60)
     note: str | None = Field(default=None, max_length=2000)
     voice_examples: str | None = None
+    chat_telegram: str | None = Field(default=None, max_length=64)
+    chat_messenger: str | None = Field(default=None, max_length=100)
+    chat_label: str | None = Field(default=None, max_length=80)
 
 
 class BrandOut(TimestampsOut, BrandBase):

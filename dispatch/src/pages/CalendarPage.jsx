@@ -7,6 +7,7 @@ import { PILLAR_LABELS, angleText } from '../lib/angles'
 import { colorForBrand } from '../lib/brandColor'
 import { phnomPenhDate } from '../lib/tz'
 import { useStore } from '../store'
+import Select from '../components/ui/Select'
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -15,14 +16,18 @@ const ymd = (y, m, d) => `${y}-${pad(m + 1)}-${pad(d)}`
 const daysInMonth = (y, m) => new Date(y, m + 1, 0).getDate()
 
 export default function CalendarPage() {
-  const { brands, showToast } = useStore()
+  const { brands, showToast, activeBrand } = useStore()
   const navigate = useNavigate()
   const today = phnomPenhDate(0) // "YYYY-MM-DD"
   const [todayY, todayM] = today.split('-').map(Number)
 
   const [year, setYear] = useState(todayY)
   const [month, setMonth] = useState(todayM - 1) // 0-indexed
-  const [brandFilter, setBrandFilter] = useState('all')
+  // Starts on the brand picked in the sidebar, and follows it when it changes.
+  const [brandFilter, setBrandFilter] = useState(activeBrand || 'all')
+  useEffect(() => {
+    setBrandFilter(activeBrand || 'all')
+  }, [activeBrand])
   const [items, setItems] = useState(null)
   const [open, setOpen] = useState(null) // selected draft
   // Phone layout: the day whose ideas are listed under the compact month grid.
@@ -112,6 +117,19 @@ export default function CalendarPage() {
     return map
   }, [items, brandFilter])
 
+  // How many posts / ideas each brand has in the month on screen (for the dropdown).
+  const brandCounts = useMemo(() => {
+    if (!items) return {}
+    const prefix = `${year}-${pad(month + 1)}`
+    const out = { all: 0 }
+    for (const it of items) {
+      if (!String(it.planned_for || '').startsWith(prefix)) continue
+      out.all += 1
+      out[it.brand_slug] = (out[it.brand_slug] || 0) + 1
+    }
+    return out
+  }, [items, year, month])
+
   const cells = useMemo(() => {
     const firstWeekday = new Date(year, month, 1).getDay()
     const total = daysInMonth(year, month)
@@ -192,30 +210,21 @@ export default function CalendarPage() {
           Today
         </button>
         <span className="mx-1 h-5 w-px bg-ink-200 hidden sm:block" />
-        <div className="-mx-5 flex w-[calc(100%+2.5rem)] gap-2 overflow-x-auto px-5 pb-0.5 side-scroll sm:mx-0 sm:w-auto sm:flex-wrap sm:overflow-visible sm:px-0">
-        <button
-          type="button"
-          onClick={() => setBrandFilter('all')}
-          className={`flex-none px-3 py-1.5 rounded-xl border text-[11.5px] font-semibold transition-all duration-150 ${
-            brandFilter === 'all' ? 'border-brand-line bg-brand-soft text-brand' : 'border-ink-200 text-ink-600 hover:border-brand-line'
-          }`}
-        >
-          All brands
-        </button>
-        {brands.map((b) => (
-          <button
-            key={b.id}
-            type="button"
-            onClick={() => setBrandFilter(b.slug)}
-            className={`flex-none whitespace-nowrap px-3 py-1.5 rounded-xl border text-[11.5px] font-semibold flex items-center gap-1.5 transition-all duration-150 ${
-              brandFilter === b.slug ? 'border-brand-line bg-brand-soft text-brand' : 'border-ink-200 text-ink-600 hover:border-brand-line'
-            }`}
-          >
-            <span className="w-1.5 h-1.5 rounded-full flex-none" style={{ background: colorForBrand(b.slug) }} />
-            {b.name}
-          </button>
-        ))}
-        </div>
+        <Select
+          value={brands.some((b) => b.slug === brandFilter) ? brandFilter : 'all'}
+          onChange={setBrandFilter}
+          aria-label="Brand"
+          buttonClassName="min-w-[190px] font-medium"
+          options={[
+            { value: 'all', label: 'All brands', hint: brandCounts.all != null ? `${brandCounts.all} this month` : undefined },
+            ...brands.map((b) => ({
+              value: b.slug,
+              label: b.name,
+              color: colorForBrand(b.slug),
+              hint: `${brandCounts[b.slug] || 0} this month`,
+            })),
+          ]}
+        />
       </div>
 
       {items !== null && (

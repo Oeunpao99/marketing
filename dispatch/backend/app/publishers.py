@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import re
+
 import httpx
 
 from app.config import get_settings
@@ -71,8 +73,50 @@ def telegram_subscriber_count(bot_token: str, chat_id: str) -> int:
     return int(_telegram_call(bot_token, "getChatMemberCount", {"chat_id": chat_id}))
 
 
+# ── chat link with the post's code ────────────────────────────────────────
+# Where a link in a caption can be tapped. Instagram and TikTok captions show
+# links as plain text, so they get none.
+_LINK_PLATFORMS = {"telegram", "facebook", "linkedin"}
+DEFAULT_CHAT_LABEL = "👉 Chat with us:"
+
+
+def _handle(value: str) -> str:
+    """A username as stored: no @, no t.me/ m.me/ or facebook.com/ prefix."""
+    value = re.sub(r"^(https?://)?(www\.)?(t\.me/|telegram\.me/|m\.me/|facebook\.com/)", "", (value or "").strip(), flags=re.I)
+    return value.lstrip("@").strip("/ ")
+
+
+def chat_link_line(target: PostTarget, channel: Channel, slug: str) -> str:
+    """The line added to this post's caption — the brand's chat link carrying
+    the post's code (P<post id>), so the chatbot can tell which post brought a
+    customer. "" when the brand has none set or the platform can't show links."""
+    brand = channel.brand
+    if brand is None or slug not in _LINK_PLATFORMS or not target.post_id:
+        return ""
+    tg, fb = _handle(brand.chat_telegram), _handle(brand.chat_messenger)
+    code = f"P{target.post_id}"
+    # Each platform gets the chat its readers are already in, falling back to the other.
+    if slug == "facebook":
+        url = f"https://m.me/{fb}?ref={code}" if fb else (f"https://t.me/{tg}?start={code}" if tg else "")
+    else:
+        url = f"https://t.me/{tg}?start={code}" if tg else (f"https://m.me/{fb}?ref={code}" if fb else "")
+    if not url:
+        return ""
+    return f"{(brand.chat_label or '').strip() or DEFAULT_CHAT_LABEL} {url}"
+
+
+def _with_chat_link(target: PostTarget, channel: Channel, slug: str) -> None:
+    """Add the chat link to the caption once (a retry doesn't add it twice);
+    the caption is saved with it, so the app shows what was really posted."""
+    line = chat_link_line(target, channel, slug)
+    caption = target.caption or ""
+    if line and f"=P{target.post_id}" not in caption:
+        target.caption = f"{caption.rstrip()}\n\n{line}" if caption.strip() else line
+
+
 def publish(target: PostTarget, channel: Channel, video: Video | None) -> PublishResult:
     slug = channel.platform.slug if channel.platform else ""
+    _with_chat_link(target, channel, slug)
     if slug == "telegram":
         return _publish_telegram(target, channel, video)
     if slug == "tiktok" and (channel.config or {}).get("access_token"):

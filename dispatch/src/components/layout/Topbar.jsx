@@ -12,7 +12,7 @@ const LABELS = {
   "/command": "Command center",
   "/leads": "Leads & hand-off",
   "/new": "Compose",
-  "/review": "Content",
+  "/review": "Approvals",
   "/calendar": "Calendar",
   "/auto": "Autopilot",
   "/weekly": "Plan & best time",

@@ -16,6 +16,7 @@ import {
   FiLink,
   FiLock,
   FiLogOut,
+  FiMap,
   FiMonitor,
   FiRefreshCw,
   FiSmartphone,
@@ -35,6 +36,7 @@ import { APP_VERSION, applyUpdate, latestVersion } from '../../lib/update'
 import { openTour } from '../../lib/tour'
 import { TZ } from '../../lib/tz'
 import Select from '../ui/Select'
+import HowItWorks from './HowItWorks'
 import { fmtUSD } from '../../lib/money'
 
 // Settings — every control here is real and saves to the backend
@@ -43,6 +45,7 @@ import { fmtUSD } from '../../lib/money'
 // Team edits are owner/admin only; editors see them read-only.
 
 const TABS = [
+  { id: 'guide', label: 'How it works', icon: FiMap },
   { id: 'profile', label: 'Profile', icon: FiUser },
   { id: 'appearance', label: 'Appearance', icon: FiDroplet },
   { id: 'notifications', label: 'Notifications', icon: FiBell },
@@ -148,6 +151,7 @@ export default function SettingsModal({ open, onClose, showToast, initialTab = n
           </div>
 
           <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-5">
+            {tab === 'guide' && <HowItWorks onClose={onClose} />}
             {tab === 'profile' && <ProfileTab showToast={showToast} onClose={onClose} />}
             {tab === 'appearance' && <AppearanceTab showToast={showToast} />}
             {tab === 'notifications' && <NotificationsTab showToast={showToast} />}

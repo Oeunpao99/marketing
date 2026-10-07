@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   FiAward,
@@ -143,7 +143,14 @@ export default function InsightsSalesView({
   })
   const [budgetPlanApproved, setBudgetPlanApproved] = useState(false)
 
-  // Load real records from the backend endpoint
+  // The store's showToast is a new function on every store update; reading it
+  // through a ref keeps the loader below stable, so the cards don't reload (and
+  // flash "…") whenever something else in the app changes.
+  const toastRef = useRef(showToast)
+  toastRef.current = showToast
+
+  // Load real records from the backend endpoint. A refresh keeps the current
+  // numbers on screen; only the very first load shows "…".
   const loadRealData = useCallback(async () => {
     setLoading(true)
     setError('')
@@ -153,11 +160,11 @@ export default function InsightsSalesView({
       setRealData(res)
     } catch (e) {
       setError(e.message)
-      showToast?.(`Could not load sales data: ${e.message}`)
+      toastRef.current?.(`Could not load sales data: ${e.message}`)
     } finally {
       setLoading(false)
     }
-  }, [rangeId, brandId, showToast])
+  }, [rangeId, brandId])
 
   useEffect(() => {
     loadRealData()
@@ -484,7 +491,7 @@ export default function InsightsSalesView({
         <div className="rounded-2xl border border-ink-200/60 bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           <div className="text-[12px] font-medium text-ink-500">Reach</div>
           <div className="mt-1 text-[26px] font-bold tracking-tight text-ink-900 tabular-nums">
-            {loading ? '…' : period.reach?.value ?? '0'}
+            {loading && !realData ? '…' : period.reach?.value ?? '0'}
           </div>
           <div className="mt-1 text-[11px] text-ink-400 truncate">
             {period.reach?.sub ?? ''}
@@ -495,7 +502,7 @@ export default function InsightsSalesView({
         <div className="rounded-2xl border border-ink-200/60 bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           <div className="text-[12px] font-medium text-ink-500">New followers</div>
           <div className="mt-1 text-[26px] font-bold tracking-tight text-ink-900 tabular-nums">
-            {loading ? '…' : period.followers?.value ?? '+0'}
+            {loading && !realData ? '…' : period.followers?.value ?? '+0'}
           </div>
           <div className="mt-1 text-[11px] text-ink-400 truncate">
             {period.followers?.sub ?? ''}
@@ -506,7 +513,7 @@ export default function InsightsSalesView({
         <div className="rounded-2xl border border-ink-200/60 bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           <div className="text-[12px] font-medium text-ink-500">Engagement rate</div>
           <div className="mt-1 text-[26px] font-bold tracking-tight text-ink-900 tabular-nums">
-            {loading ? '…' : period.engagementRate?.value ?? '0.0%'}
+            {loading && !realData ? '…' : period.engagementRate?.value ?? '0.0%'}
           </div>
           <div className="mt-1 text-[11px] text-ink-400 truncate">
             {period.engagementRate?.sub ?? ''}
@@ -517,7 +524,7 @@ export default function InsightsSalesView({
         <div className="rounded-2xl border border-ink-200/60 bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           <div className="text-[12px] font-medium text-ink-500">Leads</div>
           <div className="mt-1 text-[26px] font-bold tracking-tight text-ink-900 tabular-nums">
-            {loading ? '…' : period.leads?.value ?? '0'}
+            {loading && !realData ? '…' : period.leads?.value ?? '0'}
           </div>
           <div className="mt-1 text-[11px] text-ink-400 truncate">
             {period.leads?.sub ?? ''}
@@ -528,7 +535,7 @@ export default function InsightsSalesView({
         <div className="rounded-2xl border border-ink-200/60 bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           <div className="text-[12px] font-medium text-ink-500">Deals won</div>
           <div className="mt-1 text-[26px] font-bold tracking-tight text-ink-900 tabular-nums">
-            {loading ? '…' : period.dealsWon?.value ?? '0'}
+            {loading && !realData ? '…' : period.dealsWon?.value ?? '0'}
           </div>
           <div className="mt-1 text-[11px] text-ink-400 truncate">
             {period.dealsWon?.sub ?? ''}
@@ -539,7 +546,7 @@ export default function InsightsSalesView({
         <div className="rounded-2xl border border-ink-200/60 bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           <div className="text-[12px] font-medium text-ink-500">Revenue from social</div>
           <div className="mt-1 text-[26px] font-bold tracking-tight text-ink-900 tabular-nums">
-            {loading ? '…' : period.revenue?.value ?? '$0'}
+            {loading && !realData ? '…' : period.revenue?.value ?? '$0'}
           </div>
           <div className="mt-1 text-[11px] text-ink-400 truncate">
             {period.revenue?.sub ?? ''}

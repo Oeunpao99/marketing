@@ -1050,7 +1050,7 @@ def insights_sales_view(
         since = datetime.combine(today_local, datetime.min.time(), PHNOM_PENH)
         until = now_utc
         prev_since = since - timedelta(days=1)
-        prev_until = since
+        prev_until = now_utc - timedelta(days=1)  # yesterday up to this time — a fair comparison
         time_label = f"Today so far · {now_local.strftime('%H:%M')}"
     elif period == "7d":
         since = now_utc - timedelta(days=7)
@@ -1086,7 +1086,7 @@ def insights_sales_view(
             "engagementRate": {"value": "0.0%", "raw": 0, "sub": "No posts in this period"},
             "leads": {"value": "0", "raw": 0, "sub": "0 captured"},
             "dealsWon": {"value": "0", "raw": 0, "sub": "0 closed"},
-            "revenue": {"value": "$0", "raw": 0, "sub": "Closed in Dynamics 365 / CRM"},
+            "revenue": {"value": "$0", "raw": 0, "sub": "From leads marked Won"},
             "goals": {},
             "note": "No active brand in this workspace.",
             "counts": {"posts": 0, "leads": 0, "deals_won": 0, "revenue": 0},
@@ -1114,7 +1114,7 @@ def insights_sales_view(
             Post.brand_id.in_(brand_ids),
             PostTarget.status == "posted",
             PostTarget.published_at >= prev_since,
-            PostTarget.published_at < since,
+            PostTarget.published_at < prev_until,
         )
         .options(selectinload(PostTarget.post))
     ).all()
@@ -1138,7 +1138,7 @@ def insights_sales_view(
 
     prev_reach = sum(max(snaps.get(t.id, {}).get("views") or 0, snaps.get(t.id, {}).get("impressions") or 0) for t in prev_targets)
 
-    if prev_reach > 0:
+    if prev_reach > 0 and targets:
         reach_diff = round(((total_reach - prev_reach) / prev_reach) * 100)
         reach_pct = f"+{reach_diff}% vs prior" if reach_diff >= 0 else f"{reach_diff}% vs prior"
     else:
@@ -1193,7 +1193,7 @@ def insights_sales_view(
         else:
             leads_sub = f"{total_leads} captured in {time_label.lower()}"
     else:
-        leads_sub = f"0 in {time_label.lower()}"
+        leads_sub = "None yet today" if period == "today" else f"None in the {time_label.lower()}"
 
     # Deals Won & Revenue
     won_leads = [l for l in leads if l.outcome == "won"]
@@ -1211,10 +1211,10 @@ def insights_sales_view(
     revenue = sum(float(l.value_usd or 0) for l in won_all)
     if deals_won > 0:
         deals_sub = f"{deals_won} deal{'s' if deals_won > 1 else ''} closed from leads"
-        revenue_sub = "Closed in Dynamics 365 / CRM"
+        revenue_sub = "From leads marked Won"
     else:
-        deals_sub = f"0 closed in {time_label.lower()}"
-        revenue_sub = "Closed in Dynamics 365 / CRM"
+        deals_sub = "None closed yet today" if period == "today" else f"None closed in the {time_label.lower()}"
+        revenue_sub = "From leads marked Won"
 
     # Goals Breakdown
     goals_data = {}
@@ -1452,7 +1452,7 @@ def insights_sales_view(
         "reach": {
             "value": _fmt_sales_compact(total_reach),
             "raw": total_reach,
-            "sub": f"{time_label} · {reach_pct}" if reach_pct else (f"{time_label}" if total_reach > 0 else f"{time_label} · 0 reach"),
+            "sub": f"{time_label} · {reach_pct}" if reach_pct else (time_label if targets else f"{time_label} · no posts yet"),
         },
         "followers": {
             "value": f"+{total_follower_delta:,}" if total_follower_delta > 0 else "+0",
