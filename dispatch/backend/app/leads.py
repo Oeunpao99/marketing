@@ -22,6 +22,8 @@ from __future__ import annotations
 import hashlib
 import re
 import secrets
+import threading
+import time
 from datetime import UTC, datetime, timedelta
 from typing import Literal
 
@@ -861,6 +863,24 @@ def lead_close(lead_id: int, payload: CloseIn, db: Session = Depends(get_db), ws
 # chatbot team: docs/chatbot-lead-intake.md.
 intake_router = APIRouter(prefix="/intake", tags=["Lead intake"])
 
+# At most this many calls per key per minute — a broken bot or a leaked key
+# can't flood a workspace. Kept in memory, per server process.
+INTAKE_PER_MINUTE = 60
+_intake_calls: dict[int, list[float]] = {}
+_intake_lock = threading.Lock()
+
+
+def _within_rate(ws: int) -> bool:
+    now = time.monotonic()
+    with _intake_lock:
+        recent = [t for t in _intake_calls.get(ws, []) if now - t < 60]
+        if len(recent) >= INTAKE_PER_MINUTE:
+            _intake_calls[ws] = recent
+            return False
+        recent.append(now)
+        _intake_calls[ws] = recent
+        return True
+
 
 class IntakeLead(BaseModel):
     external_id: str = Field(min_length=1, max_length=120)  # the bot's conversation id
@@ -899,6 +919,8 @@ def intake_lead(
     updates the same lead; a lead a rep already holds keeps its status."""
     w = _workspace_for_key(db, x_contentflow_key)
     ws = w.id
+    if not _within_rate(ws):
+        raise HTTPException(429, f"Too many leads — at most {INTAKE_PER_MINUTE} a minute. Try again shortly.")
     if payload.brand_id is not None:
         brand = db.scalar(select(Brand).where(Brand.id == payload.brand_id, Brand.workspace_id == ws))
         if brand is None:
