@@ -4,6 +4,7 @@ import { FiAlertCircle, FiCheck, FiImage, FiPlay, FiType, FiVideo } from 'react-
 import { api } from '../api/client'
 import GeneratingCanvas from '../components/ui/GeneratingCanvas'
 import PlatformIcon from '../components/ui/PlatformIcon'
+import SocialPreview from '../components/preview/SocialPreview'
 import { PILLAR_LABELS, angleText } from '../lib/angles'
 import { colorForBrand } from '../lib/brandColor'
 import { phnomPenhClock, phnomPenhDate } from '../lib/tz'
@@ -613,11 +614,12 @@ function Pill({ status }) {
 }
 
 function PreviewModal({ item, busy, onClose, onApprove, onReject, onUseIdea, onMakeMedia, onResults }) {
+  const [feed, setFeed] = useState(false) // the post as it shows in the feed (SocialPreview)
   useEffect(() => {
-    const onKey = (e) => e.key === 'Escape' && onClose()
+    const onKey = (e) => e.key === 'Escape' && !feed && onClose()
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  }, [onClose, feed])
 
   const isPost = item.type === 'post'
   const m = item.media
@@ -684,7 +686,24 @@ function PreviewModal({ item, busy, onClose, onApprove, onReject, onUseIdea, onM
               <div className="mt-1 text-[11.5px] text-ink-400">Idea — no image or video yet</div>
             )}
 
-            <div className="mt-4 text-[10.5px] font-bold uppercase tracking-wide text-ink-400">Caption</div>
+            <div className="mt-4 flex items-center justify-between gap-2">
+              <span className="text-[10.5px] font-bold uppercase tracking-wide text-ink-400">Caption</span>
+              {item.body && (
+                <button type="button" onClick={() => setFeed(true)} className="text-[12px] font-semibold text-brand hover:underline">
+                  See it in the feed →
+                </button>
+              )}
+            </div>
+            {feed && (
+              <SocialPreview
+                brand={{ id: item.brand_id, name: item.brand_name, slug: item.brand_slug }}
+                caption={item.body}
+                media={m}
+                note={making ? 'Making the media…' : isPost ? null : 'No picture yet'}
+                platforms={platformsOf(item)}
+                onClose={() => setFeed(false)}
+              />
+            )}
             <p className={`mt-1 whitespace-pre-line text-[13px] leading-relaxed text-ink-700 ${khmer(item.body)}`}>
               {item.body || '—'}
             </p>

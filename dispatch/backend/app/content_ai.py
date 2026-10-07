@@ -303,26 +303,33 @@ SYSTEM_PROMPT = (
     "the late night, the customer who went elsewhere.\n"
     "3. The fix (1 line): name the product and say plainly what it does.\n"
     "4. A ✓ list of exactly 3 of its REAL capabilities from the product info — "
-    "each a short line: the capability + what it means for them (e.g. '✓ "
-    "Replies 24/7 — nobody waits till morning'). Specific, never vague ('saves "
+    "each ONE short line on a phone: the capability + what it means for them "
+    "(e.g. '✓ Replies 24/7 — no one waits'). Specific, never vague ('saves "
     "time', 'grows your business'). Pick the ones that answer the moment.\n"
     "5. Call to action, one line.\n"
     "40-90 words. Different ideas should feature different capabilities where "
     "the product info has enough of them.\n"
     "\n"
     "CAPTION FORMAT — social posts are plain text: no markdown, no **bold**, "
-    "no # headings. Make it easy to scan on a phone:\n"
-    "- The hook alone on the first line.\n"
-    "- A blank line between every block — never one dense paragraph.\n"
+    "no # headings. Most people read on a phone, about 40 characters a line, and "
+    "Facebook shows only the first ~3 lines before 'See more':\n"
+    "- The hook alone on the first line, under 100 characters — it has to earn "
+    "the tap on 'See more'.\n"
+    "- A blank line between every block, and each block 1-2 short sentences "
+    "(about 80 characters) — never one dense paragraph.\n"
     "- A list only where it helps (selling pillars always have one): one per "
     "line starting with '✓ ' (how_to steps may use '1.' '2.' '3.'), parallel in "
-    "form, short enough to read at a glance, with no full stop at the end. "
-    "Vary the shape across a batch — at most half the ideas use a list; the "
-    "rest are 2-4 short lines of plain text.\n"
-    "- The call to action alone on the last line (before any hashtags); put "
-    "👉 before a link.\n"
-    "- 0-3 emoji in total, each with a purpose. No hashtag spam — at most "
-    "2-3 relevant ones at the very end.\n"
+    "form, each item ONE line on a phone — at most about 35 characters — with no "
+    "full stop at the end.\n"
+    "- Vary the shape across a batch — at most half the ideas use a list; the "
+    "rest are 2-3 short paragraphs, or a little story told by the team ('Our "
+    "team…', 'A customer asked us…', 'This week we…'). Not every post is an ad.\n"
+    "- The call to action alone on the last line (before any hashtags). A link "
+    "goes on its own line after 👉, never inside a sentence.\n"
+    "- 0-3 emoji in total, at the end of a sentence or paragraph where they add "
+    "feeling (🚀 💜 ✨ 🙏), never several in a row and never mid-sentence.\n"
+    "- Hashtags: 2-3 on the very last line — the brand's own tag first (its name "
+    "with no spaces, e.g. #BCIE), then 1-2 topic tags. Never a long hashtag list.\n"
     "\n"
     "Ideas must be genuinely distinct from each other: a DIFFERENT pillar and "
     "angle for each idea where you can, and mixed goals. The RHYTHM: build "
@@ -556,6 +563,25 @@ MIXED_GUIDE = (
 )
 
 
+# "Khmer, then English": every caption in full in both languages, the way
+# Cambodian pages post "[English below]" — not a mix inside one text.
+BILINGUAL_GUIDE = (
+    "\n\nLANGUAGE — this brand posts every caption in BOTH languages: the whole "
+    "caption in natural spoken Khmer first, then a line of exactly 12 dashes "
+    "(------------) on its own, then the same caption in natural English (not a "
+    "word-for-word translation). Each half follows the caption structure and "
+    "format above on its own — hook, blank lines, short lines, its own call to "
+    "action — and the word limits count per half. Hashtags only once, on the very "
+    "last line, after the English half. Titles, insights, meme and poster text are "
+    "in Khmer.\n"
+    "\n" + KHMER_NATURAL + "\n" + KHMER_SELLING
+)
+
+
+def _is_bilingual(brand_lang: str) -> bool:
+    return "then english" in (brand_lang or "").lower()
+
+
 def _is_khmer(brand_lang: str) -> bool:
     return "khmer" in (brand_lang or "").lower() or any("ក" <= ch <= "៿" for ch in brand_lang or "")
 
@@ -590,6 +616,8 @@ def _system_prompt(brand_lang: str, week: bool = False) -> str:
     base = SYSTEM_PROMPT.replace("for ONE day", "for ONE week") + WEEK_GUIDE if week else SYSTEM_PROMPT
     if not _is_khmer(brand_lang):
         return base
+    if _is_bilingual(brand_lang):
+        return base + BILINGUAL_GUIDE
     mixed = "english" in (brand_lang or "").lower()
     return base + (MIXED_GUIDE if mixed else KHMER_GUIDE)
 
@@ -697,8 +725,20 @@ KHMER_ONLY_NOTE = (
 )
 
 
+BILINGUAL_POLISH_NOTE = (
+    "\n\nSome captions have two halves: Khmer, then a line of dashes (------------), "
+    "then the same caption in English. Edit only the Khmer half; copy the dashes line, "
+    "the English half and the hashtags exactly as they are."
+)
+
+
 def _polish_khmer(
-    captions: list[str], model: str, voice_examples: str = "", khmer_only: bool = False, keep: list[str] | None = None
+    captions: list[str],
+    model: str,
+    voice_examples: str = "",
+    khmer_only: bool = False,
+    keep: list[str] | None = None,
+    bilingual: bool = False,
 ) -> list[str]:
     """Second pass for Khmer: a separate 'native editor' call that checks
     correctness (real words, spelling, no foreign letters, sentences that make
@@ -712,6 +752,7 @@ def _polish_khmer(
                     "role": "system",
                     "content": POLISH_PROMPT
                     + (KHMER_ONLY_NOTE if khmer_only else "")
+                    + (BILINGUAL_POLISH_NOTE if bilingual else "")
                     + (
                         "\n\nNames to copy EXACTLY as written, never translated or respelled: "
                         + ", ".join(k for k in keep if k)
@@ -1005,7 +1046,12 @@ def generate_ideas(
         texts = [obj[key] if n is None else obj[key][n] for obj, key, n in slots]
         names = [brand_name, *(p.name for p in products)]
         polished = _polish_khmer(
-            texts, model, voice_examples, khmer_only="english" not in (brand_lang or "").lower(), keep=names
+            texts,
+            model,
+            voice_examples,
+            khmer_only="english" not in (brand_lang or "").lower(),
+            keep=names,
+            bilingual=_is_bilingual(brand_lang),
         )
         for (obj, key, n), text in zip(slots, polished, strict=True):
             if n is None:

@@ -293,7 +293,14 @@ export default function AutoPage() {
   )
 }
 
-const LANGUAGES = ['English', 'Khmer', 'Khmer + English']
+// "Khmer + English" = Khmer with English tech words, in one text; "Khmer,
+// then English" = the whole post in Khmer, a dashes line, then in English
+// (backend content_ai.BILINGUAL_GUIDE).
+const LANGUAGES = ['English', 'Khmer', 'Khmer + English', 'Khmer, then English']
+const LANGUAGE_HINT = {
+  'Khmer + English': 'Khmer, with English for tech words and app names',
+  'Khmer, then English': 'The whole post in Khmer, then a ------------ line, then the same post in English',
+}
 
 function SettingsDrawer({ a, channels, onUpdate, onBrandUpdate, onOpenPlan, onClose }) {
   const [voice, setVoice] = useState(a.brand_voice || '')
@@ -345,7 +352,7 @@ function SettingsDrawer({ a, channels, onUpdate, onBrandUpdate, onOpenPlan, onCl
 
           <Section title="Brand voice">
             <Field label="Language">
-              <div className="grid grid-cols-3 rounded-xl border border-ink-200 p-0.5">
+              <div className="grid grid-cols-2 rounded-xl border border-ink-200 p-0.5">
                 {LANGUAGES.map((l) => (
                   <button
                     key={l}
@@ -359,6 +366,7 @@ function SettingsDrawer({ a, channels, onUpdate, onBrandUpdate, onOpenPlan, onCl
                   </button>
                 ))}
               </div>
+              {LANGUAGE_HINT[a.brand_lang] && <p className="mt-1 text-[11px] text-ink-400">{LANGUAGE_HINT[a.brand_lang]}</p>}
             </Field>
             <Field label="Example captions">
               <AutoTextarea

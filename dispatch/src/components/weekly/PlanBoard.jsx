@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { FiRefreshCw } from 'react-icons/fi'
 import AutoTextarea from '../ui/AutoTextarea'
 import StoryEditor from '../story/StoryEditor'
+import SocialPreview from '../preview/SocialPreview'
 import { useStore } from '../../store'
 import { GOALS, STAGES, ctaOf, goalOfItem, ruleAction, stageOf } from '../../lib/goals'
 
@@ -31,6 +32,8 @@ const dayParts = (iso) => {
 export default function PlanBoard({
   plan,
   brandName,
+  brandId,
+  brandSlug,
   report,
   mix,
   makingMedia,
@@ -79,6 +82,7 @@ export default function PlanBoard({
                 key={item.key}
                 item={item}
                 brandName={brandName}
+                brand={{ id: brandId, name: brandName, slug: brandSlug }}
                 makingMedia={makingMedia}
                 busy={busy}
                 onApprove={() => onApprove({ keys: [item.key] })}
@@ -151,8 +155,9 @@ export default function PlanBoard({
 const dayLabel = (iso) =>
   new Date(`${iso}T00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
 
-function PostCard({ item, brandName, makingMedia, busy, onApprove, onSkip, onUnskip, onSaveCaption, onMakeImage, onFormat }) {
+function PostCard({ item, brandName, brand, makingMedia, busy, onApprove, onSkip, onUnskip, onSaveCaption, onMakeImage, onFormat }) {
   const [editing, setEditing] = useState(false)
+  const [previewing, setPreviewing] = useState(false)
   const [text, setText] = useState(item.caption)
   const [story, setStory] = useState(null) // a video post's storyboard, as StoryEditor has it
   useEffect(() => setText(item.caption), [item.caption])
@@ -277,6 +282,22 @@ function PostCard({ item, brandName, makingMedia, busy, onApprove, onSkip, onUns
       </div>
 
       <div className="flex w-[132px] flex-none flex-col items-stretch gap-2">
+        {previewing && (
+          <SocialPreview
+            brand={brand}
+            caption={text}
+            media={fmt === 'video' && story?.final_video ? { kind: 'video', url: story.final_video.url } : null}
+            note={
+              fmt === 'image'
+                ? `The ${item.poster || item.meme ? 'poster' : 'picture'} is made when you approve`
+                : fmt === 'video'
+                  ? 'The video shows here once it’s made from the storyboard'
+                  : null
+            }
+            platforms={item.channels}
+            onClose={() => setPreviewing(false)}
+          />
+        )}
         {approved ? (
           <ApprovedState item={item} fmt={fmt} makingMedia={makingMedia} onMakeImage={onMakeImage} />
         ) : skipped ? (
@@ -307,6 +328,9 @@ function PostCard({ item, brandName, makingMedia, busy, onApprove, onSkip, onUns
                 Open in studio
               </button>
             )}
+            <button type="button" onClick={() => setPreviewing(true)} className="btn-outline px-3 py-1.5 text-[12.5px]" title="See the post the way it shows in the feed">
+              Preview
+            </button>
             <button type="button" onClick={() => setEditing((e) => !e)} className="btn-ghost px-3 py-1.5 text-[12.5px] text-ink-600">
               {editing ? 'Done' : 'Edit caption'}
             </button>

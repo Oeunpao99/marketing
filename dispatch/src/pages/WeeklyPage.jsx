@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
-import { FiAlertTriangle, FiArrowDownRight, FiArrowUpRight, FiCalendar, FiCheck, FiRefreshCw, FiTrendingUp, FiUsers, FiZap } from 'react-icons/fi'
+import { FiArrowDownRight, FiArrowUpRight, FiCalendar, FiCheck, FiRefreshCw, FiUsers, FiZap } from 'react-icons/fi'
 import { api } from '../api/client'
 import { PILLAR_LABELS, pillarChipClass } from '../lib/angles'
 import { goalOfItem, ruleAction } from '../lib/goals'
@@ -371,6 +371,8 @@ export default function WeeklyPage() {
                 <PlanBoard
                   plan={plan}
                   brandName={brand.name}
+                  brandId={brand.id}
+                  brandSlug={brand.slug}
                   report={report}
                   mix={data.mix}
                   makingMedia={makingMedia}
@@ -732,65 +734,142 @@ function sureness(na, nb) {
 
 const fmt1 = (n) => (Number.isInteger(n) ? n : n.toFixed(1))
 
-function LessonCard({ rule, weak }) {
+// A lesson's short name for the chart row: the sentence up to its verb —
+// "On Facebook, Monday posts get 2.2× more…" → "Facebook · Monday posts".
+function lessonLabel(text) {
+  let t = String(text || '').split(/ (?:get|gets|do better|does better|lag behind|bring|—)\b/)[0]
+  t = t.replace(/\s*\([\d.]+×\)\s*$/, '').trim() // a trailing "(2.3×)", not "(11 AM–2 PM)"
+  const on = /^On ([^,]+), (?:posts in )?(.+)$/i.exec(t)
+  return on ? `${on[1]} · ${on[2]}` : t
+}
+
+const LIFT_MAX = 4 // the chart's edge: 4× better / 4× worse (log scale)
+
+/** How a lesson compares with the brand's other posts: ratio, label, bar. */
+function liftOf(rule, weak) {
   const v = readRule(rule)
-  const sure = sureness(v.na, v.nb)
-  const max = Math.max(v.a ?? 0, v.b ?? 0, 0.1)
-  const bars = v.a != null && [
-    { label: 'These posts', value: v.a, n: v.na, strong: true },
-    { label: 'Your other posts', value: v.b, n: v.nb, strong: false },
-  ]
+  // the sentence's own "3.6×" first, so the bar and the text agree
+  let ratio = v.times ? Number.parseFloat(v.times) : v.a != null && v.b > 0 ? v.a / v.b : null
+  if (ratio != null && weak && ratio > 1) ratio = 1 / ratio
+  if (ratio == null) ratio = weak ? 0.5 : 2
+  const up = ratio >= 1
+  const label = up ? `${fmt1(Math.round(ratio * 10) / 10)}×` : `${Math.round((1 - ratio) * 100)}% less`
+  // log scale so 2× better and half as good are the same length
+  const reach = Math.min(1, Math.abs(Math.log2(Math.max(ratio, 1 / LIFT_MAX))) / Math.log2(LIFT_MAX))
+  return { ...v, ratio, up, label, reach: Math.max(reach, 0.04) }
+}
+
+/** Every lesson in one chart: a bar from "your other posts" (the centre) to
+ *  how much better (right, green) or worse (left, amber) these posts do.
+ *  Hover, tap or focus a row for its numbers and what the AI does about it. */
+function LessonChart({ rules, weak }) {
+  const rows = [...rules.map((r) => ({ r, weak: false })), ...weak.map((r) => ({ r, weak: true }))].map((x) => ({
+    ...x,
+    lift: liftOf(x.r, x.weak),
+  }))
+  const [active, setActive] = useState(null)
+  const pick = rows.find((x) => x.r.id === active) || null
+
   return (
-    <div className={`${card} flex flex-col p-5`}>
-      <div className="flex items-start gap-3">
-        <span
-          className={`grid h-11 min-w-[44px] flex-none place-items-center rounded-xl px-2 text-[15px] font-bold tabular-nums ${
-            weak ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'
-          }`}
-        >
-          {v.times || (weak ? <FiAlertTriangle size={17} aria-hidden="true" /> : <FiTrendingUp size={17} aria-hidden="true" />)}
-        </span>
-        <p className="min-w-0 flex-1 text-[13.5px] font-medium leading-snug text-ink-900">{rule.text}.</p>
-        {sure && (
-          <span title={sure.tip} className={`flex-none rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${sure.cls}`}>
-            {sure.label}
+    <section className={`${card} p-5`}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 className="text-[14px] font-semibold text-ink-900">What works for your audience</h3>
+          <p className="text-[11.5px] text-ink-500">Reactions per post, compared with your other posts · tap a bar for the numbers</p>
+        </div>
+        <div className="flex items-center gap-3 text-[11.5px] text-ink-500">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm bg-amber-600" aria-hidden="true" /> Does worse
           </span>
-        )}
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm bg-emerald-600" aria-hidden="true" /> Does better
+          </span>
+        </div>
       </div>
 
-      {bars ? (
-        <div className="mt-4 space-y-2">
-          {bars.map((b) => (
-            <div key={b.label} className="text-[11.5px]">
-              <div className="flex justify-between gap-2 text-ink-500">
-                <span>
-                  {b.label}
-                  {b.n != null && <span className="text-ink-400"> · {b.n} posts</span>}
-                </span>
-                <span className="tabular-nums">
-                  <b className="font-semibold text-ink-800">{fmt1(b.value)}</b> {v.unit} / post
-                </span>
-              </div>
-              <div className="mt-1 h-2 rounded-full bg-ink-100">
-                <div
-                  className={`h-full rounded-full ${b.strong === !weak ? 'bg-brand' : 'bg-ink-300'}`}
-                  style={{ width: `${Math.max(2, (b.value / max) * 100)}%` }}
-                />
-              </div>
-            </div>
-          ))}
+      <div className="mt-4" onMouseLeave={() => setActive(null)}>
+        {/* scale: worse ← your other posts → better */}
+        <div className="mb-1 grid grid-cols-[minmax(0,180px)_minmax(0,1fr)_72px] items-end gap-3 text-[10.5px] text-ink-400 sm:grid-cols-[minmax(0,220px)_minmax(0,1fr)_84px]">
+          <span />
+          <div className="relative flex justify-between">
+            <span>{LIFT_MAX}× worse</span>
+            <span className="absolute left-1/2 -translate-x-1/2 font-semibold text-ink-500">your other posts</span>
+            <span>{LIFT_MAX}× better</span>
+          </div>
+          <span />
         </div>
-      ) : (
-        <p className="mt-3 text-[11.5px] text-ink-500">{rule.evidence}</p>
-      )}
+        <ul>
+          {rows.map(({ r, weak: w, lift }) => {
+            const on = active === r.id
+            const sure = sureness(lift.na, lift.nb)
+            return (
+              <li key={r.id}>
+                <button
+                  type="button"
+                  onMouseEnter={() => setActive(r.id)}
+                  onFocus={() => setActive(r.id)}
+                  onClick={() => setActive(on ? null : r.id)}
+                  aria-expanded={on}
+                  className={`grid w-full grid-cols-[minmax(0,180px)_minmax(0,1fr)_72px] items-center gap-3 rounded-lg py-1.5 text-left transition-colors sm:grid-cols-[minmax(0,220px)_minmax(0,1fr)_84px] ${
+                    on ? 'bg-ink-50' : ''
+                  }`}
+                >
+                  <span className="flex min-w-0 items-center gap-1.5 pl-1.5">
+                    <span className={`truncate text-[12.5px] font-medium text-ink-800 ${khmer(r.text)}`}>{lessonLabel(r.text)}</span>
+                    {sure?.label === 'Early hint' && (
+                      <span title={sure.tip} className="flex-none rounded-full bg-ink-100 px-1.5 py-px text-[9.5px] font-semibold text-ink-500">
+                        early
+                      </span>
+                    )}
+                  </span>
+                  <span className="relative h-5">
+                    <span className="absolute inset-y-[-4px] left-1/2 w-px bg-ink-300" aria-hidden="true" />
+                    <span
+                      className={`absolute top-1/2 h-3 -translate-y-1/2 ${lift.up ? 'rounded-r bg-emerald-600' : 'rounded-l bg-amber-600'} ${
+                        on || !active ? 'opacity-100' : 'opacity-40'
+                      } transition-opacity`}
+                      style={lift.up ? { left: '50%', width: `${lift.reach * 50}%` } : { right: '50%', width: `${lift.reach * 50}%` }}
+                    />
+                  </span>
+                  <span className={`pr-1.5 text-right text-[12.5px] font-bold tabular-nums ${w ? 'text-amber-700' : 'text-emerald-700'}`}>
+                    {lift.up ? '↑' : '↓'} {lift.label}
+                  </span>
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      </div>
 
-      <p className="mt-auto flex items-start gap-1.5 pt-4 text-[12px] text-ink-600">
-        <FiCheck size={13} className="mt-0.5 flex-none text-brand" aria-hidden="true" />
-        <span>
-          <b className="font-semibold text-ink-800">Applied automatically:</b> {ruleAction(rule)}
-        </span>
-      </p>
-    </div>
+      {/* the numbers behind the bar that's hovered / tapped */}
+      <div className="mt-3 min-h-[64px] rounded-xl bg-ink-50 px-4 py-3 text-[12px] leading-relaxed text-ink-600">
+        {pick ? (
+          <>
+            <p className={`font-semibold text-ink-900 ${khmer(pick.r.text)}`}>{pick.r.text}.</p>
+            <p className="mt-0.5 tabular-nums">
+              {pick.lift.a != null ? (
+                <>
+                  These posts: <b className="text-ink-800">{fmt1(pick.lift.a)}</b> {pick.lift.unit} / post
+                  {pick.lift.na != null && ` (${pick.lift.na} posts)`} · your other posts: <b className="text-ink-800">{fmt1(pick.lift.b)}</b>
+                  {pick.lift.nb != null && ` (${pick.lift.nb} posts)`}
+                  {sureness(pick.lift.na, pick.lift.nb) && ` · ${sureness(pick.lift.na, pick.lift.nb).label}`}
+                </>
+              ) : (
+                pick.r.evidence
+              )}
+            </p>
+            <p className="mt-0.5 flex items-start gap-1.5">
+              <FiCheck size={13} className="mt-[3px] flex-none text-brand" aria-hidden="true" />
+              <span>
+                <b className="font-semibold text-ink-800">Applied automatically:</b> {ruleAction(pick.r)}
+              </span>
+            </p>
+          </>
+        ) : (
+          <p className="pt-2 text-center text-ink-400">Hover or tap a bar to see its numbers and what the AI now does about it.</p>
+        )}
+      </div>
+    </section>
   )
 }
 
@@ -836,30 +915,7 @@ function Lessons({ report, advisor }) {
         </section>
       ) : (
         <>
-          {rules.length > 0 && (
-            <div>
-              <h3 className="mb-2 flex items-center gap-2 text-[13px] font-semibold text-ink-800">
-                <FiTrendingUp size={14} className="text-emerald-600" aria-hidden="true" /> Doing well — do more of this
-              </h3>
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {rules.map((r) => (
-                  <LessonCard key={r.id} rule={r} />
-                ))}
-              </div>
-            </div>
-          )}
-          {weak.length > 0 && (
-            <div>
-              <h3 className="mb-2 flex items-center gap-2 text-[13px] font-semibold text-ink-800">
-                <FiAlertTriangle size={14} className="text-amber-600" aria-hidden="true" /> Not working — do less of this
-              </h3>
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {weak.map((r) => (
-                  <LessonCard key={r.id} rule={r} weak />
-                ))}
-              </div>
-            </div>
-          )}
+          <LessonChart rules={rules} weak={weak} />
         </>
       )}
 
@@ -874,21 +930,27 @@ function Lessons({ report, advisor }) {
               <p className="text-[11.5px] text-ink-500">Average likes + comments + shares per post, last 90 days</p>
             </div>
           </div>
-          <ul className="mt-4 grid gap-x-8 gap-y-3 md:grid-cols-2">
+          <ul className="mt-4 space-y-1.5">
             {topics.map((s) => (
-              <li key={s.label} className="text-[12px]">
-                <div className="flex justify-between gap-2 text-ink-600">
-                  <span>
-                    {s.label} <span className="text-ink-400">· {s.posts} posts</span>
-                  </span>
-                  <b className="font-semibold tabular-nums text-ink-800">{s.avg}</b>
-                </div>
-                <div className="mt-1 h-2 rounded-full bg-ink-100">
-                  <div className="h-full rounded-full bg-brand" style={{ width: `${Math.max(1, (s.avg / maxAvg) * 100)}%` }} />
-                </div>
+              <li
+                key={s.label}
+                title={`${s.label}: ${s.avg} reactions per post, from ${s.posts} post${s.posts === 1 ? '' : 's'}`}
+                className="grid grid-cols-[minmax(0,180px)_minmax(0,1fr)] items-center gap-3 sm:grid-cols-[minmax(0,220px)_minmax(0,1fr)]"
+              >
+                <span className="truncate text-[12.5px] text-ink-700">
+                  {s.label} <span className="text-ink-400">· {s.posts}</span>
+                </span>
+                <span className="flex items-center gap-2">
+                  <span
+                    className={`h-3 flex-none rounded-r ${s.avg > 0 ? 'bg-brand' : 'bg-ink-200'}`}
+                    style={{ width: `${Math.max(1.5, (s.avg / maxAvg) * 85)}%` }}
+                  />
+                  <b className="text-[12.5px] font-semibold tabular-nums text-ink-800">{s.avg}</b>
+                </span>
               </li>
             ))}
           </ul>
+          <p className="mt-2 text-[11px] text-ink-400">The number after each topic is how many posts it’s based on.</p>
         </section>
       )}
     </div>
