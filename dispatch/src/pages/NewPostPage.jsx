@@ -6,7 +6,7 @@ import CaptionComps from "../components/newpost/CaptionComps";
 import ChannelPicker from "../components/newpost/ChannelPicker";
 import VideoStep from "../components/newpost/VideoStep";
 import CircularProgress from "../components/ui/CircularProgress";
-import SocialPreview, { captionChecks, tidyCaption } from "../components/preview/SocialPreview";
+import SocialPreview, { captionChecks, formatCaption, longListLines, tidyCaption } from "../components/preview/SocialPreview";
 import { PLAT } from "../data/brands";
 import { handoff } from "../lib/handoff";
 import { phnomPenhDate, phnomPenhToISO, fullDayLabel } from "../lib/tz";
@@ -34,6 +34,7 @@ export default function NewPostPage() {
   const [error, setError] = useState(null);
   // The post drawn as it shows in the feed (SocialPreview), before it goes out.
   const [previewing, setPreviewing] = useState(false);
+  const [formatting, setFormatting] = useState(false);
 
   // "post" (Post now, shows the progress ring) or "schedule" (Schedule for
   // later, no ring — nothing's actually being sent yet).
@@ -189,6 +190,45 @@ export default function NewPostPage() {
 
   // Captions a phone reader would trip over (SocialPreview's checks).
   const toLook = ids.filter((i) => comps[i]?.cap?.trim() && captionChecks(comps[i].cap).some((c) => !c.ok)).length;
+
+  // Captions not yet in the clean phone layout — what Format would change.
+  const unformatted = ids.filter((i) => {
+    const cap = comps[i]?.cap || "";
+    return cap.trim() && (tidyCaption(cap) !== cap.trim() || longListLines(cap).length > 0);
+  });
+
+  // "Format": every picked channel's caption in the clean phone layout
+  // (long list lines shortened by the AI); same captions are formatted once.
+  const formatAll = async () => {
+    setFormatting(true);
+    try {
+      const done = {};
+      for (const i of unformatted) {
+        const cap = comps[i].cap;
+        if (!(cap in done)) {
+          const c = channels.find((x) => x.id === i);
+          const brandId = brands.find((b) => b.slug === c?.b)?.id;
+          done[cap] = await formatCaption(cap, brandId);
+        }
+      }
+      setComps((prev) => {
+        const next = { ...prev };
+        for (const i of unformatted) if (prev[i]?.cap in done) next[i] = { ...prev[i], cap: done[prev[i].cap] };
+        return next;
+      });
+      showToast(`Formatted ${unformatted.length} caption${unformatted.length === 1 ? "" : "s"} for phones`);
+    } catch (e) {
+      showToast(`Couldn’t format — ${e.message}. Showing it as it is.`);
+    } finally {
+      setFormatting(false);
+    }
+  };
+
+  // One button: format every caption for phones (if needed), then preview.
+  const previewAndFormat = async () => {
+    if (unformatted.length) await formatAll();
+    setPreviewing(true);
+  };
 
   const canSchedule =
     video && ids.length > 0 && emptyCount === 0 && overCount === 0;
@@ -416,10 +456,11 @@ export default function NewPostPage() {
           {toLook > 0 && (
             <button
               type="button"
-              onClick={() => setPreviewing(true)}
+              onClick={previewAndFormat}
+              disabled={formatting || busy}
               className="ml-2 font-semibold text-amber-700 hover:underline"
             >
-              · {toLook} caption{toLook === 1 ? "" : "s"} could read better on a phone — preview
+              · {toLook} caption{toLook === 1 ? "" : "s"} could read better on a phone — format &amp; preview
             </button>
           )}
         </div>
@@ -433,12 +474,18 @@ export default function NewPostPage() {
           </button>
           <button
             type="button"
-            onClick={() => setPreviewing(true)}
-            disabled={!ids.length}
+            onClick={previewAndFormat}
+            disabled={!ids.length || formatting || busy}
             className="btn-outline"
-            title={ids.length ? "See the post the way it shows in the feed" : "Pick a channel first"}
+            title={
+              !ids.length
+                ? "Pick a channel first"
+                : unformatted.length
+                  ? "Formats every caption for phones (long list lines shortened by the AI), then shows the post in the feed"
+                  : "See the post the way it shows in the feed"
+            }
           >
-            Preview
+            {formatting ? "Formatting…" : unformatted.length ? "Format & preview" : "Preview"}
           </button>
           <button
             type="button"

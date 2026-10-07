@@ -20,6 +20,7 @@ import {
 import { api } from '../../api/client'
 import { kitSrc } from '../brandkit/BrandKit'
 import { colorForBrand } from '../../lib/brandColor'
+import { useStore } from '../../store'
 import PlatformIcon, { PLAT_BRAND_CLASS } from '../ui/PlatformIcon'
 
 // "See it before it goes out": the post drawn the way each platform shows it
@@ -35,7 +36,33 @@ const LIST_RE = /^\s*(✓|✔|•|-|\d+[.)])\s/
 // How many lines each feed shows before "See more" (phone, with a picture).
 const CUT = { Facebook: 3, LinkedIn: 3, Instagram: 2, TikTok: 2 }
 
-/** What a reader on a phone will trip over — each {ok, text}. */
+// A list line longer than this wraps on a phone (backend content_ai.LIST_LINE_MAX).
+const LIST_MAX = 40
+
+/** The list lines too long for one phone line. */
+export function longListLines(caption) {
+  return String(caption || '')
+    .split('\n')
+    .filter((l) => LIST_RE.test(l) && l.trim().length > LIST_MAX)
+    .map((l) => l.trim())
+}
+
+/**
+ * "Format": the clean phone layout (tidyCaption, same words) and, only when a
+ * list line is too long for one phone line, those lines rewritten short by
+ * the AI (POST /ai/format-caption — one small AI call). Resolves to the new
+ * caption; throws if the AI step fails.
+ */
+export async function formatCaption(caption, brandId) {
+  let text = tidyCaption(caption)
+  if (longListLines(text).length) {
+    const out = await api.post('/ai/format-caption', { caption: text, brand_id: brandId ?? null })
+    text = tidyCaption(out.caption)
+  }
+  return text
+}
+
+/** What a reader on a phone will trip over — each {ok, text, lines?}. */
 export function captionChecks(caption) {
   const text = (caption || '').trim()
   const lines = text.split('\n')
@@ -46,11 +73,15 @@ export function captionChecks(caption) {
       ? { ok: true, text: 'The hook is short enough to show before “See more”' }
       : { ok: false, text: `The first line is ${first.length} characters — Facebook may hide part of the hook. Keep it under ~100.` },
   )
-  const longItems = lines.filter((l) => LIST_RE.test(l) && l.trim().length > 40).length
+  const long = longListLines(text)
   if (lines.some((l) => LIST_RE.test(l)))
     out.push(
-      longItems
-        ? { ok: false, text: `${longItems} list line${longItems === 1 ? '' : 's'} wrap${longItems === 1 ? 's' : ''} on a phone — keep each under ~35 characters` }
+      long.length
+        ? {
+            ok: false,
+            text: `${long.length} list line${long.length === 1 ? '' : 's'} wrap${long.length === 1 ? 's' : ''} on a phone — keep each under ~35 characters (Format shortens ${long.length === 1 ? 'it' : 'them'})`,
+            lines: long,
+          }
         : { ok: true, text: 'Every list line fits on one line' },
     )
   const dense = text.split(/\n\s*\n/).some((block) => block.replace(/\s+/g, ' ').length > 280)
@@ -492,8 +523,10 @@ export default function SocialPreview({ brand: baseBrand, caption: baseCaption, 
   const list = tabs.length ? tabs : ['Facebook']
   const [tab, setTab] = useState(list[0])
   const [logo, setLogo] = useState('')
-  // a tidied caption shows here at once, before the page saves it
+  // a formatted caption shows here at once, before the page saves it
   const [tidied, setTidied] = useState({})
+  const [formatting, setFormatting] = useState(false)
+  const { showToast } = useStore()
   const brand = byPlatform?.[tab]?.brand || baseBrand
   const caption = tidied[tab] ?? byPlatform?.[tab]?.caption ?? baseCaption
 
@@ -523,13 +556,19 @@ export default function SocialPreview({ brand: baseBrand, caption: baseCaption, 
   const Post = RENDER[tab] || FacebookPost
   const checks = captionChecks(caption)
   const issues = checks.filter((c) => !c.ok).length
-  const clean = tidyCaption(caption)
-  const canTidy = !!onFix && !!caption?.trim() && clean !== caption.trim()
-  const tidy = () => {
-    // Compose: one caption per platform; elsewhere one caption for every tab
-    const next = byPlatform ? { ...tidied, [tab]: clean } : Object.fromEntries(list.map((p) => [p, clean]))
-    setTidied(next)
-    onFix(clean, tab)
+  const canTidy = !!onFix && !!caption?.trim() && (tidyCaption(caption) !== caption.trim() || longListLines(caption).length > 0)
+  const tidy = async () => {
+    setFormatting(true)
+    try {
+      const clean = await formatCaption(caption, brand?.id)
+      // Compose: one caption per platform; elsewhere one caption for every tab
+      setTidied(byPlatform ? { ...tidied, [tab]: clean } : Object.fromEntries(list.map((p) => [p, clean])))
+      onFix(clean, tab)
+    } catch (e) {
+      showToast?.(`Couldn’t format — ${e.message}`)
+    } finally {
+      setFormatting(false)
+    }
   }
 
   return createPortal(
@@ -580,10 +619,11 @@ export default function SocialPreview({ brand: baseBrand, caption: baseCaption, 
                 <button
                   type="button"
                   onClick={tidy}
-                  className="rounded-lg bg-brand px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-brand-dark"
-                  title="Same words, clean layout: short blocks, list set apart, link on its own line, hashtags last"
+                  disabled={formatting}
+                  className="rounded-lg bg-brand px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-brand-dark disabled:opacity-60"
+                  title="Clean phone layout: short blocks, list set apart, link on its own line, hashtags last — and long list lines shortened by the AI"
                 >
-                  Tidy the format
+                  {formatting ? 'Formatting…' : 'Format'}
                 </button>
               )}
             </div>
@@ -595,7 +635,18 @@ export default function SocialPreview({ brand: baseBrand, caption: baseCaption, 
                   ) : (
                     <FiAlertCircle size={14} className="mt-0.5 flex-none text-amber-600" aria-hidden="true" />
                   )}
-                  <span className={c.ok ? 'text-ink-600' : 'text-ink-800'}>{c.text}</span>
+                  <span className={c.ok ? 'text-ink-600' : 'text-ink-800'}>
+                    {c.text}
+                    {c.lines?.length > 0 && (
+                      <span className="mt-1 block space-y-0.5">
+                        {c.lines.map((l) => (
+                          <span key={l} className={`block truncate text-[11.5px] text-ink-500 ${khmer(l)}`}>
+                            {l} <span className="tabular-nums text-amber-700">· {l.length}</span>
+                          </span>
+                        ))}
+                      </span>
+                    )}
+                  </span>
                 </li>
               ))}
             </ul>

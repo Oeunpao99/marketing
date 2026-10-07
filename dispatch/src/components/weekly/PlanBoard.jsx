@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { FiRefreshCw } from 'react-icons/fi'
 import AutoTextarea from '../ui/AutoTextarea'
 import StoryEditor from '../story/StoryEditor'
-import SocialPreview from '../preview/SocialPreview'
+import SocialPreview, { formatCaption, longListLines, tidyCaption } from '../preview/SocialPreview'
 import { useStore } from '../../store'
 import { GOALS, STAGES, ctaOf, goalOfItem, ruleAction, stageOf } from '../../lib/goals'
 
@@ -158,6 +158,7 @@ const dayLabel = (iso) =>
 function PostCard({ item, brandName, brand, makingMedia, busy, onApprove, onSkip, onUnskip, onSaveCaption, onMakeImage, onFormat }) {
   const [editing, setEditing] = useState(false)
   const [previewing, setPreviewing] = useState(false)
+  const [formatting, setFormatting] = useState(false)
   const [text, setText] = useState(item.caption)
   const [story, setStory] = useState(null) // a video post's storyboard, as StoryEditor has it
   useEffect(() => setText(item.caption), [item.caption])
@@ -175,7 +176,28 @@ function PostCard({ item, brandName, brand, makingMedia, busy, onApprove, onSkip
   const switching = busy === `format:${item.key}`
   const filmReady = story?.status === 'done' && !!story.final_video
   const channels = item.channels?.length ? item.channels.join(' · ') : ''
-  const { brands } = useStore()
+  const { brands, showToast } = useStore()
+  // Already in the clean phone layout? Then Format has nothing to do.
+  const formatted = tidyCaption(item.caption) === (item.caption || '').trim() && !longListLines(item.caption).length
+  // One button: format the caption for phones (if it isn't yet), then show it
+  // in the phone preview. A decided post is only previewed.
+  const previewAndFormat = async () => {
+    if (formatted || item.state) return setPreviewing(true)
+    setFormatting(true)
+    try {
+      const clean = await formatCaption(item.caption, brand?.id)
+      if (clean !== item.caption) {
+        onSaveCaption(clean)
+        setText(clean)
+        showToast('Caption formatted for phones')
+      }
+    } catch (e) {
+      showToast(`Couldn’t format — ${e.message}. Showing it as it is.`)
+    } finally {
+      setFormatting(false)
+      setPreviewing(true)
+    }
+  }
   const navigate = useNavigate()
   // Open the Content studio with this post as the brief (it reads location.state).
   const makeContent = () =>
@@ -329,8 +351,18 @@ function PostCard({ item, brandName, brand, makingMedia, busy, onApprove, onSkip
                 Open in studio
               </button>
             )}
-            <button type="button" onClick={() => setPreviewing(true)} className="btn-outline px-3 py-1.5 text-[12.5px]" title="See the post the way it shows in the feed">
-              Preview
+            <button
+              type="button"
+              onClick={previewAndFormat}
+              disabled={formatting}
+              className="btn-outline px-3 py-1.5 text-[12.5px]"
+              title={
+                formatted
+                  ? 'See the post the way it shows in the feed'
+                  : 'Formats the caption for phones (long list lines shortened by the AI), then shows it in the feed'
+              }
+            >
+              {formatting ? 'Formatting…' : formatted ? 'Preview' : 'Format & preview'}
             </button>
             <button type="button" onClick={() => setEditing((e) => !e)} className="btn-ghost px-3 py-1.5 text-[12.5px] text-ink-600">
               {editing ? 'Done' : 'Edit caption'}

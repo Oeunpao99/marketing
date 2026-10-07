@@ -323,3 +323,26 @@ def build_prompt(req: PromptRequest, db: Session = Depends(get_db), ws: int = De
         output_tokens=usage.get("completion_tokens") or usage.get("output_tokens") or 0,
         total_tokens=usage.get("total_tokens") or 0,
     )
+
+
+# ── "Format": shorten list lines for a phone (content_ai.shorten_list_lines) ──
+class FormatIn(BaseModel):
+    caption: str
+    brand_id: int | None = None
+
+
+@router.post("/format-caption")
+def format_caption(payload: FormatIn, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    """Rewrite only the list items too long for one phone line; everything
+    else comes back exactly as sent. Nothing to shorten = no AI call."""
+    from app.content_ai import ContentAIError, long_list_lines, shorten_list_lines
+
+    caption = payload.caption[:5000]
+    brand = owned(db, Brand, payload.brand_id, ws) if payload.brand_id is not None else None
+    if not long_list_lines(caption):
+        return {"caption": caption, "shortened": 0}
+    try:
+        out = shorten_list_lines(caption, brand.lang if brand else "")
+    except ContentAIError as exc:
+        raise HTTPException(503, str(exc)) from exc
+    return {"caption": out, "shortened": len(long_list_lines(caption))}

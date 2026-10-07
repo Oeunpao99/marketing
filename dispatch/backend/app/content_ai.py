@@ -1220,3 +1220,67 @@ def fact_check(captions: list[str], products: list[Product], model: str | None =
         items = r if isinstance(r, list) else []
         cleaned.append([str(x).strip()[:300] for x in items if str(x).strip()][:6])
     return cleaned
+
+
+# ── "Format": list lines that fit a phone ────────────────────────────────
+# The page's "Format" button tidies the layout itself (same words); only a
+# list item too long for one phone line needs new words — this writes them.
+LIST_LINE = re.compile(r"^\s*(✓|✔|•|-|\d+[.)])\s")
+LIST_LINE_MAX = 40  # characters that still fit one phone line, mark included
+
+SHORTEN_PROMPT = (
+    "You edit list items of a social media post so each fits on ONE line of a phone "
+    "screen. For each item you're given, write a version of at most 35 characters "
+    "including its leading mark (keep the same mark, e.g. '✓ '). Same language as the "
+    "item, same meaning, the most useful part first. Write it the way a person would — "
+    "natural words with normal spaces; never squeeze it with slashes, colons, arrows or "
+    "abbreviations (up to 40 characters is fine when it needs them). Keep EVERY name the "
+    "item lists — each channel, product, brand and feature (if it names Messenger, Telegram "
+    "and website, all three stay) — cut the filler words around them instead; a little long "
+    "is better than a fact lost. Never add a claim, number or feature that isn't there. No "
+    "full stop at the end. The whole post is given for context only — change nothing "
+    "but the listed items.\n"
+    'Respond with ONLY a JSON object: {"items": ["...", ...]} — same count and order as the input.'
+)
+
+
+def long_list_lines(caption: str) -> list[int]:
+    """Indexes of the caption's list lines too long for one phone line."""
+    return [n for n, line in enumerate(caption.split("\n")) if LIST_LINE.match(line) and len(line.strip()) > LIST_LINE_MAX]
+
+
+def shorten_list_lines(caption: str, brand_lang: str = "") -> str:
+    """The caption with only its too-long list items rewritten short. One
+    small chat call (charged like any AI call). Raises ContentAIError."""
+    lines = caption.split("\n")
+    todo = long_list_lines(caption)
+    if not todo:
+        return caption
+    cfg = get_settings()
+    khmer = _is_khmer(brand_lang) or any("ក" <= ch <= "៿" for ch in caption)
+    model = (cfg.azure_openai_khmer_deployment if khmer else "") or cfg.azure_openai_deployment
+    out = _chat(
+        [
+            {"role": "system", "content": SHORTEN_PROMPT},
+            {
+                "role": "user",
+                "content": "Items to shorten:\n"
+                + "\n".join(f"{i + 1}. {lines[n].strip()}" for i, n in enumerate(todo))
+                + f"\n\nThe whole post:\n---\n{caption}\n---",
+            },
+        ],
+        model,
+        # The budget includes the model's hidden reasoning — at 2000 it all went
+        # on reasoning and the reply came back empty. Low effort: it's a small edit.
+        max_tokens=6000,
+        effort="low",
+    )
+    items = [str(x).strip() for x in (out.get("items") or []) if str(x).strip()]
+    if len(items) != len(todo):
+        raise ContentAIError("The AI didn't return every line — try again.")
+    for n, item in zip(todo, items):
+        mark = LIST_LINE.match(lines[n]).group(1)
+        if not LIST_LINE.match(item):
+            item = f"{mark} {item}"  # keep the list's own mark
+        lines[n] = _fix_khmer_punctuation(item) if khmer else item
+    return "\n".join(lines)
