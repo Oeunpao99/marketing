@@ -9,6 +9,7 @@ html.dark .bg-amber-50\/70 { background-color: rgb(245 158 11 / 0.070); }
 html.dark .bg-emerald-100 { background-color: rgb(16 185 129 / 0.160); }
 html.dark .bg-emerald-50 { background-color: rgb(16 185 129 / 0.100); }
 html.dark .bg-emerald-50\/50 { background-color: rgb(16 185 129 / 0.050); }
+html.dark .border-emerald-200 { border-color: rgb(16 185 129 / 0.280); }
 html.dark .bg-red-100 { background-color: rgb(239 68 68 / 0.160); }
 html.dark .bg-red-50 { background-color: rgb(239 68 68 / 0.100); }
 html.dark .bg-red-50\/40 { background-color: rgb(239 68 68 / 0.040); }

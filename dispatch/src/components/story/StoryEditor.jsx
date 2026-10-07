@@ -64,7 +64,7 @@ export function StatusPill({ status }) {
   )
 }
 
-export default function StoryEditor({ storyId, compact = false, onDeleted }) {
+export default function StoryEditor({ storyId, compact = false, onDeleted, onStory }) {
   const { brands, showToast } = useStore()
   const navigate = useNavigate()
   const [story, setStory] = useState(null)
@@ -90,6 +90,11 @@ export default function StoryEditor({ storyId, compact = false, onDeleted }) {
     setDirty(false)
     load()
   }, [load])
+
+  // A weekly plan's video card follows the story (status, finished video).
+  useEffect(() => {
+    if (story) onStory?.(story)
+  }, [story]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Poll while clips render or join (they carry on server-side if the page closes).
   const status = story?.status
@@ -758,11 +763,11 @@ function CompactStory({
       </button>
     )
   } else if (story.status === 'rendering') {
-    hint = `Rendering — ${done} of ${story.scenes.length} scenes ready. You can leave; we'll notify you.`
+    hint = `Rendering — ${done} of ${story.scenes.length} scenes ready.${story.auto_join ? ' They join into one video by themselves.' : ''} You can leave; we'll notify you.`
   } else if (story.status === 'combining') {
     hint = 'Joining the clips into one MP4…'
   } else if (story.status === 'done') {
-    hint = 'Saved to your Library.'
+    hint = story.auto_join ? 'Saved to your Library — approve & schedule it on the plan.' : 'Saved to your Library.'
   }
 
   return (

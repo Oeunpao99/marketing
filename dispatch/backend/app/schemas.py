@@ -322,6 +322,8 @@ class AutomationBase(BaseModel):
     poster_kit: dict = {}
     # Subjects the AI rotates through (content_ai.pick_subjects).
     subjects: list[str] = []
+    # How far ahead the AI plans: the next week, or just tomorrow (app/weekly.py).
+    plan_every: Literal["week", "day"] = "week"
 
 
 class AutomationCreate(AutomationBase):
@@ -341,6 +343,7 @@ class AutomationUpdate(BaseModel):
     learn_from_results: bool | None = None
     poster_kit: dict | None = None
     subjects: list[Annotated[str, Field(min_length=1, max_length=80)]] | None = Field(default=None, max_length=20)
+    plan_every: Literal["week", "day"] | None = None
 
 
 class AutomationOut(TimestampsOut, AutomationBase):

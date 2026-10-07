@@ -179,6 +179,7 @@ def _story_out(db: Session, story: VideoStory) -> dict:
         "language": story.language,
         "status": story.status,
         "error": story.error,
+        "auto_join": story.auto_join,
         "scenes": scenes,
         "total_seconds": start,
         "estimated_cost": round(sum(billing.video_cost(get_settings().video_provider, s["seconds"]) for s in story.scenes), 2),
@@ -208,6 +209,87 @@ def list_stories(db: Session = Depends(get_db), ws: int = Depends(current_worksp
     ]
 
 
+class NoScenes(ContentAIError):
+    """The AI replied, but with no usable scene."""
+
+
+def write_story(
+    db: Session,
+    *,
+    workspace_id: int,
+    brand: Brand | None,
+    user_id: int | None,
+    idea: str,
+    lengths: list[int],
+    products: list[Product],
+    language: str,
+    aspect_ratio: str = "9:16",
+    auto_join: bool = False,
+) -> VideoStory:
+    """Write and save a storyboard (no clips are made yet). One chat call,
+    charged to the workspace's AI credit. Raises ContentAIError."""
+    language = language.strip()
+    brief = [
+        f"Brand: {brand.name if brand else '(none)'}" + (f" — audience language: {brand.lang}" if brand and brand.lang else ""),
+        f"Video idea from the user: {idea.strip()}",
+        f"Format: {'vertical 9:16 (Reels/TikTok)' if aspect_ratio == '9:16' else 'horizontal 16:9'}",
+        f"Number of scenes: {len(lengths)}",
+        "Scene lengths and voiceover word limits: "
+        + ", ".join(f"scene {i + 1}: {s}s / max {_word_budget(s)} words" for i, s in enumerate(lengths)),
+        f"Voiceover language: {language}" if language else "No voiceover — leave every voiceover empty.",
+        f"\nProduct info:\n{_product_facts(list(products))}",
+    ]
+    if brand and brand.voice_examples:
+        brief.append(f"\nBrand voice (tone only):\n{brand.voice_examples.strip()[:1500]}")
+    s = get_settings()
+    khmer = bool(_KHMER.search(language)) or "khmer" in language.lower()
+    model = (s.azure_openai_khmer_deployment if khmer else "") or s.azure_openai_deployment
+    out = _chat(
+        [{"role": "system", "content": SCRIPT_PROMPT}, {"role": "user", "content": "\n".join(brief)}],
+        model,
+        max_tokens=6000,
+    )
+
+    raw = [x for x in (out.get("scenes") or []) if isinstance(x, dict) and str(x.get("visual") or "").strip()]
+    if not raw:
+        raise NoScenes("The AI returned no scenes — try again.")
+    scenes = []
+    for n, seconds in enumerate(lengths):
+        # Fewer scenes than asked: the last one's visual carries on, silently.
+        x = raw[n] if n < len(raw) else {"visual": raw[-1]["visual"]}
+        voice = str(x.get("voiceover") or "").strip() if language else ""
+        scenes.append(
+            {
+                "key": _key(),
+                "seconds": seconds,
+                "role": str(x.get("role") or "").strip().lower()[:12],
+                "visual": str(x.get("visual")).strip(),
+                "voiceover": _fix_khmer_punctuation(voice) if khmer else voice,
+                "on_screen": str(x.get("on_screen") or "").strip()[:80],
+                "job_id": None,
+                "state": "draft",
+                "error": "",
+            }
+        )
+    story = VideoStory(
+        workspace_id=workspace_id,
+        brand_id=brand.id if brand else None,
+        user_id=user_id,
+        title=str(out.get("title") or "Promo video").strip()[:200],
+        idea=idea.strip(),
+        style=str(out.get("style") or "").strip(),
+        aspect_ratio=aspect_ratio if aspect_ratio in ("9:16", "16:9") else "9:16",
+        language=language,
+        status="draft",
+        scenes=scenes,
+        auto_join=auto_join,
+    )
+    db.add(story)
+    db.commit()
+    db.refresh(story)
+    return story
+
+
 @router.post("", status_code=201)
 def create_story(
     payload: StoryIn,
@@ -228,67 +310,22 @@ def create_story(
         products = db.scalars(q.order_by(Product.name)).all()
 
     _take_quota(ws)
-    language = payload.language.strip()
-    brief = [
-        f"Brand: {brand.name if brand else '(none)'}" + (f" — audience language: {brand.lang}" if brand and brand.lang else ""),
-        f"Video idea from the user: {payload.idea.strip()}",
-        f"Format: {'vertical 9:16 (Reels/TikTok)' if payload.aspect_ratio == '9:16' else 'horizontal 16:9'}",
-        f"Number of scenes: {len(lengths)}",
-        "Scene lengths and voiceover word limits: "
-        + ", ".join(f"scene {i + 1}: {s}s / max {_word_budget(s)} words" for i, s in enumerate(lengths)),
-        f"Voiceover language: {language}" if language else "No voiceover — leave every voiceover empty.",
-        f"\nProduct info:\n{_product_facts(list(products))}",
-    ]
-    if brand and brand.voice_examples:
-        brief.append(f"\nBrand voice (tone only):\n{brand.voice_examples.strip()[:1500]}")
-    s = get_settings()
-    khmer = bool(_KHMER.search(language)) or "khmer" in language.lower()
-    model = (s.azure_openai_khmer_deployment if khmer else "") or s.azure_openai_deployment
     try:
-        out = _chat(
-            [{"role": "system", "content": SCRIPT_PROMPT}, {"role": "user", "content": "\n".join(brief)}],
-            model,
-            max_tokens=6000,
+        story = write_story(
+            db,
+            workspace_id=ws,
+            brand=brand,
+            user_id=user.id,
+            idea=payload.idea,
+            lengths=lengths,
+            products=list(products),
+            language=payload.language,
+            aspect_ratio=payload.aspect_ratio,
         )
+    except NoScenes as exc:
+        raise HTTPException(502, str(exc)) from exc
     except ContentAIError as exc:
         raise HTTPException(503, str(exc)) from exc
-
-    raw = [x for x in (out.get("scenes") or []) if isinstance(x, dict) and str(x.get("visual") or "").strip()]
-    if not raw:
-        raise HTTPException(502, "The AI returned no scenes — try again.")
-    scenes = []
-    for n, seconds in enumerate(lengths):
-        # Fewer scenes than asked: the last one's visual carries on, silently.
-        x = raw[n] if n < len(raw) else {"visual": raw[-1]["visual"]}
-        voice = str(x.get("voiceover") or "").strip() if language else ""
-        scenes.append(
-            {
-                "key": _key(),
-                "seconds": seconds,
-                "role": str(x.get("role") or "").strip().lower()[:12],
-                "visual": str(x.get("visual")).strip(),
-                "voiceover": _fix_khmer_punctuation(voice) if khmer else voice,
-                "on_screen": str(x.get("on_screen") or "").strip()[:80],
-                "job_id": None,
-                "state": "draft",
-                "error": "",
-            }
-        )
-    story = VideoStory(
-        workspace_id=ws,
-        brand_id=brand.id if brand else None,
-        user_id=user.id,
-        title=str(out.get("title") or "Promo video").strip()[:200],
-        idea=payload.idea.strip(),
-        style=str(out.get("style") or "").strip(),
-        aspect_ratio=payload.aspect_ratio if payload.aspect_ratio in ("9:16", "16:9") else "9:16",
-        language=language,
-        status="draft",
-        scenes=scenes,
-    )
-    db.add(story)
-    db.commit()
-    db.refresh(story)
     return _story_out(db, story)
 
 
@@ -348,7 +385,12 @@ def edit_story(
 
 
 @router.post("/{story_id}/render")
-def render_story(story_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+def render_story(
+    story_id: int,
+    db: Session = Depends(get_db),
+    ws: int = Depends(current_workspace_id),
+    user: TeamMember = Depends(get_current_user),
+):
     """Approve the script: make every scene's clip (in the background)."""
     if not get_settings().video_generation_enabled:
         raise HTTPException(503, "Video generation is turned off.")
@@ -360,6 +402,7 @@ def render_story(story_id: int, db: Session = Depends(get_db), ws: int = Depends
     billing.require(ws, sum(billing.video_cost(provider, s["seconds"]) for s in story.scenes), db)
     story.scenes = [{**s, "state": "pending", "job_id": None, "error": ""} for s in story.scenes]
     story.status = "rendering"
+    story.user_id = story.user_id or user.id  # a plan's storyboard has no author yet
     db.commit()
     _advance(db, story.id)
     db.expire_all()
@@ -511,13 +554,17 @@ def _advance(db: Session, story_id: int) -> None:
     story.scenes = scenes
     flag_modified(story, "scenes")  # the scene dicts were edited in place
     finished = not any(s["state"] in ("pending", "rendering") for s in scenes)
+    failed = sum(1 for s in scenes if s["state"] == "failed")
+    join = finished and not failed and story.auto_join
     if finished:
-        story.status = "review"
+        story.status = "combining" if join else "review"
     db.commit()
-    if finished:
+    if join:
+        # A plan's video: no stop between the clips and the finished film.
+        threading.Thread(target=_combine, args=(story.id,), daemon=True, name=f"story-{story.id}").start()
+    elif finished:
         from app.push import notify_user
 
-        failed = sum(1 for s in scenes if s["state"] == "failed")
         notify_user(
             story.user_id,
             "generated",
@@ -653,7 +700,14 @@ def _combine(story_id: int) -> None:
         write_in_background(video.id, f"{story.title}\n\n{script}")
         from app.push import notify_user
 
-        notify_user(story.user_id, "generated", "Your video is ready 🎬", f"{story.title} — {total}s", f"/story?id={story.id}", f"story-{story.id}")
+        notify_user(
+            story.user_id,
+            "generated",
+            "Your video is ready 🎬",
+            f"{story.title} — {total}s" + (" · approve it on the Plan page" if story.auto_join else ""),
+            "/weekly" if story.auto_join else f"/story?id={story.id}",
+            f"story-{story.id}",
+        )
     except Exception as exc:  # noqa: BLE001 - show it on the page
         db.rollback()
         log.exception("joining video story %s failed", story_id)

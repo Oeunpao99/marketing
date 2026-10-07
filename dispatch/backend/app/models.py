@@ -427,6 +427,9 @@ class Automation(Base, TimestampMixin):
     # Percent per content goal (app/goals.py GOALS, e.g. {"reach": 15, ...}) the
     # weekly plan fills; null = the AI's default mix (goals.DEFAULT_MIX).
     goal_mix: Mapped[dict[str, int] | None] = mapped_column(JSONB, nullable=True)
+    # How far ahead the AI plans (app/weekly.py): "week" = the 7 days from
+    # Monday, written Sunday evening; "day" = tomorrow only, written every evening.
+    plan_every: Mapped[str] = mapped_column(String(8), default="week", server_default="week", nullable=False)
 
 
 @event.listens_for(Brand, "after_insert")
@@ -682,6 +685,9 @@ class VideoStory(Base, TimestampMixin):
     # draft | rendering | ready | combining | done | failed
     status: Mapped[str] = mapped_column(String(12), default="draft")
     scenes: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list, server_default="[]", nullable=False)
+    # Join the clips by itself once every scene is done — a weekly plan's
+    # video (app/weekly.py), approved once as a storyboard and once finished.
+    auto_join: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
     final_video_id: Mapped[int | None] = mapped_column(
         ForeignKey("videos.id", ondelete="SET NULL"), nullable=True
     )

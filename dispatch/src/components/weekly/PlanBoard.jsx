@@ -2,12 +2,24 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { FiRefreshCw } from 'react-icons/fi'
 import AutoTextarea from '../ui/AutoTextarea'
+import StoryEditor from '../story/StoryEditor'
 import { useStore } from '../../store'
 import { GOALS, STAGES, ctaOf, goalOfItem, ruleAction, stageOf } from '../../lib/goals'
 
-// Next week's posts, one card each: when, which goal, the idea, why, the call
-// to action and the KPI — with Approve / Skip per post. The right column says
-// why the plan looks like this and the rules it follows.
+// The plan's posts (next week's, or one day's), one card each: when, which goal, the idea, why, the call
+// to action and the KPI — with Approve & schedule / Skip per post. Each post is
+// an image, text-only or a video; a video shows its storyboard to edit and
+// approve, renders in the background, then is approved again once finished
+// (backend app/weekly.py). The right column says why the plan looks like this
+// and the rules it follows.
+
+// Plans written before formats existed only marked videos.
+export const formatOf = (item) => item.format || (item.video ? 'video' : 'image')
+const FORMATS = [
+  { v: 'image', l: 'Image' },
+  { v: 'text', l: 'Text' },
+  { v: 'video', l: 'Video · 24 s' },
+]
 
 const card = 'bg-white rounded-2xl border border-ink-200/60 shadow-[0_1px_2px_rgba(16,24,40,0.04)]'
 const khmer = (text) => (/[ក-៿]/.test(text || '') ? 'font-khmer' : '')
@@ -21,7 +33,6 @@ export default function PlanBoard({
   brandName,
   report,
   mix,
-  autoMedia,
   makingMedia,
   filter,
   busy,
@@ -30,6 +41,7 @@ export default function PlanBoard({
   onUnskip,
   onSaveCaption,
   onMakeImage,
+  onFormat,
 }) {
   const items = plan.items
   const shown = filter ? items.filter((i) => goalOfItem(i) === filter) : items
@@ -43,7 +55,9 @@ export default function PlanBoard({
       <div className="min-w-0">
         <p className="mb-3 text-[13px] text-ink-700">
           <b className="font-semibold text-ink-900">
-            Next week · {dayLabel(plan.starts_on)} – {dayLabel(plan.ends_on)}
+            {plan.starts_on === plan.ends_on
+              ? `Daily plan · ${dayLabel(plan.starts_on)}`
+              : `Next week · ${dayLabel(plan.starts_on)} – ${dayLabel(plan.ends_on)}`}
           </b>{' '}
           · {approved} approved, {waiting.length} to go · {items.length} posts
           {filter && (
@@ -56,7 +70,7 @@ export default function PlanBoard({
 
         {shown.length === 0 ? (
           <div className={`${card} p-8 text-center text-[12.5px] text-ink-500`}>
-            {items.length === 0 ? 'Every post was skipped — rewrite the plan or skip this week.' : `No ${GOALS[filter]?.label || ''} posts in this plan.`}
+            {items.length === 0 ? 'Every post was skipped — rewrite the plan or skip it.' : `No ${GOALS[filter]?.label || ''} posts in this plan.`}
           </div>
         ) : (
           <ul className="space-y-3">
@@ -65,7 +79,6 @@ export default function PlanBoard({
                 key={item.key}
                 item={item}
                 brandName={brandName}
-                autoMedia={autoMedia}
                 makingMedia={makingMedia}
                 busy={busy}
                 onApprove={() => onApprove({ keys: [item.key] })}
@@ -73,6 +86,7 @@ export default function PlanBoard({
                 onUnskip={() => onUnskip(item.key)}
                 onSaveCaption={(c) => onSaveCaption(item.key, c)}
                 onMakeImage={onMakeImage}
+                onFormat={(format) => onFormat(item.key, format)}
               />
             ))}
           </ul>
@@ -80,9 +94,9 @@ export default function PlanBoard({
 
         {waiting.length > 0 && (
           <p className="mt-4 text-[12px] leading-relaxed text-ink-500">
-            {autoMedia
-              ? 'Approving makes an image for each post and schedules it on its day, at the time shown.'
-              : 'Approving puts each post on your Calendar on its day. Turn on “Generate media” in Auto-generate to have images made and posts scheduled too.'}
+            Approve &amp; schedule: a text post is scheduled right away, an image post once its picture is made — on its
+            day, at the time shown. A video post: approve its storyboard, the video is made in the background, then
+            approve &amp; schedule the finished video.
             {flagged > 0 && (
               <span className="ml-1 font-semibold text-amber-700">
                 {flagged} flagged post{flagged === 1 ? '' : 's'} need a person’s OK first — “Approve all unflagged” leaves them.
@@ -137,27 +151,31 @@ export default function PlanBoard({
 const dayLabel = (iso) =>
   new Date(`${iso}T00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
 
-function PostCard({ item, brandName, autoMedia, makingMedia, busy, onApprove, onSkip, onUnskip, onSaveCaption, onMakeImage }) {
+function PostCard({ item, brandName, makingMedia, busy, onApprove, onSkip, onUnskip, onSaveCaption, onMakeImage, onFormat }) {
   const [editing, setEditing] = useState(false)
   const [text, setText] = useState(item.caption)
+  const [story, setStory] = useState(null) // a video post's storyboard, as StoryEditor has it
   useEffect(() => setText(item.caption), [item.caption])
 
   const { wd, n } = dayParts(item.day)
   const goal = GOALS[goalOfItem(item)]
   const stage = stageOf(goalOfItem(item))
   const cta = ctaOf(item.caption)
-  const format = item.video ? 'Video · 24 s' : item.poster ? 'Poster' : item.meme ? 'Meme poster' : 'Image'
+  const fmt = formatOf(item)
+  const imageKind = item.poster ? 'Poster' : item.meme ? 'Meme poster' : 'Image'
   const flagged = item.fact_issues?.length > 0
   const skipped = item.state === 'skipped'
   const approved = item.state === 'approved'
+  const undecided = !item.state
+  const switching = busy === `format:${item.key}`
+  const filmReady = story?.status === 'done' && !!story.final_video
   const channels = item.channels?.length ? item.channels.join(' · ') : ''
   const { brands } = useStore()
   const navigate = useNavigate()
   // Open the Content studio with this post as the brief (it reads location.state).
   const makeContent = () =>
-    navigate(item.video ? '/ai?tab=video' : '/ai?tab=images', {
+    navigate('/ai?tab=images', {
       state: {
-        studio: item.video ? 'video' : undefined,
         brandSlug: brands.find((b) => b.name === brandName)?.slug,
         topic: item.title,
         extra: [
@@ -181,7 +199,30 @@ function PostCard({ item, brandName, autoMedia, makingMedia, busy, onApprove, on
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-1.5 text-[11.5px]">
           {goal && <span className={`rounded-full px-2.5 py-0.5 font-semibold ${stage.chip}`}>{goal.label}</span>}
-          <span className="rounded-full bg-ink-100 px-2.5 py-0.5 font-semibold text-ink-700">{format}</span>
+          {undecided ? (
+            <span className="inline-flex rounded-full border border-ink-200 bg-white p-0.5" role="group" aria-label="Post format">
+              {FORMATS.map((o) => (
+                <button
+                  key={o.v}
+                  type="button"
+                  disabled={!!busy}
+                  aria-pressed={fmt === o.v}
+                  onClick={() => onFormat(o.v)}
+                  title={o.v === 'video' && fmt !== 'video' ? 'Writes a 3-scene storyboard — the video is only made once you approve it' : undefined}
+                  className={`rounded-full px-2.5 py-0.5 font-semibold transition-colors ${
+                    fmt === o.v ? 'bg-brand-soft text-brand' : 'text-ink-500 hover:text-ink-800'
+                  }`}
+                >
+                  {o.v === 'image' && fmt === 'image' ? imageKind : o.l}
+                </button>
+              ))}
+            </span>
+          ) : (
+            <span className="rounded-full bg-ink-100 px-2.5 py-0.5 font-semibold text-ink-700">
+              {fmt === 'image' ? imageKind : FORMATS.find((o) => o.v === fmt)?.l}
+            </span>
+          )}
+          {switching && <FiRefreshCw size={12} className="animate-spin text-brand" aria-label="Changing format" />}
           <span className="text-ink-500">{[brandName, channels].filter(Boolean).join(' · ')}</span>
         </div>
         <h3 className={`mt-1.5 text-[14.5px] font-semibold leading-snug text-ink-900 ${khmer(item.title)}`}>{item.title}</h3>
@@ -221,11 +262,23 @@ function PostCard({ item, brandName, autoMedia, makingMedia, busy, onApprove, on
             )}
           </div>
         )}
+
+        {fmt === 'video' && undecided && (
+          <div className="mt-3">
+            {item.story_id ? (
+              <StoryEditor key={item.story_id} storyId={item.story_id} compact onStory={setStory} />
+            ) : (
+              <button type="button" disabled={!!busy} onClick={() => onFormat('video')} className="btn-outline px-3 py-1.5 text-[12.5px]">
+                Write the storyboard
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="flex w-[132px] flex-none flex-col items-stretch gap-2">
         {approved ? (
-          <ApprovedState item={item} autoMedia={autoMedia} makingMedia={makingMedia} onMakeImage={onMakeImage} />
+          <ApprovedState item={item} fmt={fmt} makingMedia={makingMedia} onMakeImage={onMakeImage} />
         ) : skipped ? (
           <>
             <span className="text-center text-[12px] font-semibold text-ink-500">Skipped</span>
@@ -235,12 +288,25 @@ function PostCard({ item, brandName, autoMedia, makingMedia, busy, onApprove, on
           </>
         ) : (
           <>
-            <button type="button" disabled={!!busy} onClick={onApprove} className="btn-primary px-3 py-2 text-[13px]">
-              Approve
+            <button
+              type="button"
+              disabled={!!busy || (fmt === 'video' && !filmReady)}
+              onClick={onApprove}
+              className="btn-primary px-3 py-2 text-[13px]"
+              title={fmt === 'video' && !filmReady ? 'Approve the storyboard first — once the video is finished you can schedule it' : undefined}
+            >
+              Approve &amp; schedule
             </button>
-            <button type="button" onClick={makeContent} className="btn-outline px-3 py-1.5 text-[12.5px]" title={item.video ? 'Make this video in the Content studio' : 'Make the picture for this post in the Content studio'}>
-              Open in studio
-            </button>
+            {fmt === 'video' && !filmReady && (
+              <p className="text-center text-[11px] leading-snug text-ink-400">
+                {story?.status === 'draft' ? 'Approve the storyboard first' : 'When the video is finished'}
+              </p>
+            )}
+            {fmt === 'image' && (
+              <button type="button" onClick={makeContent} className="btn-outline px-3 py-1.5 text-[12.5px]" title="Make the picture for this post in the Content studio">
+                Open in studio
+              </button>
+            )}
             <button type="button" onClick={() => setEditing((e) => !e)} className="btn-ghost px-3 py-1.5 text-[12.5px] text-ink-600">
               {editing ? 'Done' : 'Edit caption'}
             </button>
@@ -254,12 +320,22 @@ function PostCard({ item, brandName, autoMedia, makingMedia, busy, onApprove, on
   )
 }
 
-function ApprovedState({ item, autoMedia, makingMedia, onMakeImage }) {
+function ApprovedState({ item, fmt, makingMedia, onMakeImage }) {
   const d = item.draft
   const pill = (cls, label) => <span className={`rounded-full px-2.5 py-1 text-center text-[11.5px] font-semibold ${cls}`}>{label}</span>
   if (!d) return pill('bg-emerald-50 text-emerald-700', 'Approved')
   if (d.status === 'scheduled') return pill('bg-emerald-50 text-emerald-700', 'Scheduled')
-  if (!d.has_media && (d.media_pending || (autoMedia && makingMedia)))
+  if (fmt !== 'image')
+    // a text or video post is scheduled on approve — this one had no channel to go to
+    return (
+      <>
+        {pill('bg-amber-50 text-amber-800', 'Couldn’t schedule')}
+        <Link to="/calendar" className="text-center text-[12px] font-semibold text-brand hover:underline">
+          Open in Calendar
+        </Link>
+      </>
+    )
+  if (!d.has_media && (d.media_pending || makingMedia))
     return (
       <span className="inline-flex items-center justify-center gap-1.5 rounded-full bg-brand-soft px-2.5 py-1 text-[11.5px] font-semibold text-brand">
         <FiRefreshCw size={11} className="animate-spin" aria-hidden="true" /> Making image…

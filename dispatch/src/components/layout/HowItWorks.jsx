@@ -3,9 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   FiBarChart2,
   FiCalendar,
-  FiCheckSquare,
   FiClipboard,
-  FiFileText,
   FiFilm,
   FiGlobe,
   FiHome,
@@ -56,9 +54,7 @@ const STEPS = [
     to: '/weekly',
     items: [
       { label: 'Weekly plan', text: 'Goal mix, posts, best times — Approve', icon: FiClipboard, to: '/weekly' },
-      { label: 'Approvals', text: 'Daily AI ideas waiting for your OK', icon: FiFileText, to: '/review' },
       { label: 'Calendar', text: 'Every post, day by day', icon: FiCalendar, to: '/calendar' },
-      { label: 'Activity plan', text: 'The team’s weekly to-do list', icon: FiCheckSquare, to: '/activity' },
     ],
   },
   {

@@ -3,11 +3,9 @@ import { createPortal } from "react-dom";
 import {
   FiBarChart2,
   FiCalendar,
-  FiCheckSquare,
   FiClipboard,
   FiCheck,
   FiChevronDown,
-  FiFileText,
   FiFilm,
   FiGlobe,
   FiHome,
@@ -43,9 +41,7 @@ const BOSS = [
     badge: "plan",
     sub: [
       { to: "/weekly", icon: FiClipboard, label: "Weekly plan", badge: "plan" },
-      { to: "/review", icon: FiFileText, label: "Approvals", badge: "review", tour: "review" },
       { to: "/calendar", icon: FiCalendar, label: "Calendar", tour: "calendar" },
-      { to: "/activity", icon: FiCheckSquare, label: "Activity plan" },
     ],
   },
   {

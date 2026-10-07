@@ -12,10 +12,11 @@ import { PLAT } from '../data/brands'
 import Select from '../components/ui/Select'
 import BestTime from '../components/weekly/BestTime'
 import ContentGoals from '../components/weekly/ContentGoals'
-import PlanBoard from '../components/weekly/PlanBoard'
+import PlanBoard, { formatOf } from '../components/weekly/PlanBoard'
 
-// The weekly habit (backend app/weekly.py): how the last 7 days went, what the
-// AI learned, and next week's posts — trimmed here and approved in one tap.
+// The plan habit (backend app/weekly.py): how the last 7 days went, what the
+// AI learned, and the coming posts — next week's, or tomorrow's for a brand
+// set to plan daily — trimmed here and approved in one tap.
 
 const card = 'bg-white rounded-2xl border border-ink-200/60 shadow-[0_1px_2px_rgba(16,24,40,0.04)]'
 
@@ -23,6 +24,8 @@ const dayLabel = (iso) =>
   new Date(`${iso}T00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
 // "Tue 6 Oct", or "Tue 6 Oct – Mon 12 Oct" for more than one day.
 const dayRange = (a, b) => (a === b ? dayLabel(a) : `${dayLabel(a)} – ${dayLabel(b)}`)
+// What the brand's plan covers, as the page says it (Automation.plan_every).
+const spanOf = (planEvery) => (planEvery === 'day' ? 'tomorrow' : 'next week')
 const khmer = (text) => (/[ក-៿]/.test(text || '') ? 'font-khmer' : '')
 
 export default function WeeklyPage() {
@@ -71,7 +74,7 @@ export default function WeeklyPage() {
         }
         if (next.status === 'failed') showToast(next.error || 'Something went wrong')
         else if (next.kind === 'media') showToast(next.step || 'Posts scheduled')
-        else showToast("Next week's plan is ready")
+        else showToast('Your plan is ready')
         refreshReview?.()
         load()
       } catch {
@@ -151,12 +154,28 @@ export default function WeeklyPage() {
       const out = await api.post(`/weekly/${data.plan.id}/approve`, opts)
       const n = out.drafts
       showToast(
-        out.making_media
-          ? `Approved — making images and scheduling ${n} post${n === 1 ? '' : 's'}`
-          : `Approved — ${n} post${n === 1 ? '' : 's'} added to your Calendar`,
+        out.not_scheduled?.length
+          ? `Approved, but not scheduled: ${out.not_scheduled[0]}`
+          : out.making_media
+            ? `Approved — making images and scheduling ${n} post${n === 1 ? '' : 's'}`
+            : `Approved — ${n} post${n === 1 ? '' : 's'} scheduled`,
       )
       refreshReview?.()
       await load()
+    } catch (e) {
+      showToast(e.message)
+    } finally {
+      setBusy('')
+    }
+  }
+
+  // Image, text only or video — video writes the storyboard (one AI call).
+  const setFormat = async (key, format) => {
+    setBusy(`format:${key}`)
+    try {
+      const item = await api.post(`/weekly/${data.plan.id}/items/${key}/format`, { format })
+      setItems((items) => items.map((i) => (i.key === key ? item : i)))
+      if (format === 'video') showToast('Storyboard written — check it, then approve it to make the video')
     } catch (e) {
       showToast(e.message)
     } finally {
@@ -174,6 +193,21 @@ export default function WeeklyPage() {
       showToast(e.message)
     } finally {
       setBusy('')
+    }
+  }
+
+  // Plan the whole week (Sunday evening) or just tomorrow (every evening).
+  const savePlanEvery = async (plan_every) => {
+    if (!data.automation_id || plan_every === data.plan_every) return
+    const before = data.plan_every
+    setData((d) => ({ ...d, plan_every }))
+    try {
+      await api.patch(`/automations/${data.automation_id}`, { plan_every })
+      showToast(plan_every === 'day' ? 'The AI now plans tomorrow, every evening' : 'The AI now plans the week ahead, every Sunday')
+      load() // free days follow the new span
+    } catch (e) {
+      setData((d) => ({ ...d, plan_every: before }))
+      showToast(`Could not save — ${e.message}`)
     }
   }
 
@@ -229,7 +263,8 @@ export default function WeeklyPage() {
   const planning = running && job.kind === 'plan'
   const makingMedia = running && job.kind === 'media'
   const waiting = ready ? plan.items.filter((i) => !i.state) : []
-  const cleanCount = waiting.filter((i) => !i.fact_issues?.length).length
+  // Videos are approved one by one, once finished — "approve all" leaves them.
+  const cleanCount = waiting.filter((i) => !i.fact_issues?.length && formatOf(i) !== 'video').length
   const counts = {}
   for (const i of ready ? plan.items : []) if (i.state !== 'skipped') counts[goalOfItem(i)] = (counts[goalOfItem(i)] || 0) + 1
 
@@ -252,9 +287,33 @@ export default function WeeklyPage() {
                 onClick={() => approve({ unflagged_only: true })}
                 className="btn-primary px-4 py-2"
               >
-                {busy === 'approve' ? 'Working…' : `Approve all unflagged (${cleanCount})`}
+                {busy === 'approve' ? 'Working…' : `Approve & schedule all unflagged (${cleanCount})`}
               </button>
             </>
+          )}
+          {data?.automation_id && (
+            <div className="flex items-center gap-2" title="How far ahead the AI plans">
+              <span className="text-[12px] font-medium text-ink-500">Plan</span>
+              <div className="grid grid-cols-2 rounded-xl border border-ink-200 bg-white p-0.5">
+                {[
+                  { v: 'week', l: 'Weekly' },
+                  { v: 'day', l: 'Daily' },
+                ].map((o) => (
+                  <button
+                    key={o.v}
+                    type="button"
+                    disabled={running}
+                    aria-pressed={data.plan_every === o.v}
+                    onClick={() => savePlanEvery(o.v)}
+                    className={`rounded-[10px] px-3 py-1.5 text-[12px] font-medium transition-colors ${
+                      data.plan_every === o.v ? 'bg-brand-soft text-brand' : 'text-ink-600 hover:bg-ink-50'
+                    }`}
+                  >
+                    {o.l}
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
           {brands.length > 1 && (
             <Select
@@ -277,7 +336,7 @@ export default function WeeklyPage() {
       )}
       {confirmRegen && (
         <ConfirmBox
-          title="Regenerate this week’s plan?"
+          title="Regenerate this plan?"
           text="The AI writes new posts for every day from tomorrow on. The posts already scheduled for those days are cancelled, and their images stay in your Media Library. Posts that already went out stay as they are. You’ll review the new plan before anything is scheduled."
           confirm="Regenerate"
           onCancel={() => setConfirmRegen(false)}
@@ -298,6 +357,7 @@ export default function WeeklyPage() {
               custom={data.mix_custom}
               perMonth={data.per_month}
               counts={counts}
+              span={ready ? (plan.starts_on === plan.ends_on ? 'in this plan' : 'next week') : spanOf(data.plan_every)}
               filter={filter}
               onFilter={setFilter}
               onSave={saveMix}
@@ -305,7 +365,7 @@ export default function WeeklyPage() {
             />
 
             {planning ? (
-              <WeeklyPlanning brand={brand.name} job={job} />
+              <WeeklyPlanning brand={brand.name} job={job} span={spanOf(data.plan_every)} />
             ) : ready ? (
               <>
                 <PlanBoard
@@ -313,7 +373,6 @@ export default function WeeklyPage() {
                   brandName={brand.name}
                   report={report}
                   mix={data.mix}
-                  autoMedia={data.auto_media}
                   makingMedia={makingMedia}
                   filter={filter}
                   busy={busy || (running ? 'job' : '')}
@@ -322,10 +381,11 @@ export default function WeeklyPage() {
                   onUnskip={(key) => decide(key, 'unskip')}
                   onSaveCaption={saveCaption}
                   onMakeImage={makeImage}
+                  onFormat={setFormat}
                 />
                 <div className="flex justify-end">
                   <button type="button" disabled={!!busy || running} onClick={dismiss} className="btn-ghost px-3 py-1.5 text-ink-500">
-                    Skip this week
+                    Skip this plan
                   </button>
                 </div>
               </>
@@ -844,9 +904,10 @@ const DRAFT_STATUS = {
 
 function NoPlan({ plan, data, busy, onPlan, onRegenerate, onMakeImage }) {
   const approved = plan?.status === 'approved'
+  const daily = data.plan_every === 'day'
   return (
     <>
-    <StepTitle title="Next week’s plan" />
+    <StepTitle title={daily ? 'Tomorrow’s plan' : 'Next week’s plan'} />
     <section className={`${card} p-5`}>
       {approved ? (
         <>
@@ -924,11 +985,11 @@ function NoPlan({ plan, data, busy, onPlan, onRegenerate, onMakeImage }) {
           <h2 className="text-[14.5px] font-bold text-ink-900">No plan waiting</h2>
           <p className="mt-1.5 text-[12px] text-ink-500 max-w-[52ch] mx-auto leading-relaxed">
             {data.auto_enabled
-              ? 'A new plan is written every Sunday at 6 PM, and you’ll get a notification. Want one now?'
-              : 'Turn on this brand in Auto-generate to get a plan every Sunday at 6 PM — or write one now.'}
+              ? `A new plan is written ${daily ? 'every evening at 6 PM for the next day' : 'every Sunday at 6 PM'}, and you’ll get a notification. Want one now?`
+              : `Turn on this brand in Autopilot to get a plan ${daily ? 'every evening at 6 PM' : 'every Sunday at 6 PM'} — or write one now.`}
           </p>
           <button type="button" disabled={busy || data.free_days === 0} onClick={onPlan} className="btn-primary mt-4">
-            {busy ? 'Working…' : 'Plan the next 7 days'}
+            {busy ? 'Working…' : daily ? 'Plan tomorrow' : 'Plan the next 7 days'}
           </button>
         </div>
       )}
@@ -961,7 +1022,7 @@ const weeklyPlanningCss = `
 @media (prefers-reduced-motion: reduce) { .wp-shimmer, .wp-pop, .wp-write, .wp-pulse { animation: none !important; } }
 `
 
-function WeeklyPlanning({ brand, job }) {
+function WeeklyPlanning({ brand, job, span = 'next week' }) {
   const progress = useSmoothProgress({
     progress: job?.progress || 0,
     // ease towards the next real checkpoint, never past it
@@ -986,7 +1047,7 @@ function WeeklyPlanning({ brand, job }) {
           </span>
           <div className="min-w-0">
             <h2 className="text-[16px] font-bold leading-snug text-ink-900">
-              {finished ? 'Your plan is ready!' : `The AI is planning ${brand}’s next week…`}
+              {finished ? 'Your plan is ready!' : `The AI is planning ${span} for ${brand}…`}
             </h2>
             <p className="mt-0.5 text-[12.5px] text-ink-500">{finished ? 'Opening it now…' : job?.step || 'Starting…'}</p>
           </div>

@@ -1,12 +1,12 @@
 """Daily content generation — the engine behind the Auto-generate page.
 
 A single asyncio task (mirrors ``app/scheduler.py``'s delivery worker) that
-wakes every minute and, for each enabled ``Automation`` whose ``run_at`` on the
-Phnom Penh clock has passed today and hasn't run yet today, writes that
-brand's batch of ideas as ``Draft`` rows dated onto today's calendar slot.
+wakes every minute and runs the timed jobs: each brand's plan (weekly or
+daily, app/weekly.py), website re-checks and activity plans.
 
-``run_automation`` is the shared core — the worker calls it on schedule, and
-``POST /api/views/auto/{id}/run-now`` calls it on demand for a same-day test.
+``run_automation`` writes one brand's batch of ideas for today as ``Draft``
+rows; it no longer runs on a schedule (the plan replaced it) —
+``POST /api/views/auto/{id}/run-now`` still calls it on demand.
 """
 
 from __future__ import annotations
@@ -41,6 +41,10 @@ log = logging.getLogger("app.content_scheduler")
 
 # Same fixed-offset clock every schedule-facing view in this app uses.
 PHNOM_PENH = timezone(timedelta(hours=7))
+
+# Platforms that only take a post with a picture or video — a text-only post
+# (a weekly plan's "text" format) goes everywhere else.
+NEEDS_MEDIA = {"instagram", "tiktok"}
 
 # Auto-media images render up to this many at a time — each is a 20-60s+
 # provider call, so serializing the whole batch is the dominant cost of a run;
@@ -397,6 +401,9 @@ def schedule_draft_as_post(db: Session, draft: Draft, on_day: date | None = None
         # TikTok's publish path rejects an image outright — don't queue a
         # guaranteed failure there.
         channels = [c for c in channels if (c.platform.slug if c.platform else "") != "tiktok"]
+    elif video is None:
+        # Text only: Instagram and TikTok would reject it.
+        channels = [c for c in channels if (c.platform.slug if c.platform else "") not in NEEDS_MEDIA]
 
     if not channels:
         raise ContentAIError(
@@ -829,39 +836,21 @@ def _background_run(automation_id: int, force: bool) -> None:
         db.close()
 
 
-def _due(automation: Automation, now: datetime) -> bool:
-    if not automation.enabled:
-        return False
-    if automation.last_run_on == now.date():
-        return False
-    return now.time() >= automation.run_at
+def _tick() -> None:
+    """One pass of the timed jobs across every brand. Runs in a worker thread.
 
-
-def _tick() -> dict:
-    """One generation pass across every brand. Runs in a worker thread."""
+    The daily batch (run_automation) no longer runs by itself — posts come from
+    the brand's plan (weekly or daily, app/weekly.py), approved on the Plan
+    page; run_automation stays for "run now"."""
     db = SessionLocal()
-    written = 0
-    failed: list[str] = []
     try:
         now = datetime.now(PHNOM_PENH)
-        due_ids = [a.id for a in db.scalars(select(Automation)).all() if _due(a, now)]
-        for automation_id in due_ids:
-            try:
-                drafts = run_automation(db, automation_id)
-                written += len(drafts) if drafts else 0
-            except ContentAIError as exc:
-                db.rollback()
-                failed.append(f"automation {automation_id}: {exc}")
-            except Exception:  # noqa: BLE001 - one brand's bug shouldn't sink the tick
-                db.rollback()
-                log.exception("content generation crashed for automation %s", automation_id)
-                failed.append(f"automation {automation_id}: unexpected error")
         try:
             from app.weekly import auto_tick  # local import: weekly imports this module
 
             if planned := auto_tick(db, now):
-                log.info("content scheduler: %d weekly plan(s) written", planned)
-        except Exception:  # noqa: BLE001 - never let the weekly plan sink the daily run
+                log.info("content scheduler: %d plan(s) written", planned)
+        except Exception:  # noqa: BLE001 - never let the plan sink the other jobs
             db.rollback()
             log.exception("weekly plan tick failed")
         try:
@@ -869,7 +858,7 @@ def _tick() -> dict:
 
             if started := website_tick(db, now):
                 log.info("content scheduler: %d website check(s) started", started)
-        except Exception:  # noqa: BLE001 - never let a website check sink the daily run
+        except Exception:  # noqa: BLE001 - never let a website check sink the other jobs
             db.rollback()
             log.exception("website check tick failed")
         try:
@@ -877,10 +866,9 @@ def _tick() -> dict:
 
             if started := activity_tick(db, now):
                 log.info("content scheduler: %d activity plan(s) started", started)
-        except Exception:  # noqa: BLE001 - never let an activity plan sink the daily run
+        except Exception:  # noqa: BLE001 - never let an activity plan sink the other jobs
             db.rollback()
             log.exception("activity plan tick failed")
-        return {"checked": len(due_ids), "written": written, "failed": failed}
     finally:
         db.close()
 
@@ -889,14 +877,7 @@ async def _run(interval: int) -> None:
     log.info("content scheduler started (checks every %ss)", interval)
     while True:
         try:
-            result = await asyncio.to_thread(_tick)
-            if result["checked"]:
-                log.info(
-                    "content scheduler: %d automation(s) due, %d idea(s) written",
-                    result["checked"], result["written"],
-                )
-            for msg in result["failed"]:
-                log.warning("content scheduler: %s", msg)
+            await asyncio.to_thread(_tick)
         except asyncio.CancelledError:
             log.info("content scheduler stopping")
             raise

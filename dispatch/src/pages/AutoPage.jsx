@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Link } from 'react-router-dom'
-import { FiPlay, FiRefreshCw, FiSettings, FiTrendingUp, FiX } from 'react-icons/fi'
+import { Link, useNavigate } from 'react-router-dom'
+import { FiArrowRight, FiSettings, FiTrendingUp, FiX } from 'react-icons/fi'
 import { api } from '../api/client'
 import { colorForBrand } from '../lib/brandColor'
 import { useStore } from '../store'
@@ -10,7 +10,6 @@ import PlatformIcon from '../components/ui/PlatformIcon'
 import AutoTextarea from '../components/ui/AutoTextarea'
 import Select from '../components/ui/Select'
 import { fullDayLabel, phnomPenhClock, phnomPenhDay } from '../lib/tz'
-import { seedRuns, startRun, useAutoRuns, useSmoothProgress } from '../lib/autoRuns'
 import { kitSrc, TemplatePicker } from '../components/brandkit/BrandKit'
 
 const TOPIC_SOURCES = [
@@ -115,28 +114,30 @@ const card = 'bg-white rounded-2xl border border-ink-200/60 shadow-[0_1px_2px_rg
 const input =
   'w-full bg-white border border-ink-200 rounded-xl px-3 py-2 text-[12.5px] focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/15'
 
-function when(dateStr) {
-  if (!dateStr) return 'never'
-  const today = new Date().toISOString().slice(0, 10)
-  return dateStr === today ? 'today' : dateStr
-}
-
 function modeOf(a) {
   if (a.require_approval) return 'Review first'
   return a.auto_media ? 'Auto-post' : 'To calendar'
 }
 
+// Weekly plan = the 7 days from Monday, written Sunday evening; daily plan =
+// tomorrow, written every evening (backend app/weekly.py, Automation.plan_every).
+const PLAN_EVERY = [
+  { v: 'week', l: 'Weekly' },
+  { v: 'day', l: 'Daily' },
+]
+
 export default function AutoPage() {
-  const { auto, setAuto, refreshAuto, refreshReview, channels, showToast } = useStore()
-  const runs = useAutoRuns()
-  const [starting, setStarting] = useState(null)
-  const [confirmRegen, setConfirmRegen] = useState(null)
+  const { auto, setAuto, refreshAuto, channels, showToast, switchBrand } = useStore()
+  const navigate = useNavigate()
   const [editId, setEditId] = useState(null)
 
   const editing = (auto || []).find((a) => a.id === editId) || null
 
-  // A run started before a reload (or by someone else) — keep showing it.
-  useEffect(() => seedRuns(auto), [auto])
+  // The brand's posts are planned and approved on the Plan page.
+  const openPlan = (a) => {
+    switchBrand(a.brand_slug)
+    navigate('/weekly')
+  }
 
   const update = async (automation, patch) => {
     setAuto((list) => (list || []).map((a) => (a.id === automation.id ? { ...a, ...patch } : a)))
@@ -162,33 +163,13 @@ export default function AutoPage() {
     }
   }
 
-  // Starts the run in the background and returns right away — progress
-  // shows on the brand's row (and in its settings drawer); a toast says when
-  // it's done, even from another page (see Shell's useRunFinishedToast).
-  const runNow = async (automation, force = false) => {
-    if (starting || runs[automation.id]) return
-    setStarting(automation.id)
-    setConfirmRegen(null)
-    try {
-      await startRun(automation.id, force)
-      showToast(`${force ? 'Regenerating' : 'Generating'} in the background — you can keep working`)
-    } catch (e) {
-      showToast(`Could not start — ${e.message}`)
-    } finally {
-      setStarting(null)
-    }
-  }
-
-  // Ran today already → the action becomes "regenerate", which asks first.
-  const run = (a) => (when(a.last_run_on) === 'today' ? setConfirmRegen(a) : runNow(a))
-
   return (
     <div className="w-full px-5 lg:px-8 py-7 animate-fadein">
       <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-[24px] font-bold text-ink-900 tracking-tight leading-tight">Autopilot</h1>
           <p className="mt-1 text-[13px] text-ink-600">
-            Daily AI-written ideas for each brand, grounded in its products.
+            AI-written posts for each brand, grounded in its products — planned weekly or daily, approved on the Plan page.
           </p>
         </div>
         <Link to="/products" className="btn-outline flex-none">
@@ -221,8 +202,6 @@ export default function AutoPage() {
                   ))
                 : auto.map((a) => {
                     const color = colorForBrand(a.brand_slug)
-                    const active = runs[a.id]
-                    const running = !!active || starting === a.id
                     const topic = TOPIC_SOURCES.find((t) => t.value === a.topic_source)?.short || a.topic_source || '—'
                     return (
                       <tr
@@ -235,19 +214,15 @@ export default function AutoPage() {
                             <span className="w-2.5 h-2.5 rounded-full flex-none" style={{ background: color }} />
                             <div className="min-w-0">
                               <div className="text-[13px] font-semibold text-ink-900 truncate">{a.brand_name}</div>
-                              {active ? (
-                                <RunProgress run={active} />
-                              ) : (
-                                <div className="text-[11.5px] text-ink-500">
-                                  {a.brand_lang || 'No language set'} · wrote {when(a.last_run_on)}
-                                  {a.learn_from_results && a.learnings?.rules?.length > 0 && (
-                                    <span className="ml-1.5 inline-flex items-center gap-1 text-emerald-700">
-                                      <FiTrendingUp size={11} aria-hidden="true" /> learning from {a.learnings.rules.length} result
-                                      {a.learnings.rules.length === 1 ? '' : 's'}
-                                    </span>
-                                  )}
-                                </div>
-                              )}
+                              <div className="text-[11.5px] text-ink-500">
+                                {a.brand_lang || 'No language set'}
+                                {a.learn_from_results && a.learnings?.rules?.length > 0 && (
+                                  <span className="ml-1.5 inline-flex items-center gap-1 text-emerald-700">
+                                    <FiTrendingUp size={11} aria-hidden="true" /> learning from {a.learnings.rules.length} result
+                                    {a.learnings.rules.length === 1 ? '' : 's'}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </td>
@@ -255,7 +230,11 @@ export default function AutoPage() {
                           <Toggle on={a.enabled} onChange={(v) => update(a, { enabled: v })} />
                         </td>
                         <td className="px-3 py-3.5 text-[12.5px] text-ink-700 tabular-nums">
-                          {a.enabled ? `${a.run_at} · ${a.videos_per_day}/day` : <span className="text-ink-300">—</span>}
+                          {a.enabled ? (
+                            `${a.plan_every === 'day' ? 'Daily' : 'Weekly'} plan · ${Math.min(a.videos_per_day, 2)}/day`
+                          ) : (
+                            <span className="text-ink-300">—</span>
+                          )}
                         </td>
                         <td className="px-3 py-3.5 text-[12.5px] text-ink-700">
                           {a.enabled ? topic : <span className="text-ink-300">—</span>}
@@ -274,18 +253,11 @@ export default function AutoPage() {
                             {a.enabled && (
                               <button
                                 type="button"
-                                disabled={running}
-                                onClick={() => run(a)}
-                                title={when(a.last_run_on) === 'today' ? "Regenerate today's ideas" : "Generate today's ideas now"}
-                                className="w-8 h-8 grid place-items-center rounded-lg text-ink-500 hover:bg-brand-soft hover:text-brand disabled:opacity-50"
+                                onClick={() => openPlan(a)}
+                                title="Open this brand's plan"
+                                className="w-8 h-8 grid place-items-center rounded-lg text-ink-500 hover:bg-brand-soft hover:text-brand"
                               >
-                                {running ? (
-                                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand/30 border-t-brand" />
-                                ) : when(a.last_run_on) === 'today' ? (
-                                  <FiRefreshCw size={15} />
-                                ) : (
-                                  <FiPlay size={15} />
-                                )}
+                                <FiArrowRight size={15} />
                               </button>
                             )}
                             <button
@@ -310,73 +282,20 @@ export default function AutoPage() {
         <SettingsDrawer
           a={editing}
           channels={channels}
-          run={runs[editing.id]}
-          running={!!runs[editing.id] || starting === editing.id}
           onUpdate={(patch) => update(editing, patch)}
           onBrandUpdate={(patch) => updateBrand(editing, patch)}
-          onRun={() => run(editing)}
+          onOpenPlan={() => openPlan(editing)}
           onClose={() => setEditId(null)}
         />
       )}
 
-      {confirmRegen &&
-        createPortal(
-          <div
-            className="fixed inset-0 z-[110] glass-overlay flex items-center justify-center p-4 animate-fadein"
-            onClick={() => setConfirmRegen(null)}
-          >
-            <div className="glass-panel rounded-3xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
-              <h3 className="text-[15.5px] font-bold text-ink-900 tracking-tight">Regenerate today’s ideas?</h3>
-              <p className="mt-2 text-[12.5px] text-ink-500 leading-relaxed">
-                All of today’s AI posts for <b className="text-ink-800">{confirmRegen.brand_name}</b> that haven’t gone
-                out yet — from the daily run and the weekly plan — are replaced with a fresh batch: new captions, new
-                images, new times. Anything already <b>posted</b> (or sending right now) is left alone, and posts you
-                made yourself are never touched. This can’t be undone.
-              </p>
-              <p className="mt-2 text-[12px] text-ink-400">
-                It runs in the background — you’ll see the progress on the brand’s row and can keep working.
-              </p>
-              <div className="mt-6 flex gap-2 justify-end">
-                <button type="button" onClick={() => setConfirmRegen(null)} className="btn-outline">
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => runNow(confirmRegen, true)}
-                  className="btn bg-red-600 text-white hover:bg-red-700"
-                >
-                  Regenerate
-                </button>
-              </div>
-            </div>
-          </div>,
-          document.body,
-        )}
-    </div>
-  )
-}
-
-function RunProgress({ run, className = '' }) {
-  const pct = useSmoothProgress(run)
-  return (
-    <div className={`mt-1 w-full max-w-[280px] ${className}`}>
-      <div className="flex items-center justify-between gap-2 text-[11px]">
-        <span className="text-brand font-medium truncate">{run.step || 'Working…'}</span>
-        <span className="tabular-nums font-semibold text-ink-700 flex-none">{pct}%</span>
-      </div>
-      <div className="mt-1 h-1.5 rounded-full bg-brand-soft overflow-hidden">
-        <div
-          className="h-full rounded-full bg-brand transition-[width] duration-300 ease-out"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
     </div>
   )
 }
 
 const LANGUAGES = ['English', 'Khmer', 'Khmer + English']
 
-function SettingsDrawer({ a, channels, run, running, onUpdate, onBrandUpdate, onRun, onClose }) {
+function SettingsDrawer({ a, channels, onUpdate, onBrandUpdate, onOpenPlan, onClose }) {
   const [voice, setVoice] = useState(a.brand_voice || '')
   useEffect(() => setVoice(a.brand_voice || ''), [a.brand_id]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -395,8 +314,6 @@ function SettingsDrawer({ a, channels, run, running, onUpdate, onBrandUpdate, on
     const all = liveIds.length > 0 && liveIds.every((x) => next.includes(x))
     onUpdate({ auto_channel_ids: all ? null : next })
   }
-  const ranToday = when(a.last_run_on) === 'today'
-
   return createPortal(
     <div className="fixed inset-0 z-[95]">
       <button type="button" aria-label="Close" className="absolute inset-0 glass-overlay animate-fadein cursor-default" onClick={onClose} />
@@ -410,7 +327,7 @@ function SettingsDrawer({ a, channels, run, running, onUpdate, onBrandUpdate, on
           <div className="min-w-0 flex-1">
             <h2 className="text-[16.5px] font-bold text-ink-900 tracking-tight truncate">{a.brand_name}</h2>
             <p className="text-[11.5px] text-ink-500">
-              {a.brand_lang || 'No language set'} · last wrote {when(a.last_run_on)}
+              {a.brand_lang || 'No language set'} · {a.plan_every === 'day' ? 'daily' : 'weekly'} plan
             </p>
           </div>
           <Toggle on={a.enabled} onChange={(v) => onUpdate({ enabled: v })} />
@@ -422,7 +339,7 @@ function SettingsDrawer({ a, channels, run, running, onUpdate, onBrandUpdate, on
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
           {!a.enabled && (
             <div className="rounded-xl bg-ink-50 px-3.5 py-3 text-[12px] text-ink-600">
-              Automation is off for this brand. Turn it on to write ideas every day.
+              Autopilot is off for this brand. Turn it on and the AI writes its plan by itself — every Sunday, or every evening for a daily plan.
             </div>
           )}
 
@@ -471,20 +388,38 @@ function SettingsDrawer({ a, channels, run, running, onUpdate, onBrandUpdate, on
 
           <Section title="Schedule">
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Write at">
-                <input type="time" value={a.run_at} className={input} onChange={(e) => onUpdate({ run_at: e.target.value })} />
+              <Field label="Plan">
+                <div className="grid grid-cols-2 rounded-xl border border-ink-200 p-0.5">
+                  {PLAN_EVERY.map((o) => (
+                    <button
+                      key={o.v}
+                      type="button"
+                      onClick={() => onUpdate({ plan_every: o.v })}
+                      className={`py-1.5 rounded-[10px] text-[12px] font-medium transition-colors ${
+                        (a.plan_every || 'week') === o.v ? 'bg-brand-soft text-brand' : 'text-ink-600 hover:bg-ink-50'
+                      }`}
+                    >
+                      {o.l}
+                    </button>
+                  ))}
+                </div>
               </Field>
-              <Field label="Ideas per day">
+              <Field label="Posts per day">
                 <input
                   type="number"
                   min={1}
-                  max={10}
-                  value={a.videos_per_day}
+                  max={2}
+                  value={Math.min(a.videos_per_day, 2)}
                   className={input}
-                  onChange={(e) => onUpdate({ videos_per_day: Math.max(1, Math.min(10, +e.target.value || 1)) })}
+                  onChange={(e) => onUpdate({ videos_per_day: Math.max(1, Math.min(2, +e.target.value || 1)) })}
                 />
               </Field>
             </div>
+            <p className="-mt-1 text-[11px] leading-snug text-ink-400">
+              {a.plan_every === 'day'
+                ? 'Every evening at 6 PM the AI plans the next day. You approve it on the Plan page.'
+                : 'Every Sunday at 6 PM the AI plans the week from Monday. You approve it on the Plan page.'}
+            </p>
             <Field label="Topics from">
               <Select
                 value={a.topic_source}
@@ -525,7 +460,7 @@ function SettingsDrawer({ a, channels, run, running, onUpdate, onBrandUpdate, on
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className="text-[12px] font-semibold text-ink-800">Generate media</div>
-                <div className="text-[11px] text-ink-500">The best idea each day gets an 8s video, the rest get images — uses AI credit each run</div>
+                <div className="text-[11px] text-ink-500">Each approved post gets an image and is scheduled by itself — uses AI credit</div>
               </div>
               <Toggle on={a.auto_media} onChange={(v) => onUpdate({ auto_media: v })} />
             </div>
@@ -586,20 +521,9 @@ function SettingsDrawer({ a, channels, run, running, onUpdate, onBrandUpdate, on
         </div>
 
         <footer className="px-6 py-4 border-t border-ink-100 flex items-center justify-between gap-3">
-          {run ? (
-            <RunProgress run={run} className="mt-0 flex-1" />
-          ) : (
-          <button type="button" disabled={running || !a.enabled} onClick={onRun} className="btn-outline">
-            {running ? (
-              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand/30 border-t-brand" />
-            ) : ranToday ? (
-              <FiRefreshCw size={14} />
-            ) : (
-              <FiPlay size={14} />
-            )}
-            {ranToday ? 'Regenerate today' : 'Generate now'}
+          <button type="button" onClick={onOpenPlan} className="btn-outline">
+            Open plan <FiArrowRight size={14} />
           </button>
-          )}
           <button type="button" onClick={onClose} className="btn-primary">
             Done
           </button>

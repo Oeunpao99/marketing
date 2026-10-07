@@ -42,7 +42,7 @@ const readOpen = () => {
 }
 const card = 'bg-white rounded-2xl border border-ink-200/60 shadow-[0_1px_2px_rgba(16,24,40,0.04)]'
 
-export default function ContentGoals({ mix, custom, perMonth, counts, filter, onFilter, onSave, saving }) {
+export default function ContentGoals({ mix, custom, perMonth, counts, span = 'next week', filter, onFilter, onSave, saving }) {
   const [draft, setDraft] = useState(mix)
   const [open, setOpenState] = useState(readOpen)
   const setOpen = (fn) =>
@@ -127,7 +127,7 @@ export default function ContentGoals({ mix, custom, perMonth, counts, filter, on
                         <button type="button" onClick={() => onFilter(active ? '' : gk)} className="block w-full text-left" aria-pressed={active}>
                           <span className="flex items-center justify-between gap-2">
                             <span className="text-[13.5px] font-semibold text-ink-900">{g.label}</span>
-                            <span className="text-[11px] text-ink-400">{counts[gk] ? `${counts[gk]} next week` : '0 next week'}</span>
+                            <span className="text-[11px] text-ink-400">{`${counts[gk] || 0} ${span}`}</span>
                           </span>
                           <span className="mt-1 block text-[12px] text-ink-600">{g.desc}</span>
                           <span className="mt-0.5 block text-[11px] leading-snug text-ink-400">e.g. {g.eg}</span>
@@ -180,7 +180,7 @@ export default function ContentGoals({ mix, custom, perMonth, counts, filter, on
                 type="button"
                 onClick={() => onFilter(active ? '' : gk)}
                 aria-pressed={active}
-                title={`${g.label} · KPI: ${g.kpi} · ${n} post${n === 1 ? '' : 's'} next week — click to show only these`}
+                title={`${g.label} · KPI: ${g.kpi} · ${n} post${n === 1 ? '' : 's'} ${span} — click to show only these`}
                 className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-[12.5px] font-semibold transition-colors ${
                   active ? 'border-brand bg-brand-soft text-brand' : 'border-ink-200 bg-white text-ink-700 hover:bg-ink-50'
                 }`}
@@ -188,7 +188,7 @@ export default function ContentGoals({ mix, custom, perMonth, counts, filter, on
                 <Icon size={13} className={active ? 'text-brand' : 'text-ink-500'} aria-hidden="true" />
                 {g.label}
                 <span className="font-mono text-[12px] tabular-nums text-ink-500">· {draft[gk] || 0}%</span>
-                {n === 0 && <span className="h-1.5 w-1.5 rounded-full bg-amber-400" title="No post for this goal next week" />}
+                {n === 0 && <span className="h-1.5 w-1.5 rounded-full bg-amber-400" title={`No post for this goal ${span}`} />}
               </button>
             )
           })}

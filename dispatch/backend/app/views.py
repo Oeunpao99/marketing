@@ -505,6 +505,7 @@ def calendar_view(
                 "angle": d.angle,
                 "pillar": d.pillar,
                 "planned_for": d.planned_for,
+                "planned_time": d.planned_time,  # "HH:MM" a weekly plan showed it for, else None
                 "status": d.status,
                 "source": d.source,
                 "generated_at": d.generated_at,
@@ -546,6 +547,7 @@ def auto_view(db: Session = Depends(get_db), ws: int = Depends(current_workspace
             "learn_from_results": a.learn_from_results,
             "poster_kit": a.poster_kit or {},
             "subjects": a.subjects or [],
+            "plan_every": a.plan_every,
             "learnings": {
                 k: v for k, v in learned[a.id].items() if k in ("posts", "rules", "post_hours", "best_slots", "subject_scores")
             },

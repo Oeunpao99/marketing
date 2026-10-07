@@ -568,10 +568,22 @@ WEEK_GUIDE = (
     "local_moment on the day it belongs to when one falls in the week. Give "
     'each idea a "day": the date (YYYY-MM-DD) from the plan days in the brief '
     "that it is written for, filling the days evenly in date order. Also give "
-    'each idea "video": true when it works much better as a short vertical video '
-    "than as a picture (a story, a before/after, a demo, a trend) — at most 3 a "
-    'week, and never for a meme or poster idea; every other idea gets "video": false.'
+    'each idea a "format" — how it goes out:\n'
+    '- "image": the caption with a picture. The default, and always for product, '
+    "proof and promotion, a meme or a poster.\n"
+    '- "text": words only, no picture — a question people answer in the comments, '
+    "a short thought or quote, a quick tip that reads complete on its own. About 1 "
+    "idea in 4. Its caption must stand on its own without mentioning a picture, and "
+    "its meme and poster are null.\n"
+    '- "video": works much better as a short vertical video than as a picture (a '
+    "story, a before/after, a demo, a trend) — at most 2 a week; its meme and poster "
+    "are null. A storyboard is written from its title and caption, so the caption "
+    "still carries the whole message.\n"
+    "Whatever the format, the caption is the post: it opens with a hook that stops "
+    "the scroll and carries the full content on its own."
 )
+
+FORMATS = ("image", "text", "video")
 
 
 def _system_prompt(brand_lang: str, week: bool = False) -> str:
@@ -940,6 +952,14 @@ def generate_ideas(
             meme = None
         # Topic posters (app/poster.py) — None when unusable, the post then gets a plain photo.
         poster = clean_poster(pillar, idea.get("poster"))
+        # Week plans only (WEEK_GUIDE): image (default), text-only or video.
+        fmt = str(idea.get("format") or "").strip().lower()
+        if fmt not in FORMATS:
+            fmt = "video" if idea.get("video") is True else "image"
+        if fmt == "video" and (meme or poster):
+            fmt = "image"  # a meme or poster idea is a picture
+        if fmt == "text":
+            meme = poster = None
         cleaned.append(
             {
                 "title": title[:200],
@@ -955,8 +975,8 @@ def generate_ideas(
                 "day": day if day in day_isos else "",
                 "meme": meme,
                 "poster": poster,
-                # Week plans only (WEEK_GUIDE): better as a short video, made in the Content studio.
-                "video": idea.get("video") is True and not meme and not poster,
+                "format": fmt,
+                "video": fmt == "video",
             }
         )
     if not cleaned:

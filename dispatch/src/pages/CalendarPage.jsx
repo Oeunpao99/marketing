@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FiImage, FiVideo } from 'react-icons/fi'
+import { FiAlertCircle, FiCheck, FiImage, FiPlay, FiType, FiVideo } from 'react-icons/fi'
 import { api } from '../api/client'
 import GeneratingCanvas from '../components/ui/GeneratingCanvas'
+import PlatformIcon from '../components/ui/PlatformIcon'
 import { PILLAR_LABELS, angleText } from '../lib/angles'
 import { colorForBrand } from '../lib/brandColor'
-import { phnomPenhDate } from '../lib/tz'
+import { phnomPenhClock, phnomPenhDate } from '../lib/tz'
 import { useStore } from '../store'
 import Select from '../components/ui/Select'
 
@@ -14,6 +15,26 @@ const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const pad = (n) => String(n).padStart(2, '0')
 const ymd = (y, m, d) => `${y}-${pad(m + 1)}-${pad(d)}`
 const daysInMonth = (y, m) => new Date(y, m + 1, 0).getDate()
+
+// Each post is coloured by where it stands: green = posted, blue =
+// scheduled, yellow = waiting for a yes, red = failed, grey = sent back.
+const TONE = {
+  posted: { chip: 'bg-emerald-50 border-emerald-200', dot: 'bg-emerald-500', label: 'Posted' },
+  scheduled: { chip: 'bg-brand-soft border-brand/20', dot: 'bg-brand', label: 'Scheduled' },
+  waiting: { chip: 'bg-amber-50 border-amber-200', dot: 'bg-amber-400', label: 'Needs approval' },
+  failed: { chip: 'bg-red-50 border-red-200', dot: 'bg-red-500', label: 'Failed' },
+  rejected: { chip: 'bg-ink-50 border-ink-100 opacity-60', dot: 'bg-ink-300', label: 'Sent back' },
+}
+// An approved idea isn't out yet, and a partly-posted post still has a channel to go.
+const toneOf = (it) =>
+  TONE[it.status === 'approved' ? 'waiting' : it.status === 'partial' ? 'scheduled' : it.status] || TONE.scheduled
+// "19:30": when a post goes out (or went out), or the time a plan gave an idea.
+const timeOf = (it) => {
+  const t = it.targets?.[0]
+  if (t) return phnomPenhClock(t.published_at || t.scheduled_for)
+  return it.planned_time || ''
+}
+const platformsOf = (it) => [...new Set((it.targets || []).map((t) => t.platform_name).filter(Boolean))]
 
 export default function CalendarPage() {
   const { brands, showToast, activeBrand } = useStore()
@@ -225,6 +246,7 @@ export default function CalendarPage() {
             })),
           ]}
         />
+        <Legend />
       </div>
 
       {items !== null && (
@@ -267,44 +289,31 @@ export default function CalendarPage() {
             ))}
           </div>
           <div className="grid grid-cols-7">
-            {cells.map((dateStr, i) => (
+            {cells.map((dateStr, i) => {
+              const isToday = dateStr === today
+              const past = dateStr && dateStr < today
+              return (
               <div
                 key={dateStr ?? `pad-${i}`}
-                className={`min-h-[104px] border-b border-r border-ink-100 p-1.5 [&:nth-child(7n)]:border-r-0 ${
-                  dateStr === today ? 'bg-brand/5' : ''
+                className={`min-h-[118px] border-b border-r border-ink-100 p-1.5 [&:nth-child(7n)]:border-r-0 ${
+                  isToday ? 'bg-brand/5 ring-1 ring-inset ring-brand/30' : past ? 'bg-ink-50/50' : !dateStr ? 'bg-ink-50/30' : ''
                 }`}
               >
                 {dateStr && (
                   <>
-                    <div className={`text-[10.5px] font-semibold mb-1 ${dateStr === today ? 'text-brand' : 'text-ink-500'}`}>
-                      {Number(dateStr.slice(-2))}
+                    <div className="mb-1.5 flex items-center gap-1.5">
+                      <span
+                        className={`grid h-6 min-w-6 place-items-center rounded-full px-1 text-[12px] font-bold tabular-nums ${
+                          isToday ? 'bg-brand text-white' : past ? 'text-ink-300' : 'text-ink-700'
+                        }`}
+                      >
+                        {Number(dateStr.slice(-2))}
+                      </span>
+                      {isToday && <span className="text-[10px] font-bold uppercase tracking-wide text-brand">Today</span>}
                     </div>
                     <div className="space-y-1">
                       {(byDay.get(dateStr) || []).slice(0, expanded.has(dateStr) ? undefined : 3).map((it) => (
-                        <button
-                          key={it.key}
-                          type="button"
-                          onClick={() => setOpen(it)}
-                          className={`w-full text-left px-1.5 py-1 rounded-md text-[10px] leading-tight truncate flex items-center gap-1 ${
-                            it.status === 'rejected'
-                              ? 'bg-ink-100 text-ink-400 line-through'
-                              : 'bg-white border border-ink-100 text-ink-700 hover:border-brand/40'
-                          }`}
-                          title={it.title}
-                        >
-                          <span
-                            className="w-1.5 h-1.5 rounded-full flex-none"
-                            style={{ background: colorForBrand(it.brand_slug) }}
-                          />
-                          <span className="truncate">{it.title}</span>
-                          {it.media &&
-                            (it.media.kind === 'image' ? (
-                              <FiImage size={10} className="ml-auto flex-none text-ink-400" />
-                            ) : (
-                              <FiVideo size={10} className="ml-auto flex-none text-ink-400" />
-                            ))}
-                          {it.status === 'failed' && <span className="flex-none text-[9px] font-bold text-red-600">!</span>}
-                        </button>
+                        <PostChip key={it.key} it={it} onOpen={() => setOpen(it)} />
                       ))}
                       {(byDay.get(dateStr) || []).length > 3 && (
                         <button
@@ -319,7 +328,8 @@ export default function CalendarPage() {
                   </>
                 )}
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}
@@ -363,6 +373,92 @@ export default function CalendarPage() {
           onResults={(targetId) => navigate(`/insights/${targetId}`)}
         />
       )}
+    </div>
+  )
+}
+
+
+// ── one post in the month grid ─────────────────────────────────────────────
+// Tinted by status (TONE), with the picture (or ▶ video / Aa text), the time
+// and where it goes.
+
+function Thumb({ it, size = 'h-8 w-8' }) {
+  const m = it.media
+  const base = `relative ${size} flex-none overflow-hidden rounded-md`
+  if (m?.kind === 'image')
+    return (
+      <span className={`${base} bg-ink-100`}>
+        <img src={`${mediaBase}${m.url}`} alt="" loading="lazy" className="h-full w-full object-cover" />
+      </span>
+    )
+  if (m)
+    return (
+      <span className={`${base} bg-night-900`}>
+        <video src={`${mediaBase}${m.url}#t=0.5`} preload="metadata" muted playsInline className="h-full w-full object-cover" />
+        <span className="absolute inset-0 grid place-items-center">
+          <span className="grid h-4 w-4 place-items-center rounded-full bg-night-950/60 text-white">
+            <FiPlay size={8} aria-hidden="true" />
+          </span>
+        </span>
+      </span>
+    )
+  if (it.media_pending)
+    return <span className={`${base} animate-pulse bg-brand-soft`} title="Making the media…" />
+  // A posted text-only post; an idea without media yet shows nothing.
+  if (it.type === 'post')
+    return (
+      <span className={`${base} grid place-items-center bg-ink-100 text-ink-500`} title="Text post">
+        <FiType size={12} aria-hidden="true" />
+      </span>
+    )
+  return null
+}
+
+function PostChip({ it, onOpen }) {
+  const time = timeOf(it)
+  const platforms = platformsOf(it)
+  const tone = toneOf(it)
+  const rejected = it.status === 'rejected'
+  const failed = it.status === 'failed'
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      title={`${it.title} — ${tone.label}`}
+      className={`flex w-full items-center gap-1.5 rounded-lg border px-1.5 py-1 text-left transition-[transform,box-shadow] duration-150 hover:-translate-y-px hover:shadow-card ${tone.chip}`}
+    >
+      <Thumb it={it} />
+      <span className="block min-w-0 flex-1">
+        <span className="flex items-center gap-1 text-[9.5px] leading-none text-ink-500">
+          {it.status === 'posted' ? (
+            <FiCheck size={10} className="flex-none text-emerald-600" aria-label="Posted" />
+          ) : failed ? (
+            <FiAlertCircle size={10} className="flex-none text-red-600" aria-label="Failed" />
+          ) : null}
+          {time && <span className="font-semibold tabular-nums text-ink-700">{time}</span>}
+          <span className="ml-auto flex flex-none items-center gap-0.5 [&_svg]:h-2.5 [&_svg]:w-2.5">
+            {platforms.slice(0, 3).map((p) => (
+              <PlatformIcon key={p} name={p} className="text-ink-400" />
+            ))}
+          </span>
+        </span>
+        <span className={`mt-0.5 block truncate text-[10.5px] font-medium leading-tight text-ink-800 ${rejected ? 'line-through' : ''} ${khmer(it.title)}`}>
+          {it.title}
+        </span>
+      </span>
+    </button>
+  )
+}
+
+function Legend() {
+  return (
+    <div className="ml-auto hidden flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-500 lg:flex">
+      {['posted', 'scheduled', 'waiting'].map((k) => (
+        <span key={k} className="inline-flex items-center gap-1.5">
+          <span className={`h-3 w-4 rounded border ${TONE[k].chip}`} aria-hidden="true" />
+          {TONE[k].label}
+        </span>
+      ))}
     </div>
   )
 }
@@ -428,11 +524,7 @@ function MobileMonth({ cells, byDay, today, picked, onPick, onOpen }) {
                 </span>
                 <span className="flex h-1.5 items-center gap-0.5">
                   {dayItems.slice(0, 3).map((it) => (
-                    <span
-                      key={it.key}
-                      className="h-1.5 w-1.5 rounded-full"
-                      style={{ background: it.status === 'rejected' ? '#CBD2D9' : colorForBrand(it.brand_slug) }}
-                    />
+                    <span key={it.key} className={`h-1.5 w-1.5 rounded-full ${toneOf(it).dot}`} />
                   ))}
                   {dayItems.length > 3 && <span className="text-[8px] font-bold leading-none text-ink-400">+</span>}
                 </span>
@@ -462,10 +554,10 @@ function MobileMonth({ cells, byDay, today, picked, onPick, onOpen }) {
                   key={it.key}
                   type="button"
                   onClick={() => onOpen(it)}
-                  className={`w-full rounded-2xl border border-ink-100 bg-white px-4 py-3 text-left shadow-card active:bg-ink-50 ${
-                    it.status === 'rejected' ? 'opacity-60' : ''
-                  }`}
+                  className={`flex w-full gap-3 rounded-2xl border px-3 py-3 text-left shadow-card ${toneOf(it).chip}`}
                 >
+                  <Thumb it={it} size="h-14 w-14" />
+                  <span className="block min-w-0 flex-1">
                   <div className="flex items-center gap-2 text-[11.5px]">
                     <span className="h-2 w-2 flex-none rounded-full" style={{ background: colorForBrand(it.brand_slug) }} />
                     <span className="truncate font-semibold text-ink-700">{it.brand_name}</span>
@@ -482,6 +574,7 @@ function MobileMonth({ cells, byDay, today, picked, onPick, onOpen }) {
                       {it.body}
                     </div>
                   )}
+                  </span>
                 </button>
               )
             })}
