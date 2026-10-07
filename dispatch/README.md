@@ -110,6 +110,29 @@ npm run preview        # serve the build locally
 | Re-seed from scratch | `alembic downgrade base && alembic upgrade head && python -m app.seed` (each `uv run python -m …`) |
 | Lint backend | `uv run ruff check app` |
 
+> **Changing a column:** every change to `app/models.py` ships with its own
+> new Alembic migration. Never edit a migration that has already been applied
+> somewhere (your machine or production) — Alembic marks it done and won't run
+> it again, so the change silently never reaches that database (you'll see
+> `column … does not exist`). Add a new migration on top instead.
+
+### Database migrations in production
+
+Nothing extra to run: the backend container applies `alembic upgrade head`
+every time it starts (`backend/Dockerfile`), before the API comes up. A
+normal deploy upgrades the database too. From the repo root on the server:
+
+| Task | Command |
+| --- | --- |
+| Deploy (pulls code, rebuilds, migrates on start) | `git pull && docker compose -f docker-compose.prod.yml up -d --build` |
+| See what the migration did | `docker compose -f docker-compose.prod.yml logs backend \| grep -i alembic` — look for `Running upgrade … -> …` |
+| Which migration the database is on | `docker compose -f docker-compose.prod.yml exec backend alembic current` — should print the newest one with `(head)` |
+| Run it by hand (code deployed, upgrade didn't run) | `docker compose -f docker-compose.prod.yml exec backend alembic upgrade head` |
+
+If a migration fails, the backend doesn't start and nginx returns 502 —
+the error is in `docker compose -f docker-compose.prod.yml logs backend`.
+Full server setup: [`../DEPLOY.md`](../DEPLOY.md).
+
 ---
 
 ## Data model

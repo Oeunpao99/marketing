@@ -1,7 +1,9 @@
 """video_stories.auto_join — a weekly plan's video joins its clips by itself
-once every scene is done (app/story.py, app/weekly.py)."""
+once every scene is done (app/story.py, app/weekly.py).
 
-import sqlalchemy as sa
+IF NOT EXISTS: an earlier version of d0e1f2a3b4c6 added this column too, and
+some databases (production) ran that version — this must work on both."""
+
 from alembic import op
 
 revision = "e1f2a3b4c5d7"
@@ -11,11 +13,8 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "video_stories",
-        sa.Column("auto_join", sa.Boolean(), nullable=False, server_default=sa.false()),
-    )
+    op.execute("ALTER TABLE video_stories ADD COLUMN IF NOT EXISTS auto_join BOOLEAN NOT NULL DEFAULT false")
 
 
 def downgrade() -> None:
-    op.drop_column("video_stories", "auto_join")
+    op.execute("ALTER TABLE video_stories DROP COLUMN IF EXISTS auto_join")
