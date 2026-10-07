@@ -295,6 +295,7 @@ function PostCard({ item, brandName, brand, makingMedia, busy, onApprove, onSkip
                   : null
             }
             platforms={item.channels}
+            onFix={undecided ? (c) => onSaveCaption(c) : undefined}
             onClose={() => setPreviewing(false)}
           />
         )}

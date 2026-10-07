@@ -48,3 +48,6 @@ html.dark .text-red-800 { color: #fca5a5; }
 html.dark .text-sky-600 { color: #38bdf8; }
 html.dark .text-sky-700 { color: #7dd3fc; }
 html.dark .text-violet-600 { color: #a78bfa; }
+html.dark .bg-blue-100 { background-color: rgb(59 130 246 / 0.160); }
+html.dark .border-blue-300 { border-color: rgb(59 130 246 / 0.400); }
+html.dark .border-emerald-300 { border-color: rgb(16 185 129 / 0.400); }

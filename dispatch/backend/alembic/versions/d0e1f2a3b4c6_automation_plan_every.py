@@ -1,6 +1,5 @@
 """automations.plan_every — the AI plans the next week ("week") or just
-tomorrow ("day"), app/weekly.py — and video_stories.auto_join (a plan's
-video joins its clips by itself, app/story.py)."""
+tomorrow ("day"), app/weekly.py."""
 
 import sqlalchemy as sa
 from alembic import op
@@ -16,12 +15,7 @@ def upgrade() -> None:
         "automations",
         sa.Column("plan_every", sa.String(length=8), nullable=False, server_default="week"),
     )
-    op.add_column(
-        "video_stories",
-        sa.Column("auto_join", sa.Boolean(), nullable=False, server_default=sa.false()),
-    )
 
 
 def downgrade() -> None:
-    op.drop_column("video_stories", "auto_join")
     op.drop_column("automations", "plan_every")

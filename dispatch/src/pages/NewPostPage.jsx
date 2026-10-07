@@ -6,6 +6,7 @@ import CaptionComps from "../components/newpost/CaptionComps";
 import ChannelPicker from "../components/newpost/ChannelPicker";
 import VideoStep from "../components/newpost/VideoStep";
 import CircularProgress from "../components/ui/CircularProgress";
+import SocialPreview, { captionChecks, tidyCaption } from "../components/preview/SocialPreview";
 import { PLAT } from "../data/brands";
 import { handoff } from "../lib/handoff";
 import { phnomPenhDate, phnomPenhToISO, fullDayLabel } from "../lib/tz";
@@ -31,6 +32,8 @@ export default function NewPostPage() {
   // The asset arrived with its own caption (the Library, maybe edited) — keep it.
   const handedCaption = useRef(false);
   const [error, setError] = useState(null);
+  // The post drawn as it shows in the feed (SocialPreview), before it goes out.
+  const [previewing, setPreviewing] = useState(false);
 
   // "post" (Post now, shows the progress ring) or "schedule" (Schedule for
   // later, no ring — nothing's actually being sent yet).
@@ -83,7 +86,8 @@ export default function NewPostPage() {
       });
       if (a.caption) {
         handedCaption.current = true;
-        setStartCaption(a.caption);
+        // a caption written elsewhere arrives in the clean phone layout
+        setStartCaption(tidyCaption(a.caption));
       }
     }
   }, []);
@@ -97,7 +101,8 @@ export default function NewPostPage() {
     if (mediaId == null || handedCaption.current) return undefined;
     let stopped = false;
     let tries = 0;
-    const apply = (caption) => {
+    const apply = (raw) => {
+      const caption = tidyCaption(raw); // the clean phone layout
       setStartCaption(caption);
       setComps((prev) => {
         const next = { ...prev };
@@ -169,6 +174,21 @@ export default function NewPostPage() {
     (i) =>
       comps[i]?.cap?.length > PLAT[channels.find((c) => c.id === i)?.p]?.limit,
   ).length;
+
+  // One preview tab per platform picked: that channel's caption and brand.
+  const byPlatform = {};
+  for (const c of selected) {
+    const name = PLAT[c.p]?.name;
+    if (!name || byPlatform[name]) continue;
+    const b = brands.find((x) => x.slug === c.b);
+    byPlatform[name] = {
+      caption: comps[c.id]?.cap || "",
+      brand: { id: b?.id, name: b?.name || c.h || "Your page", slug: c.b },
+    };
+  }
+
+  // Captions a phone reader would trip over (SocialPreview's checks).
+  const toLook = ids.filter((i) => comps[i]?.cap?.trim() && captionChecks(comps[i].cap).some((c) => !c.ok)).length;
 
   const canSchedule =
     video && ids.length > 0 && emptyCount === 0 && overCount === 0;
@@ -393,6 +413,15 @@ export default function NewPostPage() {
           ) : (
             <span dangerouslySetInnerHTML={{ __html: `<b>${summary}</b>` }} />
           )}
+          {toLook > 0 && (
+            <button
+              type="button"
+              onClick={() => setPreviewing(true)}
+              className="ml-2 font-semibold text-amber-700 hover:underline"
+            >
+              · {toLook} caption{toLook === 1 ? "" : "s"} could read better on a phone — preview
+            </button>
+          )}
         </div>
         <div className="flex gap-2">
           <button
@@ -401,6 +430,15 @@ export default function NewPostPage() {
             className="btn-ghost"
           >
             Save draft
+          </button>
+          <button
+            type="button"
+            onClick={() => setPreviewing(true)}
+            disabled={!ids.length}
+            className="btn-outline"
+            title={ids.length ? "See the post the way it shows in the feed" : "Pick a channel first"}
+          >
+            Preview
           </button>
           <button
             type="button"
@@ -423,6 +461,24 @@ export default function NewPostPage() {
           </button>
         </div>
       </div>
+
+      {previewing && (
+        <SocialPreview
+          byPlatform={byPlatform}
+          platforms={Object.keys(byPlatform)}
+          media={video?.previewUrl || video?.url ? { kind: video.kind || "video", url: video.previewUrl || video.url } : null}
+          note={video ? null : "Add a picture or video above"}
+          onFix={(caption, platform) =>
+            setComps((prev) => {
+              const next = { ...prev };
+              for (const c of selected)
+                if (PLAT[c.p]?.name === platform) next[c.id] = { ...next[c.id], cap: caption };
+              return next;
+            })
+          }
+          onClose={() => setPreviewing(false)}
+        />
+      )}
 
       {postMode === "post" && (
         <div className="fixed inset-0 z-50 bg-night-950/30 flex items-center justify-center p-4 animate-fadein">

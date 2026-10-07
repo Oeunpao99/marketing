@@ -20,10 +20,10 @@ const daysInMonth = (y, m) => new Date(y, m + 1, 0).getDate()
 // Each post is coloured by where it stands: green = posted, blue =
 // scheduled, yellow = waiting for a yes, red = failed, grey = sent back.
 const TONE = {
-  posted: { chip: 'bg-emerald-50 border-emerald-200', dot: 'bg-emerald-500', label: 'Posted' },
-  scheduled: { chip: 'bg-brand-soft border-brand/20', dot: 'bg-brand', label: 'Scheduled' },
-  waiting: { chip: 'bg-amber-50 border-amber-200', dot: 'bg-amber-400', label: 'Needs approval' },
-  failed: { chip: 'bg-red-50 border-red-200', dot: 'bg-red-500', label: 'Failed' },
+  posted: { chip: 'bg-emerald-100 border-emerald-300', dot: 'bg-emerald-500', label: 'Posted' },
+  scheduled: { chip: 'bg-blue-100 border-blue-300', dot: 'bg-blue-500', label: 'Scheduled' },
+  waiting: { chip: 'bg-amber-100 border-amber-300', dot: 'bg-amber-400', label: 'Needs approval' },
+  failed: { chip: 'bg-red-100 border-red-300', dot: 'bg-red-500', label: 'Failed' },
   rejected: { chip: 'bg-ink-50 border-ink-100 opacity-60', dot: 'bg-ink-300', label: 'Sent back' },
 }
 // An approved idea isn't out yet, and a partly-posted post still has a channel to go.
@@ -181,6 +181,20 @@ export default function CalendarPage() {
       showToast(`Could not update — ${e.message}`)
     } finally {
       setBusy(false)
+    }
+  }
+
+  // "Tidy the format" in the feed preview: the idea's caption, saved.
+  const saveBody = async (draft, body) => {
+    const mark = (x) => (x.key === draft.key ? { ...x, body } : x)
+    setItems((xs) => xs.map(mark))
+    setOpen((o) => (o ? mark(o) : o))
+    try {
+      await api.patch(`/drafts/${draft.id}`, { body })
+      showToast('Caption tidied')
+    } catch (e) {
+      showToast(`Could not save — ${e.message}`)
+      load()
     }
   }
 
@@ -372,6 +386,7 @@ export default function CalendarPage() {
           onUseIdea={useIdea}
           onMakeMedia={makeMedia}
           onResults={(targetId) => navigate(`/insights/${targetId}`)}
+          onSaveBody={saveBody}
         />
       )}
     </div>
@@ -613,7 +628,7 @@ function Pill({ status }) {
   return <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${tone}`}>{label}</span>
 }
 
-function PreviewModal({ item, busy, onClose, onApprove, onReject, onUseIdea, onMakeMedia, onResults }) {
+function PreviewModal({ item, busy, onClose, onApprove, onReject, onUseIdea, onMakeMedia, onResults, onSaveBody }) {
   const [feed, setFeed] = useState(false) // the post as it shows in the feed (SocialPreview)
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && !feed && onClose()
@@ -701,6 +716,8 @@ function PreviewModal({ item, busy, onClose, onApprove, onReject, onUseIdea, onM
                 media={m}
                 note={making ? 'Making the media…' : isPost ? null : 'No picture yet'}
                 platforms={platformsOf(item)}
+                // an idea's caption can still change; a post already queued keeps its own
+                onFix={!isPost && item.status !== 'rejected' ? (c) => onSaveBody(item, c) : undefined}
                 onClose={() => setFeed(false)}
               />
             )}
