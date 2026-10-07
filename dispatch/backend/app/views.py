@@ -747,6 +747,20 @@ class LibraryCaptionEdit(BaseModel):
     caption: str = Field(max_length=5000)
 
 
+@router.patch("/media/{video_id}/caption")
+def media_edit_caption(
+    video_id: int, payload: LibraryCaptionEdit, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)
+):
+    """Save a media's caption by the media's own id — Compose's "Format"
+    keeps the Library copy in the clean phone layout too (only when the post's
+    caption is still the Library's, never someone's one-off edits)."""
+    video = owned(db, Video, video_id, ws, "Media")
+    video.caption = payload.caption.strip()
+    video.caption_status = "ready" if video.caption else ""
+    db.commit()
+    return {"caption": video.caption, "caption_status": video.caption_status}
+
+
 @router.patch("/library/{job_id}/caption")
 def library_edit_caption(
     job_id: int, payload: LibraryCaptionEdit, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)

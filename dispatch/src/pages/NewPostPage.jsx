@@ -216,7 +216,23 @@ export default function NewPostPage() {
         for (const i of unformatted) if (prev[i]?.cap in done) next[i] = { ...prev[i], cap: done[prev[i].cap] };
         return next;
       });
-      showToast(`Formatted ${unformatted.length} caption${unformatted.length === 1 ? "" : "s"} for phones`);
+      // The Library copy gets the clean layout too — but only from a caption
+      // that is still the Library's own, never someone's one-off edit here.
+      let toLibrary = false;
+      const fromLibrary = startCaption && done[startCaption];
+      if (mediaId != null && fromLibrary && fromLibrary !== startCaption) {
+        try {
+          await api.patch(`/views/media/${mediaId}/caption`, { caption: fromLibrary });
+          setStartCaption(fromLibrary); // channels picked from now on start with it
+          toLibrary = true;
+        } catch {
+          // the post still goes out formatted; the Library keeps the old layout
+        }
+      }
+      showToast(
+        `Formatted ${unformatted.length} caption${unformatted.length === 1 ? "" : "s"} for phones` +
+          (toLibrary ? " — and saved to the Library" : ""),
+      );
     } catch (e) {
       showToast(`Couldn’t format — ${e.message}. Showing it as it is.`);
     } finally {
