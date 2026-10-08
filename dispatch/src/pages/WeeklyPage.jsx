@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
-import { FiArrowDownRight, FiArrowUpRight, FiCalendar, FiCheck, FiClock, FiPlay, FiRefreshCw, FiType, FiUsers, FiX, FiZap } from 'react-icons/fi'
+import { FiArrowDownRight, FiArrowUpRight, FiCalendar, FiCheck, FiClock, FiPause, FiPlay, FiRefreshCw, FiType, FiUsers, FiX, FiZap } from 'react-icons/fi'
 import { api } from '../api/client'
 import { PILLAR_LABELS, pillarChipClass } from '../lib/angles'
 import { GOALS, goalOfItem, ruleAction, stageOf } from '../lib/goals'
@@ -77,7 +77,7 @@ export default function WeeklyPage() {
         }
         if (next.status === 'failed') showToast(next.error || 'Something went wrong')
         else if (next.kind === 'media') showToast(next.step || 'Posts scheduled')
-        else showToast('Your plan is ready')
+        else showToast(next.step?.startsWith('Stopped') ? next.step : 'Your plan is ready')
         refreshReview?.()
         load()
       } catch {
@@ -171,6 +171,16 @@ export default function WeeklyPage() {
       showToast(e.message)
     } finally {
       setBusy('')
+    }
+  }
+
+  // Stop writing the plan: it ends at the next step and keeps what's written.
+  const stopPlanning = async () => {
+    try {
+      const j = await api.post(`/weekly/job/stop?brand_id=${brand.id}`)
+      setData((d) => ({ ...d, job: j }))
+    } catch (e) {
+      showToast(e.message)
     }
   }
 
@@ -390,6 +400,7 @@ export default function WeeklyPage() {
               <WeeklyPlanning
                 brand={brand.name}
                 job={job}
+                onStop={stopPlanning}
                 span={spanOf(data.plan_every)}
                 // until the real count arrives: posts per day × days (a plan is capped at 14)
                 expected={Math.min(14, Math.max(1, Math.round((data.per_month || 30) / 30)) * (data.plan_every === 'day' ? 1 : 7))}
@@ -1162,7 +1173,7 @@ const weeklyPlanningCss = `
 @media (prefers-reduced-motion: reduce) { .wp-shimmer, .wp-pop, .wp-write, .wp-pulse { animation: none !important; } }
 `
 
-function WeeklyPlanning({ brand, job, span = 'next week', expected = 7 }) {
+function WeeklyPlanning({ brand, job, span = 'next week', expected = 7, onStop }) {
   const progress = useSmoothProgress({
     progress: job?.progress || 0,
     // ease towards the next real checkpoint, never past it
@@ -1229,15 +1240,38 @@ function WeeklyPlanning({ brand, job, span = 'next week', expected = 7 }) {
           <p className="mt-2 text-[11px] leading-snug text-ink-400">
             Usually a few minutes. It keeps going in the background — you can leave this page and come back.
           </p>
+
         </div>
       </div>
 
       {/* right: the posts being written — filled from the real count */}
       <div className="min-w-0">
-        <div className="mb-3 flex items-baseline justify-between text-[12.5px]">
+        <div className="mb-3 flex items-center justify-between text-[12.5px]">
           <span className="font-semibold text-ink-700">Posts written</span>
-          <span className="tabular-nums text-ink-500">
-            <b className="text-[15px] text-ink-900">{done}</b> of {counted || real >= 80 ? total : '…'}
+          <span className="flex items-center gap-3">
+            <span className="tabular-nums text-ink-500">
+              <b className="text-[15px] text-ink-900">{done}</b> of {counted || real >= 80 ? total : '…'}
+            </span>
+            {onStop && !finished && (
+              <button
+                type="button"
+                onClick={onStop}
+                disabled={!!job?.stop}
+                aria-label={job?.stop ? 'Stopping' : 'Stop and keep what’s written'}
+                title={
+                  job?.stop
+                    ? 'Stopping at the next step…'
+                    : 'Stop — keeps the posts written so far; nothing more is spent on this plan'
+                }
+                className="grid h-9 w-9 place-items-center rounded-full bg-red-600 text-white shadow-[0_4px_14px_rgba(220,38,38,0.35)] transition-colors hover:bg-red-700 disabled:opacity-60"
+              >
+                {job?.stop ? (
+                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                ) : (
+                  <FiPause size={15} aria-hidden="true" />
+                )}
+              </button>
+            )}
           </span>
         </div>
         <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 xl:grid-cols-7">

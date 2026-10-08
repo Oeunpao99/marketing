@@ -5,6 +5,7 @@ import {
   FiCheck,
   FiChevronDown,
   FiCopy,
+  FiSliders,
   FiDownload,
   FiImage,
   FiMoreHorizontal,
@@ -458,6 +459,8 @@ function DetailPanel({ it, busy, onClose, onUse, onDelete, onRewrite, onSaved, s
   const [angle, setAngle] = useState('')
   const [goal, setGoal] = useState('')
   const [showPrompt, setShowPrompt] = useState(false)
+  // Rewrite (angle / goal) and "How it was made" live behind one settings icon.
+  const [settings, setSettings] = useState(false)
 
   // A new caption arrived (rewrite, or the background writer finished).
   useEffect(() => setText(it.caption || ''), [it.caption])
@@ -526,10 +529,73 @@ function DetailPanel({ it, busy, onClose, onUse, onDelete, onRewrite, onSaved, s
             </button>
           </div>
 
-          <div className="mt-5 flex items-center justify-between gap-2">
+          <div className="mt-5 flex items-center gap-2">
             <div className="text-[12.5px] font-bold text-ink-900">Caption</div>
             <CaptionState it={it} busy={busy} onWrite={() => onRewrite({})} />
+            <span className="ml-auto flex items-center gap-1">
+              <button
+                type="button"
+                onClick={copy}
+                disabled={!text.trim()}
+                title="Copy caption"
+                aria-label="Copy caption"
+                className="grid h-8 w-8 place-items-center rounded-lg text-ink-500 hover:bg-ink-100 hover:text-ink-800 disabled:opacity-40"
+              >
+                <FiCopy size={15} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setSettings((v) => !v)}
+                aria-expanded={settings}
+                title="Rewrite the caption · how it was made"
+                aria-label="Caption settings"
+                className={`grid h-8 w-8 place-items-center rounded-lg transition-colors ${
+                  settings ? 'bg-brand-soft text-brand' : 'text-ink-500 hover:bg-ink-100 hover:text-ink-800'
+                }`}
+              >
+                <FiSliders size={15} />
+              </button>
+            </span>
           </div>
+
+          {/* behind the settings icon: rewrite with an angle / goal, and the prompt it was made from */}
+          {settings && (
+            <div className="mt-2 rounded-xl border border-ink-200 p-3 animate-fadein">
+              {it.brand_slug && (
+                <>
+                  <div className="text-[11.5px] font-semibold text-ink-700">Write it a different way</div>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <Select size="sm" value={angle} onChange={setAngle} options={ANGLE_OPTIONS} />
+                    <Select size="sm" value={goal} onChange={setGoal} options={GOAL_OPTIONS} align="right" />
+                  </div>
+                  <button
+                    type="button"
+                    disabled={writingNow}
+                    onClick={() => onRewrite({ angle, goal })}
+                    className="btn-outline mt-2 w-full justify-center text-[11.5px]"
+                    title="Uses a little AI credit · replaces the caption"
+                  >
+                    <FiRefreshCw size={12} className={writingNow ? 'animate-spin' : ''} />
+                    {writingNow ? 'Writing…' : it.caption ? 'Rewrite caption' : 'Write caption'}
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowPrompt((v) => !v)}
+                className={`inline-flex items-center gap-1 text-[11.5px] font-semibold text-ink-500 hover:text-ink-800 ${it.brand_slug ? 'mt-3' : ''}`}
+              >
+                How it was made
+                <FiChevronDown size={13} className={`transition-transform ${showPrompt ? 'rotate-180' : ''}`} />
+              </button>
+              {showPrompt && (
+                <div className="mt-1.5 max-h-60 overflow-y-auto rounded-lg bg-ink-50 p-3">
+                  <MarkdownText text={it.prompt} />
+                  {it.total_tokens > 0 && <div className="mt-2 font-mono text-[10.5px] text-ink-400">{it.total_tokens.toLocaleString()} tokens</div>}
+                </div>
+              )}
+            </div>
+          )}
           {writingNow && !it.caption ? (
             <div className="mt-2 space-y-2 rounded-xl border border-ink-100 p-3">
               <div className="h-3 w-5/6 rounded skeleton" />
@@ -550,49 +616,11 @@ function DetailPanel({ it, busy, onClose, onUse, onDelete, onRewrite, onSaved, s
               }`}
             />
           )}
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            {dirty && (
+          {dirty && (
+            <div className="mt-2">
               <button type="button" onClick={save} disabled={saving} className="btn-primary text-[11.5px]">
                 {saving ? 'Saving…' : 'Save caption'}
               </button>
-            )}
-            <button type="button" onClick={copy} disabled={!text.trim()} className="btn-outline text-[11.5px]">
-              <FiCopy size={12} /> Copy
-            </button>
-          </div>
-
-          {it.brand_slug && (
-            <div className="mt-4 rounded-2xl border border-ink-100 bg-ink-50/60 p-3">
-              <div className="text-[11.5px] font-semibold text-ink-700">Write it a different way</div>
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                <Select size="sm" value={angle} onChange={setAngle} options={ANGLE_OPTIONS} />
-                <Select size="sm" value={goal} onChange={setGoal} options={GOAL_OPTIONS} align="right" />
-              </div>
-              <button
-                type="button"
-                disabled={writingNow}
-                onClick={() => onRewrite({ angle, goal })}
-                className="btn-outline mt-2 w-full justify-center text-[11.5px]"
-              >
-                <FiRefreshCw size={12} className={writingNow ? 'animate-spin' : ''} />
-                {writingNow ? 'Writing…' : it.caption ? 'Rewrite caption' : 'Write caption'}
-              </button>
-              <p className="mt-1.5 text-[10.5px] text-ink-400">Uses a little AI credit. Replaces the caption above.</p>
-            </div>
-          )}
-
-          <button
-            type="button"
-            onClick={() => setShowPrompt((v) => !v)}
-            className="mt-4 inline-flex items-center gap-1 text-[11.5px] font-semibold text-ink-500 hover:text-ink-800"
-          >
-            How it was made
-            <FiChevronDown size={13} className={`transition-transform ${showPrompt ? 'rotate-180' : ''}`} />
-          </button>
-          {showPrompt && (
-            <div className="mt-1.5 rounded-xl bg-ink-50 p-3">
-              <MarkdownText text={it.prompt} />
-              {it.total_tokens > 0 && <div className="mt-2 font-mono text-[10.5px] text-ink-400">{it.total_tokens.toLocaleString()} tokens</div>}
             </div>
           )}
 

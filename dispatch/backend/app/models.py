@@ -59,6 +59,10 @@ class Workspace(Base, TimestampMixin):
     # Billing plan (app/billing.py): "pro" gets PLAN_CREDIT["pro"] of AI credit
     # a month. Not editable through any API yet — there's no payment system.
     plan: Mapped[str] = mapped_column(String(20), default="pro", server_default="pro")
+    # Suspended by the platform admin (/admin-mkt, app/admin.py): nobody in it
+    # can sign in or use the app, and no AI is charged to it. Null = active.
+    suspended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    suspended_reason: Mapped[str] = mapped_column(String(300), default="", server_default="")
     # Chatbot lead intake (app/leads.py, POST /api/intake/leads): only a hash of
     # the secret key is kept — the key is shown once, when it is made — plus its
     # last 4 characters so Setup can tell keys apart, and when a bot last sent a lead.

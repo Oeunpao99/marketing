@@ -62,3 +62,4 @@ html.dark .border-emerald-200\/60 { border-color: rgb(16 185 129 / 0.168); }
 html.dark .border-emerald-200\/70 { border-color: rgb(16 185 129 / 0.196); }
 html.dark .hover\:bg-amber-50:hover { background-color: rgb(245 158 11 / 0.100); }
 html.dark .text-blue-800 { color: #93c5fd; }
+html.dark .hover\:bg-emerald-50:hover { background-color: rgb(16 185 129 / 0.100); }

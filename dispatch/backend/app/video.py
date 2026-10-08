@@ -30,11 +30,14 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app import billing
+from app import billing, text_overlay
 from app.config import get_settings
+from app.content_ai import ContentAIError
 from app.database import SessionLocal, get_db
 from app.media import read_media, store_blob
+from app.meme import _has_khmer
 from app.models import Brand, GenerationJob, TeamMember, Video
+from app.poster import accent_for
 from app.tenancy import current_workspace_id, get_current_user, owned
 
 log = logging.getLogger("app.video")
@@ -746,6 +749,21 @@ def create_image(
     return _out(job, None)
 
 
+def _khmer_overlay_text(job: GenerationJob) -> dict | None:
+    """The Khmer words this image should carry (app/text_overlay.py) — the
+    model then draws the picture only and the server typesets the words,
+    since image models garble Khmer. None = render as usual (no Khmer on it,
+    no libraqm on this server, or the text couldn't be read)."""
+    if not text_overlay.wanted() or not _has_khmer(job.prompt):
+        return None
+    billing.bind(job.workspace_id, job.user_id)  # the extraction call is AI too
+    try:
+        return text_overlay.extract_text(job.prompt)
+    except ContentAIError as exc:
+        log.warning("Khmer text extraction failed for job %s: %s — model draws the text", job.id, exc)
+        return None
+
+
 def _render_image(job_id: int, reference: bytes | list[bytes] | None, guide: str = "") -> None:
     """``guide`` (brand-kit instructions naming each reference image) goes in
     front of the prompt for the model only — the job keeps the person's own
@@ -755,11 +773,13 @@ def _render_image(job_id: int, reference: bytes | list[bytes] | None, guide: str
         job = db.get(GenerationJob, job_id)
         if job is None:
             return
+        overlay = _khmer_overlay_text(job)
         try:
             with image_slot():
                 job.status = "running"  # commit sets updated_at = render start
                 db.commit()
-                provider, blob, usage = generate_image(guide + job.prompt, job.aspect_ratio, reference)
+                prompt = guide + job.prompt + (text_overlay.NO_TEXT_RULE if overlay else "")
+                provider, blob, usage = generate_image(prompt, job.aspect_ratio, reference)
         except VideoGenError as exc:
             job.status, job.error = "failed", str(exc)
             db.commit()
@@ -771,6 +791,13 @@ def _render_image(job_id: int, reference: bytes | list[bytes] | None, guide: str
             db.commit()
             _ready_push(job)
             return
+
+        if overlay:
+            brand = db.get(Brand, job.brand_id) if job.brand_id else None
+            try:
+                blob = text_overlay.render(blob, overlay, accent_for(brand.slug if brand else ""))
+            except Exception:  # noqa: BLE001 — the clean picture beats losing the image
+                log.exception("Khmer text overlay failed for job %s — keeping the picture alone", job_id)
 
         url = store_blob(db, blob, ".png", "image/png")
         width, height = _IMG_DIMS.get(job.aspect_ratio, _IMG_DIMS["1:1"])

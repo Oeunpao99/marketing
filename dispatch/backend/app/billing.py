@@ -226,6 +226,8 @@ def require(ws: int | None, needed: float = 0.0, db: Session | None = None) -> N
     own = db is None
     db = db or SessionLocal()
     try:
+        if db.scalar(select(Workspace.suspended_at).where(Workspace.id == ws)):
+            raise OutOfCredit("This account is suspended — no AI can be used.")
         left = balance(db, ws)["available"]
     finally:
         if own:

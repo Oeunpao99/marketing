@@ -165,6 +165,10 @@ class Settings(BaseSettings):
     # Auth — CHANGE secret_key in .env for anything real.
     secret_key: str = "dev-insecure-change-me"
     token_ttl_hours: int = 168  # 7 days
+    # The platform admin portal (/admin-mkt, app/admin.py): one login, from
+    # .env only. Either one blank = the portal is switched off (404).
+    admin_username: str = ""
+    admin_password: str = ""
     # Seeded demo account (app/seed.py). Blank password = login disabled for it.
     seed_admin_email: str = "admin@tipsa.local"
     seed_admin_password: str = "changeme"

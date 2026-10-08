@@ -36,6 +36,7 @@ from app.models import (
     Video,
     VideoStory,
     WeeklyPlan,
+    Workspace,
 )
 from app.security import decode_token
 
@@ -56,6 +57,9 @@ def get_current_user(
     user = db.get(TeamMember, user_id)
     if user is None or not user.is_active:
         raise HTTPException(401, "Account not found")
+    if db.scalar(select(Workspace.suspended_at).where(Workspace.id == user.workspace_id)):
+        # suspended by the platform admin (app/admin.py) — signed out everywhere
+        raise HTTPException(401, "This account is suspended — please contact ContentFlow support.")
     from app import sessions  # local import: sessions imports this module
     from app.billing import bind_user  # local import: billing imports this module
 

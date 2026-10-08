@@ -128,10 +128,14 @@ def _storyboard(db: Session, brand: Brand, item: dict, products: list[Product]) 
     return story.id
 
 
-def _make_plan_images(db: Session, brand: Brand, automation: Automation, items: list[dict], step) -> None:
+def _make_plan_images(
+    db: Session, brand: Brand, automation: Automation, items: list[dict], step, should_stop=lambda: False
+) -> None:
     """Make the picture for each image post of a plan being written, so the
     person reviews the real image. Fills item["video_id"] / ["media_url"];
-    a picture that fails twice is left out — that post gets it on approve."""
+    a picture that fails twice is left out — that post gets it on approve.
+    On Stop, pictures not started yet are dropped (those already being made
+    finish — they're paid for); those posts get theirs on approve."""
     todo = [i for i in items if i["format"] == "image"]
     if not todo:
         return
@@ -146,8 +150,12 @@ def _make_plan_images(db: Session, brand: Brand, automation: Automation, items: 
     try:
         futures = {pool.submit(_media_with_retry, brand_args, ideas[n], product_args, kits[n]): i for n, i in enumerate(todo)}
         done = 0
+        stopping = False
         for fut in as_completed(futures):
             item = futures[fut]
+            if fut.cancelled():
+                item["video_id"] = None
+                continue
             try:
                 item["video_id"] = fut.result()
             except Exception:  # noqa: BLE001 - one picture mustn't sink the plan
@@ -155,6 +163,10 @@ def _make_plan_images(db: Session, brand: Brand, automation: Automation, items: 
                 item["video_id"] = None
             done += 1
             step(86 + 4 * done // len(todo), f"Making the pictures ({done} of {len(todo)})…")
+            if not stopping and should_stop():
+                stopping = True
+                for f in futures:
+                    f.cancel()  # only those not started yet
     finally:
         pool.shutdown(wait=False, cancel_futures=True)
     urls = dict(db.execute(select(Video.id, Video.url).where(Video.id.in_([i["video_id"] for i in todo if i.get("video_id")] or [0]))).all())
@@ -473,7 +485,9 @@ def best_time(db: Session, brand_id: int) -> dict:
     }
 
 
-def build_plan(db: Session, brand_id: int, starts_on: date | None = None, step=lambda _p, _s: None) -> WeeklyPlan:
+def build_plan(
+    db: Session, brand_id: int, starts_on: date | None = None, step=lambda _p, _s: None, should_stop=lambda: False
+) -> WeeklyPlan:
     """Write a fresh plan for the 7 days from ``starts_on`` (default tomorrow)
     — or just that one day for a brand that plans daily — replacing this
     brand's un-approved one. Raises ContentAIError."""
@@ -506,7 +520,13 @@ def build_plan(db: Session, brand_id: int, starts_on: date | None = None, step=l
     ideas: list[dict] = []
     last_selling = last_selling_day(db, brand_id, days[0])
     chunks = [days[i : i + CHUNK_DAYS] for i in range(0, len(days), CHUNK_DAYS)]
+    stopped = False  # Stop on the page: keep what's written, skip the rest
     for c, chunk in enumerate(chunks):
+        if should_stop():
+            if not ideas:
+                raise ContentAIError("Stopped before any post was written.")
+            stopped = True
+            break
         span = f"{chunk[0]:%a}" if len(chunk) == 1 else f"{chunk[0]:%a} – {chunk[-1]:%a}"
         step(20 + 60 * c // len(chunks), f"Writing ideas for {span} ({len(ideas)} of {count} done)…")
         n_batch = min(len(chunk) * per_day, count - len(ideas))
@@ -588,16 +608,23 @@ def build_plan(db: Session, brand_id: int, starts_on: date | None = None, step=l
         for n, idea in enumerate(ideas)
     ]
     items.sort(key=lambda i: i["day"])
-    to_film = [i for i in items if i["format"] == "video"]
+    stopped = stopped or should_stop()
+    # stopped: no storyboard is written — the card offers "Write the storyboard"
+    to_film = [] if stopped else [i for i in items if i["format"] == "video"]
     for n, item in enumerate(to_film):
         step(85, f"Writing the video storyboard{'s' if len(to_film) > 1 else ''} ({n + 1} of {len(to_film)})…")
         item["story_id"] = _storyboard(db, brand, item, list(products))
         if item["story_id"] is None:
             item.update(format="image", video=False, channels=names_for("image"))
-    step(86, "Making the pictures…")
-    _make_plan_images(db, db.get(Brand, brand_id), automation, items, step)
-    step(90, "Writing your weekly summary…")
-    report["advisor"] = advisor_summary(brand, report, items)
+    if not (stopped or should_stop()):
+        step(86, "Making the pictures…")
+        _make_plan_images(db, db.get(Brand, brand_id), automation, items, step, should_stop)
+    stopped = stopped or should_stop()
+    if stopped:
+        report["stopped"] = True  # the page says so; no summary is written
+    else:
+        step(90, "Writing your weekly summary…")
+        report["advisor"] = advisor_summary(brand, report, items)
     for old in db.scalars(
         select(WeeklyPlan).where(WeeklyPlan.brand_id == brand_id, WeeklyPlan.status == "ready")
     ):
@@ -681,12 +708,29 @@ def _start_job(brand_id: int, kind: str, target, *args) -> dict:
     return job_status(brand_id)
 
 
+def _stop_requested(brand_id: int) -> bool:
+    with _jobs_lock:
+        j = _jobs.get(brand_id)
+        return bool(j and j.get("stop"))
+
+
 def _build_job(brand_id: int, starts_on: date | None = None) -> None:
     db = SessionLocal()
+    stop = lambda: _stop_requested(brand_id)  # noqa: E731
     try:
-        plan = build_plan(db, brand_id, starts_on, step=lambda p, s: _set_job(brand_id, progress=p, step=s))
-        _set_job(brand_id, status="done", progress=100, step="Done")
-        _notify_ready(db.get(Brand, brand_id), plan)
+        plan = build_plan(
+            db,
+            brand_id,
+            starts_on,
+            step=lambda p, s: _set_job(brand_id, progress=p, **({} if stop() else {"step": s})),
+            should_stop=stop,
+        )
+        if (plan.report or {}).get("stopped"):
+            n = len(plan.items or [])
+            _set_job(brand_id, status="done", progress=100, step=f"Stopped — kept the {n} post{'s' if n != 1 else ''} written so far")
+        else:
+            _set_job(brand_id, status="done", progress=100, step="Done")
+            _notify_ready(db.get(Brand, brand_id), plan)
     except ContentAIError as exc:
         db.rollback()
         _set_job(brand_id, status="failed", step="Failed", error=str(exc))
@@ -1012,6 +1056,21 @@ def weekly_plan_now(brand_id: int, db: Session = Depends(get_db), ws: int = Depe
     brand that plans daily), in the background."""
     owned(db, Brand, brand_id, ws)
     return _start_job(brand_id, "plan", _build_job)
+
+
+@router.post("/job/stop")
+def weekly_job_stop(brand_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    """Stop writing the plan: it ends at the next step and keeps the posts
+    written so far (pictures already being made finish; the rest are made on
+    approve). Nothing more is spent on this plan."""
+    owned(db, Brand, brand_id, ws)
+    with _jobs_lock:
+        j = _jobs.get(brand_id)
+        if j is None or j["status"] != "running" or j["kind"] != "plan":
+            raise HTTPException(409, "No plan is being written right now.")
+        j["stop"] = True
+        j["step"] = "Stopping — keeping what’s written so far…"
+    return job_status(brand_id)
 
 
 @router.get("/job")

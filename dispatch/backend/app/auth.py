@@ -95,6 +95,8 @@ def login(payload: LoginIn, request: Request, db: Session = Depends(get_db)):
         fail("wrong_password", 401, "Wrong email or password.")
     if not user.is_active:
         fail("disabled", 403, "This account is disabled.")
+    if db.scalar(select(Workspace.suspended_at).where(Workspace.id == user.workspace_id)):
+        fail("suspended", 403, "This account is suspended — please contact ContentFlow support.")
     record_login(db, request, email, "success", user)
     token = create_token(user.id)
     sessions.start(token, user, request)

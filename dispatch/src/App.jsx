@@ -28,6 +28,7 @@ import VideoStoryPage from "./pages/VideoStoryPage";
 import WeeklyPage from "./pages/WeeklyPage";
 import WebsitePage from "./pages/WebsitePage";
 import ActivityPage from "./pages/ActivityPage";
+import AdminApp from "./pages/admin/AdminApp";
 import { StoreProvider, useStore } from "./store";
 import { canOpen } from "./lib/access";
 
@@ -124,6 +125,8 @@ function Gate() {
 const PUBLIC_PAGES = { "/privacy": "privacy", "/terms": "terms" };
 
 export default function App() {
+  // The platform admin portal — its own login (backend .env), not a customer's.
+  if (/^\/admin-mkt(\/|$)/.test(window.location.pathname)) return <AdminApp />;
   const publicPage = PUBLIC_PAGES[window.location.pathname.replace(/\/+$/, "")];
   if (publicPage) return <LegalPage kind={publicPage} />;
   return (
