@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
-import { FiArrowDownRight, FiArrowUpRight, FiCalendar, FiCheck, FiRefreshCw, FiUsers, FiZap } from 'react-icons/fi'
+import { FiArrowDownRight, FiArrowUpRight, FiCalendar, FiCheck, FiClock, FiPlay, FiRefreshCw, FiType, FiUsers, FiX, FiZap } from 'react-icons/fi'
 import { api } from '../api/client'
 import { PILLAR_LABELS, pillarChipClass } from '../lib/angles'
-import { goalOfItem, ruleAction } from '../lib/goals'
+import { GOALS, goalOfItem, ruleAction, stageOf } from '../lib/goals'
+import { phnomPenhClock } from '../lib/tz'
+import { kitSrc } from '../components/brandkit/BrandKit'
+import PlatformIcon, { PLAT_BRAND_CLASS } from '../components/ui/PlatformIcon'
 import { colorForBrand } from '../lib/brandColor'
 import { useSmoothProgress } from '../lib/autoRuns'
 import { useStore } from '../store'
@@ -12,7 +15,7 @@ import { PLAT } from '../data/brands'
 import Select from '../components/ui/Select'
 import BestTime from '../components/weekly/BestTime'
 import ContentGoals from '../components/weekly/ContentGoals'
-import PlanBoard, { formatOf } from '../components/weekly/PlanBoard'
+import PlanBoard, { formatOf, pictureBusy } from '../components/weekly/PlanBoard'
 
 // The plan habit (backend app/weekly.py): how the last 7 days went, what the
 // AI learned, and the coming posts — next week's, or tomorrow's for a brand
@@ -112,7 +115,9 @@ export default function WeeklyPage() {
   }
 
   // While an image is being made, refresh until it's done.
-  const mediaPending = data?.plan?.drafts?.some((d) => d.media_pending) || data?.plan?.items?.some((i) => i.draft?.media_pending)
+  const mediaPending =
+    data?.plan?.drafts?.some((d) => d.media_pending) ||
+    data?.plan?.items?.some((i) => i.draft?.media_pending || pictureBusy(i)) // a "New picture" on its way
   useEffect(() => {
     if (!mediaPending) return
     const id = setInterval(load, 5000)
@@ -166,6 +171,17 @@ export default function WeeklyPage() {
       showToast(e.message)
     } finally {
       setBusy('')
+    }
+  }
+
+  // "New picture": made in the background; the card shows it when it's done.
+  const newPicture = async (key) => {
+    try {
+      const item = await api.post(`/weekly/${data.plan.id}/items/${key}/picture`)
+      setItems((items) => items.map((i) => (i.key === key ? item : i)))
+      showToast('Making a new picture — about a minute')
+    } catch (e) {
+      showToast(e.message)
     }
   }
 
@@ -337,7 +353,13 @@ export default function WeeklyPage() {
       {confirmRegen && (
         <ConfirmBox
           title="Regenerate this plan?"
-          text="The AI writes new posts for every day from tomorrow on. The posts already scheduled for those days are cancelled, and their images stay in your Media Library. Posts that already went out stay as they are. You’ll review the new plan before anything is scheduled."
+          text="Fresh posts for the days from tomorrow on."
+          points={[
+            { tone: 'new', text: 'The AI writes new posts for every day from tomorrow' },
+            { tone: 'drop', text: 'Posts scheduled for those days are cancelled — their pictures stay in your Media Library' },
+            { tone: 'keep', text: 'Posts that already went out stay as they are' },
+            { tone: 'keep', text: 'Nothing new is scheduled until you approve the new plan' },
+          ]}
           confirm="Regenerate"
           onCancel={() => setConfirmRegen(false)}
           onConfirm={regenerate}
@@ -365,7 +387,13 @@ export default function WeeklyPage() {
             />
 
             {planning ? (
-              <WeeklyPlanning brand={brand.name} job={job} span={spanOf(data.plan_every)} />
+              <WeeklyPlanning
+                brand={brand.name}
+                job={job}
+                span={spanOf(data.plan_every)}
+                // until the real count arrives: posts per day × days (a plan is capped at 14)
+                expected={Math.min(14, Math.max(1, Math.round((data.per_month || 30) / 30)) * (data.plan_every === 'day' ? 1 : 7))}
+              />
             ) : ready ? (
               <>
                 <PlanBoard
@@ -384,6 +412,7 @@ export default function WeeklyPage() {
                   onSaveCaption={saveCaption}
                   onMakeImage={makeImage}
                   onFormat={setFormat}
+                  onNewPicture={newPicture}
                 />
                 <div className="flex justify-end">
                   <button type="button" disabled={!!busy || running} onClick={dismiss} className="btn-ghost px-3 py-1.5 text-ink-500">
@@ -958,7 +987,9 @@ function Lessons({ report, advisor }) {
 }
 
 const DRAFT_STATUS = {
-  scheduled: { label: 'Scheduled', cls: 'bg-emerald-50 text-emerald-700' },
+  posted: { label: 'Posted ✓', cls: 'bg-emerald-100 text-emerald-800' },
+  failed: { label: 'Failed — see Calendar', cls: 'bg-red-50 text-red-700' },
+  scheduled: { label: 'Scheduled', cls: 'bg-blue-100 text-blue-800' },
   approved: { label: 'Not scheduled yet', cls: 'bg-amber-50 text-amber-700' },
   waiting: { label: 'Needs review', cls: 'bg-amber-50 text-amber-700' },
   rejected: { label: 'Removed', cls: 'bg-ink-100 text-ink-500' },
@@ -982,17 +1013,62 @@ function NoPlan({ plan, data, busy, onPlan, onRegenerate, onMakeImage }) {
             </h2>
           </div>
           <p className="mt-1 text-[12px] text-ink-500">
-            These posts are on your Calendar. <b className="font-medium text-ink-700">Scheduled</b> = will post by itself ·{' '}
-            <b className="font-medium text-ink-700">Not scheduled yet</b> = no image yet, so it won’t post until you make one ·{' '}
-            <b className="font-medium text-ink-700">Needs review</b> = check it before it goes out.
+            Each post goes out by itself on its day, at its time, to the channels shown.{' '}
+            <b className="font-medium text-ink-700">Not scheduled yet</b> = no picture yet — make one and it’s scheduled.
           </p>
-          <ul className="mt-3 divide-y divide-ink-100">
+          <ul className="mt-4 space-y-2.5">
             {plan.drafts.map((d) => {
-              const s = DRAFT_STATUS[d.status] || { label: d.status, cls: 'bg-ink-100 text-ink-600' }
+              const s = DRAFT_STATUS[d.failed ? 'failed' : d.posted ? 'posted' : d.status] || { label: d.status, cls: 'bg-ink-100 text-ink-600' }
+              const goal = GOALS[d.goal]
+              const when = d.at ? phnomPenhClock(d.at) : d.time
+              const line = (d.caption || '').split('\n').find((l) => l.trim() && l.trim() !== d.title)
               return (
-                <li key={d.id} className="py-2 flex items-center gap-3 text-[12.5px]">
-                  <span className="w-[88px] flex-none text-ink-500">{dayLabel(d.day)}</span>
-                  <span className={`min-w-0 flex-1 truncate text-ink-800 ${khmer(d.title)}`}>{d.title}</span>
+                <li
+                  key={d.id}
+                  className={`flex items-center gap-4 rounded-xl border border-ink-100 p-3 ${d.status === 'rejected' ? 'opacity-50' : ''}`}
+                >
+                  {/* what goes out */}
+                  <span className="grid h-[72px] w-[60px] flex-none place-items-center overflow-hidden rounded-lg bg-ink-100 text-ink-400">
+                    {d.media?.kind === 'image' ? (
+                      <img src={kitSrc(d.media.url)} alt="" loading="lazy" className="h-full w-full object-cover" />
+                    ) : d.media ? (
+                      <span className="relative h-full w-full bg-night-950">
+                        <video src={`${kitSrc(d.media.url)}#t=0.5`} preload="metadata" muted playsInline className="h-full w-full object-cover" />
+                        <FiPlay size={14} className="absolute inset-0 m-auto text-white" aria-hidden="true" />
+                      </span>
+                    ) : d.format === 'text' ? (
+                      <FiType size={18} title="Text post" />
+                    ) : (
+                      <span className="px-1 text-center text-[9.5px] leading-tight">No picture</span>
+                    )}
+                  </span>
+
+                  <span className="min-w-0 flex-1">
+                    <span className={`block truncate text-[13.5px] font-semibold text-ink-900 ${khmer(d.title)}`}>{d.title}</span>
+                    {line && <span className={`mt-0.5 block truncate text-[12px] text-ink-500 ${khmer(line)}`}>{line}</span>}
+                    <span className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] text-ink-500">
+                      <span className="inline-flex items-center gap-1 font-medium text-ink-700">
+                        <FiClock size={12} aria-hidden="true" /> {dayLabel(d.day)}
+                        {when && <b className="font-semibold tabular-nums text-ink-900">· {when}</b>}
+                      </span>
+                      {d.channels?.length > 0 && (
+                        <span className="inline-flex items-center gap-1" aria-label={`To ${d.channels.join(', ')}`}>
+                          {d.channels.map((c) => (
+                            <span
+                              key={c}
+                              title={c}
+                              className={`grid h-5 w-5 place-items-center rounded-full bg-ink-50 ring-1 ring-ink-100 [&_svg]:h-2.5 [&_svg]:w-2.5 ${PLAT_BRAND_CLASS[c] || 'text-ink-500'}`}
+                            >
+                              <PlatformIcon name={c} />
+                            </span>
+                          ))}
+                        </span>
+                      )}
+                      {goal && <span className={`rounded-full px-2 py-px text-[10.5px] font-semibold ${stageOf(d.goal).chip}`}>{goal.label}</span>}
+                    </span>
+                  </span>
+
+                  <span className="flex flex-none flex-col items-end gap-1.5">
                   {d.status === 'approved' && d.day >= new Date().toLocaleDateString('en-CA') && (
                     d.media_pending ? (
                       <span className="flex-none inline-flex items-center gap-1.5 text-[11.5px] font-medium text-brand">
@@ -1013,7 +1089,8 @@ function NoPlan({ plan, data, busy, onPlan, onRegenerate, onMakeImage }) {
                       </button>
                     )
                   )}
-                  <span className={`flex-none rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${s.cls}`}>{s.label}</span>
+                  <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${s.cls}`}>{s.label}</span>
+                  </span>
                 </li>
               )
             })}
@@ -1069,6 +1146,7 @@ const PLAN_STAGES = [
   { at: 2, label: 'Reading last week’s results' },
   { at: 20, label: 'Writing post ideas and captions' },
   { at: 80, label: 'Fact-checking against your products' },
+  { at: 86, label: 'Making the pictures' },
   { at: 90, label: 'Writing your weekly summary' },
 ]
 
@@ -1084,7 +1162,7 @@ const weeklyPlanningCss = `
 @media (prefers-reduced-motion: reduce) { .wp-shimmer, .wp-pop, .wp-write, .wp-pulse { animation: none !important; } }
 `
 
-function WeeklyPlanning({ brand, job, span = 'next week' }) {
+function WeeklyPlanning({ brand, job, span = 'next week', expected = 7 }) {
   const progress = useSmoothProgress({
     progress: job?.progress || 0,
     // ease towards the next real checkpoint, never past it
@@ -1092,7 +1170,11 @@ function WeeklyPlanning({ brand, job, span = 'next week' }) {
   })
   const real = job?.progress || 0
   const counted = /\((\d+) of (\d+) done\)/.exec(job?.step || '')
-  const total = counted ? Number(counted[2]) : 7
+  // The real count is only in the step text while ideas are written — keep it
+  // for the later steps (fact-check, pictures) instead of falling back.
+  const seen = useRef(null)
+  if (counted) seen.current = Number(counted[2])
+  const total = seen.current ?? expected
   const done = real >= 80 ? total : counted ? Number(counted[1]) : 0
   const stage = PLAN_STAGES.reduce((i, s, n) => (real >= s.at ? n : i), 0)
   const finished = real >= 100
@@ -1203,7 +1285,11 @@ function RewriteDialog({ edited, removed, onCancel, onConfirm }) {
   return (
     <ConfirmBox
       title="Rewrite the whole plan?"
-      text={`The AI writes a brand-new plan and replaces this one. Your changes will be lost: ${changes.join(' and ')}.`}
+      text="A brand-new plan replaces this one."
+      points={[
+        { tone: 'new', text: 'The AI writes a new plan for the same days' },
+        { tone: 'drop', text: `Your changes are lost: ${changes.join(' and ')}` },
+      ]}
       cancel="Keep my plan"
       confirm="Rewrite"
       onCancel={onCancel}
@@ -1212,16 +1298,52 @@ function RewriteDialog({ edited, removed, onCancel, onConfirm }) {
   )
 }
 
-function ConfirmBox({ title, text, confirm, cancel = 'Cancel', onCancel, onConfirm }) {
+// What a confirm box says will happen, one line each: new / removed / kept.
+const POINT = {
+  new: { icon: FiZap, cls: 'bg-brand text-white' },
+  drop: { icon: FiX, cls: 'bg-amber-500 text-white' },
+  keep: { icon: FiCheck, cls: 'bg-emerald-600 text-white' },
+}
+
+function ConfirmBox({ title, text, points = [], confirm, cancel = 'Cancel', onCancel, onConfirm }) {
   return createPortal(
     <div className="fixed inset-0 z-[110] glass-overlay flex items-center justify-center p-4 animate-fadein" onClick={onCancel}>
-      <div role="dialog" aria-modal="true" className="glass-panel w-full max-w-sm rounded-3xl p-6" onClick={(e) => e.stopPropagation()}>
-        <div className="grid h-10 w-10 place-items-center rounded-full bg-amber-50 text-amber-700">
-          <FiRefreshCw size={18} aria-hidden="true" />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirm-title"
+        className="glass-panel w-full max-w-[440px] overflow-hidden rounded-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start gap-3.5 px-6 pt-6">
+          <span className="grid h-10 w-10 flex-none place-items-center rounded-xl bg-brand text-white">
+            <FiRefreshCw size={18} aria-hidden="true" />
+          </span>
+          <div className="min-w-0 pt-0.5">
+            <h2 id="confirm-title" className="text-[16px] font-bold leading-snug text-ink-900">
+              {title}
+            </h2>
+            {text && <p className="mt-0.5 text-[12.5px] text-ink-500">{text}</p>}
+          </div>
         </div>
-        <h2 className="mt-4 text-[15.5px] font-bold text-ink-900">{title}</h2>
-        <p className="mt-2 text-[12.5px] leading-relaxed text-ink-500">{text}</p>
-        <div className="mt-6 flex justify-end gap-2">
+
+        {points.length > 0 && (
+          <ul className="mt-5 space-y-2.5 px-6">
+            {points.map((pt) => {
+              const P = POINT[pt.tone] || POINT.keep
+              return (
+                <li key={pt.text} className="flex items-start gap-2.5 text-[13px] leading-snug text-ink-700">
+                  <span className={`mt-px grid h-5 w-5 flex-none place-items-center rounded-full ${P.cls}`}>
+                    <P.icon size={11} aria-hidden="true" />
+                  </span>
+                  {pt.text}
+                </li>
+              )
+            })}
+          </ul>
+        )}
+
+        <div className="mt-6 flex justify-end gap-2 border-t border-ink-100 bg-ink-50/60 px-6 py-4">
           <button type="button" onClick={onCancel} className="btn-outline">
             {cancel}
           </button>

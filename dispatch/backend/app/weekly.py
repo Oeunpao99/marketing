@@ -8,10 +8,13 @@ on the Weekly plan page and approves it in one tap:
 
 - every post has a format: "image" (caption + picture), "text" (caption
   only) or "video" (caption + a storyboard, app/story.py);
+- an image post's picture is made while the plan is written, so the person
+  reviews the real picture (item "video_id" / "media_url"); one that failed,
+  or a post switched to image later, gets its picture on approve instead;
 - approving an image or text post makes it a Draft on its day (source
   "ai-weekly") and schedules it (content_scheduler's schedule_draft_as_post) —
-  an image post once its picture is made, in a background thread polled like
-  Auto-generate's runs;
+  at once when it has its picture, else once the picture is made in a
+  background thread polled like Auto-generate's runs;
 - a video post is approved twice, because video costs the most credit: its
   storyboard first (the clips then render and join by themselves), then the
   finished video, which schedules it.
@@ -27,6 +30,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time as time_module  # "time" is datetime.time here
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, date, datetime, time, timedelta
@@ -67,6 +71,7 @@ from app.models import (
     PostTarget,
     Product,
     TeamMember,
+    Video,
     VideoStory,
     WeeklyPlan,
 )
@@ -121,6 +126,43 @@ def _storyboard(db: Session, brand: Brand, item: dict, products: list[Product]) 
         log.warning("weekly plan: storyboard for %r failed: %s", item.get("title"), exc)
         return None
     return story.id
+
+
+def _make_plan_images(db: Session, brand: Brand, automation: Automation, items: list[dict], step) -> None:
+    """Make the picture for each image post of a plan being written, so the
+    person reviews the real image. Fills item["video_id"] / ["media_url"];
+    a picture that fails twice is left out — that post gets it on approve."""
+    todo = [i for i in items if i["format"] == "image"]
+    if not todo:
+        return
+    products = db.scalars(select(Product).where(Product.brand_id == brand.id)).all()
+    brand_args = _brand_snapshot(brand)
+    product_args = [_product_snapshot(p) for p in products]
+    ideas = [{"title": i["title"], "caption": i["caption"], "meme": i.get("meme"), "pillar": i.get("pillar"), "poster": i.get("poster")} for i in todo]
+    # Same brand kit as approve-time images (Automation.poster_kit), gathered
+    # here so the image threads don't need the DB.
+    kits = [_poster_kit_for(db, automation, brand.id, ideas[n], n, date.fromisoformat(i["day"])) for n, i in enumerate(todo)]
+    pool = ThreadPoolExecutor(max_workers=_MAX_PARALLEL_MEDIA, thread_name_prefix="weekly-plan-image")
+    try:
+        futures = {pool.submit(_media_with_retry, brand_args, ideas[n], product_args, kits[n]): i for n, i in enumerate(todo)}
+        done = 0
+        for fut in as_completed(futures):
+            item = futures[fut]
+            try:
+                item["video_id"] = fut.result()
+            except Exception:  # noqa: BLE001 - one picture mustn't sink the plan
+                log.exception("weekly plan: image for %r crashed", item["title"])
+                item["video_id"] = None
+            done += 1
+            step(86 + 4 * done // len(todo), f"Making the pictures ({done} of {len(todo)})…")
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
+    urls = dict(db.execute(select(Video.id, Video.url).where(Video.id.in_([i["video_id"] for i in todo if i.get("video_id")] or [0]))).all())
+    for i in todo:
+        if i.get("video_id") in urls:
+            i["media_url"] = urls[i["video_id"]]
+        else:
+            i.pop("video_id", None)
 
 
 def _drop_storyboards(db: Session, items: list[dict]) -> None:
@@ -441,11 +483,11 @@ def build_plan(db: Session, brand_id: int, starts_on: date | None = None, step=l
     if brand is None or automation is None:
         raise ContentAIError("Brand not found.")
     start = starts_on or _today() + timedelta(days=1)
-    span = plan_days(automation)
-    days = _free_days(db, brand_id, start, span)
+    plan_span = plan_days(automation)  # (not "span": the chunk loop below names its days that)
+    days = _free_days(db, brand_id, start, plan_span)
     if not days:
         raise ContentAIError(
-            "Tomorrow is already covered by an approved plan." if span == 1 else "The next 7 days are already covered by an approved plan."
+            "Tomorrow is already covered by an approved plan." if plan_span == 1 else "The next 7 days are already covered by an approved plan."
         )
 
     step(10, "Reading last week's results…")
@@ -552,6 +594,8 @@ def build_plan(db: Session, brand_id: int, starts_on: date | None = None, step=l
         item["story_id"] = _storyboard(db, brand, item, list(products))
         if item["story_id"] is None:
             item.update(format="image", video=False, channels=names_for("image"))
+    step(86, "Making the pictures…")
+    _make_plan_images(db, db.get(Brand, brand_id), automation, items, step)
     step(90, "Writing your weekly summary…")
     report["advisor"] = advisor_summary(brand, report, items)
     for old in db.scalars(
@@ -565,7 +609,7 @@ def build_plan(db: Session, brand_id: int, starts_on: date | None = None, step=l
     plan = WeeklyPlan(
         brand_id=brand_id,
         starts_on=days[0],
-        ends_on=start + timedelta(days=span - 1),
+        ends_on=start + timedelta(days=plan_span - 1),
         status="ready",
         report=report,
         items=items,
@@ -637,10 +681,10 @@ def _start_job(brand_id: int, kind: str, target, *args) -> dict:
     return job_status(brand_id)
 
 
-def _build_job(brand_id: int) -> None:
+def _build_job(brand_id: int, starts_on: date | None = None) -> None:
     db = SessionLocal()
     try:
-        plan = build_plan(db, brand_id, step=lambda p, s: _set_job(brand_id, progress=p, step=s))
+        plan = build_plan(db, brand_id, starts_on, step=lambda p, s: _set_job(brand_id, progress=p, step=s))
         _set_job(brand_id, status="done", progress=100, step="Done")
         _notify_ready(db.get(Brand, brand_id), plan)
     except ContentAIError as exc:
@@ -654,13 +698,21 @@ def _build_job(brand_id: int) -> None:
         db.close()
 
 
+# Waits before each retry: most failures are the image service's per-minute
+# limit (HTTP 429, "retry after 9 seconds") — trying again at once just fails again.
+_IMAGE_RETRY_WAITS = (10, 25)
+
+
 def _media_with_retry(*args):
-    """_generate_media_for, tried once more if it fails — most failures are a
-    busy or timed-out image service, and one miss would leave that day with
-    no post."""
+    """_generate_media_for, tried again after a pause if it fails — most
+    failures are a busy or rate-limited image service, and a miss would leave
+    that day with no picture."""
     video_id = _generate_media_for(*args)
-    if video_id is None:
-        log.info("weekly plan: image failed for %r — trying once more", args[1].get("title"))
+    for wait in _IMAGE_RETRY_WAITS:
+        if video_id is not None:
+            break
+        log.info("weekly plan: image failed for %r — trying again in %ss", args[1].get("title"), wait)
+        time_module.sleep(wait)
         video_id = _generate_media_for(*args)
     return video_id
 
@@ -764,7 +816,9 @@ _auto_tried: set[tuple[int, date]] = set()  # one attempt per brand per plan sta
 
 
 def auto_tick(db: Session, now: datetime) -> int:
-    """Called every minute by app/content_scheduler.py. Returns plans written."""
+    """Called every minute by app/content_scheduler.py. Starts each due plan
+    as a background job (pictures take minutes — the minute loop mustn't wait)
+    and returns how many it started; the job notifies when its plan is ready."""
     if now.time() < AUTO_AT:
         return 0
     start = now.date() + timedelta(days=1)
@@ -785,12 +839,10 @@ def auto_tick(db: Session, now: datetime) -> int:
         if not has_channel or exists or not _free_days(db, a.brand_id, start, plan_days(a)):
             continue
         try:
-            plan = build_plan(db, a.brand_id, start)
-            _notify_ready(db.get(Brand, a.brand_id), plan)
+            _start_job(a.brand_id, "plan", _build_job, start)
             written += 1
-        except ContentAIError as exc:
-            db.rollback()
-            log.warning("weekly plan for brand %s failed: %s", a.brand_id, exc)
+        except HTTPException:
+            log.info("plan for brand %s: a job is already running — skipped", a.brand_id)
     return written
 
 
@@ -818,6 +870,11 @@ def _plan_out(db: Session, plan: WeeklyPlan | None) -> dict | None:
             select(Draft).where(Draft.id.in_([i["draft_id"] for i in plan.items or [] if i.get("draft_id")] or [0]))
         )
     }
+    item_by_draft = {i["draft_id"]: i for i in plan.items or [] if i.get("draft_id")}
+    media = {
+        v.id: v
+        for v in db.scalars(select(Video).where(Video.id.in_([d.video_id for d in drafts if d.video_id] or [0])))
+    }
     items = []
     for i in plan.items or []:
         d = item_drafts.get(i.get("draft_id"))
@@ -844,18 +901,64 @@ def _plan_out(db: Session, plan: WeeklyPlan | None) -> dict | None:
         "items": items,
         "created_at": plan.created_at,
         "approved_at": plan.approved_at,
-        "drafts": [
-            {
-                "id": d.id,
-                "day": d.planned_for,
-                "title": d.title,
-                "status": d.status,
-                "has_media": d.video_id is not None,
-                "media_pending": d.id in _media_running,
-            }
-            for d in drafts
-        ],
+        "drafts": [{**_draft_out(d, _media_running), **_going_out(db, d, item_by_draft.get(d.id), media)} for d in drafts],
     }
+
+
+def _draft_out(d: Draft, media_running) -> dict:
+    return {
+        "id": d.id,
+        "day": d.planned_for,
+        "title": d.title,
+        "caption": d.body,
+        "status": d.status,
+        "has_media": d.video_id is not None,
+        "media_pending": d.id in media_running,
+    }
+
+
+def _going_out(db: Session, d: Draft, item: dict | None, media: dict[int, Video]) -> dict:
+    """What an approved plan post looks like now: its picture / video, the
+    format and goal it was planned with, and — once scheduled — where and when
+    it really goes out (its post's targets; the plan's time and channels until
+    then). schedule_draft_as_post doesn't link the post back to the draft: it's
+    the brand's post with this draft's media and title."""
+    from app.media import kind_for
+
+    v = media.get(d.video_id) if d.video_id else None
+    out = {
+        "media": {"url": v.url, "kind": kind_for(v.url or "", None)} if v and v.url else None,
+        "format": item_format(item) if item else ("image" if d.video_id else "text"),
+        "goal": (item or {}).get("content_goal") or "",
+        "time": (item or {}).get("time") or d.planned_time,
+        "channels": (item or {}).get("channels") or [],
+        "posted": False,
+    }
+    if d.status not in ("scheduled", "posted"):
+        return out
+    post_id = db.scalar(
+        select(Post.id)
+        .where(Post.brand_id == d.brand_id, Post.video_id == d.video_id, Post.title == d.title)
+        .order_by(Post.id.desc())
+        .limit(1)
+    )
+    if post_id is None:
+        return out
+    rows = db.execute(
+        select(PostTarget.scheduled_for, PostTarget.published_at, PostTarget.status, Platform.name)
+        .join(Channel, Channel.id == PostTarget.channel_id)
+        .join(Platform, Platform.id == Channel.platform_id)
+        .where(PostTarget.post_id == post_id)
+    ).all()
+    if rows:
+        first = min((r.published_at or r.scheduled_for for r in rows if r.published_at or r.scheduled_for), default=None)
+        out.update(
+            channels=sorted({r.name for r in rows}),
+            at=first,  # exact moment (UTC) — the page shows it on the Phnom Penh clock
+            posted=all(r.status == "posted" for r in rows),
+            failed=any(r.status == "failed" for r in rows),
+        )
+    return out
 
 
 @router.get("")
@@ -1073,9 +1176,10 @@ def weekly_approve(
 ):
     """Approve & schedule the plan's waiting posts — all of them, only the
     unflagged ones, or the ``keys`` given (one post's button). Each becomes a
-    Draft on its day at its time and is scheduled: a text post right away, an
-    image post once its picture is made in the background (poll ``GET
-    /weekly/job``), a video post with its finished video. Approving many at
+    Draft on its day at its time and is scheduled: a text post, or an image
+    post with the picture made with the plan, right away; an image post
+    without one once its picture is made in the background (poll ``GET
+    /weekly/job``); a video post with its finished video. Approving many at
     once leaves video posts — each is approved on its own, once its video is
     done."""
     payload = payload or ApproveIn()
@@ -1097,6 +1201,10 @@ def weekly_approve(
             if waiting
             else "Every post in this plan is already decided.",
         )
+    busy = [i for i in chosen if _picture_busy(i)]
+    if busy and payload.keys is not None:
+        raise HTTPException(409, "A new picture is still being made for this post — approve it once it’s there.")
+    chosen = [i for i in chosen if not _picture_busy(i)]  # approving many: leave those for later
     films: dict[str, int] = {}  # video post → its finished video
     for i in chosen:
         if item_format(i) == "video":
@@ -1109,7 +1217,8 @@ def weekly_approve(
     for i in chosen:
         d = Draft(
             brand_id=plan.brand_id,
-            video_id=films.get(i["key"]),
+            # the finished video, or the picture made with the plan
+            video_id=films.get(i["key"]) or (i.get("video_id") if item_format(i) == "image" else None),
             title=i["title"][:200],
             body=i["caption"],
             insight=i.get("insight") or "",
@@ -1133,8 +1242,8 @@ def weekly_approve(
     images, scheduled, problems = [], 0, []
     for key, d in drafts.items():
         _set_item(plan, key, state="approved", draft_id=d.id)
-        if formats[key] == "image":
-            images.append(d.id)  # scheduled once its picture is made
+        if formats[key] == "image" and d.video_id is None:
+            images.append(d.id)  # no picture yet: scheduled once it's made
             continue
         try:
             schedule_draft_as_post(db, d, on_day=d.planned_for)
@@ -1156,6 +1265,72 @@ def weekly_approve(
         "scheduled": scheduled,
         "not_scheduled": problems[:1],
     }
+
+
+# ── "New picture": remake one image post's picture, in the background ─────
+PICTURE_STALE = timedelta(minutes=5)  # a remake older than this was lost (restart) — allow another
+
+
+def _picture_busy(item: dict) -> bool:
+    started = item.get("picture_started")
+    return bool(started) and datetime.now(UTC) - datetime.fromisoformat(started) < PICTURE_STALE
+
+
+@router.post("/{plan_id}/items/{key}/picture", status_code=202)
+def weekly_item_picture(plan_id: int, key: str, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    """Make a new picture for a waiting image post (same brand kit and
+    poster style). Takes 30-90 s, so it runs in the background — the item
+    says picture_started until it's done; poll ``GET /weekly``. The old
+    picture stays in the Library."""
+    plan = _ready_plan(db, plan_id, ws, lock=True)
+    item = next((i for i in plan.items if i["key"] == key), None)
+    if item is None:
+        raise HTTPException(404, "Idea not found.")
+    if item.get("state"):
+        raise HTTPException(409, "This post is already decided.")
+    if item_format(item) != "image":
+        raise HTTPException(409, "Only image posts have a picture.")
+    if _picture_busy(item):
+        raise HTTPException(409, "A new picture is already being made for this post.")
+    item = _set_item(plan, key, picture_started=datetime.now(UTC).isoformat(), picture_error=None)
+    db.commit()
+    threading.Thread(target=_new_picture, args=(plan.id, key, plan.brand_id), daemon=True, name=f"plan-picture-{plan.id}").start()
+    return item
+
+
+def _new_picture(plan_id: int, key: str, brand_id: int) -> None:
+    db = SessionLocal()
+    fields: dict = {"picture_started": None}
+    try:
+        billing.bind_brand(brand_id)
+        brand = db.get(Brand, brand_id)
+        automation = db.scalar(select(Automation).where(Automation.brand_id == brand_id))
+        item = next(i for i in db.get(WeeklyPlan, plan_id).items if i["key"] == key)
+        products = db.scalars(select(Product).where(Product.brand_id == brand_id)).all()
+        idea = {"title": item["title"], "caption": item["caption"], "meme": item.get("meme"), "pillar": item.get("pillar"), "poster": item.get("poster")}
+        tries = item.get("picture_tries", 0) + 1
+        # n = tries: brand-kit templates take turns, so a retry can look different too
+        kit = _poster_kit_for(db, automation, brand_id, idea, tries, date.fromisoformat(item["day"])) if automation else ([], "")
+        db.rollback()  # no transaction held open while the picture is made
+        video_id = _media_with_retry(_brand_snapshot(brand), idea, [_product_snapshot(p) for p in products], kit)
+        if video_id:
+            fields.update(video_id=video_id, media_url=db.scalar(select(Video.url).where(Video.id == video_id)), picture_tries=tries)
+        else:
+            fields["picture_error"] = "Couldn’t make a new picture (the image service may be busy, or AI credit ran out) — try again."
+    except Exception:  # noqa: BLE001 - the card must stop waiting either way
+        db.rollback()
+        log.exception("new picture for plan %s item %s crashed", plan_id, key)
+        fields["picture_error"] = "Couldn’t make a new picture — try again."
+    try:
+        plan = db.scalar(select(WeeklyPlan).where(WeeklyPlan.id == plan_id).with_for_update())
+        if plan is not None and any(i["key"] == key for i in plan.items or []):
+            _set_item(plan, key, **fields)
+        db.commit()
+    except Exception:  # noqa: BLE001
+        db.rollback()
+        log.exception("saving the new picture for plan %s item %s failed", plan_id, key)
+    finally:
+        db.close()
 
 
 class FormatIn(BaseModel):
@@ -1191,7 +1366,8 @@ def weekly_item_format(
     plan = _ready_plan(db, plan_id, ws, lock=True)
     automation = db.scalar(select(Automation).where(Automation.brand_id == plan.brand_id))
     _, names_for = _plan_slots(db, automation, {})
-    item = _set_item(plan, key, format=fmt, video=fmt == "video", story_id=story_id, channels=names_for(fmt))
+    picture = {} if fmt == "image" else {"video_id": None, "media_url": None}  # stays in the Library
+    item = _set_item(plan, key, format=fmt, video=fmt == "video", story_id=story_id, channels=names_for(fmt), **picture)
     db.commit()
     return item
 

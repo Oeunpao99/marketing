@@ -406,7 +406,9 @@ def render_poster(photo: bytes, pillar: str, poster: dict, brand: str = "", slug
     brand = drawable(brand)
     texts = [poster.get("headline", ""), *poster.get("points", []), *poster.get("left", []), *poster.get("right", [])]
     if any(_has_khmer(t) for t in texts) and not features.check("raqm"):
-        log.warning("poster: Khmer text but Pillow has no raqm — install libraqm for correct shaping")
+        # Without raqm, Pillow can't shape Khmer (subscripts and vowels fall
+        # apart) — never draw that; the caller posts the picture alone.
+        raise RuntimeError("Khmer text needs libraqm (text shaping) — not installed on this server")
     accent = accent_for(slug or brand)
     canvas = Image.new("RGB", (W, H), _tint(accent, 0.94))
     img = Image.open(io.BytesIO(photo)).convert("RGB")

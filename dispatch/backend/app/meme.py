@@ -171,7 +171,9 @@ def render_meme(photo: bytes, top: str, brand: str = "") -> bytes:
     top = drawable(" ".join(top.replace("\r", "").split(" ")).strip())
     brand = drawable(brand)
     if _has_khmer(top) and not features.check("raqm"):
-        log.warning("meme: Khmer text but Pillow has no raqm — install libraqm for correct shaping")
+        # Without raqm, Pillow can't shape Khmer — never draw it broken; the
+        # caller posts the photo alone.
+        raise RuntimeError("Khmer text needs libraqm (text shaping) — not installed on this server")
 
     img = Image.open(io.BytesIO(photo)).convert("RGB")
     side = min(img.size)

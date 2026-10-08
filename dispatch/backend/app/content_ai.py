@@ -664,9 +664,21 @@ def _chat(messages: list[dict], model: str, max_tokens: int = 4000, effort: str 
         data = resp.json()
         billing.charge_text(data.get("model") or model, data.get("usage"), _note(messages))
         content = data["choices"][0]["message"]["content"].strip()
-        return json.loads(content)
+        return _no_nul(json.loads(content))
     except (KeyError, IndexError, AttributeError, ValueError) as exc:
         raise ContentAIError("AI service returned an unexpected response.") from exc
+
+
+def _no_nul(value):
+    """The reply with every NUL character removed — the model now and then
+    emits one inside Khmer text, and PostgreSQL refuses to store it."""
+    if isinstance(value, str):
+        return value.replace("\x00", "")
+    if isinstance(value, list):
+        return [_no_nul(v) for v in value]
+    if isinstance(value, dict):
+        return {k: _no_nul(v) for k, v in value.items()}
+    return value
 
 
 def _note(messages: list[dict]) -> str:

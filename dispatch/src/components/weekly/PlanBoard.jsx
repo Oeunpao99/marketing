@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { FiRefreshCw } from 'react-icons/fi'
+import { Link } from 'react-router-dom'
+import { FiImage, FiMessageCircle, FiRefreshCw, FiTarget } from 'react-icons/fi'
 import AutoTextarea from '../ui/AutoTextarea'
 import StoryEditor from '../story/StoryEditor'
+import GeneratingCanvas from '../ui/GeneratingCanvas'
 import SocialPreview, { formatCaption, longListLines, tidyCaption } from '../preview/SocialPreview'
+import { kitSrc } from '../brandkit/BrandKit'
+import PlatformIcon, { PLAT_BRAND_CLASS } from '../ui/PlatformIcon'
 import { useStore } from '../../store'
 import { GOALS, STAGES, ctaOf, goalOfItem, ruleAction, stageOf } from '../../lib/goals'
 
@@ -45,6 +48,7 @@ export default function PlanBoard({
   onSaveCaption,
   onMakeImage,
   onFormat,
+  onNewPicture,
 }) {
   const items = plan.items
   const shown = filter ? items.filter((i) => goalOfItem(i) === filter) : items
@@ -81,7 +85,6 @@ export default function PlanBoard({
               <PostCard
                 key={item.key}
                 item={item}
-                brandName={brandName}
                 brand={{ id: brandId, name: brandName, slug: brandSlug }}
                 makingMedia={makingMedia}
                 busy={busy}
@@ -91,6 +94,7 @@ export default function PlanBoard({
                 onSaveCaption={(c) => onSaveCaption(item.key, c)}
                 onMakeImage={onMakeImage}
                 onFormat={(format) => onFormat(item.key, format)}
+                onNewPicture={() => onNewPicture(item.key)}
               />
             ))}
           </ul>
@@ -98,9 +102,9 @@ export default function PlanBoard({
 
         {waiting.length > 0 && (
           <p className="mt-4 text-[12px] leading-relaxed text-ink-500">
-            Approve &amp; schedule: a text post is scheduled right away, an image post once its picture is made — on its
-            day, at the time shown. A video post: approve its storyboard, the video is made in the background, then
-            approve &amp; schedule the finished video.
+            Approve &amp; schedule: image and text posts go into the schedule right away — on their day, at the time
+            shown. A video post: approve its storyboard, the video is made in the background, then approve &amp;
+            schedule the finished video.
             {flagged > 0 && (
               <span className="ml-1 font-semibold text-amber-700">
                 {flagged} flagged post{flagged === 1 ? '' : 's'} need a person’s OK first — “Approve all unflagged” leaves them.
@@ -155,7 +159,11 @@ export default function PlanBoard({
 const dayLabel = (iso) =>
   new Date(`${iso}T00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
 
-function PostCard({ item, brandName, brand, makingMedia, busy, onApprove, onSkip, onUnskip, onSaveCaption, onMakeImage, onFormat }) {
+// A new picture being made for a post (backend PICTURE_STALE: older = lost).
+export const pictureBusy = (item) =>
+  !!item.picture_started && Date.now() - Date.parse(item.picture_started) < 5 * 60 * 1000
+
+function PostCard({ item, brand, makingMedia, busy, onApprove, onSkip, onUnskip, onSaveCaption, onMakeImage, onFormat, onNewPicture }) {
   const [editing, setEditing] = useState(false)
   const [previewing, setPreviewing] = useState(false)
   const [formatting, setFormatting] = useState(false)
@@ -175,8 +183,7 @@ function PostCard({ item, brandName, brand, makingMedia, busy, onApprove, onSkip
   const undecided = !item.state
   const switching = busy === `format:${item.key}`
   const filmReady = story?.status === 'done' && !!story.final_video
-  const channels = item.channels?.length ? item.channels.join(' · ') : ''
-  const { brands, showToast } = useStore()
+  const { showToast } = useStore()
   // Already in the clean phone layout? Then Format has nothing to do.
   const formatted = tidyCaption(item.caption) === (item.caption || '').trim() && !longListLines(item.caption).length
   // One button: format the caption for phones (if it isn't yet), then show it
@@ -198,33 +205,22 @@ function PostCard({ item, brandName, brand, makingMedia, busy, onApprove, onSkip
       setPreviewing(true)
     }
   }
-  const navigate = useNavigate()
-  // Open the Content studio with this post as the brief (it reads location.state).
-  const makeContent = () =>
-    navigate('/ai?tab=images', {
-      state: {
-        brandSlug: brands.find((b) => b.name === brandName)?.slug,
-        topic: item.title,
-        extra: [
-          goal && `Goal: ${goal.label} — success measured by ${goal.kpi}`,
-          `Posts ${wd} ${n}${item.time ? ` at ${item.time}` : ''}${channels ? ` on ${channels}` : ''}`,
-          item.caption && `Caption: ${item.caption}`,
-        ]
-          .filter(Boolean)
-          .join('\n'),
-      },
-    })
+  const picBusy = pictureBusy(item)
 
   return (
     <li className={`${card} flex gap-4 p-4 sm:gap-5 sm:p-5 ${flagged && !item.state ? 'border-amber-300' : ''} ${skipped ? 'opacity-60' : ''}`}>
-      <div className="w-12 flex-none text-center">
-        <div className="text-[11.5px] font-medium text-ink-500">{wd}</div>
-        <div className="text-[24px] font-bold leading-tight tabular-nums text-ink-900">{n}</div>
-        <div className="font-mono text-[11.5px] tabular-nums text-ink-500">{item.time || '—'}</div>
+      {/* when */}
+      <div className="w-14 flex-none text-center">
+        <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-400">{wd}</div>
+        <div className="text-[26px] font-bold leading-tight tabular-nums text-ink-900">{n}</div>
+        <div className="mt-0.5 inline-block rounded-md bg-ink-100 px-1.5 py-0.5 font-mono text-[11px] tabular-nums text-ink-600">
+          {item.time || '—'}
+        </div>
       </div>
 
       <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-1.5 text-[11.5px]">
+        {/* goal · format ·········· where it goes */}
+        <div className="flex flex-wrap items-center gap-2 text-[11.5px]">
           {goal && <span className={`rounded-full px-2.5 py-0.5 font-semibold ${stage.chip}`}>{goal.label}</span>}
           {undecided ? (
             <span className="inline-flex rounded-full border border-ink-200 bg-white p-0.5" role="group" aria-label="Post format">
@@ -250,18 +246,93 @@ function PostCard({ item, brandName, brand, makingMedia, busy, onApprove, onSkip
             </span>
           )}
           {switching && <FiRefreshCw size={12} className="animate-spin text-brand" aria-label="Changing format" />}
-          <span className="text-ink-500">{[brandName, channels].filter(Boolean).join(' · ')}</span>
+          {item.channels?.length > 0 && (
+            <span className="ml-auto flex items-center gap-1" aria-label={`Posts to ${item.channels.join(', ')}`}>
+              {item.channels.map((c) => (
+                <span
+                  key={c}
+                  title={c}
+                  className={`grid h-6 w-6 place-items-center rounded-full bg-ink-50 ring-1 ring-ink-100 ${PLAT_BRAND_CLASS[c] || 'text-ink-500'}`}
+                >
+                  <PlatformIcon name={c} />
+                </span>
+              ))}
+            </span>
+          )}
         </div>
-        <h3 className={`mt-1.5 text-[14.5px] font-semibold leading-snug text-ink-900 ${khmer(item.title)}`}>{item.title}</h3>
-        {item.insight && <p className={`mt-1 text-[12.5px] leading-snug text-ink-600 ${khmer(item.insight)}`}>{item.insight}</p>}
-        {cta && <p className={`mt-1.5 text-[12px] text-ink-500 ${khmer(cta)}`}>Call to action: {cta}</p>}
-        {goal && (
-          <p className="mt-0.5 text-[12px] text-ink-500">
-            Success measured by · <b className="font-semibold text-ink-700">{goal.kpi}</b>
-          </p>
-        )}
+
+        <h3 className={`mt-2 text-[15px] font-semibold leading-snug text-ink-900 ${khmer(item.title)}`}>{item.title}</h3>
+
+        {/* picture | the idea, its call to action and how it's measured */}
+        <div className={`mt-3 ${fmt === 'image' ? 'grid gap-4 sm:grid-cols-[160px_minmax(0,1fr)]' : ''}`}>
+          {fmt === 'image' && (
+            <div>
+              <div className="relative h-48 w-40 overflow-hidden rounded-xl border border-ink-100 bg-ink-50">
+                {item.media_url ? (
+                  // the current picture — faded underneath while a new one is made
+                  <button
+                    type="button"
+                    onClick={() => setPreviewing(true)}
+                    disabled={picBusy}
+                    className="block h-full w-full"
+                    title={picBusy ? 'A new picture is being made' : 'See it in the feed'}
+                  >
+                    <img
+                      src={kitSrc(item.media_url)}
+                      alt=""
+                      loading="lazy"
+                      className={`h-full w-full object-cover transition-opacity duration-500 ${picBusy ? 'opacity-75' : ''}`}
+                    />
+                  </button>
+                ) : (
+                  !picBusy && (
+                    <div className="grid h-full w-full place-items-center rounded-xl border-2 border-dashed border-ink-200 px-3 text-center text-[11.5px] leading-snug text-ink-400">
+                      <span>
+                        <FiImage size={20} className="mx-auto mb-1.5" aria-hidden="true" />
+                        No picture yet
+                      </span>
+                    </div>
+                  )
+                )}
+                {picBusy && (
+                  // the app's "being made" smoke (as in the Calendar and Studio), see-through
+                  // when there's an old picture so it shows behind
+                  <div className="absolute inset-0">
+                    <GeneratingCanvas small icon="✦" stage="New picture…" seeThrough={!!item.media_url} />
+                  </div>
+                )}
+              </div>
+              {item.picture_error && !picBusy && <p className="mt-1.5 w-40 text-[11px] leading-snug text-red-600">{item.picture_error}</p>}
+            </div>
+          )}
+
+          <div className="min-w-0">
+            {item.insight && <p className={`text-[13px] leading-relaxed text-ink-600 ${khmer(item.insight)}`}>{item.insight}</p>}
+            {(cta || goal) && (
+              <dl className="mt-3 space-y-1.5 rounded-xl bg-ink-50 px-3.5 py-2.5 text-[12px]">
+                {cta && (
+                  <div className="flex items-start gap-2">
+                    <dt className="flex flex-none items-center gap-1.5 font-medium text-ink-500">
+                      <FiMessageCircle size={13} aria-hidden="true" /> Call to action
+                    </dt>
+                    <dd className={`min-w-0 text-ink-800 ${khmer(cta)}`}>{cta}</dd>
+                  </div>
+                )}
+                {goal && (
+                  <div className="flex items-start gap-2">
+                    <dt className="flex flex-none items-center gap-1.5 font-medium text-ink-500">
+                      <FiTarget size={13} aria-hidden="true" /> Measured by
+                    </dt>
+                    <dd className="font-semibold text-ink-800">{goal.kpi}</dd>
+                  </div>
+                )}
+              </dl>
+            )}
+          </div>
+        </div>
+
         {flagged && !item.state && (
-          <p className="mt-2 inline-block rounded-lg bg-amber-50 px-3 py-1.5 text-[12px] font-medium text-amber-900">
+          <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-[12px] font-medium leading-snug text-amber-900">
             Check before approving: {item.fact_issues[0]}
             {item.fact_issues.length > 1 && ` (+${item.fact_issues.length - 1} more)`}
           </p>
@@ -303,12 +374,18 @@ function PostCard({ item, brandName, brand, makingMedia, busy, onApprove, onSkip
         )}
       </div>
 
-      <div className="flex w-[132px] flex-none flex-col items-stretch gap-2">
+      <div className="flex w-[164px] flex-none flex-col items-stretch gap-2">
         {previewing && (
           <SocialPreview
             brand={brand}
             caption={text}
-            media={fmt === 'video' && story?.final_video ? { kind: 'video', url: story.final_video.url } : null}
+            media={
+              fmt === 'video' && story?.final_video
+                ? { kind: 'video', url: story.final_video.url }
+                : fmt === 'image' && item.media_url
+                  ? { kind: 'image', url: item.media_url }
+                  : null
+            }
             note={
               fmt === 'image'
                 ? `The ${item.poster || item.meme ? 'poster' : 'picture'} is made when you approve`
@@ -326,7 +403,7 @@ function PostCard({ item, brandName, brand, makingMedia, busy, onApprove, onSkip
         ) : skipped ? (
           <>
             <span className="text-center text-[12px] font-semibold text-ink-500">Skipped</span>
-            <button type="button" onClick={onUnskip} className="btn-outline px-3 py-1.5 text-[12.5px]">
+            <button type="button" onClick={onUnskip} className="btn-outline px-4 py-1.5 text-[12.5px]">
               Undo
             </button>
           </>
@@ -334,10 +411,16 @@ function PostCard({ item, brandName, brand, makingMedia, busy, onApprove, onSkip
           <>
             <button
               type="button"
-              disabled={!!busy || (fmt === 'video' && !filmReady)}
+              disabled={!!busy || picBusy || (fmt === 'video' && !filmReady)}
               onClick={onApprove}
-              className="btn-primary px-3 py-2 text-[13px]"
-              title={fmt === 'video' && !filmReady ? 'Approve the storyboard first — once the video is finished you can schedule it' : undefined}
+              className="btn-primary px-4 py-2 text-[13px]"
+              title={
+                fmt === 'video' && !filmReady
+                  ? 'Approve the storyboard first — once the video is finished you can schedule it'
+                  : picBusy
+                    ? 'Wait for the new picture'
+                    : undefined
+              }
             >
               Approve &amp; schedule
             </button>
@@ -347,15 +430,21 @@ function PostCard({ item, brandName, brand, makingMedia, busy, onApprove, onSkip
               </p>
             )}
             {fmt === 'image' && (
-              <button type="button" onClick={makeContent} className="btn-outline px-3 py-1.5 text-[12.5px]" title="Make the picture for this post in the Content studio">
-                Open in studio
+              <button
+                type="button"
+                onClick={onNewPicture}
+                disabled={picBusy || !!busy}
+                className="btn-outline px-4 py-1.5 text-[12.5px]"
+                title="Make another picture for this post — same brand kit and style. The old one stays in the Media Library."
+              >
+                {picBusy ? 'Making…' : item.media_url ? 'New picture' : 'Make picture'}
               </button>
             )}
             <button
               type="button"
               onClick={previewAndFormat}
               disabled={formatting}
-              className="btn-outline px-3 py-1.5 text-[12.5px]"
+              className="btn-outline px-4 py-1.5 text-[12.5px]"
               title={
                 formatted
                   ? 'See the post the way it shows in the feed'

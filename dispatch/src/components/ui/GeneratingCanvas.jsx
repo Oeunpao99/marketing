@@ -2,6 +2,8 @@
 // ContentFlow mark floating in the middle with puffs rising off it, and a
 // shimmer sweep (keyframes: index.css, "cf-*"). `small` is for thumbnails
 // (a storyboard scene): smaller mark, no wordmark, a shorter label.
+// `seeThrough` lays it over the picture being replaced: the tint and smoke go
+// half-transparent so that picture shows behind, the mark and label stay solid.
 const PUFFS = [
   { delay: '0s', drift: '-26px' },
   { delay: '0.9s', drift: '18px' },
@@ -9,17 +11,23 @@ const PUFFS = [
   { delay: '2.7s', drift: '30px' },
 ]
 
-export default function GeneratingCanvas({ icon = '▶', stage, small = false }) {
+export default function GeneratingCanvas({ icon = '▶', stage, small = false, seeThrough = false }) {
   return (
-    <div className={`relative h-full w-full overflow-hidden bg-brand-soft ring-1 ring-brand/10 ${small ? 'rounded-xl' : 'rounded-2xl'}`}>
-      <div className="cf-smoke cf-smoke-a" />
-      <div className="cf-smoke cf-smoke-b" />
-      <div className="cf-smoke cf-smoke-c" />
-      <div className="cf-sweep" />
+    <div
+      className={`relative h-full w-full overflow-hidden ring-1 ring-brand/10 ${seeThrough ? 'bg-brand-soft/40' : 'bg-brand-soft'} ${
+        small ? 'rounded-xl' : 'rounded-2xl'
+      }`}
+    >
+      <div className={seeThrough ? 'absolute inset-0 opacity-50' : 'contents'}>
+        <div className="cf-smoke cf-smoke-a" />
+        <div className="cf-smoke cf-smoke-b" />
+        <div className="cf-smoke cf-smoke-c" />
+        <div className="cf-sweep" />
 
-      {!small && PUFFS.map((p) => (
-        <span key={p.delay} className="cf-puff" style={{ animationDelay: p.delay, '--drift': p.drift }} />
-      ))}
+        {!small && PUFFS.map((p) => (
+          <span key={p.delay} className="cf-puff" style={{ animationDelay: p.delay, '--drift': p.drift }} />
+        ))}
+      </div>
 
       <div className="absolute inset-0 grid place-items-center">
         <div className="cf-float flex flex-col items-center">
