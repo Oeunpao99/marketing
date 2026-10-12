@@ -20,7 +20,11 @@ services:
     #   - "5433:5432"
 
   backend:
-    build: ./dispatch/backend
+    build:
+      context: ./dispatch/backend
+      # The Remotion project, copied into the image at /motion (Dockerfile).
+      additional_contexts:
+        motion: ./dispatch/motion
     restart: unless-stopped
     # Everything else (Azure/TikTok/Meta keys, FRONTEND_URL, SECRET_KEY, …)
     # comes from here — copy dispatch/backend/.env.example to

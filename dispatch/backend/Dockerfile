@@ -13,6 +13,29 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends libraqm0 \
     && rm -rf /var/lib/apt/lists/*
 
+# Remotion videos (app/motion.py → /motion): Node 22, the libraries Chrome
+# Headless Shell needs on Debian 13 (trixie), and a colour-emoji font for the
+# scene icons. The Khmer font ships with the motion project itself.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl gnupg \
+       libnss3 libdbus-1-3 libatk1.0-0 libgbm1 libasound2t64 libxrandr2 libxkbcommon0 \
+       libxfixes3 libxcomposite1 libxdamage1 libatk-bridge2.0-0 libpango-1.0-0 libcairo2 \
+       libcups2 fonts-noto-color-emoji \
+    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# The motion project comes from the compose file's extra build context
+# (additional_contexts: motion → ./dispatch/motion) — only its sources, never
+# node_modules or rendered output. Its browser is fetched now, not on the
+# first video.
+WORKDIR /motion
+COPY --from=motion package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund && npx remotion browser ensure
+COPY --from=motion src ./src
+COPY --from=motion public/fonts ./public/fonts
+COPY --from=motion sample.json ./
+
 WORKDIR /app
 
 # Dependencies first, isolated from app code, so editing a .py file doesn't

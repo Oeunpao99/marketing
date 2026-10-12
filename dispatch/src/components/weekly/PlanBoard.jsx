@@ -243,8 +243,12 @@ function PostCard({ item, brand, makingMedia, busy, onApprove, onSkip, onUnskip,
                   aria-pressed={fmt === o.v}
                   onClick={() => onFormat(o.v)}
                   title={o.v === 'motion' && motionReady === false ? MOTION_OFF_TIP : fmt !== o.v ? FORMAT_TIPS[o.v] : undefined}
-                  className={`rounded-full px-2.5 py-0.5 font-semibold transition-colors ${
-                    fmt === o.v ? 'bg-brand-soft text-brand' : 'text-ink-500 hover:text-ink-800'
+                  className={`rounded-full px-2.5 py-0.5 font-semibold transition-colors disabled:cursor-not-allowed ${
+                    fmt === o.v
+                      ? 'bg-brand-soft text-brand'
+                      : o.v === 'motion' && motionReady === false
+                        ? 'text-ink-300'
+                        : 'text-ink-500 hover:text-ink-800'
                   }`}
                 >
                   {o.v === 'image' && fmt === 'image' ? imageKind : o.l}
