@@ -23,9 +23,9 @@ const FORMATS = [
   { v: 'image', l: 'Image' },
   { v: 'text', l: 'Text' },
   // animated words + photos + voice, made with the plan (backend app/motion.py)
-  { v: 'motion', l: 'Motion' },
+  { v: 'motion', l: 'Remotion' },
   // people on camera — storyboard first, filmed once approved
-  { v: 'video', l: 'Film · 24 s' },
+  { v: 'video', l: 'AI video · 24 s' },
 ]
 const FORMAT_TIPS = {
   motion: 'An animated video with your photos, logo and a Khmer voice — made now, about a minute',
@@ -419,7 +419,7 @@ function PostCard({ item, brand, makingMedia, busy, onApprove, onSkip, onUnskip,
                 : fmt === 'video'
                   ? 'The video shows here once it’s made from the storyboard'
                   : motion
-                    ? 'The motion video shows here once it’s made'
+                    ? 'The Remotion video shows here once it’s made'
                     : null
             }
             platforms={item.channels}
@@ -449,7 +449,7 @@ function PostCard({ item, brand, makingMedia, busy, onApprove, onSkip, onUnskip,
                   : picBusy
                     ? `Wait for the new ${motion ? 'video' : 'picture'}`
                     : motion && !item.media_url
-                      ? 'Make the motion video first'
+                      ? 'Make the Remotion video first'
                       : undefined
               }
             >
@@ -468,7 +468,7 @@ function PostCard({ item, brand, makingMedia, busy, onApprove, onSkip, onUnskip,
                 className="btn-outline px-4 py-1.5 text-[12.5px]"
                 title={
                   motion
-                    ? 'Make another motion video for this post — a new script, photos and voice. The old one stays in the Media Library.'
+                    ? 'Make another Remotion video for this post — a new script, photos and voice. The old one stays in the Media Library.'
                     : 'Make another picture for this post — same brand kit and style. The old one stays in the Media Library.'
                 }
               >

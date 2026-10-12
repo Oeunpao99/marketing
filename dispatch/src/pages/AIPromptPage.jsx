@@ -702,7 +702,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
       return
     }
     if (isMotion && refImg) {
-      showToast('Motion videos use your Brand kit photos — remove the attached image')
+      showToast('Remotion videos use your Brand kit photos — remove the attached image')
       return
     }
     if (prompt.length < 10) {
@@ -1129,7 +1129,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
                 : refImg
                   ? `Ask about this image, or describe the ${isImage ? 'image' : 'video'} to make from it…`
                   : isMotion
-                  ? 'What is the motion video about? e.g. 3 reasons customers love our soap…'
+                  ? 'What is the Remotion video about? e.g. 3 reasons customers love our soap…'
                   : isStory
                   ? 'Describe the video story — the problem, the product, the result…'
                   : `Ask about your marketing, or describe the ${isImage ? 'image' : 'video'} you want…`
@@ -1153,7 +1153,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
                   {isImage
                     ? 'Image'
                     : isMotion
-                      ? `Motion video · ${motionLang}`
+                      ? `Remotion · ${motionLang}`
                       : isStory
                         ? `Storyboard · ~${storySeconds}s`
                         : `Video · ${seconds}s`}{' '}
@@ -1716,7 +1716,7 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary }) {
         </div>
         <div className="mt-1 flex items-center gap-0.5 text-ink-400">
           <span className="mr-1.5 text-[10.5px]">
-            {t.kind === 'image' ? 'Image' : motion ? `Motion video · ${t.language || 'Khmer'}` : `Video · ${t.seconds}s`} · {t.ratio}
+            {t.kind === 'image' ? 'Image' : motion ? `Remotion · ${t.language || 'Khmer'}` : `Video · ${t.seconds}s`} · {t.ratio}
             {t.brandName ? ` · ${t.brandName}` : ''}
           </span>
           <IconBtn title={copied ? 'Copied' : 'Copy prompt'} onClick={copy}>
@@ -2024,7 +2024,7 @@ function SettingsPopover({
                 Story
               </button>
               <button type="button" className={seg(motion)} onClick={() => setVideoMode('motion')}>
-                Motion
+                Remotion
               </button>
             </Segmented>
           </Row>
