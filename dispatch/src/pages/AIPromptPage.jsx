@@ -392,6 +392,27 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
     return () => clearTimeout(id)
   }, [turns])
 
+  // A reply that lands after the page was left (e.g. the job id of a render
+  // just started) goes straight into the saved chat — so reopening it resumes
+  // the render instead of saying it was interrupted.
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true // (dev mode mounts twice — set it back)
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+  const persistLate = (id, patch) => {
+    try {
+      const list = JSON.parse(latestRef.current || '[]').map((t) => (t.id === id ? { ...t, ...patch } : t))
+      latestRef.current = JSON.stringify(list)
+      const cid = chatIdRef.current || Number(sessionStorage.getItem(OPEN_CHAT)) || null
+      if (cid) api.put(`/ai/chats/${cid}`, { turns: list }).catch(() => {})
+    } catch {
+      /* best effort — the render still lands in the Library */
+    }
+  }
+
   // Leaving the page: save anything not yet saved right away (the debounce
   // above would be cancelled), so a render in flight is still in the chat
   // when they come back.
@@ -524,6 +545,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
     // Stop pressed while this was on its way: drop the answer (and stop a job it started).
     const live = () => turnsRef.current.find((x) => x.id === turn.id)?.status === 'working'
     const patchTurn = (id, patch) => {
+      if (!mountedRef.current) return persistLate(id, patch)
       if (live()) return setTurns((list) => list.map((t) => (t.id === id ? { ...t, ...patch } : t)))
       if (patch.jobId) {
         untrackJob(patch.jobId)

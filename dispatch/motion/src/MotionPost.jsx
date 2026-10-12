@@ -1,14 +1,24 @@
 /**
- * A vertical motion post (1080×1920): animated Khmer / Latin text over the
- * brand's photos, a numbered point per scene, and a call-to-action ending.
- * Everything is driven by the script JSON (see ../sample.json):
+ * A vertical Remotion video (1080×1920): a short story told with animated
+ * app-style graphics — a hook, the problem, the solution shown working (a chat
+ * on a phone, the product), the proof (a list, a number) and a call to action.
+ * Driven by the script JSON (see ../sample.json), written by the backend
+ * (app/motion.py):
  *
  *   { brand: { name, color, logo },
- *     scenes: [ { type: "hook" | "point" | "cta", text, title, image, seconds } ] }
+ *     scenes: [
+ *       { type: "hook",    text, icon?, image? },
+ *       { type: "problem", icon, title, text, count? },
+ *       { type: "chat",    title, messages: [{ from: "customer" | "brand", text }] },
+ *       { type: "list",    title, items: [{ icon, text }] },
+ *       { type: "stat",    value, prefix?, suffix?, label, icon? },
+ *       { type: "product", image?, title, chips: [] },
+ *       { type: "cta",     text, button, image? },
+ *     ] }   — each scene may also carry seconds and audio (its voice-over line)
  *
- * Khmer comes pre-split into words with zero-width spaces (backend
- * app/khmer_words.py), so words animate one by one and lines only break
- * between whole words. Text is drawn with the real font — never garbled.
+ * Icons are Lucide names. Khmer comes split into words with zero-width spaces
+ * (app/khmer_words.py), so words animate one by one and lines break only
+ * between words; ⟦…⟧ marks the words to highlight in the brand colour.
  */
 import {
   AbsoluteFill,
@@ -27,13 +37,31 @@ import { TransitionSeries, springTiming } from '@remotion/transitions'
 import { fade } from '@remotion/transitions/fade'
 import { slide } from '@remotion/transitions/slide'
 import { wipe } from '@remotion/transitions/wipe'
+import * as Lucide from 'lucide-react'
 
 export const FPS = 30
 export const TRANSITION = 14 // frames two scenes overlap while they change
 const FONT = 'Kantumruy'
-const SECONDS = { hook: 3.6, point: 3.4, cta: 3.8 }
+const INK = '#0b1020'
 
-export const sceneFrames = (s) => Math.round((s.seconds || SECONDS[s.type] || 3.5) * FPS)
+/** Each scene's length when it has no voice-over (the backend mirrors this —
+ * app/motion.py default_seconds). */
+export function defaultSeconds(s) {
+  switch (s.type) {
+    case 'chat':
+      return 1.6 + 1.5 * Math.min(4, (s.messages || []).length)
+    case 'list':
+      return 1.8 + 1.0 * Math.min(4, (s.items || []).length)
+    case 'cta':
+      return 3.8
+    case 'product':
+      return 3.6
+    default:
+      return 3.4
+  }
+}
+
+export const sceneFrames = (s) => Math.round((s.seconds || defaultSeconds(s)) * FPS)
 
 // The Khmer + Latin font — the render waits until it's loaded.
 const fontWait = delayRender('Loading the Khmer font')
@@ -46,19 +74,45 @@ new FontFace(FONT, `url(${staticFile('fonts/KantumruyPro.ttf')})`, { weight: '10
   .catch((err) => cancelRender(err))
 
 const ZWSP = '​'
+const EM_OPEN = '⟦'
+const EM_CLOSE = '⟧'
+const clean = (t) => String(t || '').replaceAll(ZWSP, '').replaceAll(EM_OPEN, '').replaceAll(EM_CLOSE, '')
 
-/** A script's picture: a full URL, or a file under public/. */
+/** A script's picture / sound: a full URL, or a file under public/. */
 const srcOf = (src) => (!src ? null : /^(https?:|data:)/.test(src) ? src : staticFile(src))
 
-/** Text that appears word by word, each word rising and fading in. Lines
- * wrap only between words (spaces, or zero-width spaces inside Khmer). */
-function Words({ text, delay = 0, stagger = 3, style, align = 'left' }) {
+/** A Lucide icon by name ("MessageCircle"), with a safe fallback. */
+function Icon({ name, size = 64, color = 'white', stroke = 2 }) {
+  const C = Lucide[name] || Lucide.Sparkles
+  return <C size={size} color={color} strokeWidth={stroke} />
+}
+
+/** "#0e7c66" → "rgba(14,124,102,a)". */
+function tint(hex, a) {
+  const h = String(hex || '#0e7c66').replace('#', '')
+  const n = parseInt(h.length === 3 ? h.replace(/./g, '$&$&') : h, 16)
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`
+}
+
+/** Text that appears word by word, each word rising in. Lines wrap only
+ * between words; ⟦highlighted⟧ words get a brand-colour marker swept under
+ * them. */
+function Words({ text, delay = 0, stagger = 3, style, align = 'left', color }) {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
   const pieces = []
+  let em = false
   for (const word of String(text || '').split(' ').filter(Boolean)) {
     const parts = word.split(ZWSP).filter(Boolean)
-    parts.forEach((p, i) => pieces.push({ p, gap: i === parts.length - 1 }))
+    parts.forEach((p, i) => {
+      // markers can sit inside a piece — split there, so the highlight is exact
+      for (const bit of p.split(/([⟦⟧])/).filter(Boolean)) {
+        if (bit === EM_OPEN) em = true
+        else if (bit === EM_CLOSE) em = false
+        else pieces.push({ p: bit, gap: false, em })
+      }
+      if (i === parts.length - 1 && pieces.length) pieces[pieces.length - 1].gap = true
+    })
   }
   return (
     <div
@@ -71,23 +125,83 @@ function Words({ text, delay = 0, stagger = 3, style, align = 'left' }) {
         ...style,
       }}
     >
-      {pieces.map(({ p, gap }, n) => {
+      {pieces.map(({ p, gap, em: hi }, n) => {
         const s = spring({ frame: frame - delay - n * stagger, fps, config: { damping: 200, mass: 0.6 } })
+        const sweep = spring({ frame: frame - delay - n * stagger - 6, fps, config: { damping: 200 } })
         return (
           <span
             key={n}
             style={{
+              position: 'relative',
               display: 'inline-block',
               marginRight: gap ? '0.28em' : 0,
               opacity: s,
               transform: `translateY(${(1 - s) * 46}px)`,
+              color: hi ? 'white' : color,
+              zIndex: 0,
             }}
           >
+            {hi && (
+              <span
+                style={{
+                  position: 'absolute',
+                  left: '-0.12em',
+                  right: gap ? '0.16em' : '-0.12em',
+                  top: '0.12em',
+                  bottom: '0.08em',
+                  borderRadius: '0.18em',
+                  background: 'var(--brand)',
+                  transform: `scaleX(${sweep})`,
+                  transformOrigin: 'left center',
+                  zIndex: -1,
+                }}
+              />
+            )}
             {p}
           </span>
         )
       })}
     </div>
+  )
+}
+
+/** The scene background when there's no photo: deep ink with two slow brand
+ * glows and a faint grid — one look across the whole video. */
+function Backdrop({ color }) {
+  const frame = useCurrentFrame()
+  const a = frame / 60
+  return (
+    <AbsoluteFill style={{ backgroundColor: INK, overflow: 'hidden' }}>
+      <div
+        style={{
+          position: 'absolute',
+          width: 1200,
+          height: 1200,
+          borderRadius: '50%',
+          background: `radial-gradient(circle, ${tint(color, 0.55)} 0%, transparent 65%)`,
+          left: -300 + Math.sin(a) * 80,
+          top: -250 + Math.cos(a * 0.8) * 60,
+        }}
+      />
+      <div
+        style={{
+          position: 'absolute',
+          width: 1000,
+          height: 1000,
+          borderRadius: '50%',
+          background: `radial-gradient(circle, ${tint(color, 0.35)} 0%, transparent 65%)`,
+          right: -350 + Math.cos(a * 0.7) * 70,
+          bottom: -200 + Math.sin(a * 0.9) * 60,
+        }}
+      />
+      <AbsoluteFill
+        style={{
+          backgroundImage:
+            'linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px)',
+          backgroundSize: '72px 72px',
+        }}
+      />
+    </AbsoluteFill>
   )
 }
 
@@ -113,59 +227,400 @@ function KenBurns({ src, from = 1.04, to = 1.16, drift = 30 }) {
   )
 }
 
+/** A rounded icon tile that pops in (and shakes a little, for a problem). */
+function IconBadge({ name, size = 220, color, bg, delay = 0, wobble = false }) {
+  const frame = useCurrentFrame()
+  const { fps } = useVideoConfig()
+  const s = spring({ frame: frame - delay, fps, config: { damping: 9, mass: 0.7 } })
+  const shake = wobble ? Math.sin(frame / 2.2) * 4 * Math.max(0, 1 - frame / 40) : 0
+  return (
+    <div
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size * 0.3,
+        background: bg,
+        display: 'grid',
+        placeItems: 'center',
+        transform: `scale(${s}) rotate(${shake}deg)`,
+        boxShadow: `0 24px 60px ${tint(color, 0.35)}`,
+      }}
+    >
+      <Icon name={name} size={size * 0.48} color={color} stroke={2.2} />
+    </div>
+  )
+}
+
+// ── scenes ─────────────────────────────────────────────────────────────────
 function HookScene({ scene, brand }) {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
   const bar = spring({ frame: frame - 4, fps, config: { damping: 200 } })
+  const photo = !!scene.image
   return (
     <AbsoluteFill>
-      <KenBurns src={scene.image} />
-      <AbsoluteFill style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0) 30%, rgba(0,0,0,0.55) 55%, rgba(0,0,0,0.9) 85%)' }} />
-      <AbsoluteFill style={{ justifyContent: 'flex-end', padding: '0 84px 330px' }}>
-        <div style={{ width: 120 * bar, height: 12, borderRadius: 6, background: brand.color, marginBottom: 36 }} />
+      {photo ? (
+        <>
+          <KenBurns src={scene.image} />
+          <AbsoluteFill
+            style={{ background: 'linear-gradient(180deg, rgba(11,16,32,0.1) 20%, rgba(11,16,32,0.7) 55%, rgba(11,16,32,0.95) 85%)' }}
+          />
+        </>
+      ) : (
+        <Backdrop color={brand.color} />
+      )}
+      <AbsoluteFill style={{ justifyContent: photo ? 'flex-end' : 'center', padding: photo ? '0 84px 330px' : '0 84px' }}>
+        {!photo && scene.icon && (
+          <div style={{ marginBottom: 70 }}>
+            <IconBadge name={scene.icon} size={200} color="white" bg={brand.color} />
+          </div>
+        )}
+        <div style={{ width: 140 * bar, height: 12, borderRadius: 6, background: brand.color, marginBottom: 40 }} />
         <Words
           text={scene.text}
           delay={8}
-          style={{ color: 'white', fontSize: 96, fontWeight: 700, textShadow: '0 4px 24px rgba(0,0,0,0.45)' }}
+          color="white"
+          style={{ fontSize: 100, fontWeight: 700, textShadow: '0 4px 24px rgba(0,0,0,0.4)' }}
         />
       </AbsoluteFill>
     </AbsoluteFill>
   )
 }
 
+function ProblemScene({ scene, brand }) {
+  const frame = useCurrentFrame()
+  const { fps } = useVideoConfig()
+  const count = Number(scene.count) || 0
+  const shown = Math.round(interpolate(frame, [12, 57], [0, count], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }))
+  const pop = spring({ frame: frame - 12, fps, config: { damping: 8 } })
+  return (
+    <AbsoluteFill>
+      <Backdrop color={brand.color} />
+      <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center', padding: '0 84px' }}>
+        <div style={{ position: 'relative', marginBottom: 90 }}>
+          <IconBadge name={scene.icon} size={300} color="#fecaca" bg="rgba(239,68,68,0.18)" wobble />
+          {count > 0 && (
+            <div
+              style={{
+                position: 'absolute',
+                top: -34,
+                right: -44,
+                minWidth: 120,
+                height: 120,
+                padding: '0 24px',
+                borderRadius: 60,
+                background: '#ef4444',
+                color: 'white',
+                fontFamily: FONT,
+                fontWeight: 700,
+                fontSize: 60,
+                display: 'grid',
+                placeItems: 'center',
+                border: `8px solid ${INK}`,
+                transform: `scale(${pop})`,
+              }}
+            >
+              {shown}
+            </div>
+          )}
+        </div>
+        <Words text={scene.title} delay={14} align="center" color="white" style={{ fontSize: 84, fontWeight: 700, textAlign: 'center' }} />
+        {scene.text && (
+          <Words
+            text={scene.text}
+            delay={28}
+            stagger={2}
+            align="center"
+            color="rgba(255,255,255,0.72)"
+            style={{ fontSize: 48, fontWeight: 500, marginTop: 24, textAlign: 'center' }}
+          />
+        )}
+      </AbsoluteFill>
+    </AbsoluteFill>
+  )
+}
+
+/** The product working: a phone with a chat — typing dots, then each bubble. */
+function ChatScene({ scene, brand }) {
+  const frame = useCurrentFrame()
+  const { fps } = useVideoConfig()
+  const messages = (scene.messages || []).slice(0, 4)
+  const phone = spring({ frame, fps, config: { damping: 16, mass: 0.9 } })
+  const STEP = 45 // frames per message
+  const FIRST = 24
+  return (
+    <AbsoluteFill>
+      <Backdrop color={brand.color} />
+      <AbsoluteFill style={{ alignItems: 'center', paddingTop: 210 }}>
+        {scene.title && (
+          <Words
+            text={scene.title}
+            delay={4}
+            align="center"
+            color="white"
+            style={{ fontSize: 66, fontWeight: 700, textAlign: 'center', padding: '0 80px', marginBottom: 46 }}
+          />
+        )}
+        <div
+          style={{
+            width: 700,
+            height: 1240,
+            borderRadius: 72,
+            background: '#f8fafc',
+            border: '14px solid #1f2937',
+            boxShadow: '0 40px 120px rgba(0,0,0,0.5)',
+            overflow: 'hidden',
+            transform: `translateY(${(1 - phone) * 900}px)`,
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          {/* app header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 20, padding: '46px 34px 26px', background: 'white', borderBottom: '2px solid #eef2f7' }}>
+            <div style={{ width: 76, height: 76, borderRadius: 38, background: brand.color, display: 'grid', placeItems: 'center' }}>
+              {brand.logo ? (
+                <Img src={srcOf(brand.logo)} style={{ width: 54, height: 54, objectFit: 'contain', borderRadius: 27, background: 'white' }} />
+              ) : (
+                <Icon name="Store" size={40} />
+              )}
+            </div>
+            <div style={{ fontFamily: FONT }}>
+              <div style={{ fontSize: 34, fontWeight: 700, color: '#111827' }}>{brand.name}</div>
+              <div style={{ fontSize: 24, color: '#10b981', fontWeight: 600 }}>● Online</div>
+            </div>
+          </div>
+          {/* messages */}
+          <div style={{ flex: 1, padding: '34px 28px', display: 'flex', flexDirection: 'column', gap: 22 }}>
+            {messages.map((m, i) => {
+              const start = FIRST + i * STEP
+              const mine = m.from === 'brand'
+              const typing = frame >= start - 18 && frame < start
+              const s = spring({ frame: frame - start, fps, config: { damping: 14 } })
+              if (frame < start - 18) return null
+              return (
+                <div key={i} style={{ display: 'flex', justifyContent: mine ? 'flex-end' : 'flex-start' }}>
+                  {typing ? (
+                    <div style={{ display: 'flex', gap: 10, padding: '24px 28px', borderRadius: 34, background: mine ? tint(brand.color, 0.2) : '#e5e7eb' }}>
+                      {[0, 1, 2].map((d) => (
+                        <div
+                          key={d}
+                          style={{
+                            width: 16,
+                            height: 16,
+                            borderRadius: 8,
+                            background: '#6b7280',
+                            opacity: 0.4 + 0.6 * Math.abs(Math.sin((frame + d * 5) / 5)),
+                          }}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        maxWidth: '82%',
+                        padding: '22px 30px',
+                        borderRadius: 34,
+                        borderBottomRightRadius: mine ? 10 : 34,
+                        borderBottomLeftRadius: mine ? 34 : 10,
+                        background: mine ? brand.color : 'white',
+                        color: mine ? 'white' : '#111827',
+                        boxShadow: '0 6px 18px rgba(15,23,42,0.08)',
+                        fontFamily: FONT,
+                        fontSize: 36,
+                        lineHeight: 1.45,
+                        transform: `scale(${s})`,
+                        transformOrigin: mine ? 'right bottom' : 'left bottom',
+                      }}
+                    >
+                      {clean(m.text)}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </AbsoluteFill>
+    </AbsoluteFill>
+  )
+}
+
+function ListScene({ scene, brand }) {
+  const frame = useCurrentFrame()
+  const { fps } = useVideoConfig()
+  const items = (scene.items || []).slice(0, 4)
+  return (
+    <AbsoluteFill>
+      <Backdrop color={brand.color} />
+      <AbsoluteFill style={{ justifyContent: 'center', padding: '0 76px' }}>
+        <Words text={scene.title} delay={2} color="white" style={{ fontSize: 80, fontWeight: 700, marginBottom: 64 }} />
+        {items.map((it, i) => {
+          const start = 22 + i * 26
+          const s = spring({ frame: frame - start, fps, config: { damping: 15 } })
+          const tick = spring({ frame: frame - start - 14, fps, config: { damping: 9 } })
+          return (
+            <div
+              key={i}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 34,
+                padding: '30px 34px',
+                marginBottom: 28,
+                borderRadius: 36,
+                background: 'rgba(255,255,255,0.08)',
+                border: '2px solid rgba(255,255,255,0.12)',
+                opacity: s,
+                transform: `translateX(${(1 - s) * 260}px)`,
+              }}
+            >
+              <div style={{ flex: 'none', width: 120, height: 120, borderRadius: 34, background: brand.color, display: 'grid', placeItems: 'center' }}>
+                <Icon name={it.icon} size={62} />
+              </div>
+              <div style={{ flex: 1, fontFamily: FONT, fontSize: 50, fontWeight: 600, color: 'white', lineHeight: 1.35 }}>{clean(it.text)}</div>
+              <div style={{ flex: 'none', transform: `scale(${tick})` }}>
+                <Icon name="CircleCheck" size={58} color="#34d399" stroke={2.4} />
+              </div>
+            </div>
+          )
+        })}
+      </AbsoluteFill>
+    </AbsoluteFill>
+  )
+}
+
+function StatScene({ scene, brand }) {
+  const frame = useCurrentFrame()
+  const { fps } = useVideoConfig()
+  const value = Number(scene.value) || 0
+  const decimals = Number.isInteger(value) ? 0 : 1
+  const shown = interpolate(frame, [8, 50], [0, value], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })
+  const pop = spring({ frame: frame - 4, fps, config: { damping: 12 } })
+  return (
+    <AbsoluteFill>
+      <Backdrop color={brand.color} />
+      <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center', padding: '0 80px' }}>
+        {scene.icon && (
+          <div style={{ marginBottom: 50 }}>
+            <IconBadge name={scene.icon} size={170} color="white" bg={tint(brand.color, 0.9)} />
+          </div>
+        )}
+        <div
+          style={{
+            fontFamily: FONT,
+            fontWeight: 700,
+            fontSize: 250,
+            lineHeight: 1.1,
+            color: 'white',
+            transform: `scale(${0.7 + 0.3 * pop})`,
+            textShadow: `0 10px 60px ${tint(brand.color, 0.8)}`,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {scene.prefix || ''}
+          {shown.toFixed(decimals)}
+          {scene.suffix || ''}
+        </div>
+        <Words
+          text={scene.label}
+          delay={20}
+          align="center"
+          color="rgba(255,255,255,0.85)"
+          style={{ fontSize: 60, fontWeight: 600, textAlign: 'center', marginTop: 30 }}
+        />
+      </AbsoluteFill>
+    </AbsoluteFill>
+  )
+}
+
+/** The product, floating in a card, with its selling points popping around it. */
+function ProductScene({ scene, brand }) {
+  const frame = useCurrentFrame()
+  const { fps } = useVideoConfig()
+  const card = spring({ frame, fps, config: { damping: 14 } })
+  const float = Math.sin(frame / 18) * 14
+  const chips = (scene.chips || []).slice(0, 3)
+  const spots = [
+    { left: 40, top: 300 },
+    { right: 40, top: 760 },
+    { left: 70, top: 1130 },
+  ]
+  return (
+    <AbsoluteFill>
+      <Backdrop color={brand.color} />
+      <AbsoluteFill style={{ alignItems: 'center', paddingTop: 260 }}>
+        <div
+          style={{
+            width: 760,
+            height: 900,
+            borderRadius: 64,
+            overflow: 'hidden',
+            background: scene.image ? '#111' : tint(brand.color, 0.25),
+            boxShadow: '0 50px 120px rgba(0,0,0,0.55)',
+            transform: `translateY(${(1 - card) * 400 + float}px) rotate(${(1 - card) * -8 - 2}deg)`,
+            display: 'grid',
+            placeItems: 'center',
+          }}
+        >
+          {scene.image ? (
+            <Img src={srcOf(scene.image)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          ) : (
+            <Icon name={scene.icon || 'Package'} size={320} />
+          )}
+        </div>
+        <Words
+          text={scene.title}
+          delay={16}
+          align="center"
+          color="white"
+          style={{ fontSize: 78, fontWeight: 700, textAlign: 'center', marginTop: 70, padding: '0 70px' }}
+        />
+      </AbsoluteFill>
+      {chips.map((c, i) => {
+        const s = spring({ frame: frame - 26 - i * 12, fps, config: { damping: 10 } })
+        return (
+          <div
+            key={i}
+            style={{
+              position: 'absolute',
+              ...spots[i],
+              display: 'flex',
+              alignItems: 'center',
+              gap: 14,
+              padding: '20px 30px',
+              borderRadius: 999,
+              background: 'white',
+              color: INK,
+              fontFamily: FONT,
+              fontWeight: 700,
+              fontSize: 40,
+              boxShadow: '0 16px 40px rgba(0,0,0,0.3)',
+              transform: `scale(${s})`,
+            }}
+          >
+            <Icon name="CircleCheck" size={40} color={brand.color} stroke={2.6} />
+            {clean(c)}
+          </div>
+        )
+      })}
+    </AbsoluteFill>
+  )
+}
+
+/** Older scripts' points (photo or icon above, a white card with the text). */
 function PointScene({ scene, brand, n }) {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
   const panel = spring({ frame, fps, config: { damping: 18, mass: 0.8 } })
-  const badge = spring({ frame: frame - 8, fps, config: { damping: 9, mass: 0.6 } })
-  const icon = spring({ frame: frame - 2, fps, config: { damping: 8, mass: 0.7 } })
   return (
     <AbsoluteFill style={{ backgroundColor: '#f6f7fb' }}>
       <AbsoluteFill style={{ height: '70%' }}>
         {scene.image ? (
           <KenBurns src={scene.image} from={1.12} to={1.02} drift={-24} />
         ) : (
-          // No photo: the brand colour, slowly turning light, and a big icon floating.
-          <AbsoluteFill
-            style={{
-              background: `conic-gradient(from ${frame * 1.2}deg at 50% 45%, ${brand.color}, #0b1020, ${brand.color})`,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <div
-              style={{
-                width: 560,
-                height: 560,
-                borderRadius: '50%',
-                background: 'rgba(255,255,255,0.12)',
-                display: 'grid',
-                placeItems: 'center',
-                transform: `scale(${icon}) translateY(${Math.sin(frame / 12) * 18 - 60}px)`,
-              }}
-            >
-              <span style={{ fontSize: 300 }}>{scene.icon || '✓'}</span>
-            </div>
+          <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center' }}>
+            <Backdrop color={brand.color} />
+            <IconBadge name={scene.icon} size={300} color="white" bg={tint(brand.color, 0.9)} />
           </AbsoluteFill>
         )}
       </AbsoluteFill>
@@ -175,9 +630,8 @@ function PointScene({ scene, brand, n }) {
           height: '36%',
           backgroundColor: 'white',
           borderRadius: '64px 64px 0 0',
-          boxShadow: '0 -24px 60px rgba(0,0,0,0.18)',
           transform: `translateY(${(1 - panel) * 760}px)`,
-          padding: '120px 84px 0',
+          padding: '110px 84px 0',
         }}
       >
         <div
@@ -196,20 +650,12 @@ function PointScene({ scene, brand, n }) {
             display: 'grid',
             placeItems: 'center',
             border: '10px solid white',
-            transform: `scale(${badge})`,
           }}
         >
           {scene.badge || n}
         </div>
-        <Words text={scene.title} delay={12} style={{ color: '#111827', fontSize: 74, fontWeight: 700 }} />
-        {scene.text && (
-          <Words
-            text={scene.text}
-            delay={26}
-            stagger={2}
-            style={{ color: '#4b5563', fontSize: 46, fontWeight: 500, marginTop: 18 }}
-          />
-        )}
+        <Words text={scene.title} delay={12} color="#111827" style={{ fontSize: 74, fontWeight: 700 }} />
+        {scene.text && <Words text={scene.text} delay={26} stagger={2} color="#4b5563" style={{ fontSize: 46, fontWeight: 500, marginTop: 18 }} />}
       </AbsoluteFill>
     </AbsoluteFill>
   )
@@ -220,23 +666,22 @@ function CtaScene({ scene, brand }) {
   const { fps } = useVideoConfig()
   const logo = spring({ frame: frame - 4, fps, config: { damping: 10, mass: 0.7 } })
   const button = spring({ frame: frame - 30, fps, config: { damping: 12 } })
-  const pulse = 1 + Math.sin(frame / 6) * 0.025 * button
+  const pulse = 1 + Math.sin(frame / 6) * 0.03 * button
+  const tap = Math.max(0, Math.sin((frame - 40) / 9)) // the hand taps the button
   return (
     <AbsoluteFill
       style={{
-        background: `radial-gradient(circle at 50% 35%, ${brand.color}ee 0%, ${brand.color} 45%, #0b1020 120%)`,
+        background: `radial-gradient(circle at 50% 35%, ${brand.color} 0%, ${tint(brand.color, 0.85)} 40%, ${INK} 115%)`,
         alignItems: 'center',
         justifyContent: 'center',
         padding: '0 90px',
       }}
     >
       {scene.image && (
-        // The product, faint behind the brand colour.
-        <AbsoluteFill style={{ opacity: 0.22, mixBlendMode: 'luminosity' }}>
+        <AbsoluteFill style={{ opacity: 0.18, mixBlendMode: 'luminosity' }}>
           <KenBurns src={scene.image} from={1.2} to={1.08} drift={0} />
         </AbsoluteFill>
       )}
-      {/* soft circles drifting behind */}
       {[0, 1, 2].map((i) => (
         <div
           key={i}
@@ -265,29 +710,32 @@ function CtaScene({ scene, brand }) {
           <Img src={srcOf(brand.logo)} style={{ height: 120, objectFit: 'contain' }} />
         </div>
       )}
-      <Words
-        text={scene.text}
-        delay={14}
-        align="center"
-        style={{ color: 'white', fontSize: 84, fontWeight: 700, textAlign: 'center' }}
-      />
+      <Words text={scene.text} delay={14} align="center" color="white" style={{ fontSize: 86, fontWeight: 700, textAlign: 'center' }} />
       {scene.button && (
-        <div
-          style={{
-            marginTop: 70,
-            background: 'white',
-            color: brand.color,
-            fontFamily: FONT,
-            fontWeight: 700,
-            fontSize: 52,
-            padding: '26px 64px',
-            borderRadius: 999,
-            opacity: button,
-            transform: `scale(${button * pulse})`,
-            boxShadow: '0 16px 40px rgba(0,0,0,0.25)',
-          }}
-        >
-          {scene.button.replaceAll(ZWSP, '')}
+        <div style={{ position: 'relative', marginTop: 80 }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 18,
+              background: 'white',
+              color: brand.color,
+              fontFamily: FONT,
+              fontWeight: 700,
+              fontSize: 52,
+              padding: '28px 64px',
+              borderRadius: 999,
+              opacity: button,
+              transform: `scale(${button * pulse})`,
+              boxShadow: '0 16px 40px rgba(0,0,0,0.25)',
+            }}
+          >
+            <Icon name="Send" size={48} color={brand.color} stroke={2.4} />
+            {clean(scene.button)}
+          </div>
+          <div style={{ position: 'absolute', right: -30, bottom: -90, opacity: button, transform: `translate(${-tap * 14}px, ${-tap * 14}px)` }}>
+            <Icon name="Pointer" size={110} color="white" stroke={1.8} />
+          </div>
         </div>
       )}
     </AbsoluteFill>
@@ -345,25 +793,29 @@ function Chrome({ scenes, brand }) {
 
 const PRESENTATIONS = [
   () => slide({ direction: 'from-right' }),
-  () => wipe({ direction: 'from-bottom-left' }),
   () => fade(),
+  () => wipe({ direction: 'from-bottom-left' }),
   () => slide({ direction: 'from-bottom' }),
 ]
+
+const SCENES = {
+  hook: HookScene,
+  problem: ProblemScene,
+  chat: ChatScene,
+  list: ListScene,
+  stat: StatScene,
+  product: ProductScene,
+  cta: CtaScene,
+}
 
 export const MotionPost = ({ brand, scenes }) => {
   let point = 0
   return (
-    <AbsoluteFill style={{ backgroundColor: '#000' }}>
+    <AbsoluteFill style={{ backgroundColor: INK, '--brand': brand.color }}>
       <TransitionSeries>
         {scenes.flatMap((scene, i) => {
-          const body =
-            scene.type === 'hook' ? (
-              <HookScene scene={scene} brand={brand} />
-            ) : scene.type === 'cta' ? (
-              <CtaScene scene={scene} brand={brand} />
-            ) : (
-              <PointScene scene={scene} brand={brand} n={++point} />
-            )
+          const Scene = SCENES[scene.type]
+          const body = Scene ? <Scene scene={scene} brand={brand} /> : <PointScene scene={scene} brand={brand} n={++point} />
           const out = [
             <TransitionSeries.Sequence key={`s${i}`} durationInFrames={sceneFrames(scene)}>
               {body}
