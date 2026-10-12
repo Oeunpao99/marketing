@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   FiArrowUp,
+  FiSquare,
   FiCheck,
   FiClock,
   FiCopy,
@@ -519,6 +520,16 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
 
   const run = async (turn) => {
     patchTurn(turn.id, { status: 'working', error: '', video: null, startedAt: Date.now() })
+    // Stop pressed while this was on its way: drop the answer (and stop a job it started).
+    const live = () => turnsRef.current.find((x) => x.id === turn.id)?.status === 'working'
+    const patchTurn = (id, patch) => {
+      if (live()) return setTurns((list) => list.map((t) => (t.id === id ? { ...t, ...patch } : t)))
+      if (patch.jobId) {
+        untrackJob(patch.jobId)
+        api.post(`/ai/video/${patch.jobId}/stop`).catch(() => {})
+      }
+      return undefined
+    }
     try {
       if (turn.kind === 'ask') {
         const res = await api.post('/ai/advisor', {
@@ -594,6 +605,19 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
   }
 
   const intent = intentPick || (looksLikeQuestion(text) ? 'ask' : 'create')
+
+  // Stop everything being made: the server stops each job (a motion video's
+  // render is killed; an image or filmed clip may still land in the Library).
+  const stopAll = () => {
+    for (const t of turnsRef.current.filter((x) => x.status === 'working')) {
+      if (t.jobId) {
+        untrackJob(t.jobId)
+        api.post(`/ai/video/${t.jobId}/stop`).catch(() => {})
+      }
+      setTurns((list) => list.map((x) => (x.id === t.id ? { ...x, status: 'failed', error: 'Stopped' } : x)))
+    }
+    showToast('Stopped')
+  }
 
   const ask = (message, image = null) => {
     // The last few Q&A pairs, so follow-ups ("and on TikTok?") make sense.
@@ -1258,6 +1282,17 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
                   </button>
                 ))}
               </div>
+              {working && (
+                <button
+                  type="button"
+                  onClick={stopAll}
+                  className="mr-1 grid h-9 w-9 place-items-center rounded-full bg-red-600 text-white shadow-[0_4px_14px_rgba(220,38,38,0.35)] transition-colors hover:bg-red-700"
+                  title="Stop — ends what’s being made now"
+                  aria-label="Stop"
+                >
+                  <FiSquare size={13} fill="currentColor" aria-hidden="true" />
+                </button>
+              )}
               <button
                 type="button"
                 onClick={send}
@@ -1487,7 +1522,7 @@ function AskTurn({ t, onRetry, onGenerate, onEdit }) {
 
           {t.status === 'failed' && (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12.5px] text-amber-900">
-              <b>Couldn’t answer.</b> {t.error}
+              <b>{t.error === 'Stopped' ? 'Stopped.' : 'Couldn’t answer.'}</b> {t.error === 'Stopped' ? '' : t.error}
               <button type="button" onClick={onRetry} className="ml-2 font-semibold text-brand hover:underline">
                 Try again
               </button>
@@ -1718,7 +1753,7 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary }) {
 
         {t.status === 'failed' && (
           <div className="max-w-[85%] rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12.5px] text-amber-900">
-            <b>Couldn’t generate.</b> {t.error}
+            <b>{t.error === 'Stopped' ? 'Stopped.' : 'Couldn’t generate.'}</b> {t.error === 'Stopped' ? '' : t.error}
             <button type="button" onClick={onRegenerate} className="ml-2 font-semibold text-brand hover:underline">
               Try again
             </button>
@@ -1902,7 +1937,7 @@ function StoryTurn({ t, onEdit, onRetry, onDeleted }) {
       )}
       {t.status === 'failed' && (
         <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-[12.5px] text-red-700">
-          Couldn’t write the storyboard — {t.error}.
+          {t.error === 'Stopped' ? 'Stopped.' : `Couldn’t write the storyboard — ${t.error}.`}
           <button type="button" onClick={onRetry} className="ml-2 font-semibold underline">
             Try again
           </button>

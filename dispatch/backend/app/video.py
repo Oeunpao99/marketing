@@ -687,6 +687,23 @@ def get_video(job_id: int, db: Session = Depends(get_db), ws: int = Depends(curr
     return _out(job, db.get(Video, job.video_id) if job.video_id else None, queued_ahead)
 
 
+@router.post("/video/{job_id}/stop", response_model=VideoJobOut)
+def stop_job(job_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    """Stop waiting for a generation (the chat's Stop button). A motion video's
+    render is killed for real (app/motion.py); an image or filmed clip can't be
+    called back from the provider — the job is marked stopped, and if it still
+    finishes it simply lands in the Library."""
+    job = owned(db, GenerationJob, job_id, ws, "Generation job")
+    if job.status not in {"succeeded", "failed"}:
+        if job.kind == "motion":
+            from app import motion
+
+            motion.stop(job.id)
+        job.status, job.error = "failed", "Stopped"
+        db.commit()
+    return _out(job, db.get(Video, job.video_id) if job.video_id else None)
+
+
 class ImageIn(BaseModel):
     prompt: str = Field(min_length=10)
     aspect_ratio: str = "1:1"

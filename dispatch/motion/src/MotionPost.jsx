@@ -368,7 +368,7 @@ export const MotionPost = ({ brand, scenes }) => {
             <TransitionSeries.Sequence key={`s${i}`} durationInFrames={sceneFrames(scene)}>
               {body}
               {/* The scene's voice-over line (app/motion.py add_voice) — the scene lasts as long as it. */}
-              {scene.audio && <Html5Audio src={scene.audio} />}
+              {scene.audio && <Html5Audio src={srcOf(scene.audio)} />}
             </TransitionSeries.Sequence>,
           ]
           if (i < scenes.length - 1) {

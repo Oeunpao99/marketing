@@ -19,10 +19,13 @@ import base64
 import io
 import json
 import logging
+import os
 import shutil
+import signal
 import subprocess
 import tempfile
 import threading
+import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -326,6 +329,7 @@ def add_voice(props: dict, script: dict, voice: str, ws: int | None, user_id: in
     spoken = 0
     with tempfile.TemporaryDirectory() as tmp:
         for n, (scene, say) in enumerate(zip(props["scenes"], says)):
+            _check(job_id)  # Stop pressed: no more lines are spoken (or billed)
             if not say:
                 continue
             try:
@@ -348,27 +352,107 @@ def add_voice(props: dict, script: dict, voice: str, ws: int | None, user_id: in
     return spoken
 
 
-def render(props: dict) -> bytes:
-    """The MP4 for ``props`` — Remotion, run as a subprocess. Raises RuntimeError."""
+class Stopped(Exception):
+    """The person pressed Stop — the job ends quietly, not as an error."""
+
+
+_procs: dict[int, subprocess.Popen] = {}  # job id → its running render
+_stopped: set[int] = set()
+
+
+def _kill_tree(proc: subprocess.Popen) -> None:
+    """Stop a render and every process it started (npx → node → Chrome)."""
+    if proc.poll() is not None:
+        return
+    try:
+        if os.name == "nt":
+            subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)], capture_output=True, timeout=30)
+        else:
+            os.killpg(proc.pid, signal.SIGKILL)
+    except Exception:  # noqa: BLE001 — fall back to the process itself
+        proc.kill()
+
+
+def stop(job_id: int) -> None:
+    """Stop a motion video: its render is killed now, and a job still writing
+    its script or voice stops at the next step."""
+    _stopped.add(job_id)
+    proc = _procs.get(job_id)
+    if proc is not None:
+        _kill_tree(proc)
+
+
+def _check(job_id: int | None) -> None:
+    if job_id is not None and job_id in _stopped:
+        raise Stopped()
+
+
+def _to_files(props: dict, folder: Path, rel: str) -> dict:
+    """``props`` with every embedded picture / sound written to ``folder`` and
+    swapped for its path under public/ — Remotion re-reads the props for every
+    frame, so megabytes of data: URIs there made renders crawl (402 s seen)."""
+    count = 0
+
+    def swap(value):
+        nonlocal count
+        if isinstance(value, str) and value.startswith("data:") and "," in value:
+            head, data = value.split(",", 1)
+            ext = ".jpg" if "jpeg" in head else ".png" if "png" in head else ".mp3" if "audio" in head else ".bin"
+            count += 1
+            name = f"{count}{ext}"
+            (folder / name).write_bytes(base64.b64decode(data))
+            return f"{rel}/{name}"
+        if isinstance(value, dict):
+            return {k: swap(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [swap(v) for v in value]
+        return value
+
+    return swap(props)
+
+
+def render(props: dict, job_id: int | None = None) -> bytes:
+    """The MP4 for ``props`` — Remotion, run as a subprocess. Raises
+    RuntimeError, or Stopped when the person pressed Stop."""
     reason = not_ready()
     if reason:
         raise RuntimeError(reason)
     with _render_lock, tempfile.TemporaryDirectory() as tmp:
-        props_path = Path(tmp) / "props.json"
-        out = Path(tmp) / "motion.mp4"
-        props_path.write_text(json.dumps(props, ensure_ascii=False), encoding="utf-8")
-        res = subprocess.run(
-            [_npx(), "remotion", "render", "src/index.jsx", "MotionPost", str(out), f"--props={props_path}", "--log=error"],
-            cwd=MOTION_DIR,
-            capture_output=True,
-            text=True,
-            errors="replace",
-            timeout=900,
-        )
-        if res.returncode != 0 or not out.exists():
-            log.error("motion render failed: %s", (res.stderr or res.stdout)[-1500:])
-            raise RuntimeError("The video couldn't be rendered — try again.")
-        return out.read_bytes()
+        _check(job_id)
+        rel = f"run-{uuid.uuid4().hex[:12]}"
+        assets = MOTION_DIR / "public" / rel  # served to the render as staticFile(rel/…)
+        assets.mkdir(parents=True)
+        try:
+            props_path = Path(tmp) / "props.json"
+            out = Path(tmp) / "motion.mp4"
+            props_path.write_text(json.dumps(_to_files(props, assets, rel), ensure_ascii=False), encoding="utf-8")
+            proc = subprocess.Popen(
+                [_npx(), "remotion", "render", "src/index.jsx", "MotionPost", str(out), f"--props={props_path}", "--log=error"],
+                cwd=MOTION_DIR,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                errors="replace",
+                start_new_session=os.name != "nt",  # so Stop can end the whole group
+            )
+            if job_id is not None:
+                _procs[job_id] = proc
+            try:
+                stdout, stderr = proc.communicate(timeout=900)
+            except subprocess.TimeoutExpired:
+                _kill_tree(proc)
+                proc.communicate()
+                raise RuntimeError("Rendering took too long — try again.") from None
+            finally:
+                if job_id is not None:
+                    _procs.pop(job_id, None)
+            _check(job_id)
+            if proc.returncode != 0 or not out.exists():
+                log.error("motion render failed: %s", (stderr or stdout)[-1500:])
+                raise RuntimeError("The video couldn't be rendered — try again.")
+            return out.read_bytes()
+        finally:
+            shutil.rmtree(assets, ignore_errors=True)
 
 
 # ── API ───────────────────────────────────────────────────────────────────
@@ -477,7 +561,9 @@ def _make(job_id: int, product_id: int | None, language: str, voice: str = "none
         except Exception:  # noqa: BLE001 — a video without learnings beats no video
             learned = ""
         try:
+            _check(job_id)
             script = write_script(brand, products, job.prompt, language, learned)
+            _check(job_id)
             by_product, order, logo = _brand_pictures(db, brand.id)
             hook_pic, point_pics = pick_pictures(script, all_products, by_product, order, product_id)
             props = build_props(brand, script, hook_pic, point_pics, logo, "khmer" in language.lower())
@@ -487,7 +573,12 @@ def _make(job_id: int, product_id: int | None, language: str, voice: str = "none
             narrator = speech.voice_for(language, voice) if speech.ready() else None
             if narrator:
                 add_voice(props, script, narrator, job.workspace_id, job.user_id, job_id)
-            blob = render(props)
+            blob = render(props, job_id)
+        except Stopped:
+            job = db.get(GenerationJob, job_id)
+            job.status, job.error = "failed", "Stopped"
+            db.commit()
+            return
         except (ContentAIError, RuntimeError, subprocess.TimeoutExpired) as exc:
             job = db.get(GenerationJob, job_id)
             job.status = "failed"
@@ -539,4 +630,5 @@ def _make(job_id: int, product_id: int | None, language: str, voice: str = "none
             job.status, job.error = "failed", "Something went wrong while making the video — try again."
             db.commit()
     finally:
+        _stopped.discard(job_id)
         db.close()
