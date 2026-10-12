@@ -9,6 +9,7 @@ import { kitSrc } from '../brandkit/BrandKit'
 import PlatformIcon, { PLAT_BRAND_CLASS } from '../ui/PlatformIcon'
 import { useStore } from '../../store'
 import { GOALS, STAGES, ctaOf, goalOfItem, ruleAction, stageOf } from '../../lib/goals'
+import { MOTION_OFF_TIP, useMotionReady } from '../../lib/motionStatus'
 
 // The plan's posts (next week's, or one day's), one card each: when, which goal, the idea, why, the call
 // to action and the KPI — with Approve & schedule / Skip per post. Each post is
@@ -213,6 +214,7 @@ function PostCard({ item, brand, makingMedia, busy, onApprove, onSkip, onUnskip,
     }
   }
   const picBusy = pictureBusy(item)
+  const motionReady = useMotionReady() // false: this server can't render Remotion videos
   const motion = fmt === 'motion'
   const hasMedia = fmt === 'image' || motion // a picture or a motion video, made with the plan
 
@@ -237,10 +239,10 @@ function PostCard({ item, brand, makingMedia, busy, onApprove, onSkip, onUnskip,
                 <button
                   key={o.v}
                   type="button"
-                  disabled={!!busy}
+                  disabled={!!busy || (o.v === 'motion' && motionReady === false && fmt !== o.v)}
                   aria-pressed={fmt === o.v}
                   onClick={() => onFormat(o.v)}
-                  title={fmt !== o.v ? FORMAT_TIPS[o.v] : undefined}
+                  title={o.v === 'motion' && motionReady === false ? MOTION_OFF_TIP : fmt !== o.v ? FORMAT_TIPS[o.v] : undefined}
                   className={`rounded-full px-2.5 py-0.5 font-semibold transition-colors ${
                     fmt === o.v ? 'bg-brand-soft text-brand' : 'text-ink-500 hover:text-ink-800'
                   }`}

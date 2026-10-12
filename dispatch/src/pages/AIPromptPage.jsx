@@ -34,6 +34,7 @@ import { trackJob, untrackJob } from '../lib/genJobs'
 import { fmtUSD } from '../lib/money'
 import { PILLAR_LABELS, pillarChipClass } from '../lib/angles'
 import { kitSrc, TemplatePicker } from '../components/brandkit/BrandKit'
+import { MOTION_OFF_TIP, useMotionReady } from '../lib/motionStatus'
 
 // AI Agent — one chat for both asking and creating. A message that reads
 // like a question ("how is my engagement?", "what should I post next?") goes
@@ -1982,6 +1983,7 @@ function SettingsPopover({
   voice, setVoice, brands, brand, setBrand, style, setStyle, template, setTemplate,
   products = [], product, setProduct,
 }) {
+  const motionReady = useMotionReady() // false: this server can't render Remotion videos
   const [more, setMore] = useState(false)
   const story = type === 'video' && videoMode === 'story'
   const motion = type === 'video' && videoMode === 'motion'
@@ -2023,7 +2025,13 @@ function SettingsPopover({
               <button type="button" className={seg(story)} onClick={() => setVideoMode('story')}>
                 Story
               </button>
-              <button type="button" className={seg(motion)} onClick={() => setVideoMode('motion')}>
+              <button
+                type="button"
+                className={`${seg(motion)} disabled:cursor-not-allowed disabled:opacity-40`}
+                onClick={() => setVideoMode('motion')}
+                disabled={motionReady === false && !motion}
+                title={motionReady === false ? MOTION_OFF_TIP : undefined}
+              >
                 Remotion
               </button>
             </Segmented>
