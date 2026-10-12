@@ -22,6 +22,7 @@ from app.push import router as push_router
 from app.registry import REGISTRY, registry_meta
 from app.tenancy import get_current_user
 from app.video import router as video_gen_router
+from app.motion import router as motion_router
 from app.views import public_router as views_public_router
 from app.views import router as views_router
 from app.weekly import router as weekly_router
@@ -137,6 +138,7 @@ api.include_router(story_router, dependencies=authed)
 api.include_router(chats_router, dependencies=authed)
 api.include_router(push_router, dependencies=authed)
 api.include_router(video_gen_router, dependencies=authed)
+api.include_router(motion_router, dependencies=authed)
 api.include_router(media_router, dependencies=authed)
 api.include_router(brand_kit_router, dependencies=authed)
 api.include_router(views_router, dependencies=authed)

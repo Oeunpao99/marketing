@@ -27,6 +27,8 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont, features
 
+from app.khmer_words import breaks
+
 log = logging.getLogger("app.meme")
 
 FONT_PATH = Path(__file__).parent / "assets" / "fonts" / "KantumruyPro.ttf"
@@ -53,7 +55,7 @@ def meme_photo_prompt(scene: str) -> str:
     )
 
 
-@lru_cache(maxsize=8)
+@lru_cache(maxsize=64)
 def _font(size: int, weight: str = "Bold") -> ImageFont.FreeTypeFont:
     layout = ImageFont.Layout.RAQM if features.check("raqm") else ImageFont.Layout.BASIC
     f = ImageFont.truetype(str(FONT_PATH), size, layout_engine=layout)
@@ -111,12 +113,16 @@ def _can_break_before(text: str, i: int) -> bool:
     return 0x1780 <= ord(ch) <= 0x17B3 and text[i - 1] != "្"
 
 
-def _split_long(word: str, font: ImageFont.FreeTypeFont, width: int) -> list[str]:
+def _split_long(word: str, font: ImageFont.FreeTypeFont, width: int, clusters: bool = True) -> list[str]:
     """A word wider than ``width`` (Khmer writes whole phrases without
-    spaces) cut at safe break points into pieces that fit."""
+    spaces) cut into pieces that fit — between Khmer words (app/khmer_words.py)
+    where it can. ``clusters=False``: only between words, so a piece may stay
+    too wide (the caller then tries a smaller size instead)."""
     if font.getlength(word) <= width:
         return [word]
-    points = [i for i in range(1, len(word)) if _can_break_before(word, i)] + [len(word)]
+    words = breaks(word)
+    inner = range(1, len(word))
+    points = sorted(i for i in inner if i in words or (clusters and _can_break_before(word, i))) + [len(word)]
     pieces, start = [], 0
     while start < len(word):
         best = best_word = None
@@ -126,7 +132,7 @@ def _split_long(word: str, font: ImageFont.FreeTypeFont, width: int) -> list[str
             if font.getlength(word[start:b]) > width:
                 break
             best = b
-            if b == len(word) or word[b - 1] == "​":
+            if b == len(word) or b in words:
                 best_word = b  # a real word boundary — preferred over a cluster break
         # One cluster wider than the line on its own: it goes alone.
         best = best_word or best or next(b for b in points if b > start)
@@ -135,39 +141,74 @@ def _split_long(word: str, font: ImageFont.FreeTypeFont, width: int) -> list[str
     return pieces
 
 
-def _wrap(text: str, font: ImageFont.FreeTypeFont, width: int) -> list[str]:
-    """Greedy wrap on spaces; a run too wide for one line (Khmer puts spaces
-    only between phrases) is split at safe Khmer break points."""
+def _wrap(text: str, font: ImageFont.FreeTypeFont, width: int, clusters: bool = True) -> list[str]:
+    """Greedy wrap, word by word: on spaces, and between the words of a Khmer
+    phrase (which has no spaces — app/khmer_words.py finds them), so a line
+    fills up instead of pushing a whole phrase down. A single word too wide
+    for a line is split by _split_long."""
     lines: list[str] = []
     for para in text.split("\n"):
-        words = [piece for w in para.split(" ") for piece in _split_long(w, font, width)]
         line = ""
-        for w in words:
-            test = f"{line} {w}".strip()
-            if not line or font.getlength(test) <= width:
-                line = test
-            else:
-                lines.append(line)
-                line = w
+        for w in para.split(" "):
+            cuts = [0, *sorted(breaks(w)), len(w)]
+            pieces = [p for a, b in zip(cuts, cuts[1:]) for p in _split_long(w[a:b], font, width, clusters) if p]
+            for k, piece in enumerate(pieces):
+                test = f"{line}{' ' if k == 0 else ''}{piece}" if line else piece
+                if not line or font.getlength(test) <= width:
+                    line = test
+                else:
+                    lines.append(line)
+                    line = piece
         lines.append(line)
     return [ln for ln in lines if ln.strip()] or [""]
 
 
+def fit_lines(text: str, width: int, max_lines: int, sizes, weight: str = "Bold"):
+    """(font, lines) at the biggest of ``sizes`` where ``text`` wraps into
+    ≤ max_lines lines that each fit ``width``. Whole words first — a smaller
+    size beats breaking inside a Khmer word; only if no size works does it
+    break between syllables. Nothing is ever cut: if it still doesn't fit,
+    the smallest size with every line."""
+    sizes = list(sizes)
+    for clusters in (False, True):
+        for size in sizes:
+            font = _font(size, weight)
+            lines = _wrap(text, font, width, clusters)
+            if len(lines) <= max_lines and all(font.getlength(ln) <= width for ln in lines):
+                return font, lines
+    font = _font(sizes[-1], weight)
+    return font, _wrap(text, font, width)
+
+
 def _fit(text: str, width: int) -> tuple[ImageFont.FreeTypeFont, list[str]]:
     """The biggest font size (64 → 34) at which the text fits in MAX_LINES
-    lines with no line wider than the band."""
-    for size in range(64, 33, -4):
-        font = _font(size)
-        lines = _wrap(text, font, width)
-        if len(lines) <= MAX_LINES and all(font.getlength(ln) <= width for ln in lines):
-            return font, lines
-    font = _font(34)
-    return font, _wrap(text, font, width)[:MAX_LINES]
+    lines with no line wider than the band (the band grows to fit)."""
+    return fit_lines(text, width, MAX_LINES, range(64, 33, -4))
 
 
-def render_meme(photo: bytes, top: str, brand: str = "") -> bytes:
-    """Setup text on a white band above the photo (cropped square), with a
-    small brand tag in the photo's corner. Returns a JPEG."""
+def logo_chip(logo: bytes, height: int) -> Image.Image | None:
+    """The brand's logo file, trimmed and scaled to ``height`` on a white
+    rounded chip — the real logo, never redrawn, readable on any background.
+    None when the file can't be read."""
+    try:
+        lg = Image.open(io.BytesIO(logo)).convert("RGBA")
+    except Exception:  # noqa: BLE001 — a broken upload just means no logo
+        log.warning("brand logo could not be read — posting without it")
+        return None
+    if box := lg.getchannel("A").getbbox():
+        lg = lg.crop(box)
+    pad = max(6, height // 7)
+    scale = min((height - 2 * pad) / lg.height, (height * 4) / lg.width)  # very wide logos stay sane
+    lg = lg.resize((max(1, round(lg.width * scale)), max(1, round(lg.height * scale))), Image.LANCZOS)
+    chip = Image.new("RGBA", (lg.width + 2 * pad, height), (0, 0, 0, 0))
+    ImageDraw.Draw(chip).rounded_rectangle((0, 0, chip.width - 1, height - 1), radius=height // 4, fill=(255, 255, 255, 245))
+    chip.alpha_composite(lg, (pad, (height - lg.height) // 2))
+    return chip
+
+
+def render_meme(photo: bytes, top: str, brand: str = "", logo: bytes | None = None) -> bytes:
+    """Setup text on a white band above the photo (cropped square), with the
+    brand's logo (or a small name tag) in the photo's corner. Returns a JPEG."""
     top = drawable(" ".join(top.replace("\r", "").split(" ")).strip())
     brand = drawable(brand)
     if _has_khmer(top) and not features.check("raqm"):
@@ -193,7 +234,11 @@ def render_meme(photo: bytes, top: str, brand: str = "") -> bytes:
         y += line_h
     canvas.paste(img, (0, band))
 
-    if brand.strip():
+    chip = logo_chip(logo, 76) if logo else None
+    if chip is not None:
+        x1, y1 = WIDTH - 28, band + WIDTH - 28
+        canvas.paste(chip, (x1 - chip.width, y1 - chip.height), chip)
+    elif brand.strip():
         tag_font = _font(30, "SemiBold")
         label = brand.strip()[:40]
         tw = int(tag_font.getlength(label))

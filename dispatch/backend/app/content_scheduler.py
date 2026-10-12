@@ -201,12 +201,14 @@ def _first_frame_for(db: Session, brand_id: int, idea: dict) -> bytes | None:
 
 def _poster_kit_for(
     db: Session, automation: Automation, brand_id: int, idea: dict, n: int, day: date
-) -> tuple[list[bytes], str]:
+) -> tuple[list[bytes], str, bytes | None]:
     """Reference images + instructions from the brand kit for idea ``n``
     (Automation.poster_kit): templates take turns — a different one each
     image and each day — the product photo follows the product the idea is
-    about, and the logo goes on every poster when switched on."""
-    from app.brand_kit import gather, product_for_idea
+    about, and the logo goes on every poster when switched on. The third
+    item is the logo file itself: memes and topic posters don't send the kit
+    to the image model, so the logo is pasted onto them as is."""
+    from app.brand_kit import gather, logo_image, product_for_idea
     from app.models import BrandAsset
 
     kit = automation.poster_kit or {}
@@ -222,14 +224,15 @@ def _poster_kit_for(
     templates = [t for t in wanted if t in live]
     template_id = templates[(day.toordinal() + n) % len(templates)] if templates else None
     product_id = product_for_idea(db, brand_id, idea) if kit.get("product_photos") else None
-    return gather(db, brand_id, template_id=template_id, product_id=product_id, logo=bool(kit.get("logo")))
+    refs, guide = gather(db, brand_id, template_id=template_id, product_id=product_id, logo=bool(kit.get("logo")))
+    return refs, guide, logo_image(db, brand_id) if kit.get("logo") else None
 
 
 def _generate_media_for(
     brand: Brand | _AutoBrand,
     idea: dict,
     products: list[Product | _AutoProduct],
-    kit: tuple[list[bytes], str] = ([], ""),
+    kit: tuple = ([], ""),
 ) -> int | None:
     """Best-effort: render an image for this idea and store it as a Video
     row, returning its id — or None if generation fails, so the caller falls
@@ -250,6 +253,9 @@ def _generate_media_for(
     # A relatable idea goes out as a meme poster: the model draws only the
     # funny photo (square, no brand template — it should look like a real
     # meme, not an ad) and app/meme.py adds the setup text above it.
+    # The brand-kit logo file (third item from _poster_kit_for, when the
+    # logo is switched on) — memes and posters get it pasted on as is.
+    logo = kit[2] if len(kit) > 2 else None
     meme = idea.get("meme") or {}
     is_meme = bool(meme.get("top") and meme.get("scene"))
     # Educate / benefit / comparison / trend / quote / community ideas get a
@@ -266,7 +272,7 @@ def _generate_media_for(
         prompt, ratio, refs, guide = poster_photo_prompt(idea.get("pillar") or "", poster["scene"], poster.get("headline", "")), "1:1", [], ""
     else:
         prompt, ratio = image_prompt_for_idea(brand.name, brand.lang, idea, products), "9:16"
-        refs, guide = kit
+        refs, guide = kit[0], kit[1]
     try:
         billing.require(brand.workspace_id, billing.IMAGE_HOLD)
     except billing.OutOfCredit:
@@ -284,7 +290,7 @@ def _generate_media_for(
         from app.meme import image_size, render_meme
 
         try:
-            blob = render_meme(blob, meme["top"], brand.name)
+            blob = render_meme(blob, meme["top"], brand.name, logo)
             ext, mime, tag = ".jpg", "image/jpeg", "ai-auto-meme"
             resolution = "x".join(map(str, image_size(blob)))
         except Exception:  # noqa: BLE001 — a plain photo beats losing the post
@@ -295,7 +301,7 @@ def _generate_media_for(
         from app.poster import render_poster
 
         try:
-            blob = render_poster(blob, idea.get("pillar") or "", poster, brand.name, brand.slug)
+            blob = render_poster(blob, idea.get("pillar") or "", poster, brand.name, brand.slug, logo)
             ext, mime, tag = ".jpg", "image/jpeg", "ai-auto-poster"
             resolution = "x".join(map(str, image_size(blob)))
         except Exception:  # noqa: BLE001 — a plain photo beats losing the post

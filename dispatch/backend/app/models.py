@@ -193,6 +193,22 @@ class Video(Base, TimestampMixin):
     caption: Mapped[str] = mapped_column(Text, default="", server_default="")
     caption_angle: Mapped[str] = mapped_column(String(30), default="", server_default="")
     caption_status: Mapped[str] = mapped_column(String(12), default="", server_default="")
+    # Library organising: a heart, and at most one folder (LibraryFolder).
+    favorite: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    folder_id: Mapped[int | None] = mapped_column(
+        ForeignKey("library_folders.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
+
+class LibraryFolder(Base, TimestampMixin):
+    """A folder in the Library — the person's own grouping of images and
+    videos (e.g. "Khmer New Year", "Posters I like")."""
+
+    __tablename__ = "library_folders"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(80))
 
 
 class MediaBlob(Base, TimestampMixin):

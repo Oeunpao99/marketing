@@ -182,10 +182,18 @@ def _gemini_start(
     # No personGeneration: Veo 3.1 text-to-video only accepts "allow_all"
     # outside the EU/UK/CH/MENA and only "allow_adult" inside — its default
     # already picks the right one for the region. Clips are 4/6/8s.
+    duration = 8 if seconds >= 7 else (6 if seconds >= 5 else 4)
     body = {
         "instances": [{"prompt": prompt}],
-        "parameters": {"aspectRatio": ratio, "durationSeconds": 8 if seconds >= 7 else (6 if seconds >= 5 else 4)},
+        "parameters": {"aspectRatio": ratio, "durationSeconds": duration},
     }
+    # Sharper than the 720p default — Google only allows it on 8s clips, and
+    # Lite has no 4k (it gets 1080p instead).
+    resolution = get_settings().gemini_video_resolution.strip().lower()
+    if resolution == "4k" and "lite" in model:
+        resolution = "1080p"
+    if resolution in ("1080p", "4k") and duration == 8:
+        body["parameters"]["resolution"] = resolution
     if reference is not None:
         # Image-to-video: Veo animates from this image as the first frame.
         frame = _first_frame(reference, ratio)
@@ -838,6 +846,7 @@ _WORKER_EVERY = 15
 # job waiting in the image_slot() queue is never failed just for being slow.
 _IMAGE_STALE = timedelta(minutes=8)
 _VIDEO_STALE = timedelta(hours=3)
+_MOTION_STALE = timedelta(minutes=20)
 
 
 def _tick() -> None:
@@ -852,6 +861,14 @@ def _tick() -> None:
                 if job.status == "running" and now - job.updated_at > _IMAGE_STALE:
                     job.status = "failed"
                     job.error = "The image service never finished this render — try again."
+                    db.commit()
+                    _ready_push(job)
+                continue
+            if job.kind == "motion":
+                # Rendered in this process (app/motion.py) — a restart kills it.
+                if now - job.updated_at > _MOTION_STALE:
+                    job.status = "failed"
+                    job.error = "The video stopped rendering (the server restarted?) — try again."
                     db.commit()
                     _ready_push(job)
                 continue

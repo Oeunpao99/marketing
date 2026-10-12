@@ -253,6 +253,12 @@ def product_photo(db: Session, brand_id: int, product_id: int) -> bytes | None:
     return read_media(photo.url) if photo is not None else None
 
 
+def logo_image(db: Session, brand_id: int) -> bytes | None:
+    """The brand's logo file — pasted onto memes and topic posters as is."""
+    lg = db.scalar(select(BrandAsset).where(BrandAsset.brand_id == brand_id, BrandAsset.kind == "logo"))
+    return read_media(lg.url) if lg is not None else None
+
+
 def product_for_idea(db: Session, brand_id: int, idea: dict) -> int | None:
     """The product an auto-generated idea is about (its name appears in the
     title or caption) — only products that have a photo in the kit."""

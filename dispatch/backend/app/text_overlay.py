@@ -31,7 +31,7 @@ import logging
 
 from PIL import Image, ImageDraw, ImageStat, features
 
-from app.meme import _font, _has_khmer, _wrap, drawable
+from app.meme import _font, _has_khmer, _wrap, drawable, fit_lines
 from app.poster import INK, WHITE, _line_h, _tint
 
 log = logging.getLogger("app.text_overlay")
@@ -105,15 +105,10 @@ def extract_text(prompt: str) -> dict | None:
 # ── drawing ───────────────────────────────────────────────────────────────
 def _fit(text: str, width: int, max_lines: int, big: int, small: int, weight: str):
     """The biggest size (big → small) where ``text`` wraps into ≤ max_lines
-    lines that each fit ``width``. (font, lines, line height)."""
-    step = max(1, (big - small) // 12)
-    for size in range(big, small - 1, -step):
-        font = _font(size, weight)
-        lines = _wrap(text, font, width)
-        if len(lines) <= max_lines and all(font.getlength(ln) <= width for ln in lines):
-            return font, lines, _line_h(font)
-    font = _font(small, weight)
-    return font, _wrap(text, font, width)[:max_lines], _line_h(font)
+    lines that each fit ``width`` — whole words first, nothing cut.
+    (font, lines, line height)."""
+    font, lines = fit_lines(text, width, max_lines, range(big, small - 1, -max(1, (big - small) // 12)), weight)
+    return font, lines, _line_h(font)
 
 
 def _centred(draw: ImageDraw.ImageDraw, w: int, y: int, lines, font, fill, lh: int) -> int:

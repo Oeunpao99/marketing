@@ -94,6 +94,44 @@ MAX_VIDEOS = 2  # video posts the AI may put in one plan — they cost the most 
 VIDEO_SCENES = [8, 8, 8]  # a plan video: 3 clips of 8 s = 24 s
 
 
+# Pillars that film well, best first — a story, a demo, a before/after or a
+# moment. Quotes and polls (community) only when nothing else is left; memes
+# (relatable) and text posts never.
+VIDEO_PILLARS = ("behind_scenes", "product", "proof", "local_moment", "trend", "educate", "benefit", "comparison")
+
+
+def _ensure_videos(ideas: list[dict], target: int) -> None:
+    """Exactly ``target`` video posts in a plan. The AI may pick videos but
+    usually plays safe and picks none (each batch sees only two days, and a
+    poster idea is a picture) — so the code makes sure: the AI's own picks
+    first, then the image ideas that suit film best, on days ≥ 2 apart.
+    Only the storyboard is written now; nothing renders before approval."""
+    picked = [i for i in ideas if i.get("format") == "video"]
+    for idea in picked[target:]:
+        idea["format"] = "image"
+    picked = picked[:target]
+    days = [date.fromisoformat(i["day"]) for i in picked]
+
+    def spread(idea: dict) -> bool:
+        d = date.fromisoformat(idea["day"])
+        return all(abs((d - x).days) >= 2 for x in days)
+
+    def turn(idea: dict) -> None:
+        idea.update(format="video", meme=None, poster=None)
+        picked.append(idea)
+        days.append(date.fromisoformat(idea["day"]))
+
+    images = [i for i in ideas if (i.get("format") or "image") == "image" and not i.get("meme")]
+    fits = sorted((i for i in images if i.get("pillar") in VIDEO_PILLARS), key=lambda i: VIDEO_PILLARS.index(i["pillar"]))
+    # Best pillar on a spread-out day; then any good pillar; then any picture post.
+    for pool, need_spread in ((fits, True), (fits, False), (images, False)):
+        for idea in pool:
+            if len(picked) >= target:
+                return
+            if all(idea is not p for p in picked) and (not need_spread or spread(idea)):
+                turn(idea)
+
+
 def item_format(item: dict) -> str:
     """A plan post's format; plans written before formats only had "video"."""
     return item.get("format") or ("video" if item.get("video") else "image")
@@ -574,12 +612,8 @@ def build_plan(
         ideas += batch
         if len(ideas) >= count:
             break
-    videos = 0
-    for idea in ideas:
-        if idea.get("format") == "video":
-            videos += 1
-            if videos > MAX_VIDEOS:
-                idea["format"] = "image"
+    # A week always gets its videos; a daily plan one every third day (~2 a week).
+    _ensure_videos(ideas, MAX_VIDEOS if len(days) > 1 else int(days[0].toordinal() % 3 == 0))
     step(80, "Fact-checking against your products…")
     checks = fact_check([i["caption"] for i in ideas], list(products))
     slot_for, names_for = _plan_slots(db, automation, learnings)

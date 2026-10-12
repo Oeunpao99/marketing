@@ -98,6 +98,9 @@ function looksLikeQuestion(raw) {
 const fmtTok = (n) => (n || 0).toLocaleString()
 const IMG_ETA = 30
 const VID_ETA = 150
+// Motion videos (app/motion.py): script + photos + render, about a minute.
+const MOTION_ETA = 70
+const MOTION_LANGS = ['Khmer', 'English']
 const isImageUrl = (url) => /\.(png|jpe?g|webp|gif)$/i.test(url || '')
 
 let turnSeq = 0
@@ -136,7 +139,7 @@ function serializeTurn(t) {
 // that was mid-answer can't be resumed.
 function restoreTurn(t) {
   if (t.status !== 'working') return t
-  if ((t.kind === 'video' || t.kind === 'image') && t.jobId) return t
+  if ((t.kind === 'video' || t.kind === 'image' || t.kind === 'motion') && t.jobId) return t
   return { ...t, status: 'failed', error: 'Interrupted when the page closed — try again.' }
 }
 
@@ -191,6 +194,9 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
   const brandObj = brands.find((b) => b.slug === brand) || brands[0]
   const isImage = type === 'image'
   const isStory = type === 'video' && videoMode === 'story'
+  // Motion: animated words over the brand's photos (Remotion) — Khmer or English.
+  const isMotion = type === 'video' && videoMode === 'motion'
+  const motionLang = /english/i.test(voice ?? brandObj?.lang ?? '') && !/khmer/i.test(voice ?? brandObj?.lang ?? '') ? 'English' : 'Khmer'
   const storyVoice = voice ?? (VOICES.includes(brandObj?.lang) ? brandObj.lang : 'English')
   const working = turns.some((t) => t.status === 'working')
   const kitTemplates = kitAssets.filter((a) => a.kind === 'template')
@@ -201,7 +207,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
   const kitOn = isImage && !!(kitTemplate || kitProduct || (kit.logo && kitLogo))
   // Instant video: the chosen product photo becomes the clip's first frame
   // (an attached image takes its place).
-  const isClip = type === 'video' && !isStory
+  const isClip = type === 'video' && !isStory && !isMotion
   const videoFrame = isClip && !refImg && !!kitProduct
 
   useEffect(() => {
@@ -540,6 +546,16 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
           trackJob(res.id, 'image')
           patchTurn(turn.id, { jobId: res.id })
         }
+      } else if (turn.kind === 'motion') {
+        // Script, brand photos and render all happen on the server (~1 min).
+        const res = await api.post('/ai/motion', {
+          brand_id: turn.brandId,
+          idea: turn.prompt,
+          product_id: turn.productId ?? null,
+          language: turn.language || 'Khmer',
+        })
+        trackJob(res.id, 'video')
+        patchTurn(turn.id, { jobId: res.id })
       } else if (turn.kind === 'story') {
         // Writes the storyboard only (~20-40s); clips render once it's approved.
         const res = await api.post('/ai/story', {
@@ -653,6 +669,10 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
       showToast('Storyboards don’t use an attached image yet — remove it, or pick Instant video')
       return
     }
+    if (isMotion && refImg) {
+      showToast('Motion videos use your Brand kit photos — remove the attached image')
+      return
+    }
     if (prompt.length < 10) {
       showToast('Write a little more — at least 10 characters')
       return
@@ -661,15 +681,18 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
     const turn = {
       id: ++turnSeq,
       prompt,
-      kind: isStory ? 'story' : type,
-      ratio: isStory && ratio === '1:1' ? '9:16' : ratio,
-      seconds: isStory ? storySeconds : seconds,
-      language: isStory ? storyVoice : '',
+      kind: isStory ? 'story' : isMotion ? 'motion' : type,
+      ratio: isMotion ? '9:16' : isStory && ratio === '1:1' ? '9:16' : ratio,
+      seconds: isStory ? storySeconds : isMotion ? 15 : seconds,
+      language: isStory ? storyVoice : isMotion ? motionLang : '',
+      productId: isMotion ? (productId ?? null) : undefined,
       brandId: brandObj?.id ?? null,
       brandName: brandObj?.name || '',
       refUrl: refImg?.url || '',
       refPreview: refImg?.previewUrl || '',
-      kit: videoFrame
+      kit: isMotion
+        ? null
+        : videoFrame
         ? { templateId: null, productId: kit.productId, logo: false }
         : !isStory && kitOn
           ? { ...kit, logo: kit.logo && !!kitLogo }
@@ -781,7 +804,8 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
   const editPrompt = (turn) => {
     setText(turn.prompt || '')
     chooseType(turn.kind === 'image' ? 'image' : 'video')
-    if (turn.kind !== 'image') setVideoMode(turn.kind === 'story' ? 'story' : 'clip')
+    if (turn.kind !== 'image') setVideoMode(turn.kind === 'story' || turn.kind === 'motion' ? turn.kind : 'clip')
+    if (turn.kind === 'motion') setVoice(turn.language || null)
     if (turn.kind === 'story') {
       setStorySeconds(turn.seconds)
       setVoice(turn.language ?? null)
@@ -1068,6 +1092,8 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
                 ? 'Writing your prompt…'
                 : refImg
                   ? `Ask about this image, or describe the ${isImage ? 'image' : 'video'} to make from it…`
+                  : isMotion
+                  ? 'What is the motion video about? e.g. 3 reasons customers love our soap…'
                   : isStory
                   ? 'Describe the video story — the problem, the product, the result…'
                   : `Ask about your marketing, or describe the ${isImage ? 'image' : 'video'} you want…`
@@ -1088,8 +1114,14 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
               >
                 <FiSliders size={15} />
                 <span className="hidden sm:inline">
-                  {isImage ? 'Image' : isStory ? `Storyboard · ~${storySeconds}s` : `Video · ${seconds}s`} ·{' '}
-                  {isStory && ratio === '1:1' ? '9:16' : ratio}
+                  {isImage
+                    ? 'Image'
+                    : isMotion
+                      ? `Motion video · ${motionLang}`
+                      : isStory
+                        ? `Storyboard · ~${storySeconds}s`
+                        : `Video · ${seconds}s`}{' '}
+                  · {isMotion || (isStory && ratio === '1:1') ? '9:16' : ratio}
                 </span>
               </button>
               {settingsOpen && (
@@ -1169,7 +1201,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
               </div>
             )}
 
-            {intent === 'create' && (
+            {intent === 'create' && !isMotion && (
             <button
               type="button"
               onClick={writeForMe}
@@ -1581,12 +1613,15 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary }) {
     t.kind === 'image' && !queued
       ? Math.min(94, Math.round(100 * (1 - Math.exp(-(renderElapsed ?? elapsed) / (IMG_ETA / 2.3)))))
       : null
+  const motion = t.kind === 'motion'
   const pct =
     t.kind === 'image'
       ? queued
         ? 6
         : (estimate ?? 0)
-      : Math.min(95, (elapsed / VID_ETA) * 100)
+      : motion
+        ? Math.min(95, Math.round(100 * (1 - Math.exp(-elapsed / (MOTION_ETA / 2.3)))))
+        : Math.min(95, (elapsed / VID_ETA) * 100)
   const stage =
     queued
       ? `In queue — ${t.queuedAhead || 0} image${t.queuedAhead === 1 ? '' : 's'} ahead of yours`
@@ -1594,7 +1629,15 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary }) {
         ? (renderElapsed ?? 0) >= 90
           ? "Still rendering — you can leave, we'll notify you"
           : 'Rendering the image…'
-        : t.jobId ? 'Rendering your video… usually 1–3 minutes' : 'Starting the render…'
+        : motion
+          ? elapsed < 12
+            ? 'Writing the script…'
+            : elapsed < 20
+              ? 'Picking your brand photos…'
+              : elapsed < 120
+                ? 'Animating the scenes…'
+                : "Almost there — you can leave, it lands in your Library"
+          : t.jobId ? 'Rendering your video… usually 1–3 minutes' : 'Starting the render…'
   const shape =
     t.ratio === '16:9' ? 'aspect-video w-full max-w-[560px]' : t.ratio === '1:1' ? 'aspect-square w-full max-w-[400px]' : 'aspect-[9/16] w-full max-w-[280px]'
   const url = t.video ? `${mediaBase}${t.video.url}` : null
@@ -1624,7 +1667,7 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary }) {
         </div>
         <div className="mt-1 flex items-center gap-0.5 text-ink-400">
           <span className="mr-1.5 text-[10.5px]">
-            {t.kind === 'image' ? 'Image' : `Video · ${t.seconds}s`} · {t.ratio}
+            {t.kind === 'image' ? 'Image' : motion ? `Motion video · ${t.language || 'Khmer'}` : `Video · ${t.seconds}s`} · {t.ratio}
             {t.brandName ? ` · ${t.brandName}` : ''}
           </span>
           <IconBtn title={copied ? 'Copied' : 'Copy prompt'} onClick={copy}>
@@ -1640,7 +1683,7 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary }) {
       <div className="flex flex-col items-start">
         {t.status === 'working' && (
           <div className={shape}>
-            <GeneratingCanvas icon={t.kind === 'image' ? '✦' : '▶'} stage={stage} />
+            <GeneratingCanvas icon={t.kind === 'image' ? '✦' : motion ? '✺' : '▶'} stage={stage} />
             <div className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-brand/15">
               <div className="h-full rounded-full bg-brand transition-[width] duration-300 ease-linear" style={{ width: `${pct}%` }} />
             </div>
@@ -1891,6 +1934,8 @@ function SettingsPopover({
 }) {
   const [more, setMore] = useState(false)
   const story = type === 'video' && videoMode === 'story'
+  const motion = type === 'video' && videoMode === 'motion'
+  const motionLang = /english/i.test(voice || '') && !/khmer/i.test(voice || '') ? 'English' : 'Khmer'
   const seg = (on) =>
     `h-8 min-w-0 flex-1 rounded-lg px-2 text-[12px] font-semibold inline-flex items-center justify-center gap-1.5 whitespace-nowrap transition-colors ${
       on ? 'bg-white text-brand shadow-sm' : 'text-ink-600 hover:text-ink-900'
@@ -1911,19 +1956,43 @@ function SettingsPopover({
 
       <div className="mt-2 divide-y divide-ink-100">
         {type === 'video' && (
-          <Row label="Type" hint={story ? 'Several 8s scenes joined, with a voiceover' : 'One clip, ready in a few minutes'}>
+          <Row
+            label="Type"
+            hint={
+              story
+                ? 'Several 8s scenes joined, with a voiceover'
+                : motion
+                  ? 'Animated words over your brand photos · Khmer always right · ~15s'
+                  : 'One clip, ready in a few minutes'
+            }
+          >
             <Segmented>
-              <button type="button" className={seg(!story)} onClick={() => setVideoMode('clip')}>
+              <button type="button" className={seg(!story && !motion)} onClick={() => setVideoMode('clip')}>
                 Quick clip
               </button>
               <button type="button" className={seg(story)} onClick={() => setVideoMode('story')}>
                 Story
               </button>
+              <button type="button" className={seg(motion)} onClick={() => setVideoMode('motion')}>
+                Motion
+              </button>
             </Segmented>
           </Row>
         )}
 
-        {type === 'video' && (
+        {motion && (
+          <Row label="Language">
+            <Segmented>
+              {MOTION_LANGS.map((v) => (
+                <button key={v} type="button" onClick={() => setVoice(v)} className={`${seg(motionLang === v)} px-0 text-[11.5px]`}>
+                  {v}
+                </button>
+              ))}
+            </Segmented>
+          </Row>
+        )}
+
+        {type === 'video' && !motion && (
           <Row label="Length" hint={story ? `${storySeconds / 8} scenes` : undefined}>
             <Segmented>
               {(story ? STORY_LENGTHS : LENGTHS).map((n) => (
@@ -1940,6 +2009,7 @@ function SettingsPopover({
           </Row>
         )}
 
+        {!motion && (
         <Row label="Size">
           <Segmented>
             {ratios.map((r) => (
@@ -1959,6 +2029,7 @@ function SettingsPopover({
             ))}
           </Segmented>
         </Row>
+        )}
 
         {story && (
           <Row label="Voice">

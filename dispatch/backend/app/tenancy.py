@@ -27,6 +27,7 @@ from app.models import (
     GenerationJob,
     Lead,
     LeadAccount,
+    LibraryFolder,
     Platform,
     Post,
     PostTarget,
@@ -91,7 +92,9 @@ def scope(model, ws: int):
     Returns None for shared, global tables (Platform)."""
     if model is Platform:
         return None
-    if model in (Brand, Video, GenerationJob, TeamMember, VideoStory, CreditEntry, Website, SalesRep, LeadAccount):
+    if model in (
+        Brand, Video, GenerationJob, TeamMember, VideoStory, CreditEntry, Website, SalesRep, LeadAccount, LibraryFolder
+    ):
         return model.workspace_id == ws
     if model in (Channel, Post, Draft, Automation, Product, WeeklyPlan, BrandAsset, ActivityPlan, Lead):
         return model.brand_id.in_(brand_ids(ws))
@@ -122,6 +125,7 @@ REF_FIELDS = {
     "video_id": Video,
     "post_id": Post,
     "channel_id": Channel,
+    "folder_id": LibraryFolder,
 }
 
 

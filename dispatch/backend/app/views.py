@@ -17,7 +17,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app import content_ai, linkedin, meta, post_tags, tiktok
@@ -31,6 +31,7 @@ from app.models import (
     Draft,
     GenerationJob,
     Lead,
+    LibraryFolder,
     MetricSnapshot,
     Platform,
     Post,
@@ -620,31 +621,104 @@ def auto_run_status(
     return run_status(automation_id) or {"automation_id": automation_id, "status": "idle"}
 
 
+def _library_where(ws: int) -> tuple:
+    """What makes a Library item: a generation and its media, both this
+    workspace's; scene clips of a longer video aren't items of their own."""
+    return (scope(GenerationJob, ws), Video.workspace_id == ws, GenerationJob.kind != "scene")
+
+
+def _library_base(ws: int):
+    """Library rows — (GenerationJob, Video) pairs."""
+    return select(GenerationJob, Video).join(Video, Video.id == GenerationJob.video_id).where(*_library_where(ws))
+
+
+def _library_count(ws: int):
+    """COUNT(*) over Library items — add .where() / .group_by() to taste."""
+    return select(func.count(GenerationJob.id)).join(Video, Video.id == GenerationJob.video_id).where(*_library_where(ws))
+
+
+LIBRARY_PAGE_MAX = 200  # a refresh re-fetches everything already scrolled into view
+
+
 @router.get("/library")
-def library_view(db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
-    """Every AI-generated image / video, newest first — the generation gallery."""
+def library_view(
+    limit: int = 20,
+    offset: int = 0,
+    kind: str = "",
+    brand: str = "",
+    status: str = "",
+    q: str = "",
+    favorites: bool = False,
+    folder: int | None = None,
+    db: Session = Depends(get_db),
+    ws: int = Depends(current_workspace_id),
+):
+    """AI-generated images / videos, newest first, one page at a time (the
+    page loads more as you scroll). Filters: kind image|video, brand slug or
+    "none", status ready|unposted, q (caption / prompt / file / brand name),
+    favorites, folder id. ``brand_counts`` is per brand over everything, for
+    the brand filter's hints."""
     brands = _brand_map(db, ws)
-    videos = {v.id: v for v in _scoped(db, Video, ws)}
-    jobs = db.scalars(
-        select(GenerationJob)
-        .where(scope(GenerationJob, ws), GenerationJob.video_id.is_not(None), GenerationJob.kind != "scene")
-        .order_by(GenerationJob.created_at.desc(), GenerationJob.id.desc())
+    stmt = _library_base(ws)
+    if kind == "image":
+        stmt = stmt.where(GenerationJob.kind == "image")
+    elif kind == "video":
+        stmt = stmt.where(GenerationJob.kind.in_(("video", "motion")))  # motion videos are videos too
+    if brand == "none":
+        stmt = stmt.where(GenerationJob.brand_id.is_(None))
+    elif brand:
+        stmt = stmt.where(GenerationJob.brand_id.in_([b.id for b in brands.values() if b.slug == brand] or [0]))
+    if status == "ready":
+        stmt = stmt.where(Video.caption != "")
+    elif status == "unposted":
+        posted_ids = (
+            select(Post.video_id)
+            .join(PostTarget, PostTarget.post_id == Post.id)
+            .where(Post.video_id.is_not(None), PostTarget.status == "posted")
+        )
+        stmt = stmt.where(Video.id.not_in(posted_ids))
+    if q.strip():
+        like = "%" + q.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+        named = [b.id for b in brands.values() if q.strip().lower() in b.name.lower()]
+        stmt = stmt.where(
+            or_(
+                Video.caption.ilike(like, escape="\\"),
+                GenerationJob.prompt.ilike(like, escape="\\"),
+                Video.filename.ilike(like, escape="\\"),
+                GenerationJob.brand_id.in_(named or [0]),
+            )
+        )
+    if favorites:
+        stmt = stmt.where(Video.favorite.is_(True))
+    if folder is not None:
+        owned(db, LibraryFolder, folder, ws, "Folder")
+        stmt = stmt.where(Video.folder_id == folder)
+    limit = max(1, min(limit, LIBRARY_PAGE_MAX))
+    rows = db.execute(
+        stmt.order_by(GenerationJob.created_at.desc(), GenerationJob.id.desc()).offset(max(0, offset)).limit(limit + 1)
     ).all()
+    has_more = len(rows) > limit
+    rows = rows[:limit]
     # How many times each asset has gone out — so nobody posts the same image
     # twice by accident.
+    page_ids = [v.id for _, v in rows]
     posted = dict(
         db.execute(
             select(Post.video_id, func.count(PostTarget.id))
             .join(PostTarget, PostTarget.post_id == Post.id)
-            .where(scope(Post, ws), Post.video_id.is_not(None), PostTarget.status == "posted")
+            .where(scope(Post, ws), Post.video_id.in_(page_ids or [0]), PostTarget.status == "posted")
             .group_by(Post.video_id)
         ).all()
     )
+    brand_counts: dict[str, int] = {}
+    for n, brand_id in db.execute(
+        _library_count(ws).add_columns(GenerationJob.brand_id).group_by(GenerationJob.brand_id)
+    ).all():
+        b = brands.get(brand_id)
+        key = b.slug if b else "none"
+        brand_counts[key] = brand_counts.get(key, 0) + n
     out = []
-    for j in jobs:
-        v = videos.get(j.video_id)
-        if v is None:
-            continue
+    for j, v in rows:
         b = brands.get(j.brand_id)
         out.append(
             {
@@ -673,9 +747,11 @@ def library_view(db: Session = Depends(get_db), ws: int = Depends(current_worksp
                 # When it finished — the page marks items newer than the
                 # person's last visit as "New" (POST /library/seen).
                 "ready_at": v.created_at,
+                "favorite": bool(v.favorite),
+                "folder_id": v.folder_id,
             }
         )
-    return out
+    return {"items": out, "has_more": has_more, "brand_counts": brand_counts}
 
 
 def _library_seen_at(user: TeamMember) -> datetime:
@@ -693,11 +769,13 @@ def _library_seen_at(user: TeamMember) -> datetime:
 @router.post("/library/seen")
 def library_seen(db: Session = Depends(get_db), user: TeamMember = Depends(get_current_user)):
     """Opening the Library: clears the sidebar's "new" badge. Returns the
-    previous visit's time so the page can still mark this visit's new items."""
+    previous visit's time so the page can still mark this visit's new items,
+    and how many there are (the page only loads the first ones)."""
     previous = _library_seen_at(user)
+    new_count = db.scalar(_library_count(user.workspace_id).where(Video.created_at > previous)) or 0
     user.preferences = {**(user.preferences or {}), "library_seen_at": datetime.now(UTC).isoformat()}
     db.commit()
-    return {"previous": previous}
+    return {"previous": previous, "new_count": new_count}
 
 
 class LibraryCaptionIn(BaseModel):
@@ -774,6 +852,93 @@ def library_edit_caption(
     video.caption_status = "ready" if video.caption else ""
     db.commit()
     return {"caption": video.caption, "caption_status": video.caption_status}
+
+
+class LibraryItemEdit(BaseModel):
+    favorite: bool | None = None
+    # Sent as null to take the item out of its folder; left out = unchanged.
+    folder_id: int | None = None
+
+
+@router.patch("/library/{job_id}")
+def library_edit_item(
+    job_id: int, payload: LibraryItemEdit, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)
+):
+    """Heart / un-heart a Library item, or move it into (or out of) a folder."""
+    job = owned(db, GenerationJob, job_id, ws, "Generation")
+    video = owned(db, Video, job.video_id, ws, "Media") if job.video_id else None
+    if video is None:
+        raise HTTPException(404, "This item has no image or video.")
+    if payload.favorite is not None:
+        video.favorite = payload.favorite
+    if "folder_id" in payload.model_fields_set:
+        if payload.folder_id is not None:
+            owned(db, LibraryFolder, payload.folder_id, ws, "Folder")
+        video.folder_id = payload.folder_id
+    db.commit()
+    return {"favorite": bool(video.favorite), "folder_id": video.folder_id}
+
+
+class LibraryFolderIn(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+
+
+def _folder_out(db: Session, f: LibraryFolder, ws: int) -> dict:
+    covers = db.scalars(
+        select(Video.url)
+        .join(GenerationJob, GenerationJob.video_id == Video.id)
+        .where(*_library_where(ws), Video.folder_id == f.id, GenerationJob.kind == "image")
+        .order_by(GenerationJob.created_at.desc())
+        .limit(3)
+    ).all()
+    count = db.scalar(_library_count(ws).where(Video.folder_id == f.id)) or 0
+    return {"id": f.id, "name": f.name, "count": count, "covers": covers, "created_at": f.created_at}
+
+
+@router.get("/library/folders")
+def library_folders(db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    """The workspace's Library folders, newest first, each with how many
+    items it holds and up to three of its latest pictures as a cover."""
+    folders = db.scalars(
+        select(LibraryFolder).where(scope(LibraryFolder, ws)).order_by(LibraryFolder.created_at.desc())
+    ).all()
+    return [_folder_out(db, f, ws) for f in folders]
+
+
+@router.post("/library/folders", status_code=201)
+def library_folder_create(payload: LibraryFolderIn, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    name = " ".join(payload.name.split())
+    if not name:
+        raise HTTPException(422, "Give the folder a name.")
+    f = LibraryFolder(workspace_id=ws, name=name)
+    db.add(f)
+    db.commit()
+    db.refresh(f)
+    return _folder_out(db, f, ws)
+
+
+@router.patch("/library/folders/{folder_id}")
+def library_folder_rename(
+    folder_id: int, payload: LibraryFolderIn, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)
+):
+    f = owned(db, LibraryFolder, folder_id, ws, "Folder")
+    name = " ".join(payload.name.split())
+    if not name:
+        raise HTTPException(422, "Give the folder a name.")
+    f.name = name
+    db.commit()
+    return _folder_out(db, f, ws)
+
+
+@router.delete("/library/folders/{folder_id}", status_code=204)
+def library_folder_delete(folder_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    """Remove a folder — its images and videos stay in the Library."""
+    f = owned(db, LibraryFolder, folder_id, ws, "Folder")
+    for v in db.scalars(select(Video).where(Video.folder_id == f.id, Video.workspace_id == ws)).all():
+        v.folder_id = None
+    db.delete(f)
+    db.commit()
+    return None
 
 
 @router.delete("/library/{job_id}", status_code=204)

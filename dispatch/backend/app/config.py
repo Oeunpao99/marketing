@@ -69,6 +69,9 @@ class Settings(BaseSettings):
     # gemini_veo — Google AI Studio / Gemini API key + a Veo model id.
     gemini_api_key: str = ""
     gemini_video_model: str = "veo-3.1-fast-generate-preview"
+    # Veo output size: "720p", "1080p" or "4k" (4k not on Lite). Google allows
+    # 1080p / 4k only for 8-second clips — shorter ones always come at 720p.
+    gemini_video_resolution: str = "1080p"
     # Auto-generate's daily video (app/content_scheduler.py) — cheaper than the
     # AI Agent's model, since it runs every day. Only used with gemini_veo.
     auto_video_model: str = "veo-3.1-fast-generate-preview"

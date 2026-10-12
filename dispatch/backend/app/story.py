@@ -584,13 +584,22 @@ def _ffmpeg() -> str:
     return imageio_ffmpeg.get_ffmpeg_exe()
 
 
+def _probe_info(path: str) -> str:
+    return subprocess.run([_ffmpeg(), "-hide_banner", "-i", path], capture_output=True, text=True, errors="replace").stderr
+
+
 def _probe(path: str) -> tuple[bool, float]:
     """(has an audio track, duration in seconds) for a clip."""
-    res = subprocess.run([_ffmpeg(), "-hide_banner", "-i", path], capture_output=True, text=True, errors="replace")
-    info = res.stderr
+    info = _probe_info(path)
     m = re.search(r"Duration: (\d+):(\d+):(\d+(?:\.\d+)?)", info)
     duration = int(m[1]) * 3600 + int(m[2]) * 60 + float(m[3]) if m else 0.0
     return bool(re.search(r"Stream #\S+.*Audio:", info)), duration
+
+
+def clip_size(path: str) -> tuple[int, int] | None:
+    """(width, height) of a clip's video track — None when ffmpeg can't tell."""
+    m = re.search(r"Stream #\S+.*Video:.*?\b(\d{3,5})x(\d{3,5})\b", _probe_info(path))
+    return (int(m[1]), int(m[2])) if m else None
 
 
 def join_clips(paths: list[str], out_path: str, width: int, height: int) -> None:
@@ -652,7 +661,13 @@ def _combine(story_id: int) -> None:
                 with open(path, "wb") as f:
                     f.write(data)
                 paths.append(path)
+            # Joined at the clips' own size (1080p from Veo stays 1080p), else
+            # the ratio's default; never smaller than a clip came.
             width, height = _DIMS.get(story.aspect_ratio, _DIMS["9:16"])
+            sizes = [s for s in (clip_size(p) for p in paths) if s]
+            if sizes:
+                width, height = max(sizes, key=lambda s: s[0] * s[1])
+                width, height = width - width % 2, height - height % 2  # x264 needs even sides
             out = os.path.join(tmp, "final.mp4")
             join_clips(paths, out, width, height)
             with open(out, "rb") as f:

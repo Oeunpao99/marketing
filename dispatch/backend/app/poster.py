@@ -28,7 +28,7 @@ import logging
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps, features
 
-from app.meme import _font, _has_khmer, _wrap, drawable
+from app.meme import _font, _has_khmer, _wrap, drawable, fit_lines, logo_chip
 
 log = logging.getLogger("app.poster")
 
@@ -102,14 +102,10 @@ CAMBODIA_PHOTO = (
 # ── text helpers ──────────────────────────────────────────────────────────
 def _fit(text: str, width: int, max_lines: int, big: int, small: int, weight: str = "Bold"):
     """The biggest size (big → small) where ``text`` wraps into ≤ max_lines
-    lines that each fit ``width``. (font, lines, line height)."""
-    for size in range(big, small - 1, -2):
-        font = _font(size, weight)
-        lines = _wrap(text, font, width)
-        if len(lines) <= max_lines and all(font.getlength(ln) <= width for ln in lines):
-            return font, lines, _line_h(font)
-    font = _font(small, weight)
-    return font, _wrap(text, font, width)[:max_lines], _line_h(font)
+    lines that each fit ``width`` — whole words first (see meme.fit_lines),
+    never cutting text. (font, lines, line height)."""
+    font, lines = fit_lines(text, width, max_lines, range(big, small - 1, -2), weight)
+    return font, lines, _line_h(font)
 
 
 def _line_h(font: ImageFont.FreeTypeFont) -> int:
@@ -153,18 +149,26 @@ def _check(draw: ImageDraw.ImageDraw, cx: int, cy: int, s: int, fill) -> None:
 
 def _points_block(texts: list[str], width: int, avail_h: int, big: int = 40, small: int = 26, max_lines: int = 2):
     """The biggest size at which every point (≤ max_lines lines each) fits
-    avail_h with gaps. (font, [lines per point], line height, gap)."""
-    for size in range(big, small - 1, -2):
-        font = _font(size, "Medium")
-        lh = _line_h(font)
-        gap = int(lh * 0.55)
-        wrapped = [_wrap(t, font, width)[:max_lines] for t in texts]
-        total = sum(len(w) * lh for w in wrapped) + gap * (len(texts) - 1)
-        if total <= avail_h and all(font.getlength(ln) <= width for w in wrapped for ln in w):
-            return font, wrapped, lh, gap
+    avail_h with gaps — whole Khmer words first, a smaller size before a
+    break inside a word. Never cuts a point: if nothing fits, the smallest
+    size with every line (the caller gives it the room).
+    (font, [lines per point], line height, gap)."""
+    for clusters in (False, True):
+        for size in range(big, small - 1, -2):
+            font = _font(size, "Medium")
+            lh = _line_h(font)
+            gap = int(lh * 0.55)
+            wrapped = [_wrap(t, font, width, clusters) for t in texts]
+            total = sum(len(w) * lh for w in wrapped) + gap * (len(texts) - 1)
+            if (
+                total <= avail_h
+                and all(len(w) <= max_lines for w in wrapped)
+                and all(font.getlength(ln) <= width for w in wrapped for ln in w)
+            ):
+                return font, wrapped, lh, gap
     font = _font(small, "Medium")
     lh = _line_h(font)
-    return font, [_wrap(t, font, width)[:max_lines] for t in texts], lh, int(lh * 0.55)
+    return font, [_wrap(t, font, width) for t in texts], lh, int(lh * 0.55)
 
 
 # ── layouts ───────────────────────────────────────────────────────────────
@@ -179,7 +183,8 @@ def _list_poster(canvas, photo, p: dict, accent, brand: str, numbered: bool) -> 
     min_band = 480
     pfont, wrapped, plh, gap = _points_block(points, W - tx - PAD, H - 120 - (min_band + 52 + lh * len(lines) + 28))
     text_h = 52 + lh * len(lines) + 28 + sum(len(w) * plh for w in wrapped) + gap * (len(wrapped) - 1)
-    band = max(min_band, min(760, H - 150 - text_h))
+    # The photo gives up height before any text is lost.
+    band = max(300, min(760, H - 150 - text_h))
     canvas.paste(_cover(photo, W, band), (0, 0))
     draw = ImageDraw.Draw(canvas)
     y = _text(draw, (PAD, band + 52), lines, font, INK, lh) + 28
@@ -210,7 +215,8 @@ def _comparison_poster(canvas, photo, p: dict, accent, brand: str) -> None:
         for items in (p["left"], p["right"])
     ]
     cols_h = max(sum(len(w) * b[2] for w in b[1]) + b[3] * (len(b[1]) - 1) for b in blocks)
-    band = max(min_band, min(820, limit - head_h - cols_h - 10))
+    # The picture gives up height before any text is lost.
+    band = max(300, min(820, limit - head_h - cols_h - 10))
 
     pic = _cover(photo, W, band)
     half = W // 2
@@ -305,13 +311,18 @@ def _benefit_poster(canvas, photo, p: dict, accent, brand: str) -> None:
     tw = (W - 2 * PAD - gap * (cols - 1)) // cols
     icon = 92
     inner = tw - 40
-    # One text size for all tiles: the biggest at which each fits 4 lines.
-    for size in range(44, 23, -2):
-        tfont = _font(size, "SemiBold")
-        wrapped = [_wrap(t, tfont, inner) for t in points]
-        if all(len(w) <= 4 and all(tfont.getlength(ln) <= inner for ln in w) for w in wrapped):
+    # One text size for all tiles: the biggest at which each fits 4 lines —
+    # whole Khmer words first; nothing is cut (the tiles grow instead).
+    done = False
+    for clusters in (False, True):
+        for size in range(44, 23, -2):
+            tfont = _font(size, "SemiBold")
+            wrapped = [_wrap(t, tfont, inner, clusters) for t in points]
+            if all(len(w) <= 4 and all(tfont.getlength(ln) <= inner for ln in w) for w in wrapped):
+                done = True
+                break
+        if done:
             break
-    wrapped = [w[:4] for w in wrapped]
     tlh = _line_h(tfont)
     tile_h = 36 + icon + 26 + max(len(w) for w in wrapped) * tlh + 34
     grid_h = rows * tile_h + gap * (rows - 1)
@@ -390,14 +401,22 @@ def _community_poster(canvas, photo, p: dict, accent, brand: str) -> None:
             letter = "ABCD"[n]
             lf = _font(32, "Bold")
             draw.text((cx - lf.getlength(letter) / 2, cy - _line_h(lf) / 2 - 1), letter, font=lf, fill=WHITE)
-            tfont, tlines, tlh = _fit(opt, W - PAD - (cx + r + 24) - 40, 1, 38, 24, "Medium")
-            draw.text((cx + r + 24, cy - tlh / 2), tlines[0], font=tfont, fill=INK)
+            # One line if it fits, else two smaller lines — never cut off.
+            tw = W - PAD - (cx + r + 24) - 40
+            tfont, tlines, tlh = _fit(opt, tw, 1, 38, 28, "Medium")
+            if len(tlines) > 1 or tfont.getlength(tlines[0]) > tw:
+                tfont, tlines, tlh = _fit(opt, tw, 2, 30, 20, "Medium")
+                tlh = min(tlh, (row - 8) // len(tlines))
+            _text(draw, (cx + r + 24, cy - tlh * len(tlines) / 2), tlines, tfont, INK, tlh)
     _brand_tag(draw, brand, WHITE, H - PAD - 34, on_dark=True)
 
 
-def render_poster(photo: bytes, pillar: str, poster: dict, brand: str = "", slug: str = "") -> bytes:
+def render_poster(
+    photo: bytes, pillar: str, poster: dict, brand: str = "", slug: str = "", logo: bytes | None = None
+) -> bytes:
     """The topic poster for ``pillar`` with the idea's ``poster`` text over
-    ``photo``. Returns a JPEG. Raises ValueError for a pillar without a layout."""
+    ``photo``; ``logo`` (the brand-kit file) replaces the name tag at the
+    bottom. Returns a JPEG. Raises ValueError for a pillar without a layout."""
     # Characters the font can't draw (e.g. a non-breaking hyphen) would show as boxes.
     poster = {
         k: [drawable(t) for t in v] if isinstance(v, list) else drawable(v) if isinstance(v, str) else v
@@ -410,6 +429,9 @@ def render_poster(photo: bytes, pillar: str, poster: dict, brand: str = "", slug
         # apart) — never draw that; the caller posts the picture alone.
         raise RuntimeError("Khmer text needs libraqm (text shaping) — not installed on this server")
     accent = accent_for(slug or brand)
+    chip = logo_chip(logo, 72) if logo else None
+    if chip is not None:
+        brand = ""  # the logo takes the name tag's place
     canvas = Image.new("RGB", (W, H), _tint(accent, 0.94))
     img = Image.open(io.BytesIO(photo)).convert("RGB")
     if pillar == "educate":
@@ -426,6 +448,10 @@ def render_poster(photo: bytes, pillar: str, poster: dict, brand: str = "", slug
         _community_poster(canvas, img, poster, accent, brand)
     else:
         raise ValueError(f"no poster layout for pillar {pillar!r}")
+    if chip is not None:
+        # Centred on the line the name tag would sit on (_brand_tag).
+        cy = H - PAD - 34 + _line_h(_font(30, "SemiBold")) // 2
+        canvas.paste(chip, (PAD, cy - chip.height // 2), chip)
     out = io.BytesIO()
     canvas.save(out, "JPEG", quality=90, optimize=True)
     return out.getvalue()
