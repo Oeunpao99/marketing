@@ -69,6 +69,20 @@ class Settings(BaseSettings):
     # gemini_veo — Google AI Studio / Gemini API key + a Veo model id.
     gemini_api_key: str = ""
     gemini_video_model: str = "veo-3.1-fast-generate-preview"
+    # Azure Speech — Khmer / English voice-over for motion videos (app/speech.py).
+    azure_speech_key: str = ""
+    azure_speech_region: str = ""
+    # Azure OpenAI text-to-speech (gpt-4o-mini-tts) — expressive, but its Khmer
+    # has a foreign accent; Azure Speech is used first (app/speech.py).
+    azure_openai_tts_endpoint: str = ""
+    azure_openai_tts_api_key: str = ""
+    azure_openai_tts_deployment: str = "gpt-4o-mini-tts"
+    azure_openai_tts_api_version: str = "2025-03-01-preview"
+    # "azure" | "openai" | "" (= azure when set up, else openai).
+    speech_provider: str = ""
+    # gpt-4o-mini-tts voices for the Female / Male choice.
+    tts_voice_female: str = "coral"
+    tts_voice_male: str = "ash"
     # Veo output size: "720p", "1080p" or "4k" (4k not on Lite). Google allows
     # 1080p / 4k only for 8-second clips — shorter ones always come at 720p.
     gemini_video_resolution: str = "1080p"

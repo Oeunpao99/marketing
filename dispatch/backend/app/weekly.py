@@ -90,7 +90,8 @@ AUTO_WEEKDAY = 6
 AUTO_AT = time(18, 0)
 
 
-MAX_VIDEOS = 2  # video posts the AI may put in one plan — they cost the most credit
+MAX_VIDEOS = 2  # filmed video posts in a week's plan — they cost the most credit
+MAX_MOTION = 2  # motion video posts in a week's plan, on top (animated, voiced, ~1 cent)
 VIDEO_SCENES = [8, 8, 8]  # a plan video: 3 clips of 8 s = 24 s
 
 
@@ -98,15 +99,21 @@ VIDEO_SCENES = [8, 8, 8]  # a plan video: 3 clips of 8 s = 24 s
 # moment. Quotes and polls (community) only when nothing else is left; memes
 # (relatable) and text posts never.
 VIDEO_PILLARS = ("behind_scenes", "product", "proof", "local_moment", "trend", "educate", "benefit", "comparison")
+# Motion videos (animated words + photos + voice) tell lists and explainers best.
+MOTION_PILLARS = ("educate", "benefit", "comparison", "trend", "product", "proof", "promotion", "behind_scenes")
 
 
-def _ensure_videos(ideas: list[dict], target: int) -> None:
-    """Exactly ``target`` video posts in a plan. The AI may pick videos but
-    usually plays safe and picks none (each batch sees only two days, and a
-    poster idea is a picture) — so the code makes sure: the AI's own picks
-    first, then the image ideas that suit film best, on days ≥ 2 apart.
-    Only the storyboard is written now; nothing renders before approval."""
-    picked = [i for i in ideas if i.get("format") == "video"]
+def _ensure_videos(
+    ideas: list[dict], target: int, fmt: str = "video", pillars: tuple = VIDEO_PILLARS, avoid: set | None = None
+) -> None:
+    """Exactly ``target`` posts of ``fmt`` (filmed "video" or "motion") in a
+    plan. The AI may pick videos but usually plays safe and picks none (each
+    batch sees only two days, and a poster idea is a picture) — so the code
+    makes sure: the AI's own picks first, then the image ideas whose pillar
+    suits ``fmt`` best, on days ≥ 2 apart and never on an ``avoid`` day (the
+    other kind of video's). Filmed: only the storyboard is written now."""
+    avoid = avoid or set()
+    picked = [i for i in ideas if i.get("format") == fmt]
     for idea in picked[target:]:
         idea["format"] = "image"
     picked = picked[:target]
@@ -117,12 +124,14 @@ def _ensure_videos(ideas: list[dict], target: int) -> None:
         return all(abs((d - x).days) >= 2 for x in days)
 
     def turn(idea: dict) -> None:
-        idea.update(format="video", meme=None, poster=None)
+        idea.update(format=fmt, meme=None, poster=None)
         picked.append(idea)
         days.append(date.fromisoformat(idea["day"]))
 
-    images = [i for i in ideas if (i.get("format") or "image") == "image" and not i.get("meme")]
-    fits = sorted((i for i in images if i.get("pillar") in VIDEO_PILLARS), key=lambda i: VIDEO_PILLARS.index(i["pillar"]))
+    images = [
+        i for i in ideas if (i.get("format") or "image") == "image" and not i.get("meme") and i["day"] not in avoid
+    ]
+    fits = sorted((i for i in images if i.get("pillar") in pillars), key=lambda i: pillars.index(i["pillar"]))
     # Best pillar on a spread-out day; then any good pillar; then any picture post.
     for pool, need_spread in ((fits, True), (fits, False), (images, False)):
         for idea in pool:
@@ -133,8 +142,35 @@ def _ensure_videos(ideas: list[dict], target: int) -> None:
 
 
 def item_format(item: dict) -> str:
-    """A plan post's format; plans written before formats only had "video"."""
+    """A plan post's format — image, text, motion (an animated video made with
+    the plan, app/motion.py) or video (a filmed one, storyboard first); plans
+    written before formats only had "video"."""
     return item.get("format") or ("video" if item.get("video") else "image")
+
+
+def _motion_ok() -> bool:
+    """Whether this server can render motion videos (Node + dispatch/motion)."""
+    from app.motion import not_ready
+
+    return not not_ready()
+
+
+def _motion_for(db: Session, brand: Brand, item: dict) -> int | None:
+    """Make a plan post's motion video now (1-3 min, blocking): its title and
+    caption are the brief, its product's photos and the brand's language and
+    a Khmer / English voice-over. The Video id, or None if it failed."""
+    from app.brand_kit import product_for_idea
+    from app.motion import make_motion
+
+    product_id = product_for_idea(db, brand.id, {"title": item["title"], "caption": item["caption"]})
+    language = "English" if "khmer" not in (brand.lang or "khmer").lower() else "Khmer"
+    db.rollback()  # no transaction held open through the render
+    try:
+        brief = f"{item['title']}\n\n{item['caption']}"
+        return make_motion(brand.id, brief, language, "female", product_id, caption=item["caption"])
+    except Exception:  # noqa: BLE001 — one video mustn't sink the plan
+        log.exception("weekly plan: motion video for %r crashed", item["title"])
+        return None
 
 
 def _voice_language(brand: Brand) -> str:
@@ -613,7 +649,20 @@ def build_plan(
         if len(ideas) >= count:
             break
     # A week always gets its videos; a daily plan one every third day (~2 a week).
-    _ensure_videos(ideas, MAX_VIDEOS if len(days) > 1 else int(days[0].toordinal() % 3 == 0))
+    # Both kinds of video: filmed (people moving, storyboard first) and, where
+    # this server can render them, motion videos on other days (animated,
+    # voiced, made now). A daily plan takes turns: film every 3rd day, motion
+    # the day after.
+    weekly = len(days) > 1
+    turn = days[0].toordinal() % 3
+    _ensure_videos(ideas, MAX_VIDEOS if weekly else int(turn == 0))
+    if _motion_ok():
+        film_days = {i["day"] for i in ideas if i.get("format") == "video"}
+        _ensure_videos(ideas, MAX_MOTION if weekly else int(turn == 1), "motion", MOTION_PILLARS, film_days)
+    else:
+        for idea in ideas:
+            if idea.get("format") == "motion":  # the AI never picks it, but just in case
+                idea["format"] = "image"
     step(80, "Fact-checking against your products…")
     checks = fact_check([i["caption"] for i in ideas], list(products))
     slot_for, names_for = _plan_slots(db, automation, learnings)
@@ -650,6 +699,20 @@ def build_plan(
         item["story_id"] = _storyboard(db, brand, item, list(products))
         if item["story_id"] is None:
             item.update(format="image", video=False, channels=names_for("image"))
+    # Motion videos are made now, so the person reviews the real video and one
+    # Approve schedules it. One that fails becomes an image post (its picture
+    # is made next).
+    to_animate = [] if stopped or should_stop() else [i for i in items if i["format"] == "motion"]
+    for n, item in enumerate(to_animate):
+        if should_stop():
+            item.update(format="image", channels=names_for("image"))
+            continue
+        step(85, f"Making the motion video{'s' if len(to_animate) > 1 else ''} ({n + 1} of {len(to_animate)})…")
+        video_id = _motion_for(db, db.get(Brand, brand_id), item)
+        if video_id:
+            item.update(video_id=video_id, media_url=db.scalar(select(Video.url).where(Video.id == video_id)))
+        else:
+            item.update(format="image", channels=names_for("image"))
     if not (stopped or should_stop()):
         step(86, "Making the pictures…")
         _make_plan_images(db, db.get(Brand, brand_id), automation, items, step, should_stop)
@@ -1285,6 +1348,7 @@ def weekly_approve(
         if (payload.keys is None or i["key"] in payload.keys)
         and not (payload.unflagged_only and i.get("fact_issues"))
         and not (payload.keys is None and item_format(i) == "video")
+        and not (payload.keys is None and item_format(i) == "motion" and not i.get("video_id"))
         and date.fromisoformat(i["day"]) >= today
     ]
     if not chosen:
@@ -1300,6 +1364,8 @@ def weekly_approve(
     chosen = [i for i in chosen if not _picture_busy(i)]  # approving many: leave those for later
     films: dict[str, int] = {}  # video post → its finished video
     for i in chosen:
+        if item_format(i) == "motion" and not i.get("video_id"):
+            raise HTTPException(409, "This post's motion video isn't made yet — press Make video, then approve.")
         if item_format(i) == "video":
             story = db.get(VideoStory, i["story_id"]) if i.get("story_id") else None
             if story is None or story.status != "done" or not story.final_video_id:
@@ -1311,7 +1377,7 @@ def weekly_approve(
         d = Draft(
             brand_id=plan.brand_id,
             # the finished video, or the picture made with the plan
-            video_id=films.get(i["key"]) or (i.get("video_id") if item_format(i) == "image" else None),
+            video_id=films.get(i["key"]) or (i.get("video_id") if item_format(i) in ("image", "motion") else None),
             title=i["title"][:200],
             body=i["caption"],
             insight=i.get("insight") or "",
@@ -1361,7 +1427,7 @@ def weekly_approve(
 
 
 # ── "New picture": remake one image post's picture, in the background ─────
-PICTURE_STALE = timedelta(minutes=5)  # a remake older than this was lost (restart) — allow another
+PICTURE_STALE = timedelta(minutes=10)  # a remake older than this was lost (restart) — allow another
 
 
 def _picture_busy(item: dict) -> bool:
@@ -1381,8 +1447,8 @@ def weekly_item_picture(plan_id: int, key: str, db: Session = Depends(get_db), w
         raise HTTPException(404, "Idea not found.")
     if item.get("state"):
         raise HTTPException(409, "This post is already decided.")
-    if item_format(item) != "image":
-        raise HTTPException(409, "Only image posts have a picture.")
+    if item_format(item) not in ("image", "motion"):
+        raise HTTPException(409, "Only image and motion video posts have a picture or video to remake.")
     if _picture_busy(item):
         raise HTTPException(409, "A new picture is already being made for this post.")
     item = _set_item(plan, key, picture_started=datetime.now(UTC).isoformat(), picture_error=None)
@@ -1402,14 +1468,17 @@ def _new_picture(plan_id: int, key: str, brand_id: int) -> None:
         products = db.scalars(select(Product).where(Product.brand_id == brand_id)).all()
         idea = {"title": item["title"], "caption": item["caption"], "meme": item.get("meme"), "pillar": item.get("pillar"), "poster": item.get("poster")}
         tries = item.get("picture_tries", 0) + 1
-        # n = tries: brand-kit templates take turns, so a retry can look different too
-        kit = _poster_kit_for(db, automation, brand_id, idea, tries, date.fromisoformat(item["day"])) if automation else ([], "")
-        db.rollback()  # no transaction held open while the picture is made
-        video_id = _media_with_retry(_brand_snapshot(brand), idea, [_product_snapshot(p) for p in products], kit)
+        if item_format(item) == "motion":
+            video_id = _motion_for(db, brand, item)  # a new script, photos and voice
+        else:
+            # n = tries: brand-kit templates take turns, so a retry can look different too
+            kit = _poster_kit_for(db, automation, brand_id, idea, tries, date.fromisoformat(item["day"])) if automation else ([], "")
+            db.rollback()  # no transaction held open while the picture is made
+            video_id = _media_with_retry(_brand_snapshot(brand), idea, [_product_snapshot(p) for p in products], kit)
         if video_id:
             fields.update(video_id=video_id, media_url=db.scalar(select(Video.url).where(Video.id == video_id)), picture_tries=tries)
         else:
-            fields["picture_error"] = "Couldn’t make a new picture (the image service may be busy, or AI credit ran out) — try again."
+            fields["picture_error"] = "Couldn’t make it (the service may be busy, or AI credit ran out) — try again."
     except Exception:  # noqa: BLE001 - the card must stop waiting either way
         db.rollback()
         log.exception("new picture for plan %s item %s crashed", plan_id, key)
@@ -1427,7 +1496,7 @@ def _new_picture(plan_id: int, key: str, brand_id: int) -> None:
 
 
 class FormatIn(BaseModel):
-    format: Literal["image", "text", "video"]
+    format: Literal["image", "text", "motion", "video"]
 
 
 @router.post("/{plan_id}/items/{key}/format")
@@ -1446,6 +1515,9 @@ def weekly_item_format(
     fmt = payload.format
     if fmt == item_format(item) and (fmt != "video" or item.get("story_id")):
         return item  # (a video from an older plan may still need its storyboard)
+    if fmt == "motion" and not _motion_ok():
+        raise HTTPException(503, "Motion videos aren't set up on this server yet.")
+    old = item_format(item)
     story_id = item.get("story_id") if fmt == "video" else None
     if fmt == "video" and not story_id:
         brand = db.get(Brand, plan.brand_id)
@@ -1459,9 +1531,16 @@ def weekly_item_format(
     plan = _ready_plan(db, plan_id, ws, lock=True)
     automation = db.scalar(select(Automation).where(Automation.brand_id == plan.brand_id))
     _, names_for = _plan_slots(db, automation, {})
-    picture = {} if fmt == "image" else {"video_id": None, "media_url": None}  # stays in the Library
-    item = _set_item(plan, key, format=fmt, video=fmt == "video", story_id=story_id, channels=names_for(fmt), **picture)
+    # A different format drops the old picture / video (it stays in the Library).
+    media = {} if fmt == old else {"video_id": None, "media_url": None}
+    # Motion: its video is made now, in the background (like "New picture").
+    started = {"picture_started": datetime.now(UTC).isoformat(), "picture_error": None} if fmt == "motion" else {}
+    item = _set_item(
+        plan, key, format=fmt, video=fmt == "video", story_id=story_id, channels=names_for(fmt), **media, **started
+    )
     db.commit()
+    if fmt == "motion":
+        threading.Thread(target=_new_picture, args=(plan.id, key, plan.brand_id), daemon=True, name=f"plan-motion-{plan.id}").start()
     return item
 
 

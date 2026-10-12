@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router-dom'
-import { FiArrowRight, FiSettings, FiTrendingUp, FiX } from 'react-icons/fi'
+import { FiArrowRight, FiCheck, FiSettings, FiTrendingUp, FiX } from 'react-icons/fi'
 import { api } from '../api/client'
 import { colorForBrand } from '../lib/brandColor'
 import { useStore } from '../store'
@@ -733,11 +733,11 @@ function PosterKitSection({ a, onUpdate }) {
               <div className="flex items-center gap-2.5">
                 <img src={kitSrc(logo.url)} alt="" className="h-7 w-7 flex-none object-contain" />
                 <div>
-                  <div className="text-[12px] font-semibold text-ink-800">Put my logo on every image</div>
+                  <div className="text-[12px] font-semibold text-ink-800">Your logo is on every picture and video</div>
                   <div className="text-[11px] text-ink-500">Placed as-is, never redrawn</div>
                 </div>
               </div>
-              <Toggle on={!!kit.logo} onChange={(v) => set({ logo: v })} />
+              <FiCheck size={16} className="flex-none text-emerald-600" aria-label="Always on" />
             </div>
           )}
         </>

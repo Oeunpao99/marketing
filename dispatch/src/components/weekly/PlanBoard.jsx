@@ -22,8 +22,15 @@ export const formatOf = (item) => item.format || (item.video ? 'video' : 'image'
 const FORMATS = [
   { v: 'image', l: 'Image' },
   { v: 'text', l: 'Text' },
-  { v: 'video', l: 'Video · 24 s' },
+  // animated words + photos + voice, made with the plan (backend app/motion.py)
+  { v: 'motion', l: 'Motion' },
+  // people on camera — storyboard first, filmed once approved
+  { v: 'video', l: 'Film · 24 s' },
 ]
+const FORMAT_TIPS = {
+  motion: 'An animated video with your photos, logo and a Khmer voice — made now, about a minute',
+  video: 'Writes a 3-scene storyboard — the video is only filmed once you approve it',
+}
 
 const card = 'bg-white rounded-2xl border border-ink-200/60 shadow-[0_1px_2px_rgba(16,24,40,0.04)]'
 const khmer = (text) => (/[ក-៿]/.test(text || '') ? 'font-khmer' : '')
@@ -161,7 +168,7 @@ const dayLabel = (iso) =>
 
 // A new picture being made for a post (backend PICTURE_STALE: older = lost).
 export const pictureBusy = (item) =>
-  !!item.picture_started && Date.now() - Date.parse(item.picture_started) < 5 * 60 * 1000
+  !!item.picture_started && Date.now() - Date.parse(item.picture_started) < 10 * 60 * 1000
 
 function PostCard({ item, brand, makingMedia, busy, onApprove, onSkip, onUnskip, onSaveCaption, onMakeImage, onFormat, onNewPicture }) {
   const [editing, setEditing] = useState(false)
@@ -206,6 +213,8 @@ function PostCard({ item, brand, makingMedia, busy, onApprove, onSkip, onUnskip,
     }
   }
   const picBusy = pictureBusy(item)
+  const motion = fmt === 'motion'
+  const hasMedia = fmt === 'image' || motion // a picture or a motion video, made with the plan
 
   return (
     <li className={`${card} flex gap-4 p-4 sm:gap-5 sm:p-5 ${flagged && !item.state ? 'border-amber-300' : ''} ${skipped ? 'opacity-60' : ''}`}>
@@ -231,7 +240,7 @@ function PostCard({ item, brand, makingMedia, busy, onApprove, onSkip, onUnskip,
                   disabled={!!busy}
                   aria-pressed={fmt === o.v}
                   onClick={() => onFormat(o.v)}
-                  title={o.v === 'video' && fmt !== 'video' ? 'Writes a 3-scene storyboard — the video is only made once you approve it' : undefined}
+                  title={fmt !== o.v ? FORMAT_TIPS[o.v] : undefined}
                   className={`rounded-full px-2.5 py-0.5 font-semibold transition-colors ${
                     fmt === o.v ? 'bg-brand-soft text-brand' : 'text-ink-500 hover:text-ink-800'
                   }`}
@@ -264,8 +273,8 @@ function PostCard({ item, brand, makingMedia, busy, onApprove, onSkip, onUnskip,
         <h3 className={`mt-2 text-[15px] font-semibold leading-snug text-ink-900 ${khmer(item.title)}`}>{item.title}</h3>
 
         {/* picture | the idea, its call to action and how it's measured */}
-        <div className={`mt-3 ${fmt === 'image' ? 'grid gap-4 sm:grid-cols-[160px_minmax(0,1fr)]' : ''}`}>
-          {fmt === 'image' && (
+        <div className={`mt-3 ${hasMedia ? 'grid gap-4 sm:grid-cols-[160px_minmax(0,1fr)]' : ''}`}>
+          {hasMedia && (
             <div>
               <div className="relative h-48 w-40 overflow-hidden rounded-xl border border-ink-100 bg-ink-50">
                 {item.media_url ? (
@@ -275,21 +284,32 @@ function PostCard({ item, brand, makingMedia, busy, onApprove, onSkip, onUnskip,
                     onClick={() => setPreviewing(true)}
                     disabled={picBusy}
                     className="block h-full w-full"
-                    title={picBusy ? 'A new picture is being made' : 'See it in the feed'}
+                    title={picBusy ? `A new ${motion ? 'video' : 'picture'} is being made` : 'See it in the feed'}
                   >
-                    <img
-                      src={kitSrc(item.media_url)}
-                      alt=""
-                      loading="lazy"
-                      className={`h-full w-full object-cover transition-opacity duration-500 ${picBusy ? 'opacity-75' : ''}`}
-                    />
+                    {motion ? (
+                      <video
+                        src={kitSrc(item.media_url)}
+                        muted
+                        loop
+                        autoPlay
+                        playsInline
+                        className={`h-full w-full object-cover transition-opacity duration-500 ${picBusy ? 'opacity-75' : ''}`}
+                      />
+                    ) : (
+                      <img
+                        src={kitSrc(item.media_url)}
+                        alt=""
+                        loading="lazy"
+                        className={`h-full w-full object-cover transition-opacity duration-500 ${picBusy ? 'opacity-75' : ''}`}
+                      />
+                    )}
                   </button>
                 ) : (
                   !picBusy && (
                     <div className="grid h-full w-full place-items-center rounded-xl border-2 border-dashed border-ink-200 px-3 text-center text-[11.5px] leading-snug text-ink-400">
                       <span>
                         <FiImage size={20} className="mx-auto mb-1.5" aria-hidden="true" />
-                        No picture yet
+                        {motion ? 'No video yet' : 'No picture yet'}
                       </span>
                     </div>
                   )
@@ -298,7 +318,12 @@ function PostCard({ item, brand, makingMedia, busy, onApprove, onSkip, onUnskip,
                   // the app's "being made" smoke (as in the Calendar and Studio), see-through
                   // when there's an old picture so it shows behind
                   <div className="absolute inset-0">
-                    <GeneratingCanvas small icon="✦" stage="New picture…" seeThrough={!!item.media_url} />
+                    <GeneratingCanvas
+                      small
+                      icon={motion ? '✺' : '✦'}
+                      stage={motion ? 'Making the video…' : 'New picture…'}
+                      seeThrough={!!item.media_url}
+                    />
                   </div>
                 )}
               </div>
@@ -382,7 +407,9 @@ function PostCard({ item, brand, makingMedia, busy, onApprove, onSkip, onUnskip,
             media={
               fmt === 'video' && story?.final_video
                 ? { kind: 'video', url: story.final_video.url }
-                : fmt === 'image' && item.media_url
+                : motion && item.media_url
+                  ? { kind: 'video', url: item.media_url }
+                  : fmt === 'image' && item.media_url
                   ? { kind: 'image', url: item.media_url }
                   : null
             }
@@ -391,7 +418,9 @@ function PostCard({ item, brand, makingMedia, busy, onApprove, onSkip, onUnskip,
                 ? `The ${item.poster || item.meme ? 'poster' : 'picture'} is made when you approve`
                 : fmt === 'video'
                   ? 'The video shows here once it’s made from the storyboard'
-                  : null
+                  : motion
+                    ? 'The motion video shows here once it’s made'
+                    : null
             }
             platforms={item.channels}
             onFix={undecided ? (c) => onSaveCaption(c) : undefined}
@@ -411,15 +440,17 @@ function PostCard({ item, brand, makingMedia, busy, onApprove, onSkip, onUnskip,
           <>
             <button
               type="button"
-              disabled={!!busy || picBusy || (fmt === 'video' && !filmReady)}
+              disabled={!!busy || picBusy || (fmt === 'video' && !filmReady) || (motion && !item.media_url)}
               onClick={onApprove}
               className="btn-primary px-4 py-2 text-[13px]"
               title={
                 fmt === 'video' && !filmReady
                   ? 'Approve the storyboard first — once the video is finished you can schedule it'
                   : picBusy
-                    ? 'Wait for the new picture'
-                    : undefined
+                    ? `Wait for the new ${motion ? 'video' : 'picture'}`
+                    : motion && !item.media_url
+                      ? 'Make the motion video first'
+                      : undefined
               }
             >
               Approve &amp; schedule
@@ -429,15 +460,19 @@ function PostCard({ item, brand, makingMedia, busy, onApprove, onSkip, onUnskip,
                 {story?.status === 'draft' ? 'Approve the storyboard first' : 'When the video is finished'}
               </p>
             )}
-            {fmt === 'image' && (
+            {hasMedia && (
               <button
                 type="button"
                 onClick={onNewPicture}
                 disabled={picBusy || !!busy}
                 className="btn-outline px-4 py-1.5 text-[12.5px]"
-                title="Make another picture for this post — same brand kit and style. The old one stays in the Media Library."
+                title={
+                  motion
+                    ? 'Make another motion video for this post — a new script, photos and voice. The old one stays in the Media Library.'
+                    : 'Make another picture for this post — same brand kit and style. The old one stays in the Media Library.'
+                }
               >
-                {picBusy ? 'Making…' : item.media_url ? 'New picture' : 'Make picture'}
+                {picBusy ? 'Making…' : item.media_url ? (motion ? 'New video' : 'New picture') : motion ? 'Make video' : 'Make picture'}
               </button>
             )}
             <button

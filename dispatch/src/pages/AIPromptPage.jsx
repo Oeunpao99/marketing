@@ -99,8 +99,14 @@ const fmtTok = (n) => (n || 0).toLocaleString()
 const IMG_ETA = 30
 const VID_ETA = 150
 // Motion videos (app/motion.py): script + photos + render, about a minute.
-const MOTION_ETA = 70
+const MOTION_ETA = 150 // with a voice-over it mixes audio too — 1–3 minutes
 const MOTION_LANGS = ['Khmer', 'English']
+// Narrator for motion videos (Azure Speech): Sreymom / Piseth in Khmer, Ava / Andrew in English.
+const MOTION_VOICES = [
+  ['female', 'Female'],
+  ['male', 'Male'],
+  ['none', 'Off'],
+]
 const isImageUrl = (url) => /\.(png|jpe?g|webp|gif)$/i.test(url || '')
 
 let turnSeq = 0
@@ -152,7 +158,8 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
   const [type, setType] = useState('image')
   const [ratio, setRatio] = useState('1:1')
   const [seconds, setSeconds] = useState(8)
-  const [videoMode, setVideoMode] = useState('clip') // 'clip' = instant video | 'story' = storyboard
+  const [videoMode, setVideoMode] = useState('clip') // 'clip' = instant video | 'story' = storyboard | 'motion'
+  const [motionVoice, setMotionVoice] = useState('female')
   const [storySeconds, setStorySeconds] = useState(32)
   const [voice, setVoice] = useState(null) // null = the brand's language; '' = no voiceover
   const [brand, setBrand] = useState(null)
@@ -553,6 +560,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
           idea: turn.prompt,
           product_id: turn.productId ?? null,
           language: turn.language || 'Khmer',
+          voice: turn.voice || 'female',
         })
         trackJob(res.id, 'video')
         patchTurn(turn.id, { jobId: res.id })
@@ -686,6 +694,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
       seconds: isStory ? storySeconds : isMotion ? 15 : seconds,
       language: isStory ? storyVoice : isMotion ? motionLang : '',
       productId: isMotion ? (productId ?? null) : undefined,
+      voice: isMotion ? motionVoice : undefined,
       brandId: brandObj?.id ?? null,
       brandName: brandObj?.name || '',
       refUrl: refImg?.url || '',
@@ -805,7 +814,10 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
     setText(turn.prompt || '')
     chooseType(turn.kind === 'image' ? 'image' : 'video')
     if (turn.kind !== 'image') setVideoMode(turn.kind === 'story' || turn.kind === 'motion' ? turn.kind : 'clip')
-    if (turn.kind === 'motion') setVoice(turn.language || null)
+    if (turn.kind === 'motion') {
+      setVoice(turn.language || null)
+      setMotionVoice(turn.voice || 'female')
+    }
     if (turn.kind === 'story') {
       setStorySeconds(turn.seconds)
       setVoice(turn.language ?? null)
@@ -1134,6 +1146,8 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
                   setSeconds={setSeconds}
                   videoMode={videoMode}
                   setVideoMode={setVideoMode}
+                  motionVoice={motionVoice}
+                  setMotionVoice={setMotionVoice}
                   storySeconds={storySeconds}
                   setStorySeconds={setStorySeconds}
                   voice={storyVoice}
@@ -1636,7 +1650,7 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary }) {
               ? 'Picking your brand photos…'
               : elapsed < 120
                 ? 'Animating the scenes…'
-                : "Almost there — you can leave, it lands in your Library"
+                : "Mixing the voice — you can leave, it lands in your Library"
           : t.jobId ? 'Rendering your video… usually 1–3 minutes' : 'Starting the render…'
   const shape =
     t.ratio === '16:9' ? 'aspect-video w-full max-w-[560px]' : t.ratio === '1:1' ? 'aspect-square w-full max-w-[400px]' : 'aspect-[9/16] w-full max-w-[280px]'
@@ -1929,6 +1943,7 @@ function RatioShape({ id }) {
 
 function SettingsPopover({
   type, setType, ratio, setRatio, seconds, setSeconds, videoMode, setVideoMode, storySeconds, setStorySeconds,
+  motionVoice = 'female', setMotionVoice = () => {},
   voice, setVoice, brands, brand, setBrand, style, setStyle, template, setTemplate,
   products = [], product, setProduct,
 }) {
@@ -1962,7 +1977,7 @@ function SettingsPopover({
               story
                 ? 'Several 8s scenes joined, with a voiceover'
                 : motion
-                  ? 'Animated words over your brand photos · Khmer always right · ~15s'
+                  ? 'Animated words over your brand photos · Khmer always right · ~15–25s'
                   : 'One clip, ready in a few minutes'
             }
           >
@@ -1976,6 +1991,18 @@ function SettingsPopover({
               <button type="button" className={seg(motion)} onClick={() => setVideoMode('motion')}>
                 Motion
               </button>
+            </Segmented>
+          </Row>
+        )}
+
+        {motion && (
+          <Row label="Voice" hint={motionVoice === 'none' ? 'Silent — words only' : 'A narrator reads each scene · the video follows the voice'}>
+            <Segmented>
+              {MOTION_VOICES.map(([v, label]) => (
+                <button key={v} type="button" onClick={() => setMotionVoice(v)} className={`${seg(motionVoice === v)} px-0 text-[11.5px]`}>
+                  {label}
+                </button>
+              ))}
             </Segmented>
           </Row>
         )}

@@ -224,8 +224,11 @@ def _poster_kit_for(
     templates = [t for t in wanted if t in live]
     template_id = templates[(day.toordinal() + n) % len(templates)] if templates else None
     product_id = product_for_idea(db, brand_id, idea) if kit.get("product_photos") else None
-    refs, guide = gather(db, brand_id, template_id=template_id, product_id=product_id, logo=bool(kit.get("logo")))
-    return refs, guide, logo_image(db, brand_id) if kit.get("logo") else None
+    # The logo is never sent to the image model (it redraws it wrong) — the
+    # real file is pasted onto every picture afterwards instead, always: the
+    # user wants every plan post branded (2026-10-13).
+    refs, guide = gather(db, brand_id, template_id=template_id, product_id=product_id, logo=False)
+    return refs, guide, logo_image(db, brand_id)
 
 
 def _generate_media_for(
@@ -307,6 +310,15 @@ def _generate_media_for(
         except Exception:  # noqa: BLE001 — a plain photo beats losing the post
             log.exception("poster render failed for brand %s — posting the picture alone", brand.id)
             resolution = "1024x1024"
+    if logo and tag == "ai-auto-image":
+        # A plain photo (or a meme / poster that fell back to one) gets the logo
+        # in its corner, so every plan picture carries the brand.
+        from app.meme import stamp_logo
+
+        try:
+            blob = stamp_logo(blob, logo)
+        except Exception:  # noqa: BLE001 — the picture without a logo beats none
+            log.exception("logo stamp failed for brand %s", brand.id)
 
     db = SessionLocal()
     try:

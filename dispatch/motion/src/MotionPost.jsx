@@ -12,6 +12,7 @@
  */
 import {
   AbsoluteFill,
+  Html5Audio,
   Img,
   cancelRender,
   continueRender,
@@ -198,7 +199,7 @@ function PointScene({ scene, brand, n }) {
             transform: `scale(${badge})`,
           }}
         >
-          {n}
+          {scene.badge || n}
         </div>
         <Words text={scene.title} delay={12} style={{ color: '#111827', fontSize: 74, fontWeight: 700 }} />
         {scene.text && (
@@ -366,6 +367,8 @@ export const MotionPost = ({ brand, scenes }) => {
           const out = [
             <TransitionSeries.Sequence key={`s${i}`} durationInFrames={sceneFrames(scene)}>
               {body}
+              {/* The scene's voice-over line (app/motion.py add_voice) — the scene lasts as long as it. */}
+              {scene.audio && <Html5Audio src={scene.audio} />}
             </TransitionSeries.Sequence>,
           ]
           if (i < scenes.length - 1) {

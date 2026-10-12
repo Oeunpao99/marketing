@@ -206,6 +206,19 @@ def logo_chip(logo: bytes, height: int) -> Image.Image | None:
     return chip
 
 
+def stamp_logo(picture: bytes, logo: bytes) -> bytes:
+    """``picture`` with the brand's logo chip in its bottom-right corner — PNG."""
+    img = Image.open(io.BytesIO(picture)).convert("RGB")
+    chip = logo_chip(logo, max(56, round(img.width * 0.075)))
+    if chip is None:
+        return picture
+    margin = round(img.width * 0.03)
+    img.paste(chip, (img.width - chip.width - margin, img.height - chip.height - margin), chip)
+    out = io.BytesIO()
+    img.save(out, "PNG", optimize=True)
+    return out.getvalue()
+
+
 def render_meme(photo: bytes, top: str, brand: str = "", logo: bytes | None = None) -> bytes:
     """Setup text on a white band above the photo (cropped square), with the
     brand's logo (or a small name tag) in the photo's corner. Returns a JPEG."""
