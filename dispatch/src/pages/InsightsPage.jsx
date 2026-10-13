@@ -1110,7 +1110,7 @@ export default function InsightsPage() {
             </button>
             <button
               type="button"
-              className="rounded-[9px] px-2.5 py-1 text-[12px] font-semibold bg-ink-900 text-white shadow-xs transition-all flex items-center gap-1.5"
+              className="rounded-[9px] px-2.5 py-1 text-[12px] font-semibold bg-brand text-white shadow-xs transition-all flex items-center gap-1.5"
             >
               <FiGrid size={13} />
               Deep analytics

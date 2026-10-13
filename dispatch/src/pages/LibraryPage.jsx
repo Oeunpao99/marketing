@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -75,7 +75,45 @@ function ratioOf(it) {
 const SKELETON = [0.8, 1, 0.5625, 0.8, 1.33, 1, 0.5625, 0.8, 1, 0.8].map((r, i) => ({ id: i, r }))
 
 /** Columns for a width — the same steps the old grid used. */
-const columnsFor = (w) => (w < 640 ? 2 : w < 1024 ? 3 : w < 1536 ? 4 : 5)
+// As many ~220px-wide columns as fit (at least 2 on phones, 3 from tablets).
+const columnsFor = (w) => (w < 640 ? 2 : Math.min(9, Math.max(3, Math.floor(w / 220))))
+
+/** All / Images / Videos / Favorites / Folders, with a pill that slides to
+ * the picked tab instead of jumping. */
+function SlidingTabs({ tab, onPick }) {
+  const refs = useRef({})
+  const [pill, setPill] = useState(null)
+  useLayoutEffect(() => {
+    const el = refs.current[tab]
+    if (el) setPill({ left: el.offsetLeft, width: el.offsetWidth })
+  }, [tab])
+  return (
+    <div className="relative mb-6 mt-5 flex items-center gap-1 overflow-x-auto" role="tablist" aria-label="Show">
+      {pill && (
+        <span
+          aria-hidden="true"
+          className="absolute top-0 h-full rounded-full bg-brand shadow-[0_4px_12px_-4px_rgb(var(--brand)/0.5)] transition-all duration-300 ease-out"
+          style={{ left: pill.left, width: pill.width }}
+        />
+      )}
+      {TABS.map(([k, label]) => (
+        <button
+          key={k}
+          ref={(el) => (refs.current[k] = el)}
+          type="button"
+          role="tab"
+          aria-selected={tab === k}
+          onClick={() => onPick(k)}
+          className={`relative flex-none rounded-full px-4 py-2 text-[13.5px] font-semibold transition-colors duration-300 ${
+            tab === k ? 'text-white' : 'text-ink-500 hover:bg-ink-100 hover:text-ink-800'
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+}
 
 /** Pinterest-style columns: each item goes, in order, to the shortest column
  * so far (by its known ratio) — the newest stay along the top row, every
@@ -548,23 +586,8 @@ export default function LibraryPage() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="mb-6 mt-5 flex items-center gap-1 overflow-x-auto" role="tablist" aria-label="Show">
-        {TABS.map(([k, label]) => (
-          <button
-            key={k}
-            type="button"
-            role="tab"
-            aria-selected={tab === k}
-            onClick={() => pickTab(k)}
-            className={`flex-none rounded-full px-4 py-2 text-[13.5px] font-semibold transition-colors ${
-              tab === k ? 'bg-ink-100 text-ink-900' : 'text-ink-500 hover:text-ink-800'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      {/* Tabs — a highlight slides to the picked one */}
+      <SlidingTabs tab={tab} onPick={pickTab} />
 
       {/* An open folder: where you are, and its own actions */}
       {tab === 'folders' && currentFolder && (
@@ -576,6 +599,8 @@ export default function LibraryPage() {
         />
       )}
 
+      {/* The picked tab's items fade in (a new key per tab / folder) */}
+      <div key={`${tab}:${folderId ?? ''}`} className="animate-fadein">
       {showingFolders ? (
         <FolderGrid
           folders={folders}
@@ -621,6 +646,7 @@ export default function LibraryPage() {
           )}
         </>
       )}
+      </div>
 
       {open && (
         <DetailPanel
@@ -754,7 +780,7 @@ function FolderGrid({ folders, onOpen, onCreate, onRename, onDelete }) {
   const [renaming, setRenaming] = useState(null)
   if (folders === null) {
     return (
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
         {Array.from({ length: 4 }).map((_, i) => (
           <div key={i} className="aspect-[4/3] rounded-2xl skeleton" />
         ))}
@@ -762,7 +788,7 @@ function FolderGrid({ folders, onOpen, onCreate, onRename, onDelete }) {
     )
   }
   return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
       <div>
         <button
           type="button"

@@ -384,7 +384,7 @@ export default function InsightsSalesView({
               onClick={() => onSwitchMode?.('sales')}
               className={`rounded-[9px] px-2.5 py-1 text-[12px] font-semibold transition-all ${
                 mode === 'sales'
-                  ? 'bg-ink-900 text-white shadow-xs'
+                  ? 'bg-brand text-white shadow-xs'
                   : 'text-ink-600 hover:text-ink-900 hover:bg-ink-50'
               }`}
             >
@@ -395,7 +395,7 @@ export default function InsightsSalesView({
               onClick={() => onSwitchMode?.('analytics')}
               className={`rounded-[9px] px-2.5 py-1 text-[12px] font-semibold transition-all flex items-center gap-1.5 ${
                 mode === 'analytics'
-                  ? 'bg-ink-900 text-white shadow-xs'
+                  ? 'bg-brand text-white shadow-xs'
                   : 'text-ink-600 hover:text-ink-900 hover:bg-ink-50'
               }`}
               title="Open full charts and post-level metrics"
@@ -823,7 +823,7 @@ export default function InsightsSalesView({
                           <button
                             type="button"
                             onClick={approveBoost}
-                            className="rounded-xl bg-ink-900 px-4 py-2 text-[12.5px] font-semibold text-white shadow-xs transition-colors hover:bg-ink-800"
+                            className="rounded-xl bg-brand px-4 py-2 text-[12.5px] font-semibold text-white shadow-xs transition-colors hover:bg-brand-dark"
                           >
                             Approve boost · ${amount}
                           </button>
