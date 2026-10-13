@@ -495,6 +495,8 @@ class VideoJobOut(BaseModel):
     video: VideoRef | None = None
     # Estimated cost (USD) of this job — charged to the workspace's AI credit.
     cost_usd: float = 0.0
+    # A Remotion video's live storyboard while it's made (app/motion.py _progress).
+    progress: dict | None = None
 
 
 def _out(job: GenerationJob, video: Video | None, queued_ahead: int = 0) -> VideoJobOut:
@@ -516,7 +518,16 @@ def _out(job: GenerationJob, video: Video | None, queued_ahead: int = 0) -> Vide
         ),
         video=VideoRef(id=video.id, url=video.url, filename=video.filename) if video else None,
         cost_usd=round(billing.job_cost(job), 4) if job.status == "succeeded" else 0.0,
+        progress=_motion_progress(job),
     )
+
+
+def _motion_progress(job: GenerationJob) -> dict | None:
+    if job.kind != "motion" or job.status not in ("queued", "running"):
+        return None
+    from app.motion import progress_of  # app.motion imports this module
+
+    return progress_of(job.id)
 
 
 def _clip(text: str, n: int = 110) -> str:
@@ -864,6 +875,7 @@ _WORKER_EVERY = 15
 _IMAGE_STALE = timedelta(minutes=8)
 _VIDEO_STALE = timedelta(hours=3)
 _MOTION_STALE = timedelta(minutes=20)
+_MOTION_ORPHAN = timedelta(minutes=2)  # running, but not in this process (see _tick)
 
 
 def _tick() -> None:
@@ -883,7 +895,12 @@ def _tick() -> None:
                 continue
             if job.kind == "motion":
                 # Rendered in this process (app/motion.py) — a restart kills it.
-                if now - job.updated_at > _MOTION_STALE:
+                # A running job this process has no live progress for was left
+                # behind by a restart: fail it now, not after the full timeout.
+                from app.motion import progress_of
+
+                orphan = job.status == "running" and progress_of(job.id) is None and now - job.updated_at > _MOTION_ORPHAN
+                if orphan or now - job.updated_at > _MOTION_STALE:
                     job.status = "failed"
                     job.error = "The video stopped rendering (the server restarted?) — try again."
                     db.commit()

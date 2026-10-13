@@ -27,6 +27,7 @@ import { api } from '../api/client'
 import AutoTextarea from '../components/ui/AutoTextarea'
 import Select from '../components/ui/Select'
 import GeneratingCanvas from '../components/ui/GeneratingCanvas'
+import MotionBoard, { motionPercent, motionStage } from '../components/studio/MotionBoard'
 import StoryEditor from '../components/story/StoryEditor'
 import { handoff } from '../lib/handoff'
 import { colorForBrand } from '../lib/brandColor'
@@ -101,7 +102,7 @@ const fmtTok = (n) => (n || 0).toLocaleString()
 const IMG_ETA = 30
 const VID_ETA = 150
 // Motion videos (app/motion.py): script + photos + render, about a minute.
-const MOTION_ETA = 150 // with a voice-over it mixes audio too — 1–3 minutes
+const MOTION_ETA = 240 // ~60 s stories with a voice-over — 2–4 minutes
 const MOTION_LANGS = ['Khmer', 'English']
 // Narrator for motion videos (Azure Speech): Sreymom / Piseth in Khmer, Ava / Andrew in English.
 const MOTION_VOICES = [
@@ -545,6 +546,10 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
             if (cur && (cur.jobStatus !== res.status || cur.queuedAhead !== queuedAhead || cur.renderedAt !== renderedAt)) {
               patchTurn(t.id, { jobStatus: res.status, queuedAhead, renderedAt })
             }
+          } else if (t.kind === 'motion' && res.progress) {
+            // The live storyboard: scenes written, lines spoken, frames drawn.
+            const cur = turnsRef.current.find((x) => x.id === t.id)
+            if (cur && JSON.stringify(cur.progress) !== JSON.stringify(res.progress)) patchTurn(t.id, { progress: res.progress })
           }
         } catch {
           /* transient — next poll */
@@ -1761,7 +1766,7 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary }) {
         ? 6
         : (estimate ?? 0)
       : motion
-        ? Math.min(95, Math.round(100 * (1 - Math.exp(-elapsed / (MOTION_ETA / 2.3)))))
+        ? (motionPercent(t.progress, elapsed) ?? Math.min(95, Math.round(100 * (1 - Math.exp(-elapsed / (MOTION_ETA / 2.3))))))
         : Math.min(95, (elapsed / VID_ETA) * 100)
   const stage =
     queued
@@ -1771,13 +1776,14 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary }) {
           ? "Still rendering — you can leave, we'll notify you"
           : 'Rendering the image…'
         : motion
-          ? elapsed < 12
+          ? motionStage(t.progress) ||
+            (elapsed < 12
             ? 'Writing the script…'
             : elapsed < 20
               ? 'Picking your brand photos…'
               : elapsed < 120
                 ? 'Animating the scenes…'
-                : "Mixing the voice — you can leave, it lands in your Library"
+                : "Mixing the voice — you can leave, it lands in your Library")
           : t.jobId ? 'Rendering your video… usually 1–3 minutes' : 'Starting the render…'
   const shape =
     t.ratio === '16:9' ? 'aspect-video w-full max-w-[560px]' : t.ratio === '1:1' ? 'aspect-square w-full max-w-[400px]' : 'aspect-[9/16] w-full max-w-[280px]'
@@ -1823,6 +1829,7 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary }) {
       {/* result */}
       <div className="flex flex-col items-start">
         {t.status === 'working' && (
+          <div className="flex w-full flex-col items-start gap-4 sm:flex-row">
           <div className={shape}>
             <GeneratingCanvas icon={t.kind === 'image' ? '✦' : motion ? '✺' : '▶'} stage={stage} />
             <div className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-brand/15">
@@ -1840,6 +1847,8 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary }) {
                 {Math.round(rendering && renderElapsed != null ? renderElapsed : elapsed)}s
               </span>
             </div>
+          </div>
+          {motion && <MotionBoard progress={t.progress} />}
           </div>
         )}
 
@@ -2106,7 +2115,7 @@ function SettingsPopover({
               story
                 ? 'Several 8s scenes joined, with a voiceover'
                 : motion
-                  ? 'Animated words over your brand photos · Khmer always right · ~15–25s'
+                  ? 'Animated words over your brand photos · Khmer always right · ~45–60s'
                   : 'One clip, ready in a few minutes'
             }
           >

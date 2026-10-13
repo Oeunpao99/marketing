@@ -142,7 +142,7 @@ function IconBadge({ name, size = 220, color, bg, delay = 0, wobble = false }) {
 function HookScene({ scene, brand }) {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
-  const bar = spring({ frame: frame - 4, fps, config: { damping: 200 } })
+  const bar = spring({ frame, fps, config: { damping: 40 } })
   const photo = !!scene.image
   return (
     <AbsoluteFill>
@@ -165,7 +165,7 @@ function HookScene({ scene, brand }) {
         <div style={{ width: 140 * bar, height: 12, borderRadius: 6, background: brand.color, marginBottom: 40 }} />
         <Words
           text={scene.text}
-          delay={8}
+          delay={0}
           color="white"
           style={{ fontSize: 100, fontWeight: 700, textShadow: '0 4px 24px rgba(0,0,0,0.4)' }}
         />
@@ -211,12 +211,12 @@ function ProblemScene({ scene, brand }) {
             </div>
           )}
         </div>
-        <Words text={scene.title} delay={14} align="center" color="white" style={{ fontSize: 84, fontWeight: 700, textAlign: 'center' }} />
+        <Words text={scene.title} delay={2} align="center" color="white" style={{ fontSize: 84, fontWeight: 700, textAlign: 'center' }} />
         {scene.text && (
           <Words
             text={scene.text}
-            delay={28}
-            stagger={2}
+            delay={10}
+            stagger={1}
             align="center"
             color="rgba(255,255,255,0.72)"
             style={{ fontSize: 48, fontWeight: 500, marginTop: 24, textAlign: 'center' }}
@@ -242,7 +242,7 @@ function ChatScene({ scene, brand }) {
         {scene.title && (
           <Words
             text={scene.title}
-            delay={4}
+            delay={0}
             align="center"
             color="white"
             style={{ fontSize: 66, fontWeight: 700, textAlign: 'center', padding: '0 80px', marginBottom: 46 }}
@@ -340,7 +340,7 @@ function ListScene({ scene, brand }) {
     <AbsoluteFill>
       <Backdrop color={brand.color} />
       <AbsoluteFill style={{ justifyContent: 'center', padding: '0 76px' }}>
-        <Words text={scene.title} delay={2} color="white" style={{ fontSize: 80, fontWeight: 700, marginBottom: 64 }} />
+        <Words text={scene.title} delay={0} color="white" style={{ fontSize: 80, fontWeight: 700, marginBottom: 64 }} />
         {items.map((it, i) => {
           const start = 22 + i * 26
           const s = spring({ frame: frame - start, fps, config: { damping: 15 } })
@@ -410,7 +410,7 @@ function StatScene({ scene, brand }) {
         </div>
         <Words
           text={scene.label}
-          delay={20}
+          delay={4}
           align="center"
           color="rgba(255,255,255,0.85)"
           style={{ fontSize: 60, fontWeight: 600, textAlign: 'center', marginTop: 30 }}
@@ -457,7 +457,7 @@ function ProductScene({ scene, brand }) {
         </div>
         <Words
           text={scene.title}
-          delay={16}
+          delay={4}
           align="center"
           color="white"
           style={{ fontSize: 78, fontWeight: 700, textAlign: 'center', marginTop: 70, padding: '0 70px' }}
@@ -597,7 +597,7 @@ function CtaScene({ scene, brand }) {
           <Img src={srcOf(brand.logo)} style={{ height: 120, objectFit: 'contain' }} />
         </div>
       )}
-      <Words text={scene.text} delay={14} align="center" color="white" style={{ fontSize: 86, fontWeight: 700, textAlign: 'center' }} />
+      <Words text={scene.text} delay={4} align="center" color="white" style={{ fontSize: 86, fontWeight: 700, textAlign: 'center' }} />
       {scene.button && (
         <div style={{ position: 'relative', marginTop: 80 }}>
           <div
@@ -742,8 +742,8 @@ export const MotionPost = ({ brand, scenes, music, style }) => {
             <TransitionSeries.Sequence key={`s${i}`} durationInFrames={sceneFrames(scene)}>
               {body}
               {/* The voice-over line (app/motion.py add_voice) and its subtitles start together, once
-                  the scene has slid in — so the voice never runs ahead of the title or the subtitles. */}
-              <Sequence from={i ? TRANSITION : 0} layout="none">
+                  the scene has slid in + 6 frames breathing room so the visual title is registered right as or slightly before the voice speaks. */}
+              <Sequence from={(i ? TRANSITION : 0) + 6} layout="none">
                 {/* Subtitles — not where the screen says it already (the chat's bubbles, a quote). */}
                 {scene.caption && !noCaption.includes(scene.type) && (
                   <Caption text={scene.caption} seconds={scene.voiceSeconds || sceneFrames(scene) / FPS - 0.6} top={t.captionTop} />

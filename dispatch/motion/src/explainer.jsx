@@ -62,7 +62,7 @@ function Paper({ ground = false }) {
 }
 
 /** The scene's big dark title at the top. */
-function Title({ text, top = 250, size = 104, delay = 2 }) {
+function Title({ text, top = 250, size = 104, delay = 0 }) {
   if (!text) return null
   return (
     <div style={{ position: 'absolute', top, left: 60, right: 60 }}>
@@ -186,7 +186,7 @@ export function Caption({ text, seconds, top = 1225 }) {
   }
   const span = Math.max(1, (seconds || 3) * fps)
   const total = chunks.reduce((n, c) => n + weight(c), 0) || 1
-  const LEAD = 3 // frames — a phrase appears just before it's heard, never after
+  const LEAD = 7 // frames — a phrase appears just before it's heard, never after
   let at = 0
   const timed = chunks.map((c) => {
     const len = (weight(c) / total) * span
@@ -196,7 +196,7 @@ export function Caption({ text, seconds, top = 1225 }) {
   })
   const now = timed.find((t) => frame >= t.from && frame < t.to) || (frame >= at ? timed[timed.length - 1] : null)
   if (!now) return null
-  const pop = spring({ frame: frame - now.from, fps, config: { damping: 14 } })
+  const pop = spring({ frame: frame - now.from, fps, config: { damping: 20, mass: 0.5 } })
   return (
     <div style={{ position: 'absolute', top, left: 0, right: 0, display: 'flex', justifyContent: 'center', padding: '0 70px' }}>
       <div
@@ -210,8 +210,8 @@ export function Caption({ text, seconds, top = 1225 }) {
           padding: '20px 40px',
           borderRadius: 26,
           textAlign: 'center',
-          transform: `scale(${0.85 + 0.15 * pop})`,
-          opacity: pop,
+          transform: `scale(${0.92 + 0.08 * pop})`,
+          opacity: Math.min(1, pop * 1.6),
           boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
         }}
       >
@@ -236,7 +236,7 @@ function ExHook({ scene }) {
           </div>
         </div>
       )}
-      <Title text={scene.text} top={scene.icon ? 680 : 520} size={112} delay={6} />
+      <Title text={scene.text} top={scene.icon ? 680 : 520} size={112} delay={0} />
     </AbsoluteFill>
   )
 }
@@ -473,7 +473,7 @@ function ExCta({ scene, brand }) {
           </div>
         </div>
       )}
-      <Title text={scene.text} top={brand.logo ? 620 : 520} size={100} delay={10} />
+      <Title text={scene.text} top={brand.logo ? 620 : 520} size={100} delay={4} />
       {scene.button && (
         <div style={{ position: 'absolute', top: 960, left: 0, right: 0, display: 'flex', justifyContent: 'center' }}>
           <div

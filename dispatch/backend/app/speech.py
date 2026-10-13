@@ -111,7 +111,7 @@ def _openai(text: str, voice: str) -> bytes:
     return resp.content
 
 
-def _azure(text: str, voice: str, rate: str = "+4%") -> bytes:
+def _azure(text: str, voice: str, rate: str = "0%") -> bytes:
     s = get_settings()
     lang = "-".join(voice.split("-")[:2])
     ssml = (

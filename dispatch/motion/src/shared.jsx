@@ -77,7 +77,7 @@ export function tint(hex, a) {
 /** Text that appears word by word, each word rising in. Lines wrap only
  * between words; ⟦highlighted⟧ words get a brand-colour marker swept under
  * them. */
-export function Words({ text, delay = 0, stagger = 3, style, align = 'left', color }) {
+export function Words({ text, delay = 0, stagger = 1, style, align = 'left', color }) {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
   const pieces = []
@@ -106,8 +106,8 @@ export function Words({ text, delay = 0, stagger = 3, style, align = 'left', col
       }}
     >
       {pieces.map(({ p, gap, em: hi }, n) => {
-        const s = spring({ frame: frame - delay - n * stagger, fps, config: { damping: 200, mass: 0.6 } })
-        const sweep = spring({ frame: frame - delay - n * stagger - 6, fps, config: { damping: 200 } })
+        const s = spring({ frame: frame - delay - n * stagger, fps, config: { damping: 40, mass: 0.4 } })
+        const sweep = spring({ frame: frame - delay - n * stagger - 3, fps, config: { damping: 40 } })
         return (
           <span
             key={n}

@@ -45,7 +45,7 @@ function VsHook({ scene }) {
         </div>
       </div>
       <div style={{ position: 'absolute', top: 680, left: 60, right: 60, background: 'white', border: `6px solid ${V.ink}`, borderRadius: 40, padding: '40px 40px' }}>
-        <Words text={scene.text} delay={8} align="center" color={V.ink} style={{ fontSize: 96, fontWeight: 700, textAlign: 'center' }} />
+        <Words text={scene.text} delay={2} stagger={1} align="center" color={V.ink} style={{ fontSize: 96, fontWeight: 700, textAlign: 'center' }} />
       </div>
     </AbsoluteFill>
   )
@@ -160,7 +160,7 @@ function VsVerdict({ scene }) {
         </div>
       </div>
       <div style={{ position: 'absolute', top: 700, left: 70, right: 70 }}>
-        <Words text={scene.text} delay={10} align="center" color={V.ink} style={{ fontSize: 92, fontWeight: 700, textAlign: 'center' }} />
+        <Words text={scene.text} delay={4} stagger={1} align="center" color={V.ink} style={{ fontSize: 92, fontWeight: 700, textAlign: 'center' }} />
       </div>
     </AbsoluteFill>
   )
@@ -181,7 +181,7 @@ function VsCta({ scene, brand }) {
         </div>
       )}
       <div style={{ position: 'absolute', top: brand.logo ? 610 : 520, left: 70, right: 70 }}>
-        <Words text={scene.text} delay={6} align="center" color={V.ink} style={{ fontSize: 90, fontWeight: 700, textAlign: 'center' }} />
+        <Words text={scene.text} delay={2} stagger={1} align="center" color={V.ink} style={{ fontSize: 90, fontWeight: 700, textAlign: 'center' }} />
       </div>
       {scene.button && (
         <div style={{ position: 'absolute', top: 960, left: 0, right: 0, display: 'flex', justifyContent: 'center' }}>
@@ -245,7 +245,7 @@ function PollQuestion({ scene }) {
         <div style={{ transform: `scale(${s}) rotate(${-8 + bob / 4}deg)`, width: 230, height: 230, borderRadius: 60, background: P.gold, display: 'grid', placeItems: 'center', fontFamily: FONT, fontWeight: 700, fontSize: 170, color: P.bg }}>?</div>
       </div>
       <div style={{ position: 'absolute', top: 650, left: 60, right: 60, background: 'rgba(255,255,255,0.08)', border: '4px solid rgba(255,255,255,0.25)', borderRadius: 44, padding: '44px 40px' }}>
-        <Words text={scene.text} delay={8} align="center" color={P.ink} style={{ fontSize: 88, fontWeight: 700, textAlign: 'center' }} />
+        <Words text={scene.text} delay={2} stagger={1} align="center" color={P.ink} style={{ fontSize: 88, fontWeight: 700, textAlign: 'center' }} />
       </div>
     </AbsoluteFill>
   )
@@ -270,10 +270,10 @@ function PollOptions({ scene }) {
       <Stage />
       {scene.question && (
         <div style={{ position: 'absolute', top: 180, left: 60, right: 60 }}>
-          <Words text={scene.question} align="center" color={P.ink} style={{ fontSize: 64, fontWeight: 700, textAlign: 'center' }} />
+          <Words text={scene.question} align="center" color={P.ink} style={{ fontSize: 56, fontWeight: 700, textAlign: 'center' }} />
         </div>
       )}
-      <div style={{ position: 'absolute', top: 380, left: 70, right: 70 }}>
+      <div style={{ position: 'absolute', top: 430, left: 70, right: 70 }}>
         {opts.map((o, i) => {
           const s = spring({ frame: frame - 14 - i * 10, fps, config: { damping: 11 } })
           const win = done && answer === i
@@ -303,7 +303,7 @@ function PollOptions({ scene }) {
         })}
       </div>
       {/* countdown ring */}
-      <div style={{ position: 'absolute', top: 380 + opts.length * 158 + 20, left: 0, right: 0, display: 'flex', justifyContent: 'center', opacity: frame >= countFrom ? 1 : 0 }}>
+      <div style={{ position: 'absolute', top: 430 + opts.length * 158 + 16, left: 0, right: 0, display: 'flex', justifyContent: 'center', opacity: frame >= countFrom ? 1 : 0 }}>
         <svg width="180" height="180" viewBox="0 0 180 180">
           <circle cx="90" cy="90" r={R} fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.2)" strokeWidth="14" />
           <circle cx="90" cy="90" r={R} fill="none" stroke={P.gold} strokeWidth="14" strokeLinecap="round" strokeDasharray={C} strokeDashoffset={C * (1 - left)} transform="rotate(-90 90 90)" />
@@ -329,7 +329,7 @@ function PollReveal({ scene }) {
         </div>
       </div>
       <div style={{ position: 'absolute', top: 680, left: 70, right: 70 }}>
-        <Words text={scene.text} delay={8} align="center" color={P.ink} style={{ fontSize: 80, fontWeight: 700, textAlign: 'center' }} />
+        <Words text={scene.text} delay={2} stagger={1} align="center" color={P.ink} style={{ fontSize: 80, fontWeight: 700, textAlign: 'center' }} />
       </div>
     </AbsoluteFill>
   )
@@ -355,7 +355,7 @@ function PollCta({ scene, brand }) {
         )
       })}
       <div style={{ position: 'absolute', top: 640, left: 70, right: 70 }}>
-        <Words text={scene.text} delay={6} align="center" color={P.ink} style={{ fontSize: 88, fontWeight: 700, textAlign: 'center' }} />
+        <Words text={scene.text} delay={2} stagger={1} align="center" color={P.ink} style={{ fontSize: 88, fontWeight: 700, textAlign: 'center' }} />
       </div>
       {scene.button && (
         <div style={{ position: 'absolute', top: 960, left: 0, right: 0, display: 'flex', justifyContent: 'center' }}>
@@ -411,7 +411,7 @@ function QuoteTitle({ scene }) {
       <Cinema image={scene.image} />
       <div style={{ position: 'absolute', top: 780, left: 90, right: 90 }}>
         <div style={{ width: 160 * line, height: 6, background: '#E8C77A', marginBottom: 36 }} />
-        <Words text={scene.text} delay={10} stagger={4} color="#F3EBDD" style={{ fontSize: 78, fontWeight: 600, letterSpacing: 1 }} />
+        <Words text={scene.text} delay={4} stagger={2} color="#F3EBDD" style={{ fontSize: 78, fontWeight: 600, letterSpacing: 1 }} />
       </div>
     </AbsoluteFill>
   )
@@ -429,7 +429,7 @@ function QuoteScene({ scene }) {
       <Cinema image={scene.image} />
       <div style={{ position: 'absolute', top: 340, left: 80, opacity: mark, transform: `translateY(${(1 - mark) * -30}px)`, fontFamily: 'Georgia, serif', fontSize: 300, lineHeight: 1, color: '#E8C77A' }}>“</div>
       <div style={{ position: 'absolute', top: 600, left: 90, right: 90 }}>
-        <Words text={scene.text} delay={14} stagger={5} color="#F7F1E6" style={{ fontSize: 84, fontWeight: 600, lineHeight: 1.5 }} />
+        <Words text={scene.text} delay={6} stagger={2} color="#F7F1E6" style={{ fontSize: 84, fontWeight: 600, lineHeight: 1.5 }} />
       </div>
       {scene.author && (
         <div style={{ position: 'absolute', top: 1290, left: 90, right: 90, display: 'flex', alignItems: 'center', gap: 22, opacity: author }}>
@@ -456,7 +456,7 @@ function QuoteCta({ scene, brand }) {
         </div>
       )}
       <div style={{ position: 'absolute', top: 720, left: 90, right: 90 }}>
-        <Words text={scene.text} delay={6} align="center" color="#F7F1E6" style={{ fontSize: 80, fontWeight: 600, textAlign: 'center' }} />
+        <Words text={scene.text} delay={2} stagger={1} align="center" color="#F7F1E6" style={{ fontSize: 80, fontWeight: 600, textAlign: 'center' }} />
       </div>
       {scene.button && (
         <div style={{ position: 'absolute', top: 1060, left: 0, right: 0, display: 'flex', justifyContent: 'center' }}>

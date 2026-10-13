@@ -114,18 +114,22 @@ def music_tracks() -> dict[str, list[str]]:
 
 SELL_PROMPT = (
     "You are the best short-form video storyteller in Cambodia. You plan a vertical "
-    "REMOTION VIDEO (TikTok / Facebook Reels, 15-25 s): no actors — animated app-style "
+    "REMOTION VIDEO (TikTok / Facebook Reels, about 60 s): no actors — animated app-style "
     "graphics: big words, icons, a phone screen with a chat, the product photo, numbers "
     "counting up. It must GRAB in the first second and be understood in one watch, even "
-    "with the sound off. Plan it like a storyboard, one idea per scene.\n"
+    "with the sound off. Plan it like a storyboard, one idea per scene — a real STORY "
+    "with a beginning, a turn and an ending, not a list of features.\n"
     "\n"
-    "THE STORY (5-6 scenes, in this order):\n"
+    "THE STORY (8-10 scenes, in this order):\n"
     "1. hook — the scroll-stopper.\n"
-    "2. problem — the pain the viewer lives with, made visible.\n"
-    "3. the solution shown WORKING — `chat` when the business answers customers (a service, "
-    "an app, a shop taking orders by message), else `product` (the product itself).\n"
-    "4. the proof / what they get — `list` (3 benefits) and/or `stat` (one big number).\n"
-    "5. cta — what to do now.\n"
+    "2-3. problem — the pain the viewer lives with, made visible; then what it COSTS them "
+    "(a second `problem`, or a `stat` that is true).\n"
+    "4-5. the solution shown WORKING — `chat` when the business answers customers (a service, "
+    "an app, a shop taking orders by message) and/or `product` (the product itself).\n"
+    "6-7. the proof / what they get — `list` (3 benefits) and/or `stat` (one big number).\n"
+    "8. the doubt answered — a `chat` where a customer asks the usual worry and gets a "
+    "clear answer (optional).\n"
+    "last. cta — what to do now.\n"
     "\n"
     "SCENE TYPES and their fields:\n"
     "- hook: text (max 10 words — a sharp question about their pain, a surprising true "
@@ -147,9 +151,10 @@ SELL_PROMPT = (
     "are highlighted in the brand colour.\n"
     "icon: exactly one name from this list: " + ", ".join(ICONS) + ".\n"
     "\n"
-    "VOICE-OVER: every scene also has `say` — one natural spoken sentence, 6-18 words, that "
-    "ADDS to the words on screen (never reads them out), warm and conversational, like a "
-    "friendly seller talking to one customer. Same language.\n"
+    "VOICE-OVER: every scene also has `say` — one or two natural spoken sentences, 12-22 "
+    "words, that ADD to the words on screen (never read them out). Together the lines tell "
+    "the story from start to end — each one leads into the next. Warm and conversational, "
+    "like a friendly seller talking to one customer. Same language.\n"
     "\n"
     "LANGUAGE: write in the LANGUAGE given. Khmer: everyday spoken Khmer as Cambodian "
     "sellers write on Facebook — short common words, correct spelling, address the viewer "
@@ -173,21 +178,24 @@ MOODS = ("happy", "excited", "sad", "worried", "thinking")
 TEACH_PROMPT = (
     "You are the best short-form EDUCATION video storyteller in Cambodia — think of the "
     "Khmer money and life-tips explainers that people save and share. You plan a vertical "
-    "REMOTION VIDEO (TikTok / Facebook Reels, 20-30 s) in a light, friendly drawn style: a "
+    "REMOTION VIDEO (TikTok / Facebook Reels, about 60 s) in a light, friendly drawn style: a "
     "cream background, big dark titles, a stick-figure person with a mood, objects with "
     "price tags, charts that grow, two people compared. Subtitles show the narration. "
     "It must make people STOP, UNDERSTAND something new in one watch, and want to SAVE or "
     "SHARE it. This is NOT an ad: never pitch the brand's product — the brand only appears "
     "as the logo.\n"
     "\n"
-    "THE STORY (5-7 scenes):\n"
+    "THE STORY (8-10 scenes) — follow ONE person through it, like a short tale:\n"
     "1. hook — a surprising number or question that makes them think (\"Is a $400 salary "
     "richer than $1,000?\").\n"
-    "2. a relatable SITUATION — usually a `character` (a person with a Cambodian first name, "
-    "e.g. សុខា, ដារ៉ា, ស្រីនិច, វិសាល) or a `compare` of two people making different choices.\n"
-    "3. the INSIGHT made visible — a `chart` (how it adds up over time) or a `compare` / `stat`.\n"
-    "4. the TAKEAWAY — a `list` of 3 simple tips, or a `stat`.\n"
-    "5. cta — soft: save it, share it with a friend, follow for more, or comment an answer.\n"
+    "2-3. a relatable SITUATION — a `character` (a person with a Cambodian first name, e.g. "
+    "សុខា, ដារ៉ា, ស្រីនិច, វិសាល) in their everyday life, then the moment it goes wrong "
+    "(the same character, a worried or sad mood).\n"
+    "4. a `compare` of two people making different choices.\n"
+    "5-6. the INSIGHT made visible — a `chart` (how it adds up over time) and/or a `stat`.\n"
+    "7. the TAKEAWAY — a `list` of 3 simple tips.\n"
+    "8. the ending — the same character again, now happy (the change the tips made).\n"
+    "last. cta — soft: save it, share it with a friend, follow for more, or comment an answer.\n"
     "\n"
     "SCENE TYPES and their fields:\n"
     "- hook: text (max 10 words), icon.\n"
@@ -212,9 +220,9 @@ TEACH_PROMPT = (
     "are highlighted.\n"
     "icon: exactly one name from this list: " + ", ".join(ICONS) + ".\n"
     "\n"
-    "VOICE-OVER: every scene has `say` — one natural spoken sentence, 8-20 words, that tells "
-    "the story (it is also shown as subtitles), like a friendly teacher talking to one "
-    "person. Same language.\n"
+    "VOICE-OVER: every scene has `say` — one or two natural spoken sentences, 12-24 words, "
+    "that tell the story (also shown as subtitles), each line leading into the next, like a "
+    "friendly teacher telling one person a story. Same language.\n"
     "\n"
     "LANGUAGE: write in the LANGUAGE given. Khmer: everyday spoken Khmer — short common "
     "words, correct spelling, address the viewer as បង (never អ្នក), digits are fine. "
@@ -232,8 +240,9 @@ _COMMON_RULES = (
     "are highlighted.\n"
     "icon: exactly one name from this list: " + ", ".join(ICONS) + ".\n"
     "\n"
-    "VOICE-OVER: every scene has `say` — one natural spoken sentence, 6-18 words, that adds "
-    "to what is on screen (it is also shown as subtitles). Same language.\n"
+    "VOICE-OVER: every scene has `say` — one or two natural spoken sentences, 12-22 words, "
+    "that add to what is on screen (also shown as subtitles). Together the lines tell one "
+    "story, each leading into the next. Same language.\n"
     "\n"
     "LANGUAGE: write in the LANGUAGE given. Khmer: everyday spoken Khmer — short common "
     "words, correct spelling, address the viewer as បង (never អ្នក), brand / product names in "
@@ -248,17 +257,18 @@ _COMMON_RULES = (
 VERSUS_TYPES = ("hook", "split", "myth", "verdict", "stat", "cta")
 VERSUS_PROMPT = (
     "You are the best short-form video storyteller in Cambodia. You plan a vertical "
-    "REMOTION VIDEO (TikTok / Facebook Reels, 20-28 s) that builds AUTHORITY: it compares "
+    "REMOTION VIDEO (TikTok / Facebook Reels, about 60 s) that builds AUTHORITY: it compares "
     "two ways of doing something — the old / common way vs the better way — or busts a "
     "myth, so the viewer feels the brand truly knows the field and SHARES it. Clean split "
     "screen: red ✗ for the old way, green ✓ for the better way. Honest and fair, not an ad.\n"
     "\n"
-    "THE STORY (4-6 scenes):\n"
+    "THE STORY (7-9 scenes):\n"
     "1. hook — the question that sets up the comparison (\"Paper notebook or an app?\").\n"
     "2. split — the two ways side by side.\n"
-    "3. myth — the belief people hold, and the truth (optional but strong).\n"
-    "4. verdict — the one-line conclusion (or a `stat` with a TRUE number).\n"
-    "5. cta — soft: share it, save it, follow for more.\n"
+    "3-5. myth — 2-3 beliefs people hold, each with the truth (one `myth` scene each).\n"
+    "6. a `stat` with a TRUE number, or a second `split` (e.g. cost, or time).\n"
+    "7. verdict — the one-line conclusion.\n"
+    "last. cta — soft: share it, save it, follow for more.\n"
     "\n"
     "SCENE TYPES and their fields:\n"
     "- hook: text (max 10 words), icon.\n"
@@ -275,21 +285,21 @@ VERSUS_PROMPT = (
 POLL_TYPES = ("hook", "options", "reveal", "cta")
 POLL_PROMPT = (
     "You are the best short-form video storyteller in Cambodia. You plan a vertical "
-    "REMOTION VIDEO (TikTok / Facebook Reels, 15-22 s) built for ENGAGEMENT — a quiz or "
+    "REMOTION VIDEO (TikTok / Facebook Reels, about 60 s) built for ENGAGEMENT — a quiz or "
     "poll that makes people COMMENT their answer. Game-show look: a big question, A/B/C "
     "answer buttons, a countdown. Fun and easy — everyone should feel they can answer.\n"
     "\n"
-    "THE STORY (3-4 scenes):\n"
-    "1. hook — the question itself (max 12 words), about the brand's field or customers' "
-    "everyday life.\n"
-    "2. options — 2-4 short answers (the viewer picks one while the countdown runs).\n"
-    "3. reveal — ONLY for a quiz with a right answer: the answer and why, in one line. "
-    "Leave it out for an opinion poll (\"Which do you prefer?\").\n"
-    "4. cta — ask them to comment their answer (A, B, C…) or tag a friend.\n"
+    "THE STORY (7-8 scenes) — a quiz of 3 questions, easy → harder:\n"
+    "1. hook — the challenge (max 12 words, e.g. \"3 questions — can you get all 3?\"), "
+    "about the brand's field or customers' everyday life.\n"
+    "2-7. three rounds, each: `options` (the question and 2-4 short answers — the viewer "
+    "picks while the countdown runs) then `reveal` (the answer and why, in one line). For "
+    "an opinion question (\"Which do you prefer?\") leave its reveal out.\n"
+    "last. cta — ask them to comment their score or answers, or tag a friend.\n"
     "\n"
     "SCENE TYPES and their fields:\n"
     "- hook: text (the question, max 12 words), icon.\n"
-    "- options: question (max 5 words, e.g. \"Pick one\" — optional), options: 2-4 answers "
+    "- options: question (the round's question, max 8 words), options: 2-4 answers "
     "(1-5 words each), answer: the index of the right answer (0 = A) or -1 for an opinion poll.\n"
     "- reveal: text (max 12 words), icon.\n"
     "- cta: text (max 9 words), button (1-3 words, e.g. \"Comment A, B or C\").\n"
@@ -300,16 +310,16 @@ POLL_PROMPT = (
 QUOTE_TYPES = ("hook", "quote", "cta")
 QUOTE_PROMPT = (
     "You are the best short-form video storyteller in Cambodia. You plan a vertical "
-    "REMOTION VIDEO (TikTok / Facebook Reels, 12-18 s) that wins FOLLOWERS: one strong, "
-    "true, quotable line — wisdom from the brand's field that the viewer wants to keep "
+    "REMOTION VIDEO (TikTok / Facebook Reels, 35-45 s) that wins FOLLOWERS: three strong, "
+    "true, quotable lines — wisdom from the brand's field that the viewer wants to keep "
     "seeing every day. Cinematic: the brand's photo full-screen and dark, the quote written "
     "in slowly. Calm and confident, never an ad.\n"
     "\n"
-    "THE STORY (3 scenes):\n"
-    "1. hook — a short intro line that makes them wait for the quote (\"What 10 years of "
-    "selling taught us\").\n"
-    "2. quote — the quote itself.\n"
-    "3. cta — follow for one lesson / tip a day.\n"
+    "THE STORY (5 scenes):\n"
+    "1. hook — a short intro line that makes them wait for the lessons (\"3 things 10 years "
+    "of selling taught us\").\n"
+    "2-4. quote — three lessons, one `quote` scene each, building to the strongest.\n"
+    "5. cta — follow for one lesson / tip a day.\n"
     "\n"
     "SCENE TYPES and their fields:\n"
     "- hook: text (max 9 words), icon.\n"
@@ -324,11 +334,11 @@ QUOTE_PROMPT = (
 # style → (story prompt, scene types, most scenes between the hook and the
 # call to action, a scene type the story must have)
 STYLES = {
-    "tech": (SELL_PROMPT, TECH_TYPES, 4, None),
-    "explainer": (TEACH_PROMPT, EXPLAINER_TYPES, 5, None),
-    "versus": (VERSUS_PROMPT, VERSUS_TYPES, 4, None),
-    "poll": (POLL_PROMPT, POLL_TYPES, 2, "options"),
-    "quote": (QUOTE_PROMPT, QUOTE_TYPES, 1, "quote"),
+    "tech": (SELL_PROMPT, TECH_TYPES, 8, None),
+    "explainer": (TEACH_PROMPT, EXPLAINER_TYPES, 8, None),
+    "versus": (VERSUS_PROMPT, VERSUS_TYPES, 7, None),
+    "poll": (POLL_PROMPT, POLL_TYPES, 6, "options"),
+    "quote": (QUOTE_PROMPT, QUOTE_TYPES, 3, "quote"),
 }
 
 # Content goals (app/goals.py) → template. Selling goals get the Tech style's
@@ -610,6 +620,7 @@ def write_script(
     learnings: str = "",
     moods: list[str] | None = None,
     style: str = "tech",
+    job_id: int | None = None,
 ) -> dict:
     """The video's storyboard: one AI call, then for Khmer the same
     native-editor pass the captions get. {"scenes": [...]} — always starting
@@ -649,24 +660,36 @@ def write_script(
         ],
         model,
         max_tokens=9000,
+        # A storyboard follows the template's recipe — it doesn't need long
+        # reasoning; the default (medium) took 1-2 minutes on gpt-5-mini. The
+        # Khmer editor pass after it still runs at high effort.
+        effort="low",
     )
     names = {p.name.strip().lower(): p.name for p in products}
     scenes = [
         s
         for s in (_clean_scene(r, names) for r in (raw.get("scenes") or []) if isinstance(r, dict))
         if s and s["type"] in allowed
-    ][:8]
+    ][:12]
     # A hook first and a call to action last, whatever came back.
     hooks = [s for s in scenes if s["type"] == "hook"]
     ctas = [s for s in scenes if s["type"] == "cta"]
-    middle = [s for s in scenes if s["type"] not in ("hook", "cta")][:most]
-    if style == "poll":  # the answer is revealed after the options, never before
-        middle.sort(key=lambda s: s["type"] == "reveal")
+    middle = [s for s in scenes if s["type"] not in ("hook", "cta")]
+    if style == "poll":  # an answer is revealed after its question, never before
+        asked = False
+        kept = []
+        for sc in middle:
+            asked = asked or sc["type"] == "options"
+            if sc["type"] != "reveal" or asked:
+                kept.append(sc)
+        middle = kept
+    middle = middle[:most]
     if not hooks or not ctas or not middle or (must and not any(s["type"] == must for s in middle)):
         raise ContentAIError("The AI didn't return a usable storyboard — try again.")
     script = {"scenes": [hooks[0], *middle, ctas[0]], "style": style}
     if moods:
         script["mood"] = raw.get("mood") if raw.get("mood") in moods else moods[0]
+    _report(job_id, stage="polish" if khmer else "pictures", scenes=_board(script))
 
     if khmer:
         # Every line — on screen and spoken — through the native editor
@@ -695,6 +718,7 @@ def write_script(
         )
         for (obj, key, n), value in zip(slots, fixed):
             obj[key] = _line(_fix_khmer_punctuation(value), n)
+        _report(job_id, stage="pictures", scenes=_board(script))
     return script
 
 
@@ -882,16 +906,27 @@ def add_voice(props: dict, script: dict, voice: str, ws: int | None, user_id: in
     from app.story import _probe
 
     says = [s.get("say") for s in script["scenes"]]
+    board = [dict(b) for b in (_progress.get(job_id, {}).get("scenes") or [])]
+    _report(job_id, stage="voice")
+
+    def mark(n: int, **fields) -> None:
+        if n < len(board):
+            board[n] = {**board[n], **fields}
+            _report(job_id, scenes=[dict(b) for b in board])
+
     spoken = 0
     with tempfile.TemporaryDirectory() as tmp:
         for n, (scene, say) in enumerate(zip(props["scenes"], says)):
             _check(job_id)  # Stop pressed: no more lines are spoken (or billed)
             if not say:
+                mark(n, voice="skip")
                 continue
+            mark(n, voice="speaking")
             try:
                 mp3 = speech.speak(say, voice)
             except speech.SpeechError as exc:
                 log.warning("motion %s: voice for scene %s failed: %s", job_id, n + 1, exc)
+                mark(n, voice="skip")
                 continue
             path = Path(tmp) / f"say-{n}.mp3"
             path.write_bytes(mp3)
@@ -903,10 +938,11 @@ def add_voice(props: dict, script: dict, voice: str, ws: int | None, user_id: in
             if duration <= 0:
                 continue
             scene["audio"] = "data:audio/mpeg;base64," + base64.b64encode(mp3).decode()
-            # The line starts once the scene has slid in (MotionPost.jsx).
-            lead = TRANSITION_S if n else 0.0
+            # The line starts once the scene has slid in + 6 frames breathing room (MotionPost.jsx).
+            lead = (TRANSITION_S if n else 0.0) + 0.2
             scene["seconds"] = round(max(default_seconds(scene), lead + duration + VOICE_TAIL), 2)
             scene["voiceSeconds"] = round(duration, 2)  # subtitles follow the voice
+            mark(n, voice="done", seconds=round(duration, 1))
             spoken += len(say)
     if spoken:
         billing.charge(
@@ -921,6 +957,32 @@ class Stopped(Exception):
 
 _procs: dict[int, subprocess.Popen] = {}  # job id → its running render
 _stopped: set[int] = set()
+
+# Live progress of each motion job, for the page's storyboard while it waits
+# (GET /ai/video/{id} → progress). In memory: one backend process, and a job
+# lives only while its thread runs.
+#   stage   — "story" | "polish" | "pictures" | "voice" | "render"
+#   style   — the template
+#   scenes  — [{type, text, voice: "" | "speaking" | "done" | "skip", seconds}]
+#   render  — 0..1 of the frames drawn
+_progress: dict[int, dict] = {}
+
+
+def _report(job_id: int | None, **fields) -> None:
+    if job_id is not None:
+        _progress[job_id] = {**_progress.get(job_id, {}), **fields}
+
+
+def progress_of(job_id: int) -> dict | None:
+    return _progress.get(job_id)
+
+
+def _board(script: dict) -> list[dict]:
+    """The storyboard as the page shows it: each scene's type and its words."""
+    return [
+        {"type": s["type"], "text": _brackets(screen.split("] ", 1)[-1]).replace("⟦", "").replace("⟧", "")[:120], "voice": "", "seconds": 0}
+        for s, (screen, _say) in zip(script["scenes"], script_lines(script))
+    ]
 
 
 def _kill_tree(proc: subprocess.Popen) -> None:
@@ -1013,29 +1075,46 @@ def render(props: dict, job_id: int | None = None) -> bytes:
                 [
                     _npx(), "remotion", "render", entry, "MotionPost", str(out), f"--props={props_path}",
                     # every core draws frames (the default is half — one at a time on a 2-core server)
-                    "--concurrency=100%", "--log=error",  # all cores Remotion is allowed (containers too)
+                    # all cores Remotion is allowed (containers too); the default log
+                    # level prints "Rendered 120/900" lines — the page's progress
+                    "--concurrency=100%",
                 ],
                 cwd=MOTION_DIR,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 text=True,
                 errors="replace",
                 start_new_session=os.name != "nt",  # so Stop can end the whole group
             )
             if job_id is not None:
                 _procs[job_id] = proc
+            tail: list[str] = []  # the last lines, for the log if it fails
+
+            def follow() -> None:
+                for line in proc.stdout:
+                    tail.append(line)
+                    del tail[:-60]
+                    m = re.search(r"Rendered (\d+)/(\d+)", line)
+                    if m and int(m[2]):
+                        _report(job_id, render=round(int(m[1]) / int(m[2]), 3))
+                    elif "Encoded" in line or "Stitch" in line:
+                        _report(job_id, render=1.0)
+
+            reader = threading.Thread(target=follow, daemon=True)
+            reader.start()
             try:
-                stdout, stderr = proc.communicate(timeout=900)
+                proc.wait(timeout=900)
             except subprocess.TimeoutExpired:
                 _kill_tree(proc)
-                proc.communicate()
+                proc.wait()
                 raise RuntimeError("Rendering took too long — try again.") from None
             finally:
+                reader.join(timeout=5)
                 if job_id is not None:
                     _procs.pop(job_id, None)
             _check(job_id)
             if proc.returncode != 0 or not out.exists():
-                log.error("motion render failed: %s", (stderr or stdout)[-1500:])
+                log.error("motion render failed: %s", "".join(tail)[-1500:])
                 raise RuntimeError("The video couldn't be rendered — try again.")
             return out.read_bytes()
         finally:
@@ -1161,6 +1240,7 @@ def _make(
         billing.bind(job.workspace_id, job.user_id)  # the script is an AI call
         job.status = "running"
         db.commit()
+        _report(job_id, stage="story")  # also marks the job as alive in this process (video._tick)
         brand = db.get(Brand, job.brand_id)
         all_products = list(db.scalars(select(Product).where(Product.brand_id == brand.id).order_by(Product.name)).all())
         # A chosen product: the script is about it alone.
@@ -1176,7 +1256,8 @@ def _make(
             moods = list(music_tracks()) if music else []
             # Auto: a chosen product means a sales video, otherwise a teaching one.
             style = style_for(goal) if goal not in ("auto", "") else ("tech" if product_id is not None else "explainer")
-            script = write_script(brand, products, job.prompt, language, learned, moods, style)
+            _report(job_id, stage="story", style=style)
+            script = write_script(brand, products, job.prompt, language, learned, moods, style, job_id=job_id)
             _check(job_id)
             by_product, order, logo = _brand_pictures(db, brand.id)
             pick_pictures(script, all_products, by_product, order, product_id)
@@ -1187,6 +1268,7 @@ def _make(
             narrator = speech.voice_for(language, voice) if speech.ready() else None
             if narrator:
                 add_voice(props, script, narrator, job.workspace_id, job.user_id, job_id)
+            _report(job_id, stage="render", render=0.0)
             blob = render(props, job_id)
         except Stopped:
             job = db.get(GenerationJob, job_id)
@@ -1243,4 +1325,5 @@ def _make(
             db.commit()
     finally:
         _stopped.discard(job_id)
+        _progress.pop(job_id, None)
         db.close()
