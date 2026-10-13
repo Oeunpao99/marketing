@@ -10,6 +10,7 @@ import ContentStudioPage from "./pages/ContentStudioPage";
 import AutoPage from "./pages/AutoPage";
 import CalendarPage from "./pages/CalendarPage";
 import ChannelsPage from "./pages/ChannelsPage";
+import BotSetupPage from "./pages/BotSetupPage";
 import CreateBrandPage from "./pages/CreateBrandPage";
 import InsightsPage from "./pages/InsightsPage";
 import InsightsPostPage from "./pages/InsightsPostPage";
@@ -75,6 +76,7 @@ function Portal() {
             <Route path="/new" element={<NewPostPage />} />
             <Route path="/review" element={<ReviewPage />} />
             <Route path="/channels" element={<ChannelsPage />} />
+            <Route path="/bots" element={<BotSetupPage />} />
             <Route path="/brands/new" element={<CreateBrandPage />} />
             <Route path="/channels/add" element={<AddChannelPage />} />
             <Route path="/auto" element={<AutoPage />} />

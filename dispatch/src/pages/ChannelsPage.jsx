@@ -13,9 +13,6 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import { useAuth } from "../auth";
 import AutopilotCard from "../components/setup/AutopilotCard";
-import ChatbotIntakeCard from "../components/setup/ChatbotIntakeCard";
-import SalesAlertsCard from "../components/setup/SalesAlertsCard";
-import ChatLinkCard from "../components/setup/ChatLinkCard";
 import Tag from "../components/ui/Tag";
 import { PLAT } from "../data/brands";
 import { colorForBrand } from "../lib/brandColor";
@@ -259,9 +256,6 @@ export default function ChannelsPage() {
       </div>
 
       {currentTab !== "all" && <AutopilotCard brandSlug={currentTab} />}
-      <ChatbotIntakeCard canManage={canManage} />
-      <ChatLinkCard brandSlug={currentTab} />
-      <SalesAlertsCard canManage={canManage} />
 
       <div className="space-y-4">
         {shownBrands.map((b) => {

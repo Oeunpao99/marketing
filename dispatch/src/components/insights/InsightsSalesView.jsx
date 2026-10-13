@@ -8,7 +8,7 @@ import {
   FiMessageCircle,
   FiPlus,
   FiMinus,
-  FiPrinter,
+  FiDownload,
   FiRefreshCw,
   FiShield,
   FiSun,
@@ -21,6 +21,7 @@ import { api } from '../../api/client'
 import { useStore } from '../../store'
 import { colorForBrand } from '../../lib/brandColor'
 import Select from '../ui/Select'
+import { downloadCsv, insightsCsv } from '../../lib/insightsCsv'
 
 // The 9 goals in 3 stages corresponding to backend app/goals.py and src/lib/goals.js
 const GOAL_SPECS = [
@@ -224,9 +225,15 @@ export default function InsightsSalesView({
     return `${dateStr} · ${timeStr}`
   }, [])
 
-  // Print / PDF Export Handler
-  const handleExportPdf = () => {
-    window.print()
+  // The report as a spreadsheet (CSV, opens in Excel): every table on this
+  // page for the chosen period and brand.
+  const exportCsv = () => {
+    if (!realData) return
+    const brand = brands.find((b) => b.id === brandId)
+    const period = TIME_RANGES.find((r) => r.id === rangeId)?.label || rangeId
+    const csv = insightsCsv(realData, { brand: brand?.name || 'All brands', period, goals: GOAL_SPECS })
+    const slug = (brand?.slug || 'all-brands').replace(/[^a-z0-9-]+/gi, '-')
+    downloadCsv(csv, `contentflow-insights-${slug}-${rangeId}-${new Date().toISOString().slice(0, 10)}.csv`)
   }
 
   // Ads aren't connected yet, so nothing is sent or spent from here.
@@ -468,14 +475,15 @@ export default function InsightsSalesView({
           )}
         </div>
 
-        {/* PDF Export Button */}
+        {/* Export: the report as a spreadsheet */}
         <button
           type="button"
-          onClick={handleExportPdf}
+          onClick={exportCsv}
+          disabled={!realData}
           className="inline-flex items-center gap-1.5 rounded-xl border border-ink-200 bg-white px-3.5 py-1.5 text-[12.5px] font-semibold text-ink-700 shadow-xs hover:bg-ink-50 transition-colors"
         >
-          <FiPrinter size={14} className="text-ink-400" />
-          Export insight report (PDF)
+          <FiDownload size={14} className="text-ink-400" />
+          Export insight report (Excel / CSV)
         </button>
       </div>
 

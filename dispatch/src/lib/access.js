@@ -7,6 +7,7 @@
 // brands) are open to everyone in the workspace.
 const PAGE_FEATURE = [
   ['/channels', 'channels'],
+  ['/bots', 'channels'], // the chatbot cards used to be on Channels
   ['/new', 'compose'],
   ['/post/', 'compose'],
   ['/review', 'content'],

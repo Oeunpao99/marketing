@@ -12,11 +12,12 @@ import Select from '../components/ui/Select'
 import { fullDayLabel, phnomPenhClock, phnomPenhDay } from '../lib/tz'
 import { kitSrc, TemplatePicker } from '../components/brandkit/BrandKit'
 
+// `value` is what's stored (Automation.topic_source) — only the wording shown changed.
 const TOPIC_SOURCES = [
-  { value: 'Trending in Cambodia + your topic bank', short: 'Trending + topic bank' },
-  { value: 'Your topic bank only', short: 'Topic bank' },
-  { value: 'Product feature list', short: 'Product features' },
-  { value: 'AI news feeds', short: 'AI news' },
+  { value: 'Trending in Cambodia + your topic bank', short: 'Trending + topic bank', label: 'What’s trending in Cambodia + your subjects', hint: 'Fresh, timely ideas mixed with the subjects below' },
+  { value: 'Your topic bank only', short: 'Topic bank', label: 'Only the subjects below', hint: 'Stays on your chosen subjects' },
+  { value: 'Product feature list', short: 'Product features', label: 'Your products and their features', hint: 'From Products & brand kit' },
+  { value: 'AI news feeds', short: 'AI news', label: 'Latest AI news', hint: 'For brands that talk about technology' },
 ]
 
 // Ready-made subjects for "Subjects to write about" — the AI rotates through
@@ -103,7 +104,7 @@ function SubjectPicker({ value, onChange, scores = {} }) {
       </div>
       <p className="mt-1.5 text-[11px] leading-snug text-ink-400">
         {value.length
-          ? `The AI rotates through these ${value.length} — a few each day. Subjects that get more engagement (↑) come round more often; product subjects wait for a product day.`
+          ? `The AI takes turns between these ${value.length}. Subjects your audience likes more (↑) come up more often; product subjects are kept for selling days.`
           : 'None picked — the AI chooses subjects from your products.'}
       </p>
     </div>
@@ -302,7 +303,46 @@ const LANGUAGE_HINT = {
   'Khmer, then English': 'The whole post in Khmer, then a ------------ line, then the same post in English',
 }
 
+// The settings drawer's width — drag its left edge; remembered per browser.
+const DRAWER_KEY = 'cf_autopilot_drawer_w'
+const DRAWER_MIN = 420
+const drawerMax = () => Math.max(DRAWER_MIN, Math.min(1000, window.innerWidth - 80))
+const readDrawerWidth = () => {
+  try {
+    const w = Number(localStorage.getItem(DRAWER_KEY))
+    return w ? Math.min(drawerMax(), Math.max(DRAWER_MIN, w)) : 560
+  } catch {
+    return 560
+  }
+}
+
 function SettingsDrawer({ a, channels, onUpdate, onBrandUpdate, onOpenPlan, onClose }) {
+  const [width, setWidth] = useState(readDrawerWidth)
+  const startDrag = (e) => {
+    e.preventDefault()
+    const from = e.clientX
+    const start = width
+    let last = start
+    const move = (ev) => {
+      last = Math.min(drawerMax(), Math.max(DRAWER_MIN, start + from - ev.clientX))
+      setWidth(last)
+    }
+    const up = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      try {
+        localStorage.setItem(DRAWER_KEY, String(Math.round(last)))
+      } catch {
+        /* private window — just not remembered */
+      }
+    }
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }
   const [voice, setVoice] = useState(a.brand_voice || '')
   useEffect(() => setVoice(a.brand_voice || ''), [a.brand_id]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -327,16 +367,28 @@ function SettingsDrawer({ a, channels, onUpdate, onBrandUpdate, onOpenPlan, onCl
       <aside
         role="dialog"
         aria-modal="true"
-        className="absolute right-0 top-0 h-full w-full max-w-[440px] glass-drawer animate-drawer-in flex flex-col"
+        className="absolute right-0 top-0 h-full w-full glass-drawer animate-drawer-in flex flex-col"
+        style={{ maxWidth: width }}
       >
+        {/* drag the left edge to make the panel wider or narrower */}
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize the panel"
+          title="Drag to resize"
+          onPointerDown={startDrag}
+          onDoubleClick={() => setWidth(560)}
+          className="group absolute -left-1 top-0 z-10 hidden h-full w-2 cursor-col-resize sm:block"
+        >
+          <div className="mx-auto h-full w-0.5 bg-transparent transition-colors group-hover:bg-brand/50" />
+        </div>
         <header className="flex items-center gap-3 px-6 py-5 border-b border-ink-100">
           <span className="w-2.5 h-2.5 rounded-full flex-none" style={{ background: colorForBrand(a.brand_slug) }} />
           <div className="min-w-0 flex-1">
             <h2 className="text-[16.5px] font-bold text-ink-900 tracking-tight truncate">{a.brand_name}</h2>
-            <p className="text-[11.5px] text-ink-500">
-              {a.brand_lang || 'No language set'} · {a.plan_every === 'day' ? 'daily' : 'weekly'} plan
-            </p>
+            <p className="text-[11.5px] text-ink-500">Autopilot settings — how the AI writes and posts for this brand</p>
           </div>
+          <span className={`text-[12px] font-semibold ${a.enabled ? 'text-brand' : 'text-ink-400'}`}>{a.enabled ? 'On' : 'Off'}</span>
           <Toggle on={a.enabled} onChange={(v) => onUpdate({ enabled: v })} />
           <button type="button" onClick={onClose} className="w-9 h-9 grid place-items-center rounded-lg text-ink-500 hover:bg-ink-100" aria-label="Close">
             <FiX size={18} />
@@ -346,12 +398,13 @@ function SettingsDrawer({ a, channels, onUpdate, onBrandUpdate, onOpenPlan, onCl
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
           {!a.enabled && (
             <div className="rounded-xl bg-ink-50 px-3.5 py-3 text-[12px] text-ink-600">
-              Autopilot is off for this brand. Turn it on and the AI writes its plan by itself — every Sunday, or every evening for a daily plan.
+              <b className="font-semibold text-ink-800">Autopilot is off.</b> Turn it on (top right) and the AI writes this brand’s posts by itself —
+              every Sunday for the next week, or every evening for the next day. Nothing is posted until you approve it, unless you choose so below.
             </div>
           )}
 
-          <Section title="Brand voice">
-            <Field label="Language">
+          <Section n={1} title="How your posts sound" sub="The language and style the AI writes in">
+            <Field label="Which language should posts be in?">
               <div className="grid grid-cols-2 rounded-xl border border-ink-200 p-0.5">
                 {LANGUAGES.map((l) => (
                   <button
@@ -368,25 +421,25 @@ function SettingsDrawer({ a, channels, onUpdate, onBrandUpdate, onOpenPlan, onCl
               </div>
               {LANGUAGE_HINT[a.brand_lang] && <p className="mt-1 text-[11px] text-ink-400">{LANGUAGE_HINT[a.brand_lang]}</p>}
             </Field>
-            <Field label="Example captions">
+            <Field label="Your best captions (optional)">
               <AutoTextarea
                 value={voice}
                 minRows={4}
                 maxRows={12}
                 onChange={(e) => setVoice(e.target.value)}
                 onBlur={() => voice !== (a.brand_voice || '') && onBrandUpdate({ voice_examples: voice })}
-                placeholder="Paste 3–5 real captions you've posted and liked, one after another. The AI copies their tone and wording — not their facts."
+                placeholder="Paste 3–5 captions you posted before and liked, one after another."
                 className={`${input} leading-relaxed ${/[\u1780-\u17FF]/.test(voice) ? 'font-khmer' : ''}`}
               />
-              <p className="mt-1 text-[11px] text-ink-400">Saved when you click away.</p>
+              <p className="mt-1 text-[11px] text-ink-400">The AI copies your style and words — never the facts in them. Saved when you click away.</p>
             </Field>
           </Section>
 
-          <Section title="Learn from results">
+          <Section n={2} title="Learn from your results" sub="The AI does more of what your audience likes">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="text-[12px] font-semibold text-ink-800">Use what works for this brand</div>
-                <div className="text-[11px] text-ink-500">Writes and schedules new posts using your own post results</div>
+                <div className="text-[12px] font-semibold text-ink-800">Let the AI learn from your posts</div>
+                <div className="text-[11px] text-ink-500">It reads the likes, comments and shares on your past posts — the best time, format and topics</div>
               </div>
               <Toggle on={a.learn_from_results} onChange={(v) => onUpdate({ learn_from_results: v })} />
             </div>
@@ -394,9 +447,9 @@ function SettingsDrawer({ a, channels, onUpdate, onBrandUpdate, onOpenPlan, onCl
             <PostingTimes a={a} />
           </Section>
 
-          <Section title="Schedule">
+          <Section n={3} title="What to post" sub="How often, and about what">
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Plan">
+              <Field label="Plan ahead">
                 <div className="grid grid-cols-2 rounded-xl border border-ink-200 p-0.5">
                   {PLAN_EVERY.map((o) => (
                     <button
@@ -412,7 +465,7 @@ function SettingsDrawer({ a, channels, onUpdate, onBrandUpdate, onOpenPlan, onCl
                   ))}
                 </div>
               </Field>
-              <Field label="Posts per day">
+              <Field label="Posts a day">
                 <input
                   type="number"
                   min={1}
@@ -425,17 +478,18 @@ function SettingsDrawer({ a, channels, onUpdate, onBrandUpdate, onOpenPlan, onCl
             </div>
             <p className="-mt-1 text-[11px] leading-snug text-ink-400">
               {a.plan_every === 'day'
-                ? 'Every evening at 6 PM the AI plans the next day. You approve it on the Plan page.'
-                : 'Every Sunday at 6 PM the AI plans the week from Monday. You approve it on the Plan page.'}
+                ? 'Every evening at 6 PM the AI writes tomorrow’s posts. You check them on the Plan page.'
+                : 'Every Sunday at 6 PM the AI writes next week’s posts (Monday–Sunday). You check them on the Plan page.'}
             </p>
-            <Field label="Topics from">
+            <Field label="Where should ideas come from?">
               <Select
                 value={a.topic_source}
                 options={TOPIC_SOURCES}
+                placeholder="Choose…"
                 onChange={(topic_source) => onUpdate({ topic_source })}
               />
             </Field>
-            <Field label="Subjects to write about">
+            <Field label="What should posts be about?">
               <SubjectPicker
                 value={a.subjects || []}
                 onChange={(subjects) => onUpdate({ subjects })}
@@ -444,12 +498,12 @@ function SettingsDrawer({ a, channels, onUpdate, onBrandUpdate, onOpenPlan, onCl
             </Field>
           </Section>
 
-          <Section title="Delivery">
-            <Field label="Before it lands">
+          <Section n={4} title="Posting" sub="Your OK, pictures, time and channels">
+            <Field label="Do you want to check posts before they go out?">
               <div className="grid grid-cols-2 rounded-xl border border-ink-200 p-0.5">
                 {[
-                  { v: true, l: 'Review first' },
-                  { v: false, l: 'Skip review' },
+                  { v: true, l: 'Yes, I approve first' },
+                  { v: false, l: 'No, post by itself' },
                 ].map((o) => (
                   <button
                     key={o.l}
@@ -463,19 +517,24 @@ function SettingsDrawer({ a, channels, onUpdate, onBrandUpdate, onOpenPlan, onCl
                   </button>
                 ))}
               </div>
+              <p className="mt-1 text-[11px] text-ink-400">
+                {a.require_approval
+                  ? 'Recommended. Posts wait on the Plan page until you press Approve.'
+                  : 'Daily posts go out on their own. Weekly plans, and any post with a price, offer or customer name the AI can’t check, still wait for you.'}
+              </p>
             </Field>
 
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="text-[12px] font-semibold text-ink-800">Generate media</div>
-                <div className="text-[11px] text-ink-500">Each approved post gets an image and is scheduled by itself — uses AI credit</div>
+                <div className="text-[12px] font-semibold text-ink-800">Make a picture for each post</div>
+                <div className="text-[11px] text-ink-500">The AI designs an image for every approved post and schedules it — uses AI credit</div>
               </div>
               <Toggle on={a.auto_media} onChange={(v) => onUpdate({ auto_media: v })} />
             </div>
 
             {a.auto_media && (
               <>
-                <Field label="Post at">
+                <Field label="Posting time (optional)">
                   <div className="flex items-center gap-2">
                     <input
                       type="time"
@@ -492,17 +551,28 @@ function SettingsDrawer({ a, channels, onUpdate, onBrandUpdate, onOpenPlan, onCl
                   {!a.post_at && (
                     <p className="mt-1 text-[11px] text-ink-400">
                       {a.learn_from_results && Object.keys(a.learnings?.post_hours || {}).length
-                        ? `Blank = your best time from results (${Object.entries(a.learnings.post_hours)
+                        ? `Leave it empty and the AI posts at your best time (${Object.entries(a.learnings.post_hours)
                             .map(([k, v]) => `${PLAT[k]?.name || k} ${v}`)
-                            .join(', ')}), else each platform's usual time`
-                        : "Blank = each platform's usual time"}
+                            .join(', ')}). Set a time only if every post must go out then.`
+                        : 'Leave it empty and each channel uses its usual time until the AI learns your best one.'}
+                    </p>
+                  )}
+                  {a.post_at && (
+                    <p className="mt-1 text-[11px] font-medium text-amber-700">
+                      Every post goes out at {a.post_at} — the AI’s best times are not used. Clear it to let the AI choose.
                     </p>
                   )}
                 </Field>
 
-                <Field label="Channels">
+                <Field label="Post to">
                   {live.length === 0 ? (
-                    <p className="text-[12px] text-ink-400">No connected channels for this brand yet.</p>
+                    <p className="text-[12px] text-ink-400">
+                      No connected accounts yet —{' '}
+                      <Link to="/channels" className="font-semibold text-brand hover:underline">
+                        connect one in Channels
+                      </Link>
+                      .
+                    </p>
                   ) : (
                     <div className="space-y-1">
                       {live.map((c) => (
@@ -556,6 +626,7 @@ function Learned({ learnings }) {
   }
   return (
     <ul className="space-y-2 rounded-xl border border-emerald-100 bg-emerald-50/50 p-3">
+      <li className="text-[11px] font-semibold uppercase tracking-[.06em] text-emerald-800">What the AI has learned so far</li>
       {rules.map((r) => (
         <li key={r.id} className="flex items-start gap-2 text-[12px]">
           <FiTrendingUp size={13} className="mt-0.5 flex-none text-emerald-700" aria-hidden="true" />
@@ -636,10 +707,18 @@ function PostingTimes({ a }) {
   )
 }
 
-function Section({ title, children }) {
+function Section({ n, title, sub, children }) {
   return (
-    <section className="space-y-3">
-      <h3 className="text-[11px] font-semibold uppercase tracking-[.06em] text-ink-400">{title}</h3>
+    <section className="space-y-3 rounded-2xl border border-ink-200/70 p-4">
+      <div className="flex items-start gap-2.5">
+        {n && (
+          <span className="grid h-6 w-6 flex-none place-items-center rounded-full bg-brand-soft text-[11.5px] font-bold text-brand">{n}</span>
+        )}
+        <div>
+          <h3 className="text-[14px] font-semibold text-ink-900">{title}</h3>
+          {sub && <p className="text-[11.5px] text-ink-500">{sub}</p>}
+        </div>
+      </div>
       {children}
     </section>
   )
@@ -694,7 +773,7 @@ function PosterKitSection({ a, onUpdate }) {
   const chosen = (kit.template_ids || []).filter((id) => templates.some((t) => t.id === id))
 
   return (
-    <Section title="Image style">
+    <Section n={5} title="Picture style" sub="Your logo, photos and favourite designs">
       {assets === null ? (
         <div className="h-24 rounded-xl skeleton" />
       ) : !templates.length && !logo && !photos ? (
@@ -708,7 +787,7 @@ function PosterKitSection({ a, onUpdate }) {
       ) : (
         <>
           {templates.length > 0 && (
-            <Field label="Follow these poster templates">
+            <Field label="Designs to follow">
               <TemplatePicker templates={templates} value={chosen} multiple onChange={(ids) => set({ template_ids: ids })} />
               <p className="mt-1.5 text-[11px] text-ink-400">
                 {chosen.length > 1

@@ -225,11 +225,11 @@ export default function LeadsPage() {
           </span>
           <h2 className="mt-3 text-[16px] font-bold text-ink-900">No leads yet</h2>
           <p className="mx-auto mt-1.5 max-w-[56ch] text-[12.5px] leading-relaxed text-ink-500">
-            Leads show up here by themselves once your chatbot is connected (Setup → Chatbots → leads). Until then, add them
+            Leads show up here by themselves once your chatbot is connected (Setup → Bot setup). Until then, add them
             by hand: they are scored, matched to the customer list, and routed to a rep the same way.
           </p>
           <div className="mt-4 flex flex-wrap justify-center gap-2">
-            <Link to="/channels" className="btn-primary">
+            <Link to="/bots" className="btn-primary">
               Connect your chatbot
             </Link>
             <button type="button" onClick={() => setDialog('new')} className="btn-outline">

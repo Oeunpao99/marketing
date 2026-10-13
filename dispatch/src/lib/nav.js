@@ -6,6 +6,7 @@ import {
   FiGlobe,
   FiHome,
   FiImage,
+  FiMessageSquare,
   FiPackage,
   FiRepeat,
   FiSliders,
@@ -49,6 +50,7 @@ export const BOSS = [
     tour: 'channels',
     sub: [
       { to: '/channels', icon: FiSliders, label: 'Channels' },
+      { to: '/bots', icon: FiMessageSquare, label: 'Bot setup' },
       { to: '/auto', icon: FiRepeat, label: 'Autopilot' },
       { to: '/website', icon: FiGlobe, label: 'Website check' },
       { to: '/products', icon: FiPackage, label: 'Products & brand kit' },
