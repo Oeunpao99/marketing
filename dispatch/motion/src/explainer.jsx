@@ -176,12 +176,21 @@ export function Caption({ text, seconds, top = 1225 }) {
     } else cur = next
   }
   if (cur.trim()) chunks.push(cur.trim())
+  // Each phrase shows for as long as it takes to say — measured in spoken
+  // sounds, not characters: Khmer vowel signs and subscripts (្) are part of
+  // a syllable, and a comma or full stop is a short pause.
+  const weight = (c) => {
+    let w = 0
+    for (const ch of clean(c)) w += /[\u17B6-\u17D3\u17DD]/.test(ch) ? 0.25 : /[,.!?។៕:;—]/.test(ch) ? 3 : 1
+    return Math.max(1, w)
+  }
   const span = Math.max(1, (seconds || 3) * fps)
-  const total = chunks.reduce((n, c) => n + clean(c).length, 0) || 1
-  let at = 6
+  const total = chunks.reduce((n, c) => n + weight(c), 0) || 1
+  const LEAD = 3 // frames — a phrase appears just before it's heard, never after
+  let at = 0
   const timed = chunks.map((c) => {
-    const len = (clean(c).length / total) * (span - 6)
-    const item = { c, from: at, to: at + len }
+    const len = (weight(c) / total) * span
+    const item = { c, from: Math.max(0, at - LEAD), to: at + len - LEAD }
     at += len
     return item
   })

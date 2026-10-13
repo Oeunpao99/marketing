@@ -24,6 +24,7 @@ import {
   AbsoluteFill,
   Html5Audio,
   Img,
+  Sequence,
   interpolate,
   spring,
   useCurrentFrame,
@@ -740,12 +741,15 @@ export const MotionPost = ({ brand, scenes, music, style }) => {
           const out = [
             <TransitionSeries.Sequence key={`s${i}`} durationInFrames={sceneFrames(scene)}>
               {body}
-              {/* The spoken line as subtitles — not where the screen says it already (the chat's bubbles, a quote). */}
-              {scene.caption && !noCaption.includes(scene.type) && (
-                <Caption text={scene.caption} seconds={scene.voiceSeconds || sceneFrames(scene) / FPS - 0.6} top={t.captionTop} />
-              )}
-              {/* The scene's voice-over line (app/motion.py add_voice) — the scene lasts as long as it. */}
-              {scene.audio && <Html5Audio src={srcOf(scene.audio)} />}
+              {/* The voice-over line (app/motion.py add_voice) and its subtitles start together, once
+                  the scene has slid in — so the voice never runs ahead of the title or the subtitles. */}
+              <Sequence from={i ? TRANSITION : 0} layout="none">
+                {/* Subtitles — not where the screen says it already (the chat's bubbles, a quote). */}
+                {scene.caption && !noCaption.includes(scene.type) && (
+                  <Caption text={scene.caption} seconds={scene.voiceSeconds || sceneFrames(scene) / FPS - 0.6} top={t.captionTop} />
+                )}
+                {scene.audio && <Html5Audio src={srcOf(scene.audio)} />}
+              </Sequence>
             </TransitionSeries.Sequence>,
           ]
           if (i < scenes.length - 1) {

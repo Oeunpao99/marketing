@@ -852,6 +852,27 @@ def length_of(props: dict) -> int:
 VOICE_TAIL = 0.8
 
 
+def _trim_silence(path: Path) -> bytes | None:
+    """The MP3 without the silence the voice service puts before and after
+    the words — None when ffmpeg can't do it (the line is used as it is)."""
+    from app.story import _ffmpeg
+
+    out = path.with_name(path.stem + "-trim.mp3")
+    edge = "silenceremove=start_periods=1:start_threshold=-50dB:start_silence=0.03"
+    try:
+        subprocess.run(
+            [_ffmpeg(), "-hide_banner", "-loglevel", "error", "-y", "-i", str(path),
+             "-af", f"{edge},areverse,{edge},areverse", "-c:a", "libmp3lame", "-b:a", "128k", str(out)],
+            check=True,
+            capture_output=True,
+            timeout=60,
+        )
+        blob = out.read_bytes()
+    except (subprocess.SubprocessError, OSError):
+        return None
+    return blob if len(blob) > 1000 else None
+
+
 def add_voice(props: dict, script: dict, voice: str, ws: int | None, user_id: int | None, job_id: int) -> int:
     """Each scene's spoken line, read by ``voice``: the MP3 goes into the scene
     and the scene lasts as long as its line (never shorter than its
@@ -874,11 +895,17 @@ def add_voice(props: dict, script: dict, voice: str, ws: int | None, user_id: in
                 continue
             path = Path(tmp) / f"say-{n}.mp3"
             path.write_bytes(mp3)
+            # Only the speech itself: the subtitles are spread over this length,
+            # so silence at either end would make them lag behind the voice.
+            mp3 = _trim_silence(path) or mp3
+            path.write_bytes(mp3)
             _has_audio, duration = _probe(str(path))
             if duration <= 0:
                 continue
             scene["audio"] = "data:audio/mpeg;base64," + base64.b64encode(mp3).decode()
-            scene["seconds"] = round(max(default_seconds(scene), duration + VOICE_TAIL), 2)
+            # The line starts once the scene has slid in (MotionPost.jsx).
+            lead = TRANSITION_S if n else 0.0
+            scene["seconds"] = round(max(default_seconds(scene), lead + duration + VOICE_TAIL), 2)
             scene["voiceSeconds"] = round(duration, 2)  # subtitles follow the voice
             spoken += len(say)
     if spoken:
