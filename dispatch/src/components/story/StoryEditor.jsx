@@ -441,7 +441,7 @@ export default function StoryEditor({ storyId, compact = false, onDeleted, onSto
 
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(280px,340px)_minmax(0,1fr)] 2xl:grid-cols-[360px_minmax(0,1fr)]">
         {/* ── Brief ── */}
-        <aside className={`${card} space-y-4 p-5 xl:sticky xl:top-20`}>
+        <aside className={`${card} space-y-4 p-5 xl:sticky xl:top-[calc(4.5rem+var(--tabs-h,0px)+var(--studio-head,0px))]`}>
           <div>
             <h3 className="text-[15px] font-semibold text-ink-900">Brief</h3>
             {brand && (

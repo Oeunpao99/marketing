@@ -1,0 +1,48 @@
+{
+ "brand": {
+  "name": "ContentFlow",
+  "color": "#1F4E8C",
+  "logo": null
+ },
+ "style": "explainer",
+ "scenes": [
+  {
+   "type": "chart",
+   "title": "Save ⟦$80⟧ a month",
+   "prefix": "$",
+   "suffix": "",
+   "labels": [
+    "0",
+    "1",
+    "2",
+    "3",
+    "5"
+   ],
+   "series": [
+    {
+     "name": "Sokha saves",
+     "tone": "good",
+     "values": [
+      0,
+      960,
+      1920,
+      2880,
+      4800
+     ]
+    },
+    {
+     "name": "Dara spends",
+     "tone": "bad",
+     "values": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    }
+   ]
+  }
+ ],
+ "frame": 140
+}

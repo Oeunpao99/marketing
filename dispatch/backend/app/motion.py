@@ -331,6 +331,44 @@ QUOTE_PROMPT = (
     + '{"scenes": [{"type": "hook", "text": "...", "icon": "Quote", "say": "..."}, ...]}'
 )
 
+TESTIMONIAL_TYPES = ("hook", "customer", "beforeafter", "result", "review", "cta")
+TESTIMONIAL_PROMPT = (
+    "You are the best short-form video storyteller in Cambodia. You plan a vertical "
+    "REMOTION VIDEO (TikTok / Facebook Reels, about 60 s) that builds TRUST: a customer's "
+    "story — who they are, their life before, what changed, the result. Warm and human, "
+    "like a friend telling you what happened; the brand is the helper, the customer is the "
+    "hero.\n"
+    "\n"
+    "HONESTY — this matters more than anything: never invent a real customer, a real review "
+    "or a real result. If the brief gives a real customer (name, words, numbers), use exactly "
+    "that. If it does NOT, tell the story of an EXAMPLE customer and say so in the voice "
+    "(\"Meet Sokha — a shop owner like you\", \"Imagine…\"): use a common Cambodian first "
+    "name and a general business (\"mini-mart owner\"), never a real shop's name, give "
+    "NO `review` scene, and a `result` only if the number comes from the product information.\n"
+    "\n"
+    "THE STORY (7-9 scenes):\n"
+    "1. hook — the change in one line (\"How one mini-mart stopped losing night orders\").\n"
+    "2. customer — who they are and their problem.\n"
+    "3-4. the struggle and the turning point — another `customer` scene (a new mood), or a "
+    "`beforeafter`.\n"
+    "5. beforeafter — life before vs after.\n"
+    "6. result — one number that shows the change (only a TRUE number, see HONESTY).\n"
+    "7. review — ONLY with the customer's real words from the brief.\n"
+    "last. cta — invite the viewer to get the same (message us, book a demo).\n"
+    "\n"
+    "SCENE TYPES and their fields:\n"
+    "- hook: text (max 10 words), icon.\n"
+    "- customer: name (first name only), business (2-5 words, e.g. \"Mini-mart owner · Siem "
+    "Reap\"), text (max 12 words — their situation now), mood (happy | excited | sad | worried "
+    "| thinking).\n"
+    "- beforeafter: title (max 5 words, optional), before (max 12 words), after (max 12 words).\n"
+    "- result: value (a number), prefix (\"\" or \"$\"), suffix (\"\", \"%\", \"x\", \"+\"), label (max 8 words).\n"
+    "- review: text (the customer's real words, max 25 words), name, stars (1-5).\n"
+    "- cta: text (max 8 words), button (1-3 words).\n"
+    + _COMMON_RULES
+    + '{"scenes": [{"type": "hook", "text": "...", "icon": "Heart", "say": "..."}, ...]}'
+)
+
 # style → (story prompt, scene types, most scenes between the hook and the
 # call to action, a scene type the story must have)
 STYLES = {
@@ -339,6 +377,7 @@ STYLES = {
     "versus": (VERSUS_PROMPT, VERSUS_TYPES, 7, None),
     "poll": (POLL_PROMPT, POLL_TYPES, 6, "options"),
     "quote": (QUOTE_PROMPT, QUOTE_TYPES, 3, "quote"),
+    "testimonial": (TESTIMONIAL_PROMPT, TESTIMONIAL_TYPES, 7, "customer"),
 }
 
 # Story mode (write_script ``seconds``): the person pasted their own story.
@@ -386,6 +425,7 @@ GOAL_STYLES = {
     "authority": "versus",
     "engagement": "poll",
     "followers": "quote",
+    "trust": "testimonial",
 }
 SELL_GOALS = {g for g, st in GOAL_STYLES.items() if st == "tech"}
 
@@ -561,6 +601,45 @@ def _clean_scene(raw: dict, names: dict[str, str]) -> dict | None:
             if len(opts) >= 2
             else None
         )
+    if kind == "customer":
+        name = _line(raw.get("name"), 40)
+        return (
+            {
+                "type": kind,
+                "name": name,
+                "business": _line(raw.get("business"), 60),
+                "text": _line(raw.get("text"), 140),
+                "mood": raw.get("mood") if raw.get("mood") in MOODS else "thinking",
+                "say": say,
+            }
+            if name
+            else None
+        )
+    if kind == "beforeafter":
+        before, after = _line(raw.get("before"), 140), _line(raw.get("after"), 140)
+        return {"type": kind, "title": _line(raw.get("title"), 80), "before": before, "after": after, "say": say} if before and after else None
+    if kind == "result":
+        value = _number(raw.get("value"))
+        label = _line(raw.get("label"), 80)
+        return (
+            {
+                "type": kind,
+                "value": int(value) if value == int(value) else round(value, 1),
+                "prefix": _line(raw.get("prefix"), 3),
+                "suffix": _line(raw.get("suffix"), 4),
+                "label": label,
+                "say": say,
+            }
+            if value and label
+            else None
+        )
+    if kind == "review":
+        text = _line(raw.get("text"), 220)
+        try:
+            stars = int(raw.get("stars") or 5)
+        except (TypeError, ValueError):
+            stars = 5
+        return {"type": kind, "text": text, "name": _line(raw.get("name"), 40), "stars": max(1, min(5, stars)), "say": say} if text else None
     if kind == "quote":
         text = _line(raw.get("text"), 220)
         return {"type": kind, "text": text, "author": _line(raw.get("author"), 40), "say": say} if text else None
@@ -594,6 +673,10 @@ _TEXT_FIELDS = {
     "reveal": (("text", 140), ("say", 300)),
     "options": (("question", 60), ("say", 300)),
     "quote": (("text", 220), ("say", 300)),
+    "customer": (("business", 60), ("text", 140), ("say", 300)),
+    "beforeafter": (("title", 80), ("before", 140), ("after", 140), ("say", 300)),
+    "result": (("label", 80), ("say", 300)),
+    "review": (("say", 300),),
 }
 
 
@@ -796,6 +879,14 @@ def script_lines(script: dict) -> list[tuple[str, str]]:
             )
         elif s["type"] == "quote":
             screen = f"“{s['text']}”" + (f" — {s['author']}" if s.get("author") else "")
+        elif s["type"] == "customer":
+            screen = s["name"] + (f" ({s['business']})" if s.get("business") else "") + (f" — {s['text']}" if s.get("text") else "")
+        elif s["type"] == "beforeafter":
+            screen = f"Before: {s['before']} → After: {s['after']}"
+        elif s["type"] == "result":
+            screen = f"{s.get('prefix', '')}{s['value']}{s.get('suffix', '')} {s['label']}"
+        elif s["type"] == "review":
+            screen = f"{'★' * s.get('stars', 5)} “{s['text']}”" + (f" — {s['name']}" if s.get("name") else "")
         else:
             screen = s.get("text", "")
         out.append((f"[{s['type']}] {screen}", s.get("say", "")))
@@ -868,7 +959,7 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
     scenes = []
     for s in script["scenes"]:
         scene = {k: v for k, v in s.items() if k not in ("say", "product")}
-        for key in ("text", "title", "label", "button", "myth", "fact", "question", "author"):
+        for key in ("text", "title", "label", "button", "myth", "fact", "question", "author", "name", "business", "before", "after"):
             if scene.get(key):
                 scene[key] = t(scene[key])
         if s.get("say"):
@@ -914,7 +1005,7 @@ def default_seconds(scene: dict) -> float:
         return 2.6 + 0.9 * min(6, len((scene.get("left") or {}).get("points") or []) + len((scene.get("right") or {}).get("points") or []))
     if kind == "options":
         return 2.4 + 0.35 * min(4, len(scene.get("options") or [])) + 6.0
-    return {"cta": 3.8, "product": 3.6, "chart": 5.2, "compare": 4.2, "character": 3.8, "myth": 5.0, "quote": 5.6}.get(kind, 3.4)
+    return {"cta": 3.8, "product": 3.6, "chart": 5.2, "compare": 4.2, "character": 3.8, "myth": 5.0, "quote": 5.6, "beforeafter": 5.4, "result": 4.2, "review": 6.0, "customer": 4.4}.get(kind, 3.4)
 
 
 def length_of(props: dict) -> int:

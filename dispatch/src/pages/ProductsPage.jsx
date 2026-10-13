@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import AutoTextarea from '../components/ui/AutoTextarea'
 import { createPortal } from 'react-dom'
 import { useLocation } from 'react-router-dom'
-import { FiX } from 'react-icons/fi'
+import { FiPackage, FiPlus, FiX } from 'react-icons/fi'
 import { api } from '../api/client'
 import { colorForBrand } from '../lib/brandColor'
 import { useStore } from '../store'
@@ -100,80 +100,79 @@ export default function ProductsPage() {
 
   return (
     <div className="w-full px-5 lg:px-10 py-8 lg:py-10 animate-fadein">
-      <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="page-title">Products</h1>
-          <p className="page-sub mt-1">
-            What each brand sells or offers — the AI reads this in{' '}
-            <span className="font-semibold text-ink-700">Auto-generate</span> to write ideas grounded in real facts instead of guessing.
-            The brand kit gives its images your real logo, product photos and poster style.
-          </p>
+      {/* Header: what this page is for, in one line. */}
+      <div className="mb-5">
+        <h1 className="page-title">{view === 'kit' ? 'Brand kit' : 'Products'}</h1>
+        <p className="page-sub mt-1">
+          {view === 'kit'
+            ? 'Your logo, product photos and poster styles — every image and video the AI makes follows them.'
+            : 'What each brand sells — the AI writes posts from these facts instead of guessing.'}
+        </p>
+      </div>
+
+      {/* One toolbar: which part · which brand · add */}
+      <div className="mb-6 flex flex-wrap items-center gap-3 border-b border-ink-200/70 pb-4">
+        <div className="inline-flex flex-none rounded-xl bg-ink-100/70 p-1" role="tablist" aria-label="Section">
+          {[
+            ['products', 'Products'],
+            ['kit', 'Brand kit'],
+          ].map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={view === id}
+              onClick={() => setView(id)}
+              className={`rounded-lg px-4 py-1.5 text-[13px] font-semibold transition-colors duration-150 ${
+                view === id ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-500 hover:text-ink-800'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
+
+        <span className="hidden h-6 w-px bg-ink-200 sm:block" aria-hidden="true" />
+
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5" role="group" aria-label="Brand">
+          {view === 'products' && (
+            <button
+              type="button"
+              onClick={() => setBrandFilter('all')}
+              className={`rounded-full border px-3 py-1.5 text-[12px] font-semibold transition-colors ${
+                brandFilter === 'all' ? 'border-brand-line bg-brand-soft text-brand' : 'border-ink-200 bg-white text-ink-600 hover:border-brand-line'
+              }`}
+            >
+              All brands
+              <span className={`ml-1.5 tabular-nums ${brandFilter === 'all' ? 'text-brand' : 'text-ink-400'}`}>{items?.length ?? 0}</span>
+            </button>
+          )}
+          {brands.map((b) => {
+            const on = view === 'kit' ? kitBrand?.id === b.id : brandFilter === b.slug
+            return (
+              <button
+                key={b.id}
+                type="button"
+                onClick={() => setBrandFilter(b.slug)}
+                className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-semibold transition-colors ${
+                  on ? 'border-brand-line bg-brand-soft text-brand' : 'border-ink-200 bg-white text-ink-600 hover:border-brand-line'
+                }`}
+              >
+                <span className="h-2 w-2 flex-none rounded-full" style={{ background: colorForBrand(b.slug) }} />
+                {b.name}
+                {view === 'products' && (
+                  <span className={`tabular-nums ${on ? 'text-brand' : 'text-ink-400'}`}>{items?.filter((p) => p.brand_id === b.id).length ?? 0}</span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+
         {view === 'products' && (
-          <button
-            type="button"
-            onClick={startNew}
-            disabled={!brands.length}
-            className="btn-primary flex-none"
-          >
-            + Add product
+          <button type="button" onClick={startNew} disabled={!brands.length} className="btn-primary ml-auto flex-none">
+            <FiPlus size={15} /> Add product
           </button>
         )}
-      </div>
-
-      <div className="mb-5 inline-flex rounded-xl border border-ink-200 bg-white p-0.5" role="tablist" aria-label="Section">
-        {[
-          ['products', 'Products'],
-          ['kit', 'Brand kit'],
-        ].map(([id, label]) => (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            aria-selected={view === id}
-            onClick={() => setView(id)}
-            className={`rounded-[10px] px-4 py-1.5 text-[13px] font-medium transition-colors duration-150 ${
-              view === id ? 'bg-brand-soft text-brand' : 'text-ink-700 hover:bg-ink-50'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2 mb-6">
-        {view === 'products' && (
-        <button
-          type="button"
-          onClick={() => setBrandFilter('all')}
-          className={`px-3.5 py-2 rounded-xl border text-[12px] font-semibold transition-all duration-150 ${
-            brandFilter === 'all' ? 'border-brand-line bg-brand-soft text-brand' : 'border-ink-200 text-ink-600 hover:border-brand-line'
-          }`}
-        >
-          All
-          <span className={`ml-1.5 font-mono text-[10px] ${brandFilter === 'all' ? 'text-brand' : 'text-ink-400'}`}>
-            {items?.length ?? 0}
-          </span>
-        </button>
-        )}
-        {brands.map((b) => (
-          <button
-            key={b.id}
-            type="button"
-            onClick={() => setBrandFilter(b.slug)}
-            className={`px-3.5 py-2 rounded-xl border text-[12px] font-semibold flex items-center gap-2 transition-all duration-150 ${
-              (view === 'kit' ? kitBrand?.id === b.id : brandFilter === b.slug) ? 'border-brand-line bg-brand-soft text-brand' : 'border-ink-200 text-ink-600 hover:border-brand-line'
-            }`}
-          >
-            <span className="w-2 h-2 rounded-full flex-none" style={{ background: colorForBrand(b.slug) }} />
-            {b.name}
-            {view === 'products' && (
-              <span className={`font-mono text-[10px] ${brandFilter === b.slug ? 'text-brand' : 'text-ink-400'}`}>
-                {items?.filter((p) => p.brand_id === b.id).length ?? 0}
-              </span>
-            )}
-          </button>
-        ))}
       </div>
 
       {editingId != null && (
@@ -205,13 +204,16 @@ export default function ProductsPage() {
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="py-20 text-center">
-          <div className="text-[14px] font-semibold text-ink-700">No products yet</div>
-          <div className="text-[12px] text-ink-400 mt-1">
-            Add what this brand sells or offers so the AI has something real to write about.
-          </div>
-          <button type="button" onClick={startNew} disabled={!brands.length} className="btn-primary mt-4">
-            + Add your first product
+        <div className="mx-auto max-w-[520px] rounded-2xl border border-dashed border-ink-200 bg-white px-6 py-12 text-center">
+          <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-brand-soft text-brand">
+            <FiPackage size={22} aria-hidden="true" />
+          </span>
+          <div className="mt-3 text-[15px] font-semibold text-ink-900">No products yet</div>
+          <p className="mx-auto mt-1 max-w-[42ch] text-[12.5px] leading-relaxed text-ink-500">
+            Add what this brand sells or offers — a name, a short description and what makes it good. The AI uses it so posts stay true.
+          </p>
+          <button type="button" onClick={startNew} disabled={!brands.length} className="btn-primary mt-5">
+            <FiPlus size={15} /> Add your first product
           </button>
         </div>
       ) : (

@@ -4,6 +4,7 @@ import { applyTheme, isDark } from "../../lib/theme";
 import { openMoreSheet } from "./MobileBar";
 import { useEffect, useState } from "react";
 import Notifications from "./Notifications";
+import StudioSwitcher from "../studio/StudioSwitcher";
 import { useAuth } from "../../auth";
 import { useStore } from "../../store";
 import { useNotifications } from "../../lib/notifications";
@@ -68,7 +69,7 @@ export default function Topbar({ onToggleSidebar }) {
     "U";
 
   return (
-    <header className="sticky top-0 z-20 h-14 flex items-center gap-3 px-4 sm:px-6 bg-white/60 backdrop-blur-2xl backdrop-saturate-150 border-b border-white/70 shadow-[0_1px_0_rgba(16,24,40,0.05)]">
+    <header className="sticky top-0 z-20 h-14 flex items-center gap-3 px-4 sm:px-6 bg-white border-b border-ink-200/70">
       <button
         type="button"
         onClick={openMoreSheet}
@@ -110,6 +111,8 @@ export default function Topbar({ onToggleSidebar }) {
           ⌘ K
         </kbd>
       </button>
+
+      <StudioSwitcher />
 
       <button
         type="button"

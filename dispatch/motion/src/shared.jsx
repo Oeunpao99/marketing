@@ -36,6 +36,14 @@ export function defaultSeconds(s) {
       return 2.4 + 0.35 * Math.min(4, (s.options || []).length) + 6.0 // pop-in + 5 s countdown + the reveal
     case 'quote':
       return 5.6
+    case 'beforeafter':
+      return 5.4
+    case 'result':
+      return 4.2
+    case 'review':
+      return 6.0
+    case 'customer':
+      return 4.4
     default:
       return 3.4
   }

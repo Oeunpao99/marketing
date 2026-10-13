@@ -173,6 +173,7 @@ const MOTION_STORIES = [
   { value: 'versus', label: 'Compare · Myth vs fact', hint: 'Old way vs better way, a myth busted — builds authority' },
   { value: 'poll', label: 'Poll · Quiz', hint: 'A question, A/B/C answers, a countdown — gets comments' },
   { value: 'quote', label: 'Quote', hint: 'One strong line over your photo — wins followers' },
+  { value: 'testimonial', label: 'Testimonial · Customer story', hint: 'A customer’s before → after — builds trust (real reviews only from your brief)' },
 ]
 
 export default function AIPromptPage({ embedded = false, preset = null }) {
@@ -216,6 +217,12 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
   const [uploading, setUploading] = useState(false)
   const [writing, setWriting] = useState(false)
   const [intentPick, setIntentPick] = useState(null) // null = auto | 'ask' | 'create'
+  // Embedded in the Content studio: our header buttons go on the section-tabs
+  // line (SectionTabs #section-actions), next to Studio | Media Library.
+  const [actionsSlot, setActionsSlot] = useState(null)
+  useEffect(() => {
+    setActionsSlot(embedded ? document.getElementById('section-actions') : null)
+  }, [embedded])
 
   // thread
   const [turns, setTurns] = useState([])
@@ -258,6 +265,16 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
     const s = location.state
     if (!s) return
     if (s.brandSlug) setBrand(s.brandSlug)
+    // A template picked in Content studio → Templates: Remotion, with that story.
+    if (s.motionStory) {
+      setType('video')
+      setRatio('9:16')
+      setVideoMode('motion')
+      setMotionGoal(s.motionStory)
+      setIntentPick('create')
+      const name = MOTION_STORIES.find((o) => o.value === s.motionStory)?.label || s.motionStory
+      showToast(`Remotion · ${name} — write your topic or paste your story, or press Make one for me`)
+    }
     const idea = [s.topic, s.extra].filter(Boolean).join('\n\n')
     if (idea) {
       setText(idea)
@@ -285,6 +302,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
   // Opened from a Content studio tab: Images starts on making an image; Copy
   // per channel starts on asking (captions and copy are written as answers).
   useEffect(() => {
+    if (location.state?.motionStory) return // opened from a template — stays on Remotion
     if (preset === 'images') {
       setType('image')
       setIntentPick('create')
@@ -352,26 +370,6 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
   // unless the person has scrolled up to read something older.
   const statusKey = turns.map((t) => t.status).join(',')
 
-  // Live AI-credit meter (app/billing.py): what you've spent since this page
-  // opened, and what the workspace has left. Refreshed whenever a turn
-  // finishes, and every 30s (storyboard scenes are charged as they land).
-  const meterSince = useRef(new Date().toISOString())
-  const [meter, setMeter] = useState(null)
-  useEffect(() => {
-    let alive = true
-    const load = () =>
-      api
-        .get(`/billing/summary?since=${encodeURIComponent(meterSince.current)}`)
-        .then((m) => alive && setMeter(m))
-        .catch(() => {})
-    load()
-    const id = setInterval(load, 30000)
-    return () => {
-      alive = false
-      clearInterval(id)
-    }
-  }, [statusKey])
-  const openBilling = () => window.dispatchEvent(new CustomEvent('dispatch:open-settings', { detail: { tab: 'billing' } }))
   const prevLenRef = useRef(0)
   useLayoutEffect(() => {
     const opening = prevLenRef.current === 0 // a chat just opened: jump, don't glide
@@ -976,12 +974,41 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
 
   const canSend = (intent === 'ask' ? text.trim().length >= 2 : text.trim().length >= 10) && !uploading && !writing
 
+  // New chat and History — in the Content studio they sit on
+  // the section-tabs line (SectionTabs #section-actions), else in this header.
+  const actions = (
+    <div className="flex flex-none items-center gap-0.5 sm:gap-1">
+      <button
+        type="button"
+        onClick={newChat}
+        disabled={!turns.length}
+        title="New chat"
+        aria-label="New chat"
+        className="h-9 w-9 rounded-xl grid place-items-center text-ink-600 hover:bg-white hover:shadow-sm hover:text-brand disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:shadow-none transition"
+      >
+        <FiPlus size={18} />
+      </button>
+      <button
+        type="button"
+        onClick={() => setHistoryOpen(true)}
+        title="History"
+        aria-label="History"
+        className={`h-9 w-9 rounded-xl grid place-items-center transition ${
+          historyOpen ? 'bg-brand-soft text-brand' : 'text-ink-600 hover:bg-white hover:shadow-sm hover:text-brand'
+        }`}
+      >
+        <FiClock size={17} />
+      </button>
+    </div>
+  )
+
   return (
     // Fills the screen below the top bar, so the composer always sits at the
     // bottom — even when the thread is short or empty.
     <div className="w-full px-5 lg:px-10 animate-fade flex flex-col min-h-[calc(100dvh-7.5rem-env(safe-area-inset-bottom))] lg:min-h-[calc(100dvh-3.5rem)]">
       {/* Page header — pinned under the top bar while the thread scrolls. */}
-      <div className="sticky top-14 z-20 -mx-5 lg:-mx-10 px-5 lg:px-10 bg-canvas/90 backdrop-blur-md">
+      {/* …under the section tabs and the Content studio title, also pinned (usePinnedHeight). */}
+      <div className="sticky top-[calc(3.5rem+var(--tabs-h,0px)+var(--studio-head,0px))] z-[16] -mx-5 lg:-mx-10 px-5 lg:px-10 bg-canvas">
         {/* Phones: one compact row (the header stays pinned, so every line of
             it hides the thread) — the description shows from sm up. */}
         <div className="w-full flex items-center justify-between gap-2 sm:gap-3 py-2.5 sm:py-4">
@@ -1001,55 +1028,11 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
               </>
             )}
           </div>
-          <div className="flex flex-none items-center gap-0.5 sm:gap-1">
-            {meter ? (
-              <button
-                type="button"
-                onClick={openBilling}
-                title="Your AI use since you opened this page, and the workspace's credit left this month — click for details"
-                className="mr-1 sm:mr-1.5 inline-flex h-8 flex-none items-center gap-1.5 whitespace-nowrap rounded-full bg-white/80 px-2.5 sm:px-3 text-[11px] text-ink-500 ring-1 ring-ink-200 hover:ring-brand/40 hover:text-ink-700 transition"
-              >
-                <span className="hidden md:inline tabular-nums">{fmtTok(meter.session_tokens || sessionTokens)} tokens</span>
-                <span className="hidden md:inline text-ink-300">·</span>
-                <span className="hidden sm:inline tabular-nums font-semibold text-ink-700">~{fmtUSD(meter.session_spent)} this session</span>
-                <span className="hidden sm:inline text-ink-300">·</span>
-                <span
-                  className={`tabular-nums font-semibold ${
-                    meter.available <= 0 ? 'text-red-600' : meter.available <= 5 ? 'text-amber-600' : 'text-brand'
-                  }`}
-                >
-                  {fmtUSD(Math.max(0, meter.available))} left
-                </span>
-              </button>
-            ) : (
-              sessionTokens > 0 && (
-                <span className="mr-2 hidden sm:inline text-[11px] text-ink-400">{fmtTok(sessionTokens)} tokens this session</span>
-              )
-            )}
-            <button
-              type="button"
-              onClick={newChat}
-              disabled={!turns.length}
-              title="New chat"
-              aria-label="New chat"
-              className="h-9 w-9 rounded-xl grid place-items-center text-ink-600 hover:bg-white hover:shadow-sm hover:text-brand disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:shadow-none transition"
-            >
-              <FiPlus size={18} />
-            </button>
-            <button
-              type="button"
-              onClick={() => setHistoryOpen(true)}
-              title="History"
-              aria-label="History"
-              className={`h-9 w-9 rounded-xl grid place-items-center transition ${
-                historyOpen ? 'bg-brand-soft text-brand' : 'text-ink-600 hover:bg-white hover:shadow-sm hover:text-brand'
-              }`}
-            >
-              <FiClock size={17} />
-            </button>
-          </div>
+          {!actionsSlot && actions}
         </div>
       </div>
+
+      {actionsSlot && createPortal(actions, actionsSlot)}
 
       {/* The chat column — 80% of the page on desktop, centred. */}
       <div className="w-full flex-1">

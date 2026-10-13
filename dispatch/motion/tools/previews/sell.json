@@ -1,0 +1,33 @@
+{
+ "brand": {
+  "name": "ContentFlow",
+  "color": "#1F4E8C",
+  "logo": null
+ },
+ "style": "tech",
+ "scenes": [
+  {
+   "type": "chat",
+   "title": "Chumnouykar AI ឆ្លើយ​ជំនួស​បង",
+   "messages": [
+    {
+     "from": "customer",
+     "text": "សួស្តី! សាប៊ូ​នេះ​តម្លៃ​ប៉ុន្មាន?"
+    },
+    {
+     "from": "brand",
+     "text": "សួស្តី​បង! តម្លៃ ៥ ដុល្លារ ដឹកជញ្ជូន​ដល់​ផ្ទះ"
+    },
+    {
+     "from": "customer",
+     "text": "ចង់​កុម្ម៉ង់ ២ ដុំ"
+    },
+    {
+     "from": "brand",
+     "text": "បាទ​បង! សូម​ផ្ញើ​លេខទូរស័ព្ទ​មក"
+    }
+   ]
+  }
+ ],
+ "frame": 200
+}

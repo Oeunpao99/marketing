@@ -1,0 +1,17 @@
+{
+ "brand": {
+  "name": "ContentFlow",
+  "color": "#1F4E8C",
+  "logo": null
+ },
+ "style": "quote",
+ "scenes": [
+  {
+   "type": "quote",
+   "image": "sample/soap.png",
+   "text": "Customers don't remember the price. They remember ⟦how fast you cared⟧.",
+   "author": "ContentFlow"
+  }
+ ],
+ "frame": 150
+}

@@ -1,0 +1,17 @@
+{
+ "brand": {
+  "name": "ContentFlow",
+  "color": "#1F4E8C",
+  "logo": null
+ },
+ "style": "testimonial",
+ "frame": 120,
+ "scenes": [
+  {
+   "type": "beforeafter",
+   "title": "What changed",
+   "before": "Customers waited until morning for a price",
+   "after": "Every question answered in seconds, day and night"
+  }
+ ]
+}

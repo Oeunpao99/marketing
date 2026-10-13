@@ -1,17 +1,17 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useLocation, useSearchParams } from 'react-router-dom'
+import { STUDIO_TABS } from '../lib/studioTabs'
+import usePinnedHeight from '../lib/usePinnedHeight'
 import VideoBuilder from '../components/studio/VideoBuilder'
+import TemplatesGallery from '../components/studio/TemplatesGallery'
 import AIPromptPage from './AIPromptPage'
 
 // Content studio (/ai) — the boss's layout. Video builder is the default tab;
 // Images and Copy per channel are the AI chat, opened in that mode, so image and
 // caption making stay in one place.
 
-const TABS = [
-  { id: 'video', label: 'Video builder' },
-  { id: 'images', label: 'Images' },
-  { id: 'copy', label: 'Copy per channel' },
-]
+// The tools are picked in the top bar (StudioSwitcher).
+const TABS = STUDIO_TABS
 
 export default function ContentStudioPage() {
   const [params, setParams] = useSearchParams()
@@ -34,29 +34,23 @@ export default function ContentStudioPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab])
 
+  const head = useRef(null)
+  usePinnedHeight(head, '--studio-head') // the chat's own pinned line goes under this
+
   return (
     <div className="w-full animate-fadein">
-      <div className="px-5 pt-7 lg:px-10">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h1 className="page-title">Content studio</h1>
+      {/* Pinned under the section tabs while the page scrolls. */}
+      <div ref={head} className="sticky top-[calc(3.5rem+var(--tabs-h,0px))] z-[17] bg-canvas px-5 pb-1 pt-5 lg:px-10">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <h1 className="page-title flex flex-wrap items-center gap-2.5">
+              Content studio
+              {/* which tool is open — they're switched from the top bar */}
+              <span className="rounded-full bg-brand-soft px-2.5 py-0.5 text-[12px] font-semibold text-brand">
+                {TABS.find((t) => t.id === tab)?.label}
+              </span>
+            </h1>
             <p className="page-sub mt-1">Generate copy, images and video — short AI clips combined into one high-quality cut</p>
-          </div>
-          <div className="inline-flex rounded-xl bg-ink-100/70 p-1" role="tablist" aria-label="Studio">
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                role="tab"
-                aria-selected={tab === t.id}
-                onClick={() => setParams({ tab: t.id })}
-                className={`rounded-lg px-4 py-2 text-[13px] font-semibold transition-colors ${
-                  tab === t.id ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-500 hover:text-ink-800'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
           </div>
         </div>
       </div>
@@ -64,6 +58,10 @@ export default function ContentStudioPage() {
       {tab === 'video' ? (
         <div className="px-5 pb-10 pt-6 lg:px-10">
           <VideoBuilder />
+        </div>
+      ) : tab === 'templates' ? (
+        <div className="px-5 pb-10 pt-6 lg:px-10">
+          <TemplatesGallery />
         </div>
       ) : (
         <AIPromptPage key={tab} embedded preset={tab} />

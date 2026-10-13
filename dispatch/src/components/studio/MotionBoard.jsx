@@ -22,9 +22,13 @@ export const SCENE_LABELS = {
   options: 'Answers',
   reveal: 'The answer',
   quote: 'Quote',
+  customer: 'Customer',
+  beforeafter: 'Before → after',
+  result: 'Result',
+  review: 'Review',
 }
 
-export const STYLE_LABELS = { tech: 'Sell', explainer: 'Teach', versus: 'Compare', poll: 'Poll', quote: 'Quote' }
+export const STYLE_LABELS = { tech: 'Sell', explainer: 'Teach', versus: 'Compare', poll: 'Poll', quote: 'Quote', testimonial: 'Testimonial' }
 
 /** 0-99 from the real steps: the story is the only part without a count, so
  * it creeps up with time; the voice counts lines, the render counts frames. */

@@ -82,7 +82,7 @@ export default function MobileBar() {
   return (
     <>
       <nav
-        className="kb-hide fixed inset-x-0 bottom-0 z-30 lg:hidden bg-white/60 backdrop-blur-2xl backdrop-saturate-150 border-t border-white/70 shadow-[0_-8px_24px_-12px_rgba(16,24,40,0.18)] pb-[env(safe-area-inset-bottom)]"
+        className="kb-hide fixed inset-x-0 bottom-0 z-30 lg:hidden bg-white border-t border-ink-200/70 shadow-[0_-8px_24px_-12px_rgba(16,24,40,0.18)] pb-[env(safe-area-inset-bottom)]"
         aria-label="Mobile navigation"
       >
         <div className="grid grid-cols-5 items-stretch h-14">

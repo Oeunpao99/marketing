@@ -50,6 +50,7 @@ import {
 } from './shared'
 import { EX, EXPLAINER_SCENES, Caption, ExplainerChrome } from './explainer'
 import { POLL, QUOTE, VERSUS } from './goaltemplates'
+import { TESTIMONIAL } from './testimonial'
 
 export { FPS, TRANSITION, defaultSeconds, sceneFrames }
 
@@ -729,6 +730,7 @@ const TEMPLATES = {
   versus: { ...VERSUS, scenes: { ...SCENES, ...VERSUS.scenes } },
   poll: { ...POLL, scenes: { ...SCENES, ...POLL.scenes } },
   quote: { ...QUOTE, scenes: { ...SCENES, ...QUOTE.scenes } },
+  testimonial: { ...TESTIMONIAL, scenes: { ...SCENES, ...TESTIMONIAL.scenes } },
 }
 
 export const MotionPost = ({ brand, scenes, music, style }) => {
