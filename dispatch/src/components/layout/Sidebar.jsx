@@ -1,22 +1,11 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  FiBarChart2,
-  FiCalendar,
-  FiClipboard,
   FiCheck,
   FiChevronDown,
-  FiFilm,
-  FiGlobe,
-  FiHome,
-  FiImage,
   FiLogOut,
-  FiPackage,
-  FiRepeat,
   FiSearch,
   FiSettings,
-  FiSliders,
-  FiUserCheck,
 } from "react-icons/fi";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../../api/client";
@@ -26,53 +15,8 @@ import { colorForBrand } from "../../lib/brandColor";
 import SettingsModal from "./SettingsModal";
 import { openCreateBrand } from "./CreateBrandDrawer";
 import { canOpen } from "../../lib/access";
+import { BOSS, onPath } from "../../lib/nav";
 
-// The boss's six places, in his order. Pages that belong to one of them sit
-// under it as sub-pages (`sub`), shown only while you're in that section, so
-// the sidebar stays his six lines. The first sub-page is the section's own page.
-// `tour` is the anchor the first-run spotlight points at (lib/tour.js); a step
-// whose anchor isn't on screen is simply skipped.
-const BOSS = [
-  { to: "/command", icon: FiHome, label: "Command center" },
-  {
-    to: "/weekly",
-    icon: FiClipboard,
-    label: "Plan & best time",
-    badge: "plan",
-    sub: [
-      { to: "/weekly", icon: FiClipboard, label: "Weekly plan", badge: "plan" },
-      { to: "/calendar", icon: FiCalendar, label: "Calendar", tour: "calendar" },
-    ],
-  },
-  {
-    to: "/ai",
-    icon: FiFilm,
-    label: "Content studio",
-    tour: "ai",
-    sub: [
-      { to: "/ai", icon: FiFilm, label: "Studio" },
-      { to: "/library", icon: FiImage, label: "Media Library", badge: "library" },
-    ],
-  },
-  { to: "/leads", icon: FiUserCheck, label: "Leads & hand-off", badge: "leads" },
-  { to: "/insights", icon: FiBarChart2, label: "Insights & sales" },
-  {
-    to: "/channels",
-    icon: FiSliders,
-    label: "Setup",
-    dot: "setup",
-    tour: "channels",
-    sub: [
-      { to: "/channels", icon: FiSliders, label: "Channels" },
-      { to: "/auto", icon: FiRepeat, label: "Autopilot" },
-      { to: "/website", icon: FiGlobe, label: "Website check" },
-      { to: "/products", icon: FiPackage, label: "Products & brand kit" },
-    ],
-  },
-];
-
-const OPEN_KEY = "cf_nav_open_sections";
-const onPath = (pathname, to) => pathname === to || pathname.startsWith(`${to}/`);
 
 // ``collapsed`` = the slim icon rail (Shell's sidebar toggle): icons only,
 // labels as hover tooltips, counts as dots, menus open beside the rail.
@@ -87,27 +31,6 @@ export default function Sidebar({ collapsed = false }) {
   const [brandOpen, setBrandOpen] = useState(false);
   const [brandQuery, setBrandQuery] = useState("");
   const [userOpen, setUserOpen] = useState(false);
-  // Sections whose sub-pages are showing. Going into a section opens it; it
-  // stays open (others too) until its chevron closes it. Remembered per browser.
-  const [openSections, setOpenSections] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem(OPEN_KEY)) || [];
-    } catch {
-      return [];
-    }
-  });
-  const saveOpen = (list) => {
-    try {
-      localStorage.setItem(OPEN_KEY, JSON.stringify(list));
-    } catch {
-      /* private window — just not remembered */
-    }
-    return list;
-  };
-  useEffect(() => {
-    const here = BOSS.find((b) => b.sub?.some((x) => onPath(pathname, x.to)));
-    if (here) setOpenSections((list) => (list.includes(here.label) ? list : saveOpen([...list, here.label])));
-  }, [pathname]);
   const [planCount, setPlanCount] = useState(0); // weekly-plan posts waiting for a yes
   const [leadCount, setLeadCount] = useState(0); // qualified leads waiting for a rep
 
@@ -274,99 +197,56 @@ export default function Sidebar({ collapsed = false }) {
     );
   };
 
-  // A section line, and — while you're in the section — its sub-pages. Closed,
-  // its badge adds up the counts waiting inside it.
+  // One line per section, as in the boss's design: highlighted while you're on
+  // any of its pages, its badge adding up what's waiting inside it. The
+  // section's own pages are tabs at the top of the page (SectionTabs).
   const section = (item) => {
     if (!item.sub) return navItem({ ...item, top: true });
     const subs = item.sub.filter((x) => canOpen(user, x.to));
     if (!canOpen(user, item.to) && !subs.length) return null;
     const here = subs.some((x) => onPath(pathname, x.to));
-    const open = openSections.includes(item.label);
-    const toggle = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setOpenSections((list) => saveOpen(open ? list.filter((l) => l !== item.label) : [...list, item.label]));
-    };
     const own = badgeFor(item.badge) || 0;
     const inside = subs.filter((x) => x.badge !== item.badge).reduce((n, x) => n + (badgeFor(x.badge) || 0), 0);
-    const total = own + (open ? 0 : inside);
+    const total = own + inside;
     const kind = item.badge || subs.find((x) => badgeFor(x.badge))?.badge;
     const Icon = item.icon;
     const showDot = item.dot === "setup" && setupIssue;
+    const to = canOpen(user, item.to) ? item.to : subs[0].to;
 
     if (collapsed) {
       return (
-        <div key={item.label} className="space-y-1">
-          <NavLink
-            to={item.to}
-            data-tour={item.tour}
-            title={total ? `${item.label} (${total})` : item.label}
-            aria-label={item.label}
-            className={`relative mx-auto grid h-10 w-10 place-items-center rounded-xl transition-colors duration-150 ${
-              open ? "bg-brand-soft text-brand" : "text-ink-500 hover:bg-ink-100/80 hover:text-ink-800"
-            }`}
-          >
-            <Icon size={18} aria-hidden="true" />
-            {(total > 0 || showDot) && (
-              <span className={`absolute right-2 top-2 h-2 w-2 rounded-full ring-2 ring-canvas-soft ${showDot ? "bg-red-500" : "bg-brand"}`} />
-            )}
-          </NavLink>
-          {open && subs.slice(1).map((x) => navItem(x))}
-        </div>
+        <NavLink
+          key={item.label}
+          to={to}
+          data-tour={item.tour}
+          title={total ? `${item.label} (${total})` : item.label}
+          aria-label={item.label}
+          className={`relative mx-auto grid h-10 w-10 place-items-center rounded-xl transition-colors duration-150 ${
+            here ? "bg-brand-soft text-brand" : "text-ink-500 hover:bg-ink-100/80 hover:text-ink-800"
+          }`}
+        >
+          <Icon size={18} aria-hidden="true" />
+          {(total > 0 || showDot) && (
+            <span className={`absolute right-2 top-2 h-2 w-2 rounded-full ring-2 ring-canvas-soft ${showDot ? "bg-red-500" : "bg-brand"}`} />
+          )}
+        </NavLink>
       );
     }
 
     return (
-      <div key={item.label}>
-        <div className="relative">
-          <NavLink
-            to={item.to}
-            data-tour={item.tour}
-            className={`group flex w-full items-center gap-3 rounded-lg py-[9px] pl-3 pr-10 text-[13px] transition-colors duration-150 ${
-              here ? "font-semibold text-ink-900" : "font-medium text-ink-700 hover:bg-ink-100/80 hover:text-ink-900"
-            }`}
-          >
-            <Icon size={17} className={`flex-none ${here ? "text-brand" : "text-ink-500 group-hover:text-ink-700"}`} aria-hidden="true" />
-            <span className="flex-1 truncate">{item.label}</span>
-            {total > 0 && !open && pillFor(kind, total)}
-            {showDot && <span title={dotTitle} className="h-2 w-2 flex-none rounded-full bg-red-500" />}
-          </NavLink>
-          <button
-            type="button"
-            onClick={toggle}
-            aria-expanded={open}
-            aria-label={open ? `Hide ${item.label} pages` : `Show ${item.label} pages`}
-            className="absolute right-1.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-ink-400 hover:bg-ink-200/70 hover:text-ink-700"
-          >
-            <FiChevronDown size={15} className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`} aria-hidden="true" />
-          </button>
-        </div>
-        {open && (
-          <div className="mb-1.5 ml-[22px] mt-1 space-y-1 border-l border-ink-200 pl-2.5">
-            {subs.map((x, i) => (
-              <NavLink
-                key={x.to + x.label}
-                to={x.to}
-                end={i === 0}
-                data-tour={x.tour}
-                className={({ isActive }) =>
-                  `group flex items-center gap-2.5 rounded-lg px-3 py-[8px] text-[12.5px] transition-colors ${
-                    isActive ? "bg-brand-soft font-semibold text-brand" : "font-medium text-ink-600 hover:bg-ink-100/80 hover:text-ink-900"
-                  }`
-                }
-              >
-                {({ isActive }) => (
-                  <>
-                    <x.icon size={15} className={`flex-none ${isActive ? "text-brand" : "text-ink-400 group-hover:text-ink-600"}`} aria-hidden="true" />
-                    <span className="flex-1 truncate">{x.label}</span>
-                    {badgeFor(x.badge) != null && pillFor(x.badge, badgeFor(x.badge))}
-                  </>
-                )}
-              </NavLink>
-            ))}
-          </div>
-        )}
-      </div>
+      <NavLink
+        key={item.label}
+        to={to}
+        data-tour={item.tour}
+        className={`group flex w-full items-center gap-3 rounded-lg px-3 py-[9px] text-[13px] transition-colors duration-150 ${
+          here ? "bg-brand-soft font-semibold text-brand" : "font-medium text-ink-700 hover:bg-ink-100/80 hover:text-ink-900"
+        }`}
+      >
+        <Icon size={17} className={`flex-none ${here ? "text-brand" : "text-ink-500 group-hover:text-ink-700"}`} aria-hidden="true" />
+        <span className="flex-1 truncate">{item.label}</span>
+        {total > 0 && pillFor(kind, total)}
+        {showDot && <span title={dotTitle} className="h-2 w-2 flex-none rounded-full bg-red-500" />}
+      </NavLink>
     );
   };
 

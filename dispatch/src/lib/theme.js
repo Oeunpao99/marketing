@@ -6,9 +6,11 @@
 // uses. The choice is saved on the user (Settings → Appearance) and cached in
 // localStorage so it applies instantly on the next load, before /auth/me.
 
-export const DEFAULT_ACCENT = '#1A6FC4'
+// Navy — the boss's design (2026-10-13); Ocean was the default before.
+export const DEFAULT_ACCENT = '#1F4E8C'
 
 export const ACCENTS = [
+  { name: 'Navy', hex: '#1F4E8C' },
   { name: 'Ocean', hex: '#1A6FC4' },
   { name: 'Forest', hex: '#15803D' },
   { name: 'Royal', hex: '#6D28D9' },

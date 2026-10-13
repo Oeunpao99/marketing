@@ -3,16 +3,16 @@
 @tailwind utilities;
 
 /* Brand accent as RGB triplets — rewritten at runtime by src/lib/theme.js when
-   someone picks a colour in Settings → Appearance. These are the Ocean default. */
+   someone picks a colour in Settings → Appearance. These are the Navy default. */
 :root {
-  --brand: 26 111 196;
-  --brand-light: 43 132 214;
-  --brand-dark: 19 86 150;
-  --brand-deep: 10 42 75;
-  --brand-soft: 228 239 250;
-  --brand-softer: 242 247 252;
-  --brand-line: 211 227 244;
-  --brand-text: 26 111 196;
+  --brand: 31 78 140;
+  --brand-light: 62 103 156;
+  --brand-dark: 23 58 104;
+  --brand-deep: 12 30 53;
+  --brand-soft: 228 234 241;
+  --brand-softer: 244 246 249;
+  --brand-line: 210 220 232;
+  --brand-text: 31 78 140;
 
   /* Light theme: greys, surfaces, the page canvas (RGB triplets). */
   --ink-50: 247 248 249;
@@ -81,7 +81,7 @@ html.dark {
 @layer base {
   html, body {
     @apply m-0 p-0 bg-canvas text-ink-900 antialiased;
-    font-family: 'Inter', 'Khmer OS Siemreap', system-ui, sans-serif;
+    font-family: 'IBM Plex Sans', 'Khmer OS Siemreap', system-ui, sans-serif;
     /* No elastic "bounce" past the top/bottom (Chrome on Windows touchpads,
        Safari): it dragged the whole app — pinned sidebar, top bar and the AI
        Agent's composer — off the edges and showed empty grey around them. */
@@ -111,10 +111,10 @@ select {
 .toast-enter { @apply transition-all duration-200 ease-out; }
 
 .khmer, [lang="km"], textarea[data-khmer], .km-text {
-  font-family: 'Khmer OS Siemreap', 'Inter', system-ui, sans-serif;
+  font-family: 'Khmer OS Siemreap', 'IBM Plex Sans', system-ui, sans-serif;
 }
 @supports (font-family: 'Khmer OS Siemreap') {
-  .auto-khmer { font-family: 'Khmer OS Siemreap', 'Inter', sans-serif; }
+  .auto-khmer { font-family: 'Khmer OS Siemreap', 'IBM Plex Sans', sans-serif; }
 }
 
 @layer components {

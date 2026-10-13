@@ -1,6 +1,7 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import Sidebar from './Sidebar'
+import SectionTabs from './SectionTabs'
 import Topbar from './Topbar'
 import MobileBar from './MobileBar'
 import AIAssistant from '../ai/AIAssistant'
@@ -155,6 +156,7 @@ export default function Shell({ children }) {
       <div className="min-w-0 flex flex-col pb-[calc(4rem+env(safe-area-inset-bottom))] lg:pb-0">
         <Topbar onToggleSidebar={toggle} />
         {/* Every page uses the full width, starting right at the sidebar. */}
+        <SectionTabs />
         <main className="min-w-0 w-full">{children}</main>
       </div>
       <MobileBar />

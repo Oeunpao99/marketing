@@ -75,10 +75,12 @@ export default {
         },
       },
       fontFamily: {
-        sans: ['Inter', '"Khmer OS Siemreap"', 'system-ui', 'sans-serif'],
-        display: ['Poppins', '"Khmer OS Siemreap"', 'system-ui', 'sans-serif'],
-        khmer: ['"Khmer OS Siemreap"', 'Inter', 'system-ui', 'sans-serif'],
-        mono: ['"SF Mono"', '"Cascadia Code"', 'ui-monospace', 'monospace'],
+        // IBM Plex — the boss's design (2026-10-13). Plex has no Khmer letters:
+        // Khmer text falls through to Khmer OS Siemreap (index.css @font-face).
+        sans: ['"IBM Plex Sans"', '"Khmer OS Siemreap"', 'system-ui', 'sans-serif'],
+        display: ['"IBM Plex Sans"', '"Khmer OS Siemreap"', 'system-ui', 'sans-serif'],
+        khmer: ['"Khmer OS Siemreap"', '"IBM Plex Sans"', 'system-ui', 'sans-serif'],
+        mono: ['"IBM Plex Mono"', '"Khmer OS Siemreap"', 'ui-monospace', 'monospace'],
       },
       boxShadow: {
         card: '0 1px 2px rgba(22, 25, 29, 0.04), 0 1px 1px rgba(22, 25, 29, 0.03)',

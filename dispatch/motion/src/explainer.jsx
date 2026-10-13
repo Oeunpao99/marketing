@@ -510,9 +510,17 @@ function ExCta({ scene, brand }) {
           </div>
         </div>
       )}
-      <Title text={scene.text} top={brand.logo ? 620 : 520} size={100} delay={4} />
+      {/* The words, then the button right under them — however many lines the words wrap to. */}
+      <div style={{ position: 'absolute', top: brand.logo ? 620 : 500, left: 60, right: 60 }}>
+        <Words
+          text={scene.text}
+          delay={4}
+          align="center"
+          color={EX.ink}
+          style={{ fontSize: clean(scene.text).length > 36 ? 84 : 100, fontWeight: 700, textAlign: 'center', lineHeight: 1.3 }}
+        />
       {scene.button && (
-        <div style={{ position: 'absolute', top: 960, left: 0, right: 0, display: 'flex', justifyContent: 'center' }}>
+        <div style={{ marginTop: 56, display: 'flex', justifyContent: 'center' }}>
           <div
             style={{
               display: 'flex',
@@ -535,6 +543,7 @@ function ExCta({ scene, brand }) {
           </div>
         </div>
       )}
+      </div>
     </AbsoluteFill>
   )
 }

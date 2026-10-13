@@ -191,7 +191,8 @@ function Kpis({ k }) {
 
 // ── needs you ─────────────────────────────────────────────────────────────
 const TONE = {
-  critical: { row: 'border-red-200 bg-red-50/60 hover:bg-red-50', num: 'text-red-600' },
+  // As in the boss's design: an urgent item is a plain row with a red dot (not a red card).
+  critical: { row: 'border-ink-200/70 hover:bg-ink-50', num: 'text-red-600' },
   warning: { row: 'border-amber-200 bg-amber-50/60 hover:bg-amber-50', num: 'text-amber-700' },
   normal: { row: 'border-ink-200/70 hover:bg-ink-50', num: 'text-brand' },
 }

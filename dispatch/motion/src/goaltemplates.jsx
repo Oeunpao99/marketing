@@ -182,15 +182,16 @@ function VsCta({ scene, brand }) {
       )}
       <div style={{ position: 'absolute', top: brand.logo ? 610 : 520, left: 70, right: 70 }}>
         <Words text={scene.text} delay={2} stagger={1} align="center" color={V.ink} style={{ fontSize: 90, fontWeight: 700, textAlign: 'center' }} />
-      </div>
+      {/* the button follows the text, however many lines it wraps to */}
       {scene.button && (
-        <div style={{ position: 'absolute', top: 960, left: 0, right: 0, display: 'flex', justifyContent: 'center' }}>
+        <div style={{ marginTop: 56, display: 'flex', justifyContent: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, background: V.green, color: 'white', fontFamily: FONT, fontWeight: 700, fontSize: 54, padding: '24px 58px', borderRadius: 999, transform: `scale(${b})`, opacity: b }}>
             <Icon name="Share2" size={48} color="white" stroke={2.4} />
             {clean(scene.button)}
           </div>
         </div>
       )}
+      </div>
     </AbsoluteFill>
   )
 }
@@ -356,15 +357,16 @@ function PollCta({ scene, brand }) {
       })}
       <div style={{ position: 'absolute', top: 640, left: 70, right: 70 }}>
         <Words text={scene.text} delay={2} stagger={1} align="center" color={P.ink} style={{ fontSize: 88, fontWeight: 700, textAlign: 'center' }} />
-      </div>
+      {/* the button follows the text, however many lines it wraps to */}
       {scene.button && (
-        <div style={{ position: 'absolute', top: 960, left: 0, right: 0, display: 'flex', justifyContent: 'center' }}>
+        <div style={{ marginTop: 56, display: 'flex', justifyContent: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, background: P.gold, color: P.bg, fontFamily: FONT, fontWeight: 700, fontSize: 56, padding: '24px 60px', borderRadius: 999, transform: `scale(${b * (1 + Math.sin(frame / 6) * 0.03)})`, opacity: b }}>
             <Icon name="MessageCircle" size={50} color={P.bg} stroke={2.6} />
             {clean(scene.button)}
           </div>
         </div>
       )}
+      </div>
       {brand.logo && (
         <div style={{ position: 'absolute', bottom: 470, left: 0, right: 0, display: 'flex', justifyContent: 'center' }}>
           <div style={{ background: 'white', borderRadius: 28, padding: '14px 26px' }}>
@@ -457,15 +459,16 @@ function QuoteCta({ scene, brand }) {
       )}
       <div style={{ position: 'absolute', top: 720, left: 90, right: 90 }}>
         <Words text={scene.text} delay={2} stagger={1} align="center" color="#F7F1E6" style={{ fontSize: 80, fontWeight: 600, textAlign: 'center' }} />
-      </div>
+      {/* the button follows the text, however many lines it wraps to */}
       {scene.button && (
-        <div style={{ position: 'absolute', top: 1060, left: 0, right: 0, display: 'flex', justifyContent: 'center' }}>
+        <div style={{ marginTop: 56, display: 'flex', justifyContent: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, border: '4px solid #E8C77A', color: '#E8C77A', fontFamily: FONT, fontWeight: 700, fontSize: 52, padding: '22px 56px', borderRadius: 999, opacity: b, transform: `scale(${0.9 + 0.1 * b})` }}>
             <Icon name="UserPlus" size={48} color="#E8C77A" stroke={2.4} />
             {clean(scene.button)}
           </div>
         </div>
       )}
+      </div>
     </AbsoluteFill>
   )
 }
