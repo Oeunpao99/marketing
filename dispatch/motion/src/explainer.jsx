@@ -531,13 +531,16 @@ export function ExplainerChrome({ scenes, brand }) {
           </div>
         ))}
       </div>
-      <div style={{ marginTop: 30, alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 14, background: 'white', border: `4px solid ${EX.ink}`, borderRadius: 999, padding: brand.logo ? '8px 26px 8px 10px' : '12px 26px' }}>
+      <div style={{ marginTop: 30, alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 14, background: 'white', border: `4px solid ${EX.ink}`, borderRadius: 999, padding: brand.logo ? '8px 22px' : '12px 26px' }}>
+        {/* The logo alone; the name only when there's no logo. */}
         {brand.logo ? (
-          <Img src={srcOf(brand.logo)} style={{ height: 50, maxWidth: 170, objectFit: 'contain' }} />
+          <Img src={srcOf(brand.logo)} style={{ height: 58, maxWidth: 250, objectFit: 'contain' }} />
         ) : (
-          <div style={{ width: 22, height: 22, borderRadius: 11, background: EX.yellow, border: `3px solid ${EX.ink}` }} />
+          <>
+            <div style={{ width: 22, height: 22, borderRadius: 11, background: EX.yellow, border: `3px solid ${EX.ink}` }} />
+            <span style={{ fontFamily: FONT, fontWeight: 700, fontSize: 32, color: EX.ink }}>{brand.name}</span>
+          </>
         )}
-        <span style={{ fontFamily: FONT, fontWeight: 700, fontSize: 32, color: EX.ink }}>{brand.name}</span>
       </div>
     </AbsoluteFill>
   )

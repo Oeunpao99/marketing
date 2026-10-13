@@ -663,16 +663,19 @@ function Chrome({ scenes, brand }) {
           gap: 16,
           background: 'rgba(255,255,255,0.92)',
           borderRadius: 999,
-          padding: brand.logo ? '10px 28px 10px 12px' : '14px 28px',
+          padding: brand.logo ? '10px 24px' : '14px 28px',
           boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
         }}
       >
+        {/* The logo alone — it already says who we are; the name only when there's no logo. */}
         {brand.logo ? (
-          <Img src={srcOf(brand.logo)} style={{ height: 52, maxWidth: 180, objectFit: 'contain' }} />
+          <Img src={srcOf(brand.logo)} style={{ height: 60, maxWidth: 260, objectFit: 'contain' }} />
         ) : (
-          <div style={{ width: 22, height: 22, borderRadius: 11, background: brand.color }} />
+          <>
+            <div style={{ width: 22, height: 22, borderRadius: 11, background: brand.color }} />
+            <span style={{ fontFamily: FONT, fontWeight: 600, fontSize: 34, color: '#111827' }}>{brand.name}</span>
+          </>
         )}
-        <span style={{ fontFamily: FONT, fontWeight: 600, fontSize: 34, color: '#111827' }}>{brand.name}</span>
       </div>
     </AbsoluteFill>
   )
