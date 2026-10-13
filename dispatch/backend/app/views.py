@@ -992,7 +992,33 @@ class _MetricsCache:
             return self._data[key]
 
 
-def _post_metrics(platform_slug: str, config: dict, external_id: str, cache: "_MetricsCache") -> dict:
+def _from_page_feed(meta, token: str, page_id, external_id: str, published_at, cache: "_MetricsCache") -> dict | None:
+    """A Facebook post's numbers from its Page's post list (one read per Page
+    per request, shared by every post on it): matched by id, or — when the id
+    changed (boosting can re-id a post) or is a video's id — by the minute it
+    was published."""
+    if not page_id:
+        return None
+    feed = cache.get_or_set(
+        f"fbfeed:{page_id}",
+        lambda: meta.page_feed_metrics(token, str(page_id), datetime.now(UTC) - timedelta(days=180)),
+    )
+    if not feed:
+        return None
+    tail = external_id.split("_")[-1]
+    hit = next((p for p in feed if p["id"] == external_id or p["id"].split("_")[-1] == tail), None)
+    if hit is None and published_at:
+        when = published_at if published_at.tzinfo else published_at.replace(tzinfo=UTC)
+        close = [p for p in feed if p["created"] and abs((p["created"] - when).total_seconds()) <= 120]
+        hit = close[0] if len(close) == 1 else None  # only when it's unambiguous
+    if hit is None:
+        return None
+    return {k: hit.get(k) for k in ("likes", "comments", "shares", "views", "clicks", "url")}
+
+
+def _post_metrics(
+    platform_slug: str, config: dict, external_id: str, cache: "_MetricsCache", published_at=None
+) -> dict:
     """Live like/comment/share/view numbers for one published post.
 
     Returns ``{"status": "ok"|"processing"|"unavailable", "metrics": {...},
@@ -1011,7 +1037,15 @@ def _post_metrics(platform_slug: str, config: dict, external_id: str, cache: "_M
             token = config.get("access_token")
             if not token:
                 return {"status": "unavailable", "note": "Channel not connected.", "metrics": {}}
-            data = meta.page_post_insights(token, external_id)
+            try:
+                data = meta.page_post_insights(token, external_id)
+            except meta.MetaError:
+                # Facebook refuses some single posts (made in Business Suite,
+                # boosted, or re-ided when boosted) that the Page's own post
+                # list still shows with their numbers — find it there.
+                data = _from_page_feed(meta, token, config.get("page_id"), external_id, published_at, cache)
+                if data is None:
+                    raise
             return {"status": "ok", "metrics": data, "url": data.get("url"), "note": ""}
         if platform_slug == "instagram":
             from app import meta
@@ -1060,6 +1094,34 @@ def _post_metrics(platform_slug: str, config: dict, external_id: str, cache: "_M
         return {"status": "unavailable", "note": "No insights integration for this platform.", "metrics": {}, "url": None}
     except Exception as exc:  # noqa: BLE001 - one post's failure shouldn't blank the page
         return {"status": "unavailable", "note": str(exc), "metrics": {}, "url": None}
+
+
+# Facebook's error #10 reads "Object does not exist, cannot be loaded due to
+# missing permission …" — it means either the Page lacks a permission (then
+# EVERY post on it fails) or this one post can't be opened (deleted, hidden, a
+# video still processing). When other posts on the same Page read fine, it's
+# the post — say so, so the page doesn't send people to reconnect for nothing.
+# (Worded without "permission" / "reconnect" / "access" so the Insights page
+# doesn't show it as a connection problem.)
+_UNREACHABLE_POST = (
+    "Facebook won't share this one post's numbers — usually because it's boosted (ad results "
+    "are only in Meta Business Suite / Ads Manager), was deleted or hidden, or is a video still "
+    "processing. The Page's other posts report fine."
+)
+
+
+def _single_post_errors(results: list[dict]) -> None:
+    fine = {r.get("channel_id") for r in results if r.get("platform_slug") == "facebook" and r.get("status") == "ok"}
+    for r in results:
+        note = r.get("note") or ""
+        if (
+            r.get("platform_slug") == "facebook"
+            and r.get("status") == "unavailable"
+            and r.get("channel_id") in fine
+            and "(#10)" in note
+            and "does not exist" in note
+        ):
+            r["note"] = _UNREACHABLE_POST
 
 
 @router.get("/insights")
@@ -1137,13 +1199,14 @@ def insights_view(
     def fetch(row: dict) -> dict:
         config = row.pop("_channel_config")
         external_id = row.pop("_external_id")
-        result = _post_metrics(row["platform_slug"], config, external_id, metrics_cache)
+        result = _post_metrics(row["platform_slug"], config, external_id, metrics_cache, row.get("published_at"))
         return {**row, **result}
 
     if not rows:
         return []
     with ThreadPoolExecutor(max_workers=min(8, len(rows))) as pool:
         results = list(pool.map(fetch, rows))
+    _single_post_errors(results)
     # Save these readings for the "over time" charts — never at the cost of
     # the page itself.
     try:
@@ -1901,7 +1964,7 @@ def collect_snapshots(db: Session) -> int:
         plat = plats.get(ch.platform_id) if ch else None
         if not ch or not brand or not plat or ch.status != "live":
             continue
-        result = _post_metrics(plat.slug, ch.config or {}, t.external_id, cache)
+        result = _post_metrics(plat.slug, ch.config or {}, t.external_id, cache, t.published_at)
         by_ws.setdefault(brand.workspace_id, []).append(
             {"target_id": t.id, "channel_id": ch.id, "platform_slug": plat.slug, **result}
         )

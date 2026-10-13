@@ -493,6 +493,46 @@ def page_post_insights(token: str, post_id: str) -> dict:
     }
 
 
+_FEED_FIELDS = (
+    "id,created_time,permalink_url,shares,"
+    "reactions.summary(total_count).limit(0),comments.summary(true).limit(0)"
+)
+
+
+def page_feed_metrics(token: str, page_id: str, since: datetime, limit: int = 150) -> list[dict]:
+    """Numbers for a Page's recent posts, read from the Page's post list
+    instead of each post — the fallback when Facebook refuses a single post
+    (error #10 on posts made in Business Suite, boosted, or whose id changed
+    when boosted) even though the list, read with the same Page token, has them.
+    Views / clicks come too when Facebook allows the insights field."""
+    _app_id, _secret, _redirect, version = _conf()
+    url = f"{GRAPH_HOST}/{version}/{page_id}/published_posts"
+    base = {"since": int(since.timestamp()), "limit": 50, "access_token": token}
+    items = None
+    for fields in (_FEED_FIELDS + ",insights.metric(post_media_view,post_clicks)", _FEED_FIELDS):
+        try:
+            items = list(_paged(url, {**base, "fields": fields}, limit, "this Page's posts"))
+            break
+        except MetaError:
+            continue  # the insights field was refused — read without it
+    out = []
+    for p in items or []:
+        metric = {m.get("name"): ((m.get("values") or [{}])[0].get("value")) for m in ((p.get("insights") or {}).get("data") or [])}
+        out.append(
+            {
+                "id": p.get("id") or "",
+                "created": _graph_time(p.get("created_time")),
+                "likes": ((p.get("reactions") or {}).get("summary") or {}).get("total_count", 0),
+                "comments": ((p.get("comments") or {}).get("summary") or {}).get("total_count", 0),
+                "shares": (p.get("shares") or {}).get("count", 0),
+                "views": metric.get("post_media_view"),
+                "clicks": metric.get("post_clicks"),
+                "url": p.get("permalink_url"),
+            }
+        )
+    return out
+
+
 def instagram_media_insights(token: str, media_id: str) -> dict:
     """Likes / comments for one Instagram media item."""
     _app_id, _secret, _redirect, version = _conf()
