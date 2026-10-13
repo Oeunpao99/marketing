@@ -20,6 +20,7 @@ import io
 import json
 import logging
 import os
+import random
 import re
 import shutil
 import signal
@@ -89,6 +90,27 @@ ICONS = (
     "Megaphone Handshake"
 ).split()
 SCENE_TYPES = ("hook", "problem", "chat", "list", "stat", "product", "cta")
+
+# Background music: royalty-free MP3s under motion/public/music/<mood>/ (see
+# the README there). The AI picks a mood that has tracks; a track is drawn at random.
+MUSIC_MOODS = {
+    "upbeat": "energetic — promos, offers, launches",
+    "calm": "gentle — tips, how-tos, care and wellness",
+    "warm": "heartfelt — stories, community, local moments",
+    "corporate": "modern and confident — B2B, tech, services, explainers",
+    "festive": "celebration — holidays, Khmer New Year, big sales",
+}
+
+
+def music_tracks() -> dict[str, list[str]]:
+    """{mood: ["music/<mood>/<file>.mp3", ...]} for moods that have tracks."""
+    root = MOTION_DIR / "public" / "music"
+    out: dict[str, list[str]] = {}
+    for mood in MUSIC_MOODS:
+        files = sorted(p.name for p in (root / mood).glob("*.mp3")) if (root / mood).is_dir() else []
+        if files:
+            out[mood] = [f"music/{mood}/{f}" for f in files]
+    return out
 
 SCRIPT_PROMPT = (
     "You are the best short-form video storyteller in Cambodia. You plan a vertical "
@@ -239,7 +261,7 @@ _TEXT_FIELDS = {
 
 
 def write_script(
-    brand: Brand, products: list[Product], idea: str, language: str, learnings: str = ""
+    brand: Brand, products: list[Product], idea: str, language: str, learnings: str = "", moods: list[str] | None = None
 ) -> dict:
     """The video's storyboard: one AI call, then for Khmer the same
     native-editor pass the captions get. {"scenes": [...]} — always starting
@@ -261,6 +283,12 @@ def write_script(
         )
     if learnings.strip():
         extra += "\n\nWHAT HAS WORKED FOR THIS BRAND (from its own results):\n" + learnings.strip()[:1500]
+    if moods:
+        extra += (
+            '\n\nBACKGROUND MUSIC: also return "mood" — the one that fits this story best: '
+            + "; ".join(f"{m} ({MUSIC_MOODS[m]})" for m in moods)
+            + "."
+        )
     raw = _chat(
         [
             {"role": "system", "content": SCRIPT_PROMPT + extra},
@@ -281,6 +309,8 @@ def write_script(
     if not hooks or not ctas or not middle:
         raise ContentAIError("The AI didn't return a usable storyboard — try again.")
     script = {"scenes": [hooks[0], *middle, ctas[0]]}
+    if moods:
+        script["mood"] = raw.get("mood") if raw.get("mood") in moods else moods[0]
 
     if khmer:
         # Every line — on screen and spoken — through the native editor
@@ -403,7 +433,11 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
         if not scene.get("image"):
             scene.pop("image", None)
         scenes.append(scene)
-    return {"brand": {"name": brand.name, "color": f"#{r:02x}{g:02x}{b:02x}", "logo": logo}, "scenes": scenes}
+    props = {"brand": {"name": brand.name, "color": f"#{r:02x}{g:02x}{b:02x}", "logo": logo}, "scenes": scenes}
+    tracks = music_tracks().get(script.get("mood") or "")
+    if tracks:
+        props["music"] = random.choice(tracks)  # a file under public/ — the template mixes it in
+    return props
 
 
 def default_seconds(scene: dict) -> float:
@@ -573,6 +607,8 @@ class MotionIn(BaseModel):
     language: str = "Khmer"
     # Narrator: "female", "male", or "none" for a silent video.
     voice: str = "female"
+    # Background music under the video (when tracks are installed).
+    music: bool = True
 
 
 @router.post("", status_code=201)
@@ -607,7 +643,10 @@ def create_motion(
     db.commit()
     db.refresh(job)
     threading.Thread(
-        target=_make, args=(job.id, payload.product_id, payload.language, payload.voice), daemon=True, name=f"motion-{job.id}"
+        target=_make,
+        args=(job.id, payload.product_id, payload.language, payload.voice, "", payload.music),
+        daemon=True,
+        name=f"motion-{job.id}",
     ).start()
     return _out(job, None)
 
@@ -648,7 +687,9 @@ def make_motion(
         db.close()
 
 
-def _make(job_id: int, product_id: int | None, language: str, voice: str = "none", caption: str = "") -> None:
+def _make(
+    job_id: int, product_id: int | None, language: str, voice: str = "none", caption: str = "", music: bool = True
+) -> None:
     from app.content_ai import ContentAIError
     from app.video import _ready_push
 
@@ -670,7 +711,8 @@ def _make(job_id: int, product_id: int | None, language: str, voice: str = "none
             learned = ""
         try:
             _check(job_id)
-            script = write_script(brand, products, job.prompt, language, learned)
+            moods = list(music_tracks()) if music else []
+            script = write_script(brand, products, job.prompt, language, learned, moods)
             _check(job_id)
             by_product, order, logo = _brand_pictures(db, brand.id)
             pick_pictures(script, all_products, by_product, order, product_id)

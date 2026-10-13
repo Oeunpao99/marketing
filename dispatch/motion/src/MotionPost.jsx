@@ -791,6 +791,28 @@ function Chrome({ scenes, brand }) {
   )
 }
 
+/** The background track (props.music, a file under public/music/<mood>/):
+ * ducked under the voice-over, louder between lines, faded in and out, looped
+ * if the video is longer than the track. */
+function BackgroundMusic({ src, scenes }) {
+  const { durationInFrames } = useVideoConfig()
+  let start = 0
+  const spans = scenes.map((s, i) => {
+    const len = sceneFrames(s) - (i < scenes.length - 1 ? TRANSITION : 0)
+    const span = { from: start, to: start + len, voiced: !!s.audio }
+    start += len
+    return span
+  })
+  const volume = (f) => {
+    const span = spans.find((x) => f >= x.from && f < x.to)
+    const level = span?.voiced ? 0.22 : 0.5 // tracks are levelled to -19 dB (tools/make_music.py)
+    const fadeIn = interpolate(f, [0, 30], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })
+    const fadeOut = interpolate(f, [durationInFrames - 45, durationInFrames], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })
+    return level * fadeIn * fadeOut
+  }
+  return <Html5Audio src={srcOf(src)} loop volume={volume} />
+}
+
 const PRESENTATIONS = [
   () => slide({ direction: 'from-right' }),
   () => fade(),
@@ -808,10 +830,11 @@ const SCENES = {
   cta: CtaScene,
 }
 
-export const MotionPost = ({ brand, scenes }) => {
+export const MotionPost = ({ brand, scenes, music }) => {
   let point = 0
   return (
     <AbsoluteFill style={{ backgroundColor: INK, '--brand': brand.color }}>
+      {music && <BackgroundMusic src={music} scenes={scenes} />}
       <TransitionSeries>
         {scenes.flatMap((scene, i) => {
           const Scene = SCENES[scene.type]

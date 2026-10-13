@@ -34,6 +34,8 @@ COPY --from=motion package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund && npx remotion browser ensure
 COPY --from=motion src ./src
 COPY --from=motion public/fonts ./public/fonts
+# Background music by mood (public/music/<mood>/*.mp3 — app/motion.py music_tracks).
+COPY --from=motion public/music ./public/music
 COPY --from=motion sample.json ./
 
 WORKDIR /app

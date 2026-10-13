@@ -162,6 +162,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
   const [seconds, setSeconds] = useState(8)
   const [videoMode, setVideoMode] = useState('clip') // 'clip' = instant video | 'story' = storyboard | 'motion'
   const [motionVoice, setMotionVoice] = useState('female')
+  const [motionMusic, setMotionMusic] = useState(true)
   const [storySeconds, setStorySeconds] = useState(32)
   const [voice, setVoice] = useState(null) // null = the brand's language; '' = no voiceover
   const [brand, setBrand] = useState(null)
@@ -595,6 +596,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
           product_id: turn.productId ?? null,
           language: turn.language || 'Khmer',
           voice: turn.voice || 'female',
+          music: turn.music !== false,
         })
         trackJob(res.id, 'video')
         patchTurn(turn.id, { jobId: res.id })
@@ -742,6 +744,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
       language: isStory ? storyVoice : isMotion ? motionLang : '',
       productId: isMotion ? (productId ?? null) : undefined,
       voice: isMotion ? motionVoice : undefined,
+      music: isMotion ? motionMusic : undefined,
       brandId: brandObj?.id ?? null,
       brandName: brandObj?.name || '',
       refUrl: refImg?.url || '',
@@ -1194,6 +1197,8 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
                   videoMode={videoMode}
                   setVideoMode={setVideoMode}
                   motionVoice={motionVoice}
+                  motionMusic={motionMusic}
+                  setMotionMusic={setMotionMusic}
                   setMotionVoice={setMotionVoice}
                   storySeconds={storySeconds}
                   setStorySeconds={setStorySeconds}
@@ -2001,7 +2006,7 @@ function RatioShape({ id }) {
 
 function SettingsPopover({
   type, setType, ratio, setRatio, seconds, setSeconds, videoMode, setVideoMode, storySeconds, setStorySeconds,
-  motionVoice = 'female', setMotionVoice = () => {},
+  motionVoice = 'female', setMotionVoice = () => {}, motionMusic = true, setMotionMusic = () => {},
   voice, setVoice, brands, brand, setBrand, style, setStyle, template, setTemplate,
   products = [], product, setProduct,
 }) {
@@ -2056,6 +2061,21 @@ function SettingsPopover({
               >
                 Remotion
               </button>
+            </Segmented>
+          </Row>
+        )}
+
+        {motion && (
+          <Row label="Music" hint={motionMusic ? 'A track matched to the mood, quiet under the voice' : 'No background music'}>
+            <Segmented>
+              {[
+                [true, 'On'],
+                [false, 'Off'],
+              ].map(([v, label]) => (
+                <button key={label} type="button" onClick={() => setMotionMusic(v)} className={`${seg(motionMusic === v)} px-0 text-[11.5px]`}>
+                  {label}
+                </button>
+              ))}
             </Segmented>
           </Row>
         )}
