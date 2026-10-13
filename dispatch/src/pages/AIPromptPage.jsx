@@ -136,6 +136,11 @@ function serializeTurn(t) {
     jobId: t.jobId || null,
     storyId: t.storyId || null,
     language: t.language ?? '',
+    // Remotion: "Make one for me", and the product / voice / music it was made with
+    auto: !!t.auto,
+    productId: t.productId ?? null,
+    voice: t.voice || undefined,
+    music: t.music,
     tokens: t.tokens || 0,
     cost: t.cost || 0,
     startedAt: t.startedAt,
@@ -545,7 +550,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
     patchTurn(turn.id, { status: 'working', error: '', video: null, startedAt: Date.now() })
     // Stop pressed while this was on its way: drop the answer (and stop a job it started).
     const live = () => turnsRef.current.find((x) => x.id === turn.id)?.status === 'working'
-    const patchTurn = (id, patch) => {
+    const update = (id, patch) => {
       if (!mountedRef.current) return persistLate(id, patch)
       if (live()) return setTurns((list) => list.map((t) => (t.id === id ? { ...t, ...patch } : t)))
       if (patch.jobId) {
@@ -562,7 +567,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
           brand_id: turn.brandId,
           image_url: turn.refUrl || '',
         })
-        patchTurn(turn.id, {
+        update(turn.id, {
           status: 'done',
           answer: res.answer,
           suggestions: res.suggestions || [],
@@ -579,27 +584,27 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
           use_logo: !!turn.kit?.logo,
         })
         if (res.video) {
-          patchTurn(turn.id, { status: 'done', video: res.video, tokens: res.total_tokens, cost: res.cost_usd })
+          update(turn.id, { status: 'done', video: res.video, tokens: res.total_tokens, cost: res.cost_usd })
           addTokens(res.total_tokens)
           refreshCounts()
         } else {
           // Renders on the server; polled below, and still finishes (with a
           // phone notification) if the person leaves this page.
           trackJob(res.id, 'image')
-          patchTurn(turn.id, { jobId: res.id })
+          update(turn.id, { jobId: res.id })
         }
       } else if (turn.kind === 'motion') {
         // Script, brand photos and render all happen on the server (~1 min).
         const res = await api.post('/ai/motion', {
           brand_id: turn.brandId,
-          idea: turn.prompt,
+          idea: turn.auto ? '' : turn.prompt, // "Make one for me": the AI picks the topic
           product_id: turn.productId ?? null,
           language: turn.language || 'Khmer',
           voice: turn.voice || 'female',
           music: turn.music !== false,
         })
         trackJob(res.id, 'video')
-        patchTurn(turn.id, { jobId: res.id })
+        update(turn.id, { jobId: res.id })
       } else if (turn.kind === 'story') {
         // Writes the storyboard only (~20-40s); clips render once it's approved.
         const res = await api.post('/ai/story', {
@@ -610,7 +615,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
           aspect_ratio: turn.ratio,
           language: turn.language,
         })
-        patchTurn(turn.id, { status: 'done', storyId: res.id })
+        update(turn.id, { status: 'done', storyId: res.id })
         refreshCounts()
       } else {
         const res = await api.post('/ai/video', {
@@ -622,10 +627,10 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
           product_id: turn.refUrl ? null : (turn.kit?.productId ?? null),
         })
         trackJob(res.id, 'video')
-        patchTurn(turn.id, { jobId: res.id })
+        update(turn.id, { jobId: res.id })
       }
     } catch (e) {
-      patchTurn(turn.id, { status: 'failed', error: e.message })
+      update(turn.id, { status: 'failed', error: e.message })
     }
   }
 
@@ -762,6 +767,33 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
     setTurns((list) => [...list, turn])
     setText('')
     setRefImg(null)
+    run(turn)
+  }
+
+  // Remotion "Make one for me": no typing — the AI picks the topic from the
+  // brand's products (the chosen one, if any) and a new story angle each time.
+  const makeForMe = () => {
+    const product = kitProducts.find((p) => p.id === productId)
+    const turn = {
+      id: ++turnSeq,
+      kind: 'motion',
+      auto: true,
+      prompt: `✨ AI picks the topic${product ? ` · ${product.name}` : ''}`,
+      ratio: '9:16',
+      seconds: 15,
+      language: motionLang,
+      productId: productId ?? null,
+      voice: motionVoice,
+      music: motionMusic,
+      brandId: brandObj?.id ?? null,
+      brandName: brandObj?.name || '',
+      refUrl: '',
+      refPreview: '',
+      kit: null,
+      status: 'working',
+      startedAt: Date.now(),
+    }
+    setTurns((list) => [...list, turn])
     run(turn)
   }
 
@@ -1265,6 +1297,19 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
                   />
                 )}
               </div>
+            )}
+
+            {isMotion && (
+              <button
+                type="button"
+                onClick={makeForMe}
+                disabled={!brandObj}
+                className="h-9 px-3 rounded-full inline-flex items-center gap-1.5 text-[12px] font-medium text-ink-600 hover:bg-brand-soft hover:text-brand disabled:opacity-40"
+                title="No typing needed — the AI picks a topic from your products and makes the whole video"
+              >
+                <span className="text-brand">✨</span>
+                <span className="hidden sm:inline">Make one for me</span>
+              </button>
             )}
 
             {intent === 'create' && !isMotion && (

@@ -260,6 +260,35 @@ _TEXT_FIELDS = {
 }
 
 
+# "Make one for me": no topic given — each press asks for another angle, so
+# pressing again gives a different video, not the same one reworded.
+AUTO_ANGLES = (
+    "the everyday problem it solves",
+    "3 clear benefits",
+    "how it works, in 3 simple steps",
+    "3 mistakes people make without it",
+    "before and after using it",
+    "a common belief about it, and the truth",
+)
+AUTO_LABEL = "✨ Topic chosen by the AI"
+
+
+def _auto_topic(products: list[Product]) -> str:
+    angle = random.choice(AUTO_ANGLES)
+    about = (
+        f"the product {products[0].name}"
+        if len(products) == 1
+        else "the ONE product from the list that makes the most interesting video right now"
+        if products
+        else "the brand's main service"
+    )
+    return (
+        "THE VIDEO IS ABOUT: no topic was given — choose it yourself. Make it about "
+        f"{about}, told as {angle}. Pick the angle a Cambodian business owner would stop "
+        "scrolling for, and stay strictly within the product information."
+    )
+
+
 def write_script(
     brand: Brand, products: list[Product], idea: str, language: str, learnings: str = "", moods: list[str] | None = None
 ) -> dict:
@@ -294,7 +323,8 @@ def write_script(
             {"role": "system", "content": SCRIPT_PROMPT + extra},
             {
                 "role": "user",
-                "content": f"BRAND: {brand.name}\nLANGUAGE: {language}\nPRODUCTS:\n{facts}\n\nTHE VIDEO IS ABOUT: {idea.strip()[:4000]}",
+                "content": f"BRAND: {brand.name}\nLANGUAGE: {language}\nPRODUCTS:\n{facts}\n\n"
+                + (f"THE VIDEO IS ABOUT: {idea.strip()[:4000]}" if idea.strip() else _auto_topic(products)),
             },
         ],
         model,
@@ -601,8 +631,9 @@ def render(props: dict, job_id: int | None = None) -> bytes:
 class MotionIn(BaseModel):
     brand_id: int
     # Long prompts are fine (e.g. one written for a filmed video) — the AI
-    # reads the topic out of the first part of it.
-    idea: str = Field(min_length=3, max_length=20000)
+    # reads the topic out of the first part of it. Empty: "Make one for me" —
+    # the AI picks the topic itself (write_script).
+    idea: str = Field(default="", max_length=20000)
     product_id: int | None = None
     language: str = "Khmer"
     # Narrator: "female", "male", or "none" for a silent video.
@@ -754,7 +785,7 @@ def _make(
         db.add(video)
         db.flush()
         # The Library's "How it was made" shows the brief and the storyboard.
-        job.prompt = f"{job.prompt}\n\nREMOTION STORYBOARD:\n" + "\n".join(
+        job.prompt = f"{job.prompt or AUTO_LABEL}\n\nREMOTION STORYBOARD:\n" + "\n".join(
             f"- {screen}" + (f"\n  🎙 {say}" if say and narrator else "") for screen, say in script_lines(script)
         )
         job.video_id = video.id
