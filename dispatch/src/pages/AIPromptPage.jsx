@@ -28,6 +28,7 @@ import AutoTextarea from '../components/ui/AutoTextarea'
 import Select from '../components/ui/Select'
 import GeneratingCanvas from '../components/ui/GeneratingCanvas'
 import MotionBoard, { motionPercent, motionStage } from '../components/studio/MotionBoard'
+import StoryboardEditor from '../components/studio/StoryboardEditor'
 import StoryEditor from '../components/story/StoryEditor'
 import { handoff } from '../lib/handoff'
 import { colorForBrand } from '../lib/brandColor'
@@ -143,6 +144,11 @@ function serializeTurn(t) {
     voice: t.voice || undefined,
     music: t.music,
     goal: t.goal || undefined,
+    // Remotion from the person's own story: the storyboard to review / that was made
+    reviewFirst: !!t.reviewFirst,
+    length: t.length || undefined,
+    plan: t.plan || undefined,
+    script: t.script || undefined,
     tokens: t.tokens || 0,
     cost: t.cost || 0,
     startedAt: t.startedAt,
@@ -183,6 +189,9 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
   const [motionMusic, setMotionMusic] = useState(true)
   // Remotion story: teach (Explainer style) or sell (Tech style); auto = sell when a product is chosen
   const [motionGoal, setMotionGoal] = useState('auto')
+  // Your own story: the AI plans a storyboard you check and edit before it's rendered.
+  const [motionReview, setMotionReview] = useState(true)
+  const [motionLength, setMotionLength] = useState('auto')
   const [storySeconds, setStorySeconds] = useState(32)
   const [voice, setVoice] = useState(null) // null = the brand's language; '' = no voiceover
   const [brand, setBrand] = useState(null)
@@ -612,6 +621,20 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
           trackJob(res.id, 'image')
           update(turn.id, { jobId: res.id })
         }
+      } else if (turn.kind === 'motion' && turn.reviewFirst && !turn.script) {
+        // Your own story → a storyboard to check and edit; nothing is
+        // voiced or rendered until "Make the video".
+        const res = await api.post('/ai/motion/plan', {
+          brand_id: turn.brandId,
+          idea: turn.prompt,
+          product_id: turn.productId ?? null,
+          language: turn.language || 'Khmer',
+          goal: turn.goal || 'auto',
+          music: turn.music !== false,
+          length: turn.length || 'auto',
+        })
+        update(turn.id, { status: 'review', plan: res.script })
+        refreshCounts()
       } else if (turn.kind === 'motion') {
         // Script, brand photos and render all happen on the server (~1 min).
         const res = await api.post('/ai/motion', {
@@ -622,6 +645,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
           voice: turn.voice || 'female',
           music: turn.music !== false,
           goal: turn.goal || 'auto',
+          script: turn.script || null, // a reviewed storyboard: made exactly as it is
         })
         trackJob(res.id, 'video')
         update(turn.id, { jobId: res.id })
@@ -771,6 +795,8 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
       voice: isMotion ? motionVoice : undefined,
       music: isMotion ? motionMusic : undefined,
       goal: isMotion ? motionGoal : undefined,
+      reviewFirst: isMotion && motionReview,
+      length: isMotion && motionReview ? motionLength : undefined,
       brandId: brandObj?.id ?? null,
       brandName: brandObj?.name || '',
       refUrl: refImg?.url || '',
@@ -930,6 +956,18 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
     composerRef.current?.querySelector('textarea')?.focus()
   }
 
+  // The storyboard card: edits are kept on the turn (and saved with the chat).
+  const changePlan = (turn, plan) => patchTurn(turn.id, { plan })
+  const makeFromPlan = (turn) => {
+    const go = { ...turn, status: 'working', script: turn.plan, progress: null, startedAt: Date.now() }
+    patchTurn(turn.id, { status: 'working', script: turn.plan, progress: null, startedAt: go.startedAt })
+    run(go)
+  }
+  const rewritePlan = (turn) => {
+    patchTurn(turn.id, { plan: null, script: null, startedAt: Date.now() })
+    run({ ...turn, plan: null, script: null })
+  }
+
   const regenerate = (turn) => {
     const again = { ...turn, id: ++turnSeq, status: 'working', video: null, jobId: null, storyId: null, startedAt: Date.now() }
     setTurns((list) => [...list, again])
@@ -1078,6 +1116,9 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
               onEdit={() => editPrompt(t)}
               onRegenerate={() => regenerate(t)}
               onLibrary={() => navigate('/library')}
+              onPlanChange={(plan) => changePlan(t, plan)}
+              onMake={() => makeFromPlan(t)}
+              onRewrite={() => rewritePlan(t)}
             />
             ),
           )}
@@ -1255,6 +1296,10 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
                   setMotionMusic={setMotionMusic}
                   motionGoal={motionGoal}
                   setMotionGoal={setMotionGoal}
+                  motionReview={motionReview}
+                  setMotionReview={setMotionReview}
+                  motionLength={motionLength}
+                  setMotionLength={setMotionLength}
                   setMotionVoice={setMotionVoice}
                   storySeconds={storySeconds}
                   setStorySeconds={setStorySeconds}
@@ -1742,7 +1787,7 @@ function Markdown({ text }) {
   )
 }
 
-function Turn({ t, onUse, onEdit, onRegenerate, onLibrary }) {
+function Turn({ t, onUse, onEdit, onRegenerate, onLibrary, onPlanChange, onMake, onRewrite }) {
   const [expanded, setExpanded] = useState(false)
   const [viewing, setViewing] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -1777,6 +1822,7 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary }) {
           : 'Rendering the image…'
         : motion
           ? motionStage(t.progress) ||
+            (t.reviewFirst && !t.script ? 'Reading your story and planning the scenes…' : null) ||
             (elapsed < 12
             ? 'Writing the script…'
             : elapsed < 20
@@ -1850,6 +1896,10 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary }) {
           </div>
           {motion && <MotionBoard progress={t.progress} />}
           </div>
+        )}
+
+        {t.status === 'review' && t.plan && (
+          <StoryboardEditor plan={t.plan} voice={t.voice !== 'none'} onChange={onPlanChange} onMake={onMake} onRewrite={onRewrite} />
         )}
 
         {t.status === 'failed' && (
@@ -2081,6 +2131,7 @@ function SettingsPopover({
   type, setType, ratio, setRatio, seconds, setSeconds, videoMode, setVideoMode, storySeconds, setStorySeconds,
   motionVoice = 'female', setMotionVoice = () => {}, motionMusic = true, setMotionMusic = () => {},
   motionGoal = 'auto', setMotionGoal = () => {},
+  motionReview = true, setMotionReview = () => {}, motionLength = 'auto', setMotionLength = () => {},
   voice, setVoice, brands, brand, setBrand, style, setStyle, template, setTemplate,
   products = [], product, setProduct,
 }) {
@@ -2142,6 +2193,44 @@ function SettingsPopover({
         {motion && (
           <Row label="Story" hint={(MOTION_STORIES.find((o) => o.value === motionGoal) || MOTION_STORIES[0]).hint}>
             <Select size="sm" className="min-w-0 flex-1" value={motionGoal} onChange={setMotionGoal} options={MOTION_STORIES} />
+          </Row>
+        )}
+
+        {motion && (
+          <Row
+            label="Storyboard"
+            hint={
+              motionReview
+                ? 'Paste your story — the AI plans the scenes, you check and edit them, then make the video'
+                : 'Straight to the video — the AI writes and renders it in one go'
+            }
+          >
+            <Segmented>
+              {[
+                [true, 'Review first'],
+                [false, 'Make directly'],
+              ].map(([v, label]) => (
+                <button key={label} type="button" onClick={() => setMotionReview(v)} className={`${seg(motionReview === v)} px-0 text-[11.5px]`}>
+                  {label}
+                </button>
+              ))}
+            </Segmented>
+          </Row>
+        )}
+
+        {motion && motionReview && (
+          <Row label="Length" hint={motionLength === 'auto' ? 'As long as your story needs — 30 s to 2 min' : 'About this long'}>
+            <Segmented>
+              {[
+                ['auto', 'Auto'],
+                ['60', '1 min'],
+                ['120', '2 min'],
+              ].map(([v, label]) => (
+                <button key={v} type="button" onClick={() => setMotionLength(v)} className={`${seg(motionLength === v)} px-0 text-[11.5px]`}>
+                  {label}
+                </button>
+              ))}
+            </Segmented>
           </Row>
         )}
 

@@ -81,6 +81,60 @@ def _lang(text: str) -> str:
     return "km" if any(0x1780 <= ord(ch) <= 0x17FF for ch in text) else "en"
 
 
+ZWSP = "​"
+
+
+def speak_timed(text: str, voice: str) -> tuple[bytes, list[dict]]:
+    """``text`` read aloud, with when each word is said — (MP3 bytes,
+    [{"w": word, "t": start s, "e": end s, "sp": space before it}]). The
+    subtitles follow these exactly (motion/src/explainer.jsx Caption).
+
+    Word timings come from the Azure Speech SDK's word-boundary events; Khmer
+    gets one per word when the text carries zero-width spaces between words
+    (app/khmer_words.py), else one per space-separated phrase. Without the
+    SDK, or with the OpenAI voice, the words list is empty and the subtitles
+    fall back to an estimate. Raises SpeechError."""
+    if provider() != "azure":
+        return speak(text, voice), []
+    try:
+        import azure.cognitiveservices.speech as sdk
+    except ImportError:  # the SDK isn't installed — plain REST, no timings
+        return speak(text, voice), []
+    s = get_settings()
+    cfg = sdk.SpeechConfig(subscription=s.azure_speech_key, region=s.azure_speech_region)
+    cfg.set_speech_synthesis_output_format(sdk.SpeechSynthesisOutputFormat.Audio24Khz96KBitRateMonoMp3)
+    cfg.speech_synthesis_voice_name = voice
+    synth = sdk.SpeechSynthesizer(speech_config=cfg, audio_config=None)
+    events: list = []
+    synth.synthesis_word_boundary.connect(events.append)
+    result = synth.speak_text_async(text.strip()).get()
+    if result.reason != sdk.ResultReason.SynthesizingAudioCompleted or not result.audio_data:
+        details = getattr(result, "cancellation_details", None)
+        raise SpeechError(f"Azure Speech failed: {getattr(details, 'error_details', '') or result.reason}")
+    words: list[dict] = []
+    for ev in events:
+        piece = ev.text or ""
+        start = ev.audio_offset / 10_000_000
+        end = start + ev.duration.total_seconds()
+        if ev.boundary_type == sdk.SpeechSynthesisBoundaryType.Punctuation:
+            if words:  # "?" belongs to the word before it
+                words[-1]["w"] += piece
+                words[-1]["e"] = round(end, 3)
+            continue
+        if ev.boundary_type != sdk.SpeechSynthesisBoundaryType.Word or not piece.strip(ZWSP + " "):
+            continue
+        words.append(
+            {
+                "w": piece.replace(ZWSP, ""),
+                "t": round(start, 3),
+                "e": round(end, 3),
+                # a word that came after a zero-width space joins the one before it
+                "sp": bool(words) and not piece.startswith(ZWSP),
+            }
+        )
+    return result.audio_data, words
+
+
 def speak(text: str, voice: str) -> bytes:
     """``text`` read aloud by ``voice`` — MP3 bytes. Raises SpeechError."""
     which = provider()

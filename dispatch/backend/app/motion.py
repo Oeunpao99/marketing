@@ -341,6 +341,41 @@ STYLES = {
     "quote": (QUOTE_PROMPT, QUOTE_TYPES, 3, "quote"),
 }
 
+# Story mode (write_script ``seconds``): the person pasted their own story.
+MAX_STORY_SCENES = 20  # ~2 minutes
+STORY_RULES = (
+    "\n\nTHE PERSON WROTE THEIR OWN STORY — it is under THE VIDEO IS ABOUT. Turn THAT story "
+    "into the storyboard instead of inventing one: follow its order and its content scene by "
+    "scene (the story order above is only a guide to the scene types). The `say` lines are the "
+    "story's own sentences, lightly shortened to be spoken — same meaning, in LANGUAGE "
+    "(translate only if the story is written in another language). For each scene pick the "
+    "scene type that shows its sentence best, and keep the on-screen words short. Start with a "
+    "hook and end with a cta, taken from the story's opening and ending. Make about {count} "
+    "scenes — the video should run about {seconds} seconds (one scene is about 6 seconds)."
+)
+
+
+def story_seconds(text: str, length: str = "auto") -> int:
+    """How long a story video should be: "60" / "120", or from how long the
+    story takes to read aloud (Khmer ~11 characters a second, English ~2.6
+    words), between 30 s and 2 minutes."""
+    if length in ("60", "120"):
+        return int(length)
+    khmer = sum(1 for ch in text if "\u1780" <= ch <= "\u17ff")
+    spoken = khmer / 11 + len(re.findall(r"[A-Za-z0-9]+", text)) / 2.6
+    return int(min(120, max(30, round(spoken / 15) * 15)))
+
+
+def estimate_seconds(script: dict) -> int:
+    """Roughly how long the video will run, before the voice is recorded."""
+    total = 0.0
+    for sc in script["scenes"]:
+        say = sc.get("say") or ""
+        spoken = sum(1 for ch in say if "\u1780" <= ch <= "\u17ff") / 11 + len(re.findall(r"[A-Za-z0-9]+", say)) / 2.6
+        total += max(default_seconds(sc), spoken + 1.3)
+    return round(total - TRANSITION_S * (len(script["scenes"]) - 1))
+
+
 # Content goals (app/goals.py) → template. Selling goals get the Tech style's
 # sales story; goals without their own template yet teach (Explainer).
 GOAL_STYLES = {
@@ -621,10 +656,15 @@ def write_script(
     moods: list[str] | None = None,
     style: str = "tech",
     job_id: int | None = None,
+    seconds: int | None = None,
 ) -> dict:
     """The video's storyboard: one AI call, then for Khmer the same
     native-editor pass the captions get. {"scenes": [...]} — always starting
-    with a hook and ending with a call to action. Raises ContentAIError."""
+    with a hook and ending with a call to action. Raises ContentAIError.
+
+    ``seconds`` = story mode: ``idea`` is the person's own story / script, to
+    be followed scene by scene (keeping their sentences for the voice) at
+    about that length — the storyboard they review before it's rendered."""
     from app.content_ai import ContentAIError, _chat, _fix_khmer_punctuation, _polish_khmer
 
     cfg = get_settings()
@@ -649,17 +689,26 @@ def write_script(
             + "."
         )
     prompt, allowed, most, must = STYLES.get(style) or STYLES["tech"]
+    story = bool(seconds and idea.strip())
+    if story:
+        count = max(5, min(MAX_STORY_SCENES, round(seconds / 6.5)))
+        most = count  # the person's story sets the length, not the template
+        extra += STORY_RULES.format(count=count, seconds=seconds)
     raw = _chat(
         [
             {"role": "system", "content": prompt + extra},
             {
                 "role": "user",
                 "content": f"BRAND: {brand.name}\nLANGUAGE: {language}\nPRODUCTS:\n{facts}\n\n"
-                + (f"THE VIDEO IS ABOUT: {idea.strip()[:4000]}" if idea.strip() else _auto_topic(products, style)),
+                + (
+                    f"THE VIDEO IS ABOUT: {idea.strip()[: 12000 if story else 4000]}"
+                    if idea.strip()
+                    else _auto_topic(products, style)
+                ),
             },
         ],
         model,
-        max_tokens=9000,
+        max_tokens=16000 if story else 9000,
         # A storyboard follows the template's recipe — it doesn't need long
         # reasoning; the default (medium) took 1-2 minutes on gpt-5-mini. The
         # Khmer editor pass after it still runs at high effort.
@@ -670,7 +719,7 @@ def write_script(
         s
         for s in (_clean_scene(r, names) for r in (raw.get("scenes") or []) if isinstance(r, dict))
         if s and s["type"] in allowed
-    ][:12]
+    ][: MAX_STORY_SCENES + 2 if story else 12]
     # A hook first and a call to action last, whatever came back.
     hooks = [s for s in scenes if s["type"] == "hook"]
     ctas = [s for s in scenes if s["type"] == "cta"]
@@ -708,7 +757,8 @@ def write_script(
             slots += [(ser, "name", 40) for ser in s.get("series", [])]
             if s["type"] == "product":
                 slots += [(s["chips"], k, 30) for k in range(len(s["chips"]))]
-        slots = [x for x in slots if x[0][x[1]]]
+        # Story mode: the voice lines are the person's own sentences — kept.
+        slots = [x for x in slots if x[0][x[1]] and not (story and x[1] == "say")]
         fixed = _polish_khmer(
             [obj[key] for obj, key, _ in slots],
             model,
@@ -876,6 +926,25 @@ def length_of(props: dict) -> int:
 VOICE_TAIL = 0.8
 
 
+def _cut(path: Path, start: float, end: float) -> bytes | None:
+    """The MP3 from ``start`` to ``end`` seconds — None when ffmpeg can't."""
+    from app.story import _ffmpeg
+
+    out = path.with_name(path.stem + "-cut.mp3")
+    try:
+        subprocess.run(
+            [_ffmpeg(), "-hide_banner", "-loglevel", "error", "-y", "-i", str(path),
+             "-ss", f"{max(0.0, start):.3f}", "-to", f"{end:.3f}", "-c:a", "libmp3lame", "-b:a", "128k", str(out)],
+            check=True,
+            capture_output=True,
+            timeout=60,
+        )
+        blob = out.read_bytes()
+    except (subprocess.SubprocessError, OSError):
+        return None
+    return blob if len(blob) > 1000 else None
+
+
 def _trim_silence(path: Path) -> bytes | None:
     """The MP3 without the silence the voice service puts before and after
     the words — None when ffmpeg can't do it (the line is used as it is)."""
@@ -923,16 +992,27 @@ def add_voice(props: dict, script: dict, voice: str, ws: int | None, user_id: in
                 continue
             mark(n, voice="speaking")
             try:
-                mp3 = speech.speak(say, voice)
-            except speech.SpeechError as exc:
+                # Khmer with zero-width spaces between words: Azure then times
+                # every word, not just each space-separated phrase.
+                text = _km_words(say) if any("ក" <= ch <= "៿" for ch in say) else say
+                mp3, words = speech.speak_timed(text, voice)
+            except Exception as exc:  # noqa: BLE001 — a failed line stays silent, the video goes on
                 log.warning("motion %s: voice for scene %s failed: %s", job_id, n + 1, exc)
                 mark(n, voice="skip")
                 continue
             path = Path(tmp) / f"say-{n}.mp3"
             path.write_bytes(mp3)
-            # Only the speech itself: the subtitles are spread over this length,
-            # so silence at either end would make them lag behind the voice.
-            mp3 = _trim_silence(path) or mp3
+            # Only the speech itself — the subtitles follow it. With word
+            # timings the cut is exact (and the timings move with it); without,
+            # the silence at either end is detected.
+            cut = _cut(path, words[0]["t"] - 0.05, words[-1]["e"] + 0.12) if words else None
+            if cut:
+                shift = max(0.0, words[0]["t"] - 0.05)
+                words = [{**w, "t": round(max(0.0, w["t"] - shift), 3), "e": round(w["e"] - shift, 3)} for w in words]
+                mp3 = cut
+            else:
+                words = []
+                mp3 = _trim_silence(path) or mp3
             path.write_bytes(mp3)
             _has_audio, duration = _probe(str(path))
             if duration <= 0:
@@ -942,6 +1022,8 @@ def add_voice(props: dict, script: dict, voice: str, ws: int | None, user_id: in
             lead = (TRANSITION_S if n else 0.0) + 0.2
             scene["seconds"] = round(max(default_seconds(scene), lead + duration + VOICE_TAIL), 2)
             scene["voiceSeconds"] = round(duration, 2)  # subtitles follow the voice
+            if words:
+                scene["words"] = words  # …word by word, when Azure said when each word is
             mark(n, voice="done", seconds=round(duration, 1))
             spoken += len(say)
     if spoken:
@@ -1138,6 +1220,75 @@ class MotionIn(BaseModel):
     # template name ("versus", "poll", "quote") or "auto" — style_for picks
     # the template.
     goal: str = "auto"
+    # A storyboard the person reviewed (POST /ai/motion/plan, then edited):
+    # made exactly as it is — no new script. {"style", "mood"?, "scenes": [...]}
+    script: dict | None = None
+
+
+class PlanIn(BaseModel):
+    brand_id: int
+    idea: str = Field(min_length=1, max_length=20000)  # their story / script (MotionIn takes it after)
+    product_id: int | None = None
+    language: str = "Khmer"
+    goal: str = "auto"
+    music: bool = True
+    length: str = "auto"  # "auto" | "60" | "120"
+
+
+def _style_of(goal: str, product_id: int | None) -> str:
+    # Auto: a chosen product means a sales video, otherwise a teaching one.
+    return style_for(goal) if goal not in ("auto", "") else ("tech" if product_id is not None else "explainer")
+
+
+@router.post("/plan")
+def plan_motion(
+    payload: PlanIn,
+    db: Session = Depends(get_db),
+    ws: int = Depends(current_workspace_id),
+    user: TeamMember = Depends(get_current_user),
+):
+    """The storyboard for the person's own story — to review and edit before
+    anything is voiced or rendered (POST /ai/motion with ``script``). One AI
+    call (plus the Khmer editor's), charged like any other."""
+    from app.content_ai import ContentAIError
+
+    owned(db, Brand, payload.brand_id, ws)
+    if payload.product_id is not None:
+        owned(db, Product, payload.product_id, ws)
+    billing.require(ws, 0.0, db)
+    brand = db.get(Brand, payload.brand_id)
+    all_products = list(db.scalars(select(Product).where(Product.brand_id == brand.id).order_by(Product.name)).all())
+    products = [p for p in all_products if p.id == payload.product_id] or all_products
+    style = _style_of(payload.goal, payload.product_id)
+    seconds = story_seconds(payload.idea, payload.length)  # charged via the request (billing.begin_request)
+    try:
+        script = write_script(
+            brand, products, payload.idea, payload.language, "", list(music_tracks()) if payload.music else [], style, seconds=seconds
+        )
+    except ContentAIError as exc:
+        raise HTTPException(502, str(exc)) from exc
+    return {"script": script, "target_seconds": seconds, "estimate_seconds": estimate_seconds(script)}
+
+
+def checked_script(raw: dict, products: list[Product]) -> dict:
+    """A storyboard sent back by the page, cleaned scene by scene like the
+    AI's own (lengths, icons, numbers) — the person may have edited it."""
+    from app.content_ai import ContentAIError
+
+    style = raw.get("style") if raw.get("style") in STYLES else "explainer"
+    _prompt, allowed, _most, _must = STYLES[style]
+    names = {p.name.strip().lower(): p.name for p in products}
+    scenes = [
+        sc
+        for sc in (_clean_scene(r, names) for r in (raw.get("scenes") or [])[: MAX_STORY_SCENES + 2] if isinstance(r, dict))
+        if sc and sc["type"] in allowed
+    ]
+    if len(scenes) < 2:
+        raise ContentAIError("The storyboard needs at least 2 scenes.")
+    script = {"scenes": scenes, "style": style}
+    if raw.get("mood") in music_tracks():
+        script["mood"] = raw["mood"]
+    return script
 
 
 @router.post("", status_code=201)
@@ -1173,7 +1324,7 @@ def create_motion(
     db.refresh(job)
     threading.Thread(
         target=_make,
-        args=(job.id, payload.product_id, payload.language, payload.voice, "", payload.music, payload.goal),
+        args=(job.id, payload.product_id, payload.language, payload.voice, "", payload.music, payload.goal, payload.script),
         daemon=True,
         name=f"motion-{job.id}",
     ).start()
@@ -1230,6 +1381,7 @@ def _make(
     caption: str = "",
     music: bool = True,
     goal: str = "auto",
+    reviewed: dict | None = None,
 ) -> None:
     from app.content_ai import ContentAIError
     from app.video import _ready_push
@@ -1254,10 +1406,18 @@ def _make(
         try:
             _check(job_id)
             moods = list(music_tracks()) if music else []
-            # Auto: a chosen product means a sales video, otherwise a teaching one.
-            style = style_for(goal) if goal not in ("auto", "") else ("tech" if product_id is not None else "explainer")
-            _report(job_id, stage="story", style=style)
-            script = write_script(brand, products, job.prompt, language, learned, moods, style, job_id=job_id)
+            if reviewed:
+                # The storyboard the person reviewed — made as it is.
+                script = checked_script(reviewed, all_products)
+                if not music:
+                    script.pop("mood", None)
+                elif "mood" not in script and moods:
+                    script["mood"] = moods[0]
+                _report(job_id, stage="pictures", style=script["style"], scenes=_board(script))
+            else:
+                style = _style_of(goal, product_id)
+                _report(job_id, stage="story", style=style)
+                script = write_script(brand, products, job.prompt, language, learned, moods, style, job_id=job_id)
             _check(job_id)
             by_product, order, logo = _brand_pictures(db, brand.id)
             pick_pictures(script, all_products, by_product, order, product_id)

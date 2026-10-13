@@ -5,7 +5,7 @@ import { FiCheck, FiMic, FiMicOff } from 'react-icons/fi'
 // job): the story being written, each scene as it's planned, each voice line
 // as it's spoken, then the frames being drawn.
 
-const SCENE_LABELS = {
+export const SCENE_LABELS = {
   hook: 'Hook',
   problem: 'Problem',
   chat: 'Chat',
@@ -24,7 +24,7 @@ const SCENE_LABELS = {
   quote: 'Quote',
 }
 
-const STYLE_LABELS = { tech: 'Sell', explainer: 'Teach', versus: 'Compare', poll: 'Poll', quote: 'Quote' }
+export const STYLE_LABELS = { tech: 'Sell', explainer: 'Teach', versus: 'Compare', poll: 'Poll', quote: 'Quote' }
 
 /** 0-99 from the real steps: the story is the only part without a count, so
  * it creeps up with time; the voice counts lines, the render counts frames. */

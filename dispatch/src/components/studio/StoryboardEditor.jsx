@@ -1,0 +1,181 @@
+import { FiArrowDown, FiArrowUp, FiFilm, FiMic, FiRefreshCw, FiTrash2 } from 'react-icons/fi'
+import AutoTextarea from '../ui/AutoTextarea'
+import { SCENE_LABELS, STYLE_LABELS } from './MotionBoard'
+
+// The storyboard of a Remotion video made from the person's own story
+// (POST /ai/motion/plan) — reviewed and edited here before anything is voiced
+// or rendered: each scene's on-screen words and its spoken line, the order,
+// scenes removed. "Make the video" sends it back as it is (POST /ai/motion
+// with ``script``; the server cleans it like the AI's own).
+
+// The words on screen each scene type shows (its other parts — chart
+// numbers, list items, chat messages — are kept as the AI wrote them).
+const FIELDS = {
+  hook: [['text', 'On screen']],
+  problem: [
+    ['title', 'On screen'],
+    ['text', 'Under it'],
+  ],
+  chat: [['title', 'Chat title']],
+  list: [['title', 'Title']],
+  stat: [['label', 'Label']],
+  product: [['title', 'Title']],
+  cta: [
+    ['text', 'On screen'],
+    ['button', 'Button'],
+  ],
+  character: [['title', 'On screen']],
+  compare: [['title', 'Title']],
+  chart: [['title', 'Title']],
+  split: [['title', 'Title']],
+  myth: [
+    ['myth', 'Myth'],
+    ['fact', 'Fact'],
+  ],
+  verdict: [['text', 'On screen']],
+  options: [['question', 'Question']],
+  reveal: [['text', 'On screen']],
+  quote: [
+    ['text', 'Quote'],
+    ['author', 'By'],
+  ],
+}
+
+// What else is in the scene, in one line.
+function extras(s) {
+  if (s.items?.length) return s.items.map((i) => i.text).join(' · ')
+  if (s.messages?.length) return s.messages.map((m) => m.text).join(' / ')
+  if (s.options?.length) return s.options.map((o, i) => `${'ABCD'[i]}. ${o}`).join('  ')
+  if (s.series?.length) return s.series.map((x) => `${x.name}: ${x.values.join(' → ')}`).join(' · ')
+  if (s.left && s.right) return `${s.left.name || s.left.label} vs ${s.right.name || s.right.label}`
+  if (s.type === 'stat') return `${s.prefix || ''}${s.value}${s.suffix || ''}`
+  if (s.chips?.length) return s.chips.join(' · ')
+  return ''
+}
+
+// Seconds a scene runs — mirrors app/motion.py estimate_seconds.
+const KHMER = /[ក-៿]/g
+const spokenSeconds = (say = '') => (say.match(KHMER) || []).length / 11 + (say.match(/[A-Za-z0-9]+/g) || []).length / 2.6
+const MIN_SECONDS = { chart: 5.2, compare: 4.2, character: 3.8, cta: 3.8, product: 3.6, myth: 5, quote: 5.6, options: 9.8, split: 8 }
+
+export function estimateSeconds(scenes) {
+  const total = scenes.reduce((n, s) => n + Math.max(MIN_SECONDS[s.type] || 3.4, spokenSeconds(s.say) + 1.3), 0)
+  return Math.max(0, Math.round(total - 0.47 * (scenes.length - 1)))
+}
+
+const fmtLength = (sec) => (sec >= 60 ? `${Math.floor(sec / 60)} min ${String(sec % 60).padStart(2, '0')} s` : `${sec} s`)
+
+export default function StoryboardEditor({ plan, onChange, onMake, onRewrite, voice = true }) {
+  const scenes = plan?.scenes || []
+  const set = (i, patch) => onChange({ ...plan, scenes: scenes.map((s, j) => (j === i ? { ...s, ...patch } : s)) })
+  const move = (i, d) => {
+    const next = [...scenes]
+    ;[next[i], next[i + d]] = [next[i + d], next[i]]
+    onChange({ ...plan, scenes: next })
+  }
+  const remove = (i) => onChange({ ...plan, scenes: scenes.filter((_, j) => j !== i) })
+  const seconds = estimateSeconds(scenes)
+  const style = STYLE_LABELS[plan?.style]
+
+  return (
+    <div className="w-full max-w-[720px] rounded-2xl border border-ink-200/70 bg-white animate-fadein">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-200/70 px-4 py-3">
+        <div>
+          <div className="text-[13px] font-semibold text-ink-900">Storyboard — check it, then make the video</div>
+          <div className="mt-0.5 text-[11.5px] text-ink-500">
+            {scenes.length} scenes · ≈ {fmtLength(seconds)}
+            {voice ? ' with the voice' : ''} · nothing is recorded or rendered until you press Make
+          </div>
+        </div>
+        {style && <span className="rounded-full bg-brand-soft px-2.5 py-0.5 text-[11px] font-semibold text-brand">{style}</span>}
+      </div>
+
+      <ol className="divide-y divide-ink-200/60">
+        {scenes.map((s, i) => {
+          const more = extras(s)
+          return (
+            <li key={i} className="flex gap-3 px-4 py-3">
+              <span className="mt-0.5 grid h-6 w-6 flex-none place-items-center rounded-lg bg-ink-100 text-[11px] font-bold tabular-nums text-ink-600">
+                {i + 1}
+              </span>
+              <div className="min-w-0 flex-1 space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10.5px] font-semibold uppercase tracking-wide text-ink-400">{SCENE_LABELS[s.type] || s.type}</span>
+                  <span className="flex items-center gap-0.5 text-ink-400">
+                    <button type="button" title="Move up" disabled={i === 0} onClick={() => move(i, -1)} className="rounded-md p-1 hover:bg-ink-100 hover:text-ink-700 disabled:opacity-30">
+                      <FiArrowUp size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      title="Move down"
+                      disabled={i === scenes.length - 1}
+                      onClick={() => move(i, 1)}
+                      className="rounded-md p-1 hover:bg-ink-100 hover:text-ink-700 disabled:opacity-30"
+                    >
+                      <FiArrowDown size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      title="Remove this scene"
+                      disabled={scenes.length <= 2}
+                      onClick={() => remove(i)}
+                      className="rounded-md p-1 hover:bg-red-50 hover:text-red-600 disabled:opacity-30"
+                    >
+                      <FiTrash2 size={13} />
+                    </button>
+                  </span>
+                </div>
+                {(FIELDS[s.type] || []).map(([key, label]) => (
+                  <label key={key} className="flex items-center gap-2">
+                    <span className="w-16 flex-none text-[11px] text-ink-400">{label}</span>
+                    <input
+                      value={s[key] || ''}
+                      onChange={(e) => set(i, { [key]: e.target.value })}
+                      className="min-w-0 flex-1 rounded-lg border border-ink-200 bg-white px-2.5 py-1.5 text-[12.5px] font-semibold text-ink-900 outline-none focus:border-brand"
+                    />
+                  </label>
+                ))}
+                {more && <div className="pl-[4.5rem] text-[11.5px] text-ink-500 line-clamp-2">{more}</div>}
+                {voice && (
+                  <label className="flex items-start gap-2">
+                    <span className="mt-1.5 flex w-16 flex-none items-center gap-1 text-[11px] text-ink-400">
+                      <FiMic size={11} /> Voice
+                    </span>
+                    <AutoTextarea
+                      value={s.say || ''}
+                      minRows={1}
+                      maxRows={5}
+                      onChange={(e) => set(i, { say: e.target.value })}
+                      className="min-w-0 flex-1 rounded-lg border border-ink-200 bg-white px-2.5 py-1.5 text-[12.5px] leading-relaxed text-ink-800 outline-none focus:border-brand"
+                    />
+                  </label>
+                )}
+              </div>
+            </li>
+          )
+        })}
+      </ol>
+
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-ink-200/70 px-4 py-3">
+        <span className="text-[11px] text-ink-400">Words in [brackets] are highlighted on screen.</span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onRewrite}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-ink-200 px-3 py-2 text-[12.5px] font-semibold text-ink-700 hover:bg-ink-50"
+          >
+            <FiRefreshCw size={13} /> Write it again
+          </button>
+          <button
+            type="button"
+            onClick={onMake}
+            disabled={scenes.length < 2}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-[12.5px] font-semibold text-white hover:bg-brand/90 disabled:opacity-50"
+          >
+            <FiFilm size={14} /> Make the video
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}

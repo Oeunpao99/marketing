@@ -154,51 +154,29 @@ function Tag({ text, x, y, color = EX.yellow, delay = 10, size = 64, anchor = 'c
   )
 }
 
-/** The narration as subtitles: a black pill showing a few words at a time,
- * spread over the voice-over (scene.voiceSeconds) or the scene. */
-export function Caption({ text, seconds, top = 1225 }) {
+/** The narration as subtitles: a dark pill showing a phrase at a time.
+ *
+ * With ``words`` (app/speech.py speak_timed — when Azure says each word) a
+ * phrase appears the moment its first word is spoken; without them the
+ * phrases are spread over the line (``seconds``) by how long they take to
+ * say. The pill fades in and out; inside it each new phrase fades up. */
+export function Caption({ text, seconds, words, top = 1225 }) {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
-  if (!text) return null
-  // Phrases of ~20 characters, never splitting a word.
-  const words = []
-  for (const w of String(text).split(' ').filter(Boolean)) {
-    const parts = w.split(ZWSP).filter(Boolean)
-    parts.forEach((p, i) => words.push({ p, gap: i === parts.length - 1 }))
-  }
-  const chunks = []
-  let cur = ''
-  for (const { p, gap } of words) {
-    const next = cur + p + (gap ? ' ' : '')
-    if (clean(next).trim().length > 22 && cur) {
-      chunks.push(cur.trim())
-      cur = p + (gap ? ' ' : '')
-    } else cur = next
-  }
-  if (cur.trim()) chunks.push(cur.trim())
-  // Each phrase shows for as long as it takes to say — measured in spoken
-  // sounds, not characters: Khmer vowel signs and subscripts (្) are part of
-  // a syllable, and a comma or full stop is a short pause.
-  const weight = (c) => {
-    let w = 0
-    for (const ch of clean(c)) w += /[\u17B6-\u17D3\u17DD]/.test(ch) ? 0.25 : /[,.!?។៕:;—]/.test(ch) ? 3 : 1
-    return Math.max(1, w)
-  }
-  const span = Math.max(1, (seconds || 3) * fps)
-  const total = chunks.reduce((n, c) => n + weight(c), 0) || 1
-  const LEAD = 7 // frames — a phrase appears just before it's heard, never after
-  let at = 0
-  const timed = chunks.map((c) => {
-    const len = (weight(c) / total) * span
-    const item = { c, from: Math.max(0, at - LEAD), to: at + len - LEAD }
-    at += len
-    return item
-  })
-  const now = timed.find((t) => frame >= t.from && frame < t.to) || (frame >= at ? timed[timed.length - 1] : null)
-  if (!now) return null
-  const pop = spring({ frame: frame - now.from, fps, config: { damping: 20, mass: 0.5 } })
+  const MAX = 22 // characters per phrase — one line
+  const phrases = words?.length ? fromWords(words, fps, MAX) : fromText(text, seconds, fps, MAX)
+  if (!phrases.length) return null
+  const now = [...phrases].reverse().find((p) => frame >= p.from)
+  const last = phrases[phrases.length - 1]
+  if (!now || frame >= last.to) return null
+  const FADE = 6 // frames
+  const pill = Math.min(
+    interpolate(frame, [phrases[0].from, phrases[0].from + FADE], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }),
+    interpolate(frame, [last.to - FADE, last.to], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }),
+  )
+  const line = interpolate(frame, [now.from, now.from + FADE], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })
   return (
-    <div style={{ position: 'absolute', top, left: 0, right: 0, display: 'flex', justifyContent: 'center', padding: '0 70px' }}>
+    <div style={{ position: 'absolute', top, left: 0, right: 0, display: 'flex', justifyContent: 'center', padding: '0 70px', opacity: pill }}>
       <div
         style={{
           background: '#141414',
@@ -210,15 +188,74 @@ export function Caption({ text, seconds, top = 1225 }) {
           padding: '20px 40px',
           borderRadius: 26,
           textAlign: 'center',
-          transform: `scale(${0.92 + 0.08 * pop})`,
-          opacity: Math.min(1, pop * 1.6),
           boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
         }}
       >
-        {clean(now.c)}
+        <span style={{ display: 'inline-block', opacity: line, transform: `translateY(${(1 - line) * 8}px)` }}>{now.c}</span>
       </div>
     </div>
   )
+}
+
+const LEAD = 2 // frames — a phrase shows a hair before its first word is heard
+
+/** Phrases from timed words: a new one when the line is full or a sentence ends. */
+function fromWords(words, fps, max) {
+  const out = []
+  let cur = null
+  for (const w of words) {
+    const piece = (cur && w.sp ? ' ' : '') + w.w
+    if (!cur || (cur.c + piece).length > max) {
+      if (cur) out.push(cur)
+      cur = { c: w.w, from: Math.max(0, Math.round(w.t * fps) - LEAD), end: w.e }
+    } else {
+      cur.c += piece
+      cur.end = w.e
+    }
+    if (/[.!?។៕]$/.test(w.w)) {
+      out.push(cur)
+      cur = null
+    }
+  }
+  if (cur) out.push(cur)
+  return out.map((p, i) => ({ c: p.c, from: p.from, to: i < out.length - 1 ? out[i + 1].from : Math.round((p.end + 0.5) * fps) }))
+}
+
+/** Phrases spread over the line by how long they take to say — measured in
+ * spoken sounds, not characters: Khmer vowel signs and subscripts (្) are
+ * part of a syllable, and a comma or full stop is a short pause. */
+function fromText(text, seconds, fps, max) {
+  if (!text) return []
+  const pieces = []
+  for (const w of String(text).split(' ').filter(Boolean)) {
+    const parts = w.split(ZWSP).filter(Boolean)
+    parts.forEach((p, i) => pieces.push({ p, gap: i === parts.length - 1 }))
+  }
+  const chunks = []
+  let cur = ''
+  for (const { p, gap } of pieces) {
+    const next = cur + p + (gap ? ' ' : '')
+    if (clean(next).trim().length > max && cur) {
+      chunks.push(cur.trim())
+      cur = p + (gap ? ' ' : '')
+    } else cur = next
+  }
+  if (cur.trim()) chunks.push(cur.trim())
+  const weight = (c) => {
+    let w = 0
+    for (const ch of clean(c)) w += /[\u17B6-\u17D3\u17DD]/.test(ch) ? 0.25 : /[,.!?។៕:;—]/.test(ch) ? 3 : 1
+    return Math.max(1, w)
+  }
+  const span = Math.max(1, (seconds || 3) * fps)
+  const total = chunks.reduce((n, c) => n + weight(c), 0) || 1
+  let at = 0
+  return chunks.map((c, i) => {
+    const len = (weight(c) / total) * span
+    const item = { c: clean(c), from: Math.max(0, Math.round(at) - LEAD - 5), to: 0 }
+    at += len
+    item.to = i === chunks.length - 1 ? Math.round(at + 0.4 * fps) : Math.round(at) - LEAD - 5
+    return item
+  })
 }
 
 // ── scenes ─────────────────────────────────────────────────────────────────
