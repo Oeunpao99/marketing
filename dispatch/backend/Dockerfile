@@ -54,4 +54,9 @@ ENV PATH="/app/.venv/bin:$PATH" \
 
 EXPOSE 8000
 
+# The local Khmer voice's model (app/local_voice.py, KHMER_TTS_MODEL) is
+# downloaded here on first use — a volume in docker-compose.prod.yml keeps it
+# across rebuilds.
+ENV HF_HOME=/models
+
 CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000"]

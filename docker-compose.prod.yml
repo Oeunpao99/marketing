@@ -26,6 +26,9 @@ services:
       additional_contexts:
         motion: ./dispatch/motion
     restart: unless-stopped
+    volumes:
+      # The local Khmer voice model (KHMER_TTS_MODEL) — downloaded once, kept.
+      - dispatch-voice-models:/models
     # Everything else (Azure/TikTok/Meta keys, FRONTEND_URL, SECRET_KEY, …)
     # comes from here — copy dispatch/backend/.env.example to
     # dispatch/backend/.env and fill in real production values first.
@@ -55,3 +58,4 @@ services:
 
 volumes:
   dispatch-db-data:
+  dispatch-voice-models:

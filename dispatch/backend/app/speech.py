@@ -63,7 +63,9 @@ def provider() -> str | None:
 
 
 def ready() -> bool:
-    return provider() is not None
+    from app import local_voice
+
+    return provider() is not None or local_voice.ready()
 
 
 def voice_for(language: str, gender: str) -> str | None:
@@ -72,6 +74,14 @@ def voice_for(language: str, gender: str) -> str | None:
     if gender not in ("female", "male"):
         return None
     s = get_settings()
+    from app import local_voice
+
+    # KHMER_TTS_MODEL set: Khmer lines are read by the local open-source voice
+    # (one voice — Female and Male both use it); English keeps Azure.
+    if "khmer" in (language or "").lower() and local_voice.ready():
+        return local_voice.PREFIX + local_voice.model_id()
+    if provider() is None:
+        return None
     if provider() == "openai":
         return s.tts_voice_female if gender == "female" else s.tts_voice_male
     return VOICES[("km" if "khmer" in (language or "").lower() else "en", gender)]
@@ -94,6 +104,10 @@ def speak_timed(text: str, voice: str) -> tuple[bytes, list[dict]]:
     (app/khmer_words.py), else one per space-separated phrase. Without the
     SDK, or with the OpenAI voice, the words list is empty and the subtitles
     fall back to an estimate. Raises SpeechError."""
+    from app import local_voice
+
+    if voice.startswith(local_voice.PREFIX):  # the local Khmer voice: no word timings
+        return speak(text, voice), []
     if provider() != "azure":
         return speak(text, voice), []
     try:
@@ -138,6 +152,13 @@ def speak_timed(text: str, voice: str) -> tuple[bytes, list[dict]]:
 
 def speak(text: str, voice: str) -> bytes:
     """``text`` read aloud by ``voice`` — MP3 bytes. Raises SpeechError."""
+    from app import local_voice
+
+    if voice.startswith(local_voice.PREFIX):
+        try:
+            return local_voice.speak(text, voice[len(local_voice.PREFIX) :])
+        except Exception as exc:  # noqa: BLE001 — model / ffmpeg failure: the line stays silent
+            raise SpeechError(f"The local Khmer voice failed: {exc}") from exc
     which = provider()
     if which is None:
         raise SpeechError("No voice service is set up (Azure OpenAI TTS or Azure Speech).")

@@ -18,6 +18,11 @@ dependencies = [
     "imageio-ffmpeg>=0.6.0",
     "pillow>=11",
     "azure-cognitiveservices-speech>=1.40",
+    # The local Khmer voice (app/local_voice.py, KHMER_TTS_MODEL): a small
+    # open-source TTS model run on the server's CPU.
+    "torch>=2.4",
+    "transformers>=4.44",
+    "numpy>=1.26",
 ]
 
 [dependency-groups]
@@ -27,6 +32,16 @@ dev = [
 
 [tool.uv]
 package = false
+
+# PyTorch's CPU-only build — the default one carries GPU libraries (~2 GB) the
+# server has no use for.
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [tool.ruff]
 line-length = 100

@@ -83,6 +83,10 @@ class Settings(BaseSettings):
     # gpt-4o-mini-tts voices for the Female / Male choice.
     tts_voice_female: str = "coral"
     tts_voice_male: str = "ash"
+    # A local open-source Khmer voice for Khmer voice-overs, e.g.
+    # "khmerttsopensource/khmer-tts" (app/local_voice.py) — blank = Azure.
+    # Note: the MMS Khmer models are licensed CC-BY-NC 4.0 (non-commercial).
+    khmer_tts_model: str = ""
     # Veo output size: "720p", "1080p" or "4k" (4k not on Lite). Google allows
     # 1080p / 4k only for 8-second clips — shorter ones always come at 720p.
     gemini_video_resolution: str = "1080p"
