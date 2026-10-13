@@ -24,12 +24,8 @@ import {
   AbsoluteFill,
   Html5Audio,
   Img,
-  cancelRender,
-  continueRender,
-  delayRender,
   interpolate,
   spring,
-  staticFile,
   useCurrentFrame,
   useVideoConfig,
 } from 'remotion'
@@ -37,133 +33,22 @@ import { TransitionSeries, springTiming } from '@remotion/transitions'
 import { fade } from '@remotion/transitions/fade'
 import { slide } from '@remotion/transitions/slide'
 import { wipe } from '@remotion/transitions/wipe'
-import * as Lucide from 'lucide-react'
+import {
+  FONT,
+  FPS,
+  INK,
+  TRANSITION,
+  Icon,
+  Words,
+  clean,
+  defaultSeconds,
+  sceneFrames,
+  srcOf,
+  tint,
+} from './shared'
+import { EX, EXPLAINER_SCENES, Caption, ExplainerChrome } from './explainer'
 
-export const FPS = 30
-export const TRANSITION = 14 // frames two scenes overlap while they change
-const FONT = 'Kantumruy'
-const INK = '#0b1020'
-
-/** Each scene's length when it has no voice-over (the backend mirrors this —
- * app/motion.py default_seconds). */
-export function defaultSeconds(s) {
-  switch (s.type) {
-    case 'chat':
-      return 1.6 + 1.5 * Math.min(4, (s.messages || []).length)
-    case 'list':
-      return 1.8 + 1.0 * Math.min(4, (s.items || []).length)
-    case 'cta':
-      return 3.8
-    case 'product':
-      return 3.6
-    default:
-      return 3.4
-  }
-}
-
-export const sceneFrames = (s) => Math.round((s.seconds || defaultSeconds(s)) * FPS)
-
-// The Khmer + Latin font — the render waits until it's loaded.
-const fontWait = delayRender('Loading the Khmer font')
-new FontFace(FONT, `url(${staticFile('fonts/KantumruyPro.ttf')})`, { weight: '100 700' })
-  .load()
-  .then((f) => {
-    document.fonts.add(f)
-    continueRender(fontWait)
-  })
-  .catch((err) => cancelRender(err))
-
-const ZWSP = '​'
-const EM_OPEN = '⟦'
-const EM_CLOSE = '⟧'
-const clean = (t) => String(t || '').replaceAll(ZWSP, '').replaceAll(EM_OPEN, '').replaceAll(EM_CLOSE, '')
-
-/** A script's picture / sound: a full URL, or a file under public/. */
-const srcOf = (src) => (!src ? null : /^(https?:|data:)/.test(src) ? src : staticFile(src))
-
-/** A Lucide icon by name ("MessageCircle"), with a safe fallback. */
-function Icon({ name, size = 64, color = 'white', stroke = 2 }) {
-  const C = Lucide[name] || Lucide.Sparkles
-  return <C size={size} color={color} strokeWidth={stroke} />
-}
-
-/** "#0e7c66" → "rgba(14,124,102,a)". */
-function tint(hex, a) {
-  const h = String(hex || '#0e7c66').replace('#', '')
-  const n = parseInt(h.length === 3 ? h.replace(/./g, '$&$&') : h, 16)
-  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`
-}
-
-/** Text that appears word by word, each word rising in. Lines wrap only
- * between words; ⟦highlighted⟧ words get a brand-colour marker swept under
- * them. */
-function Words({ text, delay = 0, stagger = 3, style, align = 'left', color }) {
-  const frame = useCurrentFrame()
-  const { fps } = useVideoConfig()
-  const pieces = []
-  let em = false
-  for (const word of String(text || '').split(' ').filter(Boolean)) {
-    const parts = word.split(ZWSP).filter(Boolean)
-    parts.forEach((p, i) => {
-      // markers can sit inside a piece — split there, so the highlight is exact
-      for (const bit of p.split(/([⟦⟧])/).filter(Boolean)) {
-        if (bit === EM_OPEN) em = true
-        else if (bit === EM_CLOSE) em = false
-        else pieces.push({ p: bit, gap: false, em })
-      }
-      if (i === parts.length - 1 && pieces.length) pieces[pieces.length - 1].gap = true
-    })
-  }
-  return (
-    <div
-      style={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        justifyContent: align === 'center' ? 'center' : 'flex-start',
-        fontFamily: FONT,
-        lineHeight: 1.45,
-        ...style,
-      }}
-    >
-      {pieces.map(({ p, gap, em: hi }, n) => {
-        const s = spring({ frame: frame - delay - n * stagger, fps, config: { damping: 200, mass: 0.6 } })
-        const sweep = spring({ frame: frame - delay - n * stagger - 6, fps, config: { damping: 200 } })
-        return (
-          <span
-            key={n}
-            style={{
-              position: 'relative',
-              display: 'inline-block',
-              marginRight: gap ? '0.28em' : 0,
-              opacity: s,
-              transform: `translateY(${(1 - s) * 46}px)`,
-              color: hi ? 'white' : color,
-              zIndex: 0,
-            }}
-          >
-            {hi && (
-              <span
-                style={{
-                  position: 'absolute',
-                  left: '-0.12em',
-                  right: gap ? '0.16em' : '-0.12em',
-                  top: '0.12em',
-                  bottom: '0.08em',
-                  borderRadius: '0.18em',
-                  background: 'var(--brand)',
-                  transform: `scaleX(${sweep})`,
-                  transformOrigin: 'left center',
-                  zIndex: -1,
-                }}
-              />
-            )}
-            {p}
-          </span>
-        )
-      })}
-    </div>
-  )
-}
+export { FPS, TRANSITION, defaultSeconds, sceneFrames }
 
 /** The scene background when there's no photo: deep ink with two slow brand
  * glows and a faint grid — one look across the whole video. */
@@ -830,18 +715,27 @@ const SCENES = {
   cta: CtaScene,
 }
 
-export const MotionPost = ({ brand, scenes, music }) => {
+export const MotionPost = ({ brand, scenes, music, style }) => {
   let point = 0
+  const explainer = style === 'explainer'
+  const map = explainer ? { ...SCENES, ...EXPLAINER_SCENES } : SCENES
+  const rootStyle = explainer
+    ? { backgroundColor: EX.bg, '--brand': brand.color, '--hl-bg': EX.yellow, '--hl-text': EX.ink }
+    : { backgroundColor: INK, '--brand': brand.color }
   return (
-    <AbsoluteFill style={{ backgroundColor: INK, '--brand': brand.color }}>
+    <AbsoluteFill style={rootStyle}>
       {music && <BackgroundMusic src={music} scenes={scenes} />}
       <TransitionSeries>
         {scenes.flatMap((scene, i) => {
-          const Scene = SCENES[scene.type]
+          const Scene = map[scene.type]
           const body = Scene ? <Scene scene={scene} brand={brand} /> : <PointScene scene={scene} brand={brand} n={++point} />
           const out = [
             <TransitionSeries.Sequence key={`s${i}`} durationInFrames={sceneFrames(scene)}>
               {body}
+              {/* The spoken line as subtitles — not over the phone chat, whose bubbles say it already. */}
+              {scene.caption && scene.type !== 'chat' && (
+                <Caption text={scene.caption} seconds={scene.voiceSeconds || sceneFrames(scene) / FPS - 0.6} top={explainer ? 1225 : 1660} />
+              )}
               {/* The scene's voice-over line (app/motion.py add_voice) — the scene lasts as long as it. */}
               {scene.audio && <Html5Audio src={srcOf(scene.audio)} />}
             </TransitionSeries.Sequence>,
@@ -858,7 +752,7 @@ export const MotionPost = ({ brand, scenes, music }) => {
           return out
         })}
       </TransitionSeries>
-      <Chrome scenes={scenes} brand={brand} />
+      {explainer ? <ExplainerChrome scenes={scenes} brand={brand} /> : <Chrome scenes={scenes} brand={brand} />}
     </AbsoluteFill>
   )
 }

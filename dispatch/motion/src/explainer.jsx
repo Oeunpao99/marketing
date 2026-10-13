@@ -1,0 +1,537 @@
+/**
+ * The Explainer style — a light, friendly "teach me" look for awareness and
+ * education videos (inspired by Khmer money-explainer TikToks): a cream
+ * background with soft pastel circles, one big dark title per scene, a stick
+ * figure with a mood, objects with price tags, line charts that grow, two
+ * people compared — and the narration as subtitles in a black pill.
+ *
+ * Scenes (script fields — written by app/motion.py):
+ *   hook      { text, icon? }
+ *   character { title, mood, icon?, tag? }        a person (+ an object with a tag)
+ *   compare   { title, left: {name, mood, value, tone}, right: {…} }
+ *   chart     { title, prefix?, suffix?, labels: [], series: [{ name, tone, values: [] }] }
+ *   list      { title, items: [{ icon, text }] }
+ *   stat      { value, prefix?, suffix?, label, icon? }
+ *   cta       { text, button }
+ * Any scene may carry `caption` (its spoken line) — shown as subtitles.
+ */
+import { AbsoluteFill, Img, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion'
+import { FONT, FPS, Icon, TRANSITION, Words, ZWSP, clean, sceneFrames, srcOf } from './shared'
+
+export const EX = {
+  bg: '#FBF6EC',
+  ink: '#151515',
+  sub: '#55524c',
+  yellow: '#F4C542',
+  green: '#1E9E5B',
+  red: '#E5533D',
+  blobA: '#F7DCA8',
+  blobB: '#D3E8CC',
+  blobC: '#F6E2C9',
+}
+const TONE = { good: EX.green, bad: EX.red, neutral: '#3B82F6' }
+const GROUND = 1100 // y of the ground line
+
+/** Cream paper with soft pastel circles drifting slowly. */
+function Paper({ ground = false }) {
+  const frame = useCurrentFrame()
+  const a = frame / 70
+  const blob = (color, size, left, top, dx, dy) => (
+    <div
+      style={{
+        position: 'absolute',
+        width: size,
+        height: size,
+        borderRadius: '50%',
+        background: color,
+        opacity: 0.75,
+        left: left + Math.sin(a) * dx,
+        top: top + Math.cos(a * 0.8) * dy,
+        filter: 'blur(2px)',
+      }}
+    />
+  )
+  return (
+    <AbsoluteFill style={{ backgroundColor: EX.bg, overflow: 'hidden' }}>
+      {blob(EX.blobA, 520, 760, 380, 30, 20)}
+      {blob(EX.blobB, 560, -260, 1300, 25, 30)}
+      {blob(EX.blobC, 300, 820, 1500, 20, 15)}
+      {ground && <div style={{ position: 'absolute', left: 70, right: 70, top: GROUND, height: 6, borderRadius: 3, background: EX.ink }} />}
+    </AbsoluteFill>
+  )
+}
+
+/** The scene's big dark title at the top. */
+function Title({ text, top = 250, size = 104, delay = 2 }) {
+  if (!text) return null
+  return (
+    <div style={{ position: 'absolute', top, left: 60, right: 60 }}>
+      <Words text={text} delay={delay} align="center" color={EX.ink} style={{ fontSize: size, fontWeight: 700, textAlign: 'center', lineHeight: 1.3 }} />
+    </div>
+  )
+}
+
+/** A stick figure with a face that shows a mood; it breathes a little. */
+export function StickFigure({ mood = 'happy', x, y, scale = 1, delay = 0, color = EX.ink }) {
+  const frame = useCurrentFrame()
+  const { fps } = useVideoConfig()
+  const s = spring({ frame: frame - delay, fps, config: { damping: 12 } })
+  const bob = Math.sin(frame / 14) * 3
+  const mouth = {
+    happy: 'M 82 62 Q 100 80 118 62',
+    excited: 'M 80 60 Q 100 92 120 60 Z',
+    sad: 'M 82 76 Q 100 60 118 76',
+    worried: 'M 80 72 Q 90 64 100 72 Q 110 80 120 70',
+    thinking: 'M 86 72 L 116 68',
+  }[mood] || 'M 82 62 Q 100 80 118 62'
+  const eyeY = mood === 'thinking' ? 40 : 46
+  return (
+    <svg
+      width={200 * scale}
+      height={400 * scale}
+      viewBox="0 0 200 400"
+      style={{ position: 'absolute', left: x - 100 * scale, top: y - 400 * scale + bob, opacity: s, transform: `scale(${0.6 + 0.4 * s})`, transformOrigin: 'bottom center' }}
+    >
+      <g fill="none" stroke={color} strokeWidth="7" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="100" cy="56" r="44" fill="white" />
+        <path d="M 100 100 L 100 250" />
+        <path d={mood === 'excited' ? 'M 100 140 L 50 90 M 100 140 L 150 90' : mood === 'thinking' ? 'M 100 140 L 60 200 M 100 140 L 128 110 L 112 70' : 'M 100 140 L 58 210 M 100 140 L 142 210'} />
+        <path d="M 100 250 L 66 392 M 100 250 L 134 392" />
+        <path d={mouth} fill={mood === 'excited' ? color : 'none'} />
+      </g>
+      <circle cx="84" cy={eyeY} r="6" fill={color} />
+      <circle cx="116" cy={eyeY} r="6" fill={color} />
+    </svg>
+  )
+}
+
+/** A round face marker for chart lines — happy for good, sad for bad. */
+function Face({ x, y, tone = 'good', size = 78 }) {
+  const c = TONE[tone] || EX.ink
+  const happy = tone !== 'bad'
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" style={{ position: 'absolute', left: x - size / 2, top: y - size / 2 }}>
+      <circle cx="50" cy="50" r="44" fill="white" stroke={c} strokeWidth="8" />
+      <circle cx="35" cy="42" r="6" fill={EX.ink} />
+      <circle cx="65" cy="42" r="6" fill={EX.ink} />
+      <path d={happy ? 'M 32 60 Q 50 76 68 60' : 'M 32 70 Q 50 56 68 70'} fill="none" stroke={EX.ink} strokeWidth="6" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+/** A price tag (yellow by default) with its hole — pops in with a little swing. */
+function Tag({ text, x, y, color = EX.yellow, delay = 10, size = 64, anchor = 'center' }) {
+  const frame = useCurrentFrame()
+  const { fps } = useVideoConfig()
+  const s = spring({ frame: frame - delay, fps, config: { damping: 9 } })
+  if (!text) return null
+  const swing = Math.sin(frame / 10) * 2 * s
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: x,
+        top: y,
+        transform: `translate(${anchor === 'center' ? '-50%' : '0'}, -50%) scale(${s}) rotate(${-4 + swing}deg)`,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 22,
+        padding: `${size * 0.22}px ${size * 0.7}px ${size * 0.22}px ${size * 0.5}px`,
+        background: color,
+        border: `5px solid ${EX.ink}`,
+        borderRadius: 14,
+        clipPath: 'polygon(0 0, 88% 0, 100% 50%, 88% 100%, 0 100%)',
+        fontFamily: FONT,
+        fontWeight: 700,
+        fontSize: size,
+        color: EX.ink,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {clean(text)}
+      <span style={{ width: size * 0.26, height: size * 0.26, borderRadius: '50%', border: `5px solid ${EX.ink}`, background: 'white' }} />
+    </div>
+  )
+}
+
+/** The narration as subtitles: a black pill showing a few words at a time,
+ * spread over the voice-over (scene.voiceSeconds) or the scene. */
+export function Caption({ text, seconds, top = 1225 }) {
+  const frame = useCurrentFrame()
+  const { fps } = useVideoConfig()
+  if (!text) return null
+  // Phrases of ~20 characters, never splitting a word.
+  const words = []
+  for (const w of String(text).split(' ').filter(Boolean)) {
+    const parts = w.split(ZWSP).filter(Boolean)
+    parts.forEach((p, i) => words.push({ p, gap: i === parts.length - 1 }))
+  }
+  const chunks = []
+  let cur = ''
+  for (const { p, gap } of words) {
+    const next = cur + p + (gap ? ' ' : '')
+    if (clean(next).trim().length > 22 && cur) {
+      chunks.push(cur.trim())
+      cur = p + (gap ? ' ' : '')
+    } else cur = next
+  }
+  if (cur.trim()) chunks.push(cur.trim())
+  const span = Math.max(1, (seconds || 3) * fps)
+  const total = chunks.reduce((n, c) => n + clean(c).length, 0) || 1
+  let at = 6
+  const timed = chunks.map((c) => {
+    const len = (clean(c).length / total) * (span - 6)
+    const item = { c, from: at, to: at + len }
+    at += len
+    return item
+  })
+  const now = timed.find((t) => frame >= t.from && frame < t.to) || (frame >= at ? timed[timed.length - 1] : null)
+  if (!now) return null
+  const pop = spring({ frame: frame - now.from, fps, config: { damping: 14 } })
+  return (
+    <div style={{ position: 'absolute', top, left: 0, right: 0, display: 'flex', justifyContent: 'center', padding: '0 70px' }}>
+      <div
+        style={{
+          background: '#141414',
+          color: 'white',
+          fontFamily: FONT,
+          fontWeight: 700,
+          fontSize: 50,
+          lineHeight: 1.4,
+          padding: '20px 40px',
+          borderRadius: 26,
+          textAlign: 'center',
+          transform: `scale(${0.85 + 0.15 * pop})`,
+          opacity: pop,
+          boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
+        }}
+      >
+        {clean(now.c)}
+      </div>
+    </div>
+  )
+}
+
+// ── scenes ─────────────────────────────────────────────────────────────────
+function ExHook({ scene }) {
+  const frame = useCurrentFrame()
+  const { fps } = useVideoConfig()
+  const s = spring({ frame, fps, config: { damping: 11 } })
+  return (
+    <AbsoluteFill>
+      <Paper />
+      {scene.icon && (
+        <div style={{ position: 'absolute', top: 360, left: 0, right: 0, display: 'flex', justifyContent: 'center', transform: `scale(${s})` }}>
+          <div style={{ width: 230, height: 230, borderRadius: 70, background: EX.yellow, border: `6px solid ${EX.ink}`, display: 'grid', placeItems: 'center' }}>
+            <Icon name={scene.icon} size={120} color={EX.ink} stroke={2.2} />
+          </div>
+        </div>
+      )}
+      <Title text={scene.text} top={scene.icon ? 680 : 520} size={112} delay={6} />
+    </AbsoluteFill>
+  )
+}
+
+function ExCharacter({ scene }) {
+  const frame = useCurrentFrame()
+  const { fps } = useVideoConfig()
+  const obj = spring({ frame: frame - 8, fps, config: { damping: 12 } })
+  return (
+    <AbsoluteFill>
+      <Paper ground />
+      <Title text={scene.title} />
+      <StickFigure mood={scene.mood} x={scene.icon ? 300 : 540} y={GROUND} scale={1.25} />
+      {scene.icon && (
+        <div style={{ position: 'absolute', left: 560, top: GROUND - 470, width: 360, height: 460, display: 'grid', placeItems: 'end center', transform: `translateY(${(1 - obj) * 80}px)`, opacity: obj }}>
+          <Icon name={scene.icon} size={330} color={EX.ink} stroke={1.6} />
+        </div>
+      )}
+      {scene.icon && <Tag text={scene.tag} x={740} y={GROUND - 520} delay={18} />}
+      {!scene.icon && scene.tag && <Tag text={scene.tag} x={540} y={GROUND - 560} delay={18} />}
+    </AbsoluteFill>
+  )
+}
+
+function ExCompare({ scene }) {
+  const frame = useCurrentFrame()
+  const { fps } = useVideoConfig()
+  const vs = spring({ frame: frame - 14, fps, config: { damping: 10 } })
+  const side = (p, x, delay) =>
+    p ? (
+      <>
+        <StickFigure mood={p.mood} x={x} y={GROUND} scale={1.05} delay={delay} />
+        <div style={{ position: 'absolute', left: x - 170, width: 340, top: GROUND + 30, textAlign: 'center', fontFamily: FONT, fontWeight: 700, fontSize: 54, color: EX.ink }}>{clean(p.name)}</div>
+        <Tag text={p.value} x={x} y={GROUND - 500} color={p.tone === 'bad' ? '#F6B3A8' : p.tone === 'good' ? '#A8DDBE' : EX.yellow} delay={delay + 14} size={54} />
+      </>
+    ) : null
+  return (
+    <AbsoluteFill>
+      <Paper ground />
+      <Title text={scene.title} />
+      {side(scene.left, 290, 4)}
+      {side(scene.right, 790, 12)}
+      <div style={{ position: 'absolute', left: 540 - 60, top: GROUND - 260, width: 120, height: 120, borderRadius: 60, background: EX.ink, color: 'white', display: 'grid', placeItems: 'center', fontFamily: FONT, fontWeight: 700, fontSize: 46, transform: `scale(${vs})` }}>VS</div>
+    </AbsoluteFill>
+  )
+}
+
+const fmt = (v, prefix = '', suffix = '') => {
+  const n = Math.round(v)
+  return `${n < 0 ? '-' : ''}${prefix}${Math.abs(n).toLocaleString('en-US')}${suffix}`
+}
+
+/** One or two lines growing left to right, each ending in a face; the first
+ * good line carries a tag that counts up with it. */
+function ExChart({ scene }) {
+  const frame = useCurrentFrame()
+  const { durationInFrames } = useVideoConfig()
+  const series = (scene.series || []).filter((s) => (s.values || []).length >= 2).slice(0, 2)
+  const labels = scene.labels || []
+  const all = series.flatMap((s) => s.values)
+  const lo = Math.min(0, ...all)
+  const hi = Math.max(1, ...all) * 1.15
+  const X0 = 150
+  const X1 = 960
+  const Y0 = 560
+  const Y1 = 1040
+  const yOf = (v) => Y1 - ((v - lo) / (hi - lo)) * (Y1 - Y0)
+  const zeroY = yOf(0)
+  const labelY = Math.max(zeroY, yOf(lo)) + 64 // under the lowest point, clear of the lines
+  const p = interpolate(frame, [14, Math.max(30, durationInFrames * 0.7)], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })
+  const tagged = series.findIndex((s) => s.tone === 'good')
+  return (
+    <AbsoluteFill>
+      <Paper />
+      <Title text={scene.title} top={200} size={96} />
+      {/* legend */}
+      <div style={{ position: 'absolute', top: 420, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 50 }}>
+        {series.map((s, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14, fontFamily: FONT, fontWeight: 700, fontSize: 46, color: EX.ink }}>
+            <span style={{ width: 30, height: 30, borderRadius: 15, background: TONE[s.tone] || EX.ink }} />
+            {clean(s.name)}
+          </div>
+        ))}
+      </div>
+      <svg width="1080" height="1920" style={{ position: 'absolute', left: 0, top: 0 }}>
+        <line x1={X0} y1={Y0 - 40} x2={X0} y2={Y1 + 30} stroke={EX.ink} strokeWidth="6" strokeLinecap="round" />
+        <line x1={X0} y1={zeroY} x2={X1 + 20} y2={zeroY} stroke={EX.ink} strokeWidth="6" strokeLinecap="round" />
+        {series.map((s, i) => {
+          const n = s.values.length
+          const f = p * (n - 1)
+          const k = Math.floor(f)
+          const pts = s.values.slice(0, k + 1).map((v, j) => [X0 + (j / (n - 1)) * (X1 - X0), yOf(v)])
+          if (k < n - 1) {
+            const v = s.values[k] + (s.values[k + 1] - s.values[k]) * (f - k)
+            pts.push([X0 + (f / (n - 1)) * (X1 - X0), yOf(v)])
+          }
+          return (
+            <polyline
+              key={i}
+              points={pts.map((q) => q.join(',')).join(' ')}
+              fill="none"
+              stroke={TONE[s.tone] || EX.ink}
+              strokeWidth="14"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          )
+        })}
+        {labels.slice(0, 8).map((l, j) => {
+          const n = Math.max(2, labels.length)
+          const x = X0 + (j / (n - 1)) * (X1 - X0)
+          return (
+            <g key={j}>
+              <line x1={x} y1={zeroY - 12} x2={x} y2={zeroY + 12} stroke={EX.ink} strokeWidth="5" />
+              <text x={x} y={labelY} textAnchor="middle" fontFamily={FONT} fontWeight="700" fontSize="40" fill={EX.sub}>
+                {clean(l)}
+              </text>
+            </g>
+          )
+        })}
+        <text x={X0 - 20} y={zeroY + 14} textAnchor="end" fontFamily={FONT} fontWeight="700" fontSize="40" fill={EX.sub}>
+          {fmt(0, scene.prefix, '')}
+        </text>
+      </svg>
+      {series.map((s, i) => {
+        const n = s.values.length
+        const f = p * (n - 1)
+        const k = Math.min(n - 2, Math.floor(f))
+        const v = s.values[k] + (s.values[k + 1] - s.values[k]) * (f - k)
+        const x = X0 + (f / (n - 1)) * (X1 - X0)
+        const y = yOf(v)
+        return (
+          <div key={i}>
+            <Face x={x} y={y} tone={s.tone} />
+            {i === tagged && (
+              <Tag text={fmt(v, scene.prefix, scene.suffix)} x={Math.min(Math.max(x, 230), 850)} y={y - 110} color="#A8DDBE" delay={0} size={52} />
+            )}
+          </div>
+        )
+      })}
+    </AbsoluteFill>
+  )
+}
+
+function ExList({ scene }) {
+  const frame = useCurrentFrame()
+  const { fps } = useVideoConfig()
+  return (
+    <AbsoluteFill>
+      <Paper />
+      <Title text={scene.title} top={230} size={96} />
+      <div style={{ position: 'absolute', top: 520, left: 80, right: 80 }}>
+        {(scene.items || []).slice(0, 4).map((it, i) => {
+          const s = spring({ frame: frame - 18 - i * 22, fps, config: { damping: 14 } })
+          return (
+            <div
+              key={i}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 30,
+                marginBottom: 30,
+                padding: '24px 30px',
+                background: 'white',
+                border: `5px solid ${EX.ink}`,
+                borderRadius: 34,
+                opacity: s,
+                transform: `translateX(${(1 - s) * 200}px)`,
+              }}
+            >
+              <div style={{ flex: 'none', width: 104, height: 104, borderRadius: 52, background: EX.yellow, border: `5px solid ${EX.ink}`, display: 'grid', placeItems: 'center' }}>
+                <Icon name={it.icon} size={54} color={EX.ink} stroke={2.3} />
+              </div>
+              <div style={{ fontFamily: FONT, fontWeight: 700, fontSize: 50, color: EX.ink, lineHeight: 1.35 }}>{clean(it.text)}</div>
+            </div>
+          )
+        })}
+      </div>
+    </AbsoluteFill>
+  )
+}
+
+function ExStat({ scene }) {
+  const frame = useCurrentFrame()
+  const { fps } = useVideoConfig()
+  const value = Number(scene.value) || 0
+  const shown = interpolate(frame, [8, 50], [0, value], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })
+  const pop = spring({ frame: frame - 4, fps, config: { damping: 12 } })
+  return (
+    <AbsoluteFill>
+      <Paper />
+      {scene.icon && (
+        <div style={{ position: 'absolute', top: 330, left: 0, right: 0, display: 'flex', justifyContent: 'center' }}>
+          <Icon name={scene.icon} size={150} color={EX.ink} stroke={1.8} />
+        </div>
+      )}
+      <div
+        style={{
+          position: 'absolute',
+          top: 520,
+          left: 0,
+          right: 0,
+          textAlign: 'center',
+          fontFamily: FONT,
+          fontWeight: 700,
+          fontSize: 240,
+          color: EX.ink,
+          transform: `scale(${0.7 + 0.3 * pop})`,
+        }}
+      >
+        {scene.prefix || ''}
+        {(Number.isInteger(value) ? Math.round(shown) : shown.toFixed(1)).toLocaleString('en-US')}
+        {scene.suffix || ''}
+      </div>
+      <div style={{ position: 'absolute', top: 870, left: 80, right: 80 }}>
+        <Words text={scene.label} delay={18} align="center" color={EX.sub} style={{ fontSize: 64, fontWeight: 700, textAlign: 'center' }} />
+      </div>
+    </AbsoluteFill>
+  )
+}
+
+function ExCta({ scene, brand }) {
+  const frame = useCurrentFrame()
+  const { fps } = useVideoConfig()
+  const b = spring({ frame: frame - 26, fps, config: { damping: 11 } })
+  const logo = spring({ frame: frame - 2, fps, config: { damping: 11 } })
+  return (
+    <AbsoluteFill>
+      <Paper />
+      {brand.logo && (
+        <div style={{ position: 'absolute', top: 330, left: 0, right: 0, display: 'flex', justifyContent: 'center', transform: `scale(${logo})` }}>
+          <div style={{ background: 'white', border: `5px solid ${EX.ink}`, borderRadius: 40, padding: '24px 40px' }}>
+            <Img src={srcOf(brand.logo)} style={{ height: 120, objectFit: 'contain' }} />
+          </div>
+        </div>
+      )}
+      <Title text={scene.text} top={brand.logo ? 620 : 520} size={100} delay={10} />
+      {scene.button && (
+        <div style={{ position: 'absolute', top: 960, left: 0, right: 0, display: 'flex', justifyContent: 'center' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 18,
+              background: EX.yellow,
+              border: `6px solid ${EX.ink}`,
+              color: EX.ink,
+              fontFamily: FONT,
+              fontWeight: 700,
+              fontSize: 56,
+              padding: '26px 60px',
+              borderRadius: 999,
+              transform: `scale(${b * (1 + Math.sin(frame / 6) * 0.03)})`,
+              opacity: b,
+            }}
+          >
+            <Icon name="Bookmark" size={52} color={EX.ink} stroke={2.4} />
+            {clean(scene.button)}
+          </div>
+        </div>
+      )}
+    </AbsoluteFill>
+  )
+}
+
+export const EXPLAINER_SCENES = {
+  hook: ExHook,
+  character: ExCharacter,
+  compare: ExCompare,
+  chart: ExChart,
+  list: ExList,
+  stat: ExStat,
+  cta: ExCta,
+}
+
+/** Progress bars (dark on cream) and the brand chip. */
+export function ExplainerChrome({ scenes, brand }) {
+  const frame = useCurrentFrame()
+  let start = 0
+  const spans = scenes.map((s, i) => {
+    const len = sceneFrames(s) - (i < scenes.length - 1 ? TRANSITION : 0)
+    const span = [start, start + len]
+    start += len
+    return span
+  })
+  return (
+    <AbsoluteFill style={{ padding: '56px 48px 0', pointerEvents: 'none' }}>
+      <div style={{ display: 'flex', gap: 10 }}>
+        {spans.map(([a, b], i) => (
+          <div key={i} style={{ flex: 1, height: 8, borderRadius: 4, background: 'rgba(21,21,21,0.15)', overflow: 'hidden' }}>
+            <div style={{ height: '100%', background: EX.ink, width: `${interpolate(frame, [a, b], [0, 100], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })}%` }} />
+          </div>
+        ))}
+      </div>
+      <div style={{ marginTop: 30, alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 14, background: 'white', border: `4px solid ${EX.ink}`, borderRadius: 999, padding: brand.logo ? '8px 26px 8px 10px' : '12px 26px' }}>
+        {brand.logo ? (
+          <Img src={srcOf(brand.logo)} style={{ height: 50, maxWidth: 170, objectFit: 'contain' }} />
+        ) : (
+          <div style={{ width: 22, height: 22, borderRadius: 11, background: EX.yellow, border: `3px solid ${EX.ink}` }} />
+        )}
+        <span style={{ fontFamily: FONT, fontWeight: 700, fontSize: 32, color: EX.ink }}>{brand.name}</span>
+      </div>
+    </AbsoluteFill>
+  )
+}
+
+export { FPS }

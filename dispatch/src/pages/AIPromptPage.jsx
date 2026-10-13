@@ -141,6 +141,7 @@ function serializeTurn(t) {
     productId: t.productId ?? null,
     voice: t.voice || undefined,
     music: t.music,
+    goal: t.goal || undefined,
     tokens: t.tokens || 0,
     cost: t.cost || 0,
     startedAt: t.startedAt,
@@ -168,6 +169,8 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
   const [videoMode, setVideoMode] = useState('clip') // 'clip' = instant video | 'story' = storyboard | 'motion'
   const [motionVoice, setMotionVoice] = useState('female')
   const [motionMusic, setMotionMusic] = useState(true)
+  // Remotion story: teach (Explainer style) or sell (Tech style); auto = sell when a product is chosen
+  const [motionGoal, setMotionGoal] = useState('auto')
   const [storySeconds, setStorySeconds] = useState(32)
   const [voice, setVoice] = useState(null) // null = the brand's language; '' = no voiceover
   const [brand, setBrand] = useState(null)
@@ -602,6 +605,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
           language: turn.language || 'Khmer',
           voice: turn.voice || 'female',
           music: turn.music !== false,
+          goal: turn.goal || 'auto',
         })
         trackJob(res.id, 'video')
         update(turn.id, { jobId: res.id })
@@ -750,6 +754,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
       productId: isMotion ? (productId ?? null) : undefined,
       voice: isMotion ? motionVoice : undefined,
       music: isMotion ? motionMusic : undefined,
+      goal: isMotion ? motionGoal : undefined,
       brandId: brandObj?.id ?? null,
       brandName: brandObj?.name || '',
       refUrl: refImg?.url || '',
@@ -785,6 +790,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
       productId: productId ?? null,
       voice: motionVoice,
       music: motionMusic,
+      goal: motionGoal,
       brandId: brandObj?.id ?? null,
       brandName: brandObj?.name || '',
       refUrl: '',
@@ -1231,6 +1237,8 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
                   motionVoice={motionVoice}
                   motionMusic={motionMusic}
                   setMotionMusic={setMotionMusic}
+                  motionGoal={motionGoal}
+                  setMotionGoal={setMotionGoal}
                   setMotionVoice={setMotionVoice}
                   storySeconds={storySeconds}
                   setStorySeconds={setStorySeconds}
@@ -2052,6 +2060,7 @@ function RatioShape({ id }) {
 function SettingsPopover({
   type, setType, ratio, setRatio, seconds, setSeconds, videoMode, setVideoMode, storySeconds, setStorySeconds,
   motionVoice = 'female', setMotionVoice = () => {}, motionMusic = true, setMotionMusic = () => {},
+  motionGoal = 'auto', setMotionGoal = () => {},
   voice, setVoice, brands, brand, setBrand, style, setStyle, template, setTemplate,
   products = [], product, setProduct,
 }) {
@@ -2106,6 +2115,31 @@ function SettingsPopover({
               >
                 Remotion
               </button>
+            </Segmented>
+          </Row>
+        )}
+
+        {motion && (
+          <Row
+            label="Story"
+            hint={
+              motionGoal === 'teach'
+                ? 'Teaches — characters, charts, no selling · light Explainer style'
+                : motionGoal === 'sell'
+                  ? 'Sells — problem, product working, proof · Tech style'
+                  : 'Teaches, or sells when you pick a product'
+            }
+          >
+            <Segmented>
+              {[
+                ['auto', 'Auto'],
+                ['teach', 'Teach'],
+                ['sell', 'Sell'],
+              ].map(([v, label]) => (
+                <button key={v} type="button" onClick={() => setMotionGoal(v)} className={`${seg(motionGoal === v)} px-0 text-[11.5px]`}>
+                  {label}
+                </button>
+              ))}
             </Segmented>
           </Row>
         )}

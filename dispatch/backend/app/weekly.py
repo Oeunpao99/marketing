@@ -167,7 +167,10 @@ def _motion_for(db: Session, brand: Brand, item: dict) -> int | None:
     db.rollback()  # no transaction held open through the render
     try:
         brief = f"{item['title']}\n\n{item['caption']}"
-        return make_motion(brand.id, brief, language, "female", product_id, caption=item["caption"])
+        # The post's content goal picks the story: Education / Awareness / … teach
+        # (Explainer style), Solution / Conversion sell (Tech style).
+        goal = item.get("content_goal") or "auto"
+        return make_motion(brand.id, brief, language, "female", product_id, caption=item["caption"], goal=goal)
     except Exception:  # noqa: BLE001 — one video mustn't sink the plan
         log.exception("weekly plan: motion video for %r crashed", item["title"])
         return None

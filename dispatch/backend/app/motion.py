@@ -112,7 +112,7 @@ def music_tracks() -> dict[str, list[str]]:
             out[mood] = [f"music/{mood}/{f}" for f in files]
     return out
 
-SCRIPT_PROMPT = (
+SELL_PROMPT = (
     "You are the best short-form video storyteller in Cambodia. You plan a vertical "
     "REMOTION VIDEO (TikTok / Facebook Reels, 15-25 s): no actors — animated app-style "
     "graphics: big words, icons, a phone screen with a chat, the product photo, numbers "
@@ -162,6 +162,79 @@ SCRIPT_PROMPT = (
     "Return ONLY a JSON object, no markdown:\n"
     '{"scenes": [{"type": "hook", "text": "...", "icon": "MessageCircle", "say": "..."}, ...]}'
 )
+
+
+# The Explainer style's story — awareness / education (no selling). Scenes
+# are drawn by motion/src/explainer.jsx.
+EXPLAINER_TYPES = ("hook", "character", "compare", "chart", "list", "stat", "cta")
+TECH_TYPES = ("hook", "problem", "chat", "list", "stat", "product", "cta")
+MOODS = ("happy", "excited", "sad", "worried", "thinking")
+
+TEACH_PROMPT = (
+    "You are the best short-form EDUCATION video storyteller in Cambodia — think of the "
+    "Khmer money and life-tips explainers that people save and share. You plan a vertical "
+    "REMOTION VIDEO (TikTok / Facebook Reels, 20-30 s) in a light, friendly drawn style: a "
+    "cream background, big dark titles, a stick-figure person with a mood, objects with "
+    "price tags, charts that grow, two people compared. Subtitles show the narration. "
+    "It must make people STOP, UNDERSTAND something new in one watch, and want to SAVE or "
+    "SHARE it. This is NOT an ad: never pitch the brand's product — the brand only appears "
+    "as the logo.\n"
+    "\n"
+    "THE STORY (5-7 scenes):\n"
+    "1. hook — a surprising number or question that makes them think (\"Is a $400 salary "
+    "richer than $1,000?\").\n"
+    "2. a relatable SITUATION — usually a `character` (a person with a Cambodian first name, "
+    "e.g. សុខា, ដារ៉ា, ស្រីនិច, វិសាល) or a `compare` of two people making different choices.\n"
+    "3. the INSIGHT made visible — a `chart` (how it adds up over time) or a `compare` / `stat`.\n"
+    "4. the TAKEAWAY — a `list` of 3 simple tips, or a `stat`.\n"
+    "5. cta — soft: save it, share it with a friend, follow for more, or comment an answer.\n"
+    "\n"
+    "SCENE TYPES and their fields:\n"
+    "- hook: text (max 10 words), icon.\n"
+    "- character: title (2-5 words), mood (happy | excited | sad | worried | thinking), "
+    "icon (an object they have or want — optional), tag (a short price / number label for "
+    "the object, e.g. \"$1,300\" — optional).\n"
+    "- compare: title (max 5 words), left and right: {name, mood, value (short label like "
+    "\"$400\"), tone (good | bad)}.\n"
+    "- chart: title (max 5 words), prefix (\"$\" or \"\"), suffix (\"\" or e.g. \"%\"), labels "
+    "(3-6 x-axis labels, e.g. years \"0\",\"1\",\"3\",\"5\",\"10\"), series: 1-2 lines "
+    "{name (who, e.g. \"សុខា $400\"), tone (good | bad), values (numbers, EXACTLY one per "
+    "label)}.\n"
+    "- list: title (max 6 words), items: 3 x {\"icon\", \"text\": 2-6 words}.\n"
+    "- stat: value (a number), prefix, suffix, label (max 6 words), icon.\n"
+    "- cta: text (max 8 words), button (1-2 words, e.g. \"Save\", \"Share\", \"Follow\").\n"
+    "\n"
+    "NUMBERS: you may use clearly illustrative scenarios (\"if you save $80 a month…\") "
+    "but every number must be arithmetically EXACT and consistent across scenes: chart "
+    "values must follow from the story (saving $80/month → after 12 months $960, after 36 "
+    "months $2,880). Never invent statistics about real companies, studies or markets. "
+    "Wrap the 1-3 most important words of the hook and titles in [square brackets] — they "
+    "are highlighted.\n"
+    "icon: exactly one name from this list: " + ", ".join(ICONS) + ".\n"
+    "\n"
+    "VOICE-OVER: every scene has `say` — one natural spoken sentence, 8-20 words, that tells "
+    "the story (it is also shown as subtitles), like a friendly teacher talking to one "
+    "person. Same language.\n"
+    "\n"
+    "LANGUAGE: write in the LANGUAGE given. Khmer: everyday spoken Khmer — short common "
+    "words, correct spelling, address the viewer as បង (never អ្នក), digits are fine. "
+    "English: plain and punchy.\n"
+    "The topic may come from a brand that sells something related — teach the topic, don't "
+    "sell. The brief may be a long prompt written for a filmed video — keep only its topic.\n"
+    "\n"
+    "Return ONLY a JSON object, no markdown:\n"
+    '{"scenes": [{"type": "hook", "text": "...", "icon": "Wallet", "say": "..."}, ...]}'
+)
+
+# Content goals (app/goals.py) that sell → the Tech style; all others teach.
+SELL_GOALS = {"sell", "solution", "conversion"}
+
+
+def style_for(goal: str) -> str:
+    """'tech' (a sales story) or 'explainer' (a teaching story) for a content
+    goal; "auto" / unknown = explainer unless the brief is clearly a sale
+    (the caller decides that with a product chosen)."""
+    return "tech" if (goal or "").lower() in SELL_GOALS else "explainer"
 
 
 def _km_words(text: str) -> str:
@@ -245,7 +318,70 @@ def _clean_scene(raw: dict, names: dict[str, str]) -> dict | None:
     if kind == "cta":
         text = _line(raw.get("text"), 140)
         return {"type": kind, "text": text, "button": _line(raw.get("button"), 40), "say": say} if text else None
+    if kind == "character":
+        title = _line(raw.get("title"), 80)
+        icon = str(raw.get("icon") or "").strip()
+        return (
+            {
+                "type": kind,
+                "title": title,
+                "mood": raw.get("mood") if raw.get("mood") in MOODS else "happy",
+                "icon": icon if icon in ICONS else "",
+                "tag": _line(raw.get("tag"), 16),
+                "say": say,
+            }
+            if title
+            else None
+        )
+    if kind == "compare":
+
+        def person(p) -> dict | None:
+            if not isinstance(p, dict) or not _line(p.get("name"), 40):
+                return None
+            return {
+                "name": _line(p.get("name"), 40),
+                "mood": p.get("mood") if p.get("mood") in MOODS else "happy",
+                "value": _line(p.get("value"), 16),
+                "tone": "bad" if p.get("tone") == "bad" else "good",
+            }
+
+        left, right = person(raw.get("left")), person(raw.get("right"))
+        return {"type": kind, "title": _line(raw.get("title"), 80), "left": left, "right": right, "say": say} if left and right else None
+    if kind == "chart":
+        # Checked here, so the chart always draws: same number of values as
+        # labels, real numbers, at most two lines. Its tags are computed from
+        # these values by the template, so they always agree with the lines.
+        labels = [_line(lab, 10) for lab in (raw.get("labels") or [])][:8]
+        series = []
+        for s in (raw.get("series") or [])[:2]:
+            if not isinstance(s, dict):
+                continue
+            values = [_number_signed(v) for v in (s.get("values") or [])]
+            if len(values) >= 2 and None not in values and (not labels or len(values) == len(labels)):
+                series.append({"name": _line(s.get("name"), 40), "tone": "bad" if s.get("tone") == "bad" else "good", "values": values})
+        if not series:
+            return None
+        n = len(series[0]["values"])
+        series = [s for s in series if len(s["values"]) == n]
+        return {
+            "type": kind,
+            "title": _line(raw.get("title"), 80),
+            "prefix": _line(raw.get("prefix"), 3),
+            "suffix": _line(raw.get("suffix"), 4),
+            "labels": labels or [str(i) for i in range(n)],
+            "series": series,
+            "say": say,
+        }
     return None
+
+
+def _number_signed(value) -> float | None:
+    """A chart value — negatives allowed (money spent), None when not a number."""
+    try:
+        n = float(str(value).replace(",", "").replace("$", "").strip())
+    except ValueError:
+        return None
+    return n if -1e9 < n < 1e9 else None
 
 
 # The on-screen and spoken text of each scene type, for the Khmer editor pass.
@@ -257,6 +393,9 @@ _TEXT_FIELDS = {
     "stat": (("label", 80), ("say", 300)),
     "product": (("title", 100), ("say", 300)),
     "cta": (("text", 140), ("button", 40), ("say", 300)),
+    "character": (("title", 80), ("say", 300)),
+    "compare": (("title", 80), ("say", 300)),
+    "chart": (("title", 80), ("say", 300)),
 }
 
 
@@ -273,7 +412,23 @@ AUTO_ANGLES = (
 AUTO_LABEL = "✨ Topic chosen by the AI"
 
 
-def _auto_topic(products: list[Product]) -> str:
+TEACH_ANGLES = (
+    "a surprising number about it",
+    "how small choices about it add up over time",
+    "two people making different choices",
+    "the mistake most people make with it",
+    "what most people get wrong about it, and the truth",
+)
+
+
+def _auto_topic(products: list[Product], style: str = "tech") -> str:
+    if style == "explainer":
+        topic = f"a topic around {products[0].name}" if len(products) == 1 else "a topic around what this brand does" if products else "a useful everyday topic for this brand's customers"
+        return (
+            "THE VIDEO IS ABOUT: no topic was given — choose it yourself. Teach "
+            f"{topic}, told as {random.choice(TEACH_ANGLES)}. Pick what a Cambodian viewer "
+            "would save and share — useful, surprising, never an ad."
+        )
     angle = random.choice(AUTO_ANGLES)
     about = (
         f"the product {products[0].name}"
@@ -290,7 +445,13 @@ def _auto_topic(products: list[Product]) -> str:
 
 
 def write_script(
-    brand: Brand, products: list[Product], idea: str, language: str, learnings: str = "", moods: list[str] | None = None
+    brand: Brand,
+    products: list[Product],
+    idea: str,
+    language: str,
+    learnings: str = "",
+    moods: list[str] | None = None,
+    style: str = "tech",
 ) -> dict:
     """The video's storyboard: one AI call, then for Khmer the same
     native-editor pass the captions get. {"scenes": [...]} — always starting
@@ -320,25 +481,30 @@ def write_script(
         )
     raw = _chat(
         [
-            {"role": "system", "content": SCRIPT_PROMPT + extra},
+            {"role": "system", "content": (TEACH_PROMPT if style == "explainer" else SELL_PROMPT) + extra},
             {
                 "role": "user",
                 "content": f"BRAND: {brand.name}\nLANGUAGE: {language}\nPRODUCTS:\n{facts}\n\n"
-                + (f"THE VIDEO IS ABOUT: {idea.strip()[:4000]}" if idea.strip() else _auto_topic(products)),
+                + (f"THE VIDEO IS ABOUT: {idea.strip()[:4000]}" if idea.strip() else _auto_topic(products, style)),
             },
         ],
         model,
         max_tokens=9000,
     )
     names = {p.name.strip().lower(): p.name for p in products}
-    scenes = [s for s in (_clean_scene(r, names) for r in (raw.get("scenes") or []) if isinstance(r, dict)) if s][:7]
+    allowed = EXPLAINER_TYPES if style == "explainer" else TECH_TYPES
+    scenes = [
+        s
+        for s in (_clean_scene(r, names) for r in (raw.get("scenes") or []) if isinstance(r, dict))
+        if s and s["type"] in allowed
+    ][:8]
     # A hook first and a call to action last, whatever came back.
     hooks = [s for s in scenes if s["type"] == "hook"]
     ctas = [s for s in scenes if s["type"] == "cta"]
-    middle = [s for s in scenes if s["type"] not in ("hook", "cta")][:4]
+    middle = [s for s in scenes if s["type"] not in ("hook", "cta")][: 5 if style == "explainer" else 4]
     if not hooks or not ctas or not middle:
         raise ContentAIError("The AI didn't return a usable storyboard — try again.")
-    script = {"scenes": [hooks[0], *middle, ctas[0]]}
+    script = {"scenes": [hooks[0], *middle, ctas[0]], "style": style}
     if moods:
         script["mood"] = raw.get("mood") if raw.get("mood") in moods else moods[0]
 
@@ -350,6 +516,8 @@ def write_script(
             slots += [(s, key, n) for key, n in _TEXT_FIELDS[s["type"]]]
             slots += [(m, "text", 140) for m in s.get("messages", [])]
             slots += [(i, "text", 80) for i in s.get("items", [])]
+            slots += [(p, "name", 40) for p in (s.get("left"), s.get("right")) if p]
+            slots += [(ser, "name", 40) for ser in s.get("series", [])]
             if s["type"] == "product":
                 slots += [(s["chips"], k, 30) for k in range(len(s["chips"]))]
         slots = [x for x in slots if x[0][x[1]]]
@@ -454,6 +622,13 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
         for key in ("text", "title", "label", "button"):
             if scene.get(key):
                 scene[key] = t(scene[key])
+        if s.get("say"):
+            scene["caption"] = t(s["say"]).replace("⟦", "").replace("⟧", "")  # the subtitles
+        for side in ("left", "right"):
+            if scene.get(side):
+                scene[side] = {**scene[side], "name": t(scene[side]["name"])}
+        if "series" in scene:
+            scene["series"] = [{**ser, "name": t(ser["name"])} for ser in scene["series"]]
         if "messages" in scene:
             scene["messages"] = [{**m, "text": t(m["text"])} for m in scene["messages"]]
         if "items" in scene:
@@ -463,7 +638,11 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
         if not scene.get("image"):
             scene.pop("image", None)
         scenes.append(scene)
-    props = {"brand": {"name": brand.name, "color": f"#{r:02x}{g:02x}{b:02x}", "logo": logo}, "scenes": scenes}
+    props = {
+        "brand": {"name": brand.name, "color": f"#{r:02x}{g:02x}{b:02x}", "logo": logo},
+        "scenes": scenes,
+        "style": script.get("style") or "tech",
+    }
     tracks = music_tracks().get(script.get("mood") or "")
     if tracks:
         props["music"] = random.choice(tracks)  # a file under public/ — the template mixes it in
@@ -477,7 +656,7 @@ def default_seconds(scene: dict) -> float:
         return 1.6 + 1.5 * min(4, len(scene.get("messages") or []))
     if kind == "list":
         return 1.8 + 1.0 * min(4, len(scene.get("items") or []))
-    return {"cta": 3.8, "product": 3.6}.get(kind, 3.4)
+    return {"cta": 3.8, "product": 3.6, "chart": 5.2, "compare": 4.2, "character": 3.8}.get(kind, 3.4)
 
 
 def length_of(props: dict) -> int:
@@ -516,6 +695,7 @@ def add_voice(props: dict, script: dict, voice: str, ws: int | None, user_id: in
                 continue
             scene["audio"] = "data:audio/mpeg;base64," + base64.b64encode(mp3).decode()
             scene["seconds"] = round(max(default_seconds(scene), duration + VOICE_TAIL), 2)
+            scene["voiceSeconds"] = round(duration, 2)  # subtitles follow the voice
             spoken += len(say)
     if spoken:
         billing.charge(
@@ -664,6 +844,10 @@ class MotionIn(BaseModel):
     voice: str = "female"
     # Background music under the video (when tracks are installed).
     music: bool = True
+    # What the video is for: a content goal (app/goals.py), "sell", "teach" or
+    # "auto" — selling goals get the Tech style's sales story, the rest the
+    # Explainer style's teaching story.
+    goal: str = "auto"
 
 
 @router.post("", status_code=201)
@@ -699,7 +883,7 @@ def create_motion(
     db.refresh(job)
     threading.Thread(
         target=_make,
-        args=(job.id, payload.product_id, payload.language, payload.voice, "", payload.music),
+        args=(job.id, payload.product_id, payload.language, payload.voice, "", payload.music, payload.goal),
         daemon=True,
         name=f"motion-{job.id}",
     ).start()
@@ -707,7 +891,13 @@ def create_motion(
 
 
 def make_motion(
-    brand_id: int, idea: str, language: str, voice: str = "female", product_id: int | None = None, caption: str = ""
+    brand_id: int,
+    idea: str,
+    language: str,
+    voice: str = "female",
+    product_id: int | None = None,
+    caption: str = "",
+    goal: str = "auto",
 ) -> int | None:
     """Make one motion video now (blocking, 1-3 min) — the weekly plan's
     video posts. Recorded as a generation like any other, so it's in the
@@ -733,7 +923,7 @@ def make_motion(
         job_id = job.id
     finally:
         db.close()
-    _make(job_id, product_id, language, voice, caption)
+    _make(job_id, product_id, language, voice, caption, True, goal)
     db = SessionLocal()
     try:
         job = db.get(GenerationJob, job_id)
@@ -743,7 +933,13 @@ def make_motion(
 
 
 def _make(
-    job_id: int, product_id: int | None, language: str, voice: str = "none", caption: str = "", music: bool = True
+    job_id: int,
+    product_id: int | None,
+    language: str,
+    voice: str = "none",
+    caption: str = "",
+    music: bool = True,
+    goal: str = "auto",
 ) -> None:
     from app.content_ai import ContentAIError
     from app.video import _ready_push
@@ -767,7 +963,11 @@ def _make(
         try:
             _check(job_id)
             moods = list(music_tracks()) if music else []
-            script = write_script(brand, products, job.prompt, language, learned, moods)
+            # Auto: a chosen product means a sales video, otherwise a teaching one.
+            style = style_for(goal) if goal not in ("auto", "") else ("tech" if product_id is not None else "explainer")
+            if goal == "teach":
+                style = "explainer"
+            script = write_script(brand, products, job.prompt, language, learned, moods, style)
             _check(job_id)
             by_product, order, logo = _brand_pictures(db, brand.id)
             pick_pictures(script, all_products, by_product, order, product_id)
