@@ -583,6 +583,25 @@ def _to_files(props: dict, folder: Path, rel: str) -> dict:
     return swap(props)
 
 
+BUNDLE_DIR = MOTION_DIR / "build"  # `npx remotion bundle` output — made once in the Docker image
+
+
+def _entry() -> tuple[str, Path]:
+    """What to render from, and where its public files are served from.
+
+    The pre-built bundle (motion/build) skips packing the whole template before
+    every video — minutes on a small server. It's used unless the template,
+    fonts or music changed after it was built (editing on a dev machine), then
+    the sources are bundled as before."""
+    built = BUNDLE_DIR / "index.html"
+    if built.exists():
+        stamp = built.stat().st_mtime
+        sources = [*(MOTION_DIR / "src").rglob("*"), *(MOTION_DIR / "public" / "fonts").rglob("*"), *(MOTION_DIR / "public" / "music").rglob("*")]
+        if all(p.stat().st_mtime <= stamp for p in sources if p.is_file()):
+            return "build", BUNDLE_DIR / "public"
+    return "src/index.jsx", MOTION_DIR / "public"
+
+
 def render(props: dict, job_id: int | None = None) -> bytes:
     """The MP4 for ``props`` — Remotion, run as a subprocess. Raises
     RuntimeError, or Stopped when the person pressed Stop."""
@@ -591,15 +610,20 @@ def render(props: dict, job_id: int | None = None) -> bytes:
         raise RuntimeError(reason)
     with _render_lock, tempfile.TemporaryDirectory() as tmp:
         _check(job_id)
+        entry, public = _entry()
         rel = f"run-{uuid.uuid4().hex[:12]}"
-        assets = MOTION_DIR / "public" / rel  # served to the render as staticFile(rel/…)
+        assets = public / rel  # served to the render as staticFile(rel/…)
         assets.mkdir(parents=True)
         try:
             props_path = Path(tmp) / "props.json"
             out = Path(tmp) / "motion.mp4"
             props_path.write_text(json.dumps(_to_files(props, assets, rel), ensure_ascii=False), encoding="utf-8")
             proc = subprocess.Popen(
-                [_npx(), "remotion", "render", "src/index.jsx", "MotionPost", str(out), f"--props={props_path}", "--log=error"],
+                [
+                    _npx(), "remotion", "render", entry, "MotionPost", str(out), f"--props={props_path}",
+                    # every core draws frames (the default is half — one at a time on a 2-core server)
+                    "--concurrency=100%", "--log=error",  # all cores Remotion is allowed (containers too)
+                ],
                 cwd=MOTION_DIR,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
