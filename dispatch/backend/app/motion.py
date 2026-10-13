@@ -226,15 +226,131 @@ TEACH_PROMPT = (
     '{"scenes": [{"type": "hook", "text": "...", "icon": "Wallet", "say": "..."}, ...]}'
 )
 
-# Content goals (app/goals.py) that sell → the Tech style; all others teach.
-SELL_GOALS = {"sell", "solution", "conversion"}
+# ── one template per content goal (motion/src/goaltemplates.jsx) ─────────
+_COMMON_RULES = (
+    "Wrap the 1-3 most important words of the hook and titles in [square brackets] — they "
+    "are highlighted.\n"
+    "icon: exactly one name from this list: " + ", ".join(ICONS) + ".\n"
+    "\n"
+    "VOICE-OVER: every scene has `say` — one natural spoken sentence, 6-18 words, that adds "
+    "to what is on screen (it is also shown as subtitles). Same language.\n"
+    "\n"
+    "LANGUAGE: write in the LANGUAGE given. Khmer: everyday spoken Khmer — short common "
+    "words, correct spelling, address the viewer as បង (never អ្នក), brand / product names in "
+    "Latin exactly as written. English: plain and punchy.\n"
+    "FACTS: only what the product information supports or common knowledge — never invent "
+    "statistics, studies, prices or results. The brief may be a long prompt written for a "
+    "filmed video — keep only its topic.\n"
+    "\n"
+    "Return ONLY a JSON object, no markdown:\n"
+)
+
+VERSUS_TYPES = ("hook", "split", "myth", "verdict", "stat", "cta")
+VERSUS_PROMPT = (
+    "You are the best short-form video storyteller in Cambodia. You plan a vertical "
+    "REMOTION VIDEO (TikTok / Facebook Reels, 20-28 s) that builds AUTHORITY: it compares "
+    "two ways of doing something — the old / common way vs the better way — or busts a "
+    "myth, so the viewer feels the brand truly knows the field and SHARES it. Clean split "
+    "screen: red ✗ for the old way, green ✓ for the better way. Honest and fair, not an ad.\n"
+    "\n"
+    "THE STORY (4-6 scenes):\n"
+    "1. hook — the question that sets up the comparison (\"Paper notebook or an app?\").\n"
+    "2. split — the two ways side by side.\n"
+    "3. myth — the belief people hold, and the truth (optional but strong).\n"
+    "4. verdict — the one-line conclusion (or a `stat` with a TRUE number).\n"
+    "5. cta — soft: share it, save it, follow for more.\n"
+    "\n"
+    "SCENE TYPES and their fields:\n"
+    "- hook: text (max 10 words), icon.\n"
+    "- split: title (max 6 words), left and right: {label (1-3 words — the way), icon, "
+    "points: 3 x short phrases (2-5 words)}. left = the old / worse way, right = the better.\n"
+    "- myth: myth (max 12 words — what people believe), fact (max 14 words — the truth).\n"
+    "- verdict: text (max 10 words), icon.\n"
+    "- stat: value (a number), prefix, suffix, label (max 6 words), icon — only a TRUE number.\n"
+    "- cta: text (max 8 words), button (1-2 words, e.g. \"Share\", \"Save\").\n"
+    + _COMMON_RULES
+    + '{"scenes": [{"type": "hook", "text": "...", "icon": "Scale", "say": "..."}, ...]}'
+)
+
+POLL_TYPES = ("hook", "options", "reveal", "cta")
+POLL_PROMPT = (
+    "You are the best short-form video storyteller in Cambodia. You plan a vertical "
+    "REMOTION VIDEO (TikTok / Facebook Reels, 15-22 s) built for ENGAGEMENT — a quiz or "
+    "poll that makes people COMMENT their answer. Game-show look: a big question, A/B/C "
+    "answer buttons, a countdown. Fun and easy — everyone should feel they can answer.\n"
+    "\n"
+    "THE STORY (3-4 scenes):\n"
+    "1. hook — the question itself (max 12 words), about the brand's field or customers' "
+    "everyday life.\n"
+    "2. options — 2-4 short answers (the viewer picks one while the countdown runs).\n"
+    "3. reveal — ONLY for a quiz with a right answer: the answer and why, in one line. "
+    "Leave it out for an opinion poll (\"Which do you prefer?\").\n"
+    "4. cta — ask them to comment their answer (A, B, C…) or tag a friend.\n"
+    "\n"
+    "SCENE TYPES and their fields:\n"
+    "- hook: text (the question, max 12 words), icon.\n"
+    "- options: question (max 5 words, e.g. \"Pick one\" — optional), options: 2-4 answers "
+    "(1-5 words each), answer: the index of the right answer (0 = A) or -1 for an opinion poll.\n"
+    "- reveal: text (max 12 words), icon.\n"
+    "- cta: text (max 9 words), button (1-3 words, e.g. \"Comment A, B or C\").\n"
+    + _COMMON_RULES
+    + '{"scenes": [{"type": "hook", "text": "...", "icon": "CircleHelp", "say": "..."}, ...]}'
+)
+
+QUOTE_TYPES = ("hook", "quote", "cta")
+QUOTE_PROMPT = (
+    "You are the best short-form video storyteller in Cambodia. You plan a vertical "
+    "REMOTION VIDEO (TikTok / Facebook Reels, 12-18 s) that wins FOLLOWERS: one strong, "
+    "true, quotable line — wisdom from the brand's field that the viewer wants to keep "
+    "seeing every day. Cinematic: the brand's photo full-screen and dark, the quote written "
+    "in slowly. Calm and confident, never an ad.\n"
+    "\n"
+    "THE STORY (3 scenes):\n"
+    "1. hook — a short intro line that makes them wait for the quote (\"What 10 years of "
+    "selling taught us\").\n"
+    "2. quote — the quote itself.\n"
+    "3. cta — follow for one lesson / tip a day.\n"
+    "\n"
+    "SCENE TYPES and their fields:\n"
+    "- hook: text (max 9 words), icon.\n"
+    "- quote: text (the quote, 8-22 words, original — never attribute words to a real "
+    "person who didn't say them), author (the brand's name, or \"\").\n"
+    "- cta: text (max 8 words), button (1-2 words, e.g. \"Follow\").\n"
+    "The `say` of the quote scene reads the quote itself, slowly.\n"
+    + _COMMON_RULES
+    + '{"scenes": [{"type": "hook", "text": "...", "icon": "Quote", "say": "..."}, ...]}'
+)
+
+# style → (story prompt, scene types, most scenes between the hook and the
+# call to action, a scene type the story must have)
+STYLES = {
+    "tech": (SELL_PROMPT, TECH_TYPES, 4, None),
+    "explainer": (TEACH_PROMPT, EXPLAINER_TYPES, 5, None),
+    "versus": (VERSUS_PROMPT, VERSUS_TYPES, 4, None),
+    "poll": (POLL_PROMPT, POLL_TYPES, 2, "options"),
+    "quote": (QUOTE_PROMPT, QUOTE_TYPES, 1, "quote"),
+}
+
+# Content goals (app/goals.py) → template. Selling goals get the Tech style's
+# sales story; goals without their own template yet teach (Explainer).
+GOAL_STYLES = {
+    "sell": "tech",
+    "solution": "tech",
+    "conversion": "tech",
+    "teach": "explainer",
+    "authority": "versus",
+    "engagement": "poll",
+    "followers": "quote",
+}
+SELL_GOALS = {g for g, st in GOAL_STYLES.items() if st == "tech"}
 
 
 def style_for(goal: str) -> str:
-    """'tech' (a sales story) or 'explainer' (a teaching story) for a content
-    goal; "auto" / unknown = explainer unless the brief is clearly a sale
-    (the caller decides that with a product chosen)."""
-    return "tech" if (goal or "").lower() in SELL_GOALS else "explainer"
+    """The template for a content goal; "auto" / unknown = explainer unless
+    the brief is clearly a sale (the caller decides that with a product
+    chosen). A template name itself ("versus", "poll", …) is taken as is."""
+    goal = (goal or "").lower()
+    return goal if goal in STYLES else GOAL_STYLES.get(goal, "explainer")
 
 
 def _km_words(text: str) -> str:
@@ -372,6 +488,37 @@ def _clean_scene(raw: dict, names: dict[str, str]) -> dict | None:
             "series": series,
             "say": say,
         }
+    if kind == "split":
+
+        def side(p) -> dict | None:
+            if not isinstance(p, dict):
+                return None
+            points = [x for x in (_line(x, 60) for x in (p.get("points") or [])) if x][:3]
+            label = _line(p.get("label"), 40)
+            return {"label": label, "icon": _icon(p.get("icon"), "Circle"), "points": points} if label and points else None
+
+        left, right = side(raw.get("left")), side(raw.get("right"))
+        return {"type": kind, "title": _line(raw.get("title"), 80), "left": left, "right": right, "say": say} if left and right else None
+    if kind == "myth":
+        myth, fact = _line(raw.get("myth"), 160), _line(raw.get("fact"), 160)
+        return {"type": kind, "myth": myth, "fact": fact, "say": say} if myth and fact else None
+    if kind in ("verdict", "reveal"):
+        text = _line(raw.get("text"), 140)
+        return {"type": kind, "text": text, "icon": _icon(raw.get("icon"), "Award" if kind == "verdict" else "Lightbulb"), "say": say} if text else None
+    if kind == "options":
+        opts = [o for o in (_line(o, 50) for o in (raw.get("options") or [])) if o][:4]
+        try:
+            answer = int(raw.get("answer"))
+        except (TypeError, ValueError):
+            answer = -1
+        return (
+            {"type": kind, "question": _line(raw.get("question"), 60), "options": opts, "answer": answer if 0 <= answer < len(opts) else -1, "say": say}
+            if len(opts) >= 2
+            else None
+        )
+    if kind == "quote":
+        text = _line(raw.get("text"), 220)
+        return {"type": kind, "text": text, "author": _line(raw.get("author"), 40), "say": say} if text else None
     return None
 
 
@@ -396,6 +543,12 @@ _TEXT_FIELDS = {
     "character": (("title", 80), ("say", 300)),
     "compare": (("title", 80), ("say", 300)),
     "chart": (("title", 80), ("say", 300)),
+    "split": (("title", 80), ("say", 300)),
+    "myth": (("myth", 160), ("fact", 160), ("say", 300)),
+    "verdict": (("text", 140), ("say", 300)),
+    "reveal": (("text", 140), ("say", 300)),
+    "options": (("question", 60), ("say", 300)),
+    "quote": (("text", 220), ("say", 300)),
 }
 
 
@@ -422,8 +575,13 @@ TEACH_ANGLES = (
 
 
 def _auto_topic(products: list[Product], style: str = "tech") -> str:
-    if style == "explainer":
+    if style != "tech":
         topic = f"a topic around {products[0].name}" if len(products) == 1 else "a topic around what this brand does" if products else "a useful everyday topic for this brand's customers"
+        if style != "explainer":  # comparison / poll / quote: the template sets the angle
+            return (
+                f"THE VIDEO IS ABOUT: no topic was given — choose it yourself: {topic}. Pick what "
+                "a Cambodian viewer would share, answer or want more of — never an ad."
+            )
         return (
             "THE VIDEO IS ABOUT: no topic was given — choose it yourself. Teach "
             f"{topic}, told as {random.choice(TEACH_ANGLES)}. Pick what a Cambodian viewer "
@@ -479,9 +637,10 @@ def write_script(
             + "; ".join(f"{m} ({MUSIC_MOODS[m]})" for m in moods)
             + "."
         )
+    prompt, allowed, most, must = STYLES.get(style) or STYLES["tech"]
     raw = _chat(
         [
-            {"role": "system", "content": (TEACH_PROMPT if style == "explainer" else SELL_PROMPT) + extra},
+            {"role": "system", "content": prompt + extra},
             {
                 "role": "user",
                 "content": f"BRAND: {brand.name}\nLANGUAGE: {language}\nPRODUCTS:\n{facts}\n\n"
@@ -492,7 +651,6 @@ def write_script(
         max_tokens=9000,
     )
     names = {p.name.strip().lower(): p.name for p in products}
-    allowed = EXPLAINER_TYPES if style == "explainer" else TECH_TYPES
     scenes = [
         s
         for s in (_clean_scene(r, names) for r in (raw.get("scenes") or []) if isinstance(r, dict))
@@ -501,8 +659,10 @@ def write_script(
     # A hook first and a call to action last, whatever came back.
     hooks = [s for s in scenes if s["type"] == "hook"]
     ctas = [s for s in scenes if s["type"] == "cta"]
-    middle = [s for s in scenes if s["type"] not in ("hook", "cta")][: 5 if style == "explainer" else 4]
-    if not hooks or not ctas or not middle:
+    middle = [s for s in scenes if s["type"] not in ("hook", "cta")][:most]
+    if style == "poll":  # the answer is revealed after the options, never before
+        middle.sort(key=lambda s: s["type"] == "reveal")
+    if not hooks or not ctas or not middle or (must and not any(s["type"] == must for s in middle)):
         raise ContentAIError("The AI didn't return a usable storyboard — try again.")
     script = {"scenes": [hooks[0], *middle, ctas[0]], "style": style}
     if moods:
@@ -516,7 +676,12 @@ def write_script(
             slots += [(s, key, n) for key, n in _TEXT_FIELDS[s["type"]]]
             slots += [(m, "text", 140) for m in s.get("messages", [])]
             slots += [(i, "text", 80) for i in s.get("items", [])]
-            slots += [(p, "name", 40) for p in (s.get("left"), s.get("right")) if p]
+            slots += [(p, "name", 40) for p in (s.get("left"), s.get("right")) if p and "name" in p]
+            if s["type"] == "split":
+                for p in (s["left"], s["right"]):
+                    slots += [(p, "label", 40)] + [(p["points"], k, 60) for k in range(len(p["points"]))]
+            if s["type"] == "options":
+                slots += [(s["options"], k, 50) for k in range(len(s["options"]))]
             slots += [(ser, "name", 40) for ser in s.get("series", [])]
             if s["type"] == "product":
                 slots += [(s["chips"], k, 30) for k in range(len(s["chips"]))]
@@ -547,6 +712,16 @@ def script_lines(script: dict) -> list[tuple[str, str]]:
             screen = s["title"] + (" — " + ", ".join(s["chips"]) if s["chips"] else "")
         elif s["type"] == "problem":
             screen = s["title"] + (f" — {s['text']}" if s.get("text") else "")
+        elif s["type"] == "split":
+            screen = " vs ".join(f"{p['label']} ({', '.join(p['points'])})" for p in (s["left"], s["right"]))
+        elif s["type"] == "myth":
+            screen = f"Myth: {s['myth']} — Fact: {s['fact']}"
+        elif s["type"] == "options":
+            screen = " / ".join(f"{'ABCD'[k]}. {o}" for k, o in enumerate(s["options"])) + (
+                f" — answer {'ABCD'[s['answer']]}" if s["answer"] >= 0 else ""
+            )
+        elif s["type"] == "quote":
+            screen = f"“{s['text']}”" + (f" — {s['author']}" if s.get("author") else "")
         else:
             screen = s.get("text", "")
         out.append((f"[{s['type']}] {screen}", s.get("say", "")))
@@ -598,7 +773,7 @@ def pick_pictures(
     for s in script["scenes"]:
         if s["type"] == "product":
             s["image"] = by_product.get(ids.get(s.get("product") or "")) or main
-        elif s["type"] in ("hook", "cta"):
+        elif s["type"] in ("hook", "cta") or script.get("style") == "quote":
             s["image"] = main
 
 
@@ -619,20 +794,25 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
     scenes = []
     for s in script["scenes"]:
         scene = {k: v for k, v in s.items() if k not in ("say", "product")}
-        for key in ("text", "title", "label", "button"):
+        for key in ("text", "title", "label", "button", "myth", "fact", "question", "author"):
             if scene.get(key):
                 scene[key] = t(scene[key])
         if s.get("say"):
             scene["caption"] = t(s["say"]).replace("⟦", "").replace("⟧", "")  # the subtitles
         for side in ("left", "right"):
             if scene.get(side):
-                scene[side] = {**scene[side], "name": t(scene[side]["name"])}
+                if "points" in scene[side]:  # split: a way and its points
+                    scene[side] = {**scene[side], "label": t(scene[side]["label"]), "points": [t(x) for x in scene[side]["points"]]}
+                else:
+                    scene[side] = {**scene[side], "name": t(scene[side]["name"])}
         if "series" in scene:
             scene["series"] = [{**ser, "name": t(ser["name"])} for ser in scene["series"]]
         if "messages" in scene:
             scene["messages"] = [{**m, "text": t(m["text"])} for m in scene["messages"]]
         if "items" in scene:
             scene["items"] = [{**i, "text": t(i["text"])} for i in scene["items"]]
+        if "options" in scene:
+            scene["options"] = [t(o) for o in scene["options"]]
         if "chips" in scene:
             scene["chips"] = [t(c) for c in scene["chips"]]
         if not scene.get("image"):
@@ -656,7 +836,11 @@ def default_seconds(scene: dict) -> float:
         return 1.6 + 1.5 * min(4, len(scene.get("messages") or []))
     if kind == "list":
         return 1.8 + 1.0 * min(4, len(scene.get("items") or []))
-    return {"cta": 3.8, "product": 3.6, "chart": 5.2, "compare": 4.2, "character": 3.8}.get(kind, 3.4)
+    if kind == "split":
+        return 2.6 + 0.9 * min(6, len((scene.get("left") or {}).get("points") or []) + len((scene.get("right") or {}).get("points") or []))
+    if kind == "options":
+        return 2.4 + 0.35 * min(4, len(scene.get("options") or [])) + 6.0
+    return {"cta": 3.8, "product": 3.6, "chart": 5.2, "compare": 4.2, "character": 3.8, "myth": 5.0, "quote": 5.6}.get(kind, 3.4)
 
 
 def length_of(props: dict) -> int:
@@ -844,9 +1028,9 @@ class MotionIn(BaseModel):
     voice: str = "female"
     # Background music under the video (when tracks are installed).
     music: bool = True
-    # What the video is for: a content goal (app/goals.py), "sell", "teach" or
-    # "auto" — selling goals get the Tech style's sales story, the rest the
-    # Explainer style's teaching story.
+    # What the video is for: a content goal (app/goals.py), "sell", "teach", a
+    # template name ("versus", "poll", "quote") or "auto" — style_for picks
+    # the template.
     goal: str = "auto"
 
 
@@ -965,8 +1149,6 @@ def _make(
             moods = list(music_tracks()) if music else []
             # Auto: a chosen product means a sales video, otherwise a teaching one.
             style = style_for(goal) if goal not in ("auto", "") else ("tech" if product_id is not None else "explainer")
-            if goal == "teach":
-                style = "explainer"
             script = write_script(brand, products, job.prompt, language, learned, moods, style)
             _check(job_id)
             by_product, order, logo = _brand_pictures(db, brand.id)

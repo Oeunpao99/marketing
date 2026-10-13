@@ -157,6 +157,17 @@ function restoreTurn(t) {
   return { ...t, status: 'failed', error: 'Interrupted when the page closed — try again.' }
 }
 
+// Remotion templates — one per kind of post (app/motion.py style_for). The
+// weekly plan picks them from each post's content goal.
+const MOTION_STORIES = [
+  { value: 'auto', label: 'Auto', hint: 'Teaches, or sells when you pick a product' },
+  { value: 'teach', label: 'Teach · Explainer', hint: 'Characters, charts, no selling — saves & shares' },
+  { value: 'sell', label: 'Sell · Tech', hint: 'Problem, product working, proof — clicks & leads' },
+  { value: 'versus', label: 'Compare · Myth vs fact', hint: 'Old way vs better way, a myth busted — builds authority' },
+  { value: 'poll', label: 'Poll · Quiz', hint: 'A question, A/B/C answers, a countdown — gets comments' },
+  { value: 'quote', label: 'Quote', hint: 'One strong line over your photo — wins followers' },
+]
+
 export default function AIPromptPage({ embedded = false, preset = null }) {
   const navigate = useNavigate()
   const location = useLocation()
@@ -2120,27 +2131,8 @@ function SettingsPopover({
         )}
 
         {motion && (
-          <Row
-            label="Story"
-            hint={
-              motionGoal === 'teach'
-                ? 'Teaches — characters, charts, no selling · light Explainer style'
-                : motionGoal === 'sell'
-                  ? 'Sells — problem, product working, proof · Tech style'
-                  : 'Teaches, or sells when you pick a product'
-            }
-          >
-            <Segmented>
-              {[
-                ['auto', 'Auto'],
-                ['teach', 'Teach'],
-                ['sell', 'Sell'],
-              ].map(([v, label]) => (
-                <button key={v} type="button" onClick={() => setMotionGoal(v)} className={`${seg(motionGoal === v)} px-0 text-[11.5px]`}>
-                  {label}
-                </button>
-              ))}
-            </Segmented>
+          <Row label="Story" hint={(MOTION_STORIES.find((o) => o.value === motionGoal) || MOTION_STORIES[0]).hint}>
+            <Select size="sm" className="min-w-0 flex-1" value={motionGoal} onChange={setMotionGoal} options={MOTION_STORIES} />
           </Row>
         )}
 

@@ -47,6 +47,7 @@ import {
   tint,
 } from './shared'
 import { EX, EXPLAINER_SCENES, Caption, ExplainerChrome } from './explainer'
+import { POLL, QUOTE, VERSUS } from './goaltemplates'
 
 export { FPS, TRANSITION, defaultSeconds, sceneFrames }
 
@@ -715,26 +716,33 @@ const SCENES = {
   cta: CtaScene,
 }
 
+// The templates — one per kind of story (app/motion.py style_for picks it from
+// the post's content goal). Tech is the default.
+const TEMPLATES = {
+  tech: { scenes: SCENES, root: { backgroundColor: INK }, light: false, captionTop: 1660 },
+  explainer: { scenes: { ...SCENES, ...EXPLAINER_SCENES }, root: { backgroundColor: EX.bg, '--hl-bg': EX.yellow, '--hl-text': EX.ink }, light: true, captionTop: 1225 },
+  versus: { ...VERSUS, scenes: { ...SCENES, ...VERSUS.scenes } },
+  poll: { ...POLL, scenes: { ...SCENES, ...POLL.scenes } },
+  quote: { ...QUOTE, scenes: { ...SCENES, ...QUOTE.scenes } },
+}
+
 export const MotionPost = ({ brand, scenes, music, style }) => {
   let point = 0
-  const explainer = style === 'explainer'
-  const map = explainer ? { ...SCENES, ...EXPLAINER_SCENES } : SCENES
-  const rootStyle = explainer
-    ? { backgroundColor: EX.bg, '--brand': brand.color, '--hl-bg': EX.yellow, '--hl-text': EX.ink }
-    : { backgroundColor: INK, '--brand': brand.color }
+  const t = TEMPLATES[style] || TEMPLATES.tech
+  const noCaption = ['chat', ...(t.noCaption || [])]
   return (
-    <AbsoluteFill style={rootStyle}>
+    <AbsoluteFill style={{ ...t.root, '--brand': brand.color }}>
       {music && <BackgroundMusic src={music} scenes={scenes} />}
       <TransitionSeries>
         {scenes.flatMap((scene, i) => {
-          const Scene = map[scene.type]
+          const Scene = t.scenes[scene.type]
           const body = Scene ? <Scene scene={scene} brand={brand} /> : <PointScene scene={scene} brand={brand} n={++point} />
           const out = [
             <TransitionSeries.Sequence key={`s${i}`} durationInFrames={sceneFrames(scene)}>
               {body}
-              {/* The spoken line as subtitles — not over the phone chat, whose bubbles say it already. */}
-              {scene.caption && scene.type !== 'chat' && (
-                <Caption text={scene.caption} seconds={scene.voiceSeconds || sceneFrames(scene) / FPS - 0.6} top={explainer ? 1225 : 1660} />
+              {/* The spoken line as subtitles — not where the screen says it already (the chat's bubbles, a quote). */}
+              {scene.caption && !noCaption.includes(scene.type) && (
+                <Caption text={scene.caption} seconds={scene.voiceSeconds || sceneFrames(scene) / FPS - 0.6} top={t.captionTop} />
               )}
               {/* The scene's voice-over line (app/motion.py add_voice) — the scene lasts as long as it. */}
               {scene.audio && <Html5Audio src={srcOf(scene.audio)} />}
@@ -752,7 +760,7 @@ export const MotionPost = ({ brand, scenes, music, style }) => {
           return out
         })}
       </TransitionSeries>
-      {explainer ? <ExplainerChrome scenes={scenes} brand={brand} /> : <Chrome scenes={scenes} brand={brand} />}
+      {t.light ? <ExplainerChrome scenes={scenes} brand={brand} /> : <Chrome scenes={scenes} brand={brand} />}
     </AbsoluteFill>
   )
 }

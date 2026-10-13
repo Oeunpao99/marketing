@@ -28,6 +28,14 @@ export function defaultSeconds(s) {
       return 4.2
     case 'character':
       return 3.8
+    case 'split':
+      return 2.6 + 0.9 * Math.min(6, (s.left?.points || []).length + (s.right?.points || []).length)
+    case 'myth':
+      return 5.0
+    case 'options':
+      return 2.4 + 0.35 * Math.min(4, (s.options || []).length) + 6.0 // pop-in + 5 s countdown + the reveal
+    case 'quote':
+      return 5.6
     default:
       return 3.4
   }
@@ -118,7 +126,7 @@ export function Words({ text, delay = 0, stagger = 3, style, align = 'left', col
                 style={{
                   position: 'absolute',
                   left: '-0.12em',
-                  right: gap ? '0.16em' : '-0.12em',
+                  right: '-0.12em', // the gap after a word is margin, outside this box
                   top: '0.12em',
                   bottom: '0.08em',
                   borderRadius: '0.18em',
