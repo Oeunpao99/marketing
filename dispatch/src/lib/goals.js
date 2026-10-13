@@ -3,9 +3,9 @@
 // goal is made of AI topics, see PILLAR_LABELS in angles.js).
 
 export const STAGES = {
-  attract: { label: 'Attract', sub: 'Get found and followed', line: 'border-brand', text: 'text-brand', chip: 'bg-brand-soft text-brand' },
-  nurture: { label: 'Nurture', sub: 'Teach and build trust', line: 'border-violet-500', text: 'text-violet-700', chip: 'bg-violet-50 text-violet-700' },
-  convert: { label: 'Convert', sub: 'Turn interest into sales', line: 'border-orange-600', text: 'text-orange-700', chip: 'bg-orange-50 text-orange-800' },
+  attract: { label: 'Attract', sub: 'Get found and followed', line: 'border-brand', text: 'text-brand', chip: 'bg-brand-soft text-brand', tile: 'bg-brand-soft text-brand' },
+  nurture: { label: 'Nurture', sub: 'Teach and build trust', line: 'border-violet-500', text: 'text-violet-700', chip: 'bg-violet-50 text-violet-700', tile: 'bg-violet-50 text-violet-700' },
+  convert: { label: 'Convert', sub: 'Turn interest into sales', line: 'border-orange-600', text: 'text-orange-700', chip: 'bg-orange-50 text-orange-800', tile: 'bg-orange-600 text-white' },
 }
 
 export const GOALS = {

@@ -16,7 +16,7 @@
  * Any scene may carry `caption` (its spoken line) — shown as subtitles.
  */
 import { AbsoluteFill, Img, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion'
-import { FONT, FPS, Icon, TRANSITION, Words, ZWSP, clean, sceneFrames, srcOf } from './shared'
+import { FONT, FPS, Icon, TRANSITION, Words, ZWSP, clean, fitSize, sceneFrames, srcOf } from './shared'
 
 export const EX = {
   bg: '#FBF6EC',
@@ -517,7 +517,7 @@ function ExCta({ scene, brand }) {
           delay={4}
           align="center"
           color={EX.ink}
-          style={{ fontSize: clean(scene.text).length > 36 ? 84 : 100, fontWeight: 700, textAlign: 'center', lineHeight: 1.3 }}
+          style={{ fontSize: fitSize(scene.text, 100), fontWeight: 700, textAlign: 'center', lineHeight: 1.3 }}
         />
       {scene.button && (
         <div style={{ marginTop: 56, display: 'flex', justifyContent: 'center' }}>

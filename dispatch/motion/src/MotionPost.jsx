@@ -43,6 +43,7 @@ import {
   Words,
   clean,
   defaultSeconds,
+  fitSize,
   sceneFrames,
   srcOf,
   tint,
@@ -597,7 +598,7 @@ function CtaScene({ scene, brand }) {
           <Img src={srcOf(brand.logo)} style={{ height: 120, objectFit: 'contain' }} />
         </div>
       )}
-      <Words text={scene.text} delay={4} align="center" color="white" style={{ fontSize: 86, fontWeight: 700, textAlign: 'center' }} />
+      <Words text={scene.text} delay={4} align="center" color="white" style={{ fontSize: fitSize(scene.text, 86), fontWeight: 700, textAlign: 'center' }} />
       {scene.button && (
         <div style={{ position: 'relative', marginTop: 80 }}>
           <div

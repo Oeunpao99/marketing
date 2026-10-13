@@ -56,6 +56,13 @@ new FontFace(FONT, `url(${staticFile('fonts/KantumruyPro.ttf')})`, { weight: '10
 export const ZWSP = '​'
 export const EM_OPEN = '⟦'
 export const EM_CLOSE = '⟧'
+/** A font size that shrinks as the text gets longer, so a long call to action
+ * and its button still fit above the subtitles. */
+export const fitSize = (text, base) => {
+  const n = clean(text).length
+  return Math.round(base * (n <= 24 ? 1 : n <= 48 ? 0.82 : n <= 80 ? 0.66 : 0.56))
+}
+
 export const clean = (t) => String(t || '').replaceAll(ZWSP, '').replaceAll(EM_OPEN, '').replaceAll(EM_CLOSE, '')
 
 /** A script's picture / sound: a full URL, or a file under public/. */

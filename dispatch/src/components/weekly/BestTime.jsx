@@ -8,6 +8,10 @@ const card = 'bg-white rounded-2xl border border-ink-200/60 shadow-[0_1px_2px_rg
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 const SHORT = { morning: '06–11', midday: '11–14', afternoon: '14–18', evening: '18–22', night: '22–06' }
+// The heat in five clear steps (as in the boss's design), not a smooth fade.
+const STEPS = [0.12, 0.3, 0.5, 0.75, 1]
+const step = (score) => STEPS[Math.min(4, Math.floor(score / 20))]
+
 const NAME = { morning: 'morning', midday: 'around lunch', afternoon: 'afternoon', evening: 'evening', night: 'late at night' }
 
 export default function BestTime({ data }) {
@@ -79,19 +83,19 @@ export default function BestTime({ data }) {
                       const cell = p.grid[String(wd)]?.[w.key]
                       if (!cell)
                         return (
-                          <td key={w.key} className="h-9 rounded-lg bg-ink-50 text-[11px] text-ink-300">
+                          <td key={w.key} className="h-10 rounded-lg bg-ink-50 text-[11px] text-ink-300">
                             –
                           </td>
                         )
-                      const strong = cell.score >= 60
+                      const strong = cell.score >= 60 // white text on the two darkest steps
                       return (
                         <td
                           key={w.key}
                           title={`${FULL[wd]} ${NAME[w.key]} · ${cell.posts} post${cell.posts === 1 ? '' : 's'}${cell.posts < 2 ? ' (early guess)' : ''}`}
-                          className={`h-9 rounded-lg text-[12px] font-semibold tabular-nums ${strong ? 'text-white' : 'text-ink-800'} ${
-                            top.has(`${wd}-${w.key}`) ? 'ring-2 ring-amber-500' : ''
+                          className={`h-10 rounded-lg font-mono text-[12px] font-semibold tabular-nums ${strong ? 'text-white' : 'text-ink-800'} ${
+                            top.has(`${wd}-${w.key}`) ? 'ring-2 ring-inset ring-orange-700' : ''
                           }`}
-                          style={{ background: `rgb(var(--brand) / ${0.1 + (cell.score / 100) * 0.9})`, opacity: cell.posts < 2 ? 0.6 : 1 }}
+                          style={{ background: `rgb(var(--brand) / ${step(cell.score)})`, opacity: cell.posts < 2 ? 0.6 : 1 }}
                         >
                           {cell.score}
                         </td>
@@ -110,7 +114,7 @@ export default function BestTime({ data }) {
             </p>
             <span className="flex items-center gap-2 text-[11px] text-ink-400">
               Low
-              {[0.1, 0.35, 0.6, 0.85, 1].map((a) => (
+              {STEPS.map((a) => (
                 <span key={a} className="h-3 w-5 rounded" style={{ background: `rgb(var(--brand) / ${a})` }} />
               ))}
               High · outlined = top 3

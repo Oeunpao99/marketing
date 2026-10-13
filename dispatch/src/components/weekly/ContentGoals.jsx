@@ -96,7 +96,7 @@ export default function ContentGoals({ mix, custom, perMonth, counts, span = 'ne
             Reset to AI mix
           </button>
           <button type="button" onClick={() => setOpen((o) => !o)} className="btn-ghost px-2.5 py-1.5 text-brand" aria-expanded={open}>
-            {open ? 'Hide details' : 'Show details'} {open ? <FiChevronUp size={14} /> : <FiChevronDown size={14} />}
+            {open ? 'Collapse' : 'Expand'} {open ? <FiChevronUp size={14} /> : <FiChevronDown size={14} />}
           </button>
         </div>
       </div>
@@ -117,6 +117,7 @@ export default function ContentGoals({ mix, custom, perMonth, counts, span = 'ne
                   .map(([gk, g]) => {
                     const pct = draft[gk] || 0
                     const active = filter === gk
+                    const Icon = ICON[gk] || FiTarget
                     return (
                       <div
                         key={gk}
@@ -126,10 +127,15 @@ export default function ContentGoals({ mix, custom, perMonth, counts, span = 'ne
                       >
                         <button type="button" onClick={() => onFilter(active ? '' : gk)} className="block w-full text-left" aria-pressed={active}>
                           <span className="flex items-center justify-between gap-2">
-                            <span className="text-[13.5px] font-semibold text-ink-900">{g.label}</span>
-                            <span className="text-[11px] text-ink-400">{`${counts[gk] || 0} ${span}`}</span>
+                            <span className="flex min-w-0 items-center gap-2.5">
+                              <span className={`grid h-8 w-8 flex-none place-items-center rounded-lg ${stage.tile}`}>
+                                <Icon size={15} aria-hidden="true" />
+                              </span>
+                              <span className="truncate text-[14px] font-semibold text-ink-900">{g.label}</span>
+                            </span>
+                            <span className="flex-none text-[11px] text-ink-400">{`${counts[gk] || 0} ${span}`}</span>
                           </span>
-                          <span className="mt-1 block text-[12px] text-ink-600">{g.desc}</span>
+                          <span className="mt-2.5 block text-[12px] text-ink-600">{g.desc}</span>
                           <span className="mt-0.5 block text-[11px] leading-snug text-ink-400">e.g. {g.eg}</span>
                         </button>
                         <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-ink-100 pt-2.5">

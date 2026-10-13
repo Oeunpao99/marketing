@@ -10,7 +10,7 @@
  * written by app/motion.py (VERSUS_PROMPT, POLL_PROMPT, QUOTE_PROMPT).
  */
 import { AbsoluteFill, Img, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion'
-import { FONT, Icon, Words, clean, srcOf } from './shared'
+import { FONT, Icon, Words, clean, fitSize, srcOf } from './shared'
 
 // ── Comparison (Authority) ─────────────────────────────────────────────────
 const V = { bg: '#F7F7F5', ink: '#141414', sub: '#56595f', red: '#E5533D', redSoft: '#FDE4DF', green: '#1E9E5B', greenSoft: '#DDF3E6' }
@@ -181,7 +181,7 @@ function VsCta({ scene, brand }) {
         </div>
       )}
       <div style={{ position: 'absolute', top: brand.logo ? 610 : 520, left: 70, right: 70 }}>
-        <Words text={scene.text} delay={2} stagger={1} align="center" color={V.ink} style={{ fontSize: 90, fontWeight: 700, textAlign: 'center' }} />
+        <Words text={scene.text} delay={2} stagger={1} align="center" color={V.ink} style={{ fontSize: fitSize(scene.text, 90), fontWeight: 700, textAlign: 'center' }} />
       {/* the button follows the text, however many lines it wraps to */}
       {scene.button && (
         <div style={{ marginTop: 56, display: 'flex', justifyContent: 'center' }}>
@@ -356,7 +356,7 @@ function PollCta({ scene, brand }) {
         )
       })}
       <div style={{ position: 'absolute', top: 640, left: 70, right: 70 }}>
-        <Words text={scene.text} delay={2} stagger={1} align="center" color={P.ink} style={{ fontSize: 88, fontWeight: 700, textAlign: 'center' }} />
+        <Words text={scene.text} delay={2} stagger={1} align="center" color={P.ink} style={{ fontSize: fitSize(scene.text, 88), fontWeight: 700, textAlign: 'center' }} />
       {/* the button follows the text, however many lines it wraps to */}
       {scene.button && (
         <div style={{ marginTop: 56, display: 'flex', justifyContent: 'center' }}>
@@ -458,7 +458,7 @@ function QuoteCta({ scene, brand }) {
         </div>
       )}
       <div style={{ position: 'absolute', top: 720, left: 90, right: 90 }}>
-        <Words text={scene.text} delay={2} stagger={1} align="center" color="#F7F1E6" style={{ fontSize: 80, fontWeight: 600, textAlign: 'center' }} />
+        <Words text={scene.text} delay={2} stagger={1} align="center" color="#F7F1E6" style={{ fontSize: fitSize(scene.text, 80), fontWeight: 600, textAlign: 'center' }} />
       {/* the button follows the text, however many lines it wraps to */}
       {scene.button && (
         <div style={{ marginTop: 56, display: 'flex', justifyContent: 'center' }}>

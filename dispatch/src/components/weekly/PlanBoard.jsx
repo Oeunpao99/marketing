@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
-import { FiImage, FiMessageCircle, FiRefreshCw, FiTarget } from 'react-icons/fi'
+import { FiImage, FiInfo, FiMessageCircle, FiRefreshCw, FiTarget, FiX } from 'react-icons/fi'
 import AutoTextarea from '../ui/AutoTextarea'
 import StoryEditor from '../story/StoryEditor'
 import GeneratingCanvas from '../ui/GeneratingCanvas'
@@ -15,8 +16,9 @@ import { MOTION_OFF_TIP, useMotionReady } from '../../lib/motionStatus'
 // to action and the KPI — with Approve & schedule / Skip per post. Each post is
 // an image, text-only or a video; a video shows its storyboard to edit and
 // approve, renders in the background, then is approved again once finished
-// (backend app/weekly.py). The right column says why the plan looks like this
-// and the rules it follows.
+// (backend app/weekly.py). Why the plan looks like this and the rules it
+// follows open in a drawer from the "Why this plan" button, so the posts get
+// the whole width.
 
 // Plans written before formats existed only marked videos.
 export const formatOf = (item) => item.format || (item.video ? 'video' : 'image')
@@ -64,11 +66,13 @@ export default function PlanBoard({
   const waiting = items.filter((i) => !i.state)
   const flagged = waiting.filter((i) => i.fact_issues?.length).length
   const rules = (report?.rules || []).slice(0, 5)
+  const [whyOpen, setWhyOpen] = useState(false)
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+    <div>
       <div className="min-w-0">
-        <p className="mb-3 text-[13px] text-ink-700">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[13px] text-ink-700">
           <b className="font-semibold text-ink-900">
             {plan.starts_on === plan.ends_on
               ? `Daily plan · ${dayLabel(plan.starts_on)}`
@@ -82,6 +86,15 @@ export default function PlanBoard({
             </>
           )}
         </p>
+          <button
+            type="button"
+            onClick={() => setWhyOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-ink-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-ink-700 hover:bg-ink-50"
+          >
+            <FiInfo size={13} aria-hidden="true" /> Why this plan
+            {rules.length > 0 && <span className="rounded-full bg-brand-soft px-1.5 text-[10.5px] font-bold text-brand tabular-nums">{rules.length}</span>}
+          </button>
+        </div>
 
         {shown.length === 0 ? (
           <div className={`${card} p-8 text-center text-[12.5px] text-ink-500`}>
@@ -110,20 +123,18 @@ export default function PlanBoard({
 
         {waiting.length > 0 && (
           <p className="mt-4 text-[12px] leading-relaxed text-ink-500">
-            Approve &amp; schedule: image and text posts go into the schedule right away — on their day, at the time
-            shown. A video post: approve its storyboard, the video is made in the background, then approve &amp;
-            schedule the finished video.
+            Approved posts go out on their day and time. Videos are approved twice: the storyboard, then the video.
             {flagged > 0 && (
               <span className="ml-1 font-semibold text-amber-700">
-                {flagged} flagged post{flagged === 1 ? '' : 's'} need a person’s OK first — “Approve all unflagged” leaves them.
+                {flagged} flagged post{flagged === 1 ? ' needs' : 's need'} your own OK.
               </span>
             )}
           </p>
         )}
       </div>
 
-      <aside className="space-y-4">
-        <section className={`${card} p-5`}>
+      {whyOpen && <WhyDrawer onClose={() => setWhyOpen(false)}>
+        <section className="px-6 py-5">
           <h3 className="text-[15px] font-semibold text-ink-900">Why this plan</h3>
           <p className="mt-0.5 text-[11.5px] leading-snug text-ink-500">What the AI read in your own posts and results</p>
           {rules.length === 0 ? (
@@ -143,7 +154,7 @@ export default function PlanBoard({
           )}
         </section>
 
-        <section className={`${card} p-5`}>
+        <section className="px-6 py-5">
           <h3 className="text-[15px] font-semibold text-ink-900">Rules the plan follows</h3>
           <p className="mt-2 text-[12px] leading-relaxed text-ink-600">
             At least 2 value days before every selling post · follows the content-goal mix (
@@ -159,8 +170,37 @@ export default function PlanBoard({
             product info are flagged and always wait for a human yes.
           </p>
         </section>
-      </aside>
+      </WhyDrawer>}
     </div>
+  )
+}
+
+// "Why this plan" and the rules, in a drawer from the right on a plain dim
+// backdrop (no blur) — opened only when someone wants to know.
+function WhyDrawer({ onClose, children }) {
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+  return createPortal(
+    <div className="fixed inset-0 z-[110]">
+      <button type="button" aria-label="Close" onClick={onClose} className="absolute inset-0 cursor-default bg-night-950/30 animate-fadein" />
+      <aside
+        role="dialog"
+        aria-modal="true"
+        aria-label="Why this plan"
+        className="absolute right-0 top-0 flex h-full w-full max-w-[440px] flex-col border-l border-ink-200 bg-white shadow-drawer animate-drawer-in"
+      >
+        <div className="flex justify-end px-4 pt-4">
+          <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-ink-400 hover:bg-ink-100" aria-label="Close">
+            <FiX size={16} />
+          </button>
+        </div>
+        <div className="-mt-6 flex-1 divide-y divide-ink-100 overflow-y-auto">{children}</div>
+      </aside>
+    </div>,
+    document.body,
   )
 }
 
@@ -224,7 +264,7 @@ function PostCard({ item, brand, makingMedia, busy, onApprove, onSkip, onUnskip,
       <div className="w-14 flex-none text-center">
         <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-400">{wd}</div>
         <div className="text-[26px] font-bold leading-tight tabular-nums text-ink-900">{n}</div>
-        <div className="mt-0.5 inline-block rounded-md bg-ink-100 px-1.5 py-0.5 font-mono text-[11px] tabular-nums text-ink-600">
+        <div className="mt-0.5 font-mono text-[12px] font-medium tabular-nums text-brand">
           {item.time || '—'}
         </div>
       </div>
@@ -232,7 +272,7 @@ function PostCard({ item, brand, makingMedia, busy, onApprove, onSkip, onUnskip,
       <div className="min-w-0 flex-1">
         {/* goal · format ·········· where it goes */}
         <div className="flex flex-wrap items-center gap-2 text-[11.5px]">
-          {goal && <span className={`rounded-full px-2.5 py-0.5 font-semibold ${stage.chip}`}>{goal.label}</span>}
+          {goal && <span className={`rounded-full px-2.5 py-0.5 font-semibold ${stage.tile}`}>{goal.label}</span>}
           {undecided ? (
             <span className="inline-flex rounded-full border border-ink-200 bg-white p-0.5" role="group" aria-label="Post format">
               {FORMATS.map((o) => (

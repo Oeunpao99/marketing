@@ -300,12 +300,34 @@ export default function WeeklyPage() {
         <div>
           <h1 className="text-[24px] font-bold text-ink-900 tracking-tight leading-tight">Plan &amp; best time</h1>
           <p className="mt-1 text-[13px] text-ink-600">AI content plan built from how your audience reacts, with the best time per channel</p>
+          {data?.automation_id && (
+            // How far ahead the AI plans — the boss's Daily | Weekly tabs.
+            <div className="mt-4 inline-flex rounded-xl bg-ink-100 p-1" role="group" aria-label="How far ahead the AI plans">
+              {[
+                { v: 'day', l: 'Daily' },
+                { v: 'week', l: 'Weekly' },
+              ].map((o) => (
+                <button
+                  key={o.v}
+                  type="button"
+                  disabled={running}
+                  aria-pressed={data.plan_every === o.v}
+                  onClick={() => savePlanEvery(o.v)}
+                  className={`rounded-lg px-4 py-1.5 text-[13px] transition-colors ${
+                    data.plan_every === o.v ? 'bg-white font-semibold text-ink-900 shadow-sm' : 'font-medium text-ink-500 hover:text-ink-800'
+                  }`}
+                >
+                  {o.l}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2.5">
           {ready && (
             <>
               <button type="button" disabled={!!busy || running} onClick={askRewrite} className="btn-outline px-4 py-2">
-                <FiRefreshCw size={14} /> Regenerate from latest results
+                <FiRefreshCw size={14} /> Regenerate from latest behavior
               </button>
               <button
                 type="button"
@@ -316,30 +338,6 @@ export default function WeeklyPage() {
                 {busy === 'approve' ? 'Working…' : `Approve & schedule all unflagged (${cleanCount})`}
               </button>
             </>
-          )}
-          {data?.automation_id && (
-            <div className="flex items-center gap-2" title="How far ahead the AI plans">
-              <span className="text-[12px] font-medium text-ink-500">Plan</span>
-              <div className="grid grid-cols-2 rounded-xl border border-ink-200 bg-white p-0.5">
-                {[
-                  { v: 'week', l: 'Weekly' },
-                  { v: 'day', l: 'Daily' },
-                ].map((o) => (
-                  <button
-                    key={o.v}
-                    type="button"
-                    disabled={running}
-                    aria-pressed={data.plan_every === o.v}
-                    onClick={() => savePlanEvery(o.v)}
-                    className={`rounded-[10px] px-3 py-1.5 text-[12px] font-medium transition-colors ${
-                      data.plan_every === o.v ? 'bg-brand-soft text-brand' : 'text-ink-600 hover:bg-ink-50'
-                    }`}
-                  >
-                    {o.l}
-                  </button>
-                ))}
-              </div>
-            </div>
           )}
           {brands.length > 1 && (
             <Select
