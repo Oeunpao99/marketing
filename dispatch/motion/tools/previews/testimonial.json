@@ -13,5 +13,31 @@
    "before": "Customers waited until morning for a price",
    "after": "Every question answered in seconds, day and night"
   }
+ ],
+ "clip": [
+  {
+   "type": "hook",
+   "text": "How one shop stopped losing ⟦night orders⟧",
+   "icon": "Heart"
+  },
+  {
+   "type": "customer",
+   "name": "Sokha",
+   "business": "Mini-mart owner · Siem Reap",
+   "text": "Messages piled up every night",
+   "mood": "worried"
+  },
+  {
+   "type": "beforeafter",
+   "title": "What changed",
+   "before": "Customers waited until morning for a price",
+   "after": "Every question answered in seconds, day and night"
+  },
+  {
+   "type": "result",
+   "value": 3,
+   "suffix": "x",
+   "label": "More orders answered"
+  }
  ]
 }

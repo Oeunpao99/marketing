@@ -1,0 +1,49 @@
+{
+ "brand": {
+  "name": "ContentFlow",
+  "color": "#1F4E8C",
+  "logo": null
+ },
+ "style": "offer",
+ "frame": 70,
+ "scenes": [
+  {
+   "type": "offer",
+   "badge": "Launch offer",
+   "plan": "Pro plan",
+   "price": "$29",
+   "was": "$49",
+   "period": "/month",
+   "features": [
+    "AI replies 24/7",
+    "Unlimited chats",
+    "Leads sent to your team"
+   ]
+  }
+ ],
+ "clip": [
+  {
+   "type": "hook",
+   "text": "Stop losing night orders — from ⟦$29⟧",
+   "icon": "BadgePercent"
+  },
+  {
+   "type": "offer",
+   "badge": "Launch offer",
+   "plan": "Pro plan",
+   "price": "$29",
+   "was": "$49",
+   "period": "/month",
+   "features": [
+    "AI replies 24/7",
+    "Unlimited chats",
+    "Leads sent to your team"
+   ]
+  },
+  {
+   "type": "cta",
+   "text": "Start today — message us",
+   "button": "Get Pro"
+  }
+ ]
+}

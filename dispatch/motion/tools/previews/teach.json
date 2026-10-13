@@ -44,5 +44,61 @@
    ]
   }
  ],
- "frame": 140
+ "frame": 140,
+ "clip": [
+  {
+   "type": "hook",
+   "text": "Save ⟦$80⟧ a month — what happens?",
+   "icon": "Wallet"
+  },
+  {
+   "type": "character",
+   "title": "Meet ⟦Sokha⟧",
+   "mood": "thinking",
+   "icon": "Wallet",
+   "tag": "$80"
+  },
+  {
+   "type": "chart",
+   "title": "Save ⟦$80⟧ a month",
+   "prefix": "$",
+   "suffix": "",
+   "labels": [
+    "0",
+    "1",
+    "2",
+    "3",
+    "5"
+   ],
+   "series": [
+    {
+     "name": "Sokha saves",
+     "tone": "good",
+     "values": [
+      0,
+      960,
+      1920,
+      2880,
+      4800
+     ]
+    },
+    {
+     "name": "Dara spends",
+     "tone": "bad",
+     "values": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "type": "cta",
+   "text": "Save this for later",
+   "button": "Save"
+  }
+ ]
 }

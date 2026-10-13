@@ -54,6 +54,20 @@ const FIELDS = {
     ['text', 'Their words'],
     ['name', 'By'],
   ],
+  news: [
+    ['headline', 'Headline'],
+    ['text', 'Why it matters'],
+  ],
+  notify: [['title', 'On screen']],
+  step: [
+    ['title', 'Step'],
+    ['text', 'What happens'],
+    ['result', 'Result'],
+  ],
+  offer: [
+    ['plan', 'Plan'],
+    ['badge', 'Badge'],
+  ],
 }
 
 // What else is in the scene, in one line.
@@ -65,13 +79,15 @@ function extras(s) {
   if (s.left && s.right) return `${s.left.name || s.left.label} vs ${s.right.name || s.right.label}`
   if (s.type === 'stat' || s.type === 'result') return `${s.prefix || ''}${s.value}${s.suffix || ''}`
   if (s.chips?.length) return s.chips.join(' · ')
+  if (s.notes?.length) return s.notes.map((n) => `${n.app}: ${n.text}`).join(' / ')
+  if (s.features?.length) return [s.price && `${s.price}${s.period || ''}`, ...s.features].filter(Boolean).join(' · ')
   return ''
 }
 
 // Seconds a scene runs — mirrors app/motion.py estimate_seconds.
 const KHMER = /[ក-៿]/g
 const spokenSeconds = (say = '') => (say.match(KHMER) || []).length / 11 + (say.match(/[A-Za-z0-9]+/g) || []).length / 2.6
-const MIN_SECONDS = { chart: 5.2, compare: 4.2, character: 3.8, cta: 3.8, product: 3.6, myth: 5, quote: 5.6, options: 9.8, split: 8, beforeafter: 5.4, result: 4.2, review: 6, customer: 4.4 }
+const MIN_SECONDS = { chart: 5.2, compare: 4.2, character: 3.8, cta: 3.8, product: 3.6, myth: 5, quote: 5.6, options: 9.8, split: 8, beforeafter: 5.4, result: 4.2, review: 6, customer: 4.4, news: 5, notify: 7, step: 4.8, offer: 5.6 }
 
 export function estimateSeconds(scenes) {
   const total = scenes.reduce((n, s) => n + Math.max(MIN_SECONDS[s.type] || 3.4, spokenSeconds(s.say) + 1.3), 0)

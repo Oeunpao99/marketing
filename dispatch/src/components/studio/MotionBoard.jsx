@@ -26,9 +26,13 @@ export const SCENE_LABELS = {
   beforeafter: 'Before → after',
   result: 'Result',
   review: 'Review',
+  news: 'News',
+  notify: 'Notifications',
+  step: 'Step',
+  offer: 'Offer',
 }
 
-export const STYLE_LABELS = { tech: 'Sell', explainer: 'Teach', versus: 'Compare', poll: 'Poll', quote: 'Quote', testimonial: 'Testimonial' }
+export const STYLE_LABELS = { tech: 'Sell', explainer: 'Teach', versus: 'Compare', poll: 'Poll', quote: 'Quote', testimonial: 'Testimonial', trend: 'AI News', pov: 'POV', demo: 'Product demo', offer: 'Offer' }
 
 /** 0-99 from the real steps: the story is the only part without a count, so
  * it creeps up with time; the voice counts lines, the render counts frames. */
@@ -73,67 +77,135 @@ export function motionStage(progress) {
   }
 }
 
-export default function MotionBoard({ progress }) {
-  if (!progress) return null
-  const scenes = progress.scenes || []
-  const writing = progress.stage === 'story' && !scenes.length
-  const rendering = progress.stage === 'render'
-  const style = STYLE_LABELS[progress.style]
+/** A small moving sound wave beside the mic while a line is recorded. */
+function VoiceWave() {
   return (
-    <div className="w-full max-w-[340px] rounded-2xl border border-ink-200/70 bg-white p-3.5 animate-fadein">
-      <div className="mb-2.5 flex items-center justify-between">
-        <span className="text-[12px] font-semibold text-ink-900">Storyboard</span>
-        {style && <span className="rounded-full bg-brand-soft px-2 py-0.5 text-[10.5px] font-semibold text-brand">{style}</span>}
-      </div>
+    <span className="cf-wave inline-flex h-3.5 items-center gap-[2px]" role="img" aria-label="Recording now">
+      {[0, 0.2, 0.4, 0.1, 0.3].map((delay, i) => (
+        <span key={i} className="h-full w-[2.5px] rounded-full bg-brand" style={{ animationDelay: `${delay}s` }} />
+      ))}
+    </span>
+  )
+}
 
-      {writing ? (
-        <div className="space-y-2">
-          {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="flex items-center gap-2.5">
-              <span className="h-6 w-6 flex-none animate-pulse rounded-lg bg-ink-100" />
-              <span className="h-3 flex-1 animate-pulse rounded bg-ink-100" style={{ maxWidth: `${85 - i * 12}%` }} />
+// ── "Making your video": one card for a Remotion video being made ──────────
+const STEPS = [
+  { key: 'story', label: 'Story' },
+  { key: 'voice', label: 'Voice' },
+  { key: 'render', label: 'Animate' },
+  { key: 'done', label: 'Done' },
+]
+const stepOf = (stage) => (stage === 'voice' ? 1 : stage === 'render' ? 2 : 0)
+const clock = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
+
+/** Progress, the four steps and the storyboard rows, top to bottom, in one
+ * full-width card (replaces the smoke canvas + side storyboard for Remotion). */
+export function MotionMaking({ progress, pct, stage, elapsed, onStop }) {
+  const scenes = progress?.scenes || []
+  const step = stepOf(progress?.stage)
+  const rendering = progress?.stage === 'render'
+  const style = STYLE_LABELS[progress?.style]
+  return (
+    <section className="w-full max-w-[760px] rounded-2xl border border-ink-200/70 bg-white animate-fadein">
+      <header className="px-4 pb-3 pt-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[14px] font-semibold text-ink-900">Making your video</span>
+              {style && <span className="rounded-full bg-brand-soft px-2 py-0.5 text-[10.5px] font-semibold text-brand">{style}</span>}
+              {scenes.length > 0 && <span className="text-[11.5px] text-ink-400">{scenes.length} scenes</span>}
             </div>
-          ))}
-          <p className="pt-1 text-[11px] text-ink-400">The AI is planning the scenes…</p>
+            <div className="mt-0.5 truncate text-[12px] text-ink-500">{stage}</div>
+          </div>
+          {onStop && (
+            <button
+              type="button"
+              onClick={onStop}
+              className="inline-flex flex-none items-center gap-1.5 rounded-lg border border-ink-200 px-2.5 py-1.5 text-[12px] font-semibold text-ink-600 hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+            >
+              <span className="h-2.5 w-2.5 rounded-[3px] bg-current" aria-hidden="true" /> Stop
+            </button>
+          )}
         </div>
-      ) : (
-        <ol className="space-y-1.5">
-          {scenes.map((s, i) => {
-            const speaking = s.voice === 'speaking'
-            const done = rendering || s.voice === 'done'
+        <div className="mt-3 flex items-center gap-3">
+          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-brand/15">
+            <div className="h-full rounded-full bg-brand transition-[width] duration-500 ease-out" style={{ width: `${pct}%` }} />
+          </div>
+          <span className="flex-none text-[11px] tabular-nums text-ink-500">
+            <b className="font-semibold text-ink-700">{Math.round(pct)}%</b> · {clock(elapsed)}
+          </span>
+        </div>
+        {/* the four steps */}
+        <ol className="mt-3 flex items-center gap-1.5 text-[11.5px]">
+          {STEPS.map((s, i) => {
+            const done = i < step
+            const now = i === step
             return (
-              <li
-                key={i}
-                className={`flex items-start gap-2.5 rounded-xl px-2 py-1.5 transition-colors animate-fadein ${speaking ? 'bg-brand-soft/70' : ''}`}
-                style={{ animationDelay: `${i * 90}ms` }}
-              >
+              <li key={s.key} className="flex items-center gap-1.5">
+                {i > 0 && <span className={`h-px w-5 sm:w-8 ${done || now ? 'bg-brand/50' : 'bg-ink-200'}`} aria-hidden="true" />}
                 <span
-                  className={`grid h-6 w-6 flex-none place-items-center rounded-lg text-[11px] font-bold tabular-nums ${
-                    done ? 'bg-brand text-white' : speaking ? 'bg-brand/20 text-brand' : 'bg-ink-100 text-ink-500'
+                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold ${
+                    done ? 'bg-brand text-white' : now ? 'bg-brand-soft text-brand' : 'text-ink-400'
                   }`}
                 >
-                  {done ? <FiCheck size={12} strokeWidth={3} /> : i + 1}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[10.5px] font-semibold uppercase tracking-wide text-ink-400">{SCENE_LABELS[s.type] || s.type}</span>
-                  <span className="block truncate text-[12px] text-ink-800" title={s.text}>
-                    {s.text || '—'}
-                  </span>
-                </span>
-                <span className="flex-none pt-3 text-ink-400">
-                  {speaking ? (
-                    <FiMic size={12} className="animate-pulse text-brand" />
-                  ) : s.voice === 'done' ? (
-                    <span className="text-[10.5px] tabular-nums">{s.seconds}s</span>
-                  ) : s.voice === 'skip' ? (
-                    <FiMicOff size={12} />
-                  ) : null}
+                  {done ? <FiCheck size={11} strokeWidth={3} /> : now ? <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand" /> : null}
+                  {s.label}
                 </span>
               </li>
             )
           })}
         </ol>
-      )}
-    </div>
+      </header>
+
+      <div className="border-t border-ink-100">
+        {scenes.length === 0 ? (
+          <div className="space-y-2.5 px-4 py-4">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="flex items-center gap-3">
+                <span className="h-5 w-5 flex-none animate-pulse rounded-md bg-ink-100" />
+                <span className="h-3 w-20 flex-none animate-pulse rounded bg-ink-100" />
+                <span className="h-3 flex-1 animate-pulse rounded bg-ink-100" style={{ maxWidth: `${70 - i * 12}%` }} />
+              </div>
+            ))}
+            <p className="text-[11.5px] text-ink-400">The AI is planning the scenes…</p>
+          </div>
+        ) : (
+          <ol className="divide-y divide-ink-100">
+            {scenes.map((s, i) => {
+              const speaking = s.voice === 'speaking'
+              const done = rendering || s.voice === 'done'
+              return (
+                <li key={i} className={`flex items-center gap-3 px-4 py-2 transition-colors ${speaking ? 'bg-brand-soft/60' : ''}`}>
+                  <span
+                    className={`grid h-5 w-5 flex-none place-items-center rounded-md text-[10.5px] font-bold tabular-nums ${
+                      done ? 'bg-brand text-white' : speaking ? 'bg-brand/20 text-brand' : 'bg-ink-100 text-ink-500'
+                    }`}
+                  >
+                    {done ? <FiCheck size={11} strokeWidth={3} /> : i + 1}
+                  </span>
+                  <span className="w-[92px] flex-none truncate text-[10.5px] font-semibold uppercase tracking-wide text-ink-400">
+                    {SCENE_LABELS[s.type] || s.type}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-[12.5px] text-ink-800" title={s.text}>
+                    {s.text || '—'}
+                  </span>
+                  <span className="flex flex-none items-center gap-1 text-[10.5px] text-ink-400">
+                    {speaking ? (
+                      <>
+                        <FiMic size={12} className="text-brand" /> <VoiceWave />
+                      </>
+                    ) : s.voice === 'done' ? (
+                      <span className="tabular-nums">{s.seconds}s</span>
+                    ) : s.voice === 'skip' ? (
+                      <FiMicOff size={12} />
+                    ) : null}
+                  </span>
+                </li>
+              )
+            })}
+          </ol>
+        )}
+      </div>
+    </section>
   )
 }

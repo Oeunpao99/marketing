@@ -1,0 +1,47 @@
+{
+ "brand": {
+  "name": "ContentFlow",
+  "color": "#1F4E8C",
+  "logo": null
+ },
+ "style": "demo",
+ "frame": 80,
+ "scenes": [
+  {
+   "type": "step",
+   "n": 2,
+   "title": "Connect your ⟦Facebook Page⟧",
+   "text": "One click — the AI reads your products and prices.",
+   "icon": "Plug",
+   "result": "Page connected · 124 products"
+  }
+ ],
+ "clip": [
+  {
+   "type": "hook",
+   "text": "Answer 100 customers ⟦without typing⟧",
+   "icon": "LayoutDashboard"
+  },
+  {
+   "type": "step",
+   "n": 1,
+   "title": "Connect your ⟦Facebook Page⟧",
+   "text": "One click — the AI reads your products and prices.",
+   "icon": "Plug",
+   "result": "Page connected · 124 products"
+  },
+  {
+   "type": "step",
+   "n": 2,
+   "title": "Turn on ⟦AI replies⟧",
+   "text": "It answers with your real prices.",
+   "icon": "Bot",
+   "result": "AI replies are on"
+  },
+  {
+   "type": "cta",
+   "text": "See it on your own Page",
+   "button": "Book a demo"
+  }
+ ]
+}

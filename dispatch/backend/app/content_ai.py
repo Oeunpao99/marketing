@@ -751,6 +751,7 @@ def _polish_khmer(
     khmer_only: bool = False,
     keep: list[str] | None = None,
     bilingual: bool = False,
+    effort: str = "high",
 ) -> list[str]:
     """Second pass for Khmer: a separate 'native editor' call that checks
     correctness (real words, spelling, no foreign letters, sentences that make
@@ -785,7 +786,7 @@ def _polish_khmer(
             # High effort: the editor reasons through each line (most of this
             # budget is that hidden reasoning, billed only as used).
             max_tokens=24000,
-            effort="high",
+            effort=effort,
         )
         out = data.get("captions") if isinstance(data, dict) else None
         if isinstance(out, list) and len(out) == len(captions) and all(isinstance(c, str) and c.strip() for c in out):

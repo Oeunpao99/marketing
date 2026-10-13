@@ -50,7 +50,6 @@ export default function ContentStudioPage() {
                 {TABS.find((t) => t.id === tab)?.label}
               </span>
             </h1>
-            <p className="page-sub mt-1">Generate copy, images and video — short AI clips combined into one high-quality cut</p>
           </div>
         </div>
       </div>

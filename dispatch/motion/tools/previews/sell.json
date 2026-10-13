@@ -29,5 +29,53 @@
    ]
   }
  ],
- "frame": 200
+ "frame": 200,
+ "clip": [
+  {
+   "type": "hook",
+   "text": "Still losing ⟦night orders⟧?",
+   "icon": "Moon"
+  },
+  {
+   "type": "problem",
+   "icon": "MessageCircle",
+   "title": "⟦27⟧ unread messages",
+   "text": "Every one is a customer waiting",
+   "count": 27
+  },
+  {
+   "type": "chat",
+   "title": "Chumnouykar AI ឆ្លើយ​ជំនួស​បង",
+   "messages": [
+    {
+     "from": "customer",
+     "text": "សួស្តី! សាប៊ូ​នេះ​តម្លៃ​ប៉ុន្មាន?"
+    },
+    {
+     "from": "brand",
+     "text": "សួស្តី​បង! តម្លៃ ៥ ដុល្លារ ដឹកជញ្ជូន​ដល់​ផ្ទះ"
+    },
+    {
+     "from": "customer",
+     "text": "ចង់​កុម្ម៉ង់ ២ ដុំ"
+    },
+    {
+     "from": "brand",
+     "text": "បាទ​បង! សូម​ផ្ញើ​លេខទូរស័ព្ទ​មក"
+    }
+   ]
+  },
+  {
+   "type": "stat",
+   "value": 5,
+   "suffix": "s",
+   "label": "Average reply time",
+   "icon": "Zap"
+  },
+  {
+   "type": "cta",
+   "text": "Let AI answer for you",
+   "button": "Try it free"
+  }
+ ]
 }

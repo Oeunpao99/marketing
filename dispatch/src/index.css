@@ -289,6 +289,15 @@ select {
   0%, 100% { transform: translateY(0); }
   50%      { transform: translateY(-10px); }
 }
+/* A voice being recorded: little level bars rising and falling (MotionBoard VoiceWave). */
+@keyframes cf-wave {
+  0%, 100% { transform: scaleY(0.3); }
+  50%      { transform: scaleY(1); }
+}
+.cf-wave > span {
+  animation: cf-wave 0.9s ease-in-out infinite;
+  transform-origin: center;
+}
 @keyframes cf-halo {
   0%, 100% { transform: scale(0.9); opacity: 0.55; }
   50%      { transform: scale(1.25); opacity: 0.15; }

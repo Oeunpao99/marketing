@@ -1,0 +1,74 @@
+{
+ "brand": {
+  "name": "ContentFlow",
+  "color": "#1F4E8C",
+  "logo": null
+ },
+ "style": "pov",
+ "frame": 95,
+ "scenes": [
+  {
+   "type": "notify",
+   "title": "POV: it’s 11pm and your shop is ⟦closed⟧",
+   "time": "23:47",
+   "notes": [
+    {
+     "app": "Messenger",
+     "text": "Hi, how much is this one?"
+    },
+    {
+     "app": "Telegram",
+     "text": "Do you deliver to Siem Reap?"
+    },
+    {
+     "app": "Messenger",
+     "text": "Still open? I want to order 3"
+    },
+    {
+     "app": "Facebook",
+     "text": "5 new comments on your post"
+    }
+   ]
+  }
+ ],
+ "clip": [
+  {
+   "type": "hook",
+   "text": "POV: you finally ⟦close⟧ the shop",
+   "icon": "Smartphone"
+  },
+  {
+   "type": "notify",
+   "title": "POV: it’s 11pm and your shop is ⟦closed⟧",
+   "time": "23:47",
+   "notes": [
+    {
+     "app": "Messenger",
+     "text": "Hi, how much is this one?"
+    },
+    {
+     "app": "Telegram",
+     "text": "Do you deliver to Siem Reap?"
+    },
+    {
+     "app": "Messenger",
+     "text": "Still open? I want to order 3"
+    },
+    {
+     "app": "Facebook",
+     "text": "5 new comments on your post"
+    }
+   ]
+  },
+  {
+   "type": "reveal",
+   "text": "Then I let ⟦AI⟧ answer for me",
+   "icon": "Sparkles"
+  },
+  {
+   "type": "cta",
+   "text": "Tag a friend who needs this",
+   "button": "Tag a friend"
+  }
+ ]
+}

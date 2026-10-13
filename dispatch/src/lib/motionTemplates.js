@@ -54,20 +54,54 @@ export const MOTION_TEMPLATES = [
     note: '* only with a real customer’s words in your brief — otherwise it’s told as an example customer',
     goals: ['trust'],
   },
+  // SaaS / AI — one dark, glowing look (motion/src/saas.jsx)
+  {
+    id: 'trend',
+    story: 'trend',
+    name: 'AI News',
+    look: 'Dark AI look — news cards, a live ticker, what it means for you',
+    steps: ['Hook', 'What’s new', 'What it means', 'Follow'],
+    goals: ['awareness'],
+  },
+  {
+    id: 'pov',
+    story: 'pov',
+    name: 'POV',
+    look: 'Dark AI look — a “POV:” moment, the phone blowing up, the relief',
+    steps: ['POV hook', 'Notifications', 'The turn', 'Tag a friend'],
+    goals: ['reach'],
+  },
+  {
+    id: 'demo',
+    story: 'demo',
+    name: 'Product demo',
+    look: 'Dark AI look — your product in an app window, clicked step by step',
+    steps: ['Hook', 'Step 1-2-3', 'Result', 'Call to action'],
+    goals: ['solution'],
+  },
+  {
+    id: 'offer',
+    story: 'offer',
+    name: 'Offer',
+    look: 'Dark AI look — a glowing pricing card and one clear action',
+    steps: ['Hook', 'What you get', 'The offer', 'Call to action'],
+    note: 'Prices and discounts only from your brief or product details',
+    goals: ['conversion'],
+  },
 ]
 
-// A goal's template; the ones without their own yet use Teach, and say which
-// template they'll get (the planned next templates).
-export const GOAL_TEMPLATE = {
-  reach: { id: 'teach', planned: 'Relatable POV' },
-  followers: { id: 'quote' },
-  awareness: { id: 'teach', planned: 'Trend / news' },
-  engagement: { id: 'poll' },
-  education: { id: 'teach' },
-  trust: { id: 'testimonial' },
-  authority: { id: 'versus' },
-  solution: { id: 'sell' },
-  conversion: { id: 'sell', planned: 'Offer / promo' },
+// Each goal's templates — the weekly plan takes one of them at random per
+// video (app/motion.py GOAL_STYLES).
+export const GOAL_TEMPLATES = {
+  reach: ['pov', 'teach'],
+  followers: ['quote'],
+  awareness: ['trend', 'teach'],
+  engagement: ['poll'],
+  education: ['teach'],
+  trust: ['testimonial'],
+  authority: ['versus'],
+  solution: ['sell', 'demo'],
+  conversion: ['offer', 'sell'],
 }
 
 export const templateById = (id) => MOTION_TEMPLATES.find((t) => t.id === id)

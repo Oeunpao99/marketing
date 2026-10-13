@@ -27,7 +27,7 @@ import { api } from '../api/client'
 import AutoTextarea from '../components/ui/AutoTextarea'
 import Select from '../components/ui/Select'
 import GeneratingCanvas from '../components/ui/GeneratingCanvas'
-import MotionBoard, { motionPercent, motionStage } from '../components/studio/MotionBoard'
+import { MotionMaking, motionPercent, motionStage } from '../components/studio/MotionBoard'
 import StoryboardEditor from '../components/studio/StoryboardEditor'
 import StoryEditor from '../components/story/StoryEditor'
 import { handoff } from '../lib/handoff'
@@ -174,6 +174,10 @@ const MOTION_STORIES = [
   { value: 'poll', label: 'Poll · Quiz', hint: 'A question, A/B/C answers, a countdown — gets comments' },
   { value: 'quote', label: 'Quote', hint: 'One strong line over your photo — wins followers' },
   { value: 'testimonial', label: 'Testimonial · Customer story', hint: 'A customer’s before → after — builds trust (real reviews only from your brief)' },
+  { value: 'trend', label: 'AI News · Trend', hint: 'What’s new in AI and what it means for you — awareness' },
+  { value: 'pov', label: 'POV · Relatable', hint: 'A “POV:” moment, the phone blowing up — reach and tags' },
+  { value: 'demo', label: 'Product demo', hint: 'Your product in an app window, step by step — shows the solution' },
+  { value: 'offer', label: 'Offer · Pricing', hint: 'A glowing pricing card and one clear action — conversion (prices only from your brief)' },
 ]
 
 export default function AIPromptPage({ embedded = false, preset = null }) {
@@ -585,6 +589,12 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
       }
       return undefined
     }
+    // Everything but a question needs a brand — none means the brands didn't
+    // load (e.g. the server was restarting when the page opened).
+    if (turn.kind !== 'ask' && turn.brandId == null) {
+      update(turn.id, { status: 'failed', error: 'No brand is loaded — refresh the page, then press Try again.' })
+      return
+    }
     try {
       if (turn.kind === 'ask') {
         const res = await api.post('/ai/advisor', {
@@ -680,6 +690,15 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
 
   // Stop everything being made: the server stops each job (a motion video's
   // render is killed; an image or filmed clip may still land in the Library).
+  // Stop one video being made (the Making-your-video card's Stop).
+  const stopOne = (turn) => {
+    if (turn.jobId) {
+      untrackJob(turn.jobId)
+      api.post(`/ai/video/${turn.jobId}/stop`).catch(() => {})
+    }
+    setTurns((list) => list.map((x) => (x.id === turn.id ? { ...x, status: 'failed', error: 'Stopped' } : x)))
+  }
+
   const stopAll = () => {
     for (const t of turnsRef.current.filter((x) => x.status === 'working')) {
       if (t.jobId) {
@@ -967,7 +986,18 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
   }
 
   const regenerate = (turn) => {
-    const again = { ...turn, id: ++turnSeq, status: 'working', video: null, jobId: null, storyId: null, startedAt: Date.now() }
+    const again = {
+      ...turn,
+      id: ++turnSeq,
+      status: 'working',
+      video: null,
+      jobId: null,
+      storyId: null,
+      startedAt: Date.now(),
+      // a try that failed for want of a brand uses the one picked now
+      brandId: turn.brandId ?? brandObj?.id ?? null,
+      brandName: turn.brandName || brandObj?.name || '',
+    }
     setTurns((list) => [...list, again])
     run(again)
   }
@@ -1013,13 +1043,8 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
             it hides the thread) — the description shows from sm up. */}
         <div className="w-full flex items-center justify-between gap-2 sm:gap-3 py-2.5 sm:py-4">
           <div className="min-w-0">
-            {embedded ? (
-              <p className="text-[12.5px] text-ink-500">
-                {preset === 'copy'
-                  ? 'Ask for captions — say which channels, and the AI writes a version for each.'
-                  : 'Describe the image you want — your logo and poster templates are under Brand kit.'}
-              </p>
-            ) : (
+            {/* Embedded in Content studio: no hint line — the studio title says enough. */}
+            {!embedded && (
               <>
                 <h1 className="text-[19px] sm:text-[22px] font-bold text-ink-900 tracking-tight leading-tight">Content studio</h1>
                 <p className="mt-0.5 hidden sm:block text-[12.5px] text-ink-500">
@@ -1099,6 +1124,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
               onEdit={() => editPrompt(t)}
               onRegenerate={() => regenerate(t)}
               onLibrary={() => navigate('/library')}
+              onStop={() => stopOne(t)}
               onPlanChange={(plan) => changePlan(t, plan)}
               onMake={() => makeFromPlan(t)}
               onRewrite={() => rewritePlan(t)}
@@ -1770,7 +1796,7 @@ function Markdown({ text }) {
   )
 }
 
-function Turn({ t, onUse, onEdit, onRegenerate, onLibrary, onPlanChange, onMake, onRewrite }) {
+function Turn({ t, onUse, onEdit, onRegenerate, onLibrary, onPlanChange, onMake, onRewrite, onStop }) {
   const { showToast } = useStore()
   const [expanded, setExpanded] = useState(false)
   const [viewing, setViewing] = useState(false)
@@ -1858,7 +1884,12 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary, onPlanChange, onMake,
 
       {/* result */}
       <div className="flex flex-col items-start">
-        {t.status === 'working' && (
+        {/* A Remotion video: one card — progress, the steps, the storyboard rows. */}
+        {t.status === 'working' && motion && (
+          <MotionMaking progress={t.progress} pct={pct} stage={stage} elapsed={elapsed} onStop={onStop} />
+        )}
+
+        {t.status === 'working' && !motion && (
           <div className="flex w-full flex-col items-start gap-4 sm:flex-row">
           <div className={shape}>
             <GeneratingCanvas icon={t.kind === 'image' ? '✦' : motion ? '✺' : '▶'} stage={stage} />
@@ -1878,7 +1909,6 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary, onPlanChange, onMake,
               </span>
             </div>
           </div>
-          {motion && <MotionBoard progress={t.progress} />}
           </div>
         )}
 

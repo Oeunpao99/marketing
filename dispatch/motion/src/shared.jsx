@@ -44,6 +44,14 @@ export function defaultSeconds(s) {
       return 6.0
     case 'customer':
       return 4.4
+    case 'news':
+      return 5.0
+    case 'notify':
+      return 2.2 + 1.2 * Math.min(4, (s.notes || []).length)
+    case 'step':
+      return 4.8
+    case 'offer':
+      return 5.6
     default:
       return 3.4
   }

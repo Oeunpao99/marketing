@@ -87,7 +87,9 @@ ICONS = (
     "Sun Flame Coffee Utensils Shirt House Store MapPin Search Globe Lightbulb BookOpen GraduationCap "
     "Award Timer AlarmClock Hourglass Frown TriangleAlert CircleX Send Mail Camera Image Video Headphones "
     "Lock Hand HandHeart Scissors Sprout Flower2 Baby Dumbbell Car Bike Building2 Briefcase Laptop "
-    "Megaphone Handshake"
+    "Megaphone Handshake Cpu BrainCircuit Workflow LayoutDashboard Cloud Database Code "
+    "MousePointerClick Newspaper BadgePercent WandSparkles Plug BellRing Inbox ChartLine Gauge Server "
+    "KeyRound FileText ListChecks RefreshCw BotMessageSquare Crown Infinity"
 ).split()
 SCENE_TYPES = ("hook", "problem", "chat", "list", "stat", "product", "cta")
 
@@ -369,6 +371,131 @@ TESTIMONIAL_PROMPT = (
     + '{"scenes": [{"type": "hook", "text": "...", "icon": "Heart", "say": "..."}, ...]}'
 )
 
+# ── SaaS / AI templates (motion/src/saas.jsx) — one dark "AI" look ────────
+TREND_TYPES = ("hook", "news", "list", "stat", "cta")
+TREND_PROMPT = (
+    "You are the best short-form tech storyteller in Cambodia. You plan a vertical "
+    "REMOTION VIDEO (TikTok / Facebook Reels, about 45-60 s) for AWARENESS: \"AI news\" — "
+    "what is changing in AI and software for businesses, and what it means for the viewer. "
+    "Dark, glowing AI look: news cards, a live ticker, glass panels. Clear and exciting, "
+    "never an ad — the brand is the one who keeps you up to date.\n"
+    "\n"
+    "THE STORY (6-8 scenes):\n"
+    "1. hook — the change in one line (\"Your customers now expect a reply in [5 minutes]\").\n"
+    "2-4. news — 2-3 things that are happening, one `news` scene each, building up.\n"
+    "5. list — what it means for the viewer: 3 simple things to do.\n"
+    "6. stat — one TRUE, well-known number (optional — leave it out if you are not sure).\n"
+    "last. cta — soft: follow for AI news every week, save it, share it.\n"
+    "\n"
+    "SCENE TYPES and their fields:\n"
+    "- hook: text (max 10 words), icon.\n"
+    "- news: tag (1-3 words, the field, e.g. \"AI · Chatbots\"), headline (max 14 words — "
+    "what is happening), text (max 16 words — why it matters for a business).\n"
+    "- list: title (max 6 words), items: 3 x {\"icon\", \"text\": 2-6 words}.\n"
+    "- stat: value (a number), prefix, suffix, label (max 6 words), icon — only a TRUE number.\n"
+    "- cta: text (max 8 words), button (1-2 words, e.g. \"Follow\").\n"
+    "NEWS HONESTY: only real, widely known developments and trends — never invent a "
+    "product launch, a company announcement, a date, a version number or a statistic. When "
+    "unsure, describe the trend in general words (\"more shops now answer customers with AI "
+    "chat\") instead of a specific claim.\n"
+    + _COMMON_RULES
+    + '{"scenes": [{"type": "hook", "text": "...", "icon": "Newspaper", "say": "..."}, ...]}'
+)
+
+POV_TYPES = ("hook", "notify", "reveal", "list", "cta")
+POV_PROMPT = (
+    "You are the best short-form storyteller in Cambodia. You plan a vertical REMOTION VIDEO "
+    "(TikTok / Facebook Reels, about 35-50 s) for REACH: a relatable \"POV:\" moment from the "
+    "daily life of the brand's customers — the kind people tag a friend on because it is SO "
+    "them. Dark, glowing AI look: a phone blowing up with notifications, then the relief. "
+    "Funny or warm, never an ad.\n"
+    "\n"
+    "THE STORY (5-7 scenes):\n"
+    "1. hook — starts with \"POV:\" and names the moment (\"POV: it's 11pm and your shop is "
+    "[closed]\").\n"
+    "2. notify — the phone fills up: 3-4 short real-sounding messages / notifications.\n"
+    "3. a second `notify` (it gets worse) — optional.\n"
+    "4. reveal — the turn: how it feels when it is handled (\"Then I let [AI] answer for me\"); "
+    "keep it about the feeling, not features.\n"
+    "5. list — 3 tiny relatable truths or tips (optional).\n"
+    "last. cta — tag a friend who needs this / comment if this is you / follow.\n"
+    "\n"
+    "SCENE TYPES and their fields:\n"
+    "- hook: text (max 12 words, starts with \"POV:\" — in Khmer too), icon.\n"
+    "- notify: title (max 8 words, optional — the moment, e.g. \"5 minutes later…\"), time "
+    "(a clock time like \"23:47\", optional), notes: 3-4 x {\"app\": \"Messenger\" | "
+    "\"Telegram\" | \"Facebook\" | \"TikTok\" | \"Mail\", \"text\": max 8 words — what the "
+    "customer or the notification says}.\n"
+    "- reveal: text (max 10 words), icon.\n"
+    "- list: title (max 6 words), items: 3 x {\"icon\", \"text\": 2-6 words}.\n"
+    "- cta: text (max 8 words), button (1-3 words, e.g. \"Tag a friend\").\n"
+    + _COMMON_RULES
+    + '{"scenes": [{"type": "hook", "text": "POV: ...", "icon": "Smartphone", "say": "..."}, ...]}'
+)
+
+DEMO_TYPES = ("hook", "problem", "step", "chat", "stat", "list", "cta")
+DEMO_PROMPT = (
+    "You are the best short-form product storyteller in Cambodia. You plan a vertical "
+    "REMOTION VIDEO (TikTok / Facebook Reels, about 50-60 s) that shows a SOLUTION working: "
+    "a quick product demo inside an app window — the pointer clicks, the result appears. "
+    "Dark, glowing SaaS / AI look. The viewer must understand in one watch how easy it is.\n"
+    "\n"
+    "THE STORY (7-9 scenes):\n"
+    "1. hook — the result they want, or the pain (\"Answer 100 customers [without typing]\").\n"
+    "2. problem — the pain today (optional).\n"
+    "3-5. step — 3 steps of using the product, one `step` scene each: what you do and what "
+    "happens. Steps a real user would really do with THIS product.\n"
+    "6. chat — the product working for a customer (optional, when it talks to customers).\n"
+    "7. stat or list — what they get (stat only with a TRUE number).\n"
+    "last. cta — try it / book a demo / message us.\n"
+    "\n"
+    "SCENE TYPES and their fields:\n"
+    "- hook: text (max 10 words), icon.\n"
+    "- problem: icon, title (2-5 words), text (max 10 words), count (an illustrative number for "
+    "a badge, or 0).\n"
+    "- step: title (max 7 words — the action, e.g. \"Connect your [Facebook Page]\"), text "
+    "(max 12 words — what happens), icon, result (max 6 words — what the app shows when "
+    "done, e.g. \"Page connected\").\n"
+    "- chat: title (max 7 words), messages: 3-4 x {\"from\": \"customer\"|\"brand\", \"text\": "
+    "max 12 words}.\n"
+    "- stat: value, prefix, suffix, label (max 6 words), icon — only a TRUE number.\n"
+    "- list: title (max 6 words), items: 3 x {\"icon\", \"text\": 2-6 words}.\n"
+    "- cta: text (max 9 words), button (2-4 words).\n"
+    "Only features the product information supports — never invent one.\n"
+    + _COMMON_RULES
+    + '{"scenes": [{"type": "hook", "text": "...", "icon": "LayoutDashboard", "say": "..."}, ...]}'
+)
+
+OFFER_TYPES = ("hook", "offer", "list", "stat", "cta")
+OFFER_PROMPT = (
+    "You are the best short-form sales storyteller in Cambodia. You plan a vertical "
+    "REMOTION VIDEO (TikTok / Facebook Reels, about 35-45 s) for CONVERSION: a clear offer "
+    "and a reason to act now. Dark, glowing AI look with a pricing card. Confident and "
+    "direct — one offer, one action.\n"
+    "\n"
+    "THE STORY (5-7 scenes):\n"
+    "1. hook — the offer's promise or the pain it ends (\"Stop losing night orders — from "
+    "[$29]\").\n"
+    "2. list — 3 things they get.\n"
+    "3. offer — the pricing card.\n"
+    "4. stat — one TRUE number that proves the value (optional).\n"
+    "last. cta — exactly how to get it (\"Message us 'PRO'\", \"Start free\", \"Book a demo\").\n"
+    "\n"
+    "SCENE TYPES and their fields:\n"
+    "- hook: text (max 10 words), icon.\n"
+    "- list: title (max 6 words), items: 3 x {\"icon\", \"text\": 2-6 words}.\n"
+    "- offer: plan (the product / plan name, 1-4 words), price (e.g. \"$29\", \"Free\"), period "
+    "(e.g. \"/month\", or \"\"), was (the old price, or \"\"), badge (1-3 words, e.g. \"Launch "
+    "offer\", or \"\"), features: 3 x short phrases (2-5 words).\n"
+    "- stat: value, prefix, suffix, label (max 6 words), icon — only a TRUE number.\n"
+    "- cta: text (max 9 words), button (2-4 words).\n"
+    "OFFER HONESTY: price, old price, discount and deadline ONLY when the brief or the product "
+    "information gives them — otherwise leave price/was \"\" and make the offer the plan and "
+    "what they get (e.g. badge \"Free demo\"). Never invent a discount or a deadline.\n"
+    + _COMMON_RULES
+    + '{"scenes": [{"type": "hook", "text": "...", "icon": "BadgePercent", "say": "..."}, ...]}'
+)
+
 # style → (story prompt, scene types, most scenes between the hook and the
 # call to action, a scene type the story must have)
 STYLES = {
@@ -378,7 +505,13 @@ STYLES = {
     "poll": (POLL_PROMPT, POLL_TYPES, 6, "options"),
     "quote": (QUOTE_PROMPT, QUOTE_TYPES, 3, "quote"),
     "testimonial": (TESTIMONIAL_PROMPT, TESTIMONIAL_TYPES, 7, "customer"),
+    "trend": (TREND_PROMPT, TREND_TYPES, 6, "news"),
+    "pov": (POV_PROMPT, POV_TYPES, 5, "notify"),
+    "demo": (DEMO_PROMPT, DEMO_TYPES, 7, "step"),
+    "offer": (OFFER_PROMPT, OFFER_TYPES, 5, "offer"),
 }
+# The templates that sell (the auto topic picks a product, not a teaching topic).
+SELLING_STYLES = {"tech", "demo", "offer"}
 
 # Story mode (write_script ``seconds``): the person pasted their own story.
 MAX_STORY_SCENES = 20  # ~2 minutes
@@ -415,19 +548,21 @@ def estimate_seconds(script: dict) -> int:
     return round(total - TRANSITION_S * (len(script["scenes"]) - 1))
 
 
-# Content goals (app/goals.py) → template. Selling goals get the Tech style's
-# sales story; goals without their own template yet teach (Explainer).
+# Content goals (app/goals.py) → templates. A goal with several takes one at
+# random per video, so a week's plan doesn't repeat the same look.
 GOAL_STYLES = {
-    "sell": "tech",
-    "solution": "tech",
-    "conversion": "tech",
-    "teach": "explainer",
-    "authority": "versus",
-    "engagement": "poll",
-    "followers": "quote",
-    "trust": "testimonial",
+    "sell": ("tech",),
+    "solution": ("tech", "demo"),
+    "conversion": ("offer", "tech"),
+    "teach": ("explainer",),
+    "education": ("explainer",),
+    "reach": ("pov", "explainer"),
+    "awareness": ("trend", "explainer"),
+    "authority": ("versus",),
+    "engagement": ("poll",),
+    "followers": ("quote",),
+    "trust": ("testimonial",),
 }
-SELL_GOALS = {g for g, st in GOAL_STYLES.items() if st == "tech"}
 
 
 def style_for(goal: str) -> str:
@@ -435,7 +570,7 @@ def style_for(goal: str) -> str:
     the brief is clearly a sale (the caller decides that with a product
     chosen). A template name itself ("versus", "poll", …) is taken as is."""
     goal = (goal or "").lower()
-    return goal if goal in STYLES else GOAL_STYLES.get(goal, "explainer")
+    return goal if goal in STYLES else random.choice(GOAL_STYLES.get(goal, ("explainer",)))
 
 
 def _km_words(text: str) -> str:
@@ -643,6 +778,43 @@ def _clean_scene(raw: dict, names: dict[str, str]) -> dict | None:
     if kind == "quote":
         text = _line(raw.get("text"), 220)
         return {"type": kind, "text": text, "author": _line(raw.get("author"), 40), "say": say} if text else None
+    if kind == "news":
+        headline = _line(raw.get("headline"), 140)
+        return {"type": kind, "tag": _line(raw.get("tag"), 30), "headline": headline, "text": _line(raw.get("text"), 160), "say": say} if headline else None
+    if kind == "notify":
+        notes = [
+            {"app": _line(n.get("app"), 20) or "Messenger", "text": _line(n.get("text"), 90)}
+            for n in (raw.get("notes") or [])
+            if isinstance(n, dict) and _line(n.get("text"), 90)
+        ][:4]
+        time = _line(raw.get("time"), 5)
+        return (
+            {"type": kind, "title": _line(raw.get("title"), 80), "time": time if re.fullmatch(r"\d{1,2}:\d{2}", time) else "", "notes": notes, "say": say}
+            if len(notes) >= 2
+            else None
+        )
+    if kind == "step":
+        title = _line(raw.get("title"), 80)
+        return (
+            {"type": kind, "title": title, "text": _line(raw.get("text"), 140), "icon": _icon(raw.get("icon"), "Zap"), "result": _line(raw.get("result"), 50), "say": say}
+            if title
+            else None
+        )
+    if kind == "offer":
+        features = [f for f in (_line(f, 50) for f in (raw.get("features") or [])) if f][:4]
+        offer = {
+            "type": kind,
+            "plan": _line(raw.get("plan"), 40),
+            "price": _line(raw.get("price"), 14),
+            "period": _line(raw.get("period"), 14),
+            "was": _line(raw.get("was"), 14),
+            "badge": _line(raw.get("badge"), 28),
+            "features": features,
+            "say": say,
+        }
+        if not offer["price"]:
+            offer["was"] = offer["period"] = ""  # no price, no "/month" or old price either
+        return offer if (offer["plan"] or offer["price"]) and features else None
     return None
 
 
@@ -677,6 +849,10 @@ _TEXT_FIELDS = {
     "beforeafter": (("title", 80), ("before", 140), ("after", 140), ("say", 300)),
     "result": (("label", 80), ("say", 300)),
     "review": (("say", 300),),
+    "news": (("tag", 30), ("headline", 140), ("text", 160), ("say", 300)),
+    "notify": (("title", 80), ("say", 300)),
+    "step": (("title", 80), ("text", 140), ("result", 50), ("say", 300)),
+    "offer": (("badge", 28), ("period", 14), ("say", 300)),
 }
 
 
@@ -703,8 +879,18 @@ TEACH_ANGLES = (
 
 
 def _auto_topic(products: list[Product], style: str = "tech") -> str:
-    if style != "tech":
+    if style not in SELLING_STYLES:
         topic = f"a topic around {products[0].name}" if len(products) == 1 else "a topic around what this brand does" if products else "a useful everyday topic for this brand's customers"
+        if style == "trend":
+            return (
+                "THE VIDEO IS ABOUT: no topic was given — choose it yourself: what is changing in AI "
+                f"and software that matters to this brand's customers ({topic}). Real trends only — never an ad."
+            )
+        if style == "pov":
+            return (
+                "THE VIDEO IS ABOUT: no topic was given — choose it yourself: one everyday moment "
+                f"this brand's customers know too well ({topic}) — the one they would tag a friend on."
+            )
         if style != "explainer":  # comparison / poll / quote: the template sets the angle
             return (
                 f"THE VIDEO IS ABOUT: no topic was given — choose it yourself: {topic}. Pick what "
@@ -715,7 +901,7 @@ def _auto_topic(products: list[Product], style: str = "tech") -> str:
             f"{topic}, told as {random.choice(TEACH_ANGLES)}. Pick what a Cambodian viewer "
             "would save and share — useful, surprising, never an ad."
         )
-    angle = random.choice(AUTO_ANGLES)
+    angle = {"demo": "how it works, in 3 simple steps", "offer": "its offer and what you get"}.get(style) or random.choice(AUTO_ANGLES)
     about = (
         f"the product {products[0].name}"
         if len(products) == 1
@@ -840,6 +1026,9 @@ def write_script(
             slots += [(ser, "name", 40) for ser in s.get("series", [])]
             if s["type"] == "product":
                 slots += [(s["chips"], k, 30) for k in range(len(s["chips"]))]
+            if s["type"] == "offer":
+                slots += [(s["features"], k, 50) for k in range(len(s["features"]))]
+            slots += [(n, "text", 90) for n in s.get("notes", [])]
         # Story mode: the voice lines are the person's own sentences — kept.
         slots = [x for x in slots if x[0][x[1]] and not (story and x[1] == "say")]
         fixed = _polish_khmer(
@@ -848,6 +1037,10 @@ def write_script(
             voice_examples=brand.voice_examples or "",
             khmer_only="english" not in (brand.lang or "").lower(),
             keep=[brand.name, *(p.name for p in products)],
+            # Story mode: only the short on-screen words are left to edit (the
+            # voice lines are the person's own) — the quick pass; at high effort
+            # it took a minute and more, while the person waited on the plan.
+            effort="low" if story else "high",
         )
         for (obj, key, n), value in zip(slots, fixed):
             obj[key] = _line(_fix_khmer_punctuation(value), n)
@@ -887,6 +1080,15 @@ def script_lines(script: dict) -> list[tuple[str, str]]:
             screen = f"{s.get('prefix', '')}{s['value']}{s.get('suffix', '')} {s['label']}"
         elif s["type"] == "review":
             screen = f"{'★' * s.get('stars', 5)} “{s['text']}”" + (f" — {s['name']}" if s.get("name") else "")
+        elif s["type"] == "news":
+            screen = (f"{s['tag']}: " if s.get("tag") else "") + s["headline"] + (f" — {s['text']}" if s.get("text") else "")
+        elif s["type"] == "notify":
+            screen = (s.get("title") or "Notifications") + " — " + " / ".join(f"{n['app']}: {n['text']}" for n in s["notes"])
+        elif s["type"] == "step":
+            screen = s["title"] + (f" — {s['text']}" if s.get("text") else "") + (f" ✓ {s['result']}" if s.get("result") else "")
+        elif s["type"] == "offer":
+            price = f" {s['price']}{s.get('period', '')}" if s.get("price") else ""
+            screen = f"{s.get('plan', '')}{price} — " + ", ".join(s["features"])
         else:
             screen = s.get("text", "")
         out.append((f"[{s['type']}] {screen}", s.get("say", "")))
@@ -938,7 +1140,7 @@ def pick_pictures(
     for s in script["scenes"]:
         if s["type"] == "product":
             s["image"] = by_product.get(ids.get(s.get("product") or "")) or main
-        elif s["type"] in ("hook", "cta") or script.get("style") == "quote":
+        elif s["type"] in ("hook", "cta", "offer") or script.get("style") == "quote":
             s["image"] = main
 
 
@@ -959,7 +1161,7 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
     scenes = []
     for s in script["scenes"]:
         scene = {k: v for k, v in s.items() if k not in ("say", "product")}
-        for key in ("text", "title", "label", "button", "myth", "fact", "question", "author", "name", "business", "before", "after"):
+        for key in ("text", "title", "label", "button", "myth", "fact", "question", "author", "name", "business", "before", "after", "headline", "tag", "result", "badge", "plan", "period"):
             if scene.get(key):
                 scene[key] = t(scene[key])
         if s.get("say"):
@@ -980,6 +1182,12 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
             scene["options"] = [t(o) for o in scene["options"]]
         if "chips" in scene:
             scene["chips"] = [t(c) for c in scene["chips"]]
+        if "features" in scene:
+            scene["features"] = [t(f) for f in scene["features"]]
+        if "notes" in scene:
+            scene["notes"] = [{**n, "text": t(n["text"])} for n in scene["notes"]]
+        if s["type"] == "step":
+            scene["n"] = sum(1 for x in scenes if x["type"] == "step") + 1  # STEP 1, 2, 3
         if not scene.get("image"):
             scene.pop("image", None)
         scenes.append(scene)
@@ -1005,7 +1213,9 @@ def default_seconds(scene: dict) -> float:
         return 2.6 + 0.9 * min(6, len((scene.get("left") or {}).get("points") or []) + len((scene.get("right") or {}).get("points") or []))
     if kind == "options":
         return 2.4 + 0.35 * min(4, len(scene.get("options") or [])) + 6.0
-    return {"cta": 3.8, "product": 3.6, "chart": 5.2, "compare": 4.2, "character": 3.8, "myth": 5.0, "quote": 5.6, "beforeafter": 5.4, "result": 4.2, "review": 6.0, "customer": 4.4}.get(kind, 3.4)
+    if kind == "notify":
+        return 2.2 + 1.2 * min(4, len(scene.get("notes") or []))
+    return {"cta": 3.8, "product": 3.6, "chart": 5.2, "compare": 4.2, "character": 3.8, "myth": 5.0, "quote": 5.6, "beforeafter": 5.4, "result": 4.2, "review": 6.0, "customer": 4.4, "news": 5.0, "step": 4.8, "offer": 5.6}.get(kind, 3.4)
 
 
 def length_of(props: dict) -> int:
@@ -1073,6 +1283,22 @@ def spoken_text(say: str, pronunciations: list[dict] | None) -> tuple[str, list[
     return "".join(s for _, s in pieces), pieces
 
 
+def voice_pronunciations(voice: str, says: list[str], pronunciations: list[dict] | None) -> list[dict]:
+    """The brand's pronunciation list — plus, for the local Khmer voice (which
+    can't read Latin letters), every other English / brand word in ``says``
+    written in Khmer letters by the AI (local_voice.transliterate)."""
+    from app import local_voice
+
+    rules = list(pronunciations or [])
+    if not voice.startswith(local_voice.PREFIX):
+        return rules
+    known = {(p.get("word") or "").strip().lower() for p in rules}
+    latin = sorted({w for say in says for w in local_voice.LATIN_WORD.findall(say or "") if w.lower() not in known})
+    if latin:
+        rules += [{"word": w, "say": k} for w, k in local_voice.transliterate(latin).items()]
+    return rules
+
+
 def add_voice(
     props: dict,
     script: dict,
@@ -1090,6 +1316,8 @@ def add_voice(
     from app.story import _probe
 
     says = [s.get("say") for s in script["scenes"]]
+    pronunciations = voice_pronunciations(voice, says, pronunciations)
+    local = voice.startswith("local:")  # the local Khmer voice costs no credit
     board = [dict(b) for b in (_progress.get(job_id, {}).get("scenes") or [])]
     _report(job_id, stage="voice")
 
@@ -1144,7 +1372,7 @@ def add_voice(
                 scene["words"] = words  # …word by word, when Azure said when each word is
             mark(n, voice="done", seconds=round(duration, 1))
             spoken += len(say)
-    if spoken:
+    if spoken and not local:
         billing.charge(
             ws, "video", spoken * speech.PRICE_PER_CHAR, user_id=user_id, model=voice, note="Remotion video voice-over", job_id=job_id
         )
@@ -1177,12 +1405,43 @@ def progress_of(job_id: int) -> dict | None:
     return _progress.get(job_id)
 
 
+def _scene_summary(s: dict) -> str:
+    """A scene's words in one short line, whatever its type (the live
+    storyboard's rows) — the on-screen words, else what's said."""
+    t = s.get("type")
+    side = lambda p: (p or {}).get("name") or (p or {}).get("label") or ""  # noqa: E731
+    if t == "compare" or t == "split":
+        head = s.get("title") or ""
+        pair = f"{side(s.get('left'))} vs {side(s.get('right'))}".strip(" vs")
+        text = f"{head} — {pair}" if head and pair else head or pair
+    elif t == "chart":
+        names = " · ".join(x.get("name", "") for x in s.get("series") or [] if x.get("name"))
+        text = f"{s.get('title') or ''}" + (f" — {names}" if names else "")
+    elif t in ("stat", "result"):
+        text = f"{s.get('prefix', '')}{s.get('value', '')}{s.get('suffix', '')} {s.get('label', '')}"
+    elif t == "myth":
+        text = s.get("myth") or ""
+    elif t == "options":
+        text = s.get("question") or " / ".join(s.get("options") or [])
+    elif t == "customer":
+        text = s.get("name", "") + (f" — {s['text']}" if s.get("text") else "")
+    elif t == "beforeafter":
+        text = f"{s.get('before', '')} → {s.get('after', '')}"
+    elif t == "news":
+        text = s.get("headline") or ""
+    elif t == "notify":
+        text = s.get("title") or " / ".join(n.get("text", "") for n in s.get("notes") or [])
+    elif t == "offer":
+        text = " ".join(x for x in (s.get("plan"), s.get("price"), s.get("period")) if x)
+    else:
+        text = s.get("text") or s.get("title") or s.get("label") or ""
+    text = " ".join(str(text).split()) or (s.get("say") or "")
+    return text.replace("[", "").replace("]", "").replace("⟦", "").replace("⟧", "")[:120]
+
+
 def _board(script: dict) -> list[dict]:
     """The storyboard as the page shows it: each scene's type and its words."""
-    return [
-        {"type": s["type"], "text": _brackets(screen.split("] ", 1)[-1]).replace("⟦", "").replace("⟧", "")[:120], "voice": "", "seconds": 0}
-        for s, (screen, _say) in zip(script["scenes"], script_lines(script))
-    ]
+    return [{"type": s["type"], "text": _scene_summary(s), "voice": "", "seconds": 0} for s in script["scenes"]]
 
 
 def _kill_tree(proc: subprocess.Popen) -> None:
@@ -1411,12 +1670,13 @@ def say_line(
     if not narrator:
         raise HTTPException(503, "No voice service is set up on this server.")
     billing.require(ws, 0.0, db)
-    text, _pieces = spoken_text(payload.text, brand.pronunciations or [])
+    text, _pieces = spoken_text(payload.text, voice_pronunciations(narrator, [payload.text], brand.pronunciations or []))
     try:
         mp3, _words = speech.speak_timed(text, narrator)
     except Exception as exc:  # noqa: BLE001 — the voice service's own message
         raise HTTPException(502, f"The voice couldn't be made — {exc}") from exc
-    billing.charge(ws, "video", len(payload.text) * speech.PRICE_PER_CHAR, user_id=user.id, model=narrator, note="Voice preview")
+    if not narrator.startswith("local:"):  # the local Khmer voice costs nothing
+        billing.charge(ws, "video", len(payload.text) * speech.PRICE_PER_CHAR, user_id=user.id, model=narrator, note="Voice preview")
     return Response(content=mp3, media_type="audio/mpeg", headers={"Cache-Control": "no-store"})
 
 

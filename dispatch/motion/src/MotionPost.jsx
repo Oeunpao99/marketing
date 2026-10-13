@@ -51,6 +51,7 @@ import {
 import { EX, EXPLAINER_SCENES, Caption, ExplainerChrome } from './explainer'
 import { POLL, QUOTE, VERSUS } from './goaltemplates'
 import { TESTIMONIAL } from './testimonial'
+import { DEMO, OFFER, POV, TREND } from './saas'
 
 export { FPS, TRANSITION, defaultSeconds, sceneFrames }
 
@@ -731,6 +732,10 @@ const TEMPLATES = {
   poll: { ...POLL, scenes: { ...SCENES, ...POLL.scenes } },
   quote: { ...QUOTE, scenes: { ...SCENES, ...QUOTE.scenes } },
   testimonial: { ...TESTIMONIAL, scenes: { ...SCENES, ...TESTIMONIAL.scenes } },
+  trend: { ...TREND, scenes: { ...SCENES, ...TREND.scenes } },
+  pov: { ...POV, scenes: { ...SCENES, ...POV.scenes } },
+  demo: { ...DEMO, scenes: { ...SCENES, ...DEMO.scenes } },
+  offer: { ...OFFER, scenes: { ...SCENES, ...OFFER.scenes } },
 }
 
 export const MotionPost = ({ brand, scenes, music, style }) => {
