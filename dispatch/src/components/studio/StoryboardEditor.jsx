@@ -1,4 +1,5 @@
-import { FiArrowDown, FiArrowUp, FiFilm, FiMic, FiRefreshCw, FiTrash2 } from 'react-icons/fi'
+import { useState } from 'react'
+import { FiArrowDown, FiArrowUp, FiFilm, FiMic, FiPlay, FiRefreshCw, FiTrash2 } from 'react-icons/fi'
 import AutoTextarea from '../ui/AutoTextarea'
 import { SCENE_LABELS, STYLE_LABELS } from './MotionBoard'
 
@@ -79,7 +80,17 @@ export function estimateSeconds(scenes) {
 
 const fmtLength = (sec) => (sec >= 60 ? `${Math.floor(sec / 60)} min ${String(sec % 60).padStart(2, '0')} s` : `${sec} s`)
 
-export default function StoryboardEditor({ plan, onChange, onMake, onRewrite, voice = true }) {
+export default function StoryboardEditor({ plan, onChange, onMake, onRewrite, voice = true, onHear }) {
+  const [hearing, setHearing] = useState(null) // the line being played
+  const hear = async (i, text) => {
+    if (!onHear || !text?.trim() || hearing != null) return
+    setHearing(i)
+    try {
+      await onHear(text.trim())
+    } finally {
+      setHearing(null)
+    }
+  }
   const scenes = plan?.scenes || []
   const set = (i, patch) => onChange({ ...plan, scenes: scenes.map((s, j) => (j === i ? { ...s, ...patch } : s)) })
   const move = (i, d) => {
@@ -162,6 +173,22 @@ export default function StoryboardEditor({ plan, onChange, onMake, onRewrite, vo
                       onChange={(e) => set(i, { say: e.target.value })}
                       className="min-w-0 flex-1 rounded-lg border border-ink-200 bg-white px-2.5 py-1.5 text-[12.5px] leading-relaxed text-ink-800 outline-none focus:border-brand"
                     />
+                    {onHear && (
+                      <button
+                        type="button"
+                        onClick={() => hear(i, s.say)}
+                        disabled={hearing != null || !s.say?.trim()}
+                        title="Hear this line, as the video will say it"
+                        aria-label={`Hear line ${i + 1}`}
+                        className="mt-0.5 grid h-8 w-8 flex-none place-items-center rounded-lg text-brand hover:bg-brand-soft disabled:opacity-40"
+                      >
+                        {hearing === i ? (
+                          <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand/30 border-t-brand" />
+                        ) : (
+                          <FiPlay size={14} />
+                        )}
+                      </button>
+                    )}
                   </label>
                 )}
               </div>

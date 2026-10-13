@@ -127,6 +127,9 @@ class Brand(Base, TimestampMixin):
     chat_telegram: Mapped[str] = mapped_column(String(64), default="", server_default="")
     chat_messenger: Mapped[str] = mapped_column(String(100), default="", server_default="")
     chat_label: Mapped[str] = mapped_column(String(80), default="", server_default="")
+    # How the voice-over should say words a Khmer voice gets wrong — brand and
+    # English names: [{"word": "Chumnouykar", "say": "ជំនួយការ"}] (app/khmer_speech.py).
+    pronunciations: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]", nullable=False)
 
     channels: Mapped[list[Channel]] = relationship(
         back_populates="brand", cascade="all, delete-orphan"

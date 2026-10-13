@@ -109,6 +109,23 @@ async function upload(path, formData) {
   return data
 }
 
+// POST that answers with a file (e.g. an MP3 voice preview) — a Blob.
+async function blob(path, body) {
+  if (path.startsWith('/api/')) path = path.slice(4)
+  const headers = { 'Content-Type': 'application/json' }
+  const token = tokenStore.get()
+  if (token) headers.Authorization = `Bearer ${token}`
+  const res = await send(BASE + path, { method: 'POST', headers, body: JSON.stringify(body ?? {}) })
+  if (!res.ok) {
+    const data = parse(await res.text())
+    checkMaintenance(res, data)
+    const err = new Error(typeof data?.detail === 'string' ? data.detail : `Request failed (${res.status})`)
+    err.status = res.status
+    throw err
+  }
+  return res.blob()
+}
+
 export const api = {
   get: (path) => request('GET', path),
   post: (path, body) => request('POST', path, body ?? {}),
@@ -116,4 +133,5 @@ export const api = {
   put: (path, body) => request('PUT', path, body ?? {}),
   del: (path) => request('DELETE', path),
   upload,
+  blob,
 }

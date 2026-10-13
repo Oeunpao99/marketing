@@ -107,7 +107,7 @@ def speak_timed(text: str, voice: str) -> tuple[bytes, list[dict]]:
     synth = sdk.SpeechSynthesizer(speech_config=cfg, audio_config=None)
     events: list = []
     synth.synthesis_word_boundary.connect(events.append)
-    result = synth.speak_text_async(text.strip()).get()
+    result = synth.speak_text_async(text).get()  # as given: word positions ("o") index into it
     if result.reason != sdk.ResultReason.SynthesizingAudioCompleted or not result.audio_data:
         details = getattr(result, "cancellation_details", None)
         raise SpeechError(f"Azure Speech failed: {getattr(details, 'error_details', '') or result.reason}")
@@ -130,6 +130,7 @@ def speak_timed(text: str, voice: str) -> tuple[bytes, list[dict]]:
                 "e": round(end, 3),
                 # a word that came after a zero-width space joins the one before it
                 "sp": bool(words) and not piece.startswith(ZWSP),
+                "o": ev.text_offset,  # where it is in ``text`` (khmer_speech.remap_words)
             }
         )
     return result.audio_data, words

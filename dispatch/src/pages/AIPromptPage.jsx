@@ -1771,6 +1771,7 @@ function Markdown({ text }) {
 }
 
 function Turn({ t, onUse, onEdit, onRegenerate, onLibrary, onPlanChange, onMake, onRewrite }) {
+  const { showToast } = useStore()
   const [expanded, setExpanded] = useState(false)
   const [viewing, setViewing] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -1882,7 +1883,29 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary, onPlanChange, onMake,
         )}
 
         {t.status === 'review' && t.plan && (
-          <StoryboardEditor plan={t.plan} voice={t.voice !== 'none'} onChange={onPlanChange} onMake={onMake} onRewrite={onRewrite} />
+          <StoryboardEditor
+            plan={t.plan}
+            voice={t.voice !== 'none'}
+            onChange={onPlanChange}
+            onMake={onMake}
+            onRewrite={onRewrite}
+            onHear={async (text) => {
+              // one voice line, read exactly as the video will (POST /ai/motion/say)
+              try {
+                const audio = await api.blob('/ai/motion/say', { brand_id: t.brandId, text, language: t.language || 'Khmer', voice: t.voice || 'female' })
+                const url = URL.createObjectURL(audio)
+                const el = new Audio(url)
+                await new Promise((resolve) => {
+                  el.onended = resolve
+                  el.onerror = resolve
+                  el.play().catch(resolve)
+                })
+                URL.revokeObjectURL(url)
+              } catch (e) {
+                showToast(`Couldn’t play it — ${e.message}`)
+              }
+            }}
+          />
         )}
 
         {t.status === 'failed' && (

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router-dom'
-import { FiArrowRight, FiCheck, FiSettings, FiTrendingUp, FiX } from 'react-icons/fi'
+import { FiArrowRight, FiCheck, FiPlay, FiPlus, FiSettings, FiTrendingUp, FiX } from 'react-icons/fi'
 import { api } from '../api/client'
 import { colorForBrand } from '../lib/brandColor'
 import { useStore } from '../store'
@@ -154,6 +154,7 @@ export default function AutoPage() {
     const local = {}
     if ('lang' in patch) local.brand_lang = patch.lang
     if ('voice_examples' in patch) local.brand_voice = patch.voice_examples
+    if ('pronunciations' in patch) local.brand_pronunciations = patch.pronunciations
     setAuto((list) => (list || []).map((a) => (a.brand_id === automation.brand_id ? { ...a, ...local } : a)))
     try {
       await api.patch(`/brands/${automation.brand_id}`, patch)
@@ -433,6 +434,14 @@ function SettingsDrawer({ a, channels, onUpdate, onBrandUpdate, onOpenPlan, onCl
               />
               <p className="mt-1 text-[11px] text-ink-400">The AI copies your style and words — never the facts in them. Saved when you click away.</p>
             </Field>
+            <Field label="How the voice says words (optional)">
+              <PronunciationList
+                brandId={a.brand_id}
+                language={/khmer/i.test(a.brand_lang || 'Khmer') ? 'Khmer' : 'English'}
+                value={a.brand_pronunciations || []}
+                onSave={(pronunciations) => onBrandUpdate({ pronunciations })}
+              />
+            </Field>
           </Section>
 
           <Section n={2} title="Learn from your results" sub="The AI does more of what your audience likes">
@@ -609,6 +618,98 @@ function SettingsDrawer({ a, channels, onUpdate, onBrandUpdate, onOpenPlan, onCl
       </aside>
     </div>,
     document.body,
+  )
+}
+
+/** Brand.pronunciations (app/khmer_speech.py): words the Khmer voice reads
+ *  wrong — brand and English names — and how to say them. Numbers are read
+ *  as Khmer words without a row. ▶ plays a row as the video would say it. */
+function PronunciationList({ brandId, language, value, onSave }) {
+  const [rows, setRows] = useState(value)
+  const [playing, setPlaying] = useState(null)
+  const { showToast } = useStore()
+  useEffect(() => setRows(value), [brandId]) // eslint-disable-line react-hooks/exhaustive-deps
+  const clean = (list) => list.map((r) => ({ word: r.word.trim(), say: r.say.trim() })).filter((r) => r.word && r.say)
+  const save = (list) => {
+    const next = clean(list)
+    if (JSON.stringify(next) !== JSON.stringify(clean(value))) onSave(next)
+  }
+  const set = (i, patch) => setRows((list) => list.map((r, j) => (j === i ? { ...r, ...patch } : r)))
+  const remove = (i) => {
+    const next = rows.filter((_, j) => j !== i)
+    setRows(next)
+    save(next)
+  }
+  const play = async (i) => {
+    const r = rows[i]
+    if (!r.word.trim() || !r.say.trim()) return
+    setPlaying(i)
+    try {
+      const audio = await api.blob('/ai/motion/say', { brand_id: brandId, text: r.say.trim(), language })
+      const url = URL.createObjectURL(audio)
+      const el = new Audio(url)
+      el.onended = () => {
+        URL.revokeObjectURL(url)
+        setPlaying(null)
+      }
+      await el.play()
+    } catch (e) {
+      showToast(`Couldn’t play it — ${e.message}`)
+      setPlaying(null)
+    }
+  }
+  return (
+    <div className="space-y-2">
+      {rows.length > 0 && (
+        <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-x-2 px-0.5 text-[10.5px] font-semibold uppercase tracking-[.06em] text-ink-400">
+          <span>Written as</span>
+          <span>Say it as</span>
+          <span className="w-[60px]" />
+        </div>
+      )}
+      {rows.map((r, i) => (
+        <div key={i} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2">
+          <input
+            value={r.word}
+            maxLength={60}
+            onChange={(e) => set(i, { word: e.target.value })}
+            onBlur={() => save(rows)}
+            placeholder="Chumnouykar"
+            className={input}
+          />
+          <input
+            value={r.say}
+            maxLength={120}
+            onChange={(e) => set(i, { say: e.target.value })}
+            onBlur={() => save(rows)}
+            placeholder="ជំនួយការ"
+            className={`${input} ${/[\u1780-\u17FF]/.test(r.say) ? 'font-khmer' : ''}`}
+          />
+          <span className="flex w-[60px] items-center justify-end gap-0.5">
+            <button
+              type="button"
+              onClick={() => play(i)}
+              disabled={playing != null || !r.word.trim() || !r.say.trim()}
+              title="Hear it"
+              aria-label={`Hear how ${r.word || 'this word'} is said`}
+              className="grid h-8 w-8 place-items-center rounded-lg text-brand hover:bg-brand-soft disabled:opacity-40"
+            >
+              {playing === i ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand/30 border-t-brand" /> : <FiPlay size={14} />}
+            </button>
+            <button type="button" onClick={() => remove(i)} title="Remove" aria-label="Remove" className="grid h-8 w-8 place-items-center rounded-lg text-ink-400 hover:bg-ink-100 hover:text-ink-700">
+              <FiX size={14} />
+            </button>
+          </span>
+        </div>
+      ))}
+      <button type="button" onClick={() => setRows((list) => [...list, { word: '', say: '' }])} className="btn-outline px-3 py-1.5" disabled={rows.length >= 200}>
+        <FiPlus size={14} /> Add a word
+      </button>
+      <p className="text-[11px] leading-snug text-ink-400">
+        For brand and English names the voice reads wrong — write how it should sound (e.g. Facebook → ហ្វេសប៊ុក). Only the voice changes;
+        the words on screen stay as written. Numbers, prices and times are read as Khmer words automatically.
+      </p>
+    </div>
   )
 }
 

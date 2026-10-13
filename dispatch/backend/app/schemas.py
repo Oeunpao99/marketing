@@ -35,6 +35,11 @@ class TimestampsOut(ORMModel):
 
 
 # ── Brand ────────────────────────────────────────────────────────────────
+class Pronunciation(BaseModel):
+    word: str = Field(min_length=1, max_length=60)  # as written
+    say: str = Field(min_length=1, max_length=120)  # as the voice should say it
+
+
 class BrandBase(BaseModel):
     # Limits match the brands columns (models.Brand), so a too-long value is a
     # clear 422 instead of a database error.
@@ -48,6 +53,8 @@ class BrandBase(BaseModel):
     chat_telegram: str = Field(default="", max_length=64)
     chat_messenger: str = Field(default="", max_length=100)
     chat_label: str = Field(default="", max_length=80)
+    # How the voice-over says words (app/khmer_speech.py): [{word, say}]
+    pronunciations: list[Pronunciation] = Field(default_factory=list, max_length=200)
 
 
 class BrandCreate(BrandBase):
@@ -63,6 +70,7 @@ class BrandUpdate(BaseModel):
     chat_telegram: str | None = Field(default=None, max_length=64)
     chat_messenger: str | None = Field(default=None, max_length=100)
     chat_label: str | None = Field(default=None, max_length=80)
+    pronunciations: list[Pronunciation] | None = Field(default=None, max_length=200)
 
 
 class BrandOut(TimestampsOut, BrandBase):

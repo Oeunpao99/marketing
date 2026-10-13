@@ -535,6 +535,7 @@ def auto_view(db: Session = Depends(get_db), ws: int = Depends(current_workspace
             "brand_name": brands[a.brand_id].name if a.brand_id in brands else "?",
             "brand_lang": brands[a.brand_id].lang if a.brand_id in brands else "",
             "brand_voice": brands[a.brand_id].voice_examples if a.brand_id in brands else "",
+            "brand_pronunciations": (brands[a.brand_id].pronunciations or []) if a.brand_id in brands else [],
             "enabled": a.enabled,
             "run_at": a.run_at.strftime("%H:%M"),
             "videos_per_day": a.videos_per_day,

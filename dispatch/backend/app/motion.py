@@ -30,7 +30,7 @@ import threading
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from PIL import Image
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -1057,7 +1057,31 @@ def _trim_silence(path: Path) -> bytes | None:
     return blob if len(blob) > 1000 else None
 
 
-def add_voice(props: dict, script: dict, voice: str, ws: int | None, user_id: int | None, job_id: int) -> int:
+def spoken_text(say: str, pronunciations: list[dict] | None) -> tuple[str, list[tuple[str, str]]]:
+    """(what the voice reads, its parts) for a line: numbers as Khmer words for
+    Khmer lines, the brand's pronunciation list, and Khmer split into words
+    (zero-width spaces) so Azure times every word. Parts that weren't changed
+    show what's spoken, so remap_words leaves their words alone."""
+    from app.khmer_speech import spoken_parts
+
+    say = (say or "").strip()
+    khmer = any("ក" <= ch <= "៿" for ch in say)
+    pieces = []
+    for shown, spoken in spoken_parts(say, pronunciations, numbers=khmer):
+        said = _km_words(spoken) if any("ក" <= ch <= "៿" for ch in spoken) else spoken
+        pieces.append((said if shown == spoken else shown, said))
+    return "".join(s for _, s in pieces), pieces
+
+
+def add_voice(
+    props: dict,
+    script: dict,
+    voice: str,
+    ws: int | None,
+    user_id: int | None,
+    job_id: int,
+    pronunciations: list[dict] | None = None,
+) -> int:
     """Each scene's spoken line, read by ``voice``: the MP3 goes into the scene
     and the scene lasts as long as its line (never shorter than its
     animation). Best effort — a line that fails just stays silent. Returns
@@ -1083,10 +1107,13 @@ def add_voice(props: dict, script: dict, voice: str, ws: int | None, user_id: in
                 continue
             mark(n, voice="speaking")
             try:
-                # Khmer with zero-width spaces between words: Azure then times
-                # every word, not just each space-separated phrase.
-                text = _km_words(say) if any("ក" <= ch <= "៿" for ch in say) else say
+                # What the voice reads: numbers as Khmer words, the brand's
+                # pronunciations, Khmer split into words so Azure times each one.
+                text, pieces = spoken_text(say, pronunciations)
                 mp3, words = speech.speak_timed(text, voice)
+                from app.khmer_speech import remap_words
+
+                words = remap_words(words, pieces, text)  # subtitles keep "$80", not its Khmer words
             except Exception as exc:  # noqa: BLE001 — a failed line stays silent, the video goes on
                 log.warning("motion %s: voice for scene %s failed: %s", job_id, n + 1, exc)
                 mark(n, voice="skip")
@@ -1361,6 +1388,38 @@ def plan_motion(
     return {"script": script, "target_seconds": seconds, "estimate_seconds": estimate_seconds(script)}
 
 
+class SayIn(BaseModel):
+    brand_id: int
+    text: str = Field(min_length=1, max_length=600)
+    language: str = "Khmer"
+    voice: str = "female"
+
+
+@router.post("/say")
+def say_line(
+    payload: SayIn,
+    db: Session = Depends(get_db),
+    ws: int = Depends(current_workspace_id),
+    user: TeamMember = Depends(get_current_user),
+):
+    """One voice line read aloud (MP3), exactly as the video will say it —
+    the storyboard's ▶ button, to hear a line before the video is made."""
+    from app import speech
+
+    brand = owned(db, Brand, payload.brand_id, ws)
+    narrator = speech.voice_for(payload.language, payload.voice if payload.voice != "none" else "female") if speech.ready() else None
+    if not narrator:
+        raise HTTPException(503, "No voice service is set up on this server.")
+    billing.require(ws, 0.0, db)
+    text, _pieces = spoken_text(payload.text, brand.pronunciations or [])
+    try:
+        mp3, _words = speech.speak_timed(text, narrator)
+    except Exception as exc:  # noqa: BLE001 — the voice service's own message
+        raise HTTPException(502, f"The voice couldn't be made — {exc}") from exc
+    billing.charge(ws, "video", len(payload.text) * speech.PRICE_PER_CHAR, user_id=user.id, model=narrator, note="Voice preview")
+    return Response(content=mp3, media_type="audio/mpeg", headers={"Cache-Control": "no-store"})
+
+
 def checked_script(raw: dict, products: list[Product]) -> dict:
     """A storyboard sent back by the page, cleaned scene by scene like the
     AI's own (lengths, icons, numbers) — the person may have edited it."""
@@ -1518,7 +1577,7 @@ def _make(
 
             narrator = speech.voice_for(language, voice) if speech.ready() else None
             if narrator:
-                add_voice(props, script, narrator, job.workspace_id, job.user_id, job_id)
+                add_voice(props, script, narrator, job.workspace_id, job.user_id, job_id, brand.pronunciations or [])
             _report(job_id, stage="render", render=0.0)
             blob = render(props, job_id)
         except Stopped:
