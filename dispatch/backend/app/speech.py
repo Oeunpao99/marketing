@@ -269,6 +269,9 @@ def _gemini(text: str, voice: str, style: str = "") -> bytes:
     pcm = _trim_tail(pcm)
     done = subprocess.run(
         [imageio_ffmpeg.get_ffmpeg_exe(), "-y", "-loglevel", "error", "-f", "s16le", "-ar", "24000", "-ac", "1", "-i", "pipe:0",
+         # skip Gemini's click at the very start, lower its background hiss, and
+         # fade each end so lines never pop (as the Chumnouykar video script does)
+         "-af", "atrim=start=0.06,asetpts=PTS-STARTPTS,afftdn=nf=-45,afade=in:d=0.03,areverse,afade=in:d=0.08,areverse",
          "-codec:a", "libmp3lame", "-b:a", "128k", "-f", "mp3", "pipe:1"],
         input=pcm,
         capture_output=True,
@@ -279,24 +282,35 @@ def _gemini(text: str, voice: str, style: str = "") -> bytes:
 
 
 def _trim_tail(pcm: bytes, rate: int = 24000) -> bytes:
-    """Gemini's audio without what comes after the last word — it sometimes
-    adds a tail of hiss or a stray noise there. Cut 0.2 s after the last
-    20 ms slice within 26 dB of the loudest one, and fade the last 40 ms out."""
+    """Gemini's audio without the short loud noise it often adds after a gap
+    at the end of a line (from the user's Chumnouykar video script): the last
+    sound is cut when it is short (< 0.6 s), louder than the voice usually is,
+    and comes after a pause — the line then ends in the middle of that pause.
+    Anything else (a real last word) is kept."""
     import array
     import math
 
-    a = array.array("h", pcm[: len(pcm) // 2 * 2])
-    win = rate // 50
-    levels = [math.sqrt(sum(x * x for x in a[i : i + win]) / win) for i in range(0, len(a) - win + 1, win)]
-    if not levels or max(levels) < 1:
+    s = array.array("h", pcm[: len(pcm) // 2 * 2])
+    n = rate // 50  # 20 ms slices
+    db = [20 * math.log10(math.sqrt(sum(x * x for x in s[i : i + n]) / n) / 32768 + 1e-9) for i in range(0, len(s) - n + 1, n)]
+    i = len(db) - 1
+    while i >= 0 and db[i] < -50:  # the silence at the very end
+        i -= 1
+    burst_end = i
+    while i >= 0 and db[i] >= -50:  # the last sound
+        i -= 1
+    if burst_end - i > 30:  # longer than 0.6 s = real speech
         return pcm
-    floor = max(levels) * 10 ** (-26 / 20)
-    last = max(i for i, v in enumerate(levels) if v >= floor)
-    end = min(len(a), (last + 1) * win + rate // 5)
-    fade = min(end, rate // 25)
-    for k in range(fade):
-        a[end - fade + k] = int(a[end - fade + k] * (1 - k / fade))
-    return a[:end].tobytes()
+    speech = sorted(d for d in db[: i + 1] if d >= -50)
+    if not speech or max(db[i + 1 : burst_end + 1]) < speech[len(speech) // 2] + 5:
+        return pcm  # not louder than the voice = a real word
+    quiet = 0
+    while i >= 0 and db[i] < -50:
+        quiet += 1
+        i -= 1
+    if quiet < 5:  # no pause before it = part of the speech
+        return pcm
+    return s[: (i + 1 + quiet // 2) * n].tobytes()
 
 
 def _gemini_retry_after(resp: httpx.Response) -> float | None:

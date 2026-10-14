@@ -2052,8 +2052,9 @@ VOICE_SCRIPT_PROMPT = (
     "RULES:\n"
     "1. ONE STORY, start to end: a moment the viewer knows (a person, a time of day, a feeling) → "
     "what goes wrong → the turn (the product) → how it feels after → what to do now. Each line "
-    "picks up from the one before it (ហើយ, ប៉ុន្តែ, អ៊ីចឹង, ពេលនោះ, ចុះបើ…) — read in order, it must "
-    "sound like one person talking, never separate captions.\n"
+    "follows from the one before it — read in order, it must sound like one person talking, never "
+    "separate captions. A connector (ហើយ, ប៉ុន្តែ, អ៊ីចឹង, ពេលនោះ, ចុះបើ…) starts AT MOST a third of "
+    "the lines; most lines simply carry on from the last thought, the way people really talk.\n"
     "2. TALK ABOUT THEIR LIFE, NOT THE SCREEN: the picture already shows the table, the board, the "
     "apps, the numbers — never describe or list them (\"this table has name, product, status…\"). "
     "Say what it MEANS for the viewer (\"no more scrolling through chats to find who paid\"). At "
@@ -2069,10 +2070,13 @@ VOICE_SCRIPT_PROMPT = (
     "6. Keep every fact, number, price, brand and product name EXACTLY (numbers may stay as "
     "digits). Never add a claim, a number or a feature the drafts don't have. No brackets, "
     "slashes, emoji, lists or abbreviations.\n"
-    "7. Correct Khmer — real words only, each one MEANING what you intend (\"important\" is "
-    "សំខាន់, never ចាំ). When unsure, use the simpler word.\n"
-    "8. Say បង at most twice in the whole narration — never start every line with it, never "
-    "\"បង,\" with a comma.\n"
+    "7. Correct Khmer — real, common words only, each one MEANING what you intend (\"important\" "
+    "is សំខាន់, never ចាំ). Before answering, re-read every line: any word that is rare, misspelt, "
+    "made up or that a market seller wouldn't say — replace it with a plain common word.\n"
+    "8. The viewer is បង — NEVER អ្នក (\"you\") anywhere. Khmer usually needs no \"you\" at all: "
+    "leave it out (\"សន្សំម៉ោងបានច្រើន\", not \"អ្នកសន្សំម៉ោង\"); say បង only 2-3 times in the whole "
+    "narration, never at the start of every line, never \"បង,\" with a comma. អ្នក inside a word "
+    "(អ្នកលក់, អ្នកទិញ) is fine.\n"
     "9. Each line still belongs to its scene (it plays while that scene is shown) and is about "
     "the same length as its draft (±30%).\n"
     'Return JSON {"lines": [...]} — one line per scene, the same number, in the same order.'
@@ -2120,7 +2124,27 @@ def voice_script_khmer(
     new = out.get("lines") if isinstance(out, dict) else None
     if not (isinstance(new, list) and len(new) == len(lines) and all(isinstance(x, str) and x.strip() for x in new)):
         return lines
-    return [_line(_fix_khmer_punctuation(x.strip()), 300) for x in new]
+    return [_line(_bong(_fix_khmer_punctuation(x.strip())), 300) for x in new]
+
+
+# អ្នក as part of a noun (seller, buyer, who, user, …) — never "you"; the rest of
+# the time a voice line's អ្នក is "you", and our viewer is បង (VOICE_SCRIPT_PROMPT rule 8).
+_ANAK_WORDS = (
+    "លក់", "ទិញ", "ប្រើ", "គ្រប់គ្រង", "ជំនាញ", "ណា", "ផ្សេង", "ដទៃ", "ផលិត", "ធ្វើការ", "ស្រុក", "នាំ",
+    "បើកបរ", "ដឹក", "ជិតខាង", "មាន", "ក្រ", "រៀន", "សិក្សា", "និពន្ធ", "បង្កើត", "គាំទ្រ", "ចូលរួម",
+    "មើល", "តាមដាន", "ទទួល", "ផ្គត់ផ្គង់", "វិនិយោគ", "បម្រើ", "ជំនួញ", "អាជីវកម្ម", "ថែទាំ", "ច្នៃ",
+    "រចនា", "ប្រកួត", "ដំណើរ", "ធានា", "កាសែត", "ឧបត្ថម្ភ", "ចាប់ផ្ដើម", "ចាប់ផ្តើម", "នយោបាយ", "ស្ម័គ្រចិត្ត",
+)
+
+
+def _bong(line: str) -> str:
+    """អ្នក meaning "you" → បង; អ្នក in a noun (អ្នកលក់, អ្នកទិញ…) stays."""
+    out, i = [], 0
+    while (j := line.find("អ្នក", i)) >= 0:
+        rest = line[j + 4 :]
+        out.append(line[i:j] + ("អ្នក" if rest.startswith(_ANAK_WORDS) else "បង"))
+        i = j + 4
+    return "".join(out) + line[i:]
 
 
 def _brand_pictures(db: Session, brand_id: int) -> tuple[dict[int, str], list[str], str | None]:
@@ -2331,6 +2355,27 @@ def _cut(path: Path, start: float, end: float) -> bytes | None:
     return blob if len(blob) > 1000 else None
 
 
+def _pauses(path: Path) -> list[float]:
+    """When the voice pauses in a line (seconds, the middle of each pause of
+    0.12 s or more) — the subtitles of a voice without word timings (Gemini)
+    change phrase there, so they follow its real rhythm."""
+    from app.story import _ffmpeg
+
+    try:
+        info = subprocess.run(
+            [_ffmpeg(), "-hide_banner", "-i", str(path), "-af", "silencedetect=n=-38dB:d=0.12", "-f", "null", "-"],
+            capture_output=True,
+            text=True,
+            errors="replace",
+            timeout=60,
+        ).stderr
+    except (subprocess.SubprocessError, OSError):
+        return []
+    starts = [float(x) for x in re.findall(r"silence_start: (-?[\d.]+)", info)]
+    ends = [float(x) for x in re.findall(r"silence_end: ([\d.]+)", info)]
+    return [round((a + b) / 2, 2) for a, b in zip(starts, ends) if a > 0.2]
+
+
 def _trim_silence(path: Path) -> bytes | None:
     """The MP3 without the silence the voice service puts before and after
     the words — None when ffmpeg can't do it (the line is used as it is)."""
@@ -2471,6 +2516,8 @@ def add_voice(
             scene["voiceSeconds"] = round(duration, 2)  # subtitles follow the voice
             if words:
                 scene["words"] = words  # …word by word, when Azure said when each word is
+            else:
+                scene["pauses"] = _pauses(path)  # …else phrase by phrase, at the voice's own pauses
             mark(n, voice="done", seconds=round(duration, 1))
             spoken += len(say)
     if pool:

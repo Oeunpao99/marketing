@@ -161,11 +161,11 @@ function Tag({ text, x, y, color = EX.yellow, delay = 10, size = 64, anchor = 'c
  * phrase appears the moment its first word is spoken; without them the
  * phrases are spread over the line (``seconds``) by how long they take to
  * say. The pill fades in and out; inside it each new phrase fades up. */
-export function Caption({ text, seconds, words, top = 1225 }) {
+export function Caption({ text, seconds, words, pauses, top = 1225 }) {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
   const MAX = 22 // characters per phrase — one line
-  const phrases = words?.length ? fromWords(words, fps, MAX) : fromText(text, seconds, fps, MAX)
+  const phrases = words?.length ? fromWords(words, fps, MAX) : fromText(text, seconds, fps, MAX, pauses)
   if (!phrases.length) return null
   const now = [...phrases].reverse().find((p) => frame >= p.from)
   const last = phrases[phrases.length - 1]
@@ -225,7 +225,7 @@ function fromWords(words, fps, max) {
 /** Phrases spread over the line by how long they take to say — measured in
  * spoken sounds, not characters: Khmer vowel signs and subscripts (្) are
  * part of a syllable, and a comma or full stop is a short pause. */
-function fromText(text, seconds, fps, max) {
+function fromText(text, seconds, fps, max, pauses = []) {
   if (!text) return []
   const pieces = []
   for (const w of String(text).split(' ').filter(Boolean)) {
@@ -240,6 +240,11 @@ function fromText(text, seconds, fps, max) {
       chunks.push(cur.trim())
       cur = p + (gap ? ' ' : '')
     } else cur = next
+    // a comma or full stop ends the phrase, so a break falls where the voice breathes
+    if (/[,.!?។៕]$/.test(clean(p)) && clean(cur).trim().length >= 8) {
+      chunks.push(cur.trim())
+      cur = ''
+    }
   }
   if (cur.trim()) chunks.push(cur.trim())
   const weight = (c) => {
@@ -249,13 +254,24 @@ function fromText(text, seconds, fps, max) {
   }
   const span = Math.max(1, (seconds || 3) * fps)
   const total = chunks.reduce((n, c) => n + weight(c), 0) || 1
+  // where each phrase would start by its length — then moved onto the voice's
+  // own pause nearest to it (app/motion.py _pauses), when there is one close by
+  const starts = [0]
   let at = 0
+  chunks.slice(0, -1).forEach((c) => {
+    at += (weight(c) / total) * span
+    let best = at
+    for (const p of pauses || []) {
+      const f = p * fps
+      if (Math.abs(f - at) < Math.abs(best - at) && Math.abs(f - at) < 0.6 * fps && f > starts[starts.length - 1] + 0.5 * fps) best = f
+    }
+    starts.push(best)
+  })
+  const snapped = (pauses || []).length > 0
   return chunks.map((c, i) => {
-    const len = (weight(c) / total) * span
-    const item = { c: clean(c), from: Math.max(0, Math.round(at) - LEAD - 5), to: 0 }
-    at += len
-    item.to = i === chunks.length - 1 ? Math.round(at + 0.4 * fps) : Math.round(at) - LEAD - 5
-    return item
+    const from = i ? Math.round(starts[i]) - (snapped ? 0 : LEAD + 5) : 0
+    const to = i < chunks.length - 1 ? Math.round(starts[i + 1]) - (snapped ? 0 : LEAD + 5) : Math.round(span + 0.4 * fps)
+    return { c: clean(c), from: Math.max(0, from), to }
   })
 }
 
