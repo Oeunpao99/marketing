@@ -128,6 +128,43 @@ def _male() -> str:
     return get_settings().tts_voice_male
 
 
+def _azure_hd(text: str, voice: str) -> bytes:
+    """An Azure HD / multilingual voice reading Khmer — they list km-KH as a
+    second language; the <lang> tag tells them to speak it."""
+    from xml.sax.saxutils import escape
+
+    lang = "-".join(voice.split(":")[0].split("-")[:2])
+    ssml = (
+        f"<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='{lang}'>"
+        f"<voice name='{voice}'><lang xml:lang='km-KH'>{escape(text)}</lang></voice></speak>"
+    )
+    s = get_settings()
+    r = httpx.post(
+        f"https://{s.azure_speech_region}.tts.speech.microsoft.com/cognitiveservices/v1",
+        content=ssml.encode("utf-8"),
+        headers={
+            "Ocp-Apim-Subscription-Key": s.azure_speech_key,
+            "Content-Type": "application/ssml+xml",
+            "X-Microsoft-OutputFormat": "audio-24khz-96kbitrate-mono-mp3",
+            "User-Agent": "contentflow",
+        },
+        timeout=90,
+    )
+    r.raise_for_status()
+    return r.content
+
+
+HD_VOICES = {
+    "hd-ava": ("Azure HD · Ava (female)", "en-US-Ava:DragonHDLatestNeural"),
+    "hd-andrew": ("Azure HD · Andrew (male)", "en-US-Andrew:DragonHDLatestNeural"),
+    "hd-omni-ava": ("Azure HD Omni · Ava (female, preview)", "en-us-ava:DragonHDOmniLatestNeural"),
+    "hd-omni-brian": ("Azure HD Omni · Brian (male, preview)", "en-US-Brian:DragonHDOmniLatestNeural"),
+    "hd-xiaochen": ("Azure HD · Xiaochen (female)", "zh-CN-Xiaochen:DragonHDLatestNeural"),
+    "multi-serena": ("Azure Multilingual · Serena (female)", "en-US-SerenaMultilingualNeural"),
+    "multi-andrew": ("Azure Multilingual · Andrew (male)", "en-US-AndrewMultilingualNeural"),
+}
+
+
 # id → (label, audio type, make(text, request))
 VOICES = {
     "you-piseth": ("Your voice · from Piseth", "audio/mpeg", _yours(lambda t, p: _azure_styled(t, "km-KH-PisethNeural", p.style))),
@@ -140,6 +177,9 @@ VOICES = {
     "mms-finetuned": ("Open-source MMS · fine-tuned", "audio/mpeg", lambda t, p: _mms_finetuned(t)),
     "mms-meta": ("Open-source MMS · Meta (port 8010)", "audio/wav", lambda t, p: _mms_meta(t)),
 }
+for _id, (_label, _voice) in HD_VOICES.items():
+    VOICES[_id] = (_label, "audio/mpeg", lambda t, p, v=_voice: _azure_hd(t, v))
+
 
 
 class SayIn(BaseModel):
