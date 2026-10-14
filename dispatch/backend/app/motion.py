@@ -255,7 +255,9 @@ _COMMON_RULES = (
     "\n"
     "VOICE-OVER: every scene has `say` — one or two natural spoken sentences, 12-22 words, "
     "that add to what is on screen (also shown as subtitles). Together the lines tell one "
-    "story, each leading into the next. Same language.\n"
+    "story, each leading into the next — one person talking to a friend about a moment they "
+    "know, never a feature list and never a description of the screen (the picture already "
+    "shows it; say what it means for them). Same language.\n"
     "\n"
     "LANGUAGE: write in the LANGUAGE given. Khmer: everyday spoken Khmer — short common "
     "words, correct spelling, address the viewer as បង (never អ្នក), brand / product names in "
@@ -1580,9 +1582,10 @@ def write_script(
             obj[key] = _line(_fix_khmer_punctuation(value), n)
         # every spoken line rewritten to be heard, not read (story mode: a light touch)
         spoken = [s for s in script["scenes"] if s.get("say")]
+        shows = [screen for screen, _ in script_lines({"scenes": spoken})]
         for s, line in zip(
             spoken,
-            voice_script_khmer([s["say"] for s in spoken], model, [brand.name, *(p.name for p in products)], brand.voice_examples or "", own=story),
+            voice_script_khmer([s["say"] for s in spoken], model, [brand.name, *(p.name for p in products)], brand.voice_examples or "", own=story, shows=shows),
         ):
             s["say"] = line
         _report(job_id, stage="pictures", scenes=_board(script))
@@ -1673,36 +1676,38 @@ def _data_uri(blob: bytes, max_side: int, keep_alpha: bool = False) -> str | Non
 
 # ── The voice script: every Khmer voice line rewritten to be SPOKEN ────────
 VOICE_SCRIPT_PROMPT = (
-    "You are a Cambodian voice-over director and scriptwriter. The lines below are read aloud by "
-    "an AI voice over a short video — viewers HEAR them, they don't read them. Rewrite each line "
-    "so it sounds like a real Cambodian presenter talking to one person on camera — natural, "
-    "warm, alive — never like written text read out.\n"
+    "You are a Cambodian storyteller and voice-over writer. Below is a short video: for each scene, "
+    "what the viewer SEES on screen and a DRAFT of what the narrator says. The drafts sound robotic — "
+    "a feature list read out, each line on its own. Rewrite the narration as ONE story told by one "
+    "real person talking to a friend — natural, warm, alive. Viewers HEAR it; they don't read it.\n"
     "\n"
     "RULES:\n"
-    "1. Spoken Khmer, not written Khmer: the words a Phnom Penh presenter actually says. Address "
-    "the viewer as បង. Drop formal, bookish constructions (stacked ការ… nouns, នៃ, ដែលជា, "
-    "ក្នុងការ…, long noun chains) for the plain spoken way of saying it.\n"
-    "2. It is a STORY told by one person, not a list of facts: sentences that flow into each "
-    "other with spoken connectors, mostly 8-18 words, 1-3 per line — mix a longer sentence with "
-    "a short punchy one. Never a run of tiny fragments; that sounds like a robot.\n"
-    "3. Write it the way good Khmer is written: words joined, a SPACE only where a written "
-    "sentence naturally pauses — between clauses, about every 6-12 words — never every few "
-    "words. End every sentence with ។, use ! only where the voice should lift with energy and ? "
-    "only for a real question (\"…មែនទេ?\").\n"
-    "4. Spoken connectors and particles where they fit naturally (ហើយ, ប៉ុន្តែ, ព្រោះ, អ៊ីចឹង, "
-    "ណា, ហ្នឹង) — not in every line, never forced.\n"
-    "5. The lines are ONE narration: each leads into the next; no line repeats the previous one.\n"
+    "1. ONE STORY, start to end: a moment the viewer knows (a person, a time of day, a feeling) → "
+    "what goes wrong → the turn (the product) → how it feels after → what to do now. Each line "
+    "picks up from the one before it (ហើយ, ប៉ុន្តែ, អ៊ីចឹង, ពេលនោះ, ចុះបើ…) — read in order, it must "
+    "sound like one person talking, never separate captions.\n"
+    "2. TALK ABOUT THEIR LIFE, NOT THE SCREEN: the picture already shows the table, the board, the "
+    "apps, the numbers — never describe or list them (\"this table has name, product, status…\"). "
+    "Say what it MEANS for the viewer (\"no more scrolling through chats to find who paid\"). At "
+    "most one feature named per line.\n"
+    "3. Spoken Khmer, not written Khmer: the words a Phnom Penh presenter actually says. Drop "
+    "formal, bookish constructions (stacked ការ… nouns, នៃ, ដែលជា, ក្នុងការ…, long noun chains). "
+    "Particles where they fit (ណា, ហ្នឹង, ទេ, មែនទេ) — never forced.\n"
+    "4. Sentences that flow: mostly 8-18 words, 1-3 per line; somewhere one short punchy line (3-6 "
+    "words) and one real question to the viewer. Never a run of tiny fragments.\n"
+    "5. Written the way good Khmer is written: words joined, a SPACE only where a sentence "
+    "naturally pauses — between clauses, about every 6-12 words. End every sentence with ។, ! only "
+    "where the voice lifts, ? only for a real question.\n"
     "6. Keep every fact, number, price, brand and product name EXACTLY (numbers may stay as "
-    "digits — they are spoken correctly later). Never add claims. No brackets, slashes, emoji, "
-    "lists or abbreviations.\n"
-    "7. Correct Khmer — real words only, and check each word MEANS what you intend (e.g. "
-    "\"important\" is សំខាន់, never ចាំ). When unsure, keep the original word.\n"
-    "8. Keep every idea of the original line and add NONE — shorten the words, never drop a "
-    "point, never add advice or a sentence that wasn't there.\n"
-    "9. Say បង at most once or twice in the whole narration — never start every line with it, "
-    "and never \"បង,\" with a comma.\n"
-    "10. About the same length as the original (±20%).\n"
-    'Return JSON {"lines": [...]} — the same number of lines, in the same order.'
+    "digits). Never add a claim, a number or a feature the drafts don't have. No brackets, "
+    "slashes, emoji, lists or abbreviations.\n"
+    "7. Correct Khmer — real words only, each one MEANING what you intend (\"important\" is "
+    "សំខាន់, never ចាំ). When unsure, use the simpler word.\n"
+    "8. Say បង at most twice in the whole narration — never start every line with it, never "
+    "\"បង,\" with a comma.\n"
+    "9. Each line still belongs to its scene (it plays while that scene is shown) and is about "
+    "the same length as its draft (±30%).\n"
+    'Return JSON {"lines": [...]} — one line per scene, the same number, in the same order.'
 )
 VOICE_SCRIPT_LIGHT = (
     "\n\nTHESE ARE THE PERSON'S OWN SCRIPT LINES: keep their meaning, their order and as much of "
@@ -1711,10 +1716,12 @@ VOICE_SCRIPT_LIGHT = (
 )
 
 
-def voice_script_khmer(lines: list[str], model: str, keep: list[str], voice_examples: str = "", own: bool = False) -> list[str]:
-    """The Khmer voice lines rewritten to be heard — spoken words, short
-    sentences, breaths marked (VOICE_SCRIPT_PROMPT). Best effort: on any
-    failure the lines are kept as they were."""
+def voice_script_khmer(
+    lines: list[str], model: str, keep: list[str], voice_examples: str = "", own: bool = False, shows: list[str] | None = None
+) -> list[str]:
+    """The Khmer voice lines rewritten as one spoken story (VOICE_SCRIPT_PROMPT)
+    — ``shows`` is what each line's scene puts on screen, so the narration
+    stops describing it. Best effort: on any failure the lines are kept."""
     from app.content_ai import ContentAIError, _chat, _fix_khmer_punctuation
 
     if not lines:
@@ -1726,7 +1733,16 @@ def voice_script_khmer(lines: list[str], model: str, keep: list[str], voice_exam
         system += "\n\nHow this brand talks (its real posts — tone only):\n---\n" + voice_examples.strip()[:2000] + "\n---"
     try:
         out = _chat(
-            [{"role": "system", "content": system}, {"role": "user", "content": json.dumps({"lines": lines}, ensure_ascii=False)}],
+            [
+                {"role": "system", "content": system},
+                {
+                    "role": "user",
+                    "content": json.dumps(
+                        {"scenes": [{"shows": sh, "draft": line} for sh, line in zip(shows, lines)]} if shows and len(shows) == len(lines) else {"lines": lines},
+                        ensure_ascii=False,
+                    ),
+                },
+            ],
             model,
             max_tokens=24000,
             effort="high",  # meaning and spelling matter more than speed here
