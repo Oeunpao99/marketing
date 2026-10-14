@@ -88,14 +88,15 @@ function TemplateCard({ t, onUse }) {
         onPlaying={() => setPlaying(true)}
         className={`absolute inset-0 h-full w-full object-cover object-top transition-opacity duration-300 ${playing ? 'opacity-100' : 'opacity-0'}`}
       />
-      <span className="pointer-events-none absolute left-2.5 top-2.5 flex flex-wrap gap-1 pr-2.5 transition-opacity duration-200 group-hover:opacity-0">
-        {t.goals.map((g) => (
-          <span key={g} className={`rounded-full px-2 py-0.5 text-[10px] font-semibold shadow-sm ${STAGES[GOALS[g].stage].chip}`}>
-            {GOALS[g].label}
-          </span>
-        ))}
-      </span>
       <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-3 pb-3 pt-16">
+        {/* the goals sit with the name — at the top they covered the preview's own brand pill */}
+        <span className="mb-1.5 flex flex-wrap gap-1">
+          {t.goals.map((g) => (
+            <span key={g} className={`rounded-full px-2 py-0.5 text-[10px] font-semibold shadow-sm ${STAGES[GOALS[g].stage].chip}`}>
+              {GOALS[g].label}
+            </span>
+          ))}
+        </span>
         <span className="block text-[14px] font-semibold text-white">{t.name}</span>
         <span className="grid grid-rows-[0fr] transition-[grid-template-rows] duration-200 group-hover:grid-rows-[1fr] group-focus-visible:grid-rows-[1fr]">
           <span className="overflow-hidden">

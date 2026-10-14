@@ -1,0 +1,73 @@
+{
+ "brand": {
+  "name": "ContentFlow",
+  "color": "#1F4E8C",
+  "logo": null
+ },
+ "style": "training",
+ "frame": 40,
+ "scenes": [
+  {
+   "type": "checklist",
+   "title": "Before every call",
+   "checks": [
+    "Read the customer's last message",
+    "Check stock and price",
+    "Have one clear next step"
+   ]
+  }
+ ],
+ "clip": [
+  {
+   "type": "hook",
+   "text": "Sales ⟦excellence⟧ in 5 habits",
+   "sub": "Team training · 10 minutes",
+   "icon": "GraduationCap"
+  },
+  {
+   "type": "chapter",
+   "n": 1,
+   "of": 3,
+   "title": "Reply ⟦fast⟧",
+   "text": "Why the first 5 minutes decide the sale"
+  },
+  {
+   "type": "checklist",
+   "title": "Before every call",
+   "checks": [
+    "Read the customer's last message",
+    "Check stock and price",
+    "Have one clear next step"
+   ]
+  },
+  {
+   "type": "beforeafter",
+   "title": "Follow-up",
+   "before": "Wait for the customer to come back",
+   "after": "Message them the next day with one question"
+  },
+  {
+   "type": "recap",
+   "title": "What to remember",
+   "points": [
+    {
+     "title": "Reply fast",
+     "text": "Within 5 minutes"
+    },
+    {
+     "title": "Listen first",
+     "text": "Ask before you pitch"
+    },
+    {
+     "title": "Always follow up",
+     "text": "Next day, one question"
+    }
+   ]
+  },
+  {
+   "type": "cta",
+   "text": "Sales excellence is built ⟦one action⟧ at a time.",
+   "button": "Start today"
+  }
+ ]
+}
