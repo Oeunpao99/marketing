@@ -1,5 +1,5 @@
 // Brand kit — the logo, product photos and poster templates the image AI
-// builds on (backend app/brand_kit.py). Managed on the Products page; picked
+// builds on, and the app screenshots the Remotion videos show (backend app/brand_kit.py). Managed on the Products page; picked
 // from in the AI Agent's image composer and Auto-generate's image settings.
 import { useRef, useState } from 'react'
 import { FiCamera, FiCheck, FiImage, FiPlus, FiTrash2, FiUploadCloud } from 'react-icons/fi'
@@ -49,6 +49,7 @@ function FilePick({ multiple = false, onFiles, children }) {
 export function BrandKitPanel({ brand, assets, setAssets, showToast }) {
   const logo = assets.find((a) => a.kind === 'logo' && a.brand_id === brand.id)
   const templates = assets.filter((a) => a.kind === 'template' && a.brand_id === brand.id)
+  const screens = assets.filter((a) => a.kind === 'screenshot' && a.brand_id === brand.id)
 
   const add = async (files, kind) => {
     for (const file of files) {
@@ -60,7 +61,8 @@ export function BrandKitPanel({ brand, assets, setAssets, showToast }) {
         return
       }
     }
-    showToast(kind === 'logo' ? 'Logo saved' : files.length > 1 ? `${files.length} templates added` : 'Template added')
+    const what = kind === 'screenshot' ? 'screenshot' : 'template'
+    showToast(kind === 'logo' ? 'Logo saved' : files.length > 1 ? `${files.length} ${what}s added` : `${what[0].toUpperCase()}${what.slice(1)} added`)
   }
 
   const remove = async (a) => {
@@ -151,22 +153,53 @@ export function BrandKitPanel({ brand, assets, setAssets, showToast }) {
           </div>
         )}
       </section>
+
+      {/* app screenshots — shown, zoomed and clicked in the motion videos */}
+      <section className="card p-5 lg:col-span-2">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-[14.5px] font-semibold text-ink-900">App screenshots</h2>
+            <p className="mt-0.5 max-w-[70ch] text-[12px] leading-relaxed text-ink-500">
+              Screens of your app, website or the platform you build on. Videos show them for real — zoom to the part that
+              matters and click it — instead of a drawn screen. The AI notes what each one shows; edit the note if it’s off.
+            </p>
+          </div>
+          <FilePick multiple onFiles={(f) => add(f, 'screenshot')}>
+            {(open, busy) => (
+              <button type="button" onClick={open} disabled={busy || screens.length >= 12} className="btn-outline flex-none">
+                <FiPlus size={14} /> {busy ? 'Reading the screen…' : 'Add screenshots'}
+              </button>
+            )}
+          </FilePick>
+        </div>
+        {screens.length === 0 ? (
+          <div className="mt-4 rounded-xl border border-dashed border-ink-200 px-4 py-10 text-center text-[12.5px] text-ink-400">
+            No screenshots yet. Add 2–6 clear screens — a form, a dashboard, the result a customer sees.
+          </div>
+        ) : (
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {screens.map((t) => (
+              <TemplateCard key={t.id} t={t} wide onPatch={(b) => patch(t, b)} onRemove={() => remove(t)} />
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   )
 }
 
-function TemplateCard({ t, onPatch, onRemove }) {
+function TemplateCard({ t, wide = false, onPatch, onRemove }) {
   const [name, setName] = useState(t.name)
   const [note, setNote] = useState(t.note)
   return (
     <div className="overflow-hidden rounded-xl border border-ink-100">
-      <div className="relative aspect-[3/4] bg-ink-50">
-        <img src={kitSrc(t.url)} alt={t.name} className="h-full w-full object-cover" />
+      <div className={`relative bg-ink-50 ${wide ? 'aspect-video' : 'aspect-[3/4]'}`}>
+        <img src={kitSrc(t.url)} alt={t.name} className={`h-full w-full ${wide ? 'object-contain' : 'object-cover'}`} />
         <button
           type="button"
           onClick={onRemove}
           className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-lg bg-night-900/60 text-white hover:bg-red-600"
-          aria-label="Remove template"
+          aria-label={wide ? 'Remove screenshot' : 'Remove template'}
         >
           <FiTrash2 size={13} />
         </button>
@@ -185,7 +218,7 @@ function TemplateCard({ t, onPatch, onRemove }) {
           value={note}
           onChange={(e) => setNote(e.target.value)}
           onBlur={() => note !== t.note && onPatch({ note })}
-          placeholder="What to keep (optional) — e.g. blue background, headline top-right, flat illustration"
+          placeholder={wide ? 'What this screen shows — e.g. the leave request form with a Submit button' : 'What to keep (optional) — e.g. blue background, headline top-right, flat illustration'}
           className="w-full rounded-lg border border-ink-200 bg-white px-2.5 py-1.5 text-[11.5px] text-ink-700 placeholder:text-ink-300 focus:border-brand focus:outline-none"
         />
       </div>

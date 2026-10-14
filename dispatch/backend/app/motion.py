@@ -371,6 +371,28 @@ TESTIMONIAL_PROMPT = (
     + '{"scenes": [{"type": "hook", "text": "...", "icon": "Heart", "say": "..."}, ...]}'
 )
 
+# How SaaS product videos are made — shared by "Designed for you" and Product demo.
+_SAAS_CRAFT = (
+    "HOW GREAT SAAS VIDEOS WORK (follow it):\n"
+    "1. PRODUCT-LED — the product (or the tool the brief is about) is the hero. At least HALF of "
+    "the scenes SHOW it working (screen, step, flow, dashboard) instead of talking about it.\n"
+    "2. ONE CLEAR TRANSFORMATION — a specific painful moment before, a specific outcome after. "
+    "Name the job to be done (\"approve leave in 2 minutes\"), never a vague promise (\"boost "
+    "productivity\").\n"
+    "3. RHYTHM — never two scenes of the same type in a row (steps excepted); alternate a busy "
+    "scene (screen, flow, dashboard, notify) with a light one (hook, reveal, stat); one idea per "
+    "scene.\n"
+    "4. COPY THAT READS LIKE SOFTWARE — titles are short labels, like UI (\"Auto-approve rules\", "
+    "\"Live leave calendar\"): a verb or a concrete noun, specific numbers and times, max 7 words "
+    "on screen. The voice explains; the screen shows. NEVER use: innovative, seamless, "
+    "revolutionary, cutting-edge, game-changer, unlock, leverage, empower, synergy, solution(s), "
+    "next-level, all-in-one.\n"
+    "5. REAL NAMES — the real product, platform and UI names from the brief and the product "
+    "information (\"Power Apps form\", \"approval in Teams\", \"SharePoint list\"), never generic "
+    "\"the app\" when a name is known.\n"
+)
+
+
 # ── SaaS / AI templates (motion/src/saas.jsx) — one dark "AI" look ────────
 TREND_TYPES = ("hook", "news", "list", "stat", "cta")
 TREND_PROMPT = (
@@ -433,7 +455,7 @@ POV_PROMPT = (
     + '{"scenes": [{"type": "hook", "text": "POV: ...", "icon": "Smartphone", "say": "..."}, ...]}'
 )
 
-DEMO_TYPES = ("hook", "problem", "step", "chat", "stat", "list", "cta")
+DEMO_TYPES = ("hook", "problem", "step", "screen", "flow", "dashboard", "chat", "stat", "list", "cta")
 DEMO_PROMPT = (
     "You are the best short-form product storyteller in Cambodia. You plan a vertical "
     "REMOTION VIDEO (TikTok / Facebook Reels, about 50-60 s) that shows a SOLUTION working: "
@@ -453,15 +475,27 @@ DEMO_PROMPT = (
     "- hook: text (max 10 words), icon.\n"
     "- problem: icon, title (2-5 words), text (max 10 words), count (an illustrative number for "
     "a badge, or 0).\n"
+    "- screen: shot (the screenshot's number — only from THE BRAND'S SCREENSHOTS), title (max 7 "
+    "words), target (in ENGLISH: the ONE element to point at, e.g. \"the Submit button\"), action "
+    "(\"click\" | \"highlight\"), result (max 6 words, optional) — the real product screen; prefer it "
+    "to a drawn `step` when a screenshot shows that step.\n"
     "- step: title (max 7 words — the action, e.g. \"Connect your [Facebook Page]\"), text "
     "(max 12 words — what happens), icon, result (max 6 words — what the app shows when "
     "done, e.g. \"Page connected\").\n"
+    "- flow: title (max 6 words), nodes: 3-4 x {\"icon\", \"label\": 2-5 words, \"sub\": the app, "
+    "optional} — how work or data moves between apps.\n"
+    "- dashboard: title (optional), metrics: 2-3 x {\"label\", \"value\", \"prefix\", \"suffix\", "
+    "\"delta\"}, chart: \"line\" | \"bars\" — the product's live screen with small, believable SAMPLE "
+    "data (never presented as a customer's results).\n"
     "- chat: title (max 7 words), messages: 3-4 x {\"from\": \"customer\"|\"brand\", \"text\": "
     "max 12 words}.\n"
     "- stat: value, prefix, suffix, label (max 6 words), icon — only a TRUE number.\n"
     "- list: title (max 6 words), items: 3 x {\"icon\", \"text\": 2-6 words}.\n"
     "- cta: text (max 9 words), button (2-4 words).\n"
     "Only features the product information supports — never invent one.\n"
+    "\n"
+    + _SAAS_CRAFT
+    + "\n"
     + _COMMON_RULES
     + '{"scenes": [{"type": "hook", "text": "...", "icon": "LayoutDashboard", "say": "..."}, ...]}'
 )
@@ -496,6 +530,235 @@ OFFER_PROMPT = (
     + '{"scenes": [{"type": "hook", "text": "...", "icon": "BadgePercent", "say": "..."}, ...]}'
 )
 
+# ── "Designed for you" (style "custom", motion/src/saas.jsx customTemplate) ──
+# The AI picks the look for THIS video and composes the story from the scene
+# kit — including the brand's real screenshots (Brand kit "screenshot").
+CUSTOM_TYPES = ("hook", "notify", "reveal", "screen", "step", "flow", "dashboard", "list", "stat", "news", "offer", "cta")
+
+CUSTOM_PROMPT = (
+    "You are the creative director of a top SaaS video studio — the clean, confident launch "
+    "videos of Linear, Notion, Stripe or Microsoft Power Platform — making videos for Cambodian "
+    "businesses. You design ONE vertical REMOTION VIDEO (TikTok / Facebook Reels, 45-60 s): "
+    "animated product UI, no actors. You choose the LOOK for this exact topic and compose the "
+    "story from a kit of animated scenes. Videos must not all look alike — the look comes from "
+    "the SUBJECT, while the brand's logo, voice and subtitles stay the same.\n"
+    "\n"
+    "THE LOOK — return \"look\": {\"mode\": \"dark\" | \"light\", \"bg\": \"#RRGGBB\", \"a\": \"#RRGGBB\" "
+    "(the main accent — vivid, readable on bg), \"b\": \"#RRGGBB\" (a second accent for "
+    "gradients), \"background\": \"grid\" | \"dots\" | \"glow\" | \"clean\", \"kicker\": the product "
+    "category in English, 1-3 words (\"POWER APPS\", \"AUTOMATION\", \"CRM\") or \"\"}.\n"
+    "SaaS looks: dark navy / charcoal (bg like #070B16) with ONE vivid accent — or clean light "
+    "(bg like #F7F8FC) with a strong accent. When the brief names a platform, use its real "
+    "colour: Power Apps #742774, Power Automate #0066FF, Power BI #F2C811 (on dark), Microsoft "
+    "Teams #6264A7, Excel #217346, Salesforce #00A1E0, Shopify #95BF47 — else the brand's own "
+    "feel. background: grid for tech and automation, dots for a clean product, glow for warm "
+    "human stories, clean for minimal.\n"
+    "\n"
+    + _SAAS_CRAFT
+    + "\n"
+    "THE STORY (8-10 scenes):\n"
+    "1. hook — the outcome or the pain, specific (a number, a time, a role): \"Approving leave "
+    "still takes [3 days]?\"\n"
+    "2. the pain made visible — `notify` (the inbox / phone filling up).\n"
+    "3. the turn — `reveal` that names the product: \"Meet [Power Apps]\", \"There's a [2-minute] "
+    "way\".\n"
+    "4-6. how it works, 2-3 beats — `screen` (a real screenshot) wherever one fits, else `step`; "
+    "a `flow` when the value is automation (work or data moving between apps).\n"
+    "7. the outcome — `dashboard` (the product's live view) or `stat` (a TRUE number).\n"
+    "8. what you get — `list` of 3 concrete features, in UI words.\n"
+    "last. cta — ONE action: \"Book a demo\", \"Start free\", \"Message us 'DEMO'\".\n"
+    "\n"
+    "SCENE TYPES and their fields:\n"
+    "- hook: text (max 9 words; never the brand name, a greeting or \"Did you know\"), icon.\n"
+    "- notify: title (max 7 words, optional), time (\"23:47\", optional), notes: 3-4 x "
+    "{\"app\": \"Outlook\" | \"Messenger\" | \"Telegram\" | \"Teams\" | \"Mail\", \"text\": max 8 words}.\n"
+    "- reveal: text (max 8 words), icon.\n"
+    "- screen: shot (the screenshot's number — only from THE BRAND'S SCREENSHOTS), title (max 6 "
+    "words), text (max 10 words, optional), target (in ENGLISH: the ONE element to point at, e.g. "
+    "\"the Submit button\" — or \"\" for the whole screen), action (\"click\" | \"highlight\"), result "
+    "(max 5 words — what happens, optional).\n"
+    "- step: title (max 6 words — the action), text (max 12 words), icon, result (max 5 words) — "
+    "a drawn app window, for a beat no screenshot shows.\n"
+    "- flow: title (max 6 words), nodes: 3-4 x {\"icon\", \"label\": 2-5 words — what happens, "
+    "\"sub\": the app or tool, 1-3 words, optional} — how work or data moves (form → approval → "
+    "Teams → SharePoint).\n"
+    "- dashboard: title (max 6 words, optional), metrics: 2-3 x {\"label\": 1-3 words like a UI "
+    "card (\"Requests today\"), \"value\": number, \"prefix\", \"suffix\", \"delta\": e.g. \"+18%\" or "
+    "\"\"}, chart: \"line\" | \"bars\". It is the product's screen with SAMPLE data of a demo account "
+    "— keep numbers small and believable, never present them as a customer's results.\n"
+    "- list: title (max 6 words), items: 3 x {\"icon\", \"text\": 2-5 words}.\n"
+    "- stat: value (a number), prefix, suffix, label (max 6 words), icon — ONLY a true number.\n"
+    "- news: tag, headline (max 14 words), text (max 16 words) — only a real, widely known trend.\n"
+    "- offer: plan, price, period, was, badge, features: 3 x 2-5 words — ONLY when the brief or the "
+    "product information gives an offer; never invent a price or a discount.\n"
+    "- cta: text (max 8 words, pays off the hook), button (2-4 words).\n"
+    "Real screenshots beat drawn screens: when THE BRAND'S SCREENSHOTS show what a beat needs, "
+    "use them (1-3 `screen` scenes).\n"
+    + _COMMON_RULES
+    + '{"look": {"mode": "dark", "bg": "#0B0714", "a": "#742774", "b": "#C239B3", "background": "grid", '
+    '"kicker": "POWER APPS"}, "scenes": [{"type": "hook", "text": "...", "icon": "Mail", "say": "..."}, ...]}'
+)
+
+_HEX = re.compile(r"#[0-9a-fA-F]{6}")
+
+
+def _lum(hex_: str) -> float:
+    def lin(c: float) -> float:
+        return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+
+    r, g, b = (int(hex_[i : i + 2], 16) / 255 for i in (1, 3, 5))
+    return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+
+
+def _contrast(x: str, y: str) -> float:
+    hi, lo = sorted((_lum(x), _lum(y)), reverse=True)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+def clean_look(raw, brand_hex: str) -> dict:
+    """The AI's look, made safe: a background that is really dark / light and
+    accents that stay readable on it (else the brand colour, else a default)."""
+    raw = raw if isinstance(raw, dict) else {}
+    mode = "light" if raw.get("mode") == "light" else "dark"
+    hexes = {k: str(raw.get(k) or "") for k in ("bg", "a", "b")}
+    bg = hexes["bg"] if _HEX.fullmatch(hexes["bg"]) else ""
+    if not bg or (mode == "dark" and _lum(bg) > 0.04) or (mode == "light" and _lum(bg) < 0.82):
+        bg = "#0A0F1F" if mode == "dark" else "#F8FAFC"
+
+    def accent(value: str, fallback: str, need: float) -> str:
+        for c in (value, brand_hex, fallback):
+            if _HEX.fullmatch(c or "") and _contrast(c, bg) >= need:
+                return c
+        return fallback
+
+    a = accent(hexes["a"], "#6366F1" if mode == "dark" else "#4338CA", 3.0)
+    b = accent(hexes["b"], a, 2.0)
+    background = raw.get("background") if raw.get("background") in ("grid", "glow", "dots", "clean") else "glow"
+    return {"mode": mode, "bg": bg, "a": a, "b": b, "background": background, "kicker": _line(raw.get("kicker"), 20).upper()}
+
+
+# The brand's app / product screenshots — shown (and zoomed into) by `screen` scenes.
+MAX_SHOTS = 8
+
+
+def brand_screens(db: Session, brand_id: int) -> list[dict]:
+    """[{id, name, note, uri, w, h}] — the Brand kit's screenshots, oldest
+    first (their numbers in the prompt), embedded and sized for the video."""
+    rows = db.scalars(
+        select(BrandAsset).where(BrandAsset.brand_id == brand_id, BrandAsset.kind == "screenshot").order_by(BrandAsset.id)
+    ).all()[:MAX_SHOTS]
+    out = []
+    for a in rows:
+        try:
+            im = Image.open(io.BytesIO(read_media(a.url) or b""))
+            im.thumbnail((1600, 1600))
+            buf = io.BytesIO()
+            im.convert("RGB").save(buf, "JPEG", quality=90)
+        except Exception:  # noqa: BLE001 — an unreadable upload is just left out
+            continue
+        uri = "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
+        out.append({"id": a.id, "name": a.name, "note": a.note, "uri": uri, "w": im.width, "h": im.height})
+    return out
+
+
+def _shots_prompt(shots: list[dict]) -> str:
+    if not shots:
+        return "\n\nTHE BRAND'S SCREENSHOTS: none — don't use `screen` scenes."
+    lines = [f"{i}. {s['name'] or 'Screenshot'}" + (f" — {s['note']}" if s.get("note") else "") for i, s in enumerate(shots, 1)]
+    return "\n\nTHE BRAND'S SCREENSHOTS (a `screen` scene shows one by its number):\n" + "\n".join(lines)
+
+
+def _vision_model() -> str:
+    cfg = get_settings()
+    return cfg.azure_openai_vision_deployment or cfg.azure_openai_deployment
+
+
+def describe_screen(blob: bytes) -> str:
+    """One line on what a screenshot shows (the Brand kit's note, so the
+    storyboard knows when to use it). "" when the AI can't tell."""
+    from app.content_ai import ContentAIError, _chat
+
+    try:
+        im = Image.open(io.BytesIO(blob))
+        im.thumbnail((1280, 1280))
+        buf = io.BytesIO()
+        im.convert("RGB").save(buf, "JPEG", quality=85)
+        out = _chat(
+            [
+                {
+                    "role": "system",
+                    "content": "You describe app / website screenshots for a video storyboard writer. In one "
+                    "sentence (max 25 words): which product or app it is if you can tell, which screen, and its "
+                    'main buttons or areas. Return JSON {"note": "..."}.',
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "Describe this screenshot."},
+                        {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()}},
+                    ],
+                },
+            ],
+            _vision_model(),
+            max_tokens=2000,
+        )
+    except (ContentAIError, OSError, ValueError):
+        return ""
+    return _line(out.get("note"), 300)
+
+
+def _box(value) -> list[float] | None:
+    """[x, y, w, h] as fractions of the picture, or None when it isn't one."""
+    if not isinstance(value, list) or len(value) != 4:
+        return None
+    try:
+        x, y, w, h = (float(v) for v in value)
+    except (TypeError, ValueError):
+        return None
+    if not (0 <= x < 1 and 0 <= y < 1 and 0.004 < w <= 1 and 0.004 < h <= 1 and x + w <= 1.02 and y + h <= 1.02):
+        return None
+    return [round(x, 4), round(y, 4), round(min(w, 1 - x), 4), round(min(h, 1 - y), 4)]
+
+
+def locate_targets(scenes: list[dict], shots: list[dict]) -> None:
+    """Find each `screen` scene's target on its screenshot (one vision call)
+    and set scene["focus"]; a target that isn't found shows the whole screen."""
+    from app.content_ai import ContentAIError, _chat
+
+    asks = [(i, s) for i, s in enumerate(scenes) if s["type"] == "screen" and s.get("target") and 1 <= s.get("shot", 0) <= len(shots) and not s.get("focus")]
+    if not asks:
+        return
+    used = sorted({s["shot"] for _, s in asks})
+    content: list[dict] = [
+        {"type": "text", "text": "Find these elements:\n" + "\n".join(f"{i}. In screenshot {s['shot']}: {s['target']}" for i, s in asks)}
+    ]
+    for n in used:
+        content += [{"type": "text", "text": f"Screenshot {n}:"}, {"type": "image_url", "image_url": {"url": shots[n - 1]["uri"], "detail": "high"}}]
+    try:
+        out = _chat(
+            [
+                {
+                    "role": "system",
+                    "content": "You locate user-interface elements in app screenshots. For each request give the "
+                    "element's bounding box as fractions of that screenshot's width and height: [x, y, w, h], x/y = "
+                    "its top-left corner (0-1). Tight around the element. null when it isn't visible. Return JSON "
+                    '{"boxes": [{"id": <request number>, "box": [x, y, w, h] | null}]}.',
+                },
+                {"role": "user", "content": content},
+            ],
+            _vision_model(),
+            max_tokens=4000,
+        )
+    except ContentAIError:
+        out = {}
+    found = {b.get("id"): _box(b.get("box")) for b in (out.get("boxes") or []) if isinstance(b, dict)}
+    for i, s in asks:
+        if found.get(i):
+            s["focus"] = found[i]
+        else:
+            s["action"] = "zoom"
+
+
 # style → (story prompt, scene types, most scenes between the hook and the
 # call to action, a scene type the story must have)
 STYLES = {
@@ -509,7 +772,9 @@ STYLES = {
     "pov": (POV_PROMPT, POV_TYPES, 5, "notify"),
     "demo": (DEMO_PROMPT, DEMO_TYPES, 7, "step"),
     "offer": (OFFER_PROMPT, OFFER_TYPES, 5, "offer"),
+    "custom": (CUSTOM_PROMPT, CUSTOM_TYPES, 8, None),
 }
+SCREEN_STYLES = {"custom", "demo"}  # the stories that can show the brand's screenshots
 # The templates that sell (the auto topic picks a product, not a teaching topic).
 SELLING_STYLES = {"tech", "demo", "offer"}
 
@@ -552,12 +817,12 @@ def estimate_seconds(script: dict) -> int:
 # random per video, so a week's plan doesn't repeat the same look.
 GOAL_STYLES = {
     "sell": ("tech",),
-    "solution": ("tech", "demo"),
+    "solution": ("tech", "demo", "custom"),
     "conversion": ("offer", "tech"),
     "teach": ("explainer",),
-    "education": ("explainer",),
+    "education": ("explainer", "custom"),
     "reach": ("pov", "explainer"),
-    "awareness": ("trend", "explainer"),
+    "awareness": ("trend", "explainer", "custom"),
     "authority": ("versus",),
     "engagement": ("poll",),
     "followers": ("quote",),
@@ -778,6 +1043,48 @@ def _clean_scene(raw: dict, names: dict[str, str]) -> dict | None:
     if kind == "quote":
         text = _line(raw.get("text"), 220)
         return {"type": kind, "text": text, "author": _line(raw.get("author"), 40), "say": say} if text else None
+    if kind == "screen":
+        try:
+            shot = int(raw.get("shot"))
+        except (TypeError, ValueError):
+            return None
+        scene = {
+            "type": kind,
+            "shot": shot,
+            "title": _line(raw.get("title"), 80),
+            "text": _line(raw.get("text"), 120),
+            "target": _line(raw.get("target"), 80),
+            "action": raw.get("action") if raw.get("action") in ("click", "highlight", "zoom") else "click",
+            "result": _line(raw.get("result"), 50),
+            "say": say,
+        }
+        if _box(raw.get("focus")):
+            scene["focus"] = _box(raw.get("focus"))  # found already (a reviewed storyboard)
+        return scene if shot >= 1 else None
+    if kind == "dashboard":
+        metrics = []
+        for m in (raw.get("metrics") or [])[:3]:
+            if not isinstance(m, dict) or not _line(m.get("label"), 30):
+                continue
+            value = _number(m.get("value"))
+            metrics.append(
+                {
+                    "label": _line(m.get("label"), 30),
+                    "value": int(value) if value == int(value) else round(value, 1),
+                    "prefix": _line(m.get("prefix"), 3),
+                    "suffix": _line(m.get("suffix"), 4),
+                    "delta": _line(m.get("delta"), 8),
+                }
+            )
+        chart = "bars" if raw.get("chart") == "bars" else "line"
+        return {"type": kind, "title": _line(raw.get("title"), 60), "metrics": metrics, "chart": chart, "say": say} if metrics else None
+    if kind == "flow":
+        nodes = [
+            {"icon": _icon(n.get("icon"), "Zap"), "label": _line(n.get("label"), 40), "sub": _line(n.get("sub"), 30)}
+            for n in (raw.get("nodes") or [])
+            if isinstance(n, dict) and _line(n.get("label"), 40)
+        ][:4]
+        return {"type": kind, "title": _line(raw.get("title"), 60), "nodes": nodes, "say": say} if len(nodes) >= 2 else None
     if kind == "news":
         headline = _line(raw.get("headline"), 140)
         return {"type": kind, "tag": _line(raw.get("tag"), 30), "headline": headline, "text": _line(raw.get("text"), 160), "say": say} if headline else None
@@ -850,6 +1157,9 @@ _TEXT_FIELDS = {
     "result": (("label", 80), ("say", 300)),
     "review": (("say", 300),),
     "news": (("tag", 30), ("headline", 140), ("text", 160), ("say", 300)),
+    "screen": (("title", 80), ("text", 120), ("result", 50), ("say", 300)),
+    "dashboard": (("title", 60), ("say", 300)),
+    "flow": (("title", 60), ("say", 300)),
     "notify": (("title", 80), ("say", 300)),
     "step": (("title", 80), ("text", 140), ("result", 50), ("say", 300)),
     "offer": (("badge", 28), ("period", 14), ("say", 300)),
@@ -881,6 +1191,12 @@ TEACH_ANGLES = (
 def _auto_topic(products: list[Product], style: str = "tech") -> str:
     if style not in SELLING_STYLES:
         topic = f"a topic around {products[0].name}" if len(products) == 1 else "a topic around what this brand does" if products else "a useful everyday topic for this brand's customers"
+        if style == "custom":
+            return (
+                "THE VIDEO IS ABOUT: no topic was given — choose it yourself: the most interesting thing to "
+                f"show about {topic} right now — the product shown working when there are screenshots or "
+                "products, else one useful idea. Stay within the product information."
+            )
         if style == "trend":
             return (
                 "THE VIDEO IS ABOUT: no topic was given — choose it yourself: what is changing in AI "
@@ -926,6 +1242,7 @@ def write_script(
     style: str = "tech",
     job_id: int | None = None,
     seconds: int | None = None,
+    shots: list[dict] | None = None,
 ) -> dict:
     """The video's storyboard: one AI call, then for Khmer the same
     native-editor pass the captions get. {"scenes": [...]} — always starting
@@ -958,6 +1275,10 @@ def write_script(
             + "."
         )
     prompt, allowed, most, must = STYLES.get(style) or STYLES["tech"]
+    if style in SCREEN_STYLES:
+        extra += _shots_prompt(shots or [])
+        if not shots:
+            allowed = tuple(t for t in allowed if t != "screen")
     story = bool(seconds and idea.strip())
     if story:
         count = max(5, min(MAX_STORY_SCENES, round(seconds / 6.5)))
@@ -1005,9 +1326,15 @@ def write_script(
     if not hooks or not ctas or not middle or (must and not any(s["type"] == must for s in middle)):
         raise ContentAIError("The AI didn't return a usable storyboard — try again.")
     script = {"scenes": [hooks[0], *middle, ctas[0]], "style": style}
+    if style == "custom":
+        r, g, b = accent_for(brand.slug)
+        script["look"] = clean_look(raw.get("look"), f"#{r:02x}{g:02x}{b:02x}")
+    if shots:
+        script["scenes"] = [sc for sc in script["scenes"] if sc["type"] != "screen" or sc["shot"] <= len(shots)]
+        locate_targets(script["scenes"], shots)
     if moods:
         script["mood"] = raw.get("mood") if raw.get("mood") in moods else moods[0]
-    _report(job_id, stage="polish" if khmer else "pictures", scenes=_board(script))
+    _report(job_id, stage="polish" if khmer else "pictures", scenes=_board(script), look=script.get("look"))
 
     if khmer:
         # Every line — on screen and spoken — through the native editor
@@ -1029,6 +1356,8 @@ def write_script(
             if s["type"] == "offer":
                 slots += [(s["features"], k, 50) for k in range(len(s["features"]))]
             slots += [(n, "text", 90) for n in s.get("notes", [])]
+            slots += [(m, "label", 30) for m in s.get("metrics", [])]
+            slots += [(n, "label", 40) for n in s.get("nodes", [])]
         # Story mode: the voice lines are the person's own sentences — kept.
         slots = [x for x in slots if x[0][x[1]] and not (story and x[1] == "say")]
         fixed = _polish_khmer(
@@ -1080,6 +1409,12 @@ def script_lines(script: dict) -> list[tuple[str, str]]:
             screen = f"{s.get('prefix', '')}{s['value']}{s.get('suffix', '')} {s['label']}"
         elif s["type"] == "review":
             screen = f"{'★' * s.get('stars', 5)} “{s['text']}”" + (f" — {s['name']}" if s.get("name") else "")
+        elif s["type"] == "screen":
+            screen = f"Screenshot {s['shot']}: {s.get('title', '')}" + (f" → {s['target']}" if s.get("target") else "") + (f" ✓ {s['result']}" if s.get("result") else "")
+        elif s["type"] == "dashboard":
+            screen = (s.get("title") or "Dashboard") + " — " + ", ".join(f"{m['label']} {m.get('prefix', '')}{m['value']}{m.get('suffix', '')}" + (f" ({m['delta']})" if m.get("delta") else "") for m in s["metrics"])
+        elif s["type"] == "flow":
+            screen = (s.get("title") or "Flow") + " — " + " → ".join(n["label"] + (f" ({n['sub']})" if n.get("sub") else "") for n in s["nodes"])
         elif s["type"] == "news":
             screen = (f"{s['tag']}: " if s.get("tag") else "") + s["headline"] + (f" — {s['text']}" if s.get("text") else "")
         elif s["type"] == "notify":
@@ -1130,15 +1465,26 @@ def _brand_pictures(db: Session, brand_id: int) -> tuple[dict[int, str], list[st
 
 
 def pick_pictures(
-    script: dict, products: list[Product], by_product: dict[int, str], order: list[str], product_id: int | None
+    script: dict,
+    products: list[Product],
+    by_product: dict[int, str],
+    order: list[str],
+    product_id: int | None,
+    shots: list[dict] | None = None,
 ) -> None:
     """Put the brand kit's photos into the scenes that show one: the product
     scene shows the product it names (else the chosen / newest photo); the
     hook and the close show the chosen product (else the newest photo)."""
     ids = {p.name: p.id for p in products}
     main = (by_product.get(product_id) if product_id is not None else None) or (order[0] if order else None)
+    shots = shots or []
+    # a screenshot scene whose screenshot is gone (removed from the Brand kit) is left out
+    script["scenes"] = [s for s in script["scenes"] if s["type"] != "screen" or 1 <= s.get("shot", 0) <= len(shots)]
     for s in script["scenes"]:
-        if s["type"] == "product":
+        if s["type"] == "screen":
+            shot = shots[s["shot"] - 1]
+            s["image"], s["imgW"], s["imgH"] = shot["uri"], shot["w"], shot["h"]
+        elif s["type"] == "product":
             s["image"] = by_product.get(ids.get(s.get("product") or "")) or main
         elif s["type"] in ("hook", "cta", "offer") or script.get("style") == "quote":
             s["image"] = main
@@ -1160,7 +1506,7 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
     r, g, b = accent_for(brand.slug)
     scenes = []
     for s in script["scenes"]:
-        scene = {k: v for k, v in s.items() if k not in ("say", "product")}
+        scene = {k: v for k, v in s.items() if k not in ("say", "product", "target", "shot")}
         for key in ("text", "title", "label", "button", "myth", "fact", "question", "author", "name", "business", "before", "after", "headline", "tag", "result", "badge", "plan", "period"):
             if scene.get(key):
                 scene[key] = t(scene[key])
@@ -1184,6 +1530,10 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
             scene["chips"] = [t(c) for c in scene["chips"]]
         if "features" in scene:
             scene["features"] = [t(f) for f in scene["features"]]
+        if "metrics" in scene:
+            scene["metrics"] = [{**m, "label": t(m["label"])} for m in scene["metrics"]]
+        if "nodes" in scene:
+            scene["nodes"] = [{**n, "label": t(n["label"]), "sub": t(n["sub"]) if n.get("sub") else ""} for n in scene["nodes"]]
         if "notes" in scene:
             scene["notes"] = [{**n, "text": t(n["text"])} for n in scene["notes"]]
         if s["type"] == "step":
@@ -1196,6 +1546,8 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
         "scenes": scenes,
         "style": script.get("style") or "tech",
     }
+    if script.get("look"):
+        props["look"] = script["look"]
     tracks = music_tracks().get(script.get("mood") or "")
     if tracks:
         props["music"] = random.choice(tracks)  # a file under public/ — the template mixes it in
@@ -1215,7 +1567,9 @@ def default_seconds(scene: dict) -> float:
         return 2.4 + 0.35 * min(4, len(scene.get("options") or [])) + 6.0
     if kind == "notify":
         return 2.2 + 1.2 * min(4, len(scene.get("notes") or []))
-    return {"cta": 3.8, "product": 3.6, "chart": 5.2, "compare": 4.2, "character": 3.8, "myth": 5.0, "quote": 5.6, "beforeafter": 5.4, "result": 4.2, "review": 6.0, "customer": 4.4, "news": 5.0, "step": 4.8, "offer": 5.6}.get(kind, 3.4)
+    if kind == "flow":
+        return 2.4 + 1.0 * min(4, len(scene.get("nodes") or []))
+    return {"cta": 3.8, "product": 3.6, "chart": 5.2, "compare": 4.2, "character": 3.8, "myth": 5.0, "quote": 5.6, "beforeafter": 5.4, "result": 4.2, "review": 6.0, "customer": 4.4, "news": 5.0, "step": 4.8, "offer": 5.6, "screen": 5.0, "dashboard": 5.2}.get(kind, 3.4)
 
 
 def length_of(props: dict) -> int:
@@ -1427,6 +1781,10 @@ def _scene_summary(s: dict) -> str:
         text = s.get("name", "") + (f" — {s['text']}" if s.get("text") else "")
     elif t == "beforeafter":
         text = f"{s.get('before', '')} → {s.get('after', '')}"
+    elif t == "flow":
+        text = s.get("title") or " → ".join(n.get("label", "") for n in s.get("nodes") or [])
+    elif t == "dashboard":
+        text = s.get("title") or " · ".join(m.get("label", "") for m in s.get("metrics") or [])
     elif t == "news":
         text = s.get("headline") or ""
     elif t == "notify":
@@ -1440,8 +1798,23 @@ def _scene_summary(s: dict) -> str:
 
 
 def _board(script: dict) -> list[dict]:
-    """The storyboard as the page shows it: each scene's type and its words."""
-    return [{"type": s["type"], "text": _scene_summary(s), "voice": "", "seconds": 0} for s in script["scenes"]]
+    """The storyboard as the page shows it: each scene's type and its words —
+    the one-line summary, and (opened on the page) everything on screen and
+    the voice line."""
+    rows = []
+    for s in script["scenes"]:
+        screen = script_lines({"scenes": [s]})[0][0].split("] ", 1)[-1]
+        rows.append(
+            {
+                "type": s["type"],
+                "text": _scene_summary(s),
+                "screen": re.sub(r"[\[\]⟦⟧]", "", screen)[:400],
+                "say": s.get("say") or "",
+                "voice": "",
+                "seconds": 0,
+            }
+        )
+    return rows
 
 
 def _kill_tree(proc: subprocess.Popen) -> None:
@@ -1638,9 +2011,10 @@ def plan_motion(
     products = [p for p in all_products if p.id == payload.product_id] or all_products
     style = _style_of(payload.goal, payload.product_id)
     seconds = story_seconds(payload.idea, payload.length)  # charged via the request (billing.begin_request)
+    shots = brand_screens(db, brand.id) if style in SCREEN_STYLES else []
     try:
         script = write_script(
-            brand, products, payload.idea, payload.language, "", list(music_tracks()) if payload.music else [], style, seconds=seconds
+            brand, products, payload.idea, payload.language, "", list(music_tracks()) if payload.music else [], style, seconds=seconds, shots=shots
         )
     except ContentAIError as exc:
         raise HTTPException(502, str(exc)) from exc
@@ -1696,6 +2070,8 @@ def checked_script(raw: dict, products: list[Product]) -> dict:
     if len(scenes) < 2:
         raise ContentAIError("The storyboard needs at least 2 scenes.")
     script = {"scenes": scenes, "style": style}
+    if style == "custom":
+        script["look"] = clean_look(raw.get("look"), "#6366F1")
     if raw.get("mood") in music_tracks():
         script["mood"] = raw["mood"]
     return script
@@ -1823,14 +2199,15 @@ def _make(
                     script.pop("mood", None)
                 elif "mood" not in script and moods:
                     script["mood"] = moods[0]
-                _report(job_id, stage="pictures", style=script["style"], scenes=_board(script))
+                _report(job_id, stage="pictures", style=script["style"], scenes=_board(script), look=script.get("look"))
             else:
                 style = _style_of(goal, product_id)
                 _report(job_id, stage="story", style=style)
-                script = write_script(brand, products, job.prompt, language, learned, moods, style, job_id=job_id)
+                shots = brand_screens(db, brand.id) if style in SCREEN_STYLES else []
+                script = write_script(brand, products, job.prompt, language, learned, moods, style, job_id=job_id, shots=shots)
             _check(job_id)
             by_product, order, logo = _brand_pictures(db, brand.id)
-            pick_pictures(script, all_products, by_product, order, product_id)
+            pick_pictures(script, all_products, by_product, order, product_id, brand_screens(db, brand.id) if script.get("style") in SCREEN_STYLES else [])
             props = build_props(brand, script, logo, "khmer" in language.lower())
             db.rollback()  # no transaction held open through the voice and render
             from app import speech

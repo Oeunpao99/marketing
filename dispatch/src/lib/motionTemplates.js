@@ -6,6 +6,15 @@
 
 export const MOTION_TEMPLATES = [
   {
+    id: 'custom',
+    story: 'custom',
+    name: 'Designed for you',
+    look: 'A new look every video — colours from your topic, your app screenshots zoomed and clicked',
+    steps: ['Hook', 'The problem', 'Shown working', 'Proof', 'Call to action'],
+    note: 'Add app screenshots in Products → Brand kit to have them shown',
+    goals: ['solution', 'education', 'awareness'],
+  },
+  {
     id: 'sell',
     story: 'sell',
     name: 'Sell',
@@ -95,12 +104,12 @@ export const MOTION_TEMPLATES = [
 export const GOAL_TEMPLATES = {
   reach: ['pov', 'teach'],
   followers: ['quote'],
-  awareness: ['trend', 'teach'],
+  awareness: ['trend', 'teach', 'custom'],
   engagement: ['poll'],
-  education: ['teach'],
+  education: ['teach', 'custom'],
   trust: ['testimonial'],
   authority: ['versus'],
-  solution: ['sell', 'demo'],
+  solution: ['sell', 'demo', 'custom'],
   conversion: ['offer', 'sell'],
 }
 

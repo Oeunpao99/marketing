@@ -30,6 +30,7 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from 'remotion'
+import { useMemo } from 'react'
 import { TransitionSeries, springTiming } from '@remotion/transitions'
 import { fade } from '@remotion/transitions/fade'
 import { slide } from '@remotion/transitions/slide'
@@ -51,7 +52,8 @@ import {
 import { EX, EXPLAINER_SCENES, Caption, ExplainerChrome } from './explainer'
 import { POLL, QUOTE, VERSUS } from './goaltemplates'
 import { TESTIMONIAL } from './testimonial'
-import { DEMO, OFFER, POV, TREND } from './saas'
+import { DEMO, OFFER, POV, TREND, customTemplate } from './saas'
+import { SceneSfx } from './sfx'
 
 export { FPS, TRANSITION, defaultSeconds, sceneFrames }
 
@@ -738,9 +740,11 @@ const TEMPLATES = {
   offer: { ...OFFER, scenes: { ...SCENES, ...OFFER.scenes } },
 }
 
-export const MotionPost = ({ brand, scenes, music, style }) => {
+export const MotionPost = ({ brand, scenes, music, style, look, sfx = true }) => {
   let point = 0
-  const t = TEMPLATES[style] || TEMPLATES.tech
+  // "custom": its scenes are drawn in the look the AI picked for this video
+  const custom = useMemo(() => (style === 'custom' ? customTemplate(look) : null), [style, look])
+  const t = custom ? { ...custom, scenes: { ...SCENES, ...custom.scenes } } : TEMPLATES[style] || TEMPLATES.tech
   const noCaption = ['chat', ...(t.noCaption || [])]
   return (
     <AbsoluteFill style={{ ...t.root, '--brand': brand.color }}>
@@ -752,6 +756,8 @@ export const MotionPost = ({ brand, scenes, music, style }) => {
           const out = [
             <TransitionSeries.Sequence key={`s${i}`} durationInFrames={sceneFrames(scene)}>
               {body}
+              {/* whoosh / pop / blop … on the scene's moves (sfx.jsx) */}
+              {sfx && <SceneSfx scene={scene} style={style} frames={sceneFrames(scene)} first={i === 0} />}
               {/* The voice-over line (app/motion.py add_voice) and its subtitles start together, once
                   the scene has slid in + 6 frames breathing room so the visual title is registered right as or slightly before the voice speaks. */}
               <Sequence from={(i ? TRANSITION : 0) + 6} layout="none">

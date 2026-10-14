@@ -36,6 +36,7 @@ COPY --from=motion src ./src
 COPY --from=motion public/fonts ./public/fonts
 # Background music by mood (public/music/<mood>/*.mp3 — app/motion.py music_tracks).
 COPY --from=motion public/music ./public/music
+COPY --from=motion public/sfx ./public/sfx
 COPY --from=motion sample.json ./
 # Pack the template once now, not before every video (app/motion.py _entry).
 RUN npx remotion bundle src/index.jsx --out-dir build --log=error

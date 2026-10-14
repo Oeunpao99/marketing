@@ -52,6 +52,12 @@ export function defaultSeconds(s) {
       return 4.8
     case 'offer':
       return 5.6
+    case 'screen':
+      return 5.0
+    case 'dashboard':
+      return 5.2
+    case 'flow':
+      return 2.4 + 1.0 * Math.min(4, (s.nodes || []).length)
     default:
       return 3.4
   }

@@ -29,10 +29,11 @@ from app.tenancy import current_workspace_id, owned
 
 router = APIRouter(prefix="/brand-kit", tags=["Brand kit"])
 
-KINDS = {"logo", "product", "template"}
+KINDS = {"logo", "product", "template", "screenshot"}
 MAX_BYTES = 20 * 1024 * 1024
 MAX_TEMPLATES = 12
 MAX_PRODUCT_PHOTOS = 30
+MAX_SCREENSHOTS = 12  # app / website screens the Remotion videos show (app/motion.py)
 
 
 class AssetOut(BaseModel):
@@ -95,6 +96,8 @@ def add_asset(
     existing = db.scalars(select(BrandAsset).where(BrandAsset.brand_id == brand_id, BrandAsset.kind == kind)).all()
     if kind == "template" and len(existing) >= MAX_TEMPLATES:
         raise HTTPException(400, f"A brand can keep up to {MAX_TEMPLATES} poster templates — remove one first.")
+    if kind == "screenshot" and len(existing) >= MAX_SCREENSHOTS:
+        raise HTTPException(400, f"A brand can keep up to {MAX_SCREENSHOTS} screenshots — remove one first.")
     if kind == "product" and len(existing) >= MAX_PRODUCT_PHOTOS:
         raise HTTPException(400, f"A brand can keep up to {MAX_PRODUCT_PHOTOS} product photos — remove one first.")
 
@@ -118,6 +121,12 @@ def add_asset(
                 delete_media(db, old.url)
                 db.delete(old)
 
+    # A screenshot without a note gets one from the AI — what it shows, so the
+    # video storyboard knows when to use it (app/motion.py brand_screens).
+    if kind == "screenshot" and not note.strip():
+        from app.motion import describe_screen
+
+        note = describe_screen(bytes(data))
     url = store_blob(db, bytes(data), ext or ".png", file.content_type)
     asset = BrandAsset(
         brand_id=brand_id,

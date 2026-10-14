@@ -168,6 +168,7 @@ function restoreTurn(t) {
 // weekly plan picks them from each post's content goal.
 const MOTION_STORIES = [
   { value: 'auto', label: 'Auto', hint: 'Teaches, or sells when you pick a product' },
+  { value: 'custom', label: 'Designed for you', hint: 'A fresh look for this topic — your app screenshots zoomed and clicked' },
   { value: 'teach', label: 'Teach · Explainer', hint: 'Characters, charts, no selling — saves & shares' },
   { value: 'sell', label: 'Sell · Tech', hint: 'Problem, product working, proof — clicks & leads' },
   { value: 'versus', label: 'Compare · Myth vs fact', hint: 'Old way vs better way, a myth busted — builds authority' },
