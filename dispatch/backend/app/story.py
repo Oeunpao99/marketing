@@ -41,7 +41,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from app import billing
 from app.advisor import _take_quota
 from app.config import get_settings
-from app.content_ai import ContentAIError, _chat, _fix_khmer_punctuation, _product_facts
+from app.content_ai import ContentAIError, _chat, _fix_khmer_punctuation, _product_facts, writer_model
 from app.database import SessionLocal, get_db
 from app.media import read_media, store_blob
 from app.models import Brand, GenerationJob, Product, TeamMember, Video, VideoStory
@@ -241,9 +241,8 @@ def write_story(
     ]
     if brand and brand.voice_examples:
         brief.append(f"\nBrand voice (tone only):\n{brand.voice_examples.strip()[:1500]}")
-    s = get_settings()
     khmer = bool(_KHMER.search(language)) or "khmer" in language.lower()
-    model = (s.azure_openai_khmer_deployment if khmer else "") or s.azure_openai_deployment
+    model = writer_model(khmer)
     out = _chat(
         [{"role": "system", "content": SCRIPT_PROMPT}, {"role": "user", "content": "\n".join(brief)}],
         model,

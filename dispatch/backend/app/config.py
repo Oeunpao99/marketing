@@ -46,6 +46,14 @@ class Settings(BaseSettings):
     # post in Khmer — small models write noticeably stiffer, less natural
     # Khmer. Blank = use azure_openai_deployment for everything.
     azure_openai_khmer_deployment: str = ""
+    # Optional: the WRITER — a stronger model (e.g. "gpt-5") that writes the
+    # content: video storyboards and scripts, the Khmer editor and voice director,
+    # post ideas and captions. It may live on another Azure resource (its own
+    # endpoint + key). Quick helper calls (picking a template, reading a
+    # screenshot, checks) stay on azure_openai_deployment. Blank = no writer.
+    azure_openai_writer_deployment: str = ""
+    azure_openai_writer_endpoint: str = ""
+    azure_openai_writer_api_key: str = ""
 
     # In-portal video generation (AI agent → "Generate video").
     # Provider: "azure_sora" or "gemini_veo".

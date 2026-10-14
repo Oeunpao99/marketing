@@ -72,7 +72,21 @@ def ready() -> bool:
     return provider() is not None or local_voice.ready() or gemini_ready()
 
 
-GEMINI = "gemini:"  # voice_for's names for Gemini TTS voices: "gemini:Kore"
+GEMINI = "gemini:"
+# Why Gemini lines fell back to Azure, newest last — the live video card shows it.
+GEMINI_FAILURES: list[str] = []
+
+
+def _why(exc: Exception) -> str:
+    """A short reason a person can act on."""
+    text = str(exc)
+    if "402" in text or "prepayment" in text.lower() or "credit" in text.lower():
+        return "Gemini credit is used up — top it up in AI Studio"
+    if "API key not valid" in text or " 400" in text or " 401" in text or "403" in text:
+        return "the Gemini API key isn't valid on this server — check GEMINI_API_KEY"
+    if "429" in text:
+        return "Gemini is busy (too many requests)"
+    return text[:120]  # voice_for's names for Gemini TTS voices: "gemini:Kore"
 # Gemini TTS ≈ $9 per 1M audio tokens (~25 a second) + the text — per character
 # of Khmer that's about twice Azure's.
 PRICE_PER_CHAR_GEMINI = 30 / 1_000_000
@@ -190,6 +204,7 @@ def speak(text: str, voice: str) -> bytes:
             s = get_settings()
             backup = VOICES[(_lang(text), "female" if name == s.gemini_tts_voice_female else "male")]
             log.warning("Gemini TTS failed (%s) — reading the line with %s", exc, backup)
+            GEMINI_FAILURES.append(_why(exc))  # the video card says so (app/motion.py add_voice)
             if provider() != "azure":
                 raise
             return _azure(text, backup)

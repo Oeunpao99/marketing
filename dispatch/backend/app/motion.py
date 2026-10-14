@@ -1350,11 +1350,10 @@ def write_script(
     ``seconds`` = story mode: ``idea`` is the person's own story / script, to
     be followed scene by scene (keeping their sentences for the voice) at
     about that length — the storyboard they review before it's rendered."""
-    from app.content_ai import ContentAIError, _chat, _fix_khmer_punctuation, _polish_khmer
+    from app.content_ai import ContentAIError, _chat, _fix_khmer_punctuation, _polish_khmer, writer_model
 
-    cfg = get_settings()
     khmer = "khmer" in language.lower()
-    model = (cfg.azure_openai_khmer_deployment if khmer else "") or cfg.azure_openai_deployment
+    model = writer_model(khmer)
     facts = "\n".join(
         f"- {p.name}: {p.description or ''}" + (f" | highlights: {p.highlights}" if p.highlights else "")
         for p in products
@@ -1582,9 +1581,10 @@ VOICE_SCRIPT_PROMPT = (
     "ក្នុងការ…, long noun chains) for the plain spoken way of saying it.\n"
     "2. Short sentences — one idea each, about 6-12 words; 1-3 sentences per line. Vary the "
     "length a little so it doesn't sound like a machine.\n"
-    "3. Mark the breaths: put a SPACE between phrases where a speaker would breathe, end every "
-    "sentence with ។, use ! only where the voice should lift with energy and ? only for a real "
-    "question (\"…មែនទេ?\").\n"
+    "3. Mark the breaths: put a SPACE only between PHRASES (groups of about 2-5 words) where a "
+    "speaker would breathe — never between every word; words inside a phrase stay joined, as "
+    "Khmer is written. End every sentence with ។, use ! only where the voice should lift with "
+    "energy and ? only for a real question (\"…មែនទេ?\").\n"
     "4. Spoken connectors and particles where they fit naturally (ហើយ, ប៉ុន្តែ, ព្រោះ, អ៊ីចឹង, "
     "ណា, ហ្នឹង) — not in every line, never forced.\n"
     "5. The lines are ONE narration: each leads into the next; no line repeats the previous one.\n"
@@ -1891,6 +1891,7 @@ def add_voice(
             board[n] = {**board[n], **fields}
             _report(job_id, scenes=[dict(b) for b in board])
 
+    failed_before = len(speech.GEMINI_FAILURES)
     # Gemini answers in seconds but one at a time adds up — its lines are asked
     # for 4 at once up front; the loop below then takes them in order.
     ahead: dict = {}
@@ -1954,6 +1955,11 @@ def add_voice(
             spoken += len(say)
     if pool:
         pool.shutdown(wait=False, cancel_futures=True)
+    new_failures = speech.GEMINI_FAILURES[failed_before:]
+    if new_failures:
+        # say it on the card: the voice that read it isn't the one chosen
+        _report(job_id, voice_note=f"Gemini voice failed ({new_failures[-1]}) — Azure read {len(new_failures)} line(s) instead")
+    del speech.GEMINI_FAILURES[:-50]
     if spoken and not local:
         billing.charge(
             ws, "video", spoken * speech.price_per_char(voice), user_id=user_id, model=voice, note="Remotion video voice-over", job_id=job_id

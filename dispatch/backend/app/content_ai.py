@@ -622,6 +622,21 @@ def _system_prompt(brand_lang: str, week: bool = False) -> str:
     return base + (MIXED_GUIDE if mixed else KHMER_GUIDE)
 
 
+def writer_model(khmer: bool = False) -> str:
+    """The model that writes content: the WRITER (AZURE_OPENAI_WRITER_DEPLOYMENT)
+    when set up, else the Khmer deployment for Khmer, else the default one."""
+    cfg = get_settings()
+    return cfg.azure_openai_writer_deployment or (cfg.azure_openai_khmer_deployment if khmer else "") or cfg.azure_openai_deployment
+
+
+def _endpoint_for(model: str) -> tuple[str, str]:
+    """(endpoint, key) for a model — the writer may sit on its own resource."""
+    cfg = get_settings()
+    if model and model == cfg.azure_openai_writer_deployment and cfg.azure_openai_writer_endpoint and cfg.azure_openai_writer_api_key:
+        return cfg.azure_openai_writer_endpoint, cfg.azure_openai_writer_api_key
+    return cfg.azure_openai_endpoint, cfg.azure_openai_api_key
+
+
 def _chat(messages: list[dict], model: str, max_tokens: int = 4000, effort: str = "") -> dict:
     """One JSON-mode chat completion against Azure OpenAI; returns the parsed
     JSON object the model replied with. ``effort``: the reasoning effort
@@ -633,13 +648,14 @@ def _chat(messages: list[dict], model: str, max_tokens: int = 4000, effort: str 
         billing.require_current()
     except billing.OutOfCredit as exc:
         raise ContentAIError(str(exc)) from exc
-    url = f"{cfg.azure_openai_endpoint.rstrip('/')}/chat/completions"
+    endpoint, key = _endpoint_for(model)
+    url = f"{endpoint.rstrip('/')}/chat/completions"
     try:
         resp = httpx.post(
             url,
             headers={
-                "api-key": cfg.azure_openai_api_key,
-                "Authorization": f"Bearer {cfg.azure_openai_api_key}",
+                "api-key": key,
+                "Authorization": f"Bearer {key}",
                 "Content-Type": "application/json",
             },
             json={
@@ -649,7 +665,7 @@ def _chat(messages: list[dict], model: str, max_tokens: int = 4000, effort: str 
                 "max_completion_tokens": max_tokens,
                 **({"reasoning_effort": effort} if effort else {}),
             },
-            timeout=120.0,
+            timeout=300.0,
         )
     except httpx.HTTPError as exc:
         raise ContentAIError(f"Could not reach the AI service: {exc}") from exc
@@ -949,11 +965,10 @@ def generate_ideas(
     ``recent_pillars`` (newest first) lets a daily batch rotate pillars.
     ``selling_days`` (see selling_days()) caps the product posts: at most one
     per listed day, none when it's empty; None = no cap."""
-    cfg = get_settings()
     khmer = _is_khmer(brand_lang)
     # Khmer quality depends heavily on the model — a Khmer brand can use its own
     # (stronger) deployment via AZURE_OPENAI_KHMER_DEPLOYMENT.
-    model = (cfg.azure_openai_khmer_deployment if khmer else "") or cfg.azure_openai_deployment
+    model = writer_model(khmer)
     parsed = _chat(
         [
             {"role": "system", "content": _system_prompt(brand_lang, week)},
@@ -1269,9 +1284,8 @@ def shorten_list_lines(caption: str, brand_lang: str = "") -> str:
     todo = long_list_lines(caption)
     if not todo:
         return caption
-    cfg = get_settings()
     khmer = _is_khmer(brand_lang) or any("ក" <= ch <= "៿" for ch in caption)
-    model = (cfg.azure_openai_khmer_deployment if khmer else "") or cfg.azure_openai_deployment
+    model = writer_model(khmer)
     out = _chat(
         [
             {"role": "system", "content": SHORTEN_PROMPT},

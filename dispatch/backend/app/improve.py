@@ -24,7 +24,6 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.advisor import _take_quota
-from app.config import get_settings
 from app.content_ai import (
     KHMER_GUIDE,
     ContentAIError,
@@ -33,6 +32,7 @@ from app.content_ai import (
     _is_khmer,
     _product_facts,
     fact_check,
+    writer_model,
 )
 from app.content_scheduler import PHNOM_PENH, _next_slot
 from app.database import get_db
@@ -163,9 +163,8 @@ def improve(target_id: int, db: Session = Depends(get_db), ws: int = Depends(cur
         lines.append(f"\nBrand voice examples (style only):\n---\n{brand.voice_examples.strip()[:2000]}\n---")
     lines.append(f"\nProduct info:\n{_product_facts(list(products))}")
 
-    cfg = get_settings()
     khmer = _is_khmer(brand.lang) or any("ក" <= ch <= "៿" for ch in target.caption or "")
-    model = (cfg.azure_openai_khmer_deployment if khmer else "") or cfg.azure_openai_deployment
+    model = writer_model(khmer)
     try:
         out = _chat(
             [
