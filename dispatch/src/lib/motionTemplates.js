@@ -73,6 +73,15 @@ export const MOTION_TEMPLATES = [
     goals: ['trust'],
   },
   {
+    id: 'launch',
+    story: 'launch',
+    name: 'Product launch',
+    look: 'Cinematic purple launch film — a tilted app card, the camera pushes in, a hand clicks the button',
+    steps: ['Hook', 'Introducing', 'The click', 'Your screens', 'Call to action'],
+    note: 'Add 2+ app screenshots in Products → Brand kit for the screen deck',
+    goals: ['conversion'],
+  },
+  {
     id: 'showcase',
     story: 'showcase',
     name: 'Showcase',
@@ -128,7 +137,7 @@ export const GOAL_TEMPLATES = {
   trust: ['testimonial'],
   authority: ['versus'],
   solution: ['sell', 'demo', 'custom', 'showcase'],
-  conversion: ['offer', 'sell'],
+  conversion: ['offer', 'sell', 'launch'],
 }
 
 export const templateById = (id) => MOTION_TEMPLATES.find((t) => t.id === id)

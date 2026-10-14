@@ -41,9 +41,13 @@ export const SCENE_LABELS = {
   roll: 'Rolling word',
   table: 'Table view',
   board: 'Board',
+  launch: 'Introducing',
+  button: 'The click',
+  form: 'Form',
+  stack: 'Screen deck',
 }
 
-export const STYLE_LABELS = { tech: 'Sell', explainer: 'Teach', versus: 'Compare', poll: 'Poll', quote: 'Quote', testimonial: 'Testimonial', trend: 'AI News', pov: 'POV', demo: 'Product demo', offer: 'Offer', showcase: 'Showcase', custom: 'Designed for you', training: 'Training' }
+export const STYLE_LABELS = { tech: 'Sell', explainer: 'Teach', versus: 'Compare', poll: 'Poll', quote: 'Quote', testimonial: 'Testimonial', trend: 'AI News', pov: 'POV', demo: 'Product demo', offer: 'Offer', showcase: 'Showcase', launch: 'Product launch', custom: 'Designed for you', training: 'Training' }
 
 /** 0-99 from the real steps: the story is the only part without a count, so
  * it creeps up with time; the voice counts lines, the render counts frames. */

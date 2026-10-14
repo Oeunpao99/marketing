@@ -548,6 +548,55 @@ OFFER_PROMPT = (
     + '{"scenes": [{"type": "hook", "text": "...", "icon": "BadgePercent", "say": "..."}, ...]}'
 )
 
+# ── Product launch (motion/src/launch.jsx) — a cinematic launch film ─────────
+LAUNCH_TYPES = ("hook", "launch", "button", "form", "stack", "screen", "flow", "dashboard", "reveal", "list", "stat", "cta")
+LAUNCH_PROMPT = (
+    "You are the director of premium SaaS launch films in Cambodia. You plan a REMOTION VIDEO (about "
+    "40-60 s) that LAUNCHES a product or a new feature: deep purple stage light, a big tilted app card "
+    "with a glowing mint edge, the camera pushing in on one button while a cartoon hand clicks it, "
+    "fields typing themselves in, the product's real screens stacking up like a deck. Cinematic, "
+    "confident, few words on screen — the moment of the click is the hero.\n"
+    "\n"
+    "THE STORY (7-9 scenes):\n"
+    "1. hook — the pain or the promise in one line (\"Still chasing approvals by [email]?\").\n"
+    "2. launch — introduce the product or feature by name, with its one-line promise.\n"
+    "3-6. the product working, the hand doing it: `form` (filling in what the user fills in), "
+    "`button` (the ONE click that does the job, and what happens), `stack` (the real screens, when "
+    "there are screenshots), `screen`, `flow` or `dashboard` — three or four of these, different "
+    "types, in the order a user would really do it.\n"
+    "7. reveal or stat — the one thing to remember (stat only with a TRUE number).\n"
+    "last. cta — try it / book a demo / it's live today.\n"
+    "\n"
+    "SCENE TYPES and their fields:\n"
+    "- hook: text (max 9 words), icon.\n"
+    "- launch: name (the product or feature name, as written), text (its promise, max 10 words), "
+    "badge (1-2 words, e.g. \"Now live\", \"New\", \"Beta\").\n"
+    "- button: title (what the card is, 2-4 words, e.g. \"Leave request\"), text (one detail line, "
+    "max 8 words, sample data), button (the action, 1-3 words — e.g. \"Send for approval\"), result "
+    "(what happens, max 6 words).\n"
+    "- form: title (2-4 words), fields: 2-3 x {\"label\": 1-2 words, \"value\": what a user types, max "
+    "4 words, sample data}, toggle (a setting switched on, max 6 words, optional).\n"
+    "- stack: words: 2-3 single big words that change as the screens arrive (\"direct\", \"fast\", "
+    "\"yours\"), shots: 2-4 screenshot numbers — only from THE BRAND'S SCREENSHOTS, never without them.\n"
+    "- screen: shot (the screenshot's number — only from THE BRAND'S SCREENSHOTS), title (max 7 "
+    "words), target (in ENGLISH: the ONE element to point at), action (\"click\" | \"highlight\"), "
+    "result (max 6 words, optional).\n"
+    "- flow: title (max 6 words), nodes: 3-4 x {\"icon\", \"label\": 2-5 words, \"sub\": the app, optional}.\n"
+    "- dashboard: title (optional), metrics: 2-3 x {\"label\", \"value\", \"prefix\", \"suffix\", "
+    "\"delta\"}, chart: \"line\" | \"bars\" — small, believable SAMPLE data.\n"
+    "- reveal: text (max 10 words), icon.\n"
+    "- list: title (max 6 words), items: 3 x {\"icon\", \"text\": 2-6 words}.\n"
+    "- stat: value, prefix, suffix, label (max 6 words), icon — only a TRUE number.\n"
+    "- cta: text (max 9 words), button (2-4 words).\n"
+    "Only features the product information supports — never invent one. Typed values and card "
+    "details are sample data, never a real customer's.\n"
+    "\n"
+    + _SAAS_CRAFT
+    + "\n"
+    + _COMMON_RULES
+    + '{"scenes": [{"type": "hook", "text": "...", "icon": "Rocket", "say": "..."}, ...]}'
+)
+
 # ── Showcase (motion/src/showcase.jsx) — a bright SaaS promo ───────────────
 SHOWCASE_TYPES = ("hook", "roll", "apps", "table", "board", "screen", "flow", "dashboard", "list", "stat", "cta")
 SHOWCASE_PROMPT = (
@@ -889,6 +938,7 @@ STYLES = {
     "demo": (DEMO_PROMPT, DEMO_TYPES, 7, "step"),
     "offer": (OFFER_PROMPT, OFFER_TYPES, 5, "offer"),
     "showcase": (SHOWCASE_PROMPT, SHOWCASE_TYPES, 7, None),
+    "launch": (LAUNCH_PROMPT, LAUNCH_TYPES, 7, None),
     "custom": (CUSTOM_PROMPT, CUSTOM_TYPES, 8, None),
     "training": (TRAINING_PROMPT, TRAINING_TYPES, 12, None),
 }
@@ -897,7 +947,7 @@ LONG_STYLES = {"training"}
 # The templates laid out for 16:9 too (motion/src/training.jsx, saas.jsx wide scenes);
 # every other template is always vertical. Scenes drawn only for a tall frame are
 # left out of a wide video.
-WIDE_STYLES = {"training", "custom", "demo", "offer", "trend", "pov", "showcase"}
+WIDE_STYLES = {"training", "custom", "demo", "offer", "trend", "pov", "showcase", "launch"}
 TALL_ONLY_TYPES = {"problem", "chat", "product", "point"}
 
 
@@ -911,9 +961,9 @@ def final_ratio(asked: str, style: str, suggested: str | None = None) -> str:
     if asked == "auto":
         return suggested if suggested in ("16:9", "9:16") else ("16:9" if style == "training" else "9:16")
     return "9:16"
-SCREEN_STYLES = {"custom", "demo", "showcase"}  # the stories that can show the brand's screenshots
+SCREEN_STYLES = {"custom", "demo", "showcase", "launch"}  # the stories that can show the brand's screenshots
 # The templates that sell (the auto topic picks a product, not a teaching topic).
-SELLING_STYLES = {"tech", "demo", "offer", "showcase"}
+SELLING_STYLES = {"tech", "demo", "offer", "showcase", "launch"}
 
 # Story mode (write_script ``seconds``): the person pasted their own story.
 MAX_STORY_SCENES = 20  # ~2 minutes
@@ -961,7 +1011,7 @@ def estimate_seconds(script: dict) -> int:
 GOAL_STYLES = {
     "sell": ("tech",),
     "solution": ("tech", "demo", "custom", "showcase"),
-    "conversion": ("offer", "tech"),
+    "conversion": ("offer", "tech", "launch"),
     "teach": ("explainer",),
     "education": ("explainer", "custom"),
     "reach": ("pov", "explainer"),
@@ -1027,6 +1077,28 @@ def _clean_scene(raw: dict, names: dict[str, str]) -> dict | None:
         if apps:
             hook["apps"] = apps  # Showcase: the bubbles floating round the line
         return hook if text else None
+    if kind == "launch":
+        name = _line(raw.get("name"), 30)
+        return {"type": kind, "name": names.get(name.lower(), name), "text": _line(raw.get("text"), 100), "badge": _line(raw.get("badge"), 16), "say": say} if name else None
+    if kind == "button":
+        button = _line(raw.get("button"), 28)
+        return (
+            {"type": kind, "title": _line(raw.get("title"), 40), "text": _line(raw.get("text"), 80), "button": button, "result": _line(raw.get("result"), 50), "say": say}
+            if button
+            else None
+        )
+    if kind == "form":
+        fields = [
+            {"label": _line(f.get("label"), 24), "value": _line(f.get("value"), 40)}
+            for f in (raw.get("fields") or [])
+            if isinstance(f, dict) and _line(f.get("label"), 24) and _line(f.get("value"), 40)
+        ][:3]
+        return {"type": kind, "title": _line(raw.get("title"), 40), "fields": fields, "toggle": _line(raw.get("toggle"), 50), "say": say} if fields else None
+    if kind == "stack":
+        shots = [int(x) for x in (raw.get("shots") or []) if str(x).strip().isdigit()][:4]
+        words = [w for w in (_line(w, 16) for w in (raw.get("words") or [])) if w][:3]
+        shots = [x for x in dict.fromkeys(shots) if x >= 1]
+        return {"type": kind, "words": words, "shots": shots, "say": say} if len(shots) >= 2 else None
     if kind == "apps":
         apps = _apps(raw.get("apps"))
         return {"type": kind, "title": _line(raw.get("title"), 80), "apps": apps, "say": say} if len(apps) >= 3 else None
@@ -1364,6 +1436,10 @@ _TEXT_FIELDS = {
     "step": (("title", 80), ("text", 140), ("result", 50), ("say", 300)),
     "offer": (("badge", 28), ("period", 14), ("say", 300)),
     "apps": (("title", 80), ("say", 300)),
+    "launch": (("text", 100), ("badge", 16), ("say", 300)),
+    "button": (("title", 40), ("text", 80), ("button", 28), ("result", 50), ("say", 300)),
+    "form": (("title", 40), ("toggle", 50), ("say", 300)),
+    "stack": (("say", 300),),
     "roll": (("lead", 24), ("text", 80), ("say", 300)),
     "table": (("title", 40), ("say", 300)),
     "board": (("title", 80), ("say", 300)),
@@ -1489,6 +1565,8 @@ def write_script(
             extra += _design_prompt(design)
         if not shots:
             allowed = tuple(t for t in allowed if t != "screen")
+        if len(shots or []) < 2:
+            allowed = tuple(t for t in allowed if t != "stack")
     story = bool(seconds and idea.strip())
     if story:
         count = max(5, min(MAX_LONG_SCENES if style in LONG_STYLES else MAX_STORY_SCENES, round(seconds / 6.5)))
@@ -1652,6 +1730,14 @@ def script_lines(script: dict) -> list[tuple[str, str]]:
             screen = (s.get("title") or "Notifications") + " — " + " / ".join(f"{n['app']}: {n['text']}" for n in s["notes"])
         elif s["type"] == "step":
             screen = s["title"] + (f" — {s['text']}" if s.get("text") else "") + (f" ✓ {s['result']}" if s.get("result") else "")
+        elif s["type"] == "launch":
+            screen = f"Introducing {s['name']}" + (f" — {s['text']}" if s.get("text") else "") + (f" [{s['badge']}]" if s.get("badge") else "")
+        elif s["type"] == "button":
+            screen = (s.get("title") or "Card") + f" → click “{s['button']}”" + (f" ✓ {s['result']}" if s.get("result") else "")
+        elif s["type"] == "form":
+            screen = (s.get("title") or "Form") + " — " + ", ".join(f"{f['label']}: {f['value']}" for f in s["fields"]) + (f" · toggle {s['toggle']}" if s.get("toggle") else "")
+        elif s["type"] == "stack":
+            screen = "Screens " + ", ".join(str(x) for x in s["shots"]) + (" — " + " / ".join(s["words"]) if s.get("words") else "")
         elif s["type"] == "apps":
             screen = (s.get("title") or "Apps") + " — " + ", ".join(a["name"] for a in s["apps"])
         elif s["type"] == "roll":
@@ -1801,6 +1887,10 @@ def pick_pictures(
     # a screenshot scene whose screenshot is gone (removed from the Brand kit) is left out
     script["scenes"] = [s for s in script["scenes"] if s["type"] != "screen" or 1 <= s.get("shot", 0) <= len(shots)]
     for s in script["scenes"]:
+        if s["type"] == "stack":  # the deck: its screenshots that still exist
+            s["images"] = [{"src": shots[n - 1]["uri"], "w": shots[n - 1]["w"], "h": shots[n - 1]["h"]} for n in s.get("shots", []) if 1 <= n <= len(shots)]
+    script["scenes"] = [s for s in script["scenes"] if s["type"] != "stack" or len(s["images"]) >= 2]
+    for s in script["scenes"]:
         if s["type"] == "screen":
             shot = shots[s["shot"] - 1]
             s["image"], s["imgW"], s["imgH"] = shot["uri"], shot["w"], shot["h"]
@@ -1908,6 +1998,10 @@ def default_seconds(scene: dict) -> float:
         return 2.4 + 1.0 * min(4, len(scene.get("nodes") or []))
     if kind == "apps":
         return 2.6 + 0.35 * min(8, len(scene.get("apps") or []))
+    if kind == "form":
+        return 2.6 + 0.9 * min(3, len(scene.get("fields") or [])) + (1.4 if scene.get("toggle") else 0)
+    if kind == "stack":
+        return 1.6 + 1.1 * min(4, len(scene.get("images") or scene.get("shots") or []))
     if kind == "table":
         return 3.6 + 0.3 * min(6, len(scene.get("rows") or []))
     if kind == "roll":
@@ -1916,7 +2010,7 @@ def default_seconds(scene: dict) -> float:
         return 1.8 + 1.0 * min(6, len(scene.get("checks") or []))
     if kind == "recap":
         return 2.0 + 1.0 * min(5, len(scene.get("points") or []))
-    return {"cta": 3.8, "product": 3.6, "chart": 5.2, "compare": 4.2, "character": 3.8, "myth": 5.0, "quote": 5.6, "beforeafter": 5.4, "result": 4.2, "review": 6.0, "customer": 4.4, "news": 5.0, "step": 4.8, "offer": 5.6, "screen": 5.0, "dashboard": 5.2, "chapter": 3.2, "board": 4.6}.get(kind, 3.4)
+    return {"cta": 3.8, "product": 3.6, "chart": 5.2, "compare": 4.2, "character": 3.8, "myth": 5.0, "quote": 5.6, "beforeafter": 5.4, "result": 4.2, "review": 6.0, "customer": 4.4, "news": 5.0, "step": 4.8, "offer": 5.6, "screen": 5.0, "dashboard": 5.2, "chapter": 3.2, "board": 4.6, "launch": 4.2, "button": 4.6}.get(kind, 3.4)
 
 
 def length_of(props: dict) -> int:
@@ -2165,6 +2259,14 @@ def _scene_summary(s: dict) -> str:
         text = s.get("title") or " / ".join(n.get("text", "") for n in s.get("notes") or [])
     elif t == "offer":
         text = " ".join(x for x in (s.get("plan"), s.get("price"), s.get("period")) if x)
+    elif t == "launch":
+        text = s.get("name") or ""
+    elif t == "button":
+        text = s.get("title") or s.get("button") or ""
+    elif t == "form":
+        text = s.get("title") or " · ".join(f.get("label", "") for f in s.get("fields") or [])
+    elif t == "stack":
+        text = " / ".join(s.get("words") or []) or "Screens"
     elif t == "apps":
         text = s.get("title") or " · ".join(a.get("name", "") for a in s.get("apps") or [])
     elif t == "roll":
@@ -2378,6 +2480,7 @@ class PlanIn(BaseModel):
 TEMPLATE_GUIDE = {
     "custom": "SaaS, software, an app, an AI tool, a platform (Power Apps, a CRM…), B2B tech — product UI, dashboards, flows, the brand's screenshots",
     "demo": "showing HOW to use a software product, step by step in an app window",
+    "launch": "launching a product or a new feature — a cinematic launch film: the one click that does the job, the product's screens, \"now live\"",
     "showcase": "a bright, polished promo / launch video for a SaaS or app — the tools it connects, its table and board views, who it is for",
     "training": "a team training, an internal presentation, a workshop, a lesson or a long talk with parts / sections — chapters, key points, checklists, recap",
     "explainer": "a story with people — characters with feelings (stick figures), everyday life, money and life lessons, a tale that teaches",

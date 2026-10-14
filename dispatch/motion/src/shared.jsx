@@ -22,6 +22,14 @@ export function defaultSeconds(s) {
       return 3.6 + 0.3 * Math.min(6, (s.rows || []).length)
     case 'board':
       return 4.6
+    case 'launch':
+      return 4.2
+    case 'stack':
+      return 1.6 + 1.1 * Math.min(4, (s.images || s.shots || []).length)
+    case 'button':
+      return 4.6
+    case 'form':
+      return 2.6 + 0.9 * Math.min(3, (s.fields || []).length) + (s.toggle ? 1.4 : 0)
     case 'roll':
       return 2.4 + 0.6 * Math.min(5, (s.words || []).length)
     case 'list':

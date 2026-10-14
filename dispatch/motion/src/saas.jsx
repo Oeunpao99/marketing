@@ -30,6 +30,7 @@
 import { AbsoluteFill, Img, interpolate, random, spring, useCurrentFrame, useVideoConfig } from 'remotion'
 import { FONT, Icon, Words, clean, fitSize, srcOf, tint } from './shared'
 import { showcaseScenes } from './showcase'
+import { launchScenes } from './launch'
 
 /** A full palette from its base colours: { bg, a (accent), b (second accent),
  * mode: "dark" | "light", background: "grid" | "dots" | "clean" } — flat backgrounds, no glow / gradient. */
@@ -62,6 +63,7 @@ const PALETTES = {
   demo: palette({ bg: '#040B1C', a: '#3B82F6', b: '#22D3EE', kicker: 'LIVE DEMO', icon: 'LayoutDashboard' }),
   offer: palette({ bg: '#03110D', a: '#34D399', b: '#FBBF24', kicker: 'SPECIAL OFFER', icon: 'BadgePercent', card: '#07170F' }),
   showcase: palette({ bg: '#EEF0FF', a: '#6D4AFF', b: '#22B8F0', mode: 'light', background: 'airy', icon: 'LayoutGrid' }),
+  launch: palette({ bg: '#14082A', a: '#8B5CF6', b: '#5EEAD4', mode: 'dark', background: 'launch', icon: 'Rocket', card: '#1C0F38' }),
 }
 
 const ON = '#FFFFFF' // on an accent tile / a dark phone — white in every look
@@ -126,6 +128,21 @@ function Airy({ P }) {
   )
 }
 
+/** Product launch's background (launch.jsx): deep purple, a wide violet light
+ * rising from the bottom and one from the top-left, breathing slowly — like
+ * a stage lit for a launch. */
+function LaunchLight({ P }) {
+  const frame = useCurrentFrame()
+  const breathe = 0.85 + 0.15 * Math.sin(frame / 45)
+  return (
+    <>
+      <AbsoluteFill style={{ background: `radial-gradient(ellipse 75% 50% at 50% 105%, ${tint(P.a, 0.75 * breathe)}, transparent 70%)` }} />
+      <AbsoluteFill style={{ background: `radial-gradient(circle at -5% -5%, ${tint(P.a, 0.55)}, transparent 45%)` }} />
+      <AbsoluteFill style={{ background: 'radial-gradient(ellipse 60% 40% at 100% 55%, rgba(0,0,0,0.35), transparent 70%)' }} />
+    </>
+  )
+}
+
 /** The background: a flat colour, and by P.background — grid: a grid floor
  * moving towards the viewer, a dot grid at the top, small particles rising;
  * dots: a dot grid all over; clean: the colour alone; airy: Showcase's soft
@@ -138,6 +155,7 @@ function AiBg({ P }) {
   return (
     <AbsoluteFill style={{ backgroundColor: P.bg, overflow: 'hidden' }}>
       {kind === 'airy' && <Airy P={P} />}
+      {kind === 'launch' && <LaunchLight P={P} />}
       {(kind === 'grid' || kind === 'dots') && (
         <div
           style={{
@@ -1432,6 +1450,8 @@ export const POV = template(PALETTES.pov, 'pov', { notify: makeNotify(PALETTES.p
 export const DEMO = template(PALETTES.demo, 'demo', { step: makeStep(PALETTES.demo), screen: makeScreen(PALETTES.demo), dashboard: makeDashboard(PALETTES.demo), flow: makeFlow(PALETTES.demo) })
 export const OFFER = template(PALETTES.offer, 'offer', { offer: makeOffer(PALETTES.offer) })
 const SP = PALETTES.showcase
+const LP = PALETTES.launch
+export const LAUNCH = template(LP, 'launch', { ...launchScenes(LP, AiBg), step: makeStep(LP), screen: makeScreen(LP), dashboard: makeDashboard(LP), flow: makeFlow(LP) })
 export const SHOWCASE = template(SP, 'showcase', { ...showcaseScenes(SP, AiBg), step: makeStep(SP), screen: makeScreen(SP), dashboard: makeDashboard(SP), flow: makeFlow(SP) })
 
 /** "Designed for you": the look the AI picked for this video (props.look). */

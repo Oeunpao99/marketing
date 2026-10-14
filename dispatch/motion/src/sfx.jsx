@@ -10,7 +10,7 @@ import { Html5Audio, Sequence, staticFile } from 'remotion'
 import { FPS } from './shared'
 
 const VOLUME = { whoosh: 0.22, pop: 0.3, blop: 0.32, click: 0.35, ding: 0.28, tick: 0.18 }
-const SAAS = new Set(['trend', 'pov', 'demo', 'offer', 'custom', 'showcase'])
+const SAAS = new Set(['trend', 'pov', 'demo', 'offer', 'custom', 'showcase', 'launch'])
 
 /** [{ at: frame in the scene, s: sound }] for one scene. */
 export function cuesFor(scene, style, frames, first) {
@@ -92,6 +92,34 @@ export function cuesFor(scene, style, frames, first) {
       const nodes = n(scene.nodes)
       for (let i = 0; i < nodes; i++) add(12 + i * 16, 'pop')
       add(12 + nodes * 16, 'ding') // the last step ticks
+      break
+    }
+    case 'launch': {
+      const n = [...String(scene.name || '')].length
+      add(8, 'whoosh')
+      add(8 + n * 2 + 14, 'ding') // the badge pops
+      break
+    }
+    case 'button': {
+      const clickAt = Math.min(Math.round(frames * 0.5), 62)
+      add(2, 'whoosh')
+      add(clickAt, 'click')
+      if (scene.result) add(clickAt + 6, 'ding')
+      break
+    }
+    case 'form': {
+      let at = 14
+      for (const f of (scene.fields || []).slice(0, 3)) {
+        add(at, 'tick')
+        at += Math.max(10, Math.round([...String(f.value || '')].length * 1.1)) + 6
+      }
+      if (scene.toggle) add(at + 18, 'click')
+      break
+    }
+    case 'stack': {
+      const pages = n(scene.images, 4)
+      const step = Math.max(14, Math.min(30, Math.round((frames * 0.6) / Math.max(1, pages))))
+      for (let i = 0; i < pages; i++) add(4 + i * step, 'whoosh')
       break
     }
     case 'apps':
