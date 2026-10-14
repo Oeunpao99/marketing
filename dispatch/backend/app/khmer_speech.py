@@ -39,21 +39,23 @@ def khmer_number(n: int) -> str:
 
 
 def _say_number(raw: str) -> str:
-    """"1,200" / "4.5" / "៨០" in Khmer words."""
-    s = raw.translate(_KHMER_DIGITS).replace(",", "")
+    """"1,200" / "១ ២០០" / "4.5" / "៨០" in Khmer words."""
+    s = re.sub(r"[,\s   ]", "", raw.translate(_KHMER_DIGITS))
     if "." in s:
         whole, frac = s.split(".", 1)
         return f"{khmer_number(int(whole or 0))} ចុច {' '.join(_DIGITS[int(d)] for d in frac)}"
     return khmer_number(int(s))
 
 
-_NUM = r"[0-9០-៩](?:[0-9០-៩,]*[0-9០-៩])?(?:\.[0-9០-៩]+)?"
+# a number: "1,400" / "4.5" / "៨០", or thousands split by a space — "១ ៤០០", "12 500"
+# (1-3 digits, then groups of exactly 3, so "2024 100" stays two numbers)
+_NUM = r"(?:[0-9០-៩]{1,3}(?:[    ][0-9០-៩]{3})+(?![0-9០-៩])|[0-9០-៩](?:[0-9០-៩,]*[0-9០-៩])?)(?:\.[0-9០-៩]+)?"
 _PATTERNS = [
     # 24/7 — always open
     (re.compile(r"(?<![\w/])24\s*/\s*7(?![\w/])"), lambda m: "ម្ភៃបួនម៉ោង ប្រាំពីរថ្ងៃ"),
-    # 9:30, ៩:៣០ — a time of day
+    # 9:30, ៩:៣០ — a time of day (a ម៉ោង already written before it is said once, not twice)
     (
-        re.compile(r"(?<![\w:])([0-9០-៩]{1,2}):([0-9០-៩]{2})(?![\w:])"),
+        re.compile(r"(?:ម៉ោង\s*|(?<![\w:]))([0-9០-៩]{1,2}):([0-9០-៩]{2})(?![\w:])"),
         lambda m: "ម៉ោង" + _say_number(m[1]) + ("" if int(m[2].translate(_KHMER_DIGITS)) == 0 else " " + _say_number(m[2]) + "នាទី"),
     ),
     # $80, $1,200.50 / 80$ / 80 USD

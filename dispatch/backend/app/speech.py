@@ -86,6 +86,8 @@ def _why(exc: Exception) -> str:
         return "Gemini credit is used up — top it up in AI Studio"
     if "API key not valid" in text or " 400" in text or " 401" in text or "403" in text:
         return "the Gemini API key isn't valid on this server — check GEMINI_API_KEY"
+    if "429" in text and ("per_day" in text.lower() or "perday" in text.lower()):
+        return "Gemini's free daily limit is used up (it resets tomorrow — billing on the key raises it)"
     if "429" in text:
         return "Gemini is busy (too many requests)"
     return text[:120]  # voice_for's names for Gemini TTS voices: "gemini:Kore"

@@ -225,10 +225,15 @@ TEACH_PROMPT = (
     "- stat: value (a number), prefix, suffix, label (max 6 words), icon.\n"
     "- cta: text (max 8 words), button (1-2 words, e.g. \"Save\", \"Share\", \"Follow\").\n"
     "\n"
-    "NUMBERS: you may use clearly illustrative scenarios (\"if you save $80 a month…\") "
-    "but every number must be arithmetically EXACT and consistent across scenes: chart "
-    "values must follow from the story (saving $80/month → after 12 months $960, after 36 "
-    "months $2,880). Never invent statistics about real companies, studies or markets. "
+    "STORYTELLING (what makes Khmer story videos feel human): named people the viewer follows; "
+    "a question in the hook that comes back at the end; the moment SHOWN in small details (the "
+    "coffee, the lunch, the bank balance) instead of explained; a line of dialogue in «…»; a "
+    "short punch line after a long one; \"…\" where the voice should pause; an honest ending "
+    "(no magic fixes); the takeaway as a few short actions.\n"
+    "NUMBERS: when the brief gives numbers, use exactly those. When you illustrate, every "
+    "number must be arithmetically EXACT and consistent across scenes (a chart's values follow "
+    "from the story's own amounts). Never invent statistics about real companies, studies or "
+    "markets. "
     "Wrap the 1-3 most important words of the hook and titles in [square brackets] — they "
     "are highlighted.\n"
     "icon: exactly one name from this list: " + ", ".join(ICONS) + ".\n"
@@ -238,8 +243,8 @@ TEACH_PROMPT = (
     "friendly teacher telling one person a story. Same language.\n"
     "\n"
     "LANGUAGE: write in the LANGUAGE given. Khmer: everyday spoken Khmer — short common "
-    "words, correct spelling, address the viewer as បង (never អ្នក), digits are fine. "
-    "English: plain and punchy.\n"
+    "words, correct spelling, digits are fine; speak to the viewer as បង, or as a storyteller "
+    "to everyone as អ្នក — pick one and keep it. English: plain and punchy.\n"
     "The topic may come from a brand that sells something related — teach the topic, don't "
     "sell. The brief may be a long prompt written for a filmed video — keep only its topic.\n"
     "\n"
@@ -1145,11 +1150,16 @@ STORY_RULES = (
     "scene type that shows its sentence best, and keep the on-screen words short. Start with a "
     "hook and end with a cta, taken from the story's opening and ending. Make about {count} "
     "scenes — the video should run about {seconds} seconds (one scene is about 6 seconds).\n"
-    "VARIETY — a long video must not look like one slide repeated: use EVERY scene type above, "
-    "never more than 2 scenes of the same type in a row, and no type for more than a third of the "
-    "scenes. Pick the type that fits the sentence: a step → step, several points → list, a "
-    "number → stat, a before/after or a comparison → its scene, how things connect → flow, the "
-    "one idea to remember → reveal."
+    "FAITHFUL — it is THEIR story: keep its order, its people (names spelled EXACTLY as written), "
+    "its dialogue (the words in quotes «…» / \"…\" stay in the `say` lines, in quotes), its "
+    "questions, its tips and its ending — word for word where you can. NEVER add anything the "
+    "story doesn't say: no new numbers, amounts, savings, results, tips, steps or outcomes, and "
+    "never change how it ends. A `chart`, `stat`, `result` or `dashboard` only when the story "
+    "itself gives ALL its numbers — otherwise show that sentence another way.\n"
+    "VARIETY comes from HOW each sentence is shown, never from new content: never more than 2 "
+    "scenes of the same type in a row, no type for more than a third of the scenes — a person's "
+    "moment → their scene, several things → list, two people → compare, a number the story "
+    "gives → stat, the one idea to remember → its own scene."
 )
 
 
@@ -1225,6 +1235,53 @@ def _number(value) -> float:
     except ValueError:
         return 0.0
     return n if 0 <= n < 1_000_000 else 0.0
+
+
+# The templates told by a narrator to everyone (not a shop talking to its customer, បង).
+NARRATOR_STYLES = {"explainer", "training", "quote", "countdown", "tips"}
+
+
+def story_language(idea: str, picked: str) -> str:
+    """The language of the person's own story — Khmer when most of its letters
+    are Khmer, English when they're Latin, else what they picked."""
+    km = sum(1 for ch in idea if "\u1780" <= ch <= "\u17ff")
+    latin = sum(1 for ch in idea if ch.isascii() and ch.isalpha())
+    if km > latin * 2:
+        return "Khmer"
+    if latin > km * 2:
+        return "English"
+    return picked
+
+
+def _numbers_in(text: str) -> set[float]:
+    """Every number written in a text — Khmer digits too, "1,400" / "១ ៤០០" as one."""
+    t = text.translate(str.maketrans("០១២៣៤៥៦៧៨៩", "0123456789"))
+    t = re.sub(r"(?<=\d)[,\u00a0\u2009\u202f ](?=\d{3}(?!\d))", "", t)
+    return {float(x) for x in re.findall(r"\d+(?:\.\d+)?", t)}
+
+
+def _only_story_numbers(scene: dict, story: str, allowed: tuple = ()) -> dict:
+    """Story mode: a chart / stat / result / dashboard whose numbers the story
+    never gave is turned into a plain statement of that line (its words and
+    voice kept) — the video never shows a figure the person didn't write."""
+    have = _numbers_in(story) | {0.0}
+    kind = scene["type"]
+    if kind in ("stat", "result"):
+        nums = [float(scene.get("value") or 0)]
+    elif kind == "chart":
+        nums = [float(v) for ser in scene.get("series") or [] for v in ser.get("values") or []]
+    elif kind == "dashboard":
+        nums = [float(m.get("value") or 0) for m in scene.get("metrics") or []]
+    else:
+        return scene
+    if all(n in have for n in nums):
+        return scene
+    text = scene.get("title") or scene.get("label") or ""
+    if "reveal" in allowed:
+        return {"type": "reveal", "text": text, "icon": scene.get("icon") or "Lightbulb", "say": scene.get("say", "")}
+    if "character" in allowed:  # Teach: the person, thinking it over
+        return {"type": "character", "title": text, "mood": "thinking", "icon": "", "tag": "", "say": scene.get("say", "")}
+    return {"type": "list", "title": text, "items": [], "say": scene.get("say", "")} if "list" in allowed else scene
 
 
 def _apps(value) -> list[dict]:
@@ -1394,7 +1451,7 @@ def _clean_scene(raw: dict, names: dict[str, str]) -> dict | None:
                 "type": kind,
                 "value": int(value) if value == int(value) else round(value, 1),
                 "prefix": _line(raw.get("prefix"), 3),
-                "suffix": _line(raw.get("suffix"), 4),
+                "suffix": _line(raw.get("suffix"), 10),  # "/month", not "/mon"
                 "label": label,
                 "icon": _icon(raw.get("icon"), "TrendingUp"),
                 "say": say,
@@ -1814,6 +1871,10 @@ def write_script(
         if len(shots or []) < 2:
             allowed = tuple(t for t in allowed if t != "stack")
     story = bool(seconds and idea.strip())
+    if story:  # their own story: the video speaks its language, whatever the picker says
+        language = story_language(idea, language)
+        khmer = "khmer" in language.lower()
+        model = writer_model(khmer)
     if story:
         count = max(5, min(MAX_LONG_SCENES if style in LONG_STYLES else MAX_STORY_SCENES, round(seconds / 6.5)))
         most = count  # the person's story sets the length, not the template
@@ -1860,6 +1921,8 @@ def write_script(
     if not hooks or not ctas or not middle or (must and not any(s["type"] == must for s in middle)):
         raise ContentAIError("The AI didn't return a usable storyboard — try again.")
     script = {"scenes": [hooks[0], *middle, ctas[0]], "style": style}
+    if story:  # a chart / number the story never gave becomes a plain statement of that line
+        script["scenes"] = [_only_story_numbers(s, idea, allowed) for s in script["scenes"]]
     if style == "custom":
         r, g, b = accent_for(brand.slug)
         script["look"] = clean_look(raw.get("look"), f"#{r:02x}{g:02x}{b:02x}")
@@ -1925,7 +1988,10 @@ def write_script(
         shows = [screen for screen, _ in script_lines({"scenes": spoken})]
         for s, line in zip(
             spoken,
-            voice_script_khmer([s["say"] for s in spoken], model, [brand.name, *(p.name for p in products)], brand.voice_examples or "", own=story, shows=shows),
+            voice_script_khmer(
+                [s["say"] for s in spoken], model, [brand.name, *(p.name for p in products)], brand.voice_examples or "",
+                own=story, shows=shows, narrator=story or style in NARRATOR_STYLES,
+            ),
         ):
             s["say"] = line
         _report(job_id, stage="pictures", scenes=_board(script))
@@ -2081,6 +2147,11 @@ VOICE_SCRIPT_PROMPT = (
     "the same length as its draft (±30%).\n"
     'Return JSON {"lines": [...]} — one line per scene, the same number, in the same order.'
 )
+VOICE_SCRIPT_NARRATOR = (
+    "\n\nA STORYTELLER NARRATES THIS (a lesson or the person's own story): rule 8 changes — "
+    "speak to the audience the way the material does; អ្នក for everyone is fine here, as long as "
+    "it stays the same through the whole narration. Keep the people's names exactly as written."
+)
 VOICE_SCRIPT_LIGHT = (
     "\n\nTHESE ARE THE PERSON'S OWN SCRIPT LINES: keep their meaning, their order and as much of "
     "their wording as you can — only make them speakable (shorter sentences, marked breaths, a "
@@ -2089,7 +2160,13 @@ VOICE_SCRIPT_LIGHT = (
 
 
 def voice_script_khmer(
-    lines: list[str], model: str, keep: list[str], voice_examples: str = "", own: bool = False, shows: list[str] | None = None
+    lines: list[str],
+    model: str,
+    keep: list[str],
+    voice_examples: str = "",
+    own: bool = False,
+    shows: list[str] | None = None,
+    narrator: bool = False,
 ) -> list[str]:
     """The Khmer voice lines rewritten as one spoken story (VOICE_SCRIPT_PROMPT)
     — ``shows`` is what each line's scene puts on screen, so the narration
@@ -2098,7 +2175,7 @@ def voice_script_khmer(
 
     if not lines:
         return lines
-    system = VOICE_SCRIPT_PROMPT + (VOICE_SCRIPT_LIGHT if own else "")
+    system = VOICE_SCRIPT_PROMPT + (VOICE_SCRIPT_LIGHT if own else "") + (VOICE_SCRIPT_NARRATOR if narrator else "")
     if keep:
         system += "\n\nNames to copy EXACTLY as written: " + ", ".join(k for k in keep if k)
     if voice_examples.strip():
@@ -2117,20 +2194,23 @@ def voice_script_khmer(
             ],
             model,
             max_tokens=24000,
-            effort="high",  # meaning and spelling matter more than speed here
+            # meaning and spelling matter more than speed — but their own story only
+            # needs a light touch, and at high effort it kept them waiting minutes
+            effort="medium" if own else "high",
         )
     except ContentAIError:
         return lines
     new = out.get("lines") if isinstance(out, dict) else None
     if not (isinstance(new, list) and len(new) == len(lines) and all(isinstance(x, str) and x.strip() for x in new)):
         return lines
-    return [_line(_bong(_fix_khmer_punctuation(x.strip())), 300) for x in new]
+    fix = (lambda x: x) if narrator else _bong  # a storyteller may say អ្នក to everyone
+    return [_line(fix(_fix_khmer_punctuation(x.strip())), 300) for x in new]
 
 
 # អ្នក as part of a noun (seller, buyer, who, user, …) — never "you"; the rest of
 # the time a voice line's អ្នក is "you", and our viewer is បង (VOICE_SCRIPT_PROMPT rule 8).
 _ANAK_WORDS = (
-    "លក់", "ទិញ", "ប្រើ", "គ្រប់គ្រង", "ជំនាញ", "ណា", "ផ្សេង", "ដទៃ", "ផលិត", "ធ្វើការ", "ស្រុក", "នាំ",
+    "ទាំង", "រាល់គ្នា", "លក់", "ទិញ", "ប្រើ", "គ្រប់គ្រង", "ជំនាញ", "ណា", "ផ្សេង", "ដទៃ", "ផលិត", "ធ្វើការ", "ស្រុក", "នាំ",
     "បើកបរ", "ដឹក", "ជិតខាង", "មាន", "ក្រ", "រៀន", "សិក្សា", "និពន្ធ", "បង្កើត", "គាំទ្រ", "ចូលរួម",
     "មើល", "តាមដាន", "ទទួល", "ផ្គត់ផ្គង់", "វិនិយោគ", "បម្រើ", "ជំនួញ", "អាជីវកម្ម", "ថែទាំ", "ច្នៃ",
     "រចនា", "ប្រកួត", "ដំណើរ", "ធានា", "កាសែត", "ឧបត្ថម្ភ", "ចាប់ផ្ដើម", "ចាប់ផ្តើម", "នយោបាយ", "ស្ម័គ្រចិត្ត",
