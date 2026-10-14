@@ -179,6 +179,7 @@ const MOTION_STORIES = [
   { value: 'testimonial', label: 'Testimonial · Customer story', hint: 'A customer’s before → after — builds trust (real reviews only from your brief)' },
   { value: 'trend', label: 'AI News · Trend', hint: 'What’s new in AI and what it means for you — awareness' },
   { value: 'pov', label: 'POV · Relatable', hint: 'A “POV:” moment, the phone blowing up — reach and tags' },
+  { value: 'showcase', label: 'Showcase · SaaS promo', hint: 'Bright launch-video look — the apps it joins, its table and board views, a rolling word' },
   { value: 'demo', label: 'Product demo', hint: 'Your product in an app window, step by step — shows the solution' },
   { value: 'offer', label: 'Offer · Pricing', hint: 'A glowing pricing card and one clear action — conversion (prices only from your brief)' },
 ]
@@ -2280,7 +2281,7 @@ function SettingsPopover({
               motionRatio === 'auto'
                 ? 'The AI picks from your brief — wide for YouTube, LinkedIn, a website or a presentation, tall for TikTok and Reels'
                 : motionRatio === '16:9'
-                  ? 'Wide — Training and the SaaS templates (Designed for you, Product demo, Offer, AI News, POV); others stay tall'
+                  ? 'Wide — Training and the SaaS templates (Designed for you, Showcase, Product demo, Offer, AI News, POV); others stay tall'
                   : 'Vertical — phones, Reels and TikTok'
             }
           >

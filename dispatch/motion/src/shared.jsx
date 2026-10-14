@@ -16,6 +16,14 @@ export function defaultSeconds(s) {
   switch (s.type) {
     case 'chat':
       return 1.6 + 1.5 * Math.min(4, (s.messages || []).length)
+    case 'apps':
+      return 2.6 + 0.35 * Math.min(8, (s.apps || []).length)
+    case 'table':
+      return 3.6 + 0.3 * Math.min(6, (s.rows || []).length)
+    case 'board':
+      return 4.6
+    case 'roll':
+      return 2.4 + 0.6 * Math.min(5, (s.words || []).length)
     case 'list':
       return 1.8 + 1.0 * Math.min(4, (s.items || []).length)
     case 'cta':

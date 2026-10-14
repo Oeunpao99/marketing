@@ -29,6 +29,7 @@
  */
 import { AbsoluteFill, Img, interpolate, random, spring, useCurrentFrame, useVideoConfig } from 'remotion'
 import { FONT, Icon, Words, clean, fitSize, srcOf, tint } from './shared'
+import { showcaseScenes } from './showcase'
 
 /** A full palette from its base colours: { bg, a (accent), b (second accent),
  * mode: "dark" | "light", background: "grid" | "dots" | "clean" } — flat backgrounds, no glow / gradient. */
@@ -60,6 +61,7 @@ const PALETTES = {
   pov: palette({ bg: '#0B0618', a: '#C084FC', b: '#F472B6', kicker: 'POV', icon: 'Smartphone' }),
   demo: palette({ bg: '#040B1C', a: '#3B82F6', b: '#22D3EE', kicker: 'LIVE DEMO', icon: 'LayoutDashboard' }),
   offer: palette({ bg: '#03110D', a: '#34D399', b: '#FBBF24', kicker: 'SPECIAL OFFER', icon: 'BadgePercent', card: '#07170F' }),
+  showcase: palette({ bg: '#EEF0FF', a: '#6D4AFF', b: '#22B8F0', mode: 'light', background: 'airy', icon: 'LayoutGrid' }),
 }
 
 const ON = '#FFFFFF' // on an accent tile / a dark phone — white in every look
@@ -84,9 +86,50 @@ const DOTS = [...Array(26)].map((_, i) => ({
   o: 0.25 + random(`o${i}`) * 0.5,
 }))
 
+const SPARKS = [...Array(16)].map((_, i) => ({
+  x: random(`sx${i}`),
+  y: random(`sy${i}`),
+  r: 8 + random(`sr${i}`) * 22,
+  glow: i % 3 === 0, // a soft white light; the rest are small coloured dots
+}))
+
+/** Showcase's background (showcase.jsx): lavender, two soft colour blobs
+ * drifting in the corners, thin white orbit lines with a dot running round,
+ * white lights and coloured dots twinkling. */
+function Airy({ P }) {
+  const frame = useCurrentFrame()
+  const { width, height } = useVideoConfig()
+  const big = Math.max(width, height)
+  const blobs = [
+    { x: width * 0.86 + Math.sin(frame / 70) * 30, y: height * 0.13 + Math.cos(frame / 80) * 24, d: big * 0.34, rot: 70 },
+    { x: width * 0.1 + Math.cos(frame / 60) * 26, y: height * 0.9 + Math.sin(frame / 75) * 20, d: big * 0.22, rot: 20 },
+  ]
+  return (
+    <>
+      {blobs.map((b, i) => (
+        <div key={i}>
+          <div style={{ position: 'absolute', left: b.x - b.d / 2, top: b.y - b.d / 2, width: b.d, height: b.d, borderRadius: '50%', background: `linear-gradient(${b.rot}deg, #E040FB 8%, #B455F5 38%, ${P.a} 60%, ${P.b})`, filter: `blur(${Math.round(b.d * 0.05)}px)`, opacity: 0.9 }} />
+          <div style={{ position: 'absolute', left: b.x - b.d * 0.68, top: b.y - b.d * 0.68, width: b.d * 1.36, height: b.d * 1.36, borderRadius: '50%', border: '3px solid rgba(255,255,255,0.95)', transform: `rotate(${frame * (i ? -0.5 : 0.4)}deg)` }}>
+            <span style={{ position: 'absolute', left: '50%', top: -9, width: 16, height: 16, marginLeft: -8, borderRadius: 8, background: '#FFFFFF', border: `3px solid ${tint(P.a, 0.5)}` }} />
+          </div>
+        </div>
+      ))}
+      {SPARKS.map((s, i) => {
+        const tw = 0.55 + 0.45 * Math.sin((frame + i * 19) / 16)
+        return s.glow ? (
+          <div key={i} style={{ position: 'absolute', left: s.x * width, top: s.y * height, width: s.r * 2.4, height: s.r * 2.4, borderRadius: '50%', background: '#FFFFFF', boxShadow: '0 10px 30px rgba(76,61,160,0.18)', opacity: 0.85 * tw }} />
+        ) : (
+          <div key={i} style={{ position: 'absolute', left: s.x * width, top: s.y * height + Math.sin((frame + i * 11) / 24) * 8, width: s.r * 0.6, height: s.r * 0.6, borderRadius: '50%', background: ['#E040FB', P.a, P.b][i % 3], opacity: tw }} />
+        )
+      })}
+    </>
+  )
+}
+
 /** The background: a flat colour, and by P.background — grid: a grid floor
  * moving towards the viewer, a dot grid at the top, small particles rising;
- * dots: a dot grid all over; clean: the colour alone. No glow, no gradient. */
+ * dots: a dot grid all over; clean: the colour alone; airy: Showcase's soft
+ * blobs and orbits (Airy above). */
 function AiBg({ P }) {
   const frame = useCurrentFrame()
   const { width, height } = useVideoConfig()
@@ -94,6 +137,7 @@ function AiBg({ P }) {
   const kind = P.background === 'glow' ? 'grid' : P.background // an old "glow" look draws as grid
   return (
     <AbsoluteFill style={{ backgroundColor: P.bg, overflow: 'hidden' }}>
+      {kind === 'airy' && <Airy P={P} />}
       {(kind === 'grid' || kind === 'dots') && (
         <div
           style={{
@@ -1387,6 +1431,8 @@ export const TREND = template(PALETTES.trend, 'trend', { news: makeNews(PALETTES
 export const POV = template(PALETTES.pov, 'pov', { notify: makeNotify(PALETTES.pov) })
 export const DEMO = template(PALETTES.demo, 'demo', { step: makeStep(PALETTES.demo), screen: makeScreen(PALETTES.demo), dashboard: makeDashboard(PALETTES.demo), flow: makeFlow(PALETTES.demo) })
 export const OFFER = template(PALETTES.offer, 'offer', { offer: makeOffer(PALETTES.offer) })
+const SP = PALETTES.showcase
+export const SHOWCASE = template(SP, 'showcase', { ...showcaseScenes(SP, AiBg), step: makeStep(SP), screen: makeScreen(SP), dashboard: makeDashboard(SP), flow: makeFlow(SP) })
 
 /** "Designed for you": the look the AI picked for this video (props.look). */
 export function customTemplate(look = {}) {

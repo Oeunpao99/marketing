@@ -232,7 +232,9 @@ def _gemini(text: str, voice: str, style: str = "") -> bytes:
 
     s = get_settings()
     body = {
-        "contents": [{"parts": [{"text": f"{GEMINI_HOW[_lang(text)]} {GEMINI_ACT.get(style, '')}\n\n{text.strip()}"}]}],
+        # Gemini reads Khmer as written — the zero-width spaces between words are
+        # for Azure's word timings, and make Gemini read word by word
+        "contents": [{"parts": [{"text": f"{GEMINI_HOW[_lang(text)]} {GEMINI_ACT.get(style, '')}\n\n{text.replace(ZWSP, '').strip()}"}]}],
         "generationConfig": {
             "responseModalities": ["AUDIO"],
             "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": voice}}},
@@ -264,6 +266,7 @@ def _gemini(text: str, voice: str, style: str = "") -> bytes:
         pcm = base64.b64decode(resp.json()["candidates"][0]["content"]["parts"][0]["inlineData"]["data"])
     except (KeyError, IndexError, ValueError) as exc:
         raise SpeechError("Gemini returned no audio.") from exc
+    pcm = _trim_tail(pcm)
     done = subprocess.run(
         [imageio_ffmpeg.get_ffmpeg_exe(), "-y", "-loglevel", "error", "-f", "s16le", "-ar", "24000", "-ac", "1", "-i", "pipe:0",
          "-codec:a", "libmp3lame", "-b:a", "128k", "-f", "mp3", "pipe:1"],
@@ -273,6 +276,27 @@ def _gemini(text: str, voice: str, style: str = "") -> bytes:
     if done.returncode != 0 or not done.stdout:
         raise SpeechError("Couldn't encode the Gemini audio.")
     return done.stdout
+
+
+def _trim_tail(pcm: bytes, rate: int = 24000) -> bytes:
+    """Gemini's audio without what comes after the last word — it sometimes
+    adds a tail of hiss or a stray noise there. Cut 0.2 s after the last
+    20 ms slice within 26 dB of the loudest one, and fade the last 40 ms out."""
+    import array
+    import math
+
+    a = array.array("h", pcm[: len(pcm) // 2 * 2])
+    win = rate // 50
+    levels = [math.sqrt(sum(x * x for x in a[i : i + win]) / win) for i in range(0, len(a) - win + 1, win)]
+    if not levels or max(levels) < 1:
+        return pcm
+    floor = max(levels) * 10 ** (-26 / 20)
+    last = max(i for i, v in enumerate(levels) if v >= floor)
+    end = min(len(a), (last + 1) * win + rate // 5)
+    fade = min(end, rate // 25)
+    for k in range(fade):
+        a[end - fade + k] = int(a[end - fade + k] * (1 - k / fade))
+    return a[:end].tobytes()
 
 
 def _gemini_retry_after(resp: httpx.Response) -> float | None:
@@ -306,6 +330,7 @@ GEMINI_ACT = {
     "explainer": "Warm and gentle, like telling a short story to a friend — slow down on the important moments.",
     "testimonial": "Warm and heartfelt, like telling a friend what happened to a real person.",
     "custom": "Confident and friendly, like a product presenter showing something they love using.",
+    "showcase": "Bright and upbeat, like a polished app launch video — confident, a little excited, quick pace.",
     "demo": "Clear and friendly, like showing a friend how to use an app, step by step.",
     "poll": "Playful and lively, like a game-show host.",
     "quote": "Calm and slow, with weight on every word.",

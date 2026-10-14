@@ -72,6 +72,15 @@ export const MOTION_TEMPLATES = [
     note: '* only with a real customer’s words in your brief — otherwise it’s told as an example customer',
     goals: ['trust'],
   },
+  {
+    id: 'showcase',
+    story: 'showcase',
+    name: 'Showcase',
+    look: 'Bright SaaS promo — apps floating in bubbles, your table and board views, a word that rolls and lands',
+    steps: ['Hook', 'Who it’s for', 'Works with', 'Shown working', 'Call to action'],
+    note: 'Table and board rows are sample data, never real customers',
+    goals: ['solution'],
+  },
   // SaaS / AI — one dark, glowing look (motion/src/saas.jsx)
   {
     id: 'trend',
@@ -118,7 +127,7 @@ export const GOAL_TEMPLATES = {
   education: ['teach', 'custom', 'training'],
   trust: ['testimonial'],
   authority: ['versus'],
-  solution: ['sell', 'demo', 'custom'],
+  solution: ['sell', 'demo', 'custom', 'showcase'],
   conversion: ['offer', 'sell'],
 }
 

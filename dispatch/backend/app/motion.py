@@ -541,6 +541,58 @@ OFFER_PROMPT = (
     + '{"scenes": [{"type": "hook", "text": "...", "icon": "BadgePercent", "say": "..."}, ...]}'
 )
 
+# ── Showcase (motion/src/showcase.jsx) — a bright SaaS promo ───────────────
+SHOWCASE_TYPES = ("hook", "roll", "apps", "table", "board", "screen", "flow", "dashboard", "list", "stat", "cta")
+SHOWCASE_PROMPT = (
+    "You are the best SaaS promo director in Cambodia. You plan a REMOTION VIDEO (about 40-60 s) "
+    "that SHOWCASES a software product the way polished app launch videos do: a bright lavender "
+    "look with soft colour blobs, app icons floating in white bubbles, the product's own views "
+    "(a table, a board) animating in a window, and a word that rolls like a slot machine and lands. "
+    "Light, fast, confident — every scene shows the product doing something.\n"
+    "\n"
+    "THE STORY (7-9 scenes):\n"
+    "1. hook — what the product gives, in one line, with the apps it replaces or joins floating "
+    "round it (\"All your orders, [one place]\").\n"
+    "2. roll — who it is for or what it handles: a lead word and 3-4 words that roll and land on "
+    "the last one (\"For your\" → \"shop / team / agency\").\n"
+    "3. apps — the tools it works with (only ones the product information names or that it "
+    "clearly connects to).\n"
+    "4-6. the product working — `table` (its list / records view), `board` (work moving to done), "
+    "`screen` (a real screenshot), `flow` or `dashboard`; two or three of these, different types.\n"
+    "7. stat or list — what they get (stat only with a TRUE number).\n"
+    "last. cta — try it / book a demo / message us.\n"
+    "\n"
+    "SCENE TYPES and their fields:\n"
+    "- hook: text (max 9 words), apps: 6-8 x {\"name\": a real app the customer uses today, e.g. "
+    "\"Excel\", \"Telegram\", \"Google Drive\"} — they float round the line.\n"
+    "- roll: lead (1-2 words, e.g. \"Your\", \"For every\"), words: 3-4 single short words (max 12 "
+    "letters each) — the last one is the point, icon, text (max 8 words, optional — under it).\n"
+    "- apps: title (max 7 words), apps: 4-8 x {\"name\"} — real app / platform names.\n"
+    "- table: title (the view's name, 2-4 words, e.g. \"Customer list\"), columns: 3-4 short "
+    "headers (the first a name, the last a status), rows: 4-5 rows of SAMPLE records, each a list "
+    "of cells matching the columns (short — names, products, dates, statuses), groups: 2-3 folder "
+    "names (optional). Believable local sample data (Cambodian names, riel or $ amounts).\n"
+    "- board: title (max 7 words), columns: 3 x {\"name\": a status, 1-2 words, in order — e.g. "
+    "New → Packing → Delivered, \"cards\": 1-3 short items (max 5 words)} — the first card of the "
+    "first column is dragged to the last.\n"
+    "- screen: shot (the screenshot's number — only from THE BRAND'S SCREENSHOTS), title (max 7 "
+    "words), target (in ENGLISH: the ONE element to point at), action (\"click\" | \"highlight\"), "
+    "result (max 6 words, optional).\n"
+    "- flow: title (max 6 words), nodes: 3-4 x {\"icon\", \"label\": 2-5 words, \"sub\": the app, optional}.\n"
+    "- dashboard: title (optional), metrics: 2-3 x {\"label\", \"value\", \"prefix\", \"suffix\", "
+    "\"delta\"}, chart: \"line\" | \"bars\" — small, believable SAMPLE data.\n"
+    "- list: title (max 6 words), items: 3 x {\"icon\", \"text\": 2-6 words}.\n"
+    "- stat: value, prefix, suffix, label (max 6 words), icon — only a TRUE number.\n"
+    "- cta: text (max 9 words), button (2-4 words).\n"
+    "Only features the product information supports — never invent one. Sample records are "
+    "examples, never presented as real customers' data.\n"
+    "\n"
+    + _SAAS_CRAFT
+    + "\n"
+    + _COMMON_RULES
+    + '{"scenes": [{"type": "hook", "text": "...", "apps": [{"name": "Excel"}], "say": "..."}, ...]}'
+)
+
 # ── Training & Presentation (motion/src/training.jsx) — 16:9 or 9:16 ──────
 TRAINING_TYPES = ("hook", "chapter", "list", "checklist", "quote", "beforeafter", "recap", "stat", "cta")
 TRAINING_PROMPT = (
@@ -829,6 +881,7 @@ STYLES = {
     "pov": (POV_PROMPT, POV_TYPES, 5, "notify"),
     "demo": (DEMO_PROMPT, DEMO_TYPES, 7, "step"),
     "offer": (OFFER_PROMPT, OFFER_TYPES, 5, "offer"),
+    "showcase": (SHOWCASE_PROMPT, SHOWCASE_TYPES, 7, None),
     "custom": (CUSTOM_PROMPT, CUSTOM_TYPES, 8, None),
     "training": (TRAINING_PROMPT, TRAINING_TYPES, 12, None),
 }
@@ -837,7 +890,7 @@ LONG_STYLES = {"training"}
 # The templates laid out for 16:9 too (motion/src/training.jsx, saas.jsx wide scenes);
 # every other template is always vertical. Scenes drawn only for a tall frame are
 # left out of a wide video.
-WIDE_STYLES = {"training", "custom", "demo", "offer", "trend", "pov"}
+WIDE_STYLES = {"training", "custom", "demo", "offer", "trend", "pov", "showcase"}
 TALL_ONLY_TYPES = {"problem", "chat", "product", "point"}
 
 
@@ -851,9 +904,9 @@ def final_ratio(asked: str, style: str, suggested: str | None = None) -> str:
     if asked == "auto":
         return suggested if suggested in ("16:9", "9:16") else ("16:9" if style == "training" else "9:16")
     return "9:16"
-SCREEN_STYLES = {"custom", "demo"}  # the stories that can show the brand's screenshots
+SCREEN_STYLES = {"custom", "demo", "showcase"}  # the stories that can show the brand's screenshots
 # The templates that sell (the auto topic picks a product, not a teaching topic).
-SELLING_STYLES = {"tech", "demo", "offer"}
+SELLING_STYLES = {"tech", "demo", "offer", "showcase"}
 
 # Story mode (write_script ``seconds``): the person pasted their own story.
 MAX_STORY_SCENES = 20  # ~2 minutes
@@ -895,7 +948,7 @@ def estimate_seconds(script: dict) -> int:
 # random per video, so a week's plan doesn't repeat the same look.
 GOAL_STYLES = {
     "sell": ("tech",),
-    "solution": ("tech", "demo", "custom"),
+    "solution": ("tech", "demo", "custom", "showcase"),
     "conversion": ("offer", "tech"),
     "teach": ("explainer",),
     "education": ("explainer", "custom"),
@@ -944,6 +997,11 @@ def _number(value) -> float:
     return n if 0 <= n < 1_000_000 else 0.0
 
 
+def _apps(value) -> list[dict]:
+    """Showcase's app bubbles: [{"name"}] — the template draws each known app's icon."""
+    return [{"name": _line(a.get("name"), 24)} for a in (value or []) if isinstance(a, dict) and _line(a.get("name"), 24)][:8]
+
+
 def _clean_scene(raw: dict, names: dict[str, str]) -> dict | None:
     """One scene from the AI, checked and trimmed — None when it's unusable."""
     kind = raw.get("type")
@@ -953,7 +1011,40 @@ def _clean_scene(raw: dict, names: dict[str, str]) -> dict | None:
         hook = {"type": kind, "text": text, "icon": _icon(raw.get("icon"), "Zap"), "say": say}
         if _line(raw.get("sub"), 100):
             hook["sub"] = _line(raw.get("sub"), 100)
+        apps = _apps(raw.get("apps"))
+        if apps:
+            hook["apps"] = apps  # Showcase: the bubbles floating round the line
         return hook if text else None
+    if kind == "apps":
+        apps = _apps(raw.get("apps"))
+        return {"type": kind, "title": _line(raw.get("title"), 80), "apps": apps, "say": say} if len(apps) >= 3 else None
+    if kind == "roll":
+        words = [w for w in (_line(w, 16) for w in (raw.get("words") or [])) if w][:5]
+        return (
+            {"type": kind, "lead": _line(raw.get("lead"), 24), "words": words, "icon": _icon(raw.get("icon"), "Check"), "text": _line(raw.get("text"), 80), "say": say}
+            if len(words) >= 2
+            else None
+        )
+    if kind == "table":
+        columns = [c for c in (_line(c, 24) for c in (raw.get("columns") or [])) if c][:5]
+        rows = [
+            [_line(cell, 40) for cell in (list(r) + [""] * len(columns))[: len(columns)]]
+            for r in (raw.get("rows") or [])
+            if isinstance(r, list) and r and _line(r[0], 40)
+        ][:6]
+        groups = [g for g in (_line(g, 24) for g in (raw.get("groups") or [])) if g][:4]
+        return (
+            {"type": kind, "title": _line(raw.get("title"), 40), "columns": columns, "rows": rows, "groups": groups, "say": say}
+            if len(columns) >= 2 and len(rows) >= 2
+            else None
+        )
+    if kind == "board":
+        columns = [
+            {"name": _line(c.get("name"), 20), "cards": [x for x in (_line(x, 50) for x in (c.get("cards") or [])) if x][:3]}
+            for c in (raw.get("columns") or [])
+            if isinstance(c, dict) and _line(c.get("name"), 20)
+        ][:3]
+        return {"type": kind, "title": _line(raw.get("title"), 80), "columns": columns, "say": say} if len(columns) >= 2 and columns[0]["cards"] else None
     if kind == "problem":
         title = _line(raw.get("title"), 80)
         count = int(_number(raw.get("count")))
@@ -1260,6 +1351,10 @@ _TEXT_FIELDS = {
     "notify": (("title", 80), ("say", 300)),
     "step": (("title", 80), ("text", 140), ("result", 50), ("say", 300)),
     "offer": (("badge", 28), ("period", 14), ("say", 300)),
+    "apps": (("title", 80), ("say", 300)),
+    "roll": (("lead", 24), ("text", 80), ("say", 300)),
+    "table": (("title", 40), ("say", 300)),
+    "board": (("title", 80), ("say", 300)),
 }
 
 
@@ -1544,6 +1639,14 @@ def script_lines(script: dict) -> list[tuple[str, str]]:
             screen = (s.get("title") or "Notifications") + " — " + " / ".join(f"{n['app']}: {n['text']}" for n in s["notes"])
         elif s["type"] == "step":
             screen = s["title"] + (f" — {s['text']}" if s.get("text") else "") + (f" ✓ {s['result']}" if s.get("result") else "")
+        elif s["type"] == "apps":
+            screen = (s.get("title") or "Apps") + " — " + ", ".join(a["name"] for a in s["apps"])
+        elif s["type"] == "roll":
+            screen = f"{s.get('lead', '')} " + " / ".join(s["words"]) + (f" — {s['text']}" if s.get("text") else "")
+        elif s["type"] == "table":
+            screen = (s.get("title") or "Table") + " — " + " | ".join(s["columns"]) + f" ({len(s['rows'])} rows)"
+        elif s["type"] == "board":
+            screen = (s.get("title") or "Board") + " — " + " → ".join(c["name"] for c in s["columns"])
         elif s["type"] == "offer":
             price = f" {s['price']}{s.get('period', '')}" if s.get("price") else ""
             screen = f"{s.get('plan', '')}{price} — " + ", ".join(s["features"])
@@ -1579,12 +1682,13 @@ VOICE_SCRIPT_PROMPT = (
     "1. Spoken Khmer, not written Khmer: the words a Phnom Penh presenter actually says. Address "
     "the viewer as បង. Drop formal, bookish constructions (stacked ការ… nouns, នៃ, ដែលជា, "
     "ក្នុងការ…, long noun chains) for the plain spoken way of saying it.\n"
-    "2. Short sentences — one idea each, about 6-12 words; 1-3 sentences per line. Vary the "
-    "length a little so it doesn't sound like a machine.\n"
-    "3. Mark the breaths: put a SPACE only between PHRASES (groups of about 2-5 words) where a "
-    "speaker would breathe — never between every word; words inside a phrase stay joined, as "
-    "Khmer is written. End every sentence with ។, use ! only where the voice should lift with "
-    "energy and ? only for a real question (\"…មែនទេ?\").\n"
+    "2. It is a STORY told by one person, not a list of facts: sentences that flow into each "
+    "other with spoken connectors, mostly 8-18 words, 1-3 per line — mix a longer sentence with "
+    "a short punchy one. Never a run of tiny fragments; that sounds like a robot.\n"
+    "3. Write it the way good Khmer is written: words joined, a SPACE only where a written "
+    "sentence naturally pauses — between clauses, about every 6-12 words — never every few "
+    "words. End every sentence with ។, use ! only where the voice should lift with energy and ? "
+    "only for a real question (\"…មែនទេ?\").\n"
     "4. Spoken connectors and particles where they fit naturally (ហើយ, ប៉ុន្តែ, ព្រោះ, អ៊ីចឹង, "
     "ណា, ហ្នឹង) — not in every line, never forced.\n"
     "5. The lines are ONE narration: each leads into the next; no line repeats the previous one.\n"
@@ -1776,11 +1880,17 @@ def default_seconds(scene: dict) -> float:
         return 2.2 + 1.2 * min(4, len(scene.get("notes") or []))
     if kind == "flow":
         return 2.4 + 1.0 * min(4, len(scene.get("nodes") or []))
+    if kind == "apps":
+        return 2.6 + 0.35 * min(8, len(scene.get("apps") or []))
+    if kind == "table":
+        return 3.6 + 0.3 * min(6, len(scene.get("rows") or []))
+    if kind == "roll":
+        return 2.4 + 0.6 * min(5, len(scene.get("words") or []))
     if kind == "checklist":
         return 1.8 + 1.0 * min(6, len(scene.get("checks") or []))
     if kind == "recap":
         return 2.0 + 1.0 * min(5, len(scene.get("points") or []))
-    return {"cta": 3.8, "product": 3.6, "chart": 5.2, "compare": 4.2, "character": 3.8, "myth": 5.0, "quote": 5.6, "beforeafter": 5.4, "result": 4.2, "review": 6.0, "customer": 4.4, "news": 5.0, "step": 4.8, "offer": 5.6, "screen": 5.0, "dashboard": 5.2, "chapter": 3.2}.get(kind, 3.4)
+    return {"cta": 3.8, "product": 3.6, "chart": 5.2, "compare": 4.2, "character": 3.8, "myth": 5.0, "quote": 5.6, "beforeafter": 5.4, "result": 4.2, "review": 6.0, "customer": 4.4, "news": 5.0, "step": 4.8, "offer": 5.6, "screen": 5.0, "dashboard": 5.2, "chapter": 3.2, "board": 4.6}.get(kind, 3.4)
 
 
 def length_of(props: dict) -> int:
@@ -2029,6 +2139,12 @@ def _scene_summary(s: dict) -> str:
         text = s.get("title") or " / ".join(n.get("text", "") for n in s.get("notes") or [])
     elif t == "offer":
         text = " ".join(x for x in (s.get("plan"), s.get("price"), s.get("period")) if x)
+    elif t == "apps":
+        text = s.get("title") or " · ".join(a.get("name", "") for a in s.get("apps") or [])
+    elif t == "roll":
+        text = f"{s.get('lead', '')} " + " / ".join(s.get("words") or [])
+    elif t in ("table", "board"):
+        text = s.get("title") or ""
     else:
         text = s.get("text") or s.get("title") or s.get("label") or ""
     text = " ".join(str(text).split()) or (s.get("say") or "")
@@ -2236,6 +2352,7 @@ class PlanIn(BaseModel):
 TEMPLATE_GUIDE = {
     "custom": "SaaS, software, an app, an AI tool, a platform (Power Apps, a CRM…), B2B tech — product UI, dashboards, flows, the brand's screenshots",
     "demo": "showing HOW to use a software product, step by step in an app window",
+    "showcase": "a bright, polished promo / launch video for a SaaS or app — the tools it connects, its table and board views, who it is for",
     "training": "a team training, an internal presentation, a workshop, a lesson or a long talk with parts / sections — chapters, key points, checklists, recap",
     "explainer": "a story with people — characters with feelings (stick figures), everyday life, money and life lessons, a tale that teaches",
     "testimonial": "a customer's story or case study — who they are, before → after, their result",

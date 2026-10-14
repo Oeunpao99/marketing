@@ -10,7 +10,7 @@ import { Html5Audio, Sequence, staticFile } from 'remotion'
 import { FPS } from './shared'
 
 const VOLUME = { whoosh: 0.22, pop: 0.3, blop: 0.32, click: 0.35, ding: 0.28, tick: 0.18 }
-const SAAS = new Set(['trend', 'pov', 'demo', 'offer', 'custom'])
+const SAAS = new Set(['trend', 'pov', 'demo', 'offer', 'custom', 'showcase'])
 
 /** [{ at: frame in the scene, s: sound }] for one scene. */
 export function cuesFor(scene, style, frames, first) {
@@ -92,6 +92,27 @@ export function cuesFor(scene, style, frames, first) {
       const nodes = n(scene.nodes)
       for (let i = 0; i < nodes; i++) add(12 + i * 16, 'pop')
       add(12 + nodes * 16, 'ding') // the last step ticks
+      break
+    }
+    case 'apps':
+      add(2, 'pop')
+      for (let i = 0; i < n(scene.apps, 8); i++) add(8 + i * 4, 'blop')
+      break
+    case 'table': {
+      const rows = n(scene.rows, 6)
+      for (let i = 0; i < rows; i++) add(10 + i * 5, 'blop')
+      add(Math.min(Math.round(frames * 0.62), 10 + rows * 5 + 28), 'click') // Sort
+      break
+    }
+    case 'board':
+      add(18, 'click') // the card is picked up
+      add(52, 'ding') // …and dropped in the last column
+      break
+    case 'roll': {
+      const words = n(scene.words, 5)
+      const step = Math.max(12, Math.min(28, Math.round((frames * 0.5) / Math.max(1, words))))
+      for (let j = 1; j < words; j++) add(16 + j * step, 'tick')
+      add(16 + (words - 1) * step + 8, 'ding')
       break
     }
     case 'offer':
