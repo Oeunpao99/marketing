@@ -10,7 +10,7 @@ import { Html5Audio, Sequence, staticFile } from 'remotion'
 import { FPS } from './shared'
 
 const VOLUME = { whoosh: 0.22, pop: 0.3, blop: 0.32, click: 0.35, ding: 0.28, tick: 0.18 }
-const SAAS = new Set(['trend', 'pov', 'demo', 'offer', 'custom', 'showcase', 'launch'])
+const SAAS = new Set(['trend', 'pov', 'demo', 'offer', 'custom', 'showcase', 'launch', 'clarity'])
 
 /** [{ at: frame in the scene, s: sound }] for one scene. */
 export function cuesFor(scene, style, frames, first) {
@@ -116,6 +116,28 @@ export function cuesFor(scene, style, frames, first) {
       if (scene.toggle) add(at + 18, 'click')
       break
     }
+    case 'platform':
+      add(2, 'pop')
+      add(16, 'whoosh') // the app rises
+      break
+    case 'orbit':
+      add(2, 'pop')
+      for (let i = 0; i < n(scene.tags, 6); i++) add(10 + i * 5, 'blop')
+      break
+    case 'chaos':
+      for (let i = 0; i < n(scene.cards, 6); i++) add(4 + i * 4, 'blop')
+      break
+    case 'phones': {
+      add(0, 'whoosh')
+      const words = n(scene.words, 6)
+      const each = Math.max(18, Math.round((frames - 10) / Math.max(1, words)))
+      for (let k = 1; k < words; k++) add(6 + k * each, 'tick')
+      break
+    }
+    case 'pair':
+      add(6, 'pop')
+      add(32, 'click')
+      break
     case 'stack': {
       const pages = n(scene.images, 4)
       const step = Math.max(14, Math.min(30, Math.round((frames * 0.6) / Math.max(1, pages))))

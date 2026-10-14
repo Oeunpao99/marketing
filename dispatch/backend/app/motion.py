@@ -548,6 +548,59 @@ OFFER_PROMPT = (
     + '{"scenes": [{"type": "hook", "text": "...", "icon": "BadgePercent", "say": "..."}, ...]}'
 )
 
+# ── SaaS explainer (motion/src/clarity.jsx) — calm, white and light blue ────
+CLARITY_TYPES = ("hook", "chaos", "platform", "orbit", "phones", "pair", "step", "screen", "flow", "dashboard", "reveal", "list", "stat", "cta")
+CLARITY_PROMPT = (
+    "You are the director of calm, premium SaaS explainer videos. You plan a REMOTION VIDEO (about "
+    "45-60 s) that EXPLAINS what a software product does and why it matters: soft white and light "
+    "blue, thin rings, words that sharpen into place one by one, notifications flying in from every "
+    "side, the real app rising in a device frame, chips orbiting the one thing that matters, phones "
+    "turning round a word. Quiet confidence — few words on screen, each one earning its place.\n"
+    "\n"
+    "THE STORY (8-10 scenes):\n"
+    "1. hook — the everyday reality in one line.\n"
+    "2. chaos — the mess today: messages, emails and tasks piling up from the tools they use, round "
+    "one calm line (\"The work keeps moving.\").\n"
+    "3. platform — the product appears: its logo and one line of what it is.\n"
+    "4-7. how it works: `orbit` (the one item everything connects to and its parts), `pair` (two "
+    "words round one object — \"Any language · Instantly\"), `phones` (what it handles, a word at a "
+    "time), `step`, `screen`, `flow` or `dashboard` — three or four of these, different types.\n"
+    "8. reveal or stat — the outcome (stat only with a TRUE number).\n"
+    "last. cta — calm and clear: book a demo / try it.\n"
+    "\n"
+    "SCENE TYPES and their fields:\n"
+    "- hook: text (max 9 words), icon.\n"
+    "- chaos: text (max 6 words — the calm line in the middle), cards: 5-6 x {\"app\": a real tool "
+    "(\"Slack\", \"Gmail\", \"Teams\", \"Telegram\", \"Excel\", \"Trello\"…), \"title\": max 5 words, "
+    "\"sub\": max 4 words — a believable notification}.\n"
+    "- platform: text (what the product is, max 8 words), shot (a screenshot number from THE BRAND'S "
+    "SCREENSHOTS, or 0 when there are none).\n"
+    "- orbit: center: {\"icon\", \"title\": the one item, 2-4 words, \"sub\": a sample reference "
+    "like \"SOW-2025-0008\", optional}, tags: 4-5 x {\"icon\", \"label\": 1-2 words — its parts}, "
+    "text (max 8 words).\n"
+    "- phones: words: 3-4 single words, each ending with a full stop (\"Books.\", \"Videos.\") — the "
+    "things it works on; shots: screenshot numbers for the phones (from THE BRAND'S SCREENSHOTS, or []).\n"
+    "- pair: left (2-3 words), right (1-2 words — the payoff), icon, label (1-2 words on the card).\n"
+    "- step: title (max 7 words), text (max 12 words), icon, result (max 6 words, optional).\n"
+    "- screen: shot (the screenshot's number — only from THE BRAND'S SCREENSHOTS), title (max 7 "
+    "words), target (in ENGLISH: the ONE element to point at), action (\"click\" | \"highlight\"), "
+    "result (max 6 words, optional).\n"
+    "- flow: title (max 6 words), nodes: 3-4 x {\"icon\", \"label\": 2-5 words, \"sub\": the app, optional}.\n"
+    "- dashboard: title (optional), metrics: 2-3 x {\"label\", \"value\", \"prefix\", \"suffix\", "
+    "\"delta\"}, chart: \"line\" | \"bars\" — small, believable SAMPLE data.\n"
+    "- reveal: text (max 10 words), icon.\n"
+    "- list: title (max 6 words), items: 3 x {\"icon\", \"text\": 2-6 words}.\n"
+    "- stat: value, prefix, suffix, label (max 6 words), icon — only a TRUE number.\n"
+    "- cta: text (max 9 words), button (2-4 words).\n"
+    "Only features the product information supports — never invent one. Names in notifications "
+    "and references are samples, never real customers.\n"
+    "\n"
+    + _SAAS_CRAFT
+    + "\n"
+    + _COMMON_RULES
+    + '{"scenes": [{"type": "hook", "text": "...", "icon": "Sparkles", "say": "..."}, ...]}'
+)
+
 # ── Product launch (motion/src/launch.jsx) — a cinematic launch film ─────────
 LAUNCH_TYPES = ("hook", "launch", "button", "form", "stack", "screen", "flow", "dashboard", "reveal", "list", "stat", "cta")
 LAUNCH_PROMPT = (
@@ -939,6 +992,7 @@ STYLES = {
     "offer": (OFFER_PROMPT, OFFER_TYPES, 5, "offer"),
     "showcase": (SHOWCASE_PROMPT, SHOWCASE_TYPES, 7, None),
     "launch": (LAUNCH_PROMPT, LAUNCH_TYPES, 7, None),
+    "clarity": (CLARITY_PROMPT, CLARITY_TYPES, 8, None),
     "custom": (CUSTOM_PROMPT, CUSTOM_TYPES, 8, None),
     "training": (TRAINING_PROMPT, TRAINING_TYPES, 12, None),
 }
@@ -947,7 +1001,7 @@ LONG_STYLES = {"training"}
 # The templates laid out for 16:9 too (motion/src/training.jsx, saas.jsx wide scenes);
 # every other template is always vertical. Scenes drawn only for a tall frame are
 # left out of a wide video.
-WIDE_STYLES = {"training", "custom", "demo", "offer", "trend", "pov", "showcase", "launch"}
+WIDE_STYLES = {"training", "custom", "demo", "offer", "trend", "pov", "showcase", "launch", "clarity"}
 TALL_ONLY_TYPES = {"problem", "chat", "product", "point"}
 
 
@@ -961,7 +1015,7 @@ def final_ratio(asked: str, style: str, suggested: str | None = None) -> str:
     if asked == "auto":
         return suggested if suggested in ("16:9", "9:16") else ("16:9" if style == "training" else "9:16")
     return "9:16"
-SCREEN_STYLES = {"custom", "demo", "showcase", "launch"}  # the stories that can show the brand's screenshots
+SCREEN_STYLES = {"custom", "demo", "showcase", "launch", "clarity"}  # the stories that can show the brand's screenshots
 # The templates that sell (the auto topic picks a product, not a teaching topic).
 SELLING_STYLES = {"tech", "demo", "offer", "showcase", "launch"}
 
@@ -1013,9 +1067,9 @@ GOAL_STYLES = {
     "solution": ("tech", "demo", "custom", "showcase"),
     "conversion": ("offer", "tech", "launch"),
     "teach": ("explainer",),
-    "education": ("explainer", "custom"),
+    "education": ("explainer", "custom", "clarity"),
     "reach": ("pov", "explainer"),
-    "awareness": ("trend", "explainer", "custom"),
+    "awareness": ("trend", "explainer", "custom", "clarity"),
     "authority": ("versus",),
     "engagement": ("poll",),
     "followers": ("quote",),
@@ -1077,6 +1131,38 @@ def _clean_scene(raw: dict, names: dict[str, str]) -> dict | None:
         if apps:
             hook["apps"] = apps  # Showcase: the bubbles floating round the line
         return hook if text else None
+    if kind == "platform":
+        text = _line(raw.get("text"), 100)
+        shot = int(raw.get("shot")) if str(raw.get("shot") or "").strip().isdigit() else 0
+        return {"type": kind, "text": text, "shot": shot, "say": say} if text else None
+    if kind == "orbit":
+        c = raw.get("center") if isinstance(raw.get("center"), dict) else {}
+        tags = [
+            {"icon": _icon(x.get("icon"), "Check"), "label": _line(x.get("label"), 24)}
+            for x in (raw.get("tags") or [])
+            if isinstance(x, dict) and _line(x.get("label"), 24)
+        ][:6]
+        center = {"icon": _icon(c.get("icon"), "FileText"), "title": _line(c.get("title"), 40), "sub": _line(c.get("sub"), 24)}
+        return {"type": kind, "text": _line(raw.get("text"), 100), "center": center, "tags": tags, "say": say} if center["title"] and len(tags) >= 3 else None
+    if kind == "chaos":
+        cards = [
+            {"app": _line(x.get("app"), 20), "title": _line(x.get("title"), 40), "sub": _line(x.get("sub"), 40)}
+            for x in (raw.get("cards") or [])
+            if isinstance(x, dict) and _line(x.get("title"), 40)
+        ][:6]
+        text = _line(raw.get("text"), 80)
+        return {"type": kind, "text": text, "cards": cards, "say": say} if text and len(cards) >= 3 else None
+    if kind == "phones":
+        words = [w for w in (_line(w, 20) for w in (raw.get("words") or [])) if w][:4]
+        shots = [int(x) for x in (raw.get("shots") or []) if str(x).strip().isdigit() and int(x) >= 1][:4]
+        return {"type": kind, "words": words, "shots": shots, "say": say} if words else None
+    if kind == "pair":
+        left, right = _line(raw.get("left"), 30), _line(raw.get("right"), 24)
+        return (
+            {"type": kind, "left": left, "right": right, "icon": _icon(raw.get("icon"), "BookOpen"), "label": _line(raw.get("label"), 20), "say": say}
+            if left and right
+            else None
+        )
     if kind == "launch":
         name = _line(raw.get("name"), 30)
         return {"type": kind, "name": names.get(name.lower(), name), "text": _line(raw.get("text"), 100), "badge": _line(raw.get("badge"), 16), "say": say} if name else None
@@ -1437,6 +1523,11 @@ _TEXT_FIELDS = {
     "offer": (("badge", 28), ("period", 14), ("say", 300)),
     "apps": (("title", 80), ("say", 300)),
     "launch": (("text", 100), ("badge", 16), ("say", 300)),
+    "platform": (("text", 100), ("say", 300)),
+    "orbit": (("text", 100), ("say", 300)),
+    "chaos": (("text", 80), ("say", 300)),
+    "phones": (("say", 300),),
+    "pair": (("left", 30), ("right", 24), ("label", 20), ("say", 300)),
     "button": (("title", 40), ("text", 80), ("button", 28), ("result", 50), ("say", 300)),
     "form": (("title", 40), ("toggle", 50), ("say", 300)),
     "stack": (("say", 300),),
@@ -1653,6 +1744,12 @@ def write_script(
             if s.get("sub"):
                 slots += [(s, "sub", 100)]
             slots += [(n, "label", 40) for n in s.get("nodes", [])]
+            slots += [(x, "label", 24) for x in s.get("tags", [])]
+            if isinstance(s.get("center"), dict) and s["center"].get("title"):
+                slots += [(s["center"], "title", 40)]
+            slots += [(x, key, 40) for x in s.get("cards", []) if isinstance(x, dict) for key in ("title", "sub") if x.get(key)]
+            if s["type"] == "phones":
+                slots += [(s["words"], k, 20) for k in range(len(s["words"]))]
         # Story mode: the voice lines are the person's own sentences — kept.
         slots = [x for x in slots if x[0][x[1]] and x[1] != "say"]  # the voice lines: voice_script_khmer
         fixed = _polish_khmer(
@@ -1730,6 +1827,16 @@ def script_lines(script: dict) -> list[tuple[str, str]]:
             screen = (s.get("title") or "Notifications") + " — " + " / ".join(f"{n['app']}: {n['text']}" for n in s["notes"])
         elif s["type"] == "step":
             screen = s["title"] + (f" — {s['text']}" if s.get("text") else "") + (f" ✓ {s['result']}" if s.get("result") else "")
+        elif s["type"] == "platform":
+            screen = s["text"] + (f" — screenshot {s['shot']}" if s.get("shot") else "")
+        elif s["type"] == "orbit":
+            screen = f"{s['center']['title']} — " + ", ".join(x["label"] for x in s["tags"]) + (f" · {s['text']}" if s.get("text") else "")
+        elif s["type"] == "chaos":
+            screen = s["text"] + " — " + " / ".join(f"{x['app']}: {x['title']}" for x in s["cards"])
+        elif s["type"] == "phones":
+            screen = " ".join(s["words"]) + (f" — screenshots {', '.join(str(x) for x in s['shots'])}" if s.get("shots") else "")
+        elif s["type"] == "pair":
+            screen = f"{s['left']} [{s.get('label') or 'card'}] {s['right']}"
         elif s["type"] == "launch":
             screen = f"Introducing {s['name']}" + (f" — {s['text']}" if s.get("text") else "") + (f" [{s['badge']}]" if s.get("badge") else "")
         elif s["type"] == "button":
@@ -1891,6 +1998,12 @@ def pick_pictures(
             s["images"] = [{"src": shots[n - 1]["uri"], "w": shots[n - 1]["w"], "h": shots[n - 1]["h"]} for n in s.get("shots", []) if 1 <= n <= len(shots)]
     script["scenes"] = [s for s in script["scenes"] if s["type"] != "stack" or len(s["images"]) >= 2]
     for s in script["scenes"]:
+        if s["type"] == "platform" and 1 <= s.get("shot", 0) <= len(shots):  # the app in its frame (else drawn)
+            shot = shots[s["shot"] - 1]
+            s["image"], s["imgW"], s["imgH"] = shot["uri"], shot["w"], shot["h"]
+        if s["type"] == "phones":  # the phones' screens (else drawn)
+            s["images"] = [{"src": shots[n - 1]["uri"]} for n in s.get("shots", []) if 1 <= n <= len(shots)]
+    for s in script["scenes"]:
         if s["type"] == "screen":
             shot = shots[s["shot"] - 1]
             s["image"], s["imgW"], s["imgH"] = shot["uri"], shot["w"], shot["h"]
@@ -1998,6 +2111,12 @@ def default_seconds(scene: dict) -> float:
         return 2.4 + 1.0 * min(4, len(scene.get("nodes") or []))
     if kind == "apps":
         return 2.6 + 0.35 * min(8, len(scene.get("apps") or []))
+    if kind == "orbit":
+        return 2.6 + 0.5 * min(6, len(scene.get("tags") or []))
+    if kind == "chaos":
+        return 2.6 + 0.4 * min(6, len(scene.get("cards") or []))
+    if kind == "phones":
+        return 1.4 + 1.2 * min(4, len(scene.get("words") or []))
     if kind == "form":
         return 2.6 + 0.9 * min(3, len(scene.get("fields") or [])) + (1.4 if scene.get("toggle") else 0)
     if kind == "stack":
@@ -2010,7 +2129,7 @@ def default_seconds(scene: dict) -> float:
         return 1.8 + 1.0 * min(6, len(scene.get("checks") or []))
     if kind == "recap":
         return 2.0 + 1.0 * min(5, len(scene.get("points") or []))
-    return {"cta": 3.8, "product": 3.6, "chart": 5.2, "compare": 4.2, "character": 3.8, "myth": 5.0, "quote": 5.6, "beforeafter": 5.4, "result": 4.2, "review": 6.0, "customer": 4.4, "news": 5.0, "step": 4.8, "offer": 5.6, "screen": 5.0, "dashboard": 5.2, "chapter": 3.2, "board": 4.6, "launch": 4.2, "button": 4.6}.get(kind, 3.4)
+    return {"cta": 3.8, "product": 3.6, "chart": 5.2, "compare": 4.2, "character": 3.8, "myth": 5.0, "quote": 5.6, "beforeafter": 5.4, "result": 4.2, "review": 6.0, "customer": 4.4, "news": 5.0, "step": 4.8, "offer": 5.6, "screen": 5.0, "dashboard": 5.2, "chapter": 3.2, "board": 4.6, "launch": 4.2, "button": 4.6, "platform": 4.4, "pair": 3.8}.get(kind, 3.4)
 
 
 def length_of(props: dict) -> int:
@@ -2261,6 +2380,14 @@ def _scene_summary(s: dict) -> str:
         text = " ".join(x for x in (s.get("plan"), s.get("price"), s.get("period")) if x)
     elif t == "launch":
         text = s.get("name") or ""
+    elif t in ("platform", "chaos"):
+        text = s.get("text") or ""
+    elif t == "orbit":
+        text = (s.get("center") or {}).get("title") or s.get("text") or ""
+    elif t == "phones":
+        text = " ".join(s.get("words") or [])
+    elif t == "pair":
+        text = f"{s.get('left', '')} · {s.get('right', '')}"
     elif t == "button":
         text = s.get("title") or s.get("button") or ""
     elif t == "form":
@@ -2480,6 +2607,7 @@ class PlanIn(BaseModel):
 TEMPLATE_GUIDE = {
     "custom": "SaaS, software, an app, an AI tool, a platform (Power Apps, a CRM…), B2B tech — product UI, dashboards, flows, the brand's screenshots",
     "demo": "showing HOW to use a software product, step by step in an app window",
+    "clarity": "explaining what a software product does and why it matters — calm, white and light blue: the mess of tools today, the product, how it works",
     "launch": "launching a product or a new feature — a cinematic launch film: the one click that does the job, the product's screens, \"now live\"",
     "showcase": "a bright, polished promo / launch video for a SaaS or app — the tools it connects, its table and board views, who it is for",
     "training": "a team training, an internal presentation, a workshop, a lesson or a long talk with parts / sections — chapters, key points, checklists, recap",

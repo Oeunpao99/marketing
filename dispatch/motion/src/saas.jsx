@@ -31,6 +31,7 @@ import { AbsoluteFill, Img, interpolate, random, spring, useCurrentFrame, useVid
 import { FONT, Icon, Words, clean, fitSize, srcOf, tint } from './shared'
 import { showcaseScenes } from './showcase'
 import { launchScenes } from './launch'
+import { clarityScenes } from './clarity'
 
 /** A full palette from its base colours: { bg, a (accent), b (second accent),
  * mode: "dark" | "light", background: "grid" | "dots" | "clean" } — flat backgrounds, no glow / gradient. */
@@ -63,6 +64,7 @@ const PALETTES = {
   demo: palette({ bg: '#040B1C', a: '#3B82F6', b: '#22D3EE', kicker: 'LIVE DEMO', icon: 'LayoutDashboard' }),
   offer: palette({ bg: '#03110D', a: '#34D399', b: '#FBBF24', kicker: 'SPECIAL OFFER', icon: 'BadgePercent', card: '#07170F' }),
   showcase: palette({ bg: '#EEF0FF', a: '#6D4AFF', b: '#22B8F0', mode: 'light', background: 'airy', icon: 'LayoutGrid' }),
+  clarity: palette({ bg: '#F4F6FA', a: '#2F6FED', b: '#4FB3F6', mode: 'light', background: 'rings', icon: 'FileText' }),
   launch: palette({ bg: '#14082A', a: '#8B5CF6', b: '#5EEAD4', mode: 'dark', background: 'launch', icon: 'Rocket', card: '#1C0F38' }),
 }
 
@@ -128,6 +130,23 @@ function Airy({ P }) {
   )
 }
 
+/** SaaS explainer's background (clarity.jsx): soft white-blue, thin rings
+ * centred on the frame breathing out slowly, a pale blue haze below. */
+function Rings({ P }) {
+  const frame = useCurrentFrame()
+  const { width, height } = useVideoConfig()
+  const big = Math.max(width, height)
+  const grow = 1 + 0.03 * Math.sin(frame / 50)
+  return (
+    <>
+      <AbsoluteFill style={{ background: `radial-gradient(ellipse 60% 40% at 50% 100%, ${tint(P.b, 0.16)}, transparent 70%)` }} />
+      {[0.16, 0.3, 0.46, 0.64].map((r, i) => (
+        <div key={i} style={{ position: 'absolute', left: width / 2 - r * big, top: height * 0.46 - r * big, width: r * big * 2, height: r * big * 2, borderRadius: '50%', border: `2px solid ${tint(P.a, 0.13 - i * 0.02)}`, transform: `scale(${grow})` }} />
+      ))}
+    </>
+  )
+}
+
 /** Product launch's background (launch.jsx): deep purple, a wide violet light
  * rising from the bottom and one from the top-left, breathing slowly — like
  * a stage lit for a launch. */
@@ -156,6 +175,7 @@ function AiBg({ P }) {
     <AbsoluteFill style={{ backgroundColor: P.bg, overflow: 'hidden' }}>
       {kind === 'airy' && <Airy P={P} />}
       {kind === 'launch' && <LaunchLight P={P} />}
+      {kind === 'rings' && <Rings P={P} />}
       {(kind === 'grid' || kind === 'dots') && (
         <div
           style={{
@@ -1450,6 +1470,8 @@ export const POV = template(PALETTES.pov, 'pov', { notify: makeNotify(PALETTES.p
 export const DEMO = template(PALETTES.demo, 'demo', { step: makeStep(PALETTES.demo), screen: makeScreen(PALETTES.demo), dashboard: makeDashboard(PALETTES.demo), flow: makeFlow(PALETTES.demo) })
 export const OFFER = template(PALETTES.offer, 'offer', { offer: makeOffer(PALETTES.offer) })
 const SP = PALETTES.showcase
+const CP = PALETTES.clarity
+export const CLARITY = template(CP, 'clarity', { ...clarityScenes(CP, AiBg), step: makeStep(CP), screen: makeScreen(CP), dashboard: makeDashboard(CP), flow: makeFlow(CP) })
 const LP = PALETTES.launch
 export const LAUNCH = template(LP, 'launch', { ...launchScenes(LP, AiBg), step: makeStep(LP), screen: makeScreen(LP), dashboard: makeDashboard(LP), flow: makeFlow(LP) })
 export const SHOWCASE = template(SP, 'showcase', { ...showcaseScenes(SP, AiBg), step: makeStep(SP), screen: makeScreen(SP), dashboard: makeDashboard(SP), flow: makeFlow(SP) })

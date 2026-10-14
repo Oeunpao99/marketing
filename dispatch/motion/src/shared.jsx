@@ -24,6 +24,16 @@ export function defaultSeconds(s) {
       return 4.6
     case 'launch':
       return 4.2
+    case 'platform':
+      return 4.4
+    case 'orbit':
+      return 2.6 + 0.5 * Math.min(6, (s.tags || []).length)
+    case 'chaos':
+      return 2.6 + 0.4 * Math.min(6, (s.cards || []).length)
+    case 'phones':
+      return 1.4 + 1.2 * Math.min(4, (s.words || []).length)
+    case 'pair':
+      return 3.8
     case 'stack':
       return 1.6 + 1.1 * Math.min(4, (s.images || s.shots || []).length)
     case 'button':

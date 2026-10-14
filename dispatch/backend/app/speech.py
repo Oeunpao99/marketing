@@ -330,6 +330,7 @@ GEMINI_ACT = {
     "explainer": "Warm and gentle, like telling a short story to a friend — slow down on the important moments.",
     "testimonial": "Warm and heartfelt, like telling a friend what happened to a real person.",
     "custom": "Confident and friendly, like a product presenter showing something they love using.",
+    "clarity": "Calm, clear and warm, like a premium product explainer — unhurried, every sentence landing.",
     "launch": "Confident and cinematic, like the voice of a premium product launch film — calm power, a small pause before the big moment.",
     "showcase": "Bright and upbeat, like a polished app launch video — confident, a little excited, quick pace.",
     "demo": "Clear and friendly, like showing a friend how to use an app, step by step.",

@@ -73,6 +73,15 @@ export const MOTION_TEMPLATES = [
     goals: ['trust'],
   },
   {
+    id: 'clarity',
+    story: 'clarity',
+    name: 'SaaS explainer',
+    look: 'Calm white and light blue — notifications flying in, your app rising in a frame, chips orbiting, phones turning',
+    steps: ['Hook', 'The mess today', 'The product', 'How it works', 'Call to action'],
+    note: 'Add app screenshots in Products → Brand kit to have them in the frame and the phones',
+    goals: ['education', 'awareness'],
+  },
+  {
     id: 'launch',
     story: 'launch',
     name: 'Product launch',
@@ -131,9 +140,9 @@ export const MOTION_TEMPLATES = [
 export const GOAL_TEMPLATES = {
   reach: ['pov', 'teach'],
   followers: ['quote'],
-  awareness: ['trend', 'teach', 'custom'],
+  awareness: ['trend', 'teach', 'custom', 'clarity'],
   engagement: ['poll'],
-  education: ['teach', 'custom', 'training'],
+  education: ['teach', 'custom', 'training', 'clarity'],
   trust: ['testimonial'],
   authority: ['versus'],
   solution: ['sell', 'demo', 'custom', 'showcase'],
