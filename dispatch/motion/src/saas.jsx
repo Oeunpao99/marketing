@@ -1427,7 +1427,7 @@ function template(P, id, own) {
   }
 }
 
-export const TREND = template(PALETTES.trend, 'trend', { news: makeNews(PALETTES.trend) })
+export const TREND = template(PALETTES.trend, 'trend', { news: makeNews(PALETTES.trend), step: makeStep(PALETTES.trend), flow: makeFlow(PALETTES.trend) })
 export const POV = template(PALETTES.pov, 'pov', { notify: makeNotify(PALETTES.pov) })
 export const DEMO = template(PALETTES.demo, 'demo', { step: makeStep(PALETTES.demo), screen: makeScreen(PALETTES.demo), dashboard: makeDashboard(PALETTES.demo), flow: makeFlow(PALETTES.demo) })
 export const OFFER = template(PALETTES.offer, 'offer', { offer: makeOffer(PALETTES.offer) })

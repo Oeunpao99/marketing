@@ -407,7 +407,7 @@ _SAAS_CRAFT = (
 
 
 # ── SaaS / AI templates (motion/src/saas.jsx) — one dark "AI" look ────────
-TREND_TYPES = ("hook", "news", "list", "stat", "cta")
+TREND_TYPES = ("hook", "news", "reveal", "step", "flow", "list", "stat", "cta")
 TREND_PROMPT = (
     "You are the best short-form tech storyteller in Cambodia. You plan a vertical "
     "REMOTION VIDEO (TikTok / Facebook Reels, about 45-60 s) for AWARENESS: \"AI news\" — "
@@ -428,6 +428,11 @@ TREND_PROMPT = (
     "what is happening), text (max 16 words — why it matters for a business).\n"
     "- list: title (max 6 words), items: 3 x {\"icon\", \"text\": 2-6 words}.\n"
     "- stat: value (a number), prefix, suffix, label (max 6 words), icon — only a TRUE number.\n"
+    "- reveal: text (max 10 words), icon — the one idea to remember, big.\n"
+    "- step: title (max 7 words — one step of how it works), text (max 12 words), icon, result (max "
+    "6 words, optional).\n"
+    "- flow: title (max 6 words), nodes: 3-4 x {\"icon\", \"label\": 2-5 words} — how something "
+    "moves from start to result.\n"
     "- cta: text (max 8 words), button (1-2 words, e.g. \"Follow\").\n"
     "NEWS HONESTY: only real, widely known developments and trends — never invent a "
     "product launch, a company announcement, a date, a version number or a statistic. When "
@@ -921,7 +926,12 @@ STORY_RULES = (
     "(translate only if the story is written in another language). For each scene pick the "
     "scene type that shows its sentence best, and keep the on-screen words short. Start with a "
     "hook and end with a cta, taken from the story's opening and ending. Make about {count} "
-    "scenes — the video should run about {seconds} seconds (one scene is about 6 seconds)."
+    "scenes — the video should run about {seconds} seconds (one scene is about 6 seconds).\n"
+    "VARIETY — a long video must not look like one slide repeated: use EVERY scene type above, "
+    "never more than 2 scenes of the same type in a row, and no type for more than a third of the "
+    "scenes. Pick the type that fits the sentence: a step → step, several points → list, a "
+    "number → stat, a before/after or a comparison → its scene, how things connect → flow, the "
+    "one idea to remember → reveal."
 )
 
 
@@ -2377,7 +2387,7 @@ TEMPLATE_GUIDE = {
     "versus": "a comparison — old way vs new way, option A vs B, myths vs facts",
     "poll": "a quiz or questions for the audience to answer in the comments",
     "quote": "inspiring quotes or short lessons worth following",
-    "trend": "news — what's new in AI / tech / the industry and what it means",
+    "trend": "news — what's new in AI / tech / the industry and what it means (NOT a lesson or a how-to — those are training or explainer)",
     "pov": "a funny or relatable everyday moment (\"POV: …\") people tag friends on",
 }
 
