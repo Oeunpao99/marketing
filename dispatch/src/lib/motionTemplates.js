@@ -6,6 +6,15 @@
 
 export const MOTION_TEMPLATES = [
   {
+    id: 'training',
+    story: 'training',
+    name: 'Training',
+    look: 'Clean corporate deck — chapters, key points, checklists, recap; 16:9 or 9:16, up to 10 min',
+    steps: ['Title', 'Chapters', 'Key points', 'Checklists', 'Recap', 'Closing'],
+    note: 'Paste your training script with Review first on — the AI follows your parts as chapters',
+    goals: ['education'],
+  },
+  {
     id: 'custom',
     story: 'custom',
     name: 'Designed for you',
@@ -106,7 +115,7 @@ export const GOAL_TEMPLATES = {
   followers: ['quote'],
   awareness: ['trend', 'teach', 'custom'],
   engagement: ['poll'],
-  education: ['teach', 'custom'],
+  education: ['teach', 'custom', 'training'],
   trust: ['testimonial'],
   authority: ['versus'],
   solution: ['sell', 'demo', 'custom'],

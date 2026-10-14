@@ -34,9 +34,12 @@ export const SCENE_LABELS = {
   screen: 'Screenshot',
   dashboard: 'Dashboard',
   flow: 'Flow',
+  chapter: 'Chapter',
+  checklist: 'Checklist',
+  recap: 'Recap',
 }
 
-export const STYLE_LABELS = { tech: 'Sell', explainer: 'Teach', versus: 'Compare', poll: 'Poll', quote: 'Quote', testimonial: 'Testimonial', trend: 'AI News', pov: 'POV', demo: 'Product demo', offer: 'Offer', custom: 'Designed for you' }
+export const STYLE_LABELS = { tech: 'Sell', explainer: 'Teach', versus: 'Compare', poll: 'Poll', quote: 'Quote', testimonial: 'Testimonial', trend: 'AI News', pov: 'POV', demo: 'Product demo', offer: 'Offer', custom: 'Designed for you', training: 'Training' }
 
 /** 0-99 from the real steps: the story is the only part without a count, so
  * it creeps up with time; the voice counts lines, the render counts frames. */
@@ -155,6 +158,7 @@ export function MotionMaking({ progress, pct, stage, elapsed, onStop }) {
               {scenes.length > 0 && <span className="text-[11.5px] text-ink-400">{scenes.length} scenes</span>}
               {progress?.look && <LookChip look={progress.look} />}
             </div>
+            {progress?.why && <div className="mt-0.5 text-[11.5px] text-ink-400">AI picked {style}: {progress.why}</div>}
             <div className="mt-0.5 truncate text-[12px] text-ink-500">{stage}</div>
           </div>
           {onStop && (

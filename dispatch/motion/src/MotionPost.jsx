@@ -54,6 +54,7 @@ import { POLL, QUOTE, VERSUS } from './goaltemplates'
 import { TESTIMONIAL } from './testimonial'
 import { DEMO, OFFER, POV, TREND, customTemplate } from './saas'
 import { SceneSfx } from './sfx'
+import { TRAINING } from './training'
 
 export { FPS, TRANSITION, defaultSeconds, sceneFrames }
 
@@ -708,6 +709,47 @@ function BackgroundMusic({ src, scenes }) {
   return <Html5Audio src={srcOf(src)} loop volume={volume} />
 }
 
+/** A long video (props.musicList): a new track at each chapter card, each
+ * looped through its chapter and crossfaded into the next over a second — so
+ * a 10-minute training doesn't repeat one 30-second loop. Same ducking under
+ * the voice as BackgroundMusic. */
+const XFADE = 30 // frames
+function ChapterMusic({ list, scenes }) {
+  const { durationInFrames } = useVideoConfig()
+  let start = 0
+  const spans = scenes.map((s, i) => {
+    const len = sceneFrames(s) - (i < scenes.length - 1 ? TRANSITION : 0)
+    const span = { from: start, to: start + len, voiced: !!s.audio, chapter: s.type === 'chapter' }
+    start += len
+    return span
+  })
+  // where each track starts: the beginning, then every chapter card
+  const cuts = [0, ...spans.filter((x, i) => x.chapter && i > 0).map((x) => x.from)]
+  const level = (f) => {
+    const span = spans.find((x) => f >= x.from && f < x.to)
+    const fadeOut = interpolate(f, [durationInFrames - 45, durationInFrames], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })
+    return (span?.voiced ? 0.22 : 0.5) * fadeOut
+  }
+  return cuts.map((from, k) => {
+    const to = k < cuts.length - 1 ? cuts[k + 1] : durationInFrames
+    const begin = Math.max(0, from - XFADE)
+    return (
+      <Sequence key={k} from={begin} durationInFrames={Math.max(1, Math.min(durationInFrames, to + XFADE) - begin)} layout="none">
+        <Html5Audio
+          src={srcOf(list[k % list.length])}
+          loop
+          volume={(f) => {
+            const abs = f + begin
+            const fadeIn = k === 0 ? interpolate(abs, [0, 30], [0, 1], { extrapolateRight: 'clamp' }) : interpolate(abs, [from - XFADE, from + XFADE], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })
+            const fadeOutCut = k < cuts.length - 1 ? interpolate(abs, [to - XFADE, to + XFADE], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }) : 1
+            return level(abs) * fadeIn * fadeOutCut
+          }}
+        />
+      </Sequence>
+    )
+  })
+}
+
 const PRESENTATIONS = [
   () => slide({ direction: 'from-right' }),
   () => fade(),
@@ -738,17 +780,20 @@ const TEMPLATES = {
   pov: { ...POV, scenes: { ...SCENES, ...POV.scenes } },
   demo: { ...DEMO, scenes: { ...SCENES, ...DEMO.scenes } },
   offer: { ...OFFER, scenes: { ...SCENES, ...OFFER.scenes } },
+  training: { ...TRAINING, scenes: { ...SCENES, ...TRAINING.scenes } },
 }
 
-export const MotionPost = ({ brand, scenes, music, style, look, sfx = true }) => {
+export const MotionPost = ({ brand, scenes, music, musicList, style, look, sfx = true }) => {
   let point = 0
   // "custom": its scenes are drawn in the look the AI picked for this video
   const custom = useMemo(() => (style === 'custom' ? customTemplate(look) : null), [style, look])
   const t = custom ? { ...custom, scenes: { ...SCENES, ...custom.scenes } } : TEMPLATES[style] || TEMPLATES.tech
   const noCaption = ['chat', ...(t.noCaption || [])]
+  const { height } = useVideoConfig()
+  const captionTop = typeof t.captionTop === 'function' ? t.captionTop(height) : t.captionTop
   return (
     <AbsoluteFill style={{ ...t.root, '--brand': brand.color }}>
-      {music && <BackgroundMusic src={music} scenes={scenes} />}
+      {musicList?.length > 1 ? <ChapterMusic list={musicList} scenes={scenes} /> : music && <BackgroundMusic src={music} scenes={scenes} />}
       <TransitionSeries>
         {scenes.flatMap((scene, i) => {
           const Scene = t.scenes[scene.type]
@@ -763,7 +808,7 @@ export const MotionPost = ({ brand, scenes, music, style, look, sfx = true }) =>
               <Sequence from={(i ? TRANSITION : 0) + 6} layout="none">
                 {/* Subtitles — not where the screen says it already (the chat's bubbles, a quote). */}
                 {scene.caption && !noCaption.includes(scene.type) && (
-                  <Caption text={scene.caption} words={scene.words} seconds={scene.voiceSeconds || sceneFrames(scene) / FPS - 0.6} top={t.captionTop} />
+                  <Caption text={scene.caption} words={scene.words} seconds={scene.voiceSeconds || sceneFrames(scene) / FPS - 0.6} top={captionTop} />
                 )}
                 {scene.audio && <Html5Audio src={srcOf(scene.audio)} />}
               </Sequence>
@@ -781,7 +826,7 @@ export const MotionPost = ({ brand, scenes, music, style, look, sfx = true }) =>
           return out
         })}
       </TransitionSeries>
-      {t.light ? <ExplainerChrome scenes={scenes} brand={brand} /> : <Chrome scenes={scenes} brand={brand} />}
+      {t.chrome ? <t.chrome scenes={scenes} brand={brand} /> : t.light ? <ExplainerChrome scenes={scenes} brand={brand} /> : <Chrome scenes={scenes} brand={brand} />}
     </AbsoluteFill>
   )
 }

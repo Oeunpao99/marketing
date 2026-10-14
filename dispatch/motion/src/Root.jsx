@@ -15,7 +15,9 @@ export const Root = () => (
     defaultProps={sample}
     calculateMetadata={({ props }) => {
       const total = props.scenes.reduce((n, s) => n + sceneFrames(s), 0)
-      return { durationInFrames: total - TRANSITION * (props.scenes.length - 1) }
+      // props.ratio "16:9" = a wide 1920×1080 video (the Training template); else vertical
+      const wide = props.ratio === '16:9'
+      return { durationInFrames: total - TRANSITION * (props.scenes.length - 1), width: wide ? 1920 : 1080, height: wide ? 1080 : 1920 }
     }}
   />
 )

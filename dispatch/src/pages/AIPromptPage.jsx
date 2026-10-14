@@ -167,7 +167,8 @@ function restoreTurn(t) {
 // Remotion templates — one per kind of post (app/motion.py style_for). The
 // weekly plan picks them from each post's content goal.
 const MOTION_STORIES = [
-  { value: 'auto', label: 'Auto', hint: 'Teaches, or sells when you pick a product' },
+  { value: 'auto', label: 'Auto · AI picks', hint: 'The AI reads your brief and picks the template — SaaS, training, a story with people, a promo…' },
+  { value: 'training', label: 'Training · Presentation', hint: 'A team training or talk — chapters, key points, checklists, recap; 16:9 for screens, up to 10 min' },
   { value: 'custom', label: 'Designed for you', hint: 'A fresh look for this topic — your app screenshots zoomed and clicked' },
   { value: 'teach', label: 'Teach · Explainer', hint: 'Characters, charts, no selling — saves & shares' },
   { value: 'sell', label: 'Sell · Tech', hint: 'Problem, product working, proof — clicks & leads' },
@@ -198,6 +199,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
   // Your own story: the AI plans a storyboard you check and edit before it's rendered.
   const [motionReview, setMotionReview] = useState(true)
   const [motionLength, setMotionLength] = useState('auto')
+  const [motionRatio, setMotionRatio] = useState('16:9') // the Training template only — the rest are vertical
   const [storySeconds, setStorySeconds] = useState(32)
   const [voice, setVoice] = useState(null) // null = the brand's language; '' = no voiceover
   const [brand, setBrand] = useState(null)
@@ -642,7 +644,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
           music: turn.music !== false,
           length: turn.length || 'auto',
         })
-        update(turn.id, { status: 'review', plan: res.script })
+        update(turn.id, { status: 'review', plan: { ...res.script, why: res.why || '' } })
         refreshCounts()
       } else if (turn.kind === 'motion') {
         // Script, brand photos and render all happen on the server (~1 min).
@@ -655,6 +657,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
           music: turn.music !== false,
           goal: turn.goal || 'auto',
           script: turn.script || null, // a reviewed storyboard: made exactly as it is
+          ratio: turn.ratio === '16:9' ? '16:9' : '9:16',
         })
         trackJob(res.id, 'video')
         update(turn.id, { jobId: res.id })
@@ -806,7 +809,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
       id: ++turnSeq,
       prompt,
       kind: isStory ? 'story' : isMotion ? 'motion' : type,
-      ratio: isMotion ? '9:16' : isStory && ratio === '1:1' ? '9:16' : ratio,
+      ratio: isMotion ? (motionGoal === 'training' || motionGoal === 'auto' ? motionRatio : '9:16') : isStory && ratio === '1:1' ? '9:16' : ratio,
       seconds: isStory ? storySeconds : isMotion ? 15 : seconds,
       language: isStory ? storyVoice : isMotion ? motionLang : '',
       productId: isMotion ? (productId ?? null) : undefined,
@@ -844,7 +847,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
       kind: 'motion',
       auto: true,
       prompt: `✨ AI picks the topic${product ? ` · ${product.name}` : ''}`,
-      ratio: '9:16',
+      ratio: motionGoal === 'training' || motionGoal === 'auto' ? motionRatio : '9:16',
       seconds: 15,
       language: motionLang,
       productId: productId ?? null,
@@ -1310,6 +1313,8 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
                   setMotionReview={setMotionReview}
                   motionLength={motionLength}
                   setMotionLength={setMotionLength}
+                  motionRatio={motionRatio}
+                  setMotionRatio={setMotionRatio}
                   setMotionVoice={setMotionVoice}
                   storySeconds={storySeconds}
                   setStorySeconds={setStorySeconds}
@@ -2169,6 +2174,7 @@ function SettingsPopover({
   motionVoice = 'female', setMotionVoice = () => {}, motionMusic = true, setMotionMusic = () => {},
   motionGoal = 'auto', setMotionGoal = () => {},
   motionReview = true, setMotionReview = () => {}, motionLength = 'auto', setMotionLength = () => {},
+  motionRatio = '16:9', setMotionRatio = () => {},
   voice, setVoice, brands, brand, setBrand, style, setStyle, template, setTemplate,
   products = [], product, setProduct,
 }) {
@@ -2255,14 +2261,46 @@ function SettingsPopover({
           </Row>
         )}
 
-        {motion && motionReview && (
-          <Row label="Length" hint={motionLength === 'auto' ? 'As long as your story needs — 30 s to 2 min' : 'About this long'}>
+        {motion && (motionGoal === 'training' || motionGoal === 'auto') && (
+          <Row
+            label="Size"
+            hint={
+              (motionGoal === 'auto' ? 'Used when the AI picks Training — other templates are vertical. ' : '') +
+              (motionRatio === '16:9' ? 'Wide — a meeting-room screen, YouTube, Teams or your LMS' : 'Vertical — phones, Reels and TikTok')
+            }
+          >
             <Segmented>
               {[
-                ['auto', 'Auto'],
-                ['60', '1 min'],
-                ['120', '2 min'],
+                ['16:9', '16:9 wide'],
+                ['9:16', '9:16 tall'],
               ].map(([v, label]) => (
+                <button key={v} type="button" onClick={() => setMotionRatio(v)} className={`${seg(motionRatio === v)} px-0 text-[11.5px]`}>
+                  {label}
+                </button>
+              ))}
+            </Segmented>
+          </Row>
+        )}
+
+        {motion && motionReview && (
+          <Row
+            label="Length"
+            hint={motionLength === 'auto' ? `As long as your story needs — 30 s to ${motionGoal === 'training' || motionGoal === 'auto' ? '10 min for a training, 2' : '2'} min` : 'About this long'}
+          >
+            <Segmented>
+              {(motionGoal === 'training' || motionGoal === 'auto'
+                ? [
+                    ['auto', 'Auto'],
+                    ['120', '2 min'],
+                    ['300', '5 min'],
+                    ['600', '10 min'],
+                  ]
+                : [
+                    ['auto', 'Auto'],
+                    ['60', '1 min'],
+                    ['120', '2 min'],
+                  ]
+              ).map(([v, label]) => (
                 <button key={v} type="button" onClick={() => setMotionLength(v)} className={`${seg(motionLength === v)} px-0 text-[11.5px]`}>
                   {label}
                 </button>

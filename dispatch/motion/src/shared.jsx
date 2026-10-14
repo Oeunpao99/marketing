@@ -56,6 +56,12 @@ export function defaultSeconds(s) {
       return 5.0
     case 'dashboard':
       return 5.2
+    case 'chapter':
+      return 3.2
+    case 'checklist':
+      return 1.8 + 1.0 * Math.min(6, (s.checks || []).length)
+    case 'recap':
+      return 2.0 + 1.0 * Math.min(5, (s.points || []).length)
     case 'flow':
       return 2.4 + 1.0 * Math.min(4, (s.nodes || []).length)
     default:

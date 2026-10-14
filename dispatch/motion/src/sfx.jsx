@@ -23,7 +23,7 @@ export function cuesFor(scene, style, frames, first) {
       for (let i = 0; i < n(scene.messages); i++) add(24 + i * 45, 'blop')
       break
     case 'list': {
-      const [start, step] = saas ? [14, 12] : style === 'explainer' ? [18, 22] : [22, 26]
+      const [start, step] = saas ? [14, 12] : style === 'training' ? [12, 10] : style === 'explainer' ? [18, 22] : [22, 26]
       for (let i = 0; i < n(scene.items); i++) add(start + i * step, 'pop')
       break
     }
@@ -99,12 +99,21 @@ export function cuesFor(scene, style, frames, first) {
       for (let i = 0; i < n(scene.features); i++) add(30 + i * 10, 'click')
       break
     case 'cta': {
-      const button = saas ? 20 : style === 'explainer' ? 26 : style === 'testimonial' ? 22 : 30
+      const button = saas ? 20 : style === 'explainer' ? 26 : style === 'testimonial' || style === 'training' ? 22 : 30
       add(4, 'pop')
       if (scene.button) add(button, 'pop')
       if (scene.button && saas) add(52, 'click') // the pointer taps it
       break
     }
+    case 'chapter':
+      add(2, 'whoosh')
+      break
+    case 'checklist':
+      for (let i = 0; i < n(scene.checks, 6); i++) add(20 + i * 14, 'click')
+      break
+    case 'recap':
+      for (let i = 0; i < n(scene.points, 5); i++) add(10 + i * 12, 'pop')
+      break
     case 'character':
       add(8, 'pop')
       break

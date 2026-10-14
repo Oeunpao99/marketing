@@ -874,7 +874,7 @@ _WORKER_EVERY = 15
 # job waiting in the image_slot() queue is never failed just for being slow.
 _IMAGE_STALE = timedelta(minutes=8)
 _VIDEO_STALE = timedelta(hours=3)
-_MOTION_STALE = timedelta(minutes=20)
+_MOTION_STALE = timedelta(minutes=45)  # a 10-minute training renders for a while
 _MOTION_ORPHAN = timedelta(minutes=2)  # running, but not in this process (see _tick)
 
 

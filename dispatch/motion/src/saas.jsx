@@ -31,7 +31,7 @@ import { AbsoluteFill, Img, interpolate, random, spring, useCurrentFrame, useVid
 import { FONT, Icon, Words, clean, fitSize, srcOf, tint } from './shared'
 
 /** A full palette from its base colours: { bg, a (accent), b (second accent),
- * mode: "dark" | "light", background: "grid" | "glow" | "dots" | "clean" }. */
+ * mode: "dark" | "light", background: "grid" | "dots" | "clean" } — flat backgrounds, no glow / gradient. */
 export function palette(base) {
   const light = base.mode === 'light'
   return {
@@ -82,26 +82,15 @@ const DOTS = [...Array(26)].map((_, i) => ({
   o: 0.25 + random(`o${i}`) * 0.5,
 }))
 
-/** The AI background: two soft glows drifting, and by P.background — grid: a
- * grid floor moving towards the viewer, a dot grid at the top, particles
- * rising; dots: a dot grid all over; glow: the glows and particles; clean:
- * the glows only. */
+/** The background: a flat colour, and by P.background — grid: a grid floor
+ * moving towards the viewer, a dot grid at the top, small particles rising;
+ * dots: a dot grid all over; clean: the colour alone. No glow, no gradient. */
 function AiBg({ P }) {
   const frame = useCurrentFrame()
   const fade = 'linear-gradient(to top, black 5%, transparent 80%)'
-  const kind = P.background
-  const glowA = P.light ? 0.22 : 0.34
+  const kind = P.background === 'glow' ? 'grid' : P.background // an old "glow" look draws as grid
   return (
     <AbsoluteFill style={{ backgroundColor: P.bg, overflow: 'hidden' }}>
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          background:
-            `radial-gradient(900px 760px at ${28 + 10 * Math.sin(frame / 50)}% ${16 + 4 * Math.cos(frame / 60)}%, ${tint(P.a, glowA)}, transparent 70%),` +
-            `radial-gradient(820px 820px at ${80 + 8 * Math.cos(frame / 45)}% ${82 + 5 * Math.sin(frame / 55)}%, ${tint(P.b, glowA * 0.9)}, transparent 70%)`,
-        }}
-      />
       {(kind === 'grid' || kind === 'dots') && (
         <div
           style={{
@@ -129,7 +118,7 @@ function AiBg({ P }) {
           WebkitMaskImage: fade,
         }}
       />}
-      {kind !== 'clean' && DOTS.map((d, i) => (
+      {kind === 'grid' && DOTS.map((d, i) => (
         <div
           key={i}
           style={{
@@ -141,7 +130,6 @@ function AiBg({ P }) {
             borderRadius: d.r,
             background: i % 3 ? P.a : P.b,
             opacity: d.o * (P.light ? 0.5 : 1) * (0.6 + 0.4 * Math.sin((frame + i * 13) / 14)),
-            boxShadow: `0 0 ${d.r * 4}px ${i % 3 ? P.a : P.b}`,
           }}
         />
       ))}
