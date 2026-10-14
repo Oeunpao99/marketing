@@ -87,6 +87,14 @@ class Settings(BaseSettings):
     # "khmerttsopensource/khmer-tts" (app/local_voice.py) — blank = Azure.
     # Note: the MMS Khmer models are licensed CC-BY-NC 4.0 (non-commercial).
     khmer_tts_model: str = ""
+    # Who reads KHMER voice-overs: "gemini" (Google Gemini TTS — the most natural
+    # Khmer the user heard, 2026-10-14), "azure" (Sreymom / Piseth), or "" =
+    # Gemini when GEMINI_API_KEY is set. English always stays on Azure. A Gemini
+    # line that fails is read by Azure instead, so a video never loses its voice.
+    khmer_speech_provider: str = ""
+    gemini_tts_model: str = "gemini-3.8-flash-tts"
+    gemini_tts_voice_female: str = "Kore"
+    gemini_tts_voice_male: str = "Charon"
     # Veo output size: "720p", "1080p" or "4k" (4k not on Lite). Google allows
     # 1080p / 4k only for 8-second clips — shorter ones always come at 720p.
     gemini_video_resolution: str = "1080p"

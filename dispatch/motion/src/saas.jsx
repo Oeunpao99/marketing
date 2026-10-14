@@ -50,6 +50,8 @@ export function palette(base) {
     onA: light ? '#FFFFFF' : base.bg, // text on an accent-gradient button
     shadow: light ? '0 24px 60px rgba(15,23,42,0.12)' : '0 30px 80px rgba(0,0,0,0.45)',
     dot: light ? 'rgba(15,23,42,0.08)' : 'rgba(255,255,255,0.09)',
+    // corners, from the brand's own app (look.radius): sharp / soft / round
+    rad: base.radius === 'sharp' ? 0.35 : base.radius === 'round' ? 1.35 : 1,
   }
 }
 
@@ -64,7 +66,7 @@ const ON = '#FFFFFF' // on an accent tile / a dark phone — white in every look
 const glass = (P, strong = false) => ({
   background: strong ? P.glass2 : P.glass,
   border: `2px solid ${tint(P.a, strong ? 0.45 : 0.22)}`,
-  borderRadius: 40,
+  borderRadius: Math.round(40 * P.rad),
   boxShadow: `${P.shadow}, inset 0 1px 0 rgba(255,255,255,0.08)`,
 })
 const gradientText = (P) => ({
@@ -492,7 +494,7 @@ function makeStep(P) {
   return (
     <AbsoluteFill>
       <AiBg P={P} />
-      <div style={{ position: 'absolute', top: 300, left: 60, width: W, height: 1000, ...glass(P, true), borderRadius: 44, overflow: 'hidden', opacity: win, transform: `translateY(${(1 - win) * 90}px) scale(${0.95 + 0.05 * win})` }}>
+      <div style={{ position: 'absolute', top: 300, left: 60, width: W, height: 1000, ...glass(P, true), borderRadius: Math.round(44 * P.rad), overflow: 'hidden', opacity: win, transform: `translateY(${(1 - win) * 90}px) scale(${0.95 + 0.05 * win})` }}>
         {/* title bar */}
         <div style={{ height: 84, display: 'flex', alignItems: 'center', gap: 14, padding: '0 30px', background: P.faint, borderBottom: `2px solid ${tint(P.a, 0.18)}` }}>
           {['#F87171', '#FBBF24', '#34D399'].map((c) => (
@@ -681,7 +683,7 @@ function makeScreen(P) {
             position: 'absolute',
             top,
             left: (1080 - W) / 2 - (phone ? 14 : 0),
-            borderRadius: phone ? 64 : 34,
+            borderRadius: phone ? 64 : Math.round(34 * P.rad),
             border: phone ? '14px solid #11131A' : `2px solid ${tint(P.a, 0.35)}`,
             background: P.card,
             boxShadow: `${P.shadow}, 0 0 80px ${tint(P.a, 0.18)}`,
@@ -778,7 +780,7 @@ function makeDashboard(P) {
             <Words text={scene.title} align="center" color={P.ink} style={{ fontSize: fitSize(scene.title, 70), fontWeight: 700, textAlign: 'center' }} />
           </div>
         )}
-        <div style={{ position: 'absolute', top: scene.title ? 440 : 340, left: 60, width: 960, ...glass(P, true), borderRadius: 44, padding: '34px 40px 40px', opacity: win, transform: `translateY(${(1 - win) * 90}px)` }}>
+        <div style={{ position: 'absolute', top: scene.title ? 440 : 340, left: 60, width: 960, ...glass(P, true), borderRadius: Math.round(44 * P.rad), padding: '34px 40px 40px', opacity: win, transform: `translateY(${(1 - win) * 90}px)` }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 28 }}>
             <Icon name="LayoutDashboard" size={34} color={P.a} stroke={2.2} />
             <span style={{ fontFamily: FONT, fontWeight: 700, fontSize: 32, color: P.ink }}>{clean(brand.name)}</span>
@@ -794,7 +796,7 @@ function makeDashboard(P) {
               const now = v * count
               const digits = Number.isInteger(v) ? Math.round(now).toLocaleString('en-US') : now.toFixed(1)
               return (
-                <div key={i} style={{ flex: 1, minWidth: 0, borderRadius: 28, padding: '22px 24px', background: P.faint, border: `2px solid ${tint(P.a, 0.2)}`, opacity: s, transform: `translateY(${(1 - s) * 40}px)` }}>
+                <div key={i} style={{ flex: 1, minWidth: 0, borderRadius: Math.round(28 * P.rad), padding: '22px 24px', background: P.faint, border: `2px solid ${tint(P.a, 0.2)}`, opacity: s, transform: `translateY(${(1 - s) * 40}px)` }}>
                   <div style={{ fontFamily: FONT, fontWeight: 600, fontSize: 24, color: P.sub, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{clean(m.label)}</div>
                   <div style={{ marginTop: 6, fontFamily: FONT, fontWeight: 700, fontSize: metrics.length > 2 ? 58 : 72, color: P.ink, letterSpacing: -1 }}>
                     {m.prefix || ''}
@@ -891,7 +893,7 @@ function makeFlow(P) {
           const last = i === n - 1
           const tick = spring({ frame: frame - 12 - n * STEP, fps, config: { damping: 10 } })
           return (
-            <div key={i} style={{ position: 'absolute', top: top + i * gapY, left: 150, right: 150, ...glass(P, true), borderRadius: 34, padding: '26px 30px', display: 'flex', alignItems: 'center', gap: 26, opacity: s, transform: `scale(${0.9 + 0.1 * s})`, boxShadow: last && tick > 0.5 ? `${P.shadow}, 0 0 60px ${tint(P.a, 0.35)}` : P.shadow }}>
+            <div key={i} style={{ position: 'absolute', top: top + i * gapY, left: 150, right: 150, ...glass(P, true), borderRadius: Math.round(34 * P.rad), padding: '26px 30px', display: 'flex', alignItems: 'center', gap: 26, opacity: s, transform: `scale(${0.9 + 0.1 * s})`, boxShadow: last && tick > 0.5 ? `${P.shadow}, 0 0 60px ${tint(P.a, 0.35)}` : P.shadow }}>
               <div style={{ flex: 'none', width: 96, height: 96, borderRadius: 28, background: `linear-gradient(135deg, ${P.a}, ${P.b})`, display: 'grid', placeItems: 'center' }}>
                 <Icon name={node.icon || 'Zap'} size={52} color={ON} stroke={2.2} />
               </div>

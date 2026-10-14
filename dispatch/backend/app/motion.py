@@ -683,7 +683,13 @@ def clean_look(raw, brand_hex: str) -> dict:
     b = accent(hexes["b"], a, 2.0)
     # flat backgrounds only (grid / dots / plain) — no glow, no gradient
     background = raw.get("background") if raw.get("background") in ("grid", "dots", "clean") else "grid"
-    return {"mode": mode, "bg": bg, "a": a, "b": b, "background": background, "kicker": _line(raw.get("kicker"), 20).upper()}
+    look = {"mode": mode, "bg": bg, "a": a, "b": b, "background": background, "kicker": _line(raw.get("kicker"), 20).upper()}
+    card = str(raw.get("card") or "")
+    if _HEX.fullmatch(card) and ((mode == "light" and _lum(card) > 0.6) or (mode == "dark" and _lum(card) < 0.12)):
+        look["card"] = card
+    if raw.get("radius") in ("sharp", "soft", "round"):
+        look["radius"] = raw["radius"]
+    return look
 
 
 # The brand's app / product screenshots — shown (and zoomed into) by `screen` scenes.
@@ -806,6 +812,7 @@ def locate_targets(scenes: list[dict], shots: list[dict]) -> None:
             s["focus"] = found[i]
         else:
             s["action"] = "zoom"
+
 
 
 # style → (story prompt, scene types, most scenes between the hook and the
@@ -1316,6 +1323,7 @@ def write_script(
     job_id: int | None = None,
     seconds: int | None = None,
     shots: list[dict] | None = None,
+    design: dict | None = None,
 ) -> dict:
     """The video's storyboard: one AI call, then for Khmer the same
     native-editor pass the captions get. {"scenes": [...]} — always starting
@@ -1350,6 +1358,8 @@ def write_script(
     prompt, allowed, most, must = STYLES.get(style) or STYLES["tech"]
     if style in SCREEN_STYLES:
         extra += _shots_prompt(shots or [])
+        if design:
+            extra += _design_prompt(design)
         if not shots:
             allowed = tuple(t for t in allowed if t != "screen")
     story = bool(seconds and idea.strip())
@@ -1402,6 +1412,8 @@ def write_script(
     if style == "custom":
         r, g, b = accent_for(brand.slug)
         script["look"] = clean_look(raw.get("look"), f"#{r:02x}{g:02x}{b:02x}")
+        if design:  # their own app's design wins over the AI's guess
+            script["look"] = {**script["look"], **design["look"]}
     if shots:
         script["scenes"] = [sc for sc in script["scenes"] if sc["type"] != "screen" or sc["shot"] <= len(shots)]
         locate_targets(script["scenes"], shots)
@@ -1437,7 +1449,7 @@ def write_script(
                 slots += [(s, "sub", 100)]
             slots += [(n, "label", 40) for n in s.get("nodes", [])]
         # Story mode: the voice lines are the person's own sentences — kept.
-        slots = [x for x in slots if x[0][x[1]] and not (story and x[1] == "say")]
+        slots = [x for x in slots if x[0][x[1]] and x[1] != "say"]  # the voice lines: voice_script_khmer
         fixed = _polish_khmer(
             [obj[key] for obj, key, _ in slots],
             model,
@@ -1451,6 +1463,13 @@ def write_script(
         )
         for (obj, key, n), value in zip(slots, fixed):
             obj[key] = _line(_fix_khmer_punctuation(value), n)
+        # every spoken line rewritten to be heard, not read (story mode: a light touch)
+        spoken = [s for s in script["scenes"] if s.get("say")]
+        for s, line in zip(
+            spoken,
+            voice_script_khmer([s["say"] for s in spoken], model, [brand.name, *(p.name for p in products)], brand.voice_examples or "", own=story),
+        ):
+            s["say"] = line
         _report(job_id, stage="pictures", scenes=_board(script))
     return script
 
@@ -1527,6 +1546,72 @@ def _data_uri(blob: bytes, max_side: int, keep_alpha: bool = False) -> str | Non
         return "data:image/jpeg;base64," + base64.b64encode(out.getvalue()).decode()
     except Exception:  # noqa: BLE001 — an unreadable upload is just left out
         return None
+
+
+# ── The voice script: every Khmer voice line rewritten to be SPOKEN ────────
+VOICE_SCRIPT_PROMPT = (
+    "You are a Cambodian voice-over director and scriptwriter. The lines below are read aloud by "
+    "an AI voice over a short video — viewers HEAR them, they don't read them. Rewrite each line "
+    "so it sounds like a real Cambodian presenter talking to one person on camera — natural, "
+    "warm, alive — never like written text read out.\n"
+    "\n"
+    "RULES:\n"
+    "1. Spoken Khmer, not written Khmer: the words a Phnom Penh presenter actually says. Address "
+    "the viewer as បង. Drop formal, bookish constructions (stacked ការ… nouns, នៃ, ដែលជា, "
+    "ក្នុងការ…, long noun chains) for the plain spoken way of saying it.\n"
+    "2. Short sentences — one idea each, about 6-12 words; 1-3 sentences per line. Vary the "
+    "length a little so it doesn't sound like a machine.\n"
+    "3. Mark the breaths: put a SPACE between phrases where a speaker would breathe, end every "
+    "sentence with ។, use ! only where the voice should lift with energy and ? only for a real "
+    "question (\"…មែនទេ?\").\n"
+    "4. Spoken connectors and particles where they fit naturally (ហើយ, ប៉ុន្តែ, ព្រោះ, អ៊ីចឹង, "
+    "ណា, ហ្នឹង) — not in every line, never forced.\n"
+    "5. The lines are ONE narration: each leads into the next; no line repeats the previous one.\n"
+    "6. Keep every fact, number, price, brand and product name EXACTLY (numbers may stay as "
+    "digits — they are spoken correctly later). Never add claims. No brackets, slashes, emoji, "
+    "lists or abbreviations.\n"
+    "7. Correct Khmer — real words only, and check each word MEANS what you intend (e.g. "
+    "\"important\" is សំខាន់, never ចាំ). When unsure, keep the original word.\n"
+    "8. Keep every idea of the original line and add NONE — shorten the words, never drop a "
+    "point, never add advice or a sentence that wasn't there.\n"
+    "9. Say បង at most once or twice in the whole narration — never start every line with it, "
+    "and never \"បង,\" with a comma.\n"
+    "10. About the same length as the original (±20%).\n"
+    'Return JSON {"lines": [...]} — the same number of lines, in the same order.'
+)
+VOICE_SCRIPT_LIGHT = (
+    "\n\nTHESE ARE THE PERSON'S OWN SCRIPT LINES: keep their meaning, their order and as much of "
+    "their wording as you can — only make them speakable (shorter sentences, marked breaths, a "
+    "formal word swapped for the spoken one where it reads stiffly)."
+)
+
+
+def voice_script_khmer(lines: list[str], model: str, keep: list[str], voice_examples: str = "", own: bool = False) -> list[str]:
+    """The Khmer voice lines rewritten to be heard — spoken words, short
+    sentences, breaths marked (VOICE_SCRIPT_PROMPT). Best effort: on any
+    failure the lines are kept as they were."""
+    from app.content_ai import ContentAIError, _chat, _fix_khmer_punctuation
+
+    if not lines:
+        return lines
+    system = VOICE_SCRIPT_PROMPT + (VOICE_SCRIPT_LIGHT if own else "")
+    if keep:
+        system += "\n\nNames to copy EXACTLY as written: " + ", ".join(k for k in keep if k)
+    if voice_examples.strip():
+        system += "\n\nHow this brand talks (its real posts — tone only):\n---\n" + voice_examples.strip()[:2000] + "\n---"
+    try:
+        out = _chat(
+            [{"role": "system", "content": system}, {"role": "user", "content": json.dumps({"lines": lines}, ensure_ascii=False)}],
+            model,
+            max_tokens=24000,
+            effort="high",  # meaning and spelling matter more than speed here
+        )
+    except ContentAIError:
+        return lines
+    new = out.get("lines") if isinstance(out, dict) else None
+    if not (isinstance(new, list) and len(new) == len(lines) and all(isinstance(x, str) and x.strip() for x in new)):
+        return lines
+    return [_line(_fix_khmer_punctuation(x.strip()), 300) for x in new]
 
 
 def _brand_pictures(db: Session, brand_id: int) -> tuple[dict[int, str], list[str], str | None]:
@@ -1785,6 +1870,18 @@ def add_voice(
             board[n] = {**board[n], **fields}
             _report(job_id, scenes=[dict(b) for b in board])
 
+    # Gemini answers in seconds but one at a time adds up — its lines are asked
+    # for 4 at once up front; the loop below then takes them in order.
+    ahead: dict = {}
+    pool = None
+    if voice.startswith(speech.GEMINI):
+        from concurrent.futures import ThreadPoolExecutor
+
+        pool = ThreadPoolExecutor(max_workers=4)
+        for n, say in enumerate(says):
+            if say:
+                ahead[n] = pool.submit(lambda t: (t, speech.speak_timed(t[0], voice)), spoken_text(say, pronunciations))
+
     spoken = 0
     with tempfile.TemporaryDirectory() as tmp:
         for n, (scene, say) in enumerate(zip(props["scenes"], says)):
@@ -1796,8 +1893,11 @@ def add_voice(
             try:
                 # What the voice reads: numbers as Khmer words, the brand's
                 # pronunciations, Khmer split into words so Azure times each one.
-                text, pieces = spoken_text(say, pronunciations)
-                mp3, words = speech.speak_timed(text, voice)
+                if n in ahead:
+                    (text, pieces), (mp3, words) = ahead[n].result()
+                else:
+                    text, pieces = spoken_text(say, pronunciations)
+                    mp3, words = speech.speak_timed(text, voice)
                 from app.khmer_speech import remap_words
 
                 words = remap_words(words, pieces, text)  # subtitles keep "$80", not its Khmer words
@@ -1831,9 +1931,11 @@ def add_voice(
                 scene["words"] = words  # …word by word, when Azure said when each word is
             mark(n, voice="done", seconds=round(duration, 1))
             spoken += len(say)
+    if pool:
+        pool.shutdown(wait=False, cancel_futures=True)
     if spoken and not local:
         billing.charge(
-            ws, "video", spoken * speech.PRICE_PER_CHAR, user_id=user_id, model=voice, note="Remotion video voice-over", job_id=job_id
+            ws, "video", spoken * speech.price_per_char(voice), user_id=user_id, model=voice, note="Remotion video voice-over", job_id=job_id
         )
     return spoken
 
@@ -2085,6 +2187,9 @@ class MotionIn(BaseModel):
     # "16:9" = a wide video — only the templates laid out for it (WIDE_STYLES);
     # every other template is always vertical 9:16.
     ratio: str = "9:16"
+    # An attached screenshot of the brand's own app (a media URL): the design
+    # the video copies, and screenshot 1 it can show.
+    ref_url: str = Field(default="", max_length=500)
 
 
 class PlanIn(BaseModel):
@@ -2095,6 +2200,7 @@ class PlanIn(BaseModel):
     goal: str = "auto"
     music: bool = True
     length: str = "auto"  # "auto" | "60" | "120" | "300" | "600" (the last two: a training)
+    ref_url: str = Field(default="", max_length=500)  # see MotionIn
 
 
 # ── The director: Story "Auto" reads the brief and picks the template ──────
@@ -2115,7 +2221,7 @@ TEMPLATE_GUIDE = {
 }
 
 
-def pick_style(idea: str, products: list[Product], has_product: bool) -> tuple[str, str]:
+def pick_style(idea: str, products: list[Product], has_product: bool, has_ui: bool = False) -> tuple[str, str]:
     """(template, why) for a brief when Story is "Auto" — one quick AI call
     that reads what the video is about. Falls back to the simple rule (a chosen
     product = Sell, else Teach) when the AI can't answer."""
@@ -2135,7 +2241,11 @@ def pick_style(idea: str, products: list[Product], has_product: bool) -> tuple[s
                     "what it is about and how it should be told. Templates:\n" + guide + "\n\nReturn JSON "
                     '{"template": "<one of the names above>", "why": "<max 12 words, in English>"}.',
                 },
-                {"role": "user", "content": f"THE BRAND'S PRODUCTS: {names}\nA PRODUCT IS CHOSEN: {'yes' if has_product else 'no'}\n\nTHE BRIEF:\n{idea.strip()[:3000]}"},
+                {
+                    "role": "user",
+                    "content": f"THE BRAND'S PRODUCTS: {names}\nA PRODUCT IS CHOSEN: {'yes' if has_product else 'no'}\n"
+                    f"A SCREENSHOT OF THEIR APP IS ATTACHED: {'yes — prefer custom or demo' if has_ui else 'no'}\n\nTHE BRIEF:\n{idea.strip()[:3000]}",
+                },
             ],
             get_settings().azure_openai_deployment,
             max_tokens=1500,
@@ -2145,6 +2255,88 @@ def pick_style(idea: str, products: list[Product], has_product: bool) -> tuple[s
         return fallback
     style = str(out.get("template") or "").strip().lower()
     return (style, _line(out.get("why"), 120)) if style in TEMPLATE_GUIDE else fallback
+
+
+# ── A reference screenshot of the brand's own app → the video's design ─────
+def _shot_from_blob(blob: bytes, name: str, note: str = "") -> dict | None:
+    try:
+        im = Image.open(io.BytesIO(blob))
+        im.thumbnail((1600, 1600))
+        buf = io.BytesIO()
+        im.convert("RGB").save(buf, "JPEG", quality=90)
+    except Exception:  # noqa: BLE001 — not a picture
+        return None
+    uri = "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
+    return {"id": 0, "name": name, "note": note, "uri": uri, "w": im.width, "h": im.height}
+
+
+def design_from_image(shot: dict, brand_hex: str) -> dict | None:
+    """The design of an app screenshot the person attached — the look the
+    video's drawn screens copy: light/dark, colours, card colour, corner style,
+    the app's name and menu items. None when the AI can't read it."""
+    from app.content_ai import ContentAIError, _chat
+
+    try:
+        out = _chat(
+            [
+                {
+                    "role": "system",
+                    "content": "You are a UI designer. Read the design of this app / website screenshot. Return JSON "
+                    '{"mode": "light" | "dark", "bg": "#RRGGBB" (page background), "surface": "#RRGGBB" (card / panel '
+                    'colour), "a": "#RRGGBB" (the main accent — buttons, active items), "b": "#RRGGBB" (a second accent, '
+                    'or a lighter / darker shade of a), "radius": "sharp" | "soft" | "round" (corners of cards and '
+                    'buttons), "app": "the app / product name if visible, else \\"\\"", "nav": [up to 5 menu / tab '
+                    'labels as written], "screen": "what this screen is, max 15 words"}. Colours sampled from the '
+                    "screenshot, not guessed.",
+                },
+                {"role": "user", "content": [{"type": "text", "text": "The screenshot:"}, {"type": "image_url", "image_url": {"url": shot["uri"], "detail": "high"}}]},
+            ],
+            _vision_model(),
+            max_tokens=3000,
+        )
+    except ContentAIError:
+        return None
+    look = clean_look({**out, "background": "grid" if out.get("mode") != "light" else "dots"}, brand_hex)
+    surface = str(out.get("surface") or "")
+    if _HEX.fullmatch(surface) and ((look["mode"] == "light" and _lum(surface) > 0.6) or (look["mode"] == "dark" and _lum(surface) < 0.12)):
+        look["card"] = surface
+    look["radius"] = out.get("radius") if out.get("radius") in ("sharp", "soft", "round") else "soft"
+    nav = [x for x in (_line(n, 24) for n in (out.get("nav") or [])) if x][:5]
+    app_name = _line(out.get("app"), 40)
+    if app_name:
+        look["kicker"] = app_name.upper()[:20]
+    return {"look": look, "nav": nav, "app": app_name, "screen": _line(out.get("screen"), 140)}
+
+
+def _design_prompt(design: dict) -> str:
+    look = design["look"]
+    parts = [
+        f"{look['mode']} theme",
+        f"accent {look['a']}",
+        f"{look['radius']} corners",
+    ]
+    text = "\n\nTHE BRAND'S OWN APP DESIGN (from the screenshot they attached — screenshot 1): " + ", ".join(parts) + "."
+    if design.get("app"):
+        text += f" The app is called {design['app']}."
+    if design.get("nav"):
+        text += " Its menu: " + ", ".join(design["nav"]) + " — use these real names in `step`, `flow` and `dashboard` scenes."
+    if design.get("screen"):
+        text += f" Screenshot 1 shows: {design['screen']}."
+    return text + " The video's look is set from this design — keep \"look\" close to it."
+
+
+def reference_shot(db: Session, ref_url: str, brand_hex: str) -> tuple[dict | None, dict | None]:
+    """(screenshot, design) for an attached reference, or (None, None)."""
+    if not ref_url:
+        return None, None
+    blob = read_media(ref_url)
+    shot = _shot_from_blob(blob or b"", "Your app (the attached screenshot)") if blob else None
+    if not shot:
+        return None, None
+    design = design_from_image(shot, brand_hex)
+    if design:
+        shot["note"] = design.get("screen") or ""
+    return shot, design
 
 
 def _style_of(goal: str, product_id: int | None) -> str:
@@ -2172,15 +2364,18 @@ def plan_motion(
     all_products = list(db.scalars(select(Product).where(Product.brand_id == brand.id).order_by(Product.name)).all())
     products = [p for p in all_products if p.id == payload.product_id] or all_products
     style, why = (
-        pick_style(payload.idea, products, payload.product_id is not None)
+        pick_style(payload.idea, products, payload.product_id is not None, bool(payload.ref_url))
         if payload.goal in ("auto", "")
         else (_style_of(payload.goal, payload.product_id), "")
     )
     seconds = story_seconds(payload.idea, payload.length, 600 if style in LONG_STYLES else 120)  # charged via the request
-    shots = brand_screens(db, brand.id) if style in SCREEN_STYLES else []
+    r, g, b = accent_for(brand.slug)
+    ref, design = reference_shot(db, payload.ref_url, f"#{r:02x}{g:02x}{b:02x}")
+    shots = ([ref] if ref else []) + (brand_screens(db, brand.id) if style in SCREEN_STYLES else [])
     try:
         script = write_script(
-            brand, products, payload.idea, payload.language, "", list(music_tracks()) if payload.music else [], style, seconds=seconds, shots=shots
+            brand, products, payload.idea, payload.language, "", list(music_tracks()) if payload.music else [], style,
+            seconds=seconds, shots=shots, design=design,
         )
     except ContentAIError as exc:
         raise HTTPException(502, str(exc)) from exc
@@ -2216,7 +2411,7 @@ def say_line(
     except Exception as exc:  # noqa: BLE001 — the voice service's own message
         raise HTTPException(502, f"The voice couldn't be made — {exc}") from exc
     if not narrator.startswith("local:"):  # the local Khmer voice costs nothing
-        billing.charge(ws, "video", len(payload.text) * speech.PRICE_PER_CHAR, user_id=user.id, model=narrator, note="Voice preview")
+        billing.charge(ws, "video", len(payload.text) * speech.price_per_char(narrator), user_id=user.id, model=narrator, note="Voice preview")
     return Response(content=mp3, media_type="audio/mpeg", headers={"Cache-Control": "no-store"})
 
 
@@ -2276,7 +2471,7 @@ def create_motion(
     db.refresh(job)
     threading.Thread(
         target=_make,
-        args=(job.id, payload.product_id, payload.language, payload.voice, "", payload.music, payload.goal, payload.script, payload.ratio),
+        args=(job.id, payload.product_id, payload.language, payload.voice, "", payload.music, payload.goal, payload.script, payload.ratio, payload.ref_url),
         daemon=True,
         name=f"motion-{job.id}",
     ).start()
@@ -2335,6 +2530,7 @@ def _make(
     goal: str = "auto",
     reviewed: dict | None = None,
     ratio: str = "9:16",
+    ref_url: str = "",
 ) -> None:
     from app.content_ai import ContentAIError
     from app.video import _ready_push
@@ -2369,21 +2565,25 @@ def _make(
                 _report(job_id, stage="pictures", style=script["style"], scenes=_board(script), look=script.get("look"))
             else:
                 if goal in ("auto", "") and job.prompt.strip():
-                    style, why = pick_style(job.prompt, products, product_id is not None)
+                    style, why = pick_style(job.prompt, products, product_id is not None, bool(ref_url))
                 else:
                     style, why = _style_of(goal, product_id), ""
                 _report(job_id, stage="story", style=style, why=why)
-                shots = brand_screens(db, brand.id) if style in SCREEN_STYLES else []
-                script = write_script(brand, products, job.prompt, language, learned, moods, style, job_id=job_id, shots=shots)
+                r, g, b = accent_for(brand.slug)
+                ref, design = reference_shot(db, ref_url, f"#{r:02x}{g:02x}{b:02x}")
+                shots = ([ref] if ref else []) + (brand_screens(db, brand.id) if style in SCREEN_STYLES else [])
+                script = write_script(brand, products, job.prompt, language, learned, moods, style, job_id=job_id, shots=shots, design=design)
             _check(job_id)
             script["ratio"] = ratio
             by_product, order, logo = _brand_pictures(db, brand.id)
-            pick_pictures(script, all_products, by_product, order, product_id, brand_screens(db, brand.id) if script.get("style") in SCREEN_STYLES else [])
+            ref_shot = _shot_from_blob(read_media(ref_url) or b"", "reference") if ref_url else None  # screenshot 1, as planned
+            shots_now = ([ref_shot] if ref_shot else []) + (brand_screens(db, brand.id) if script.get("style") in SCREEN_STYLES else [])
+            pick_pictures(script, all_products, by_product, order, product_id, shots_now)
             props = build_props(brand, script, logo, "khmer" in language.lower())
             db.rollback()  # no transaction held open through the voice and render
             from app import speech
 
-            narrator = speech.voice_for(language, voice) if speech.ready() else None
+            narrator = speech.voice_for(language, voice, script.get("style")) if speech.ready() else None
             if narrator:
                 add_voice(props, script, narrator, job.workspace_id, job.user_id, job_id, brand.pronunciations or [])
             _report(job_id, stage="render", render=0.0)

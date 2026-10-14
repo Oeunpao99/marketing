@@ -643,6 +643,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
           goal: turn.goal || 'auto',
           music: turn.music !== false,
           length: turn.length || 'auto',
+          ref_url: turn.refUrl || '', // a screenshot of their app: the design the video copies
         })
         update(turn.id, { status: 'review', plan: { ...res.script, why: res.why || '' } })
         refreshCounts()
@@ -658,6 +659,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
           goal: turn.goal || 'auto',
           script: turn.script || null, // a reviewed storyboard: made exactly as it is
           ratio: turn.ratio === '16:9' ? '16:9' : '9:16',
+          ref_url: turn.refUrl || '',
         })
         trackJob(res.id, 'video')
         update(turn.id, { jobId: res.id })
@@ -794,10 +796,6 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
     }
     if (isStory && refImg) {
       showToast('Storyboards don’t use an attached image yet — remove it, or pick Instant video')
-      return
-    }
-    if (isMotion && refImg) {
-      showToast('Remotion videos use your Brand kit photos — remove the attached image')
       return
     }
     if (prompt.length < 10) {

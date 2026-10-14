@@ -9,6 +9,10 @@ else Azure OpenAI):
   foreign accent. Voices TTS_VOICE_FEMALE / TTS_VOICE_MALE (coral / ash).
 
 Without either, motion videos are simply made silent.
+
+Khmer lines go to Google Gemini TTS (KHMER_SPEECH_PROVIDER, blank = Gemini when
+GEMINI_API_KEY is set) — voice names "gemini:<voice>" — and fall back to Azure
+when Gemini fails. Gemini gives no word timings: Khmer subtitles use the estimate.
 """
 
 from __future__ import annotations
@@ -65,16 +69,39 @@ def provider() -> str | None:
 def ready() -> bool:
     from app import local_voice
 
-    return provider() is not None or local_voice.ready()
+    return provider() is not None or local_voice.ready() or gemini_ready()
 
 
-def voice_for(language: str, gender: str) -> str | None:
+GEMINI = "gemini:"  # voice_for's names for Gemini TTS voices: "gemini:Kore"
+# Gemini TTS ≈ $9 per 1M audio tokens (~25 a second) + the text — per character
+# of Khmer that's about twice Azure's.
+PRICE_PER_CHAR_GEMINI = 30 / 1_000_000
+
+
+def gemini_ready() -> bool:
+    s = get_settings()
+    if not s.gemini_api_key:
+        return False
+    return s.khmer_speech_provider in ("", "gemini")
+
+
+def price_per_char(voice: str) -> float:
+    return PRICE_PER_CHAR_GEMINI if voice.startswith(GEMINI) else PRICE_PER_CHAR
+
+
+def voice_for(language: str, gender: str, style: str | None = None) -> str | None:
     """The voice for a video's language and the chosen gender — None = no
     voice. With gpt-4o-mini-tts the language comes from the text itself."""
     if gender not in ("female", "male"):
         return None
     s = get_settings()
     from app import local_voice
+
+    # Khmer → Gemini TTS when it's set up (the most natural Khmer), English → Azure.
+    if "khmer" in (language or "").lower() and gemini_ready():
+        name = s.gemini_tts_voice_female if gender == "female" else s.gemini_tts_voice_male
+        # "gemini:Kore|training" — the template sets how the voice acts (GEMINI_ACT)
+        return GEMINI + name + (f"|{style}" if style in GEMINI_ACT else "")
 
     # KHMER_TTS_MODEL set: Khmer lines are read by the local open-source voice
     # (one voice — Female and Male both use it); English keeps Azure.
@@ -106,7 +133,7 @@ def speak_timed(text: str, voice: str) -> tuple[bytes, list[dict]]:
     fall back to an estimate. Raises SpeechError."""
     from app import local_voice
 
-    if voice.startswith(local_voice.PREFIX):  # the local Khmer voice: no word timings
+    if voice.startswith(local_voice.PREFIX) or voice.startswith(GEMINI):  # no word timings
         return speak(text, voice), []
     if provider() != "azure":
         return speak(text, voice), []
@@ -154,6 +181,19 @@ def speak(text: str, voice: str) -> bytes:
     """``text`` read aloud by ``voice`` — MP3 bytes. Raises SpeechError."""
     from app import local_voice
 
+    if voice.startswith(GEMINI):  # "gemini:<voice>" or "gemini:<voice>|<template>"
+        name, _, style = voice[len(GEMINI) :].partition("|")
+        try:
+            return _gemini(text, name, style)
+        except SpeechError as exc:
+            # Gemini down / out of credit / bad key: Azure reads this line instead
+            s = get_settings()
+            backup = VOICES[(_lang(text), "female" if name == s.gemini_tts_voice_female else "male")]
+            log.warning("Gemini TTS failed (%s) — reading the line with %s", exc, backup)
+            if provider() != "azure":
+                raise
+            return _azure(text, backup)
+
     if voice.startswith(local_voice.PREFIX):
         try:
             return local_voice.speak(text, voice[len(local_voice.PREFIX) :])
@@ -163,6 +203,74 @@ def speak(text: str, voice: str) -> bytes:
     if which is None:
         raise SpeechError("No voice service is set up (Azure OpenAI TTS or Azure Speech).")
     return _openai(text, voice) if which == "openai" else _azure(text, voice)
+
+
+def _gemini(text: str, voice: str, style: str = "") -> bytes:
+    """Gemini TTS: 24 kHz 16-bit PCM back, made an MP3 here. The style line
+    (HOW) tells it how to say it — it doesn't read the instruction aloud."""
+    import base64
+    import subprocess
+
+    import imageio_ffmpeg
+
+    s = get_settings()
+    body = {
+        "contents": [{"parts": [{"text": f"{GEMINI_HOW[_lang(text)]} {GEMINI_ACT.get(style, '')}\n\n{text.strip()}"}]}],
+        "generationConfig": {
+            "responseModalities": ["AUDIO"],
+            "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": voice}}},
+        },
+    }
+    try:
+        resp = httpx.post(
+            f"https://generativelanguage.googleapis.com/v1beta/models/{s.gemini_tts_model}:generateContent",
+            params={"key": s.gemini_api_key},
+            json=body,
+            timeout=180.0,
+        )
+    except httpx.HTTPError as exc:
+        raise SpeechError(f"Could not reach Gemini: {exc}") from exc
+    if resp.status_code != 200:
+        raise SpeechError(f"Gemini said {resp.status_code}: {resp.text[:200]}")
+    try:
+        pcm = base64.b64decode(resp.json()["candidates"][0]["content"]["parts"][0]["inlineData"]["data"])
+    except (KeyError, IndexError, ValueError) as exc:
+        raise SpeechError("Gemini returned no audio.") from exc
+    done = subprocess.run(
+        [imageio_ffmpeg.get_ffmpeg_exe(), "-y", "-loglevel", "error", "-f", "s16le", "-ar", "24000", "-ac", "1", "-i", "pipe:0",
+         "-codec:a", "libmp3lame", "-b:a", "128k", "-f", "mp3", "pipe:1"],
+        input=pcm,
+        capture_output=True,
+    )
+    if done.returncode != 0 or not done.stdout:
+        raise SpeechError("Couldn't encode the Gemini audio.")
+    return done.stdout
+
+
+# How Gemini should say it (it follows a short style line before the text).
+GEMINI_HOW = {
+    "km": (
+        "Read this in natural, fluent Cambodian Khmer with a native Phnom Penh accent — warm and "
+        "friendly, like a young Cambodian seller talking to one customer, with natural pauses and "
+        "rising and falling intonation. Brand and product names as written:"
+    ),
+    "en": "Read this in a warm, friendly, natural voice, like a small-business owner talking to one customer:",
+}
+# …and how to act it, by the video's template (app/motion.py STYLES).
+GEMINI_ACT = {
+    "tech": "Energetic and confident, like a seller who believes in the product.",
+    "offer": "Excited and punchy — lift the voice on prices and offers, short pause before each price.",
+    "training": "Clear, calm and professional, like a good trainer presenting to a team — steady pace, pauses between ideas.",
+    "explainer": "Warm and gentle, like telling a short story to a friend — slow down on the important moments.",
+    "testimonial": "Warm and heartfelt, like telling a friend what happened to a real person.",
+    "custom": "Confident and friendly, like a product presenter showing something they love using.",
+    "demo": "Clear and friendly, like showing a friend how to use an app, step by step.",
+    "poll": "Playful and lively, like a game-show host.",
+    "quote": "Calm and slow, with weight on every word.",
+    "pov": "Relaxed and funny, like telling a friend a moment they know too well.",
+    "trend": "Like a sharp news presenter — clear, upbeat, informative.",
+    "versus": "Confident and fair, like an expert comparing two options.",
+}
 
 
 def _openai(text: str, voice: str) -> bytes:
