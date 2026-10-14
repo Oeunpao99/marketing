@@ -636,7 +636,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
       } else if (turn.kind === 'motion' && turn.reviewFirst && !turn.script) {
         // Your own story → a storyboard to check and edit; nothing is
         // voiced or rendered until "Make the video".
-        const res = await api.post('/ai/motion/plan', {
+        const started = await api.post('/ai/motion/plan', {
           brand_id: turn.brandId,
           idea: turn.prompt,
           product_id: turn.productId ?? null,
@@ -647,6 +647,16 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
           ratio: turn.shape || 'auto',
           ref_url: turn.refUrl || '', // a screenshot of their app: the design the video copies
         })
+        // Written in the background (several AI steps can take minutes — longer
+        // than the proxy waits on one request): ask until it's ready.
+        let res = started
+        const until = Date.now() + 20 * 60 * 1000
+        while (res.plan_id && res.status !== 'done') {
+          if (res.status === 'failed') throw new Error(res.error || 'The storyboard couldn’t be written.')
+          if (Date.now() > until) throw new Error('The storyboard is taking too long — try again.')
+          await new Promise((r) => setTimeout(r, 2500))
+          res = { plan_id: started.plan_id, ...(await api.get(`/ai/motion/plan/${started.plan_id}`)) }
+        }
         update(turn.id, { status: 'review', plan: { ...res.script, why: res.why || '' } })
         refreshCounts()
       } else if (turn.kind === 'motion') {

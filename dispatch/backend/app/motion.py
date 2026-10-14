@@ -27,6 +27,7 @@ import signal
 import subprocess
 import tempfile
 import threading
+import time
 import uuid
 from pathlib import Path
 
@@ -2377,6 +2378,55 @@ def _style_of(goal: str, product_id: int | None) -> str:
     return style_for(goal) if goal not in ("auto", "") else ("tech" if product_id is not None else "explainer")
 
 
+# Storyboards being written (POST /plan → GET /plan/{id}): the work runs in a
+# thread because the AI steps together (director, storyboard, Khmer editor,
+# voice director) can take longer than the proxy in front of us waits (100 s →
+# a 524). {id: {"ws", "status": running|done|failed, "result" | "error", "at"}}
+_plans: dict[str, dict] = {}
+_PLAN_KEEP = 3600  # seconds a finished storyboard waits to be picked up
+
+
+def _build_plan(payload: "PlanIn", ws: int, user_id: int) -> dict:
+    """The storyboard itself — the slow part (several AI calls)."""
+    db = SessionLocal()
+    try:
+        brand = db.get(Brand, payload.brand_id)
+        all_products = list(db.scalars(select(Product).where(Product.brand_id == brand.id).order_by(Product.name)).all())
+        products = [p for p in all_products if p.id == payload.product_id] or all_products
+        style, why, suggested = (
+            pick_style(payload.idea, products, payload.product_id is not None, bool(payload.ref_url), payload.ratio)
+            if payload.goal in ("auto", "")
+            else (_style_of(payload.goal, payload.product_id), "", None)
+        )
+        shape = final_ratio(payload.ratio, style, suggested)
+        seconds = story_seconds(payload.idea, payload.length, 600 if style in LONG_STYLES else 120)
+        r, g, b = accent_for(brand.slug)
+        ref, design = reference_shot(db, payload.ref_url, f"#{r:02x}{g:02x}{b:02x}")
+        shots = ([ref] if ref else []) + (brand_screens(db, brand.id) if style in SCREEN_STYLES else [])
+        db.rollback()  # no transaction held open through the AI calls
+        script = write_script(
+            brand, products, payload.idea, payload.language, "", list(music_tracks()) if payload.music else [], style,
+            seconds=seconds, shots=shots, design=design, wide=shape == "16:9",
+        )
+        script["ratio"] = shape
+        return {"script": script, "target_seconds": seconds, "estimate_seconds": estimate_seconds(script), "why": why}
+    finally:
+        db.close()
+
+
+def _run_plan(plan_id: str, payload: "PlanIn", ws: int, user_id: int) -> None:
+    from app.content_ai import ContentAIError
+
+    billing.bind(ws, user_id)  # the AI calls in this thread are charged to them
+    try:
+        _plans[plan_id].update(status="done", result=_build_plan(payload, ws, user_id))
+    except ContentAIError as exc:
+        _plans[plan_id].update(status="failed", error=str(exc))
+    except Exception as exc:  # noqa: BLE001 — the page shows it instead of waiting forever
+        log.exception("storyboard %s failed", plan_id)
+        _plans[plan_id].update(status="failed", error=f"The storyboard couldn't be written — {exc}")
+
+
 @router.post("/plan")
 def plan_motion(
     payload: PlanIn,
@@ -2384,37 +2434,34 @@ def plan_motion(
     ws: int = Depends(current_workspace_id),
     user: TeamMember = Depends(get_current_user),
 ):
-    """The storyboard for the person's own story — to review and edit before
-    anything is voiced or rendered (POST /ai/motion with ``script``). One AI
-    call (plus the Khmer editor's), charged like any other."""
-    from app.content_ai import ContentAIError
-
+    """Start writing the storyboard for the person's own story — to review and
+    edit before anything is voiced or rendered (POST /ai/motion with
+    ``script``). Answers at once with an id; GET /plan/{id} until it's done."""
     owned(db, Brand, payload.brand_id, ws)
     if payload.product_id is not None:
         owned(db, Product, payload.product_id, ws)
     billing.require(ws, 0.0, db)
-    brand = db.get(Brand, payload.brand_id)
-    all_products = list(db.scalars(select(Product).where(Product.brand_id == brand.id).order_by(Product.name)).all())
-    products = [p for p in all_products if p.id == payload.product_id] or all_products
-    style, why, suggested = (
-        pick_style(payload.idea, products, payload.product_id is not None, bool(payload.ref_url), payload.ratio)
-        if payload.goal in ("auto", "")
-        else (_style_of(payload.goal, payload.product_id), "", None)
-    )
-    shape = final_ratio(payload.ratio, style, suggested)
-    seconds = story_seconds(payload.idea, payload.length, 600 if style in LONG_STYLES else 120)  # charged via the request
-    r, g, b = accent_for(brand.slug)
-    ref, design = reference_shot(db, payload.ref_url, f"#{r:02x}{g:02x}{b:02x}")
-    shots = ([ref] if ref else []) + (brand_screens(db, brand.id) if style in SCREEN_STYLES else [])
-    try:
-        script = write_script(
-            brand, products, payload.idea, payload.language, "", list(music_tracks()) if payload.music else [], style,
-            seconds=seconds, shots=shots, design=design, wide=shape == "16:9",
-        )
-        script["ratio"] = shape
-    except ContentAIError as exc:
-        raise HTTPException(502, str(exc)) from exc
-    return {"script": script, "target_seconds": seconds, "estimate_seconds": estimate_seconds(script), "why": why}
+    now = time.time()
+    for k in [k for k, v in _plans.items() if now - v["at"] > _PLAN_KEEP]:
+        _plans.pop(k, None)
+    plan_id = uuid.uuid4().hex
+    _plans[plan_id] = {"ws": ws, "status": "running", "at": now}
+    threading.Thread(target=_run_plan, args=(plan_id, payload, ws, user.id), daemon=True, name=f"plan-{plan_id[:8]}").start()
+    return {"plan_id": plan_id, "status": "running"}
+
+
+@router.get("/plan/{plan_id}")
+def plan_status(plan_id: str, ws: int = Depends(current_workspace_id)):
+    """The storyboard once it's written: {"status": "running"} meanwhile,
+    {"status": "done", "script", …} or {"status": "failed", "error"}."""
+    job = _plans.get(plan_id)
+    if not job or job["ws"] != ws:
+        raise HTTPException(404, "This storyboard isn't here any more — write it again.")
+    if job["status"] == "running":
+        return {"status": "running"}
+    if job["status"] == "failed":
+        return {"status": "failed", "error": job.get("error") or "The storyboard couldn't be written."}
+    return {"status": "done", **job["result"]}
 
 
 class SayIn(BaseModel):
