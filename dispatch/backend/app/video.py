@@ -31,7 +31,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app import billing, text_overlay
-from app.config import get_settings
+from app.config import gemini_url, get_settings
 from app.content_ai import ContentAIError
 from app.database import SessionLocal, get_db
 from app.media import read_media, store_blob
@@ -163,7 +163,8 @@ def _azure_fetch(ref: str) -> bytes:
 
 
 # ── Google Gemini API (Veo) ──────────────────────────────────────────────
-_GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta"
+def _gemini_base() -> str:
+    return gemini_url("/v1beta")
 
 
 def _gemini_key() -> str:
@@ -198,7 +199,7 @@ def _gemini_start(
         # Image-to-video: Veo animates from this image as the first frame.
         frame = _first_frame(reference, ratio)
         body["instances"][0]["image"] = {"bytesBase64Encoded": base64.b64encode(frame).decode(), "mimeType": "image/png"}
-    url = f"{_GEMINI_BASE}/models/{model}:predictLongRunning"
+    url = f"{_gemini_base()}/models/{model}:predictLongRunning"
     try:
         resp = httpx.post(url, headers={"x-goog-api-key": key}, json=body, timeout=60.0)
     except httpx.HTTPError as exc:
@@ -228,7 +229,7 @@ def _gemini_video_uri(response: dict) -> str | None:
 
 def _gemini_poll(provider_job_id: str) -> dict:
     key = _gemini_key()
-    url = f"{_GEMINI_BASE}/{provider_job_id}"
+    url = f"{_gemini_base()}/{provider_job_id}"
     try:
         resp = httpx.get(url, headers={"x-goog-api-key": key}, timeout=30.0)
     except httpx.HTTPError as exc:
@@ -255,7 +256,7 @@ def _gemini_poll(provider_job_id: str) -> dict:
 def _gemini_fetch(ref: str) -> bytes:
     key = _gemini_key()
     try:
-        resp = httpx.get(ref, headers={"x-goog-api-key": key}, timeout=180.0,
+        resp = httpx.get(gemini_url(ref), headers={"x-goog-api-key": key}, timeout=180.0,
                          follow_redirects=True)
     except httpx.HTTPError as exc:
         raise VideoGenError(f"Could not download the video: {exc}") from exc
@@ -428,7 +429,7 @@ def _gemini_image(
         "instances": [{"prompt": prompt}],
         "parameters": {"sampleCount": 1, "aspectRatio": ratio},
     }
-    url = f"{_GEMINI_BASE}/models/{model}:predict"
+    url = f"{_gemini_base()}/models/{model}:predict"
     try:
         resp = httpx.post(url, headers={"x-goog-api-key": key}, json=body, timeout=120.0)
     except httpx.HTTPError as exc:

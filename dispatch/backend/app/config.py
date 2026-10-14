@@ -76,6 +76,10 @@ class Settings(BaseSettings):
 
     # gemini_veo — Google AI Studio / Gemini API key + a Veo model id.
     gemini_api_key: str = ""
+    # Where Gemini calls go. Google blocks the Gemini API from some countries
+    # (the prod VM is in Hong Kong), so prod points this at a proxy running in a
+    # supported region (dispatch/gemini-proxy/worker.js). Blank = Google directly.
+    gemini_base_url: str = ""
     gemini_video_model: str = "veo-3.1-fast-generate-preview"
     # Azure Speech — Khmer / English voice-over for motion videos (app/speech.py).
     azure_speech_key: str = ""
@@ -229,6 +233,18 @@ class Settings(BaseSettings):
     @property
     def image_api_key(self) -> str:
         return self.azure_openai_image_api_key or self.azure_openai_api_key
+
+
+GEMINI_GOOGLE_URL = "https://generativelanguage.googleapis.com"
+
+
+def gemini_url(path: str) -> str:
+    """A Gemini API URL — through GEMINI_BASE_URL when set (see gemini_base_url).
+    Takes a path ("/v1beta/models/...") or a full Google URL (Veo's download link)."""
+    if path.startswith(GEMINI_GOOGLE_URL):
+        path = path[len(GEMINI_GOOGLE_URL):]
+    base = get_settings().gemini_base_url.strip().rstrip("/") or GEMINI_GOOGLE_URL
+    return base + path
 
 
 @lru_cache

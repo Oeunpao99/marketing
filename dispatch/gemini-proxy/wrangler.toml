@@ -1,0 +1,8 @@
+name = "gemini-proxy"
+main = "worker.js"
+compatibility_date = "2025-06-01"
+
+# Run next to Google in Singapore, not at the Cloudflare site nearest the
+# caller (Hong Kong — which Google would block again).
+[placement]
+region = "gcp:asia-southeast1"

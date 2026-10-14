@@ -22,7 +22,7 @@ from xml.sax.saxutils import escape
 
 import httpx
 
-from app.config import get_settings
+from app.config import gemini_url, get_settings
 
 log = logging.getLogger("app.speech")
 
@@ -238,7 +238,7 @@ def _gemini(text: str, voice: str, style: str = "") -> bytes:
     }
     try:
         resp = httpx.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/{s.gemini_tts_model}:generateContent",
+            gemini_url(f"/v1beta/models/{s.gemini_tts_model}:generateContent"),
             params={"key": s.gemini_api_key},
             json=body,
             timeout=180.0,
