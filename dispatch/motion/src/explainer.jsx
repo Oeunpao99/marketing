@@ -16,7 +16,7 @@
  * Any scene may carry `caption` (its spoken line) — shown as subtitles.
  */
 import { AbsoluteFill, Img, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion'
-import { FONT, FPS, Icon, TRANSITION, Words, ZWSP, clean, fitSize, sceneFrames, srcOf } from './shared'
+import { FONT, FPS, Icon, NeatGrid, TRANSITION, Words, ZWSP, clean, fitSize, sceneFrames, srcOf } from './shared'
 
 export const EX = {
   bg: '#FBF6EC',
@@ -56,6 +56,7 @@ function Paper({ ground = false }) {
       {blob(EX.blobA, 520, 760, 380, 30, 20)}
       {blob(EX.blobB, 560, -260, 1300, 25, 30)}
       {blob(EX.blobC, 300, 820, 1500, 20, 15)}
+      <NeatGrid color="rgba(31,26,20,0.06)" />
       {ground && <div style={{ position: 'absolute', left: 70, right: 70, top: GROUND, height: 6, borderRadius: 3, background: EX.ink }} />}
     </AbsoluteFill>
   )

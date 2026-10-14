@@ -41,6 +41,7 @@ import {
   INK,
   TRANSITION,
   Icon,
+  NeatGrid,
   Words,
   clean,
   defaultSeconds,
@@ -58,42 +59,12 @@ import { TRAINING } from './training'
 
 export { FPS, TRANSITION, defaultSeconds, sceneFrames }
 
-/** The scene background when there's no photo: deep ink with two slow brand
- * glows and a faint grid — one look across the whole video. */
-function Backdrop({ color }) {
-  const frame = useCurrentFrame()
-  const a = frame / 60
+/** The scene background when there's no photo: deep ink and a neat grid —
+ * one look across the whole video. */
+function Backdrop() {
   return (
     <AbsoluteFill style={{ backgroundColor: INK, overflow: 'hidden' }}>
-      <div
-        style={{
-          position: 'absolute',
-          width: 1200,
-          height: 1200,
-          borderRadius: '50%',
-          background: `radial-gradient(circle, ${tint(color, 0.55)} 0%, transparent 65%)`,
-          left: -300 + Math.sin(a) * 80,
-          top: -250 + Math.cos(a * 0.8) * 60,
-        }}
-      />
-      <div
-        style={{
-          position: 'absolute',
-          width: 1000,
-          height: 1000,
-          borderRadius: '50%',
-          background: `radial-gradient(circle, ${tint(color, 0.35)} 0%, transparent 65%)`,
-          right: -350 + Math.cos(a * 0.7) * 70,
-          bottom: -200 + Math.sin(a * 0.9) * 60,
-        }}
-      />
-      <AbsoluteFill
-        style={{
-          backgroundImage:
-            'linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px)',
-          backgroundSize: '72px 72px',
-        }}
-      />
+      <NeatGrid color="rgba(255,255,255,0.07)" size={72} />
     </AbsoluteFill>
   )
 }
@@ -173,7 +144,7 @@ function HookScene({ scene, brand }) {
           text={scene.text}
           delay={0}
           color="white"
-          style={{ fontSize: 100, fontWeight: 700, textShadow: '0 4px 24px rgba(0,0,0,0.4)' }}
+          style={{ fontSize: 100, fontWeight: 800, letterSpacing: '-0.012em', textShadow: '0 4px 24px rgba(0,0,0,0.4)' }}
         />
       </AbsoluteFill>
     </AbsoluteFill>
@@ -251,7 +222,7 @@ function ChatScene({ scene, brand }) {
             delay={0}
             align="center"
             color="white"
-            style={{ fontSize: 66, fontWeight: 700, textAlign: 'center', padding: '0 80px', marginBottom: 46 }}
+            style={{ fontSize: 66, fontWeight: 800, letterSpacing: '-0.012em', textAlign: 'center', padding: '0 80px', marginBottom: 46 }}
           />
         )}
         <div
@@ -466,7 +437,7 @@ function ProductScene({ scene, brand }) {
           delay={4}
           align="center"
           color="white"
-          style={{ fontSize: 78, fontWeight: 700, textAlign: 'center', marginTop: 70, padding: '0 70px' }}
+          style={{ fontSize: 78, fontWeight: 800, letterSpacing: '-0.012em', textAlign: 'center', marginTop: 70, padding: '0 70px' }}
         />
       </AbsoluteFill>
       {chips.map((c, i) => {

@@ -1,4 +1,4 @@
-import { cancelRender, continueRender, delayRender, spring, staticFile, useCurrentFrame, useVideoConfig } from 'remotion'
+import { AbsoluteFill, cancelRender, continueRender, delayRender, spring, staticFile, useCurrentFrame, useVideoConfig } from 'remotion'
 import * as Lucide from 'lucide-react'
 
 // Pieces every style shares: timing, the Khmer font, word-by-word text,
@@ -113,6 +113,25 @@ export const srcOf = (src) => (!src ? null : /^(https?:|data:)/.test(src) ? src 
 export function Icon({ name, size = 64, color = 'white', stroke = 2 }) {
   const C = Lucide[name] || Lucide.Sparkles
   return <C size={size} color={color} strokeWidth={stroke} />
+}
+
+/** A neat square grid behind a scene — thin lines, fading out towards the
+ * edges, drifting up slowly. ``color`` is the line colour (ink at a few %
+ * on a light page, white at a few % on a dark one). */
+export function NeatGrid({ color = 'rgba(15,23,42,0.06)', size = 64 }) {
+  const frame = useCurrentFrame()
+  const mask = 'radial-gradient(ellipse 90% 75% at 50% 45%, black 35%, transparent 100%)'
+  return (
+    <AbsoluteFill
+      style={{
+        backgroundImage: `linear-gradient(${color} 2px, transparent 2px), linear-gradient(90deg, ${color} 2px, transparent 2px)`,
+        backgroundSize: `${size}px ${size}px`,
+        backgroundPosition: `center ${-((frame * 0.4) % size)}px`,
+        maskImage: mask,
+        WebkitMaskImage: mask,
+      }}
+    />
+  )
 }
 
 /** "#0e7c66" → "rgba(14,124,102,a)". */

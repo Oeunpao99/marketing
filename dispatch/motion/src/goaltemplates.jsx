@@ -10,7 +10,7 @@
  * written by app/motion.py (VERSUS_PROMPT, POLL_PROMPT, QUOTE_PROMPT).
  */
 import { AbsoluteFill, Img, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion'
-import { FONT, Icon, Words, clean, fitSize, srcOf } from './shared'
+import { FONT, Icon, NeatGrid, Words, clean, fitSize, srcOf } from './shared'
 
 // ── Comparison (Authority) ─────────────────────────────────────────────────
 const V = { bg: '#F7F7F5', ink: '#141414', sub: '#56595f', red: '#E5533D', redSoft: '#FDE4DF', green: '#1E9E5B', greenSoft: '#DDF3E6' }
@@ -22,6 +22,11 @@ function VsPaper({ split = false }) {
         <>
           <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '50%', background: V.redSoft }} />
           <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '50%', background: V.greenSoft }} />
+        </>
+      )}
+      <NeatGrid color="rgba(20,20,20,0.06)" />
+      {split && (
+        <>
           <div style={{ position: 'absolute', left: 537, top: 0, bottom: 0, width: 6, background: V.ink, opacity: 0.85 }} />
         </>
       )}
@@ -66,7 +71,7 @@ function VsSplit({ scene }) {
           <div style={{ width: 150, height: 150, borderRadius: 40, background: good ? V.green : V.red, display: 'grid', placeItems: 'center' }}>
             <Icon name={data.icon || (good ? 'Rocket' : 'Hourglass')} size={84} color="white" stroke={2.2} />
           </div>
-          <div style={{ fontFamily: FONT, fontWeight: 700, fontSize: 60, color: V.ink, textAlign: 'center', lineHeight: 1.3 }}>{clean(data.label)}</div>
+          <div style={{ fontFamily: FONT, fontWeight: 800, letterSpacing: '-0.012em', fontSize: 60, color: V.ink, textAlign: 'center', lineHeight: 1.3 }}>{clean(data.label)}</div>
         </div>
         <div style={{ marginTop: 50 }}>
           {(data.points || []).slice(0, 3).map((p, i) => {
@@ -209,12 +214,9 @@ const OPTION_COLORS = [P.pink, P.teal, P.gold, P.sky]
 
 function Stage() {
   const frame = useCurrentFrame()
-  const sweep = Math.sin(frame / 40) * 120
   return (
-    <AbsoluteFill style={{ background: `radial-gradient(circle at 50% 30%, ${P.bg2} 0%, ${P.bg} 70%)`, overflow: 'hidden' }}>
-      {/* two spotlights sweeping */}
-      <div style={{ position: 'absolute', left: 120 + sweep, top: -200, width: 420, height: 1500, background: 'linear-gradient(180deg, rgba(255,255,255,0.14), transparent)', transform: 'rotate(18deg)', filter: 'blur(8px)' }} />
-      <div style={{ position: 'absolute', right: 120 - sweep, top: -200, width: 420, height: 1500, background: 'linear-gradient(180deg, rgba(255,255,255,0.1), transparent)', transform: 'rotate(-18deg)', filter: 'blur(8px)' }} />
+    <AbsoluteFill style={{ backgroundColor: P.bg, overflow: 'hidden' }}>
+      <NeatGrid color="rgba(255,255,255,0.07)" />
       {[...Array(18)].map((_, i) => (
         <div
           key={i}
@@ -243,7 +245,7 @@ function PollQuestion({ scene }) {
     <AbsoluteFill>
       <Stage />
       <div style={{ position: 'absolute', top: 330 + bob, left: 0, right: 0, display: 'flex', justifyContent: 'center' }}>
-        <div style={{ transform: `scale(${s}) rotate(${-8 + bob / 4}deg)`, width: 230, height: 230, borderRadius: 60, background: P.gold, display: 'grid', placeItems: 'center', fontFamily: FONT, fontWeight: 700, fontSize: 170, color: P.bg }}>?</div>
+        <div style={{ transform: `scale(${s}) rotate(${-8 + bob / 4}deg)`, width: 230, height: 230, borderRadius: 60, background: P.gold, display: 'grid', placeItems: 'center', fontFamily: FONT, fontWeight: 800, letterSpacing: '-0.012em', fontSize: 170, color: P.bg }}>?</div>
       </div>
       <div style={{ position: 'absolute', top: 650, left: 60, right: 60, background: 'rgba(255,255,255,0.08)', border: '4px solid rgba(255,255,255,0.25)', borderRadius: 44, padding: '44px 40px' }}>
         <Words text={scene.text} delay={2} stagger={1} align="center" color={P.ink} style={{ fontSize: 88, fontWeight: 700, textAlign: 'center' }} />
@@ -360,7 +362,7 @@ function PollCta({ scene, brand }) {
       {/* the button follows the text, however many lines it wraps to */}
       {scene.button && (
         <div style={{ marginTop: 56, display: 'flex', justifyContent: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, background: P.gold, color: P.bg, fontFamily: FONT, fontWeight: 700, fontSize: 56, padding: '24px 60px', borderRadius: 999, transform: `scale(${b * (1 + Math.sin(frame / 6) * 0.03)})`, opacity: b }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, background: P.gold, color: P.bg, fontFamily: FONT, fontWeight: 800, letterSpacing: '-0.012em', fontSize: 56, padding: '24px 60px', borderRadius: 999, transform: `scale(${b * (1 + Math.sin(frame / 6) * 0.03)})`, opacity: b }}>
             <Icon name="MessageCircle" size={50} color={P.bg} stroke={2.6} />
             {clean(scene.button)}
           </div>

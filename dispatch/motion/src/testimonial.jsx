@@ -12,7 +12,7 @@
  *   { type: "cta",         text, button }
  */
 import { AbsoluteFill, Img, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion'
-import { FONT, Icon, Words, clean, fitSize, srcOf } from './shared'
+import { FONT, Icon, NeatGrid, Words, clean, fitSize, srcOf } from './shared'
 import { StickFigure } from './explainer'
 
 const T = { bg: '#FBF6EE', card: '#FFFFFF', ink: '#1F1A14', sub: '#6B6258', gold: '#E9A93A', goldSoft: '#FBEBCB', green: '#2E9E6A', greenSoft: '#DDF1E5', grey: '#ECE6DC' }
@@ -23,6 +23,7 @@ function Warm() {
     <AbsoluteFill style={{ backgroundColor: T.bg, overflow: 'hidden' }}>
       <div style={{ position: 'absolute', right: -160, top: 260 + Math.sin(frame / 40) * 12, width: 520, height: 520, borderRadius: 260, background: T.goldSoft }} />
       <div style={{ position: 'absolute', left: -200, bottom: 160, width: 560, height: 560, borderRadius: 280, background: T.greenSoft, opacity: 0.7 }} />
+      <NeatGrid color="rgba(31,26,20,0.055)" />
     </AbsoluteFill>
   )
 }
@@ -82,7 +83,7 @@ function TsCustomer({ scene }) {
       <StickFigure mood={scene.mood || 'thinking'} x={540} y={760} scale={1.05} color={T.ink} />
       <div style={{ position: 'absolute', top: 800, left: 0, right: 0, display: 'flex', justifyContent: 'center' }}>
         <div style={{ transform: `scale(${tag})`, background: T.card, border: `5px solid ${T.ink}`, borderRadius: 30, padding: '16px 34px', textAlign: 'center' }}>
-          <div style={{ fontFamily: FONT, fontWeight: 700, fontSize: 56, color: T.ink }}>{clean(scene.name)}</div>
+          <div style={{ fontFamily: FONT, fontWeight: 800, letterSpacing: '-0.012em', fontSize: 56, color: T.ink }}>{clean(scene.name)}</div>
           {scene.business && <div style={{ fontFamily: FONT, fontWeight: 600, fontSize: 34, color: T.sub }}>{clean(scene.business)}</div>}
         </div>
       </div>
