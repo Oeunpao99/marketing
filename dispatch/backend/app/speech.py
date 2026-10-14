@@ -18,6 +18,8 @@ when Gemini fails. Gemini gives no word timings: Khmer subtitles use the estimat
 from __future__ import annotations
 
 import logging
+import random
+import time
 from xml.sax.saxutils import escape
 
 import httpx
@@ -236,15 +238,26 @@ def _gemini(text: str, voice: str, style: str = "") -> bytes:
             "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": voice}}},
         },
     }
-    try:
-        resp = httpx.post(
-            gemini_url(f"/v1beta/models/{s.gemini_tts_model}:generateContent"),
-            params={"key": s.gemini_api_key},
-            json=body,
-            timeout=180.0,
-        )
-    except httpx.HTTPError as exc:
-        raise SpeechError(f"Could not reach Gemini: {exc}") from exc
+    waited = 0.0
+    while True:
+        try:
+            resp = httpx.post(
+                gemini_url(f"/v1beta/models/{s.gemini_tts_model}:generateContent"),
+                params={"key": s.gemini_api_key},
+                json=body,
+                timeout=180.0,
+            )
+        except httpx.HTTPError as exc:
+            raise SpeechError(f"Could not reach Gemini: {exc}") from exc
+        # 429 = over Gemini's per-minute limit (several lines are asked for at
+        # once): wait as long as Google says and ask again, up to a minute in all.
+        # A used-up daily quota won't come back by waiting — Azure reads it.
+        delay = _gemini_retry_after(resp) if resp.status_code == 429 else None
+        if delay is None or waited + delay > 60:
+            break
+        log.info("Gemini TTS busy — trying again in %.0fs", delay)
+        time.sleep(delay)
+        waited += delay
     if resp.status_code != 200:
         raise SpeechError(f"Gemini said {resp.status_code}: {resp.text[:200]}")
     try:
@@ -260,6 +273,20 @@ def _gemini(text: str, voice: str, style: str = "") -> bytes:
     if done.returncode != 0 or not done.stdout:
         raise SpeechError("Couldn't encode the Gemini audio.")
     return done.stdout
+
+
+def _gemini_retry_after(resp: httpx.Response) -> float | None:
+    """Seconds to wait before asking Gemini again after a 429 — None when the
+    daily quota is used up (waiting won't help)."""
+    text = resp.text
+    if "PerDay" in text:
+        return None
+    try:
+        details = resp.json()["error"].get("details") or []
+        delay = next(d["retryDelay"] for d in details if "retryDelay" in d)  # e.g. "17s"
+        return min(max(float(str(delay).rstrip("s")), 1.0), 60.0) + random.uniform(0, 2)
+    except (ValueError, KeyError, StopIteration, AttributeError, TypeError):
+        return 10.0 + random.uniform(0, 5)
 
 
 # How Gemini should say it (it follows a short style line before the text).
