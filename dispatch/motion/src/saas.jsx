@@ -89,6 +89,7 @@ const DOTS = [...Array(26)].map((_, i) => ({
  * dots: a dot grid all over; clean: the colour alone. No glow, no gradient. */
 function AiBg({ P }) {
   const frame = useCurrentFrame()
+  const { width, height } = useVideoConfig()
   const fade = 'linear-gradient(to top, black 5%, transparent 80%)'
   const kind = P.background === 'glow' ? 'grid' : P.background // an old "glow" look draws as grid
   return (
@@ -125,8 +126,8 @@ function AiBg({ P }) {
           key={i}
           style={{
             position: 'absolute',
-            left: d.x,
-            top: (((d.y - frame * d.v) % 1920) + 1920) % 1920,
+            left: (d.x / 1080) * width,
+            top: ((((d.y / 1920) * height - frame * d.v) % height) + height) % height,
             width: d.r,
             height: d.r,
             borderRadius: d.r,
@@ -415,7 +416,7 @@ function makeNews(P) {
 
 // ── POV (pov) ──────────────────────────────────────────────────────────────
 function makeNotify(P) {
-  return function AiNotify({ scene }) {
+  return function AiNotify({ scene, bare = false }) {
   const frame = useCurrentFrame()
   const { fps, durationInFrames } = useVideoConfig()
   const notes = (scene.notes || []).slice(0, 4)
@@ -425,7 +426,7 @@ function makeNotify(P) {
   const shake = shown ? Math.sin(frame * 2.4) * Math.max(0, 6 - (frame - 12 - (shown - 1) * gap) / 2) : 0
   return (
     <AbsoluteFill>
-      <AiBg P={P} />
+      {!bare && <AiBg P={P} />}
       {scene.title && (
         <div style={{ position: 'absolute', top: 250, left: 64, right: 64 }}>
           <Words text={scene.title} align="center" color={P.ink} style={{ fontSize: fitSize(scene.title, 70), fontWeight: 700, textAlign: 'center' }} />
@@ -560,7 +561,7 @@ function makeStep(P) {
 
 // ── Offer (offer) ──────────────────────────────────────────────────────────
 function makeOffer(P) {
-  return function AiOffer({ scene }) {
+  return function AiOffer({ scene, bare = false }) {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
   const card = spring({ frame, fps, config: { damping: 14 } })
@@ -570,7 +571,7 @@ function makeOffer(P) {
   const top = scene.image ? 300 : 400
   return (
     <AbsoluteFill>
-      <AiBg P={P} />
+      {!bare && <AiBg P={P} />}
       <div style={{ position: 'absolute', top, left: 80, right: 80, opacity: card, transform: `translateY(${(1 - card) * 90}px)` }}>
         {/* a glowing gradient border, turning */}
         <div style={{ position: 'absolute', inset: -4, borderRadius: 48, background: `conic-gradient(from ${frame * 3}deg, ${P.a}, ${P.b}, ${P.a}, transparent 70%, ${P.a})`, boxShadow: `0 0 90px ${tint(P.a, 0.35)}` }} />
@@ -632,12 +633,16 @@ function makeScreen(P) {
     const iw = scene.imgW || 1600
     const ih = scene.imgH || 1000
     const phone = ih > iw * 1.25
-    const area = scene.title ? (scene.text ? 540 : 470) : 300 // below the title, above the subtitles
+    const { width: fw, height: fh } = useVideoConfig()
+    const wideFrame = fw > fh
+    // below the title, above the subtitles — on a wide frame the screenshot gets the whole width
+    const area = wideFrame ? (scene.title ? (scene.text ? 330 : 280) : 170) : scene.title ? (scene.text ? 540 : 470) : 300
+    const floor = wideFrame ? fh - 200 : 1430
     const bar = phone ? 0 : 64
-    const fit = Math.min((phone ? 620 : 980) / iw, (1430 - area - bar) / ih)
+    const fit = Math.min((phone ? 620 : wideFrame ? 1560 : 980) / iw, (floor - area - bar) / ih)
     const W = Math.round(iw * fit)
     const H = Math.round(ih * fit)
-    const top = area + Math.round((1430 - area - bar - H) * 0.4)
+    const top = area + Math.round((floor - area - bar - H) * 0.4)
     const f = Array.isArray(scene.focus) && scene.focus.length === 4 ? scene.focus : null
     const action = f ? scene.action || 'click' : 'zoom'
     const clickAt = Math.min(78, Math.round(durationInFrames * 0.55))
@@ -669,7 +674,7 @@ function makeScreen(P) {
       <AbsoluteFill>
         <AiBg P={P} />
         {scene.title && (
-          <div style={{ position: 'absolute', top: 250, left: 64, right: 64 }}>
+          <div style={{ position: 'absolute', top: wideFrame ? 160 : 250, left: 64, right: 64 }}>
             <Words text={scene.title} align="center" color={P.ink} style={{ fontSize: fitSize(scene.title, 70), fontWeight: 700, textAlign: 'center', lineHeight: 1.25 }} />
             {scene.text && (
               <div style={{ marginTop: 14, textAlign: 'center', fontFamily: FONT, fontWeight: 500, fontSize: fitSize(scene.text, 40), color: P.sub, opacity: interpolate(frame, [10, 24], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }) }}>
@@ -682,7 +687,7 @@ function makeScreen(P) {
           style={{
             position: 'absolute',
             top,
-            left: (1080 - W) / 2 - (phone ? 14 : 0),
+            left: (fw - W) / 2 - (phone ? 14 : 0),
             borderRadius: phone ? 64 : Math.round(34 * P.rad),
             border: phone ? '14px solid #11131A' : `2px solid ${tint(P.a, 0.35)}`,
             background: P.card,
@@ -914,12 +919,467 @@ function makeFlow(P) {
   }
 }
 
+// ── 16:9 — the same scenes laid out for a wide screen (1920×1080) ──────────
+// Text on the left, the visual on the right; clear of the top chrome (≤150)
+// and the subtitles (≥ height − 175). template() picks these when width > height.
+const WL = { x: 140, textW: 860, top: 170, bottom: 860 } // the wide layout's text column + safe area
+
+function makeWideHook(P, id) {
+  return function AiHookWide({ scene }) {
+    return (
+      <AbsoluteFill>
+        <AiBg P={P} />
+        <div style={{ position: 'absolute', left: WL.x, top: WL.top, bottom: 1080 - WL.bottom, width: WL.textW, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 34 }}>
+          {P.kicker && (
+            <div>
+              <Kicker P={P} text={P.kicker} live={id === 'trend' || id === 'demo'} />
+            </div>
+          )}
+          <Words text={scene.text} delay={8} color={P.ink} style={{ fontSize: fitSize(scene.text, 104), fontWeight: 700, lineHeight: 1.22 }} />
+        </div>
+        <div style={{ position: 'absolute', left: 1180, top: 300 }}>
+          <Orb P={P} icon={scene.icon || P.icon} size={380} delay={3} />
+        </div>
+      </AbsoluteFill>
+    )
+  }
+}
+
+function makeWideReveal(P) {
+  return function AiRevealWide({ scene }) {
+    return (
+      <AbsoluteFill>
+        <AiBg P={P} />
+        <div style={{ position: 'absolute', left: WL.x, top: WL.top, bottom: 1080 - WL.bottom, width: WL.textW, display: 'flex', alignItems: 'center' }}>
+          <Words text={scene.text} delay={8} color={P.ink} style={{ fontSize: fitSize(scene.text, 100), fontWeight: 700, lineHeight: 1.25 }} />
+        </div>
+        <div style={{ position: 'absolute', left: 1180, top: 300 }}>
+          <Orb P={P} icon={scene.icon || 'Sparkles'} size={380} />
+        </div>
+      </AbsoluteFill>
+    )
+  }
+}
+
+function makeWideList(P) {
+  return function AiListWide({ scene }) {
+    const frame = useCurrentFrame()
+    const { fps } = useVideoConfig()
+    const items = (scene.items || []).slice(0, 4)
+    return (
+      <AbsoluteFill>
+        <AiBg P={P} />
+        {scene.title && (
+          <div style={{ position: 'absolute', left: WL.x, top: WL.top, bottom: 1080 - WL.bottom, width: 640, display: 'flex', alignItems: 'center' }}>
+            <Words text={scene.title} color={P.ink} style={{ fontSize: fitSize(scene.title, 88), fontWeight: 700, lineHeight: 1.22 }} />
+          </div>
+        )}
+        <div style={{ position: 'absolute', left: scene.title ? 860 : 360, right: scene.title ? 140 : 360, top: WL.top, bottom: 1080 - WL.bottom, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 24 }}>
+          {items.map((it, i) => {
+            const s = spring({ frame: frame - 14 - i * 12, fps, config: { damping: 14 } })
+            const tick = spring({ frame: frame - 26 - i * 12, fps, config: { damping: 10 } })
+            return (
+              <div key={i} style={{ ...glass(P), display: 'flex', alignItems: 'center', gap: 26, padding: '22px 28px', opacity: s, transform: `translateX(${(1 - s) * 140}px)` }}>
+                <div style={{ flex: 'none', width: 90, height: 90, borderRadius: Math.round(26 * P.rad), background: `linear-gradient(135deg, ${P.a}, ${P.b})`, display: 'grid', placeItems: 'center' }}>
+                  <Icon name={it.icon || 'CircleCheck'} size={48} color={ON} stroke={2.2} />
+                </div>
+                <div style={{ flex: 1, fontFamily: FONT, fontWeight: 600, fontSize: fitSize(it.text, 46), color: P.ink, lineHeight: 1.3 }}>{clean(it.text)}</div>
+                <div style={{ flex: 'none', transform: `scale(${tick})` }}>
+                  <Icon name="CircleCheck" size={50} color={P.a} stroke={2.6} />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </AbsoluteFill>
+    )
+  }
+}
+
+function makeWideStat(P) {
+  return function AiStatWide({ scene }) {
+    const frame = useCurrentFrame()
+    const { fps } = useVideoConfig()
+    const s = spring({ frame, fps, config: { damping: 13 } })
+    const value = Number(scene.value) || 0
+    const p = interpolate(frame, [8, 54], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: (t) => 1 - (1 - t) ** 3 })
+    const digits = Number.isInteger(value) ? Math.round(value * p).toLocaleString('en-US') : (value * p).toFixed(1)
+    const R = 250
+    const C = 2 * Math.PI * R
+    return (
+      <AbsoluteFill>
+        <AiBg P={P} />
+        <div style={{ position: 'absolute', left: 200, top: 210, width: 600, height: 600, transform: `scale(${0.85 + 0.15 * s})`, opacity: s }}>
+          <svg width="600" height="600" style={{ position: 'absolute', inset: 0, transform: 'rotate(-90deg)' }}>
+            <defs>
+              <linearGradient id="ring-w" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stopColor={P.a} />
+                <stop offset="1" stopColor={P.b} />
+              </linearGradient>
+            </defs>
+            <circle cx="300" cy="300" r={R} fill="none" stroke={P.faint2} strokeWidth="24" />
+            <circle cx="300" cy="300" r={R} fill="none" stroke="url(#ring-w)" strokeWidth="24" strokeLinecap="round" strokeDasharray={C} strokeDashoffset={C * (1 - 0.82 * p)} />
+          </svg>
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+            <Icon name={scene.icon || 'TrendingUp'} size={64} color={P.a} stroke={2.2} />
+            <div style={{ fontFamily: FONT, fontWeight: 700, fontSize: 160, letterSpacing: -4, lineHeight: 1.1, ...gradientText(P) }}>
+              {scene.prefix || ''}
+              {digits}
+              {scene.suffix || ''}
+            </div>
+          </div>
+        </div>
+        <div style={{ position: 'absolute', left: 920, right: 140, top: WL.top, bottom: 1080 - WL.bottom, display: 'flex', alignItems: 'center' }}>
+          <Words text={scene.label} delay={16} color={P.ink} style={{ fontSize: fitSize(scene.label, 84), fontWeight: 700, lineHeight: 1.25 }} />
+        </div>
+      </AbsoluteFill>
+    )
+  }
+}
+
+function makeWideCta(P) {
+  return function AiCtaWide({ scene, brand }) {
+    const frame = useCurrentFrame()
+    const { fps } = useVideoConfig()
+    const b = spring({ frame: frame - 20, fps, config: { damping: 11 } })
+    const press = interpolate(frame, [50, 54, 60], [1, 0.94, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })
+    return (
+      <AbsoluteFill>
+        <AiBg P={P} />
+        <div style={{ position: 'absolute', left: 260, right: 260, top: WL.top, bottom: 1080 - WL.bottom, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 44, textAlign: 'center' }}>
+          {brand.logo && (
+            <div style={{ ...glass(P, true), background: 'rgba(255,255,255,0.95)', padding: '20px 38px' }}>
+              <Img src={srcOf(brand.logo)} style={{ height: 90, maxWidth: 460, objectFit: 'contain' }} />
+            </div>
+          )}
+          <Words text={scene.text} delay={2} align="center" color={P.ink} style={{ fontSize: fitSize(scene.text, 96), fontWeight: 700, textAlign: 'center', lineHeight: 1.22 }} />
+          {scene.button && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 18, padding: '26px 60px', borderRadius: 999, background: `linear-gradient(135deg, ${P.a}, ${P.b})`, fontFamily: FONT, fontWeight: 700, fontSize: 52, color: P.onA, transform: `scale(${b * press})`, opacity: b }}>
+              {clean(scene.button)}
+              <Icon name="ArrowRight" size={46} color={P.onA} stroke={3} />
+            </div>
+          )}
+        </div>
+      </AbsoluteFill>
+    )
+  }
+}
+
+function makeWideNews(P) {
+  return function AiNewsWide({ scene }) {
+    const frame = useCurrentFrame()
+    const { fps } = useVideoConfig()
+    const card = spring({ frame: frame - 2, fps, config: { damping: 14 } })
+    const why = interpolate(frame, [34, 50], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })
+    const tick = clean(scene.tag || 'AI') + '  •  '
+    return (
+      <AbsoluteFill>
+        <AiBg P={P} />
+        <div style={{ position: 'absolute', left: 120, width: 1040, top: 190, ...glass(P, true), padding: '40px 44px 46px', opacity: card, transform: `translateY(${(1 - card) * 60}px)` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 26 }}>
+            <span style={{ padding: '8px 22px', borderRadius: 999, background: `linear-gradient(135deg, ${P.a}, ${P.b})`, fontFamily: FONT, fontWeight: 700, fontSize: 28, color: P.onA, letterSpacing: 2 }}>NEW</span>
+            {scene.tag && <span style={{ fontFamily: FONT, fontWeight: 600, fontSize: 32, color: P.a }}>{clean(scene.tag)}</span>}
+          </div>
+          <Words text={scene.headline} delay={8} color={P.ink} style={{ fontSize: fitSize(scene.headline, 70), fontWeight: 700, lineHeight: 1.28 }} />
+          {scene.text && (
+            <div style={{ marginTop: 28, paddingTop: 24, borderTop: `2px solid ${tint(P.a, 0.25)}`, display: 'flex', gap: 16, opacity: why }}>
+              <Icon name="Lightbulb" size={44} color={P.a} stroke={2.2} />
+              <div style={{ fontFamily: FONT, fontWeight: 500, fontSize: fitSize(scene.text, 42), color: P.sub, lineHeight: 1.4 }}>{clean(scene.text)}</div>
+            </div>
+          )}
+        </div>
+        {/* a live signal on the right */}
+        <div style={{ position: 'absolute', left: 1260, right: 140, top: 300, height: 260, display: 'flex', alignItems: 'center', justifyContent: 'space-between', opacity: card }}>
+          {[...Array(24)].map((_, i) => {
+            const h = 30 + 220 * Math.abs(Math.sin((frame + i * 7) / 9) * Math.sin((frame * 0.7 + i * 3) / 17))
+            return <div key={i} style={{ width: 12, height: h, borderRadius: 6, background: `linear-gradient(180deg, ${P.a}, ${P.b})`, opacity: 0.85 }} />
+          })}
+        </div>
+        <div style={{ position: 'absolute', left: 0, right: 0, top: 760, height: 64, background: tint(P.a, 0.12), borderTop: `2px solid ${tint(P.a, 0.4)}`, borderBottom: `2px solid ${tint(P.a, 0.4)}`, overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', top: 10, left: -((frame * 6) % 900), whiteSpace: 'nowrap', fontFamily: FONT, fontWeight: 700, fontSize: 32, color: P.a, letterSpacing: 3 }}>
+            {(tick + 'AI NEWS  •  ').repeat(14)}
+          </div>
+        </div>
+      </AbsoluteFill>
+    )
+  }
+}
+
+function makeWideNotify(P) {
+  const Tall = makeNotify(P)
+  return function AiNotifyWide({ scene }) {
+    // the phone from the tall scene, scaled into the right half; the moment on the left
+    return (
+      <AbsoluteFill>
+        <AiBg P={P} />
+        {scene.title && (
+          <div style={{ position: 'absolute', left: WL.x, top: WL.top, bottom: 1080 - WL.bottom, width: 820, display: 'flex', alignItems: 'center' }}>
+            <Words text={scene.title} color={P.ink} style={{ fontSize: fitSize(scene.title, 92), fontWeight: 700, lineHeight: 1.22 }} />
+          </div>
+        )}
+        <div style={{ position: 'absolute', left: scene.title ? 1062 : 582, top: -52, width: 1080, height: 1920, transform: 'scale(0.7)', transformOrigin: 'top left' }}>
+          <AbsoluteFill style={{ background: 'transparent' }}>
+            <Tall scene={{ ...scene, title: '' }} bare />
+          </AbsoluteFill>
+        </div>
+      </AbsoluteFill>
+    )
+  }
+}
+
+function makeWideStep(P) {
+  return function AiStepWide({ scene, brand }) {
+    const frame = useCurrentFrame()
+    const { fps, durationInFrames } = useVideoConfig()
+    const win = spring({ frame, fps, config: { damping: 15 } })
+    const clickAt = Math.min(62, Math.round(durationInFrames * 0.45))
+    const move = interpolate(frame, [18, clickAt - 4], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: (t) => 1 - (1 - t) ** 3 })
+    const press = interpolate(frame, [clickAt - 4, clickAt, clickAt + 6], [1, 0.9, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })
+    const ripple = interpolate(frame, [clickAt, clickAt + 18], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })
+    const done = spring({ frame: frame - clickAt - 4, fps, config: { damping: 12 } })
+    const W = 1560
+    const H = 690
+    const BAR = 70
+    const SIDE = 110
+    const mainW = W - SIDE
+    const cardTop = 300
+    const btnX = mainW - 44 - 34 - 51 // the play button's centre, in the main area
+    const btnY = cardTop + 34 + 60
+    return (
+      <AbsoluteFill>
+        <AiBg P={P} />
+        <div style={{ position: 'absolute', left: 180, top: 175, width: W, height: H, ...glass(P, true), borderRadius: Math.round(40 * P.rad), overflow: 'hidden', opacity: win, transform: `translateY(${(1 - win) * 60}px)` }}>
+          <div style={{ height: BAR, display: 'flex', alignItems: 'center', gap: 12, padding: '0 28px', background: P.faint, borderBottom: `2px solid ${tint(P.a, 0.18)}` }}>
+            {['#F87171', '#FBBF24', '#34D399'].map((c) => (
+              <span key={c} style={{ width: 20, height: 20, borderRadius: 10, background: c }} />
+            ))}
+            <div style={{ marginLeft: 22, width: 520, height: 42, borderRadius: 21, background: P.faint, display: 'flex', alignItems: 'center', gap: 10, padding: '0 20px', fontFamily: FONT, fontSize: 26, color: P.sub }}>
+              <Icon name="Lock" size={22} color={P.sub} stroke={2.2} />
+              {clean(brand.name).toLowerCase().replace(/\s+/g, '')}.app
+            </div>
+          </div>
+          <div style={{ display: 'flex', height: H - BAR }}>
+            <div style={{ width: SIDE, padding: '30px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 26, borderRight: `2px solid ${tint(P.a, 0.12)}` }}>
+              {['LayoutDashboard', 'MessageCircle', 'ChartColumn', 'Users', 'Workflow'].map((n, i) => (
+                <div key={n} style={{ width: 66, height: 66, borderRadius: Math.round(20 * P.rad), display: 'grid', placeItems: 'center', background: i === 0 ? tint(P.a, 0.22) : 'transparent' }}>
+                  <Icon name={n} size={34} color={i === 0 ? P.a : P.sub} stroke={2.2} />
+                </div>
+              ))}
+            </div>
+            <div style={{ flex: 1, padding: '36px 44px 0', position: 'relative' }}>
+              <div style={{ display: 'inline-block', padding: '8px 22px', borderRadius: 999, background: tint(P.a, 0.16), border: `2px solid ${tint(P.a, 0.45)}`, fontFamily: FONT, fontWeight: 700, fontSize: 26, letterSpacing: 3, color: P.a }}>
+                STEP {scene.n || 1}
+              </div>
+              <div style={{ marginTop: 20, maxWidth: 1200 }}>
+                <Words text={scene.title} delay={6} color={P.ink} style={{ fontSize: fitSize(scene.title, 64), fontWeight: 700, lineHeight: 1.22 }} />
+              </div>
+              {scene.text && <div style={{ marginTop: 12, fontFamily: FONT, fontWeight: 500, fontSize: fitSize(scene.text, 38), color: P.sub, opacity: interpolate(frame, [16, 30], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }) }}>{clean(scene.text)}</div>}
+              <div style={{ position: 'absolute', left: 44, right: 44, top: cardTop, borderRadius: Math.round(32 * P.rad), padding: 34, background: P.faint, border: `2px solid ${tint(P.a, 0.25)}`, display: 'flex', alignItems: 'center', gap: 28 }}>
+                <div style={{ flex: 'none', width: 120, height: 120, borderRadius: Math.round(32 * P.rad), background: `linear-gradient(135deg, ${P.a}, ${P.b})`, display: 'grid', placeItems: 'center' }}>
+                  <Icon name={scene.icon || 'Zap'} size={62} color={ON} stroke={2.2} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ height: 22, width: '70%', borderRadius: 11, background: P.faint2 }} />
+                  <div style={{ height: 22, width: '45%', borderRadius: 11, background: P.faint, marginTop: 16 }} />
+                </div>
+                <div style={{ position: 'relative', flex: 'none', padding: '20px 34px', borderRadius: 999, background: `linear-gradient(135deg, ${P.a}, ${P.b})`, transform: `scale(${press})` }}>
+                  <Icon name="Play" size={34} color={P.onA} stroke={3} />
+                  <span style={{ position: 'absolute', inset: 0, borderRadius: 999, border: `4px solid ${P.a}`, transform: `scale(${1 + ripple * 0.8})`, opacity: ripple ? 1 - ripple : 0 }} />
+                </div>
+              </div>
+              {scene.result && (
+                <div style={{ position: 'absolute', left: 44, width: 760, top: cardTop + 220, display: 'flex', alignItems: 'center', gap: 18, padding: '20px 28px', borderRadius: Math.round(28 * P.rad), background: 'rgba(16,185,129,0.16)', border: '2px solid rgba(52,211,153,0.6)', opacity: done, transform: `translateY(${(1 - done) * 30}px)` }}>
+                  <Icon name="CircleCheck" size={48} color="#34D399" stroke={2.6} />
+                  <div style={{ fontFamily: FONT, fontWeight: 700, fontSize: fitSize(scene.result, 40), color: P.ink }}>{clean(scene.result)}</div>
+                </div>
+              )}
+              <div style={{ position: 'absolute', left: interpolate(move, [0, 1], [mainW * 0.55, btnX - 10]), top: interpolate(move, [0, 1], [cardTop + 330, btnY - 8]), transform: `scale(${press})`, opacity: interpolate(frame, [12, 20], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }) }}>
+                <Icon name="MousePointer2" size={80} color={P.ink} stroke={2} />
+              </div>
+            </div>
+          </div>
+        </div>
+      </AbsoluteFill>
+    )
+  }
+}
+
+function makeWideOffer(P) {
+  const Tall = makeOffer(P)
+  return function AiOfferWide({ scene }) {
+    // the pricing card from the tall scene, scaled to the middle of the wide frame
+    return (
+      <AbsoluteFill>
+        <AiBg P={P} />
+        <div style={{ position: 'absolute', left: (1920 - 1080 * 0.8) / 2, top: scene.image ? -70 : -150, width: 1080, height: 1920, transform: 'scale(0.8)', transformOrigin: 'top left' }}>
+          <Tall scene={scene} bare />
+        </div>
+      </AbsoluteFill>
+    )
+  }
+}
+
+function makeWideDashboard(P) {
+  return function AiDashboardWide({ scene, brand }) {
+    const frame = useCurrentFrame()
+    const { fps } = useVideoConfig()
+    const win = spring({ frame, fps, config: { damping: 15 } })
+    const metrics = (scene.metrics || []).slice(0, 3)
+    const count = interpolate(frame, [12, 54], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: (t) => 1 - (1 - t) ** 3 })
+    const draw = interpolate(frame, [20, 70], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: (t) => 1 - (1 - t) ** 2 })
+    const CW = 900
+    const CH = 380
+    const pts = SAMPLE_TREND.map((v, i) => [(i / (SAMPLE_TREND.length - 1)) * CW, CH - v * CH * 0.92])
+    const line = pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ')
+    const area = `${line} L${CW},${CH} L0,${CH} Z`
+    const [hx, hy] = pts[Math.max(1, Math.round(draw * (SAMPLE_TREND.length - 1)))]
+    return (
+      <AbsoluteFill>
+        <AiBg P={P} />
+        <div style={{ position: 'absolute', left: 140, right: 140, top: 170, height: 690, ...glass(P, true), borderRadius: Math.round(40 * P.rad), padding: '30px 40px', display: 'flex', gap: 44, opacity: win, transform: `translateY(${(1 - win) * 60}px)` }}>
+          <div style={{ width: 600, display: 'flex', flexDirection: 'column', gap: 22 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <Icon name="LayoutDashboard" size={32} color={P.a} stroke={2.2} />
+              <span style={{ fontFamily: FONT, fontWeight: 700, fontSize: 30, color: P.ink }}>{clean(brand.name)}</span>
+              <span style={{ marginLeft: 'auto', fontFamily: FONT, fontWeight: 700, fontSize: 22, color: '#10B981', letterSpacing: 2 }}>● LIVE</span>
+            </div>
+            {scene.title && <Words text={scene.title} color={P.ink} style={{ fontSize: fitSize(scene.title, 54), fontWeight: 700, lineHeight: 1.2 }} />}
+            {metrics.map((m, i) => {
+              const s = spring({ frame: frame - 10 - i * 8, fps, config: { damping: 13 } })
+              const v = Number(m.value) || 0
+              const digits = Number.isInteger(v) ? Math.round(v * count).toLocaleString('en-US') : (v * count).toFixed(1)
+              return (
+                <div key={i} style={{ borderRadius: Math.round(24 * P.rad), padding: '16px 22px', background: P.faint, border: `2px solid ${tint(P.a, 0.2)}`, display: 'flex', alignItems: 'center', gap: 18, opacity: s, transform: `translateX(${(1 - s) * -40}px)` }}>
+                  <div style={{ flex: 1, fontFamily: FONT, fontWeight: 600, fontSize: 26, color: P.sub }}>{clean(m.label)}</div>
+                  <div style={{ fontFamily: FONT, fontWeight: 700, fontSize: 54, color: P.ink }}>
+                    {m.prefix || ''}
+                    {digits}
+                    {m.suffix || ''}
+                  </div>
+                  {m.delta && (
+                    <div style={{ padding: '4px 12px', borderRadius: 999, background: 'rgba(16,185,129,0.15)', fontFamily: FONT, fontWeight: 700, fontSize: 22, color: '#10B981', opacity: count }}>{clean(m.delta)}</div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', paddingBottom: 20 }}>
+            <svg width={CW} height={CH} style={{ overflow: 'visible' }}>
+              <defs>
+                <linearGradient id="dash-area-w" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stopColor={P.a} stopOpacity="0.35" />
+                  <stop offset="1" stopColor={P.a} stopOpacity="0" />
+                </linearGradient>
+                <linearGradient id="dash-line-w" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0" stopColor={P.b} />
+                  <stop offset="1" stopColor={P.a} />
+                </linearGradient>
+                <clipPath id="dash-clip-w">
+                  <rect x="0" y="-20" width={CW * draw} height={CH + 40} />
+                </clipPath>
+              </defs>
+              {[0.25, 0.5, 0.75].map((g) => (
+                <line key={g} x1="0" x2={CW} y1={CH * g} y2={CH * g} stroke={P.faint2} strokeWidth="2" strokeDasharray="6 10" />
+              ))}
+              {scene.chart === 'bars' ? (
+                SAMPLE_TREND.map((v, i) => {
+                  const grow = interpolate(frame, [20 + i * 3, 34 + i * 3], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })
+                  return <rect key={i} x={i * (CW / SAMPLE_TREND.length) + 8} y={CH - v * CH * 0.92 * grow} width={CW / SAMPLE_TREND.length - 16} height={v * CH * 0.92 * grow} rx="10" fill="url(#dash-line-w)" />
+                })
+              ) : (
+                <g clipPath="url(#dash-clip-w)">
+                  <path d={area} fill="url(#dash-area-w)" />
+                  <path d={line} fill="none" stroke="url(#dash-line-w)" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
+                </g>
+              )}
+              {scene.chart !== 'bars' && draw > 0.05 && <circle cx={hx} cy={hy} r="14" fill={P.a} stroke={P.card} strokeWidth="5" />}
+            </svg>
+          </div>
+        </div>
+      </AbsoluteFill>
+    )
+  }
+}
+
+function makeWideFlow(P) {
+  return function AiFlowWide({ scene }) {
+    const frame = useCurrentFrame()
+    const { fps } = useVideoConfig()
+    const nodes = (scene.nodes || []).slice(0, 4)
+    const n = nodes.length
+    const STEP = 16
+    const GAP = 70
+    const left = 140
+    const cardW = (1640 - GAP * (n - 1)) / n
+    const top = scene.title ? 390 : 300
+    return (
+      <AbsoluteFill>
+        <AiBg P={P} />
+        {scene.title && (
+          <div style={{ position: 'absolute', left: 140, right: 140, top: 200 }}>
+            <Words text={scene.title} align="center" color={P.ink} style={{ fontSize: fitSize(scene.title, 76), fontWeight: 700, textAlign: 'center' }} />
+          </div>
+        )}
+        {nodes.slice(1).map((_, i) => {
+          const x0 = left + (i + 1) * cardW + i * GAP
+          const lit = interpolate(frame, [12 + (i + 1) * STEP - 10, 12 + (i + 1) * STEP], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })
+          return (
+            <div key={i} style={{ position: 'absolute', left: x0, top: top + 150, width: GAP, height: 6, borderRadius: 3, background: P.faint2, overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${lit * 100}%`, background: `linear-gradient(90deg, ${P.b}, ${P.a})` }} />
+              {lit >= 1 && <div style={{ position: 'absolute', top: -5, left: `${(((frame / 30) % 1) * 100).toFixed(1)}%`, width: 16, height: 16, borderRadius: 8, background: P.a }} />}
+            </div>
+          )
+        })}
+        {nodes.map((node, i) => {
+          const s = spring({ frame: frame - 12 - i * STEP, fps, config: { damping: 13 } })
+          const last = i === n - 1
+          const tick = spring({ frame: frame - 12 - n * STEP, fps, config: { damping: 10 } })
+          return (
+            <div key={i} style={{ position: 'absolute', top, left: left + i * (cardW + GAP), width: cardW, height: 300, ...glass(P, true), borderRadius: Math.round(34 * P.rad), padding: '28px 26px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18, textAlign: 'center', opacity: s, transform: `scale(${0.9 + 0.1 * s})` }}>
+              <div style={{ position: 'relative', width: 100, height: 100, borderRadius: Math.round(30 * P.rad), background: `linear-gradient(135deg, ${P.a}, ${P.b})`, display: 'grid', placeItems: 'center' }}>
+                <Icon name={node.icon || 'Zap'} size={54} color={ON} stroke={2.2} />
+                {last && (
+                  <div style={{ position: 'absolute', right: -16, top: -16, transform: `scale(${tick})` }}>
+                    <Icon name="CircleCheck" size={44} color="#10B981" stroke={2.8} />
+                  </div>
+                )}
+              </div>
+              <div style={{ fontFamily: FONT, fontWeight: 700, fontSize: fitSize(node.label, 40), color: P.ink, lineHeight: 1.25 }}>{clean(node.label)}</div>
+              {node.sub && <div style={{ fontFamily: FONT, fontWeight: 500, fontSize: 28, color: P.sub }}>{clean(node.sub)}</div>}
+            </div>
+          )
+        })}
+      </AbsoluteFill>
+    )
+  }
+}
+
+/** One scene component that draws the wide layout on a 16:9 video, the tall one otherwise. */
+function pickLayout(Tall, Wide) {
+  if (!Wide) return Tall
+  return function Scene(props) {
+    const { width, height } = useVideoConfig()
+    const C = width > height ? Wide : Tall
+    return <C {...props} />
+  }
+}
+
+const WIDE_OWN = { news: makeWideNews, notify: makeWideNotify, step: makeWideStep, offer: makeWideOffer, dashboard: makeWideDashboard, flow: makeWideFlow }
+
 function template(P, id, own) {
+  const mine = Object.fromEntries(Object.entries(own).map(([k, Tall]) => [k, pickLayout(Tall, WIDE_OWN[k]?.(P))]))
   return {
-    scenes: { hook: makeHook(P, id), list: makeList(P), stat: makeStat(P), reveal: makeReveal(P), cta: makeCta(P), ...own },
+    scenes: {
+      hook: pickLayout(makeHook(P, id), makeWideHook(P, id)),
+      list: pickLayout(makeList(P), makeWideList(P)),
+      stat: pickLayout(makeStat(P), makeWideStat(P)),
+      reveal: pickLayout(makeReveal(P), makeWideReveal(P)),
+      cta: pickLayout(makeCta(P), makeWideCta(P)),
+      ...mine,
+    },
     root: { backgroundColor: P.bg, '--hl-bg': P.a, '--hl-text': P.onA },
     light: P.light,
-    captionTop: 1480,
+    captionTop: (h) => (h < 1200 ? h - 175 : 1480), // 16:9: just above the bottom
   }
 }
 

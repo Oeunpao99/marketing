@@ -833,7 +833,23 @@ STYLES = {
 }
 # Styles made for long material (a whole training): story mode up to 10 minutes.
 LONG_STYLES = {"training"}
-WIDE_STYLES = {"training"}  # the templates laid out for 16:9 too
+# The templates laid out for 16:9 too (motion/src/training.jsx, saas.jsx wide scenes);
+# every other template is always vertical. Scenes drawn only for a tall frame are
+# left out of a wide video.
+WIDE_STYLES = {"training", "custom", "demo", "offer", "trend", "pov"}
+TALL_ONLY_TYPES = {"problem", "chat", "product", "point"}
+
+
+def final_ratio(asked: str, style: str, suggested: str | None = None) -> str:
+    """The video's shape: "16:9" only for a template that has a wide layout —
+    asked for, or the director's suggestion when the Size is Auto."""
+    if style not in WIDE_STYLES:
+        return "9:16"
+    if asked == "16:9":
+        return "16:9"
+    if asked == "auto":
+        return suggested if suggested in ("16:9", "9:16") else ("16:9" if style == "training" else "9:16")
+    return "9:16"
 SCREEN_STYLES = {"custom", "demo"}  # the stories that can show the brand's screenshots
 # The templates that sell (the auto topic picks a product, not a teaching topic).
 SELLING_STYLES = {"tech", "demo", "offer"}
@@ -1324,6 +1340,7 @@ def write_script(
     seconds: int | None = None,
     shots: list[dict] | None = None,
     design: dict | None = None,
+    wide: bool = False,
 ) -> dict:
     """The video's storyboard: one AI call, then for Khmer the same
     native-editor pass the captions get. {"scenes": [...]} — always starting
@@ -1356,6 +1373,9 @@ def write_script(
             + "."
         )
     prompt, allowed, most, must = STYLES.get(style) or STYLES["tech"]
+    if wide:
+        allowed = tuple(t for t in allowed if t not in TALL_ONLY_TYPES)
+        extra += "\n\nTHIS VIDEO IS WIDE 16:9 — don't use " + ", ".join(f"`{t}`" for t in sorted(TALL_ONLY_TYPES)) + " scenes."
     if style in SCREEN_STYLES:
         extra += _shots_prompt(shots or [])
         if design:
@@ -2200,6 +2220,7 @@ class PlanIn(BaseModel):
     goal: str = "auto"
     music: bool = True
     length: str = "auto"  # "auto" | "60" | "120" | "300" | "600" (the last two: a training)
+    ratio: str = "auto"  # "auto" (the director picks) | "9:16" | "16:9" — see final_ratio
     ref_url: str = Field(default="", max_length=500)  # see MotionIn
 
 
@@ -2221,16 +2242,25 @@ TEMPLATE_GUIDE = {
 }
 
 
-def pick_style(idea: str, products: list[Product], has_product: bool, has_ui: bool = False) -> tuple[str, str]:
+def pick_style(idea: str, products: list[Product], has_product: bool, has_ui: bool = False, ratio: str = "9:16") -> tuple[str, str, str | None]:
     """(template, why) for a brief when Story is "Auto" — one quick AI call
     that reads what the video is about. Falls back to the simple rule (a chosen
     product = Sell, else Teach) when the AI can't answer."""
     from app.content_ai import ContentAIError, _chat
 
-    fallback = ("tech" if has_product else "explainer", "")
+    fallback = ("custom" if ratio == "16:9" else "tech" if has_product else "explainer", "", None)
     if not idea.strip():
         return fallback
-    guide = "\n".join(f"- {k}: {v}" for k, v in TEMPLATE_GUIDE.items())
+    guide = "\n".join(f"- {k}: {v}" for k, v in TEMPLATE_GUIDE.items() if ratio != "16:9" or k in WIDE_STYLES)
+    shape = (
+        "\n\nTHE VIDEO MUST BE WIDE 16:9 — choose only from the templates above."
+        if ratio == "16:9"
+        else '\n\nAlso choose the shape: "16:9" when the brief is for YouTube, LinkedIn, a website, a '
+        'presentation, a training or a meeting screen; "9:16" for TikTok, Reels, Facebook / Instagram '
+        "or when nothing is said."
+        if ratio == "auto"
+        else ""
+    )
     names = ", ".join(p.name for p in products[:10]) or "(none)"
     try:
         out = _chat(
@@ -2238,8 +2268,8 @@ def pick_style(idea: str, products: list[Product], has_product: bool, has_ui: bo
                 {
                     "role": "system",
                     "content": "You are a video director. Read the brief and choose the ONE video template that fits "
-                    "what it is about and how it should be told. Templates:\n" + guide + "\n\nReturn JSON "
-                    '{"template": "<one of the names above>", "why": "<max 12 words, in English>"}.',
+                    "what it is about and how it should be told. Templates:\n" + guide + shape + "\n\nReturn JSON "
+                    '{"template": "<one of the names above>", "ratio": "16:9" | "9:16", "why": "<max 12 words, in English>"}.',
                 },
                 {
                     "role": "user",
@@ -2254,7 +2284,10 @@ def pick_style(idea: str, products: list[Product], has_product: bool, has_ui: bo
     except ContentAIError:
         return fallback
     style = str(out.get("template") or "").strip().lower()
-    return (style, _line(out.get("why"), 120)) if style in TEMPLATE_GUIDE else fallback
+    if style not in TEMPLATE_GUIDE or (ratio == "16:9" and style not in WIDE_STYLES):
+        return fallback
+    suggested = out.get("ratio") if out.get("ratio") in ("16:9", "9:16") else None
+    return style, _line(out.get("why"), 120), suggested
 
 
 # ── A reference screenshot of the brand's own app → the video's design ─────
@@ -2363,11 +2396,12 @@ def plan_motion(
     brand = db.get(Brand, payload.brand_id)
     all_products = list(db.scalars(select(Product).where(Product.brand_id == brand.id).order_by(Product.name)).all())
     products = [p for p in all_products if p.id == payload.product_id] or all_products
-    style, why = (
-        pick_style(payload.idea, products, payload.product_id is not None, bool(payload.ref_url))
+    style, why, suggested = (
+        pick_style(payload.idea, products, payload.product_id is not None, bool(payload.ref_url), payload.ratio)
         if payload.goal in ("auto", "")
-        else (_style_of(payload.goal, payload.product_id), "")
+        else (_style_of(payload.goal, payload.product_id), "", None)
     )
+    shape = final_ratio(payload.ratio, style, suggested)
     seconds = story_seconds(payload.idea, payload.length, 600 if style in LONG_STYLES else 120)  # charged via the request
     r, g, b = accent_for(brand.slug)
     ref, design = reference_shot(db, payload.ref_url, f"#{r:02x}{g:02x}{b:02x}")
@@ -2375,8 +2409,9 @@ def plan_motion(
     try:
         script = write_script(
             brand, products, payload.idea, payload.language, "", list(music_tracks()) if payload.music else [], style,
-            seconds=seconds, shots=shots, design=design,
+            seconds=seconds, shots=shots, design=design, wide=shape == "16:9",
         )
+        script["ratio"] = shape
     except ContentAIError as exc:
         raise HTTPException(502, str(exc)) from exc
     return {"script": script, "target_seconds": seconds, "estimate_seconds": estimate_seconds(script), "why": why}
@@ -2431,6 +2466,8 @@ def checked_script(raw: dict, products: list[Product]) -> dict:
     if len(scenes) < 2:
         raise ContentAIError("The storyboard needs at least 2 scenes.")
     script = {"scenes": scenes, "style": style}
+    if raw.get("ratio") in ("16:9", "9:16"):
+        script["ratio"] = raw["ratio"]
     if style == "custom":
         script["look"] = clean_look(raw.get("look"), "#6366F1")
     if raw.get("mood") in music_tracks():
@@ -2461,7 +2498,7 @@ def create_motion(
         brand_id=payload.brand_id,
         kind="motion",
         prompt=payload.idea.strip(),
-        aspect_ratio="16:9" if payload.ratio == "16:9" else "9:16",
+        aspect_ratio="16:9" if payload.ratio == "16:9" else "9:16",  # "auto": set once the template is known
         seconds=0,
         provider="remotion",
         status="queued",
@@ -2565,16 +2602,24 @@ def _make(
                 _report(job_id, stage="pictures", style=script["style"], scenes=_board(script), look=script.get("look"))
             else:
                 if goal in ("auto", "") and job.prompt.strip():
-                    style, why = pick_style(job.prompt, products, product_id is not None, bool(ref_url))
+                    style, why, suggested = pick_style(job.prompt, products, product_id is not None, bool(ref_url), ratio)
                 else:
-                    style, why = _style_of(goal, product_id), ""
+                    style, why, suggested = _style_of(goal, product_id), "", None
+                shape = final_ratio(ratio, style, suggested)
                 _report(job_id, stage="story", style=style, why=why)
                 r, g, b = accent_for(brand.slug)
                 ref, design = reference_shot(db, ref_url, f"#{r:02x}{g:02x}{b:02x}")
                 shots = ([ref] if ref else []) + (brand_screens(db, brand.id) if style in SCREEN_STYLES else [])
-                script = write_script(brand, products, job.prompt, language, learned, moods, style, job_id=job_id, shots=shots, design=design)
+                script = write_script(
+                    brand, products, job.prompt, language, learned, moods, style, job_id=job_id, shots=shots, design=design, wide=shape == "16:9"
+                )
+                script["ratio"] = shape
             _check(job_id)
-            script["ratio"] = ratio
+            # a reviewed storyboard keeps the shape it was planned in
+            script["ratio"] = script.get("ratio") or final_ratio(ratio, script["style"])
+            if job.aspect_ratio != script["ratio"]:
+                job.aspect_ratio = script["ratio"]
+                db.commit()
             by_product, order, logo = _brand_pictures(db, brand.id)
             ref_shot = _shot_from_blob(read_media(ref_url) or b"", "reference") if ref_url else None  # screenshot 1, as planned
             shots_now = ([ref_shot] if ref_shot else []) + (brand_screens(db, brand.id) if script.get("style") in SCREEN_STYLES else [])

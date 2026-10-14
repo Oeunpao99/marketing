@@ -7,7 +7,7 @@ import * as Lucide from 'lucide-react'
 
 export const FPS = 30
 export const TRANSITION = 14 // frames two scenes overlap while they change
-export const FONT = 'Kantumruy'
+export const FONT = "'CFLatin', 'Kantumruy', sans-serif" // English first, Khmer falls through
 export const INK = '#0b1020'
 
 /** Each scene's length when it has no voice-over (the backend mirrors this —
@@ -71,12 +71,17 @@ export function defaultSeconds(s) {
 
 export const sceneFrames = (s) => Math.round((s.seconds || defaultSeconds(s)) * FPS)
 
-// The Khmer + Latin font — the render waits until it's loaded.
-const fontWait = delayRender('Loading the Khmer font')
-new FontFace(FONT, `url(${staticFile('fonts/KantumruyPro.ttf')})`, { weight: '100 700' })
-  .load()
-  .then((f) => {
-    document.fonts.add(f)
+// Two fonts, picked letter by letter: English letters, digits and signs in
+// Plus Jakarta Sans (strong, modern — public/fonts, SIL OFL); it has no Khmer
+// letters, so those fall through to Kantumruy Pro (made for Khmer). A mixed
+// line ("កញ្ចប់ Pro $29") gets both. The render waits for both.
+const fontWait = delayRender('Loading the fonts')
+Promise.all([
+  new FontFace('CFLatin', `url(${staticFile('fonts/PlusJakartaSans.ttf')})`, { weight: '200 800' }).load(),
+  new FontFace('Kantumruy', `url(${staticFile('fonts/KantumruyPro.ttf')})`, { weight: '100 700' }).load(),
+])
+  .then((faces) => {
+    faces.forEach((f) => document.fonts.add(f))
     continueRender(fontWait)
   })
   .catch((err) => cancelRender(err))
@@ -138,6 +143,9 @@ export function Words({ text, delay = 0, stagger = 1, style, align = 'left', col
         fontFamily: FONT,
         lineHeight: 1.45,
         ...style,
+        // headlines: one weight heavier and a touch tighter — Plus Jakarta Sans goes
+        // to 800; Khmer (Kantumruy, max 700) simply stays bold
+        ...(style?.fontWeight === 700 ? { fontWeight: 800, letterSpacing: '-0.012em' } : null),
       }}
     >
       {pieces.map(({ p, gap, em: hi }, n) => {

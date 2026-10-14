@@ -124,6 +124,7 @@ function serializeTurn(t) {
     kind: t.kind,
     prompt: t.prompt,
     ratio: t.ratio,
+    shape: t.shape,
     seconds: t.seconds,
     brandId: t.brandId,
     brandName: t.brandName,
@@ -199,7 +200,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
   // Your own story: the AI plans a storyboard you check and edit before it's rendered.
   const [motionReview, setMotionReview] = useState(true)
   const [motionLength, setMotionLength] = useState('auto')
-  const [motionRatio, setMotionRatio] = useState('16:9') // the Training template only — the rest are vertical
+  const [motionRatio, setMotionRatio] = useState('auto') // 'auto' (the AI picks from the brief) | '9:16' | '16:9'
   const [storySeconds, setStorySeconds] = useState(32)
   const [voice, setVoice] = useState(null) // null = the brand's language; '' = no voiceover
   const [brand, setBrand] = useState(null)
@@ -643,6 +644,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
           goal: turn.goal || 'auto',
           music: turn.music !== false,
           length: turn.length || 'auto',
+          ratio: turn.shape || 'auto',
           ref_url: turn.refUrl || '', // a screenshot of their app: the design the video copies
         })
         update(turn.id, { status: 'review', plan: { ...res.script, why: res.why || '' } })
@@ -658,7 +660,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
           music: turn.music !== false,
           goal: turn.goal || 'auto',
           script: turn.script || null, // a reviewed storyboard: made exactly as it is
-          ratio: turn.ratio === '16:9' ? '16:9' : '9:16',
+          ratio: turn.script?.ratio || turn.shape || (turn.ratio === '16:9' ? '16:9' : '9:16'), // a reviewed plan keeps its shape
           ref_url: turn.refUrl || '',
         })
         trackJob(res.id, 'video')
@@ -807,7 +809,8 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
       id: ++turnSeq,
       prompt,
       kind: isStory ? 'story' : isMotion ? 'motion' : type,
-      ratio: isMotion ? (motionGoal === 'training' || motionGoal === 'auto' ? motionRatio : '9:16') : isStory && ratio === '1:1' ? '9:16' : ratio,
+      ratio: isMotion ? (motionRatio === '16:9' ? '16:9' : '9:16') : isStory && ratio === '1:1' ? '9:16' : ratio,
+      shape: isMotion ? motionRatio : undefined, // what the server is asked: auto / 9:16 / 16:9
       seconds: isStory ? storySeconds : isMotion ? 15 : seconds,
       language: isStory ? storyVoice : isMotion ? motionLang : '',
       productId: isMotion ? (productId ?? null) : undefined,
@@ -845,7 +848,8 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
       kind: 'motion',
       auto: true,
       prompt: `✨ AI picks the topic${product ? ` · ${product.name}` : ''}`,
-      ratio: motionGoal === 'training' || motionGoal === 'auto' ? motionRatio : '9:16',
+      ratio: motionRatio === '16:9' ? '16:9' : '9:16',
+      shape: motionRatio,
       seconds: 15,
       language: motionLang,
       productId: productId ?? null,
@@ -2259,18 +2263,22 @@ function SettingsPopover({
           </Row>
         )}
 
-        {motion && (motionGoal === 'training' || motionGoal === 'auto') && (
+        {motion && (
           <Row
             label="Size"
             hint={
-              (motionGoal === 'auto' ? 'Used when the AI picks Training — other templates are vertical. ' : '') +
-              (motionRatio === '16:9' ? 'Wide — a meeting-room screen, YouTube, Teams or your LMS' : 'Vertical — phones, Reels and TikTok')
+              motionRatio === 'auto'
+                ? 'The AI picks from your brief — wide for YouTube, LinkedIn, a website or a presentation, tall for TikTok and Reels'
+                : motionRatio === '16:9'
+                  ? 'Wide — Training and the SaaS templates (Designed for you, Product demo, Offer, AI News, POV); others stay tall'
+                  : 'Vertical — phones, Reels and TikTok'
             }
           >
             <Segmented>
               {[
-                ['16:9', '16:9 wide'],
-                ['9:16', '9:16 tall'],
+                ['auto', 'Auto'],
+                ['9:16', '9:16'],
+                ['16:9', '16:9'],
               ].map(([v, label]) => (
                 <button key={v} type="button" onClick={() => setMotionRatio(v)} className={`${seg(motionRatio === v)} px-0 text-[11.5px]`}>
                   {label}
