@@ -1,0 +1,4 @@
+# Voice recordings are private — never commit them (anyone with them could clone the voice).
+*
+!.gitignore
+!READ-THIS-SCRIPT.md

@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Khmer Voice Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f5f6fa; --card: #ffffff; --ink: #0f172a; --sub: #64748b; --line: #e2e8f0;
+    --brand: #1f4e8c; --brand-soft: #e8eef8; --ok: #059669; --ok-soft: #e7f6ef; --warn: #b45309; --warn-soft: #fdf3e2; --bad: #dc2626;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0b1020; --card: #121a2e; --ink: #e6ebf5; --sub: #93a1bb; --line: #24304a;
+      --brand: #7aa7ec; --brand-soft: #1a2a48; --ok: #34d399; --ok-soft: #0f2e25; --warn: #fbbf24; --warn-soft: #33270e; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: 'Kantumruy Pro', system-ui, sans-serif; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 28px 16px 60px; }
+  h1 { font-size: 26px; margin: 0; letter-spacing: -0.3px; }
+  .lead { color: var(--sub); margin: 4px 0 22px; font-size: 14px; }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 18px; }
+  .presets { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+  .chip { border: 1px solid var(--line); background: transparent; color: var(--ink); border-radius: 999px; padding: 6px 12px;
+    font: inherit; font-size: 13px; cursor: pointer; }
+  .chip:hover { border-color: var(--brand); color: var(--brand); }
+  textarea { width: 100%; min-height: 120px; resize: none; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px;
+    background: var(--bg); color: var(--ink); font: inherit; font-size: 17px; line-height: 1.7; }
+  textarea:focus { outline: 2px solid var(--brand); outline-offset: 1px; }
+  .meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; margin-top: 8px; font-size: 12.5px; color: var(--sub); }
+  .switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+  .spoken { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: var(--brand-soft); font-size: 14px; line-height: 1.7; display: none; }
+  .spoken b { display: block; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--brand); margin-bottom: 2px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--sub); margin: 22px 0 10px; }
+  .voices { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+  .voice { display: flex; align-items: flex-start; gap: 10px; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; cursor: pointer; background: var(--card); }
+  .voice:has(input:checked) { border-color: var(--brand); background: var(--brand-soft); }
+  .voice input { margin-top: 4px; accent-color: var(--brand); }
+  .voice .name { font-weight: 600; font-size: 14px; }
+  .tag { display: inline-block; margin-top: 4px; font-size: 11px; font-weight: 600; border-radius: 999px; padding: 1px 8px; }
+  .tag.ok { color: var(--ok); background: var(--ok-soft); }
+  .tag.nc { color: var(--warn); background: var(--warn-soft); }
+  .go { margin-top: 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .btn { background: var(--brand); color: #fff; border: 0; border-radius: 999px; padding: 11px 22px; font: inherit; font-weight: 600; font-size: 15px; cursor: pointer; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .hint { font-size: 12.5px; color: var(--sub); }
+  .results { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px; }
+  .card.best { border-color: var(--ok); box-shadow: 0 0 0 2px var(--ok-soft); }
+  .card .top { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
+  .card .name { font-weight: 700; font-size: 14.5px; }
+  .card audio { width: 100%; margin-top: 10px; }
+  .stats { display: flex; gap: 14px; margin-top: 8px; font-size: 12px; color: var(--sub); }
+  .stats b { color: var(--ink); font-weight: 600; }
+  .actions { display: flex; gap: 8px; margin-top: 10px; }
+  .small { border: 1px solid var(--line); background: transparent; color: var(--ink); border-radius: 999px; padding: 5px 12px; font: inherit; font-size: 12.5px; cursor: pointer; text-decoration: none; }
+  .small.on { border-color: var(--ok); color: var(--ok); background: var(--ok-soft); }
+  .err { margin-top: 10px; color: var(--bad); font-size: 13px; }
+  .spin { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--line); border-top-color: var(--brand); border-radius: 50%; animation: s 0.8s linear infinite; vertical-align: -2px; margin-right: 6px; }
+  @keyframes s { to { transform: rotate(360deg); } }
+  .empty { color: var(--sub); font-size: 14px; padding: 24px; text-align: center; border: 1px dashed var(--line); border-radius: 16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Khmer Voice Lab</h1>
+  <p class="lead">Paste any Khmer, pick the voices, and hear them side by side — the same voice code the app's videos use.</p>
+
+  <div class="panel">
+    <div class="presets">
+      <button class="chip" data-preset="everyday">Everyday</button>
+      <button class="chip" data-preset="prices">Prices &amp; numbers</button>
+      <button class="chip" data-preset="story">Story</button>
+      <button class="chip" data-preset="brand">Brand names</button>
+    </div>
+    <textarea id="text" placeholder="បិទភ្ជាប់អត្ថបទខ្មែរនៅទីនេះ… (paste Khmer text here)"></textarea>
+    <div class="meta">
+      <span id="count">0 characters</span>
+      <label class="switch"><input type="checkbox" id="numbers" checked> Turn numbers into Khmer words first ($29 → ម្ភៃប្រាំបួន ដុល្លារ), like the app</label>
+    </div>
+    <div class="spoken" id="spoken"><b>What the voice will read</b><span></span></div>
+    <div class="spoken" id="phrased" style="background:var(--ok-soft)"><b style="color:var(--ok)">Voice punctuation — | a breath · ‖ end of sentence · «stressed»</b><span></span></div>
+
+    <h2>Voices</h2>
+    <div class="voices" id="voices"></div>
+
+    <h2>How the voices speak</h2>
+    <div class="presets" id="styles">
+      <button class="chip" data-style="natural">💬 Natural chat</button>
+      <button class="chip" data-style="excited">🔥 Excited seller</button>
+      <button class="chip" data-style="calm">🌙 Calm storyteller</button>
+      <button class="chip" data-style="app">Like the app today</button>
+      <button class="chip" data-style="custom">✏️ Custom</button>
+    </div>
+    <textarea id="custom" style="display:none;min-height:70px;font-size:14px" placeholder="Write how it should speak, e.g. Speak like a friendly Cambodian shop owner, relaxed, smiling, small pauses between ideas…"></textarea>
+    <p class="hint" style="margin:6px 0 0">GPT voices act it out; Azure voices (and 🎙 Your voice · from Piseth) get matching pauses, pace and melody. "Like the app today" = no styling. The clone keeps this rhythm, in your sound.</p>
+
+    <div class="meta" style="margin-top:12px">
+      <label class="switch">🎙 Your voice strength
+        <select id="strength" style="font:inherit;border:1px solid var(--line);border-radius:8px;padding:3px 6px;background:var(--bg);color:var(--ink)">
+          <option value="0.3">Normal (0.3)</option>
+          <option value="0.5">Stronger (0.5)</option>
+          <option value="0.7">Strongest (0.7)</option>
+        </select>
+      </label>
+      <span>Stronger = more like you, but it may start to sound damaged.</span>
+    </div>
+
+    <div class="go">
+      <button class="btn" id="go">▶ Generate</button>
+      <span class="hint">Azure &amp; GPT voices cost a fraction of a cent per line. The MMS voices run free on this computer.</span>
+    </div>
+  </div>
+
+  <h2>Results</h2>
+  <div class="results" id="results"><div class="empty">Your voices will appear here.</div></div>
+</div>
+
+<script>
+const VOICES = [
+  { id: 'you-piseth', name: '🎙 Your voice · from Piseth', sub: 'your clone — Azure Piseth reads, then converted', ok: true, on: true, you: true },
+  { id: 'you-gpt', name: '🎙 Your voice · from GPT', sub: 'your clone — gpt-4o-mini-tts reads (livelier), then converted', ok: true, on: true, you: true },
+  { id: 'azure-sreymom', name: 'Azure · Sreymom', sub: 'female — what the app uses now', ok: true, on: true },
+  { id: 'azure-piseth', name: 'Azure · Piseth', sub: 'male', ok: true, on: true },
+  { id: 'gpt-female', name: 'gpt-4o-mini-tts · coral', sub: 'female — Azure OpenAI', ok: true, on: true },
+  { id: 'gpt-male', name: 'gpt-4o-mini-tts · ash', sub: 'male — Azure OpenAI', ok: true, on: true },
+  { id: 'mms-finetuned', name: 'MMS · fine-tuned', sub: 'open-source, on this computer', ok: false, on: false },
+  { id: 'mms-meta', name: 'MMS · Meta (GitHub project)', sub: 'mms-tts-khm-fastapi on port 8010', ok: false, on: true },
+  { id: 'you-mms-meta', name: '🎙 Your voice · from MMS Meta', sub: 'the GitHub project reads, then converted to your voice', ok: false, on: false },
+]
+const PRESETS = {
+  everyday: 'សួស្តីបង! ហាងយើងបើករហូតដល់ម៉ោងដប់យប់ ហើយមានសេវាដឹកជញ្ជូនដល់ផ្ទះ។ តម្លៃចាប់ពីប្រាំដុល្លារប៉ុណ្ណោះ។ បងអាចឆាតមកសួរយើងបានគ្រប់ពេល។',
+  prices: 'ប្រូម៉ូសិនពិសេស! កញ្ចប់ Pro តម្លៃត្រឹមតែ $29 ក្នុងមួយខែ ពីមុន $49។ បញ្ចុះតម្លៃ 20% ហើយយើងឆ្លើយសារ 24/7។',
+  story: 'កាលពីមុន ខ្ញុំត្រូវឆ្លើយសារអតិថិជនរហូតដល់ពាក់កណ្តាលអធ្រាត្រ។ សារចូលមកច្រើនណាស់ ខ្ញុំមិនអាចឆ្លើយទាន់ទេ។ ពេលនេះ ខ្ញុំប្រើប្រព័ន្ធថ្មី ដែលជួយឆ្លើយសារបានភ្លាមៗ ទាំងយប់ទាំងថ្ងៃ។',
+  brand: 'ContentFlow ជួយហាងរបស់បងបង្ហោះ Facebook និង TikTok ដោយស្វ័យប្រវត្តិ។ បងអាចប្រើ Power Apps ដើម្បីបង្កើតកម្មវិធី ដោយមិនចាំបាច់សរសេរកូដ។',
+}
+const $ = (s) => document.querySelector(s)
+const text = $('#text'), numbers = $('#numbers'), results = $('#results')
+
+// voice picker
+$('#voices').innerHTML = VOICES.map((v) => `
+  <label class="voice"><input type="checkbox" value="${v.id}" ${v.on ? 'checked' : ''}>
+    <span><span class="name">${v.name}</span><br><span class="hint">${v.sub}</span><br>
+    <span class="tag ${v.ok ? 'ok' : 'nc'}">${v.you ? 'Your own voice' : v.ok ? 'OK for business' : 'Non-commercial licence'}</span></span>
+  </label>`).join('')
+
+// the box grows with the text
+const grow = () => { text.style.height = 'auto'; text.style.height = text.scrollHeight + 'px'; $('#count').textContent = `${[...text.value].length} characters` }
+text.addEventListener('input', () => { grow(); previewSoon() })
+document.querySelectorAll('[data-preset]').forEach((b) => b.addEventListener('click', () => { text.value = PRESETS[b.dataset.preset]; grow(); preview() }))
+numbers.addEventListener('change', preview)
+
+// speaking style for the GPT voices (and your voice from GPT)
+let style = 'natural'
+const markStyle = () => document.querySelectorAll('[data-style]').forEach((b) => {
+  const on = b.dataset.style === style
+  b.style.borderColor = on ? 'var(--brand)' : ''
+  b.style.color = on ? 'var(--brand)' : ''
+  b.style.background = on ? 'var(--brand-soft)' : ''
+})
+document.querySelectorAll('[data-style]').forEach((b) => b.addEventListener('click', () => {
+  style = b.dataset.style
+  $('#custom').style.display = style === 'custom' ? 'block' : 'none'
+  markStyle()
+}))
+markStyle()
+
+// what the voice will actually read
+let timer
+function previewSoon() { clearTimeout(timer); timer = setTimeout(preview, 400) }
+async function preview() {
+  const box = $('#spoken')
+  if (!text.value.trim()) { box.style.display = 'none'; $('#phrased').style.display = 'none'; return }
+  if (numbers.checked) {
+    const r = await fetch('/spoken', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: text.value, voice: 'x', numbers: true }) })
+    const { text: spoken } = await r.json()
+    box.style.display = spoken !== text.value ? 'block' : 'none'
+    box.querySelector('span').textContent = spoken
+  } else box.style.display = 'none'
+  const p = await fetch('/phrasing', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: text.value, voice: 'x', numbers: numbers.checked }) })
+  const pb = $('#phrased')
+  pb.querySelector('span').textContent = (await p.json()).marked
+  pb.style.display = 'block'
+}
+
+// generate every ticked voice at once
+$('#go').addEventListener('click', async () => {
+  const chosen = [...document.querySelectorAll('#voices input:checked')].map((i) => i.value)
+  if (!text.value.trim() || !chosen.length) return
+  $('#go').disabled = true
+  results.innerHTML = chosen.map((id) => {
+    const v = VOICES.find((x) => x.id === id)
+    return `<div class="card" id="c-${id}"><div class="top"><div><div class="name">${v.name}</div>
+      <span class="tag ${v.ok ? 'ok' : 'nc'}">${v.ok ? 'OK for business' : 'Non-commercial'}</span></div></div>
+      <div class="hint" style="margin-top:10px"><span class="spin"></span>Making the voice…</div></div>`
+  }).join('')
+  await Promise.all(chosen.map((id) => make(id)))
+  $('#go').disabled = false
+})
+
+async function make(id) {
+  const card = document.getElementById(`c-${id}`)
+  const t0 = performance.now()
+  try {
+    const r = await fetch('/say', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: text.value, voice: id, numbers: numbers.checked, strength: Number($('#strength').value), style, custom: $('#custom').value }) })
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || `Error ${r.status}`)
+    const took = r.headers.get('X-Seconds') || ((performance.now() - t0) / 1000).toFixed(2)
+    const url = URL.createObjectURL(await r.blob())
+    const ext = r.headers.get('content-type')?.includes('wav') ? 'wav' : 'mp3'
+    card.querySelector('.hint').outerHTML = `
+      <audio controls src="${url}"></audio>
+      <div class="stats"><span>Made in <b>${took} s</b></span><span>Length <b class="len">…</b></span></div>
+      <div class="actions"><button class="small best-btn">👍 Best</button><a class="small" href="${url}" download="${id}.${ext}">Download</a></div>`
+    const audio = card.querySelector('audio')
+    audio.addEventListener('loadedmetadata', () => { card.querySelector('.len').textContent = `${audio.duration.toFixed(1)} s` })
+    card.querySelector('.best-btn').addEventListener('click', (e) => {
+      document.querySelectorAll('.card').forEach((c) => c.classList.remove('best'))
+      document.querySelectorAll('.best-btn').forEach((b) => b.classList.remove('on'))
+      card.classList.add('best'); e.target.classList.add('on')
+    })
+  } catch (err) {
+    card.querySelector('.hint').outerHTML = `<div class="err">Couldn't make it — ${String(err.message).slice(0, 240)}</div>`
+  }
+}
+grow()
+</script>
+</body>
+</html>
