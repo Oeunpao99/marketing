@@ -26,7 +26,7 @@ const SUB = '#6B7686'
 const SHADOW = '0 18px 40px rgba(31,39,51,0.10), 0 2px 6px rgba(31,39,51,0.06)'
 
 /** The line, word by word — each one fading in from a blur, ⟦highlights⟧ in the accent. */
-function Sharpen({ text, P, size, delay = 0, align = 'center', color = INK }) {
+export function Sharpen({ text, P, size, delay = 0, align = 'center', color = INK }) {
   const frame = useCurrentFrame()
   const pieces = []
   let em = false

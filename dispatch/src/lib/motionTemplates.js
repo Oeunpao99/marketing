@@ -72,6 +72,41 @@ export const MOTION_TEMPLATES = [
     note: '* only with a real customer’s words in your brief — otherwise it’s told as an example customer',
     goals: ['trust'],
   },
+  // the clean goal templates (motion/src/clean.jsx)
+  {
+    id: 'countdown',
+    story: 'countdown',
+    name: 'Top 5',
+    look: 'Clean countdown — big numbers slam in, each item on its own card, best one last',
+    steps: ['Hook', '#5 → #1', 'Remember this', 'Save / follow'],
+    goals: ['reach', 'followers', 'engagement'],
+  },
+  {
+    id: 'thisorthat',
+    story: 'thisorthat',
+    name: 'This or that',
+    look: 'Two cards face to face with a VS — people comment their pick',
+    steps: ['Hook', '3-4 choices', 'Our pick', 'Comment'],
+    note: 'Vote bars only with real poll results in your brief',
+    goals: ['engagement', 'reach'],
+  },
+  {
+    id: 'reviews',
+    story: 'reviews',
+    name: 'Review wall',
+    look: 'The rating counts up, real reviews fly in, your customers’ names slide past',
+    steps: ['Hook', 'Reviews', 'Trusted by', 'Call to action'],
+    note: 'Reviews, ratings and customer names only from your brief or product details',
+    goals: ['trust', 'conversion'],
+  },
+  {
+    id: 'tips',
+    story: 'tips',
+    name: 'Tip cards',
+    look: 'Numbered tip cards flip onto a stack, then the bookmark fills — “save this”',
+    steps: ['Hook', 'Tip 1-5', 'Save this', 'Follow'],
+    goals: ['followers', 'education'],
+  },
   {
     id: 'clarity',
     story: 'clarity',
@@ -138,15 +173,15 @@ export const MOTION_TEMPLATES = [
 // Each goal's templates — the weekly plan takes one of them at random per
 // video (app/motion.py GOAL_STYLES).
 export const GOAL_TEMPLATES = {
-  reach: ['pov', 'teach'],
-  followers: ['quote'],
+  reach: ['pov', 'teach', 'countdown', 'thisorthat'],
+  followers: ['quote', 'tips', 'countdown'],
   awareness: ['trend', 'teach', 'custom', 'clarity'],
-  engagement: ['poll'],
-  education: ['teach', 'custom', 'training', 'clarity'],
-  trust: ['testimonial'],
+  engagement: ['poll', 'thisorthat', 'countdown'],
+  education: ['teach', 'custom', 'training', 'clarity', 'tips'],
+  trust: ['testimonial', 'reviews'],
   authority: ['versus'],
   solution: ['sell', 'demo', 'custom', 'showcase'],
-  conversion: ['offer', 'sell', 'launch'],
+  conversion: ['offer', 'sell', 'launch', 'reviews'],
 }
 
 export const templateById = (id) => MOTION_TEMPLATES.find((t) => t.id === id)

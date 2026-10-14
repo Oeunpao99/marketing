@@ -548,6 +548,116 @@ OFFER_PROMPT = (
     + '{"scenes": [{"type": "hook", "text": "...", "icon": "BadgePercent", "say": "..."}, ...]}'
 )
 
+# ── The clean goal templates (motion/src/clean.jsx) ────────────────────────
+COUNTDOWN_TYPES = ("hook", "rank", "reveal", "stat", "list", "cta")
+COUNTDOWN_PROMPT = (
+    "You are the best short-form creator in Cambodia. You plan a REMOTION VIDEO (about 40-55 s): a "
+    "\"TOP 5\" COUNTDOWN — the kind people watch to the end and share. Clean, bright page, a neat "
+    "grid; each item's big number slams in, its card slides in beside it.\n"
+    "\n"
+    "THE STORY (7-8 scenes):\n"
+    "1. hook — the promise of the list (\"5 things your customers notice [first]\").\n"
+    "2-6. rank — 5 items, counting DOWN: the 5th first, the best one LAST (the payoff). Each a "
+    "useful, specific idea about the topic — never filler.\n"
+    "7. reveal — the one thing to remember (optional).\n"
+    "last. cta — save it / follow for more / share with a friend.\n"
+    "\n"
+    "SCENE TYPES and their fields:\n"
+    "- hook: text (max 10 words), icon.\n"
+    "- rank: title (the item, max 6 words), text (why, max 12 words), icon — numbered 5 → 1 for you, "
+    "in the order you give them.\n"
+    "- reveal: text (max 10 words), icon — the one idea to remember.\n"
+    "- list: title (max 6 words), items: 3 x {\"icon\", \"text\": 2-6 words}.\n"
+    "- stat: value, prefix, suffix, label (max 6 words), icon — only a TRUE number.\n"
+    "- cta: text (max 9 words), button (1-3 words).\n"
+    + _COMMON_RULES
+    + '{"scenes": [{"type": "hook", "text": "...", "icon": "Trophy", "say": "..."}, ...]}'
+)
+
+THISORTHAT_TYPES = ("hook", "choice", "reveal", "stat", "list", "cta")
+THISORTHAT_PROMPT = (
+    "You are the best short-form creator in Cambodia. You plan a REMOTION VIDEO (about 35-50 s): "
+    "\"THIS OR THAT\" — quick A-or-B choices about the topic that make people comment their pick. "
+    "Clean, bright page; two cards slide in face to face with a VS between them.\n"
+    "\n"
+    "THE STORY (5-7 scenes):\n"
+    "1. hook — the game (\"Which one are [you]?\").\n"
+    "2-5. choice — 3-4 choices, each two real options people in Cambodia really argue about, about "
+    "the brand's topic.\n"
+    "6. reveal — the brand's own answer or tip (optional).\n"
+    "last. cta — comment your answers / tag a friend.\n"
+    "\n"
+    "SCENE TYPES and their fields:\n"
+    "- hook: text (max 10 words), icon.\n"
+    "- choice: question (max 8 words), left: {\"name\": option A, 1-3 words, \"icon\"}, right: "
+    "{\"name\": option B, 1-3 words, \"icon\"}, percent (the share who picked A in a REAL poll from "
+    "the brief — else 0, and no bars are shown), prompt (max 5 words, e.g. \"Comment A or B\").\n"
+    "- reveal: text (max 10 words), icon — the one idea to remember.\n"
+    "- list: title (max 6 words), items: 3 x {\"icon\", \"text\": 2-6 words}.\n"
+    "- stat: value, prefix, suffix, label (max 6 words), icon — only a TRUE number.\n"
+    "- cta: text (max 9 words), button (1-3 words).\n"
+    + _COMMON_RULES
+    + '{"scenes": [{"type": "hook", "text": "...", "icon": "Split", "say": "..."}, ...]}'
+)
+
+REVIEWS_TYPES = ("hook", "reviews", "logos", "stat", "list", "reveal", "step", "cta")
+REVIEWS_PROMPT = (
+    "You are the best short-form storyteller in Cambodia. You plan a REMOTION VIDEO (about 35-50 s) "
+    "that builds TRUST with social proof: a review wall — the score counting up, real reviews flying "
+    "in round it, the names of real customers sliding past. Clean, warm, bright.\n"
+    "\n"
+    "THE STORY (5-7 scenes):\n"
+    "1. hook — what people say, or the doubt it answers.\n"
+    "2. reviews — the score and 2-4 real reviews.\n"
+    "3. logos — who uses it (only real names).\n"
+    "4. list or step — what they get / how easy it is to start.\n"
+    "5. stat — a TRUE number (optional).\n"
+    "last. cta — try it / message us / see more reviews.\n"
+    "\n"
+    "SCENE TYPES and their fields:\n"
+    "- hook: text (max 10 words), icon.\n"
+    "- reviews: title (2-3 words, e.g. \"Customers say\"), rating (e.g. 4.9 — only a real rating from "
+    "the brief, else 0), count (e.g. \"1,240 reviews\" — only real, else \"\"), cards: 2-4 x "
+    "{\"name\": first name, \"text\": their words, max 12 words, \"stars\": 1-5}.\n"
+    "- logos: title (max 6 words, e.g. \"Trusted by [200+] shops\"), names: 4-8 real customer or "
+    "partner names.\n"
+    "- step: title (max 7 words), text (max 12 words), icon, result (max 6 words, optional).\n"
+    "- reveal: text (max 10 words), icon — the one idea to remember.\n"
+    "- list: title (max 6 words), items: 3 x {\"icon\", \"text\": 2-6 words}.\n"
+    "- stat: value, prefix, suffix, label (max 6 words), icon — only a TRUE number.\n"
+    "- cta: text (max 9 words), button (1-3 words).\n"
+    "REVIEW HONESTY: `reviews` cards, ratings, counts and `logos` names ONLY when the brief or the "
+    "product information gives them — real words, real names, never invented, never reworded into "
+    "a claim. Without them, leave those scenes out and build trust with `list`, `step` and `reveal` "
+    "(what they get, how it works, a guarantee the brief states).\n"
+    + _COMMON_RULES
+    + '{"scenes": [{"type": "hook", "text": "...", "icon": "Star", "say": "..."}, ...]}'
+)
+
+TIPS_TYPES = ("hook", "tip", "reveal", "stat", "save", "cta")
+TIPS_PROMPT = (
+    "You are the best short-form teacher in Cambodia. You plan a REMOTION VIDEO (about 40-55 s): "
+    "TIP CARDS — 3-5 practical tips people SAVE to use later. Clean, fresh page; each numbered card "
+    "flips onto the stack; at the end a bookmark fills as the hand taps Save.\n"
+    "\n"
+    "THE STORY (6-8 scenes):\n"
+    "1. hook — the result the tips give (\"5 tips to get [more replies] tonight\").\n"
+    "2-6. tip — 3-5 tips, each one specific action they can do today (not a vague idea), best last.\n"
+    "7. save — ask them to save it, in one line.\n"
+    "last. cta — follow for a new tip every week.\n"
+    "\n"
+    "SCENE TYPES and their fields:\n"
+    "- hook: text (max 10 words), icon.\n"
+    "- tip: title (the action, max 6 words), text (how / why, max 14 words), icon — numbered for you.\n"
+    "- save: text (max 8 words, e.g. \"Save this for your [next post]\"), button (1 word, e.g. \"Save\").\n"
+    "- reveal: text (max 10 words), icon — the one idea to remember.\n"
+    "- list: title (max 6 words), items: 3 x {\"icon\", \"text\": 2-6 words}.\n"
+    "- stat: value, prefix, suffix, label (max 6 words), icon — only a TRUE number.\n"
+    "- cta: text (max 9 words), button (1-3 words).\n"
+    + _COMMON_RULES
+    + '{"scenes": [{"type": "hook", "text": "...", "icon": "Lightbulb", "say": "..."}, ...]}'
+)
+
 # ── SaaS explainer (motion/src/clarity.jsx) — calm, white and light blue ────
 CLARITY_TYPES = ("hook", "chaos", "platform", "orbit", "phones", "pair", "step", "screen", "flow", "dashboard", "reveal", "list", "stat", "cta")
 CLARITY_PROMPT = (
@@ -993,6 +1103,10 @@ STYLES = {
     "showcase": (SHOWCASE_PROMPT, SHOWCASE_TYPES, 7, None),
     "launch": (LAUNCH_PROMPT, LAUNCH_TYPES, 7, None),
     "clarity": (CLARITY_PROMPT, CLARITY_TYPES, 8, None),
+    "countdown": (COUNTDOWN_PROMPT, COUNTDOWN_TYPES, 7, "rank"),
+    "thisorthat": (THISORTHAT_PROMPT, THISORTHAT_TYPES, 6, "choice"),
+    "reviews": (REVIEWS_PROMPT, REVIEWS_TYPES, 6, None),
+    "tips": (TIPS_PROMPT, TIPS_TYPES, 7, "tip"),
     "custom": (CUSTOM_PROMPT, CUSTOM_TYPES, 8, None),
     "training": (TRAINING_PROMPT, TRAINING_TYPES, 12, None),
 }
@@ -1001,7 +1115,7 @@ LONG_STYLES = {"training"}
 # The templates laid out for 16:9 too (motion/src/training.jsx, saas.jsx wide scenes);
 # every other template is always vertical. Scenes drawn only for a tall frame are
 # left out of a wide video.
-WIDE_STYLES = {"training", "custom", "demo", "offer", "trend", "pov", "showcase", "launch", "clarity"}
+WIDE_STYLES = {"training", "custom", "demo", "offer", "trend", "pov", "showcase", "launch", "clarity", "countdown", "thisorthat", "reviews", "tips"}
 TALL_ONLY_TYPES = {"problem", "chat", "product", "point"}
 
 
@@ -1065,15 +1179,15 @@ def estimate_seconds(script: dict) -> int:
 GOAL_STYLES = {
     "sell": ("tech",),
     "solution": ("tech", "demo", "custom", "showcase"),
-    "conversion": ("offer", "tech", "launch"),
+    "conversion": ("offer", "tech", "launch", "reviews"),
     "teach": ("explainer",),
-    "education": ("explainer", "custom", "clarity"),
-    "reach": ("pov", "explainer"),
+    "education": ("explainer", "custom", "clarity", "tips"),
+    "reach": ("pov", "explainer", "countdown", "thisorthat"),
     "awareness": ("trend", "explainer", "custom", "clarity"),
     "authority": ("versus",),
-    "engagement": ("poll",),
-    "followers": ("quote",),
-    "trust": ("testimonial",),
+    "engagement": ("poll", "thisorthat", "countdown"),
+    "followers": ("quote", "tips", "countdown"),
+    "trust": ("testimonial", "reviews"),
 }
 
 
@@ -1131,6 +1245,41 @@ def _clean_scene(raw: dict, names: dict[str, str]) -> dict | None:
         if apps:
             hook["apps"] = apps  # Showcase: the bubbles floating round the line
         return hook if text else None
+    if kind in ("rank", "tip"):
+        title = _line(raw.get("title"), 70)
+        return {"type": kind, "title": title, "text": _line(raw.get("text"), 120), "icon": _icon(raw.get("icon"), "Sparkles"), "say": say} if title else None
+    if kind == "choice":
+        sides = []
+        for key in ("left", "right"):
+            side = raw.get(key) if isinstance(raw.get(key), dict) else {}
+            sides.append({"name": _line(side.get("name") or side.get("label"), 30), "icon": _icon(side.get("icon"), "Circle")})
+        question = _line(raw.get("question"), 80)
+        pct = int(_number(str(raw.get("percent") or "").replace("%", "")))
+        return (
+            {"type": kind, "question": question, "left": sides[0], "right": sides[1], "percent": pct if 0 < pct < 100 else 0, "prompt": _line(raw.get("prompt"), 30), "say": say}
+            if question and sides[0]["name"] and sides[1]["name"]
+            else None
+        )
+    if kind == "reviews":
+        cards = []
+        for c in (raw.get("cards") or [])[:4]:
+            if not isinstance(c, dict) or not _line(c.get("text"), 140):
+                continue
+            stars = int(_number(c.get("stars")) or 5)
+            cards.append({"name": _line(c.get("name"), 24), "text": _line(c.get("text"), 140), "stars": max(1, min(5, stars))})
+        rating = _number(raw.get("rating"))
+        rating = round(rating, 1) if 1 <= rating <= 5 else 0
+        return (
+            {"type": kind, "title": _line(raw.get("title"), 30), "rating": rating, "count": _line(raw.get("count"), 30), "cards": cards, "say": say}
+            if len(cards) >= 2 or rating
+            else None
+        )
+    if kind == "logos":
+        names = [n for n in (_line(n, 24) for n in (raw.get("names") or [])) if n][:8]
+        return {"type": kind, "title": _line(raw.get("title"), 60), "names": names, "say": say} if len(names) >= 3 else None
+    if kind == "save":
+        text = _line(raw.get("text"), 80)
+        return {"type": kind, "text": text, "button": _line(raw.get("button"), 16), "say": say} if text else None
     if kind == "platform":
         text = _line(raw.get("text"), 100)
         shot = int(raw.get("shot")) if str(raw.get("shot") or "").strip().isdigit() else 0
@@ -1524,6 +1673,12 @@ _TEXT_FIELDS = {
     "apps": (("title", 80), ("say", 300)),
     "launch": (("text", 100), ("badge", 16), ("say", 300)),
     "platform": (("text", 100), ("say", 300)),
+    "rank": (("title", 70), ("text", 120), ("say", 300)),
+    "tip": (("title", 70), ("text", 120), ("say", 300)),
+    "choice": (("question", 80), ("prompt", 30), ("say", 300)),
+    "reviews": (("title", 30), ("say", 300)),
+    "logos": (("title", 60), ("say", 300)),
+    "save": (("text", 80), ("button", 16), ("say", 300)),
     "orbit": (("text", 100), ("say", 300)),
     "chaos": (("text", 80), ("say", 300)),
     "phones": (("say", 300),),
@@ -1827,6 +1982,16 @@ def script_lines(script: dict) -> list[tuple[str, str]]:
             screen = (s.get("title") or "Notifications") + " — " + " / ".join(f"{n['app']}: {n['text']}" for n in s["notes"])
         elif s["type"] == "step":
             screen = s["title"] + (f" — {s['text']}" if s.get("text") else "") + (f" ✓ {s['result']}" if s.get("result") else "")
+        elif s["type"] in ("rank", "tip"):
+            screen = s["title"] + (f" — {s['text']}" if s.get("text") else "")
+        elif s["type"] == "choice":
+            screen = f"{s['question']} — A: {s['left']['name']} vs B: {s['right']['name']}" + (f" ({s['percent']}% A)" if s.get("percent") else "")
+        elif s["type"] == "reviews":
+            screen = (f"★ {s['rating']} " if s.get("rating") else "") + " / ".join(f"“{c['text']}” — {c['name']}" for c in s["cards"])
+        elif s["type"] == "logos":
+            screen = (s.get("title") or "Trusted by") + " — " + ", ".join(s["names"])
+        elif s["type"] == "save":
+            screen = s["text"] + (f" [{s['button']}]" if s.get("button") else "")
         elif s["type"] == "platform":
             screen = s["text"] + (f" — screenshot {s['shot']}" if s.get("shot") else "")
         elif s["type"] == "orbit":
@@ -2068,6 +2233,10 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
             scene["notes"] = [{**n, "text": t(n["text"])} for n in scene["notes"]]
         if s["type"] == "step":
             scene["n"] = sum(1 for x in scenes if x["type"] == "step") + 1  # STEP 1, 2, 3
+        if s["type"] in ("rank", "tip"):  # Top 5 counts down (#5 … #1); tips count up (TIP 01 / 05)
+            total = sum(1 for x in script["scenes"] if x["type"] == s["type"])
+            before = sum(1 for x in scenes if x["type"] == s["type"])
+            scene["n"], scene["of"] = (total - before, total) if s["type"] == "rank" else (before + 1, total)
         if not scene.get("image"):
             scene.pop("image", None)
         scenes.append(scene)
@@ -2111,6 +2280,8 @@ def default_seconds(scene: dict) -> float:
         return 2.4 + 1.0 * min(4, len(scene.get("nodes") or []))
     if kind == "apps":
         return 2.6 + 0.35 * min(8, len(scene.get("apps") or []))
+    if kind == "reviews":
+        return 3.4 + 0.6 * min(4, len(scene.get("cards") or []))
     if kind == "orbit":
         return 2.6 + 0.5 * min(6, len(scene.get("tags") or []))
     if kind == "chaos":
@@ -2129,7 +2300,7 @@ def default_seconds(scene: dict) -> float:
         return 1.8 + 1.0 * min(6, len(scene.get("checks") or []))
     if kind == "recap":
         return 2.0 + 1.0 * min(5, len(scene.get("points") or []))
-    return {"cta": 3.8, "product": 3.6, "chart": 5.2, "compare": 4.2, "character": 3.8, "myth": 5.0, "quote": 5.6, "beforeafter": 5.4, "result": 4.2, "review": 6.0, "customer": 4.4, "news": 5.0, "step": 4.8, "offer": 5.6, "screen": 5.0, "dashboard": 5.2, "chapter": 3.2, "board": 4.6, "launch": 4.2, "button": 4.6, "platform": 4.4, "pair": 3.8}.get(kind, 3.4)
+    return {"cta": 3.8, "product": 3.6, "chart": 5.2, "compare": 4.2, "character": 3.8, "myth": 5.0, "quote": 5.6, "beforeafter": 5.4, "result": 4.2, "review": 6.0, "customer": 4.4, "news": 5.0, "step": 4.8, "offer": 5.6, "screen": 5.0, "dashboard": 5.2, "chapter": 3.2, "board": 4.6, "launch": 4.2, "button": 4.6, "platform": 4.4, "pair": 3.8, "rank": 4.2, "choice": 5.0, "logos": 4.0, "tip": 4.6, "save": 3.4}.get(kind, 3.4)
 
 
 def length_of(props: dict) -> int:
@@ -2380,6 +2551,16 @@ def _scene_summary(s: dict) -> str:
         text = " ".join(x for x in (s.get("plan"), s.get("price"), s.get("period")) if x)
     elif t == "launch":
         text = s.get("name") or ""
+    elif t in ("rank", "tip"):
+        text = s.get("title") or ""
+    elif t == "choice":
+        text = s.get("question") or ""
+    elif t == "reviews":
+        text = s.get("title") or (f"★ {s['rating']}" if s.get("rating") else "Reviews")
+    elif t == "logos":
+        text = s.get("title") or ", ".join(s.get("names") or [])
+    elif t == "save":
+        text = s.get("text") or ""
     elif t in ("platform", "chaos"):
         text = s.get("text") or ""
     elif t == "orbit":
@@ -2607,6 +2788,10 @@ class PlanIn(BaseModel):
 TEMPLATE_GUIDE = {
     "custom": "SaaS, software, an app, an AI tool, a platform (Power Apps, a CRM…), B2B tech — product UI, dashboards, flows, the brand's screenshots",
     "demo": "showing HOW to use a software product, step by step in an app window",
+    "countdown": "a TOP 5 / ranked list of tips, mistakes, tools or ideas — counting down to the best one",
+    "thisorthat": "A-or-B choices the audience answers in the comments — this or that, which one are you",
+    "reviews": "social proof — real reviews, a rating, the customers who use it (only when the brief gives them)",
+    "tips": "practical tips people save — 3-5 numbered tip cards and a \"save this\" ask",
     "clarity": "explaining what a software product does and why it matters — calm, white and light blue: the mess of tools today, the product, how it works",
     "launch": "launching a product or a new feature — a cinematic launch film: the one click that does the job, the product's screens, \"now live\"",
     "showcase": "a bright, polished promo / launch video for a SaaS or app — the tools it connects, its table and board views, who it is for",

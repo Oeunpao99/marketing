@@ -33,7 +33,7 @@ const letters = (text) => {
 }
 
 /** The cartoon hand: a white pointing glove with a dark outline. */
-function Hand({ x, y, press = 1, opacity = 1, size = 150 }) {
+export function Hand({ x, y, press = 1, opacity = 1, size = 150 }) {
   return (
     <div style={{ position: 'absolute', left: x - size * 0.3, top: y - size * 0.06, opacity, transform: `scale(${press}) rotate(-8deg)`, transformOrigin: '30% 6%', filter: 'drop-shadow(0 12px 18px rgba(0,0,0,0.35))' }}>
       <Pointer size={size} color="#111111" fill="#FFFFFF" strokeWidth={1.5} />

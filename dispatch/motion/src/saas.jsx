@@ -28,10 +28,11 @@
  *   { type: "flow", title?, nodes: [{ icon, label, sub? }] }
  */
 import { AbsoluteFill, Img, interpolate, random, spring, useCurrentFrame, useVideoConfig } from 'remotion'
-import { FONT, Icon, Words, clean, fitSize, srcOf, tint } from './shared'
+import { FONT, Icon, NeatGrid, Words, clean, fitSize, srcOf, tint } from './shared'
 import { showcaseScenes } from './showcase'
 import { launchScenes } from './launch'
 import { clarityScenes } from './clarity'
+import { choiceScenes, countdownScenes, reviewScenes, tipScenes } from './clean'
 
 /** A full palette from its base colours: { bg, a (accent), b (second accent),
  * mode: "dark" | "light", background: "grid" | "dots" | "clean" } — flat backgrounds, no glow / gradient. */
@@ -64,6 +65,10 @@ const PALETTES = {
   demo: palette({ bg: '#040B1C', a: '#3B82F6', b: '#22D3EE', kicker: 'LIVE DEMO', icon: 'LayoutDashboard' }),
   offer: palette({ bg: '#03110D', a: '#34D399', b: '#FBBF24', kicker: 'SPECIAL OFFER', icon: 'BadgePercent', card: '#07170F' }),
   showcase: palette({ bg: '#EEF0FF', a: '#6D4AFF', b: '#22B8F0', mode: 'light', background: 'airy', icon: 'LayoutGrid' }),
+  countdown: palette({ bg: '#FFF8F1', a: '#FF6B35', b: '#FFB547', mode: 'light', background: 'neat', icon: 'Trophy' }),
+  thisorthat: palette({ bg: '#F6F4FF', a: '#7C3AED', b: '#EC4899', mode: 'light', background: 'neat', icon: 'Split' }),
+  reviews: palette({ bg: '#FFFBF3', a: '#F59E0B', b: '#10B981', mode: 'light', background: 'rings', icon: 'Star' }),
+  tips: palette({ bg: '#F2F8F5', a: '#0F9D74', b: '#3B82F6', mode: 'light', background: 'neat', icon: 'Lightbulb' }),
   clarity: palette({ bg: '#F4F6FA', a: '#2F6FED', b: '#4FB3F6', mode: 'light', background: 'rings', icon: 'FileText' }),
   launch: palette({ bg: '#14082A', a: '#8B5CF6', b: '#5EEAD4', mode: 'dark', background: 'launch', icon: 'Rocket', card: '#1C0F38' }),
 }
@@ -176,6 +181,7 @@ function AiBg({ P }) {
       {kind === 'airy' && <Airy P={P} />}
       {kind === 'launch' && <LaunchLight P={P} />}
       {kind === 'rings' && <Rings P={P} />}
+      {kind === 'neat' && <NeatGrid color={P.light ? 'rgba(20,26,36,0.06)' : 'rgba(255,255,255,0.07)'} />}
       {(kind === 'grid' || kind === 'dots') && (
         <div
           style={{
@@ -1470,6 +1476,15 @@ export const POV = template(PALETTES.pov, 'pov', { notify: makeNotify(PALETTES.p
 export const DEMO = template(PALETTES.demo, 'demo', { step: makeStep(PALETTES.demo), screen: makeScreen(PALETTES.demo), dashboard: makeDashboard(PALETTES.demo), flow: makeFlow(PALETTES.demo) })
 export const OFFER = template(PALETTES.offer, 'offer', { offer: makeOffer(PALETTES.offer) })
 const SP = PALETTES.showcase
+/** A clean goal template (clean.jsx): its own scenes + the saas kit in palette P. */
+function cleanTemplate(id, scenes) {
+  const P = PALETTES[id]
+  return template(P, id, { ...scenes(P, AiBg), step: makeStep(P), screen: makeScreen(P), dashboard: makeDashboard(P), flow: makeFlow(P) })
+}
+export const COUNTDOWN = cleanTemplate('countdown', countdownScenes)
+export const THISORTHAT = cleanTemplate('thisorthat', choiceScenes)
+export const REVIEWS = cleanTemplate('reviews', reviewScenes)
+export const TIPS = cleanTemplate('tips', tipScenes)
 const CP = PALETTES.clarity
 export const CLARITY = template(CP, 'clarity', { ...clarityScenes(CP, AiBg), step: makeStep(CP), screen: makeScreen(CP), dashboard: makeDashboard(CP), flow: makeFlow(CP) })
 const LP = PALETTES.launch

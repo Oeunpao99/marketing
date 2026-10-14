@@ -24,6 +24,18 @@ export function defaultSeconds(s) {
       return 4.6
     case 'launch':
       return 4.2
+    case 'rank':
+      return 4.2
+    case 'choice':
+      return 5.0
+    case 'reviews':
+      return 3.4 + 0.6 * Math.min(4, (s.cards || []).length)
+    case 'logos':
+      return 4.0
+    case 'tip':
+      return 4.6
+    case 'save':
+      return 3.4
     case 'platform':
       return 4.4
     case 'orbit':

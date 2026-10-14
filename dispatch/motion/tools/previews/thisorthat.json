@@ -1,0 +1,65 @@
+{
+ "brand": {
+  "name": "ContentFlow",
+  "color": "#1F4E8C",
+  "logo": null
+ },
+ "style": "thisorthat",
+ "frame": 60,
+ "scenes": [
+  {
+   "type": "choice",
+   "question": "Morning post or ⟦night post⟧?",
+   "left": {
+    "name": "7 AM",
+    "icon": "Sun"
+   },
+   "right": {
+    "name": "9 PM",
+    "icon": "Moon"
+   },
+   "percent": 0,
+   "prompt": "Comment A or B"
+  }
+ ],
+ "clip": [
+  {
+   "type": "hook",
+   "text": "Which shop owner are ⟦you⟧?",
+   "icon": "Split"
+  },
+  {
+   "type": "choice",
+   "question": "Morning post or ⟦night post⟧?",
+   "left": {
+    "name": "7 AM",
+    "icon": "Sun"
+   },
+   "right": {
+    "name": "9 PM",
+    "icon": "Moon"
+   },
+   "percent": 0,
+   "prompt": "Comment A or B"
+  },
+  {
+   "type": "choice",
+   "question": "Reply by ⟦voice⟧ or text?",
+   "left": {
+    "name": "Voice",
+    "icon": "Mic"
+   },
+   "right": {
+    "name": "Text",
+    "icon": "MessageCircle"
+   },
+   "percent": 0,
+   "prompt": "Comment A or B"
+  },
+  {
+   "type": "cta",
+   "text": "Tag a ⟦friend⟧ who picks B",
+   "button": "Share"
+  }
+ ]
+}

@@ -10,7 +10,7 @@ import { Html5Audio, Sequence, staticFile } from 'remotion'
 import { FPS } from './shared'
 
 const VOLUME = { whoosh: 0.22, pop: 0.3, blop: 0.32, click: 0.35, ding: 0.28, tick: 0.18 }
-const SAAS = new Set(['trend', 'pov', 'demo', 'offer', 'custom', 'showcase', 'launch', 'clarity'])
+const SAAS = new Set(['trend', 'pov', 'demo', 'offer', 'custom', 'showcase', 'launch', 'clarity', 'countdown', 'thisorthat', 'reviews', 'tips'])
 
 /** [{ at: frame in the scene, s: sound }] for one scene. */
 export function cuesFor(scene, style, frames, first) {
@@ -116,6 +116,34 @@ export function cuesFor(scene, style, frames, first) {
       if (scene.toggle) add(at + 18, 'click')
       break
     }
+    case 'rank':
+      add(0, 'whoosh')
+      add(6, 'pop') // the number lands
+      add(12, 'whoosh') // its card
+      break
+    case 'choice':
+      add(6, 'pop')
+      add(12, 'pop')
+      add(20, 'blop') // VS
+      if (scene.percent > 0 && scene.percent < 100) add(70, 'ding')
+      break
+    case 'reviews':
+      add(2, 'pop')
+      for (let i = 0; i < n(scene.cards, 4); i++) add(14 + i * 8, 'blop')
+      add(40, 'ding') // the score has counted up
+      break
+    case 'logos':
+      add(2, 'pop')
+      break
+    case 'tip':
+      add(0, 'whoosh')
+      add(8, 'pop')
+      break
+    case 'save':
+      add(2, 'pop')
+      add(40, 'click')
+      add(48, 'ding')
+      break
     case 'platform':
       add(2, 'pop')
       add(16, 'whoosh') // the app rises

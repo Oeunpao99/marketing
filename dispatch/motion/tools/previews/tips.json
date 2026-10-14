@@ -1,0 +1,52 @@
+{
+ "brand": {
+  "name": "ContentFlow",
+  "color": "#1F4E8C",
+  "logo": null
+ },
+ "style": "tips",
+ "frame": 60,
+ "scenes": [
+  {
+   "type": "tip",
+   "n": 2,
+   "of": 3,
+   "title": "Post when they ⟦scroll⟧",
+   "text": "7–9 PM is when most Cambodians open Facebook.",
+   "icon": "Clock"
+  }
+ ],
+ "clip": [
+  {
+   "type": "hook",
+   "text": "3 tips for ⟦more replies⟧ tonight",
+   "icon": "Lightbulb"
+  },
+  {
+   "type": "tip",
+   "n": 1,
+   "of": 3,
+   "title": "Ask one ⟦question⟧",
+   "text": "End every post with a question people can answer in one word.",
+   "icon": "MessageCircle"
+  },
+  {
+   "type": "tip",
+   "n": 2,
+   "of": 3,
+   "title": "Post when they ⟦scroll⟧",
+   "text": "7–9 PM is when most Cambodians open Facebook.",
+   "icon": "Clock"
+  },
+  {
+   "type": "save",
+   "text": "Save this for your ⟦next post⟧",
+   "button": "Save"
+  },
+  {
+   "type": "cta",
+   "text": "A new tip ⟦every week⟧",
+   "button": "Follow"
+  }
+ ]
+}

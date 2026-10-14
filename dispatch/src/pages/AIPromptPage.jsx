@@ -179,6 +179,10 @@ const MOTION_STORIES = [
   { value: 'testimonial', label: 'Testimonial · Customer story', hint: 'A customer’s before → after — builds trust (real reviews only from your brief)' },
   { value: 'trend', label: 'AI News · Trend', hint: 'What’s new in AI and what it means for you — awareness' },
   { value: 'pov', label: 'POV · Relatable', hint: 'A “POV:” moment, the phone blowing up — reach and tags' },
+  { value: 'countdown', label: 'Top 5 · Countdown', hint: 'Big numbers counting down 5 → 1, best one last — reach and saves' },
+  { value: 'thisorthat', label: 'This or that', hint: 'A-or-B choices people answer in the comments — engagement' },
+  { value: 'reviews', label: 'Review wall', hint: 'Rating, real reviews, your customers’ names — trust (only real ones from your brief)' },
+  { value: 'tips', label: 'Tip cards', hint: 'Numbered tips people save — followers and education' },
   { value: 'clarity', label: 'SaaS explainer', hint: 'Calm white and blue — the mess of tools today, your app in a frame, how it works' },
   { value: 'launch', label: 'Product launch', hint: 'A cinematic launch film — the one click that does the job, your screens stacking up, “Now live”' },
   { value: 'showcase', label: 'Showcase · SaaS promo', hint: 'Bright launch-video look — the apps it joins, its table and board views, a rolling word' },
@@ -2283,7 +2287,7 @@ function SettingsPopover({
               motionRatio === 'auto'
                 ? 'The AI picks from your brief — wide for YouTube, LinkedIn, a website or a presentation, tall for TikTok and Reels'
                 : motionRatio === '16:9'
-                  ? 'Wide — Training and the SaaS templates (Designed for you, SaaS explainer, Product launch, Showcase, Product demo, Offer, AI News, POV); others stay tall'
+                  ? 'Wide — Training and the clean / SaaS templates; Sell, Teach, Compare, Poll, Quote and Testimonial stay tall'
                   : 'Vertical — phones, Reels and TikTok'
             }
           >
