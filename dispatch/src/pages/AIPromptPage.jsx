@@ -1304,7 +1304,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
                       : isStory
                         ? `Storyboard · ~${storySeconds}s`
                         : `Video · ${seconds}s`}{' '}
-                  · {isMotion || (isStory && ratio === '1:1') ? '9:16' : ratio}
+                  · {isMotion ? (motionRatio === 'auto' ? 'Auto size' : motionRatio) : isStory && ratio === '1:1' ? '9:16' : ratio}
                 </span>
               </button>
               {settingsOpen && (
