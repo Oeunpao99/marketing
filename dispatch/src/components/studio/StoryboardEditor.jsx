@@ -117,6 +117,22 @@ const FIELDS = {
   choice: [['question', 'Question']],
   reviews: [['title', 'Title']],
   logos: [['title', 'Title']],
+  take: [
+    ['before', 'Belief'],
+    ['text', 'The take'],
+  ],
+  client: [
+    ['name', 'Customer'],
+    ['text', 'Challenge'],
+  ],
+  metrics: [['title', 'Title']],
+  timeline: [['title', 'Title']],
+  qa: [
+    ['q', 'Question'],
+    ['a', 'Answer'],
+  ],
+  bars: [['title', 'Title']],
+  donut: [['label', 'Label']],
   save: [
     ['text', 'On screen'],
     ['button', 'Button'],
@@ -145,6 +161,10 @@ function extras(s) {
   if (s.type === 'apps' || s.apps?.length) return (s.apps || []).map((a) => a.name).join(' · ')
   if (s.words?.length) return s.words.join(' / ')
   if (s.type === 'table') return `${(s.columns || []).join(' | ')} · ${(s.rows || []).length} rows`
+  if (s.type === 'metrics') return (s.rows || []).map((m) => `${m.label}: ${m.prefix || ''}${m.before}${m.suffix || ''} → ${m.prefix || ''}${m.after}${m.suffix || ''}`).join(' · ')
+  if (s.type === 'timeline') return (s.steps || []).map((x) => `${x.when}: ${x.text}`).join(' → ')
+  if (s.type === 'bars') return (s.data || []).map((x) => `${x.label} ${s.prefix || ''}${x.value}${s.suffix || ''}`).join(' · ') + (s.source ? ` (${s.source})` : '')
+  if (s.type === 'donut') return `${s.value}%${s.source ? ` (${s.source})` : ''}`
   if (s.type === 'choice') return `A: ${s.left?.name || ''} · B: ${s.right?.name || ''}${s.percent ? ` (${s.percent}% A)` : ''}`
   if (s.type === 'reviews') return (s.cards || []).map((c) => `“${c.text}” — ${c.name}`).join(' · ')
   if (s.type === 'logos') return (s.names || []).join(' · ')
@@ -161,7 +181,7 @@ function extras(s) {
 // Seconds a scene runs — mirrors app/motion.py estimate_seconds.
 const KHMER = /[ក-៿]/g
 const spokenSeconds = (say = '') => (say.match(KHMER) || []).length / 11 + (say.match(/[A-Za-z0-9]+/g) || []).length / 2.6
-const MIN_SECONDS = { chart: 5.2, compare: 4.2, character: 3.8, cta: 3.8, product: 3.6, myth: 5, quote: 5.6, options: 9.8, split: 8, beforeafter: 5.4, result: 4.2, review: 6, customer: 4.4, news: 5, notify: 7, step: 4.8, offer: 5.6, screen: 5, dashboard: 5.2, flow: 6.4, chapter: 3.2, checklist: 5.8, recap: 6, apps: 5, table: 5.1, board: 4.6, roll: 4.8, launch: 4.2, button: 4.6, form: 5.2, stack: 4.9, platform: 4.4, orbit: 5, chaos: 5, phones: 5, pair: 3.8, rank: 4.2, tip: 4.6, choice: 5, reviews: 5.8, logos: 4, save: 3.4 }
+const MIN_SECONDS = { chart: 5.2, compare: 4.2, character: 3.8, cta: 3.8, product: 3.6, myth: 5, quote: 5.6, options: 9.8, split: 8, beforeafter: 5.4, result: 4.2, review: 6, customer: 4.4, news: 5, notify: 7, step: 4.8, offer: 5.6, screen: 5, dashboard: 5.2, flow: 6.4, chapter: 3.2, checklist: 5.8, recap: 6, apps: 5, table: 5.1, board: 4.6, roll: 4.8, launch: 4.2, button: 4.6, form: 5.2, stack: 4.9, platform: 4.4, orbit: 5, chaos: 5, phones: 5, pair: 3.8, rank: 4.2, tip: 4.6, choice: 5, reviews: 5.8, logos: 4, save: 3.4, take: 5.2, client: 5, metrics: 5.2, timeline: 5.2, qa: 4.5, bars: 5, donut: 4.6 }
 
 export function estimateSeconds(scenes) {
   const total = scenes.reduce((n, s) => n + Math.max(MIN_SECONDS[s.type] || 3.4, spokenSeconds(s.say) + 1.3), 0)

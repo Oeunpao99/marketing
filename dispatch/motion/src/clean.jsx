@@ -21,12 +21,12 @@ import { Hand } from './launch'
 import { FONT, Icon, clean, fitSize, tint } from './shared'
 
 const clamp = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
-const INK = '#141A24'
-const SUB = '#5F6B7A'
-const SHADOW = '0 22px 50px rgba(20,26,36,0.10), 0 2px 6px rgba(20,26,36,0.05)'
-const card = (r = 30) => ({ background: '#FFFFFF', borderRadius: r, boxShadow: SHADOW, border: '2px solid rgba(20,26,36,0.05)' })
+export const INK = '#141A24'
+export const SUB = '#5F6B7A'
+export const SHADOW = '0 22px 50px rgba(20,26,36,0.10), 0 2px 6px rgba(20,26,36,0.05)'
+export const card = (r = 30) => ({ background: '#FFFFFF', borderRadius: r, boxShadow: SHADOW, border: '2px solid rgba(20,26,36,0.05)' })
 
-function IconTile({ P, name, size }) {
+export function IconTile({ P, name, size }) {
   return (
     <div style={{ flex: 'none', width: size, height: size, borderRadius: size * 0.28, background: `linear-gradient(135deg, ${P.a}, ${P.b})`, display: 'grid', placeItems: 'center', boxShadow: `0 10px 24px ${tint(P.a, 0.3)}` }}>
       <Icon name={name || 'Sparkles'} size={size * 0.52} color="#FFFFFF" stroke={2.2} />

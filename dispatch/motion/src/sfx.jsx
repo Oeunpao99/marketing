@@ -10,7 +10,7 @@ import { Html5Audio, Sequence, staticFile } from 'remotion'
 import { FPS } from './shared'
 
 const VOLUME = { whoosh: 0.22, pop: 0.3, blop: 0.32, click: 0.35, ding: 0.28, tick: 0.18 }
-const SAAS = new Set(['trend', 'pov', 'demo', 'offer', 'custom', 'showcase', 'launch', 'clarity', 'countdown', 'thisorthat', 'reviews', 'tips'])
+const SAAS = new Set(['trend', 'pov', 'demo', 'offer', 'custom', 'showcase', 'launch', 'clarity', 'countdown', 'thisorthat', 'reviews', 'tips', 'hottake', 'casestudy', 'faq', 'report'])
 
 /** [{ at: frame in the scene, s: sound }] for one scene. */
 export function cuesFor(scene, style, frames, first) {
@@ -116,6 +116,37 @@ export function cuesFor(scene, style, frames, first) {
       if (scene.toggle) add(at + 18, 'click')
       break
     }
+    case 'take':
+      add(0, 'pop')
+      if (scene.before) add(16, 'whoosh') // struck out
+      add(scene.before ? 40 : 8, 'pop')
+      break
+    case 'client':
+      add(0, 'pop')
+      add(18, 'whoosh')
+      break
+    case 'metrics':
+      for (let i = 0; i < n(scene.rows, 3); i++) add(8 + i * 8, 'pop')
+      add(52 + (n(scene.rows, 3) - 1) * 8, 'ding')
+      break
+    case 'timeline':
+      for (let i = 0; i < n(scene.steps, 4); i++) add(8 + i * 14, 'blop')
+      break
+    case 'quote':
+      add(style === 'casestudy' ? 2 : 4, 'pop')
+      break
+    case 'qa':
+      add(0, 'blop')
+      add(12, 'blop')
+      break
+    case 'bars':
+      for (let i = 0; i < n(scene.data, 6); i++) add(10 + i * 6, 'tick')
+      add(44 + (n(scene.data, 6) - 1) * 6, 'ding')
+      break
+    case 'donut':
+      add(4, 'pop')
+      add(48, 'ding')
+      break
     case 'rank':
       add(0, 'whoosh')
       add(6, 'pop') // the number lands

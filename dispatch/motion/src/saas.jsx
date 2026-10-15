@@ -33,6 +33,7 @@ import { showcaseScenes } from './showcase'
 import { launchScenes } from './launch'
 import { clarityScenes } from './clarity'
 import { choiceScenes, countdownScenes, reviewScenes, tipScenes } from './clean'
+import { caseScenes, faqScenes, reportScenes, takeScenes } from './clean2'
 
 /** A full palette from its base colours: { bg, a (accent), b (second accent),
  * mode: "dark" | "light", background: "grid" | "dots" | "clean" } — flat backgrounds, no glow / gradient. */
@@ -68,6 +69,10 @@ const PALETTES = {
   countdown: palette({ bg: '#FFF8F1', a: '#FF6B35', b: '#FFB547', mode: 'light', background: 'neat', icon: 'Trophy' }),
   thisorthat: palette({ bg: '#F6F4FF', a: '#7C3AED', b: '#EC4899', mode: 'light', background: 'neat', icon: 'Split' }),
   reviews: palette({ bg: '#FFFBF3', a: '#F59E0B', b: '#10B981', mode: 'light', background: 'rings', icon: 'Star' }),
+  hottake: palette({ bg: '#F7F6F3', a: '#E5483B', b: '#F59E0B', mode: 'light', background: 'neat', icon: 'Flame' }),
+  casestudy: palette({ bg: '#F3F6FB', a: '#2563EB', b: '#10B981', mode: 'light', background: 'rings', icon: 'Building2' }),
+  faq: palette({ bg: '#F5F6FF', a: '#5B5BD6', b: '#06B6D4', mode: 'light', background: 'neat', icon: 'MessageCircleQuestion' }),
+  report: palette({ bg: '#F6F9FC', a: '#0EA5E9', b: '#8B5CF6', mode: 'light', background: 'neat', icon: 'ChartBar' }),
   tips: palette({ bg: '#F2F8F5', a: '#0F9D74', b: '#3B82F6', mode: 'light', background: 'neat', icon: 'Lightbulb' }),
   clarity: palette({ bg: '#F4F6FA', a: '#2F6FED', b: '#4FB3F6', mode: 'light', background: 'rings', icon: 'FileText' }),
   launch: palette({ bg: '#14082A', a: '#8B5CF6', b: '#5EEAD4', mode: 'dark', background: 'launch', icon: 'Rocket', card: '#1C0F38' }),
@@ -1485,6 +1490,10 @@ export const COUNTDOWN = cleanTemplate('countdown', countdownScenes)
 export const THISORTHAT = cleanTemplate('thisorthat', choiceScenes)
 export const REVIEWS = cleanTemplate('reviews', reviewScenes)
 export const TIPS = cleanTemplate('tips', tipScenes)
+export const HOTTAKE = cleanTemplate('hottake', (P, Bg) => ({ ...takeScenes(P, Bg), ...choiceScenes(P, Bg) }))
+export const CASESTUDY = cleanTemplate('casestudy', caseScenes)
+export const FAQ = cleanTemplate('faq', faqScenes)
+export const REPORT = cleanTemplate('report', reportScenes)
 const CP = PALETTES.clarity
 export const CLARITY = template(CP, 'clarity', { ...clarityScenes(CP, AiBg), step: makeStep(CP), screen: makeScreen(CP), dashboard: makeDashboard(CP), flow: makeFlow(CP) })
 const LP = PALETTES.launch

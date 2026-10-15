@@ -24,6 +24,20 @@ export function defaultSeconds(s) {
       return 4.6
     case 'launch':
       return 4.2
+    case 'take':
+      return s.before ? 5.2 : 4.2
+    case 'client':
+      return 5.0
+    case 'metrics':
+      return 3.6 + 0.8 * Math.min(3, (s.rows || []).length)
+    case 'timeline':
+      return 2.8 + 0.8 * Math.min(4, (s.steps || []).length)
+    case 'qa':
+      return 3.0 + Math.min(5, String(s.a || '').length / 30)
+    case 'bars':
+      return 3.4 + 0.4 * Math.min(6, (s.data || []).length)
+    case 'donut':
+      return 4.6
     case 'rank':
       return 4.2
     case 'choice':

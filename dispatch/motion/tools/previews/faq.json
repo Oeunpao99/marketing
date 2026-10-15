@@ -1,0 +1,44 @@
+{
+ "brand": {
+  "name": "ContentFlow",
+  "color": "#1F4E8C",
+  "logo": null
+ },
+ "style": "faq",
+ "frame": 80,
+ "scenes": [
+  {
+   "type": "qa",
+   "n": 1,
+   "of": 2,
+   "q": "Can it reply in Khmer?",
+   "a": "Yes — it reads and answers in natural Khmer, day and night."
+  }
+ ],
+ "clip": [
+  {
+   "type": "hook",
+   "text": "Your top ⟦3 questions⟧, answered",
+   "icon": "MessageCircleQuestion"
+  },
+  {
+   "type": "qa",
+   "n": 1,
+   "of": 2,
+   "q": "Can it reply in Khmer?",
+   "a": "Yes — it reads and answers in natural Khmer, day and night."
+  },
+  {
+   "type": "qa",
+   "n": 2,
+   "of": 2,
+   "q": "How long does setup take?",
+   "a": "About 10 minutes: connect your Page, add your prices, done."
+  },
+  {
+   "type": "cta",
+   "text": "Ask yours in the ⟦comments⟧",
+   "button": "Message us"
+  }
+ ]
+}

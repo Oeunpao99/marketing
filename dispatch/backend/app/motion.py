@@ -639,6 +639,126 @@ REVIEWS_PROMPT = (
     + '{"scenes": [{"type": "hook", "text": "...", "icon": "Star", "say": "..."}, ...]}'
 )
 
+HOTTAKE_TYPES = ("hook", "take", "choice", "reveal", "list", "stat", "cta")
+HOTTAKE_PROMPT = (
+    "You are the sharpest voice in your industry in Cambodia. You plan a REMOTION VIDEO (about "
+    "30-45 s): a HOT TAKE — a clear, slightly surprising opinion about the topic that experts would "
+    "nod at and others would argue with in the comments. Clean page, big bold words; a common belief "
+    "gets struck out and the take slams in.\n"
+    "\n"
+    "THE STORY (5-7 scenes):\n"
+    "1. hook — the provocation in one line (\"Unpopular opinion: [discounts] kill small shops\").\n"
+    "2-3. take — 1-2 takes: what most people believe (before), struck out, and what is actually "
+    "true (text).\n"
+    "4. list or reveal — the reasoning: 3 short points, or the one idea that proves it.\n"
+    "5. choice — agree or disagree? (left \"Agree\", right \"Disagree\").\n"
+    "last. cta — comment your side / follow for more takes.\n"
+    "\n"
+    "SCENE TYPES and their fields:\n"
+    "- hook: text (max 10 words), icon.\n"
+    "- take: before (the common belief, max 8 words, or \"\"), text (the take, max 12 words).\n"
+    "- choice: question (max 8 words), left: {\"name\", \"icon\"}, right: {\"name\", \"icon\"}, "
+    "percent: 0, prompt (max 5 words).\n"
+    "- reveal: text (max 10 words), icon — the one idea to remember.\n"
+    "- list: title (max 6 words), items: 3 x {\"icon\", \"text\": 2-6 words}.\n"
+    "- stat: value, prefix, suffix, label (max 6 words), icon — only a TRUE number.\n"
+    "- cta: text (max 9 words), button (1-3 words).\n"
+    "A strong opinion, never an insult, never about a named person or company, never a false fact.\n"
+    + _COMMON_RULES
+    + '{"scenes": [{"type": "hook", "text": "...", "icon": "Flame", "say": "..."}, ...]}'
+)
+
+CASESTUDY_TYPES = ("hook", "client", "metrics", "timeline", "quote", "step", "flow", "reveal", "cta")
+CASESTUDY_PROMPT = (
+    "You are the best B2B storyteller in Cambodia. You plan a REMOTION VIDEO (about 40-55 s): a "
+    "CASE STUDY — one customer, the problem they had, what they did with the product, and the "
+    "result in numbers. Clean, calm, credible: cards, before → after bars, a timeline, one quote.\n"
+    "\n"
+    "THE STORY (6-8 scenes):\n"
+    "1. hook — the result in one line (\"How a grocery shop [doubled] night orders\").\n"
+    "2. client — who they are and their challenge.\n"
+    "3. timeline or step / flow — what they did, in order.\n"
+    "4. metrics — before → after.\n"
+    "5. quote — the customer in their own words.\n"
+    "6. reveal — the lesson (optional).\n"
+    "last. cta — get the same result / book a demo.\n"
+    "\n"
+    "SCENE TYPES and their fields:\n"
+    "- hook: text (max 10 words), icon.\n"
+    "- client: name (the customer or business), field (their trade · city, max 5 words), text (their "
+    "challenge, max 16 words), example (true unless the brief tells a REAL customer's case).\n"
+    "- metrics: title (max 6 words), rows: 2-3 x {\"label\": max 3 words, \"before\": number, "
+    "\"after\": number, \"prefix\", \"suffix\"}.\n"
+    "- timeline: title (max 6 words), steps: 3-4 x {\"when\": \"Week 1\" / \"Month 2\", \"text\": max 6 words}.\n"
+    "- quote: text (max 18 words), author (first name), role (e.g. \"Owner, Sokha Mart\").\n"
+    "- step: title (max 7 words), text (max 12 words), icon, result (max 6 words, optional).\n"
+    "- flow: title (max 6 words), nodes: 3-4 x {\"icon\", \"label\": 2-5 words, \"sub\": the app, optional}.\n"
+    "- reveal: text (max 10 words), icon.\n"
+    "- cta: text (max 9 words), button (2-4 words).\n"
+    "CASE HONESTY: a REAL customer, real numbers and a real quote ONLY when the brief gives them — "
+    "then example is false and you use exactly what it says. Otherwise it is an EXAMPLE customer "
+    "(example: true — the video says so): a believable local business, small believable numbers, "
+    "and the quote is what such an owner would say — never a real company's name.\n"
+    + _COMMON_RULES
+    + '{"scenes": [{"type": "hook", "text": "...", "icon": "Building2", "say": "..."}, ...]}'
+)
+
+FAQ_TYPES = ("hook", "qa", "list", "reveal", "step", "cta")
+FAQ_PROMPT = (
+    "You are the most helpful customer-support voice in Cambodia. You plan a REMOTION VIDEO (about "
+    "40-55 s): an FAQ — the 3-4 questions customers really ask about the brand's product or topic, "
+    "each popping in as a chat bubble, the answer typing itself in. Clean, friendly, clear.\n"
+    "\n"
+    "THE STORY (5-7 scenes):\n"
+    "1. hook — the promise (\"Your top [4 questions], answered\").\n"
+    "2-5. qa — 3-4 real questions (price, how it works, language, support, delivery…), most asked first.\n"
+    "6. reveal or list — anything else worth knowing (optional).\n"
+    "last. cta — ask your own question in the comments / message us.\n"
+    "\n"
+    "SCENE TYPES and their fields:\n"
+    "- hook: text (max 10 words), icon.\n"
+    "- qa: q (the question, max 10 words, as a customer would type it), a (the answer, max 22 words, "
+    "plain and direct) — numbered for you.\n"
+    "- step: title (max 7 words), text (max 12 words), icon, result (max 6 words, optional).\n"
+    "- reveal: text (max 10 words), icon — the one idea to remember.\n"
+    "- list: title (max 6 words), items: 3 x {\"icon\", \"text\": 2-6 words}.\n"
+    "- stat: value, prefix, suffix, label (max 6 words), icon — only a TRUE number.\n"
+    "- cta: text (max 9 words), button (1-3 words).\n"
+    "ANSWERS only from the product information and the brief — when it doesn't say (a price, a "
+    "date), answer how to find out (\"message us for today's price\") instead of guessing.\n"
+    + _COMMON_RULES
+    + '{"scenes": [{"type": "hook", "text": "...", "icon": "MessageCircleQuestion", "say": "..."}, ...]}'
+)
+
+REPORT_TYPES = ("hook", "bars", "donut", "stat", "list", "reveal", "cta")
+REPORT_PROMPT = (
+    "You are a data storyteller in Cambodia. You plan a REMOTION VIDEO (about 35-50 s): a DATA "
+    "REPORT — a few numbers that change how people see the topic, each drawn clean: bars growing, "
+    "a ring filling, a big number. Calm and credible, every number with its source.\n"
+    "\n"
+    "THE STORY (5-7 scenes):\n"
+    "1. hook — the most surprising number as a question or statement.\n"
+    "2-4. bars / donut / stat — 2-3 data scenes, each one finding.\n"
+    "5. reveal — what it means for the viewer.\n"
+    "6. list — 3 things to do about it (optional).\n"
+    "last. cta — follow for more / save it.\n"
+    "\n"
+    "SCENE TYPES and their fields:\n"
+    "- hook: text (max 10 words), icon.\n"
+    "- bars: title (max 7 words), data: 3-6 x {\"label\": max 3 words, \"value\": number}, prefix, "
+    "suffix (e.g. \"%\"), source (who measured it, max 6 words).\n"
+    "- donut: value (a percent 1-99), label (what that percent is, max 8 words), source.\n"
+    "- reveal: text (max 10 words), icon — the one idea to remember.\n"
+    "- list: title (max 6 words), items: 3 x {\"icon\", \"text\": 2-6 words}.\n"
+    "- stat: value, prefix, suffix, label (max 6 words), icon — only a TRUE number.\n"
+    "- cta: text (max 9 words), button (1-3 words).\n"
+    "DATA HONESTY: numbers ONLY from the brief, the product information, or well-known public data "
+    "you are sure of — always with `source`. Never invent a statistic; with no real data, use fewer "
+    "data scenes and more `reveal` / `list`.\n"
+    + _COMMON_RULES
+    + '{"scenes": [{"type": "hook", "text": "...", "icon": "ChartBar", "say": "..."}, ...]}'
+)
+
 TIPS_TYPES = ("hook", "tip", "reveal", "stat", "save", "cta")
 TIPS_PROMPT = (
     "You are the best short-form teacher in Cambodia. You plan a REMOTION VIDEO (about 40-55 s): "
@@ -1112,6 +1232,10 @@ STYLES = {
     "thisorthat": (THISORTHAT_PROMPT, THISORTHAT_TYPES, 6, "choice"),
     "reviews": (REVIEWS_PROMPT, REVIEWS_TYPES, 6, None),
     "tips": (TIPS_PROMPT, TIPS_TYPES, 7, "tip"),
+    "hottake": (HOTTAKE_PROMPT, HOTTAKE_TYPES, 5, "take"),
+    "casestudy": (CASESTUDY_PROMPT, CASESTUDY_TYPES, 6, "client"),
+    "faq": (FAQ_PROMPT, FAQ_TYPES, 5, "qa"),
+    "report": (REPORT_PROMPT, REPORT_TYPES, 5, None),
     "custom": (CUSTOM_PROMPT, CUSTOM_TYPES, 8, None),
     "training": (TRAINING_PROMPT, TRAINING_TYPES, 12, None),
 }
@@ -1120,7 +1244,7 @@ LONG_STYLES = {"training"}
 # The templates laid out for 16:9 too (motion/src/training.jsx, saas.jsx wide scenes);
 # every other template is always vertical. Scenes drawn only for a tall frame are
 # left out of a wide video.
-WIDE_STYLES = {"training", "custom", "demo", "offer", "trend", "pov", "showcase", "launch", "clarity", "countdown", "thisorthat", "reviews", "tips"}
+WIDE_STYLES = {"training", "custom", "demo", "offer", "trend", "pov", "showcase", "launch", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
 TALL_ONLY_TYPES = {"problem", "chat", "product", "point"}
 
 
@@ -1188,16 +1312,16 @@ def estimate_seconds(script: dict) -> int:
 # random per video, so a week's plan doesn't repeat the same look.
 GOAL_STYLES = {
     "sell": ("tech",),
-    "solution": ("tech", "demo", "custom", "showcase"),
-    "conversion": ("offer", "tech", "launch", "reviews"),
+    "solution": ("tech", "demo", "custom", "showcase", "clarity"),
+    "conversion": ("offer", "tech", "launch", "reviews", "casestudy"),
     "teach": ("explainer",),
-    "education": ("explainer", "custom", "clarity", "tips"),
-    "reach": ("pov", "explainer", "countdown", "thisorthat"),
-    "awareness": ("trend", "explainer", "custom", "clarity"),
-    "authority": ("versus",),
-    "engagement": ("poll", "thisorthat", "countdown"),
-    "followers": ("quote", "tips", "countdown"),
-    "trust": ("testimonial", "reviews"),
+    "education": ("explainer", "training", "custom", "clarity", "tips"),
+    "reach": ("pov", "explainer", "countdown", "thisorthat", "hottake"),
+    "awareness": ("trend", "custom", "clarity", "showcase", "report"),
+    "authority": ("versus", "report", "casestudy", "hottake", "clarity"),
+    "engagement": ("poll", "thisorthat", "faq", "countdown", "hottake"),
+    "followers": ("quote", "explainer", "tips", "countdown", "hottake"),
+    "trust": ("testimonial", "reviews", "casestudy", "faq", "report"),
 }
 
 
@@ -1238,7 +1362,7 @@ def _number(value) -> float:
 
 
 # The templates told by a narrator to everyone (not a shop talking to its customer, បង).
-NARRATOR_STYLES = {"explainer", "training", "quote", "countdown", "tips"}
+NARRATOR_STYLES = {"explainer", "training", "quote", "countdown", "tips", "hottake", "report"}
 
 
 def story_language(idea: str, picked: str) -> str:
@@ -1302,6 +1426,52 @@ def _clean_scene(raw: dict, names: dict[str, str]) -> dict | None:
         if apps:
             hook["apps"] = apps  # Showcase: the bubbles floating round the line
         return hook if text else None
+    if kind == "take":
+        text = _line(raw.get("text"), 120)
+        return {"type": kind, "before": _line(raw.get("before"), 80), "text": text, "say": say} if text else None
+    if kind == "client":
+        name = _line(raw.get("name"), 40)
+        text = _line(raw.get("text"), 140)
+        return (
+            {"type": kind, "name": name, "field": _line(raw.get("field"), 50), "text": text, "example": raw.get("example") is not False, "say": say}
+            if name and text
+            else None
+        )
+    if kind == "metrics":
+        items = []
+        for m in (raw.get("rows") or [])[:3]:
+            if not isinstance(m, dict) or not _line(m.get("label"), 30):
+                continue
+            b, a = _number_signed(m.get("before")), _number_signed(m.get("after"))
+            if b is None or a is None:
+                continue
+            items.append({"label": _line(m.get("label"), 30), "before": b, "after": a, "prefix": _line(m.get("prefix"), 3), "suffix": _line(m.get("suffix"), 10)})
+        return {"type": kind, "title": _line(raw.get("title"), 60), "rows": items, "say": say} if items else None
+    if kind == "timeline":
+        steps = [
+            {"when": _line(x.get("when"), 16), "text": _line(x.get("text"), 60)}
+            for x in (raw.get("steps") or [])
+            if isinstance(x, dict) and _line(x.get("text"), 60)
+        ][:4]
+        return {"type": kind, "title": _line(raw.get("title"), 60), "steps": steps, "say": say} if len(steps) >= 2 else None
+    if kind == "qa":
+        q, a = _line(raw.get("q"), 100), _line(raw.get("a"), 200)
+        return {"type": kind, "q": q, "a": a, "say": say} if q and a else None
+    if kind == "bars":
+        items = []
+        for x in (raw.get("data") or [])[:6]:
+            v = _number_signed(x.get("value")) if isinstance(x, dict) else None
+            if v is not None and _line(x.get("label"), 24):
+                items.append({"label": _line(x.get("label"), 24), "value": v})
+        return (
+            {"type": kind, "title": _line(raw.get("title"), 70), "data": items, "prefix": _line(raw.get("prefix"), 3), "suffix": _line(raw.get("suffix"), 6), "source": _line(raw.get("source"), 60), "say": say}
+            if len(items) >= 2
+            else None
+        )
+    if kind == "donut":
+        v = _number(raw.get("value"))
+        label = _line(raw.get("label"), 80)
+        return {"type": kind, "value": round(v, 1), "label": label, "source": _line(raw.get("source"), 60), "say": say} if 0 < v < 100 and label else None
     if kind in ("rank", "tip"):
         title = _line(raw.get("title"), 70)
         return {"type": kind, "title": title, "text": _line(raw.get("text"), 120), "icon": _icon(raw.get("icon"), "Sparkles"), "say": say} if title else None
@@ -1590,7 +1760,7 @@ def _clean_scene(raw: dict, names: dict[str, str]) -> dict | None:
         return {"type": kind, "text": text, "name": _line(raw.get("name"), 40), "stars": max(1, min(5, stars)), "say": say} if text else None
     if kind == "quote":
         text = _line(raw.get("text"), 220)
-        return {"type": kind, "text": text, "author": _line(raw.get("author"), 40), "say": say} if text else None
+        return {"type": kind, "text": text, "author": _line(raw.get("author"), 40), "role": _line(raw.get("role"), 50), "say": say} if text else None
     if kind == "screen":
         try:
             shot = int(raw.get("shot"))
@@ -1731,6 +1901,13 @@ _TEXT_FIELDS = {
     "launch": (("text", 100), ("badge", 16), ("say", 300)),
     "platform": (("text", 100), ("say", 300)),
     "rank": (("title", 70), ("text", 120), ("say", 300)),
+    "take": (("before", 80), ("text", 120), ("say", 300)),
+    "client": (("field", 50), ("text", 140), ("say", 300)),
+    "metrics": (("title", 60), ("say", 300)),
+    "timeline": (("title", 60), ("say", 300)),
+    "qa": (("q", 100), ("a", 200), ("say", 300)),
+    "bars": (("title", 70), ("say", 300)),
+    "donut": (("label", 80), ("say", 300)),
     "tip": (("title", 70), ("text", 120), ("say", 300)),
     "choice": (("question", 80), ("prompt", 30), ("say", 300)),
     "reviews": (("title", 30), ("say", 300)),
@@ -2048,6 +2225,20 @@ def script_lines(script: dict) -> list[tuple[str, str]]:
             screen = (s.get("title") or "Notifications") + " — " + " / ".join(f"{n['app']}: {n['text']}" for n in s["notes"])
         elif s["type"] == "step":
             screen = s["title"] + (f" — {s['text']}" if s.get("text") else "") + (f" ✓ {s['result']}" if s.get("result") else "")
+        elif s["type"] == "take":
+            screen = (f"Not: {s['before']} → " if s.get("before") else "") + s["text"]
+        elif s["type"] == "client":
+            screen = f"{s['name']}" + (f" ({s['field']})" if s.get("field") else "") + f" — {s['text']}" + (" [example]" if s.get("example") else "")
+        elif s["type"] == "metrics":
+            screen = (s.get("title") or "Results") + " — " + ", ".join(f"{m['label']}: {m.get('prefix', '')}{m['before']}{m.get('suffix', '')} → {m.get('prefix', '')}{m['after']}{m.get('suffix', '')}" for m in s["rows"])
+        elif s["type"] == "timeline":
+            screen = (s.get("title") or "Timeline") + " — " + " → ".join(f"{x['when']}: {x['text']}" for x in s["steps"])
+        elif s["type"] == "qa":
+            screen = f"Q: {s['q']} — A: {s['a']}"
+        elif s["type"] == "bars":
+            screen = (s.get("title") or "Data") + " — " + ", ".join(f"{x['label']} {s.get('prefix', '')}{x['value']}{s.get('suffix', '')}" for x in s["data"]) + (f" (source: {s['source']})" if s.get("source") else "")
+        elif s["type"] == "donut":
+            screen = f"{s['value']}% {s['label']}" + (f" (source: {s['source']})" if s.get("source") else "")
         elif s["type"] in ("rank", "tip"):
             screen = s["title"] + (f" — {s['text']}" if s.get("text") else "")
         elif s["type"] == "choice":
@@ -2337,7 +2528,7 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
             scene["notes"] = [{**n, "text": t(n["text"])} for n in scene["notes"]]
         if s["type"] == "step":
             scene["n"] = sum(1 for x in scenes if x["type"] == "step") + 1  # STEP 1, 2, 3
-        if s["type"] in ("rank", "tip"):  # Top 5 counts down (#5 … #1); tips count up (TIP 01 / 05)
+        if s["type"] in ("rank", "tip", "qa"):  # Top 5 counts down (#5 … #1); tips / questions count up (01 / 05)
             total = sum(1 for x in script["scenes"] if x["type"] == s["type"])
             before = sum(1 for x in scenes if x["type"] == s["type"])
             scene["n"], scene["of"] = (total - before, total) if s["type"] == "rank" else (before + 1, total)
@@ -2384,6 +2575,16 @@ def default_seconds(scene: dict) -> float:
         return 2.4 + 1.0 * min(4, len(scene.get("nodes") or []))
     if kind == "apps":
         return 2.6 + 0.35 * min(8, len(scene.get("apps") or []))
+    if kind == "take":
+        return 5.2 if scene.get("before") else 4.2
+    if kind == "metrics":
+        return 3.6 + 0.8 * min(3, len(scene.get("rows") or []))
+    if kind == "timeline":
+        return 2.8 + 0.8 * min(4, len(scene.get("steps") or []))
+    if kind == "qa":
+        return 3.0 + min(5, len(scene.get("a") or "") / 30)
+    if kind == "bars":
+        return 3.4 + 0.4 * min(6, len(scene.get("data") or []))
     if kind == "reviews":
         return 3.4 + 0.6 * min(4, len(scene.get("cards") or []))
     if kind == "orbit":
@@ -2404,7 +2605,7 @@ def default_seconds(scene: dict) -> float:
         return 1.8 + 1.0 * min(6, len(scene.get("checks") or []))
     if kind == "recap":
         return 2.0 + 1.0 * min(5, len(scene.get("points") or []))
-    return {"cta": 3.8, "product": 3.6, "chart": 5.2, "compare": 4.2, "character": 3.8, "myth": 5.0, "quote": 5.6, "beforeafter": 5.4, "result": 4.2, "review": 6.0, "customer": 4.4, "news": 5.0, "step": 4.8, "offer": 5.6, "screen": 5.0, "dashboard": 5.2, "chapter": 3.2, "board": 4.6, "launch": 4.2, "button": 4.6, "platform": 4.4, "pair": 3.8, "rank": 4.2, "choice": 5.0, "logos": 4.0, "tip": 4.6, "save": 3.4}.get(kind, 3.4)
+    return {"cta": 3.8, "product": 3.6, "chart": 5.2, "compare": 4.2, "character": 3.8, "myth": 5.0, "quote": 5.6, "beforeafter": 5.4, "result": 4.2, "review": 6.0, "customer": 4.4, "news": 5.0, "step": 4.8, "offer": 5.6, "screen": 5.0, "dashboard": 5.2, "chapter": 3.2, "board": 4.6, "launch": 4.2, "button": 4.6, "platform": 4.4, "pair": 3.8, "rank": 4.2, "choice": 5.0, "logos": 4.0, "tip": 4.6, "save": 3.4, "client": 5.0, "donut": 4.6}.get(kind, 3.4)
 
 
 def length_of(props: dict) -> int:
@@ -2680,6 +2881,16 @@ def _scene_summary(s: dict) -> str:
         text = s.get("name") or ""
     elif t in ("rank", "tip"):
         text = s.get("title") or ""
+    elif t == "take":
+        text = s.get("text") or ""
+    elif t == "client":
+        text = s.get("name") or ""
+    elif t in ("metrics", "timeline", "bars"):
+        text = s.get("title") or ""
+    elif t == "qa":
+        text = s.get("q") or ""
+    elif t == "donut":
+        text = f"{s.get('value', '')}% {s.get('label', '')}"
     elif t == "choice":
         text = s.get("question") or ""
     elif t == "reviews":
@@ -2915,6 +3126,10 @@ class PlanIn(BaseModel):
 TEMPLATE_GUIDE = {
     "custom": "SaaS, software, an app, an AI tool, a platform (Power Apps, a CRM…), B2B tech — product UI, dashboards, flows, the brand's screenshots",
     "demo": "showing HOW to use a software product, step by step in an app window",
+    "hottake": "a bold opinion about the industry — a common belief struck out, the take, agree or disagree",
+    "casestudy": "one customer's story with numbers — their problem, what they did, before → after, their quote",
+    "faq": "the questions customers ask, each answered — chat bubbles, the answer typing itself",
+    "report": "numbers about the topic with their source — bars, a percent ring, a big number",
     "countdown": "a TOP 5 / ranked list of tips, mistakes, tools or ideas — counting down to the best one",
     "thisorthat": "A-or-B choices the audience answers in the comments — this or that, which one are you",
     "reviews": "social proof — real reviews, a rating, the customers who use it (only when the brief gives them)",

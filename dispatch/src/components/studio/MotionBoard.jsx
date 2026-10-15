@@ -56,9 +56,16 @@ export const SCENE_LABELS = {
   reviews: 'Reviews',
   logos: 'Trusted by',
   save: 'Save this',
+  take: 'Hot take',
+  client: 'The customer',
+  metrics: 'Before → after',
+  timeline: 'Timeline',
+  qa: 'Question',
+  bars: 'Bar chart',
+  donut: 'Percent',
 }
 
-export const STYLE_LABELS = { tech: 'Sell', explainer: 'Teach', versus: 'Compare', poll: 'Poll', quote: 'Quote', testimonial: 'Testimonial', trend: 'AI News', pov: 'POV', demo: 'Product demo', offer: 'Offer', showcase: 'Showcase', launch: 'Product launch', clarity: 'SaaS explainer', countdown: 'Top 5', thisorthat: 'This or that', reviews: 'Review wall', tips: 'Tip cards', custom: 'Designed for you', training: 'Training' }
+export const STYLE_LABELS = { tech: 'Sell', explainer: 'Teach', versus: 'Compare', poll: 'Poll', quote: 'Quote', testimonial: 'Testimonial', trend: 'AI News', pov: 'POV', demo: 'Product demo', offer: 'Offer', showcase: 'Showcase', launch: 'Product launch', clarity: 'SaaS explainer', countdown: 'Top 5', thisorthat: 'This or that', reviews: 'Review wall', tips: 'Tip cards', hottake: 'Hot take', casestudy: 'Case study', faq: 'FAQ', report: 'Data report', custom: 'Designed for you', training: 'Training' }
 
 /** 0-99 from the real steps: the story is the only part without a count, so
  * it creeps up with time; the voice counts lines, the render counts frames. */

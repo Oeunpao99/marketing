@@ -21,7 +21,7 @@ export const MOTION_TEMPLATES = [
     look: 'A new look every video — colours from your topic, your app screenshots zoomed and clicked',
     steps: ['Hook', 'The problem', 'Shown working', 'Proof', 'Call to action'],
     note: 'Add app screenshots in Products → Brand kit to have them shown',
-    goals: ['solution', 'education', 'awareness'],
+    goals: ['awareness', 'education', 'solution'],
   },
   {
     id: 'sell',
@@ -37,7 +37,7 @@ export const MOTION_TEMPLATES = [
     name: 'Teach',
     look: 'Light, hand-drawn — a person with moods, price tags, charts that grow',
     steps: ['Hook', 'A person’s story', 'Two choices', 'Chart', '3 tips', 'Happy ending'],
-    goals: ['education', 'awareness', 'reach'],
+    goals: ['reach', 'followers', 'education'],
   },
   {
     id: 'versus',
@@ -88,7 +88,7 @@ export const MOTION_TEMPLATES = [
     look: 'Two cards face to face with a VS — people comment their pick',
     steps: ['Hook', '3-4 choices', 'Our pick', 'Comment'],
     note: 'Vote bars only with real poll results in your brief',
-    goals: ['engagement', 'reach'],
+    goals: ['reach', 'engagement'],
   },
   {
     id: 'reviews',
@@ -108,13 +108,48 @@ export const MOTION_TEMPLATES = [
     goals: ['followers', 'education'],
   },
   {
+    id: 'hottake',
+    story: 'hottake',
+    name: 'Hot take',
+    look: 'A common belief struck out, the take slams in big — then agree or disagree',
+    steps: ['Hook', 'The take', 'Why', 'Agree?', 'Comment'],
+    goals: ['reach', 'followers', 'engagement', 'authority'],
+  },
+  {
+    id: 'casestudy',
+    story: 'casestudy',
+    name: 'Case study',
+    look: 'One customer: the challenge, the timeline, before → after bars, their quote',
+    steps: ['Hook', 'The customer', 'What they did', 'Before → after', 'Their words'],
+    note: 'A real customer only from your brief — otherwise it is labelled an example',
+    goals: ['trust', 'authority', 'conversion'],
+  },
+  {
+    id: 'faq',
+    story: 'faq',
+    name: 'FAQ',
+    look: 'The questions customers ask pop in as chat bubbles, the answers type themselves',
+    steps: ['Hook', 'Q1-Q4', 'Anything else', 'Ask us'],
+    note: 'Answers come from your product details',
+    goals: ['engagement', 'trust'],
+  },
+  {
+    id: 'report',
+    story: 'report',
+    name: 'Data report',
+    look: 'Bars growing, a percent ring filling — every number with its source',
+    steps: ['Hook', 'The numbers', 'What it means', 'Follow'],
+    note: 'Numbers only from your brief or well-known sources',
+    goals: ['awareness', 'trust', 'authority'],
+  },
+  {
     id: 'clarity',
     story: 'clarity',
     name: 'SaaS explainer',
     look: 'Calm white and light blue — notifications flying in, your app rising in a frame, chips orbiting, phones turning',
     steps: ['Hook', 'The mess today', 'The product', 'How it works', 'Call to action'],
     note: 'Add app screenshots in Products → Brand kit to have them in the frame and the phones',
-    goals: ['education', 'awareness'],
+    goals: ['awareness', 'education', 'authority', 'solution'],
   },
   {
     id: 'launch',
@@ -132,7 +167,7 @@ export const MOTION_TEMPLATES = [
     look: 'Bright SaaS promo — apps floating in bubbles, your table and board views, a word that rolls and lands',
     steps: ['Hook', 'Who it’s for', 'Works with', 'Shown working', 'Call to action'],
     note: 'Table and board rows are sample data, never real customers',
-    goals: ['solution'],
+    goals: ['awareness', 'solution'],
   },
   // SaaS / AI — one dark, glowing look (motion/src/saas.jsx)
   {
@@ -173,15 +208,15 @@ export const MOTION_TEMPLATES = [
 // Each goal's templates — the weekly plan takes one of them at random per
 // video (app/motion.py GOAL_STYLES).
 export const GOAL_TEMPLATES = {
-  reach: ['pov', 'teach', 'countdown', 'thisorthat'],
-  followers: ['quote', 'tips', 'countdown'],
-  awareness: ['trend', 'teach', 'custom', 'clarity'],
-  engagement: ['poll', 'thisorthat', 'countdown'],
-  education: ['teach', 'custom', 'training', 'clarity', 'tips'],
-  trust: ['testimonial', 'reviews'],
-  authority: ['versus'],
-  solution: ['sell', 'demo', 'custom', 'showcase'],
-  conversion: ['offer', 'sell', 'launch', 'reviews'],
+  reach: ['pov', 'teach', 'countdown', 'thisorthat', 'hottake'],
+  followers: ['quote', 'teach', 'tips', 'countdown', 'hottake'],
+  awareness: ['trend', 'custom', 'clarity', 'showcase', 'report'],
+  engagement: ['poll', 'thisorthat', 'faq', 'countdown', 'hottake'],
+  education: ['teach', 'training', 'custom', 'clarity', 'tips'],
+  trust: ['testimonial', 'reviews', 'casestudy', 'faq', 'report'],
+  authority: ['versus', 'report', 'casestudy', 'hottake', 'clarity'],
+  solution: ['sell', 'demo', 'custom', 'showcase', 'clarity'],
+  conversion: ['offer', 'sell', 'launch', 'reviews', 'casestudy'],
 }
 
 export const templateById = (id) => MOTION_TEMPLATES.find((t) => t.id === id)
