@@ -392,6 +392,17 @@ def _publish_telegram(
     else:
         method = "sendMessage"
 
+    # A video's real size and length: without them Telegram often shows a
+    # vertical video squeezed into a square with black bars on phones.
+    shape: dict = {}
+    if send_media and kind != "image" and video is not None:
+        w, _, h = (video.resolution or "").partition("x")
+        if w.isdigit() and h.isdigit():
+            shape = {"width": int(w), "height": int(h)}
+        if video.duration_seconds:
+            shape["duration"] = int(video.duration_seconds)
+        shape["supports_streaming"] = True
+
     def _do_request() -> httpx.Response:
         base = {"chat_id": chat_id}
         if parse_mode:
@@ -402,13 +413,13 @@ def _publish_telegram(
                 filename = asset_url.rsplit("/", 1)[-1] or "media"
                 return httpx.post(
                     endpoint,
-                    data={**base, "caption": caption},
+                    data={**base, **{k: str(v).lower() if isinstance(v, bool) else str(v) for k, v in shape.items()}, "caption": caption},
                     files={field: (filename, media_bytes)},
                     timeout=120.0,
                 )
             if send_media:
                 return httpx.post(
-                    endpoint, json={**base, field: asset_url, "caption": caption}, timeout=30.0
+                    endpoint, json={**base, **shape, field: asset_url, "caption": caption}, timeout=30.0
                 )
             text = f"{caption}\n\n{asset_url}".strip() if is_remote else caption
             if len(text) > TELEGRAM_TEXT_LIMIT:
