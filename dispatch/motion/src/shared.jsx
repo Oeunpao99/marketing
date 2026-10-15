@@ -188,6 +188,8 @@ export function tint(hex, a) {
 /** Text that appears word by word, each word rising in. Lines wrap only
  * between words; ⟦highlighted⟧ words get a brand-colour marker swept under
  * them. */
+const KHMER_RE = /[ក-៿]/
+
 export function Words({ text, delay = 0, stagger = 1, style, align = 'left', color }) {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
@@ -241,8 +243,9 @@ export function Words({ text, delay = 0, stagger = 1, style, align = 'left', col
                   position: 'absolute',
                   left: '-0.12em',
                   right: '-0.12em', // the gap after a word is margin, outside this box
-                  top: '0.12em',
-                  bottom: '0.08em',
+                  // Khmer is taller: vowels sit above the letters (ើ ំ) and stacked
+                  // consonants below (្ល) — the marker covers all of it, not a cut-off middle band
+                  ...(KHMER_RE.test(p) ? { top: '-0.02em', bottom: '-0.06em', left: '-0.16em', right: '-0.16em' } : { top: '0.12em', bottom: '0.08em' }),
                   borderRadius: '0.18em',
                   background: 'var(--hl-bg, var(--brand))',
                   transform: `scaleX(${sweep})`,

@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   FiArrowUp,
   FiSquare,
@@ -2365,10 +2365,17 @@ function SettingsPopover({
               motionVoice === 'none'
                 ? 'Silent — words only'
                 : motionVoice === 'brand'
-                  ? 'The brand’s own recorded voice reads each scene (Products → Brand kit)'
+                  ? 'The brand’s own recorded voice reads each scene'
                   : brandVoice
                     ? 'A narrator reads each scene · the video follows the voice'
-                    : 'A narrator reads each scene · record your own voice in Products → Brand kit'
+                    : (
+                      <>
+                        A narrator reads each scene ·{' '}
+                        <Link to="/ai?tab=voice" className="font-semibold text-brand hover:underline">
+                          use your own voice
+                        </Link>
+                      </>
+                    )
             }
           >
             <Segmented>

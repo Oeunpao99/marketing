@@ -4,6 +4,7 @@ import { STUDIO_TABS } from '../lib/studioTabs'
 import usePinnedHeight from '../lib/usePinnedHeight'
 import VideoBuilder from '../components/studio/VideoBuilder'
 import TemplatesGallery from '../components/studio/TemplatesGallery'
+import VoiceStudio from '../components/studio/VoiceStudio'
 import AIPromptPage from './AIPromptPage'
 
 // Content studio (/ai) — the boss's layout. Studio (the video builder) is the default tab;
@@ -64,6 +65,10 @@ export default function ContentStudioPage() {
       ) : tab === 'templates' ? (
         <div className="px-5 pb-10 pt-6 lg:px-10">
           <TemplatesGallery />
+        </div>
+      ) : tab === 'voice' ? (
+        <div className="px-5 pb-10 pt-6 lg:px-10">
+          <VoiceStudio />
         </div>
       ) : (
         <AIPromptPage key={tab} embedded preset={tab} />

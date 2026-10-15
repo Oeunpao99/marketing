@@ -154,7 +154,7 @@ export default function BrandVoice({ brand, showToast }) {
             )}
           </h2>
           <p className="mt-0.5 max-w-[70ch] text-[12px] leading-relaxed text-ink-500">
-            Record about a minute of the owner speaking, and videos can be narrated in that voice — pick “Brand voice” in a
+            Record about a minute of the owner speaking, and videos can be narrated in that voice — pick “Brand” in a
             video’s Voice setting. The weekly plan’s videos use it automatically. Early version: it sounds like the person,
             still a little flat.
           </p>
