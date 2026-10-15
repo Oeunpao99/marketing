@@ -2683,6 +2683,9 @@ def delete_brand(brand_id: int, db: Session = Depends(get_db), user: TeamMember 
     if user.role not in MANAGER_ROLES:
         raise HTTPException(403, "Only a workspace owner or admin can delete a brand.")
     brand = owned(db, Brand, brand_id, user.workspace_id)
+    from app.brand_voice import forget_files
+
+    forget_files(db, brand.voice_clone)  # its voice recording and fingerprint go with it
     db.delete(brand)
     db.commit()
     return None

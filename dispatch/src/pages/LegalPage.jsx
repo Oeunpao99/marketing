@@ -5,7 +5,7 @@
 // collecting or sharing something new, update the matching section and UPDATED.
 import { useEffect } from 'react'
 
-const UPDATED = '25 September 2026'
+const UPDATED = '15 October 2026'
 const COMPANY = 'Proseth Solutions Co., Ltd'
 const CONTACT = 'opao@prosethsolutions.com'
 const SITE = 'https://mkt.chlart.org'
@@ -53,6 +53,11 @@ const PRIVACY = [
           </li>
           <li>
             <b>Notifications</b> — if you turn on push notifications, the push address your browser or phone gives us.
+          </li>
+          <li>
+            <b>Voice recordings</b> — only if you add a brand voice: the recording you make or upload, and a voice
+            “fingerprint” (a short set of numbers describing how the voice sounds) learned from it. See the{' '}
+            <a href="/terms#voice">Voice cloning terms</a>.
           </li>
         </ul>
         <p>
@@ -125,6 +130,11 @@ const PRIVACY = [
             <b>The social platforms you connect</b> — they receive the posts you publish.
           </li>
           <li>
+            <b>Voice recordings are not shared.</b> A brand voice is learned and used on our own servers; the recording
+            and its fingerprint are never sent to an AI provider. Only the text of each line goes to the speech service
+            that reads it, before it is turned into your voice.
+          </li>
+          <li>
             <b>Push notification services</b> (Apple, Google, Mozilla, Microsoft) — deliver the alerts you turned on.
           </li>
         </ul>
@@ -140,6 +150,10 @@ const PRIVACY = [
         <li>Account and workspace content — for as long as your account exists.</li>
         <li>Sign-in history — 90 days, then deleted automatically.</li>
         <li>Access tokens — until you disconnect the channel, the token expires, or your account is deleted.</li>
+        <li>
+          Voice recordings and fingerprints — until you remove the voice, record a new one, delete the brand or your
+          account; then they are deleted. Videos already made with the voice stay until you delete them.
+        </li>
       </ul>
     ),
   },
@@ -248,6 +262,55 @@ const TERMS = [
         everything before it is published — including posts created by automations. Generated media may carry an
         invisible watermark from the AI provider identifying it as AI-made.
       </p>
+    ),
+  },
+  {
+    id: 'voice',
+    title: 'Voice cloning',
+    body: (
+      <>
+        <p>
+          A brand voice lets ContentFlow narrate your videos in a real person’s voice. You record or upload that
+          person speaking; the AI learns how the voice sounds and uses it to read your videos’ lines. By adding a
+          voice, you agree that:
+        </p>
+        <ul>
+          <li>
+            <b>It’s your voice, or you have permission.</b> You are the person speaking, or you have that person’s
+            clear, informed permission to create an AI copy of their voice and to use it for this brand’s videos — and
+            you can show it if asked. Their permission can be withdrawn at any time; if it is, remove the voice.
+          </li>
+          <li>
+            <b>Only for your brand’s own content.</b> The voice is used to narrate videos made in ContentFlow for the
+            brand it belongs to. You won’t use it to make anyone appear to say something they didn’t say or wouldn’t
+            agree to.
+          </li>
+          <li>
+            <b>Never to deceive or harm.</b> No impersonation, fraud, scams, fake endorsements or testimonials,
+            political or election messages, harassment, or anything illegal. No voice of a child, a public figure, or
+            anyone who hasn’t agreed.
+          </li>
+          <li>
+            <b>Be open where it matters.</b> Where the law or a platform’s rules require it, tell your audience the
+            narration is AI-generated.
+          </li>
+          <li>
+            <b>You’re responsible for how it’s used.</b> We may remove a voice, the videos made with it, or suspend
+            the account if we believe these terms are broken or receive a credible complaint.
+          </li>
+        </ul>
+        <p>
+          <b>What we do with it.</b> The recording and the voice fingerprint learned from it are stored in your
+          workspace and used only to narrate your videos. We don’t share them, sell them, or use them to train AI
+          models. The copy is an early technology: it sounds like the person, not identical, and quality depends on the
+          recording.
+        </p>
+        <p>
+          <b>Removing it.</b> “Remove voice” deletes the recording and the fingerprint straight away, and so does
+          recording a new one or deleting the brand. Videos already made with the voice are not changed; delete them
+          from the Media Library if you want them gone. Concerns about a voice made without permission: {mail}.
+        </p>
+      </>
     ),
   },
   {

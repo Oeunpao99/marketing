@@ -4,12 +4,13 @@ speaking, the server learns its fingerprint in the background
 
     GET    /brands/{id}/voice          its status (Brand.voice_clone, without file urls)
     POST   /brands/{id}/voice          a recording (multipart "audio") + consent → learns it
-    DELETE /brands/{id}/voice          forget it (recording and fingerprint)
+    DELETE /brands/{id}/voice          forget it — its recording and fingerprint are deleted
 """
 
 from __future__ import annotations
 
 import logging
+import re
 import threading
 from datetime import UTC, datetime
 
@@ -17,7 +18,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal, get_db
-from app.media import store_blob
+from app.media import delete_media, store_blob
 from app.models import Brand, TeamMember
 from app.tenancy import current_workspace_id, get_current_user, owned
 
@@ -26,6 +27,17 @@ log = logging.getLogger(__name__)
 router = APIRouter(prefix="/brands/{brand_id}/voice", tags=["Brand voice"])
 
 MAX_BYTES = 25 * 1024 * 1024  # ~25 min of compressed speech — far more than needed
+# The Terms of Service version agreed to when a voice is added (Terms → "Voice
+# cloning", src/pages/LegalPage.jsx) — kept with the consent.
+TERMS_VERSION = "2026-10-15"
+
+
+def forget_files(db: Session, clone: dict | None) -> None:
+    """Delete a voice's recording and fingerprint (the Terms promise this on
+    Remove voice, a new recording, and deleting the brand). Not committed."""
+    for key in ("sample", "fingerprint"):
+        if (clone or {}).get(key):
+            delete_media(db, clone[key])
 
 
 def public(clone: dict | None) -> dict:
@@ -35,7 +47,29 @@ def public(clone: dict | None) -> dict:
     return {k: c[k] for k in keep if k in c}
 
 
-def _learn(brand_id: int, recording: bytes) -> None:
+def _reader_name(narrator: str | None) -> str:
+    """A reader's name for people: "Kore · Gemini", "Sreymom", "Piseth"…"""
+    if not narrator:
+        return ""
+    if narrator.startswith("gemini:"):
+        return narrator[len("gemini:") :].split("|")[0] + " · Gemini"
+    if narrator.startswith("local:"):
+        return "Local Khmer voice"
+    m = re.match(r"[a-z]{2}-[A-Z]{2}-([A-Za-z]+?)(?:Multilingual)?Neural", narrator)
+    return m.group(1) if m else narrator
+
+
+def readers(language: str = "Khmer") -> dict:
+    """Who reads a video's lines for Female and Male now — the comparison
+    plays these next to the brand voice."""
+    from app import speech
+
+    if not speech.ready():
+        return {}
+    return {g: _reader_name(speech.voice_for(language, g)) for g in ("female", "male")}
+
+
+def _learn(brand_id: int, recording: bytes, sample: str) -> None:
     """In a thread: the fingerprint from the recording, then status ready / failed."""
     from app import voice_clone
 
@@ -51,8 +85,13 @@ def _learn(brand_id: int, recording: bytes) -> None:
             log.exception("brand %s: voice not learned", brand_id)
             patch = {"status": "failed", "error": f"The voice couldn't be learned — {exc}"}
         brand = db.get(Brand, brand_id)
-        if brand is not None and (brand.voice_clone or {}).get("status") == "learning":
-            brand.voice_clone = {**(brand.voice_clone or {}), **patch}
+        clone = (brand.voice_clone or {}) if brand is not None else {}
+        if clone.get("status") == "learning" and clone.get("sample") == sample:
+            brand.voice_clone = {**clone, **patch}
+            db.commit()
+        elif patch.get("fingerprint"):
+            # replaced or removed while it was learning — this one isn't wanted
+            delete_media(db, patch["fingerprint"])
             db.commit()
     finally:
         db.close()
@@ -60,7 +99,7 @@ def _learn(brand_id: int, recording: bytes) -> None:
 
 @router.get("")
 def get_voice(brand_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
-    return public(owned(db, Brand, brand_id, ws).voice_clone)
+    return {**public(owned(db, Brand, brand_id, ws).voice_clone), "readers": readers()}
 
 
 @router.post("")
@@ -82,15 +121,24 @@ async def set_voice(
     if len(data) < 10_000:
         raise HTTPException(400, "That recording is too short — record at least 20 seconds of speech.")
     ext = "." + (audio.filename or "voice.webm").rsplit(".", 1)[-1].lower()[:5]
+    forget_files(db, brand.voice_clone)  # a new recording replaces the old one entirely
     sample = store_blob(db, data, ext if len(ext) > 1 else ".webm", audio.content_type or "audio/webm")
-    brand.voice_clone = {"status": "learning", "sample": sample, "by": user.id, "at": datetime.now(UTC).isoformat(), "consent": True}
+    brand.voice_clone = {
+        "status": "learning",
+        "sample": sample,
+        "by": user.id,
+        "at": datetime.now(UTC).isoformat(),
+        "consent": True,
+        "terms": TERMS_VERSION,
+    }
     db.commit()
-    threading.Thread(target=_learn, args=(brand.id, data), daemon=True, name=f"voice-{brand.id}").start()
+    threading.Thread(target=_learn, args=(brand.id, data, sample), daemon=True, name=f"voice-{brand.id}").start()
     return public(brand.voice_clone)
 
 
 @router.delete("", status_code=204)
 def delete_voice(brand_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
     brand = owned(db, Brand, brand_id, ws)
+    forget_files(db, brand.voice_clone)
     brand.voice_clone = {}
     db.commit()
