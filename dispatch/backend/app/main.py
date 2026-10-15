@@ -11,6 +11,7 @@ from app.ai import router as ai_router
 from app.auth import router as auth_router
 from app import billing, sessions
 from app.brand_kit import router as brand_kit_router
+from app.brand_voice import router as brand_voice_router
 from app.improve import router as improve_router
 from app.story import router as story_router
 from app.chats import router as chats_router
@@ -142,6 +143,7 @@ api.include_router(video_gen_router, dependencies=authed)
 api.include_router(motion_router, dependencies=authed)
 api.include_router(media_router, dependencies=authed)
 api.include_router(brand_kit_router, dependencies=authed)
+api.include_router(brand_voice_router, dependencies=authed)
 api.include_router(views_router, dependencies=authed)
 api.include_router(weekly_router, dependencies=authed)
 api.include_router(website_router, dependencies=authed)

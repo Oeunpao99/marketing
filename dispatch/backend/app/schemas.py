@@ -74,7 +74,8 @@ class BrandUpdate(BaseModel):
 
 
 class BrandOut(TimestampsOut, BrandBase):
-    pass
+    # Its own voice is learned (Brand kit → Brand voice): videos can pick it.
+    voice_ready: bool = False
 
 
 # ── Platform ─────────────────────────────────────────────────────────────

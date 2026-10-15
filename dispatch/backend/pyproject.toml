@@ -47,6 +47,8 @@ explicit = true
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+# OpenVoice's model code, copied as it is (app/openvoice/__init__.py)
+extend-exclude = ["app/openvoice"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]

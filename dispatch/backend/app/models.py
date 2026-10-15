@@ -156,6 +156,17 @@ class Brand(Base, TimestampMixin):
     # How the voice-over should say words a Khmer voice gets wrong — brand and
     # English names: [{"word": "Chumnouykar", "say": "ជំនួយការ"}] (app/khmer_speech.py).
     pronunciations: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]", nullable=False)
+    # The brand's own voice for its videos (app/voice_clone.py): {"status":
+    # "learning" | "ready" | "failed", "sample": its recording's url,
+    # "fingerprint": the tone-colour embedding's url, "base": "male" |
+    # "female" (which reader's voice it's converted from), "seconds",
+    # "pitch", "error", "by": user id, "at"}. {} = none.
+    voice_clone: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}", nullable=False)
+
+    @property
+    def voice_ready(self) -> bool:
+        """Its own voice can be picked for videos (BrandOut.voice_ready)."""
+        return (self.voice_clone or {}).get("status") == "ready"
 
     channels: Mapped[list[Channel]] = relationship(
         back_populates="brand", cascade="all, delete-orphan"

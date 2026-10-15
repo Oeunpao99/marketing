@@ -170,7 +170,11 @@ def _motion_for(db: Session, brand: Brand, item: dict) -> int | None:
         # The post's content goal picks the story: Education / Awareness / … teach
         # (Explainer style), Solution / Conversion sell (Tech style).
         goal = item.get("content_goal") or "auto"
-        return make_motion(brand.id, brief, language, "female", product_id, caption=item["caption"], goal=goal)
+        from app import voice_clone
+
+        # the brand's own voice once it has one (Brand kit → Brand voice), else the female voice
+        voice = "brand" if voice_clone.ready_for(brand) else "female"
+        return make_motion(brand.id, brief, language, voice, product_id, caption=item["caption"], goal=goal)
     except Exception:  # noqa: BLE001 — one video mustn't sink the plan
         log.exception("weekly plan: motion video for %r crashed", item["title"])
         return None

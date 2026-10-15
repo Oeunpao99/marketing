@@ -1,10 +1,12 @@
 // Brand kit — the logo, product photos and poster templates the image AI
-// builds on, and the app screenshots the Remotion videos show (backend app/brand_kit.py). Managed on the Products page; picked
+// builds on, the app screenshots the Remotion videos show (backend app/brand_kit.py),
+// and the brand's own voice for its videos (BrandVoice). Managed on the Products page; picked
 // from in the AI Agent's image composer and Auto-generate's image settings.
 import { useRef, useState } from 'react'
 import { FiCamera, FiCheck, FiImage, FiPlus, FiTrash2, FiUploadCloud } from 'react-icons/fi'
 import { api } from '../../api/client'
 import AutoTextarea from '../ui/AutoTextarea'
+import BrandVoice from './BrandVoice'
 
 export const kitSrc = (url) => (!url ? '' : /^https?:/i.test(url) ? url : `${window.location.port === '5173' ? 'http://localhost:8000' : ''}${url}`)
 
@@ -184,6 +186,8 @@ export function BrandKitPanel({ brand, assets, setAssets, showToast }) {
           </div>
         )}
       </section>
+
+      <BrandVoice brand={brand} showToast={showToast} />
     </div>
   )
 }

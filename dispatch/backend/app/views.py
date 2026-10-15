@@ -325,6 +325,7 @@ def channels_view(db: Session = Depends(get_db), ws: int = Depends(current_works
                 "name": b.name,
                 "lang": b.lang,
                 "note": b.note,
+                "voice_ready": b.voice_ready,  # its own voice is learned (Brand kit → Brand voice)
                 "channels": rows,
             }
         )

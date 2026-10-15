@@ -270,6 +270,10 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
   const composerRef = useRef(null)
 
   const brandObj = brands.find((b) => b.slug === brand) || brands[0]
+  // "Brand" voice only exists for a brand that has learned one (Brand kit)
+  useEffect(() => {
+    if (motionVoice === 'brand' && brandObj && !brandObj.voiceReady) setMotionVoice('female')
+  }, [brandObj, motionVoice])
   const isImage = type === 'image'
   const isStory = type === 'video' && videoMode === 'story'
   // Motion: animated words over the brand's photos (Remotion) — Khmer or English.
@@ -2252,6 +2256,7 @@ function SettingsPopover({
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
   const motionReady = useMotionReady() // false: this server can't render Remotion videos
+  const brandVoice = !!brands?.find((b) => b.slug === brand)?.voiceReady // its own voice is learned (Brand kit)
   const writers = useWriterModels()
   const story = type === 'video' && videoMode === 'story'
   const motion = type === 'video' && videoMode === 'motion'
@@ -2354,9 +2359,20 @@ function SettingsPopover({
         )}
 
         {motion && (
-          <Row label="Voice" hint={motionVoice === 'none' ? 'Silent — words only' : 'A narrator reads each scene · the video follows the voice'}>
+          <Row
+            label="Voice"
+            hint={
+              motionVoice === 'none'
+                ? 'Silent — words only'
+                : motionVoice === 'brand'
+                  ? 'The brand’s own recorded voice reads each scene (Products → Brand kit)'
+                  : brandVoice
+                    ? 'A narrator reads each scene · the video follows the voice'
+                    : 'A narrator reads each scene · record your own voice in Products → Brand kit'
+            }
+          >
             <Segmented>
-              {MOTION_VOICES.map(([v, label]) => (
+              {(brandVoice ? [...MOTION_VOICES.slice(0, 2), ['brand', 'Brand'], MOTION_VOICES[2]] : MOTION_VOICES).map(([v, label]) => (
                 <button key={v} type="button" onClick={() => setMotionVoice(v)} className={`${seg(motionVoice === v)} px-0 text-[11.5px]`}>
                   {label}
                 </button>

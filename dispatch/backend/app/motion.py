@@ -2760,8 +2760,11 @@ def add_voice(
     user_id: int | None,
     job_id: int,
     pronunciations: list[dict] | None = None,
+    clone: bytes | None = None,
 ) -> int:
-    """Each scene's spoken line, read by ``voice``: the MP3 goes into the scene
+    """Each scene's spoken line, read by ``voice`` — and, with ``clone`` (a
+    brand voice's fingerprint, app/voice_clone.py), turned into that voice
+    after it's read: the MP3 goes into the scene
     and the scene lasts as long as its line (never shorter than its
     animation). Best effort — a line that fails just stays silent. Returns
     the characters spoken (what Azure bills)."""
@@ -2828,6 +2831,14 @@ def add_voice(
             else:
                 words = []
                 mp3 = _trim_silence(path) or mp3
+            if clone:
+                # the brand's own voice: same length out, so the word timings still fit
+                from app import voice_clone
+
+                try:
+                    mp3 = voice_clone.convert(mp3, clone)
+                except Exception as exc:  # noqa: BLE001 — the reader's voice beats a silent scene
+                    log.warning("motion %s: brand voice for scene %s failed: %s", job_id, n + 1, exc)
             path.write_bytes(mp3)
             _has_audio, duration = _probe(str(path))
             if duration <= 0:
@@ -3132,7 +3143,8 @@ class MotionIn(BaseModel):
     idea: str = Field(default="", max_length=20000)
     product_id: int | None = None
     language: str = "Khmer"
-    # Narrator: "female", "male", or "none" for a silent video.
+    # Narrator: "female", "male", "brand" (the brand's own voice,
+    # app/voice_clone.py), or "none" for a silent video.
     voice: str = "female"
     # Background music under the video (when tracks are installed).
     music: bool = True
@@ -3447,14 +3459,18 @@ def say_line(
     the storyboard's ▶ button, to hear a line before the video is made."""
     from app import speech
 
+    from app import voice_clone
+
     brand = owned(db, Brand, payload.brand_id, ws)
-    narrator = speech.voice_for(payload.language, payload.voice if payload.voice != "none" else "female") if speech.ready() else None
+    narrator, clone = voice_clone.narrator_for(brand, payload.language, payload.voice if payload.voice != "none" else "female")
     if not narrator:
         raise HTTPException(503, "No voice service is set up on this server.")
     billing.require(ws, 0.0, db)
     text, _pieces = spoken_text(payload.text, voice_pronunciations(narrator, [payload.text], brand.pronunciations or []))
     try:
         mp3, _words = speech.speak_timed(text, narrator)
+        if clone:
+            mp3 = voice_clone.convert(mp3, clone)
     except Exception as exc:  # noqa: BLE001 — the voice service's own message
         raise HTTPException(502, f"The voice couldn't be made — {exc}") from exc
     if not narrator.startswith("local:"):  # the local Khmer voice costs nothing
@@ -3639,11 +3655,12 @@ def _make(
             pick_pictures(script, all_products, by_product, order, product_id, shots_now)
             props = build_props(brand, script, logo, "khmer" in language.lower())
             db.rollback()  # no transaction held open through the voice and render
-            from app import speech
+            from app import voice_clone
 
-            narrator = speech.voice_for(language, voice, script.get("style")) if speech.ready() else None
+            # "brand": read by the closest base voice, then turned into the brand's own
+            narrator, clone = voice_clone.narrator_for(brand, language, voice, script.get("style"))
             if narrator:
-                add_voice(props, script, narrator, job.workspace_id, job.user_id, job_id, brand.pronunciations or [])
+                add_voice(props, script, narrator, job.workspace_id, job.user_id, job_id, brand.pronunciations or [], clone)
             _report(job_id, stage="render", render=0.0)
             blob = render(props, job_id)
         except Stopped:

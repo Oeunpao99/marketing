@@ -131,12 +131,13 @@ export function StoreProvider({ children }) {
         .get("/views/channels")
         .then((groups) => {
           setBrands(
-            groups.map(({ id, slug, name, lang, note }) => ({
+            groups.map(({ id, slug, name, lang, note, voice_ready }) => ({
               id,
               slug,
               name,
               lang,
               note,
+              voiceReady: !!voice_ready, // its own voice can be picked for videos
             })),
           );
           setChannels(
