@@ -2175,6 +2175,48 @@ def write_script(
     return script
 
 
+def making_of(db: Session, props: dict, script: dict, job_id: int, voice: str, narrator: str | None, language: str) -> dict:
+    """A finished video's "How it was made" (GenerationJob.making): the
+    template, the voice, and per scene what's on screen, what's said, where it
+    starts in the video and its narration clip (stored, so it can be played on
+    its own). Scenes overlap by one transition, like length_of counts them."""
+    lines = script_lines(script)
+    scenes, start = [], 0.0
+    for n, scene in enumerate(props["scenes"]):
+        seconds = scene.get("seconds") or default_seconds(scene)
+        audio = scene.get("audio") or ""
+        clip = ""
+        if audio.startswith("data:audio/mpeg;base64,"):
+            try:
+                clip = store_blob(db, base64.b64decode(audio.split(",", 1)[1]), ".mp3", "audio/mpeg")
+            except Exception as exc:  # noqa: BLE001 — the scene list is worth more than one clip
+                log.warning("motion %s: couldn't keep scene %s's voice: %s", job_id, n + 1, exc)
+        screen, say = lines[n] if n < len(lines) else ("", "")
+        src = script["scenes"][n] if n < len(script["scenes"]) else {}
+        scenes.append(
+            {
+                "type": src.get("type") or scene.get("type") or "",
+                "screen": screen,
+                "say": (say or "") if narrator else "",
+                "start": round(start, 2),
+                "seconds": round(seconds, 2),
+                "audio": clip,
+            }
+        )
+        start += seconds - TRANSITION_S
+    music = props.get("music") or ""
+    return {
+        "style": script.get("style") or "",
+        "why": (_progress.get(job_id) or {}).get("why") or "",
+        "voice": voice if narrator else "none",
+        "narrator": narrator or "",
+        "language": language,
+        "music": Path(music).stem.replace("-", " ").replace("_", " ") if music else "",
+        "ratio": props.get("ratio") or script.get("ratio") or "",
+        "scenes": scenes,
+    }
+
+
 def script_lines(script: dict) -> list[tuple[str, str]]:
     """(what's on screen, what's said) per scene — for "How it was made"."""
     out = []
@@ -3357,6 +3399,22 @@ def plan_motion(
     return {"plan_id": plan_id, "status": "running"}
 
 
+@router.get("/making/{job_id}")
+def making(job_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    """A Remotion video's "How it was made": the brief, and — for videos made
+    since it's kept — the template, voice and every scene with its voice clip.
+    Older videos have only the brief and the storyboard text (``making`` null)."""
+    job = owned(db, GenerationJob, job_id, ws, "Generation job")
+    brief, _, board = (job.prompt or "").partition("\n\nREMOTION STORYBOARD:\n")
+    video = db.get(Video, job.video_id) if job.video_id else None
+    return {
+        "brief": brief.strip(),
+        "storyboard": board.strip(),
+        "making": json.loads(job.making) if job.making else None,
+        "video": {"url": video.url, "seconds": video.duration_seconds} if video else None,
+    }
+
+
 @router.get("/plan/{plan_id}")
 def plan_status(plan_id: str, ws: int = Depends(current_workspace_id)):
     """The storyboard once it's written: {"status": "running"} meanwhile,
@@ -3621,6 +3679,10 @@ def _make(
         job.prompt = f"{job.prompt or AUTO_LABEL}\n\nREMOTION STORYBOARD:\n" + "\n".join(
             f"- {screen}" + (f"\n  🎙 {say}" if say and narrator else "") for screen, say in script_lines(script)
         )
+        try:
+            job.making = json.dumps(making_of(db, props, script, job_id, voice, narrator, language), ensure_ascii=False)
+        except Exception:  # noqa: BLE001 — the video matters more than its making-of
+            log.exception("motion %s: making-of not saved", job_id)
         job.video_id = video.id
         job.seconds = seconds
         job.status = "succeeded"

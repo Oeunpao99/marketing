@@ -427,6 +427,10 @@ class GenerationJob(Base, TimestampMixin):
     # queued | running | succeeded | failed
     status: Mapped[str] = mapped_column(String(12), default="queued")
     error: Mapped[str] = mapped_column(Text, default="", server_default="")
+    # A Remotion video's "How it was made" (JSON, app/motion.py making_of):
+    # the template, voice and each scene's words, spoken line, start time and
+    # narration clip. "" for everything else and for videos made before it.
+    making: Mapped[str] = mapped_column(Text, default="", server_default="")
     video_id: Mapped[int | None] = mapped_column(
         ForeignKey("videos.id", ondelete="SET NULL"), nullable=True, index=True
     )

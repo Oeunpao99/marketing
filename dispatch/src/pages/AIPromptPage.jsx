@@ -40,6 +40,7 @@ import { MOTION_OFF_TIP, useMotionReady } from '../lib/motionStatus'
 import WriterModelSelect, { useWriterModels, writerHint } from '../components/studio/WriterModelSelect'
 import { aiModelStore } from '../api/client'
 import { MOTION_TEMPLATES } from '../lib/motionTemplates'
+import MakingDrawer from '../components/studio/MakingDrawer'
 
 // AI Agent — one chat for both asking and creating. A message that reads
 // like a question ("how is my engagement?", "what should I post next?") goes
@@ -141,6 +142,7 @@ function serializeTurn(t) {
     video: t.video || null,
     jobId: t.jobId || null,
     storyId: t.storyId || null,
+    planId: t.planId || null, // a storyboard being written on the server (Review first)
     language: t.language ?? '',
     // Remotion: "Make one for me", and the product / voice / music it was made with
     auto: !!t.auto,
@@ -160,11 +162,13 @@ function serializeTurn(t) {
 }
 
 // Reopening a chat: an image/video still rendering on the server resumes
-// polling (they finish server-side even with the page closed); a question
-// that was mid-answer can't be resumed.
+// polling (they finish server-side even with the page closed), and so does a
+// storyboard still being written (planId); a question that was mid-answer
+// can't be resumed.
 function restoreTurn(t) {
   if (t.status !== 'working') return t
   if ((t.kind === 'video' || t.kind === 'image' || t.kind === 'motion') && t.jobId) return t
+  if (t.kind === 'motion' && t.planId) return t
   return { ...t, status: 'failed', error: 'Interrupted when the page closed — try again.' }
 }
 
@@ -522,6 +526,8 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
       lastSavedRef.current = JSON.stringify(restored.map(serializeTurn))
       setChatId(chat.id)
       setTurns(restored)
+      // storyboards still being written on the server: keep waiting for them
+      for (const t of restored) if (t.status === 'working' && t.kind === 'motion' && t.planId && !t.jobId) resumePlan(t)
       setText('')
       setIntentPick(null)
       setHistoryOpen(false)
@@ -586,6 +592,33 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [working])
+
+  // A storyboard is written in the background (several AI steps can take
+  // minutes — longer than the proxy waits on one request): ask until it's ready.
+  const waitForPlan = async (planId) => {
+    const until = Date.now() + 20 * 60 * 1000
+    for (;;) {
+      const res = await api.get(`/ai/motion/plan/${planId}`)
+      if (res.status === 'done') return res
+      if (res.status === 'failed') throw new Error(res.error || 'The storyboard couldn’t be written.')
+      if (Date.now() > until) throw new Error('The storyboard is taking too long — try again.')
+      await new Promise((r) => setTimeout(r, 2500))
+    }
+  }
+
+  // Back on a chat whose storyboard was still being written: pick it up again.
+  const resumePlan = async (turn) => {
+    const live = () => turnsRef.current.find((x) => x.id === turn.id)?.status === 'working'
+    try {
+      const res = await waitForPlan(turn.planId)
+      if (!mountedRef.current) return persistLate(turn.id, { status: 'review', plan: { ...res.script, why: res.why || '' } })
+      if (live()) patchTurn(turn.id, { status: 'review', plan: { ...res.script, why: res.why || '' } })
+      refreshCounts()
+    } catch (e) {
+      if (!mountedRef.current) return persistLate(turn.id, { status: 'failed', error: e.message })
+      if (live()) patchTurn(turn.id, { status: 'failed', error: e.message })
+    }
+  }
 
   const run = async (turn) => {
     patchTurn(turn.id, { status: 'working', error: '', video: null, startedAt: Date.now() })
@@ -654,15 +687,12 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
           ratio: turn.shape || 'auto',
           ref_url: turn.refUrl || '', // a screenshot of their app: the design the video copies
         })
-        // Written in the background (several AI steps can take minutes — longer
-        // than the proxy waits on one request): ask until it's ready.
+        // Saved on the turn, so leaving and coming back picks it up again
+        // (resumePlan) instead of "Interrupted when the page closed".
         let res = started
-        const until = Date.now() + 20 * 60 * 1000
-        while (res.plan_id && res.status !== 'done') {
-          if (res.status === 'failed') throw new Error(res.error || 'The storyboard couldn’t be written.')
-          if (Date.now() > until) throw new Error('The storyboard is taking too long — try again.')
-          await new Promise((r) => setTimeout(r, 2500))
-          res = { plan_id: started.plan_id, ...(await api.get(`/ai/motion/plan/${started.plan_id}`)) }
+        if (started.plan_id && started.status !== 'done') {
+          update(turn.id, { planId: started.plan_id })
+          res = await waitForPlan(started.plan_id)
         }
         update(turn.id, { status: 'review', plan: { ...res.script, why: res.why || '' } })
         refreshCounts()
@@ -1837,6 +1867,7 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary, onPlanChange, onMake,
   const { showToast } = useStore()
   const [expanded, setExpanded] = useState(false)
   const [viewing, setViewing] = useState(false)
+  const [making, setMaking] = useState(false) // a Remotion video's "How it was made"
   const [copied, setCopied] = useState(false)
   // Chats saved by an older page version can hold a turn without a prompt.
   const prompt = t.prompt || ''
@@ -2021,6 +2052,7 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary, onPlanChange, onMake,
                 </button>
               </div>
             )}
+            {making && <MakingDrawer jobId={t.jobId} onClose={() => setMaking(false)} />}
             {viewing && (
               <MediaViewer
                 url={url}
@@ -2044,6 +2076,11 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary, onPlanChange, onMake,
               <IconBtn title="Regenerate" onClick={onRegenerate}>
                 <FiRefreshCw size={14} />
               </IconBtn>
+              {motion && t.jobId && (
+                <IconBtn title="How it was made — script, voice and scenes" onClick={() => setMaking(true)}>
+                  <FiLayers size={14} />
+                </IconBtn>
+              )}
               <a
                 href={url}
                 download={t.video.filename}
