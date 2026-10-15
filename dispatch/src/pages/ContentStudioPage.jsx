@@ -52,6 +52,8 @@ export default function ContentStudioPage() {
               </span>
             </h1>
           </div>
+          {/* the open tool's own buttons (Quick content: New chat, History) */}
+          <div id="studio-actions" className="flex flex-none items-center" />
         </div>
       </div>
 

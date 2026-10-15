@@ -6,7 +6,9 @@ import { FiCheck, FiChevronDown } from 'react-icons/fi'
 //
 // options: [{ value, label?, hint?, color?, icon? }] — label defaults to value,
 // hint is a smaller second line, color draws a dot (e.g. a brand's colour),
-// icon is a small element shown before the label (e.g. an AI model's logo).
+// icon is a small element shown before the label (e.g. an AI model's logo),
+// thumb a preview picture's url (e.g. a video template) — then every row gets
+// a picture (a ✦ tile when it has none) and its hint runs to two lines.
 // Values keep their type: pass numbers in, get numbers back from onChange.
 // size: "sm" (h-8, compact toolbars) | "md" (default) | "lg" (h-10 forms).
 // align: which edge the menu lines up with when it's wider than the button.
@@ -32,28 +34,44 @@ export default function Select({
   const [open, setOpen] = useState(false)
   const [hover, setHover] = useState(-1)
   const [up, setUp] = useState(false)
+  const [nudge, setNudge] = useState(null) // { left, maxWidth }: keeps a wide menu inside its panel
   const root = useRef(null)
   const menu = useRef(null)
   const current = options.find((o) => o.value === value)
+  const thumbs = options.some((o) => o.thumb)
 
   // Open upward when there's no room below (e.g. inside a popover at the
   // bottom of the screen) — measured before paint, so it never flickers.
   // Inside a scrolling panel the panel's edges are the limit, not the window's.
+  // Sideways too: a menu wider than its button is slid back inside (it used to
+  // run off a phone screen and scroll the whole drawer sideways).
   useLayoutEffect(() => {
-    if (!open || !menu.current || !root.current) return setUp(false)
+    if (!open || !menu.current || !root.current) {
+      setNudge(null)
+      return setUp(false)
+    }
     let top = 0
     let bottom = window.innerHeight
+    let left = 0
+    let right = window.innerWidth
     let scroller = false
     for (let el = root.current.parentElement; el; el = el.parentElement) {
       if (/auto|scroll/.test(getComputedStyle(el).overflowY)) {
         const r = el.getBoundingClientRect()
         top = Math.max(top, r.top)
         bottom = Math.min(bottom, r.bottom)
+        left = Math.max(left, r.left)
+        right = Math.min(right, r.right)
         scroller = true
         break
       }
     }
     const box = root.current.getBoundingClientRect()
+    const room = right - left - 16
+    const w = Math.min(menu.current.offsetWidth, room)
+    const want = align === 'right' ? box.right - w : box.left
+    const x = Math.max(left + 8, Math.min(want, right - 8 - w))
+    setNudge({ left: x - box.left, maxWidth: room })
     const below = bottom - box.bottom
     const above = box.top - top
     const h = menu.current.offsetHeight + 12
@@ -127,6 +145,7 @@ export default function Select({
         {...aria}
       >
         {current?.icon}
+        {current?.thumb && <img src={current.thumb} alt="" className="h-5 w-5 flex-none rounded object-cover object-top" />}
         {current?.color && dot(current.color)}
         <span className={`min-w-0 flex-1 truncate ${current ? 'text-ink-900' : 'text-ink-400'}`}>
           {current ? current.label ?? current.value : placeholder}
@@ -141,7 +160,8 @@ export default function Select({
         <div
           ref={menu}
           role="listbox"
-          className={`absolute z-50 min-w-full w-max max-w-[min(340px,calc(100vw-32px))] max-h-[280px] overflow-y-auto glass-panel rounded-xl p-1.5 animate-fadein ${
+          style={nudge ? { left: nudge.left, right: 'auto', maxWidth: Math.min(340, nudge.maxWidth) } : undefined}
+          className={`absolute z-50 min-w-full w-max max-w-[min(340px,calc(100vw-32px))] ${thumbs ? 'max-h-[360px]' : 'max-h-[280px]'} overflow-y-auto glass-panel rounded-xl p-1.5 animate-fadein ${
             align === 'right' ? 'right-0' : 'left-0'
           } ${up ? 'bottom-[calc(100%+6px)]' : 'top-[calc(100%+6px)]'}`}
         >
@@ -161,11 +181,21 @@ export default function Select({
               >
                 {o.icon}
                 {o.color && dot(o.color)}
+                {thumbs &&
+                  (o.thumb ? (
+                    <img src={o.thumb} alt="" loading="lazy" className="h-12 w-12 flex-none rounded-lg bg-ink-100 object-cover object-top" />
+                  ) : (
+                    <span className="grid h-12 w-12 flex-none place-items-center rounded-lg bg-brand-soft text-[16px] text-brand" aria-hidden="true">
+                      ✦
+                    </span>
+                  ))}
                 <span className="min-w-0 flex-1">
                   <span className={`block text-[12px] truncate ${selected ? 'font-semibold text-ink-900' : 'text-ink-700'}`}>
                     {o.label ?? o.value}
                   </span>
-                  {o.hint && <span className="block text-[10.5px] text-ink-400 truncate">{o.hint}</span>}
+                  {o.hint && (
+                    <span className={`block text-[10.5px] text-ink-400 ${thumbs ? 'line-clamp-2 leading-snug' : 'truncate'}`}>{o.hint}</span>
+                  )}
                 </span>
                 {selected && <FiCheck size={14} className="flex-none text-brand" />}
               </button>

@@ -56,7 +56,7 @@ export default function SectionTabs() {
         {/* Studio · Media Library stay side by side; the other tools follow */}
         {tabs.some((x) => x.to === '/ai') && STUDIO_TABS.slice(1).map((t) => studioTab(t))}
       </div>
-      {/* a page can put its own buttons on this line (the Content studio chat's meter, New chat, History) */}
+      {/* a page can put its own buttons on this line */}
       <div id="section-actions" className="flex flex-none items-center pb-1" />
       </div>
     </nav>

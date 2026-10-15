@@ -8,7 +8,7 @@ import { colorForBrand } from '../lib/brandColor'
 import { useStore } from '../store'
 import MarkdownText from '../components/ui/MarkdownText'
 import Select from '../components/ui/Select'
-import { BrandKitPanel, ProductPhoto } from '../components/brandkit/BrandKit'
+import { BrandKitPanel, ProductPhoto, kitSrc } from '../components/brandkit/BrandKit'
 
 const EMPTY_FORM = { name: '', description: '', highlights: '' }
 const PREVIEW_CHARS = 340
@@ -37,6 +37,8 @@ export default function ProductsPage() {
   // The brand kit is per brand — "All" shows the first one.
   const kitBrand = brands.find((b) => b.slug === brandFilter) || brands[0]
   const photoFor = (p) => assets.find((a) => a.kind === 'product' && a.product_id === p.id)
+  // a brand's own logo from its brand kit, where it uploaded one
+  const logoOf = (brandId) => assets.find((a) => a.kind === 'logo' && a.brand_id === brandId)?.url
   const savePhoto = (saved) =>
     setAssets((xs) => [...xs.filter((x) => !(x.kind === 'product' && x.product_id === saved.product_id)), saved])
 
@@ -164,7 +166,7 @@ export default function ProductsPage() {
                   on ? 'border-brand-line bg-brand-soft text-brand' : 'border-ink-200 bg-white text-ink-600 hover:border-brand-line'
                 }`}
               >
-                <span className="h-2 w-2 flex-none rounded-full" style={{ background: colorForBrand(b.slug) }} />
+                <BrandMark logo={logoOf(b.id)} color={colorForBrand(b.slug)} />
                 {b.name}
                 {view === 'products' && (
                   <span className={`tabular-nums ${on ? 'text-brand' : 'text-ink-400'}`}>{items?.filter((p) => p.brand_id === b.id).length ?? 0}</span>
@@ -186,6 +188,7 @@ export default function ProductsPage() {
           form={form}
           setForm={setForm}
           brands={brands}
+          logoOf={logoOf}
           busy={busy}
           onCancel={cancel}
           onSave={save}
@@ -229,6 +232,7 @@ export default function ProductsPage() {
               key={p.id}
               product={p}
               brandColor={colorForBrand(brandFor(p)?.slug)}
+              brandLogo={logoOf(brandFor(p)?.id)}
               brandName={brandFor(p)?.name || 'No brand'}
               expanded={!!expanded[p.id]}
               onToggleExpanded={() => setExpanded((e) => ({ ...e, [p.id]: !e[p.id] }))}
@@ -277,7 +281,21 @@ export default function ProductsPage() {
   )
 }
 
-function ProductCard({ product, brandColor, brandName, expanded, onToggleExpanded, onEdit, onDelete, photo }) {
+/** A brand's logo (from its brand kit) as a small rounded tile — or its colour
+ *  dot when it hasn't uploaded one. */
+function BrandMark({ logo, color, size = 18 }) {
+  if (!logo) return <span className="h-2 w-2 flex-none rounded-full" style={{ background: color }} />
+  return (
+    <img
+      src={kitSrc(logo)}
+      alt=""
+      style={{ width: size, height: size }}
+      className="flex-none rounded-[5px] bg-white object-contain ring-1 ring-ink-200"
+    />
+  )
+}
+
+function ProductCard({ product, brandColor, brandLogo, brandName, expanded, onToggleExpanded, onEdit, onDelete, photo }) {
   const parts = (product.highlights || '').split(/[;\n]+/).map((s) => s.trim()).filter(Boolean)
   const long = (product.description || '').length > PREVIEW_CHARS
 
@@ -287,7 +305,11 @@ function ProductCard({ product, brandColor, brandName, expanded, onToggleExpande
         className="px-4 pt-4 pb-3 flex items-center gap-2 border-b border-ink-100"
         style={{ background: `${brandColor}08` }}
       >
-        <span className="w-2 h-2 rounded-full flex-none" style={{ background: brandColor, boxShadow: `0 0 8px ${brandColor}40` }} />
+        {brandLogo ? (
+          <BrandMark logo={brandLogo} size={16} />
+        ) : (
+          <span className="w-2 h-2 rounded-full flex-none" style={{ background: brandColor, boxShadow: `0 0 8px ${brandColor}40` }} />
+        )}
         <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: brandColor }}>
           {brandName}
         </span>
@@ -357,7 +379,7 @@ const fieldClass =
 
 /** Right-hand slide-over for adding or editing a product — same pattern as
  * Create brand, so the product grid stays put underneath. */
-function ProductForm({ form, setForm, brands, busy, onCancel, onSave, title }) {
+function ProductForm({ form, setForm, brands, logoOf, busy, onCancel, onSave, title }) {
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onCancel()
     window.addEventListener('keydown', onKey)
@@ -409,7 +431,12 @@ function ProductForm({ form, setForm, brands, busy, onCancel, onSave, title }) {
                 size="lg"
                 value={form.brand_id ?? ''}
                 onChange={(brand_id) => setForm((f) => ({ ...f, brand_id }))}
-                options={brands.map((b) => ({ value: b.id, label: b.name, color: colorForBrand(b.slug) }))}
+                options={brands.map((b) => {
+                  const logo = logoOf(b.id)
+                  return logo
+                    ? { value: b.id, label: b.name, icon: <BrandMark logo={logo} /> }
+                    : { value: b.id, label: b.name, color: colorForBrand(b.slug) }
+                })}
               />
             </div>
             <label className="block">

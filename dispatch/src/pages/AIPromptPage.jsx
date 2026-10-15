@@ -39,6 +39,7 @@ import { kitSrc, TemplatePicker } from '../components/brandkit/BrandKit'
 import { MOTION_OFF_TIP, useMotionReady } from '../lib/motionStatus'
 import WriterModelSelect, { useWriterModels, writerHint } from '../components/studio/WriterModelSelect'
 import { aiModelStore } from '../api/client'
+import { MOTION_TEMPLATES } from '../lib/motionTemplates'
 
 // AI Agent — one chat for both asking and creating. A message that reads
 // like a question ("how is my engagement?", "what should I post next?") goes
@@ -195,6 +196,12 @@ const MOTION_STORIES = [
   { value: 'demo', label: 'Product demo', hint: 'Your product in an app window, step by step — shows the solution' },
   { value: 'offer', label: 'Offer · Pricing', hint: 'A glowing pricing card and one clear action — conversion (prices only from your brief)' },
 ]
+// The Story menu: each template with its preview picture (public/templates/,
+// as in Content studio → Templates) so people see what it looks like.
+const STORY_OPTIONS = MOTION_STORIES.map((o) => {
+  const t = MOTION_TEMPLATES.find((x) => x.story === o.value)
+  return t ? { ...o, thumb: `/templates/${t.id}.jpg` } : o
+})
 
 export default function AIPromptPage({ embedded = false, preset = null }) {
   const navigate = useNavigate()
@@ -238,11 +245,12 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
   const [uploading, setUploading] = useState(false)
   const [writing, setWriting] = useState(false)
   const [intentPick, setIntentPick] = useState(null) // null = auto | 'ask' | 'create'
-  // Embedded in the Content studio: our header buttons go on the section-tabs
-  // line (SectionTabs #section-actions), next to Studio | Media Library.
+  // Embedded in the Content studio: our header buttons go on its title line
+  // (ContentStudioPage #studio-actions) — on the tabs line they squeezed the
+  // tabs on a phone.
   const [actionsSlot, setActionsSlot] = useState(null)
   useEffect(() => {
-    setActionsSlot(embedded ? document.getElementById('section-actions') : null)
+    setActionsSlot(embedded ? document.getElementById('studio-actions') : null)
   }, [embedded])
 
   // thread
@@ -256,7 +264,6 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
 
   const bottomRef = useRef(null)
   const composerRef = useRef(null)
-  const settingsRef = useRef(null)
 
   const brandObj = brands.find((b) => b.slug === brand) || brands[0]
   const isImage = type === 'image'
@@ -328,16 +335,6 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
       setIntentPick('create')
     }
   }, [preset])
-
-  // Close the settings popover on an outside click.
-  useEffect(() => {
-    if (!settingsOpen) return
-    const onDown = (e) => {
-      if (!settingsRef.current?.contains(e.target)) setSettingsOpen(false)
-    }
-    document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
-  }, [settingsOpen])
 
   // The brand kit follows the chosen brand; its logo is on by default.
   useEffect(() => {
@@ -966,6 +963,12 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
     else if (e.dataTransfer?.files?.length) showToast('Reference must be an image')
   }
 
+  // The template list depends on the type — a type set elsewhere (a Templates
+  // hand-over, a preset) must not leave a template from the other list behind.
+  useEffect(() => {
+    if (!TEMPLATES[type].includes(template)) setTemplate(TEMPLATES[type][0])
+  }, [type, template])
+
   const chooseType = (t) => {
     setType(t)
     setRatio(t === 'image' ? '1:1' : '9:16')
@@ -1030,8 +1033,8 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
 
   const canSend = (intent === 'ask' ? text.trim().length >= 2 : text.trim().length >= 10) && !uploading && !writing
 
-  // New chat and History — in the Content studio they sit on
-  // the section-tabs line (SectionTabs #section-actions), else in this header.
+  // New chat and History — in the Content studio they sit on its title line
+  // (#studio-actions), else in this header.
   const actions = (
     <div className="flex flex-none items-center gap-0.5 sm:gap-1">
       <button
@@ -1163,12 +1166,10 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
 
       {/* composer */}
       <div className="composer-dock sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] lg:bottom-0 z-20 -mx-5 lg:-mx-10 px-5 lg:px-10 pb-5 pt-6 bg-gradient-to-t from-canvas via-canvas to-transparent">
-        {/* While a composer popover is open the page behind dims and softly
-            blurs; the composer and the popover stay sharp on top. A tap on it
-            closes the popover (the outside-click handlers). */}
-        {(settingsOpen || kitOpen) && (
-          <div className="fixed inset-0 bg-night-950/25 backdrop-blur-[3px] animate-fadein" aria-hidden="true" />
-        )}
+        {/* While the Brand kit popover is open the page behind dims (plain, no
+            blur); the composer and the popover stay on top. A tap on it closes
+            the popover (its outside-click handler). */}
+        {kitOpen && <div className="fixed inset-0 bg-night-950/40 animate-fadein" aria-hidden="true" />}
         <div
           ref={composerRef}
           onDragOver={(e) => {
@@ -1301,7 +1302,8 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
 
           <div className="flex items-center gap-1 px-2.5 pb-2.5">
             {/* settings */}
-            <div className="relative" ref={settingsRef}>
+            {/* the settings open as a drawer from the right (SettingsPopover) */}
+            <div>
               <button
                 type="button"
                 onClick={() => setSettingsOpen((v) => !v)}
@@ -1324,6 +1326,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
               </button>
               {settingsOpen && (
                 <SettingsPopover
+                  onClose={() => setSettingsOpen(false)}
                   type={type}
                   setType={chooseType}
                   ratio={ratio}
@@ -2204,10 +2207,14 @@ function SettingsPopover({
   motionReview = true, setMotionReview = () => {}, motionLength = 'auto', setMotionLength = () => {},
   motionRatio = '16:9', setMotionRatio = () => {},
   voice, setVoice, brands, brand, setBrand, style, setStyle, template, setTemplate,
-  products = [], product, setProduct,
+  products = [], product, setProduct, onClose,
 }) {
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
   const motionReady = useMotionReady() // false: this server can't render Remotion videos
-  const [more, setMore] = useState(false)
   const writers = useWriterModels()
   const story = type === 'video' && videoMode === 'story'
   const motion = type === 'video' && videoMode === 'motion'
@@ -2217,25 +2224,26 @@ function SettingsPopover({
       on ? 'bg-white text-brand shadow-sm' : 'text-ink-600 hover:text-ink-900'
     }`
   const ratios = RATIOS.filter((r) => !(story && r.id === '1:1'))
-  // what "More options" holds, in a few words — so a changed setting isn't a surprise
-  const writerPick = aiModelStore.get()
-  const writerLabel = (writers?.models || []).length > 1 ? (writers.models.find((m) => m.key === (writerPick || writers.default || writers.platform_default))?.label || '') : ''
-  const moreSummary = [
-    ...(motion
-      ? [
-          motionReview ? 'Review first' : 'Make directly',
-          motionReview ? (motionLength === 'auto' ? 'Auto length' : `${Number(motionLength) / 60} min`) : '',
-          motionMusic ? 'Music on' : 'No music',
-        ]
-      : [template, style]),
-    writerLabel,
-  ]
-    .filter(Boolean)
-    .join(' · ')
   const ratioOn = (id) => ratio === id || (story && ratio === '1:1' && id === '9:16')
 
-  return (
-    <div className="absolute bottom-full left-0 mb-2 max-h-[calc(100dvh-15rem)] w-[360px] max-w-[calc(100vw-40px)] overflow-y-auto overscroll-contain rounded-2xl border border-ink-200/80 bg-white p-3.5 shadow-[0_18px_50px_-12px_rgba(16,24,40,0.28)] animate-fadein md:w-[700px]">
+  // A right-side slide-over drawer, like every form in the app: plain dim
+  // backdrop (no blur), ✕ / a tap outside / Esc closes it.
+  return createPortal(
+    <div className="fixed inset-0 z-[110]">
+      <button type="button" aria-label="Close" onClick={onClose} className="absolute inset-0 cursor-default bg-night-950/30 animate-fadein" />
+      <aside
+        role="dialog"
+        aria-modal="true"
+        aria-label="Settings"
+        className="absolute right-0 top-0 flex h-full w-full max-w-[440px] flex-col border-l border-ink-200 bg-white shadow-drawer animate-drawer-in"
+      >
+        <div className="flex items-center gap-3 border-b border-ink-100 px-5 py-4">
+          <h2 className="flex-1 text-[15px] font-semibold text-ink-900">Settings</h2>
+          <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-ink-400 hover:bg-ink-100" aria-label="Close">
+            <FiX size={16} />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-5 py-4">
       <div className="flex rounded-xl bg-ink-100 p-1">
         <button type="button" className={seg(type === 'image')} onClick={() => setType('image')}>
           <FiImage size={14} /> Image
@@ -2245,8 +2253,7 @@ function SettingsPopover({
         </button>
       </div>
 
-      {/* two columns on a wide screen — one long column was taller than the page */}
-      <div className="mt-1 grid md:grid-cols-2 md:gap-x-6">
+      <div className="mt-1">
         {type === 'video' && (
           <Row
             label="Type"
@@ -2280,7 +2287,7 @@ function SettingsPopover({
 
         {motion && (
           <Row label="Story" hint={(MOTION_STORIES.find((o) => o.value === motionGoal) || MOTION_STORIES[0]).hint}>
-            <Select size="sm" className="min-w-0 flex-1" value={motionGoal} onChange={setMotionGoal} options={MOTION_STORIES} />
+            <Select size="sm" className="min-w-0 flex-1" value={motionGoal} onChange={setMotionGoal} options={STORY_OPTIONS} />
           </Row>
         )}
 
@@ -2413,20 +2420,10 @@ function SettingsPopover({
         )}
       </div>
 
-      {/* the settings people rarely change — their current values on the line */}
-      <button
-        type="button"
-        onClick={() => setMore((v) => !v)}
-        aria-expanded={more}
-        className="mt-1 flex w-full items-center gap-1.5 rounded-lg px-1 py-1.5 text-[11.5px] font-medium text-ink-500 hover:text-ink-800"
-      >
-        <span className={`inline-block transition-transform duration-150 ${more ? 'rotate-90' : ''}`}>›</span>
-        More options
-        {!more && <span className="ml-auto truncate text-ink-400">{moreSummary}</span>}
-      </button>
-      {more && (
-        <div className="rounded-xl bg-ink-50 px-2.5 pb-1">
-          <div className="grid grid-cols-1 md:grid-cols-2 md:gap-x-6">
+      {/* the settings people change less often — all open; the drawer scrolls */}
+      <div className="mt-5 text-[10.5px] font-bold uppercase tracking-[.08em] text-ink-400">More</div>
+        <div>
+          <div>
         {motion && (
           <Row
             label="Storyboard"
@@ -2494,19 +2491,20 @@ function SettingsPopover({
         <WriterRow />
           </div>
           {!motion && (
-            <div className="space-y-2 py-2.5">
-              <p className="text-[11px] leading-snug text-ink-500">
-                Used by <span className="text-brand">✦</span> Write it for me when it turns your idea into a full prompt.
-              </p>
-              <div className="flex gap-2">
-                <Select size="sm" className="min-w-0 flex-1" value={template} onChange={setTemplate} options={TEMPLATES[type].map((x) => ({ value: x }))} />
-                <Select size="sm" align="right" className="min-w-0 flex-1" value={style} onChange={setStyle} options={STYLES.map((x) => ({ value: x }))} />
-              </div>
-            </div>
+            <>
+              <Row label="Template" hint={<>Used by <span className="text-brand">✦</span> Write it for me when it turns your idea into a full prompt</>}>
+                <Select size="sm" value={template} onChange={setTemplate} options={TEMPLATES[type].map((x) => ({ value: x }))} />
+              </Row>
+              <Row label="Style">
+                <Select size="sm" value={style} onChange={setStyle} options={STYLES.map((x) => ({ value: x }))} />
+              </Row>
+            </>
           )}
         </div>
-      )}
-    </div>
+        </div>
+      </aside>
+    </div>,
+    document.body,
   )
 }
 
