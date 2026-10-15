@@ -480,7 +480,8 @@ export default function NewPostPage() {
             </button>
           )}
         </div>
-        <div className="flex gap-2">
+        {/* phones: a 2×2 grid (four buttons don't fit one row); a row from sm up */}
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto [&>button]:justify-center">
           <button
             type="button"
             onClick={() => showToast("Saved as draft")}

@@ -6,7 +6,7 @@ export default function ChannelPicker({ brands, channels, selectedChannels, togg
   return (
     <section className="mb-7">
       <h2 className="mb-2.5 text-[10px] font-bold tracking-[.08em] uppercase text-ink-400">Where it goes</h2>
-      <div className="grid sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {brands.map((b) => {
           const channelRows = channels.filter((c) => c.b === b.slug)
           const color = colorForBrand(b.slug)

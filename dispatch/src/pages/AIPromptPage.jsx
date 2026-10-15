@@ -301,7 +301,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
       setText(idea)
       showToast('Idea loaded — press ✦ to turn it into a full prompt, or send it as is')
     }
-    // Keep ?tab= — dropping it would switch the Content studio back to Video builder.
+    // Keep ?tab= — dropping it would switch the Content studio back to Studio (the video builder).
     navigate(`${location.pathname}${location.search}`, { replace: true, state: null })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -320,15 +320,12 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
     }
   }, [brandObj?.id])
 
-  // Opened from a Content studio tab: Images starts on making an image; Copy
-  // per channel starts on asking (captions and copy are written as answers).
+  // Opened from the Content studio's Quick content tab: starts on making an image.
   useEffect(() => {
     if (location.state?.motionStory) return // opened from a template — stays on Remotion
     if (preset === 'images') {
       setType('image')
       setIntentPick('create')
-    } else if (preset === 'copy') {
-      setIntentPick('ask')
     }
   }, [preset])
 
@@ -1166,6 +1163,12 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
 
       {/* composer */}
       <div className="composer-dock sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] lg:bottom-0 z-20 -mx-5 lg:-mx-10 px-5 lg:px-10 pb-5 pt-6 bg-gradient-to-t from-canvas via-canvas to-transparent">
+        {/* While a composer popover is open the page behind dims and softly
+            blurs; the composer and the popover stay sharp on top. A tap on it
+            closes the popover (the outside-click handlers). */}
+        {(settingsOpen || kitOpen) && (
+          <div className="fixed inset-0 bg-night-950/25 backdrop-blur-[3px] animate-fadein" aria-hidden="true" />
+        )}
         <div
           ref={composerRef}
           onDragOver={(e) => {
@@ -2205,6 +2208,7 @@ function SettingsPopover({
 }) {
   const motionReady = useMotionReady() // false: this server can't render Remotion videos
   const [more, setMore] = useState(false)
+  const writers = useWriterModels()
   const story = type === 'video' && videoMode === 'story'
   const motion = type === 'video' && videoMode === 'motion'
   const motionLang = /english/i.test(voice || '') && !/khmer/i.test(voice || '') ? 'English' : 'Khmer'
@@ -2213,10 +2217,25 @@ function SettingsPopover({
       on ? 'bg-white text-brand shadow-sm' : 'text-ink-600 hover:text-ink-900'
     }`
   const ratios = RATIOS.filter((r) => !(story && r.id === '1:1'))
+  // what "More options" holds, in a few words — so a changed setting isn't a surprise
+  const writerPick = aiModelStore.get()
+  const writerLabel = (writers?.models || []).length > 1 ? (writers.models.find((m) => m.key === (writerPick || writers.default || writers.platform_default))?.label || '') : ''
+  const moreSummary = [
+    ...(motion
+      ? [
+          motionReview ? 'Review first' : 'Make directly',
+          motionReview ? (motionLength === 'auto' ? 'Auto length' : `${Number(motionLength) / 60} min`) : '',
+          motionMusic ? 'Music on' : 'No music',
+        ]
+      : [template, style]),
+    writerLabel,
+  ]
+    .filter(Boolean)
+    .join(' · ')
   const ratioOn = (id) => ratio === id || (story && ratio === '1:1' && id === '9:16')
 
   return (
-    <div className="absolute bottom-full left-0 mb-2 w-[360px] max-w-[calc(100vw-40px)] rounded-2xl border border-ink-200/80 bg-white p-3.5 shadow-[0_18px_50px_-12px_rgba(16,24,40,0.28)] animate-fadein">
+    <div className="absolute bottom-full left-0 mb-2 max-h-[calc(100dvh-15rem)] w-[360px] max-w-[calc(100vw-40px)] overflow-y-auto overscroll-contain rounded-2xl border border-ink-200/80 bg-white p-3.5 shadow-[0_18px_50px_-12px_rgba(16,24,40,0.28)] animate-fadein md:w-[700px]">
       <div className="flex rounded-xl bg-ink-100 p-1">
         <button type="button" className={seg(type === 'image')} onClick={() => setType('image')}>
           <FiImage size={14} /> Image
@@ -2226,7 +2245,8 @@ function SettingsPopover({
         </button>
       </div>
 
-      <div className="mt-2 divide-y divide-ink-100">
+      {/* two columns on a wide screen — one long column was taller than the page */}
+      <div className="mt-1 grid md:grid-cols-2 md:gap-x-6">
         {type === 'video' && (
           <Row
             label="Type"
@@ -2266,28 +2286,6 @@ function SettingsPopover({
 
         {motion && (
           <Row
-            label="Storyboard"
-            hint={
-              motionReview
-                ? 'Paste your story — the AI plans the scenes, you check and edit them, then make the video'
-                : 'Straight to the video — the AI writes and renders it in one go'
-            }
-          >
-            <Segmented>
-              {[
-                [true, 'Review first'],
-                [false, 'Make directly'],
-              ].map(([v, label]) => (
-                <button key={label} type="button" onClick={() => setMotionReview(v)} className={`${seg(motionReview === v)} px-0 text-[11.5px]`}>
-                  {label}
-                </button>
-              ))}
-            </Segmented>
-          </Row>
-        )}
-
-        {motion && (
-          <Row
             label="Size"
             hint={
               motionRatio === 'auto'
@@ -2304,48 +2302,6 @@ function SettingsPopover({
                 ['16:9', '16:9'],
               ].map(([v, label]) => (
                 <button key={v} type="button" onClick={() => setMotionRatio(v)} className={`${seg(motionRatio === v)} px-0 text-[11.5px]`}>
-                  {label}
-                </button>
-              ))}
-            </Segmented>
-          </Row>
-        )}
-
-        {motion && motionReview && (
-          <Row
-            label="Length"
-            hint={motionLength === 'auto' ? `As long as your story needs — 30 s to ${motionGoal === 'training' || motionGoal === 'auto' ? '10 min for a training, 2' : '2'} min` : 'About this long'}
-          >
-            <Segmented>
-              {(motionGoal === 'training' || motionGoal === 'auto'
-                ? [
-                    ['auto', 'Auto'],
-                    ['120', '2 min'],
-                    ['300', '5 min'],
-                    ['600', '10 min'],
-                  ]
-                : [
-                    ['auto', 'Auto'],
-                    ['60', '1 min'],
-                    ['120', '2 min'],
-                  ]
-              ).map(([v, label]) => (
-                <button key={v} type="button" onClick={() => setMotionLength(v)} className={`${seg(motionLength === v)} px-0 text-[11.5px]`}>
-                  {label}
-                </button>
-              ))}
-            </Segmented>
-          </Row>
-        )}
-
-        {motion && (
-          <Row label="Music" hint={motionMusic ? 'A track matched to the mood, quiet under the voice' : 'No background music'}>
-            <Segmented>
-              {[
-                [true, 'On'],
-                [false, 'Off'],
-              ].map(([v, label]) => (
-                <button key={label} type="button" onClick={() => setMotionMusic(v)} className={`${seg(motionMusic === v)} px-0 text-[11.5px]`}>
                   {label}
                 </button>
               ))}
@@ -2434,8 +2390,6 @@ function SettingsPopover({
           </Row>
         )}
 
-        <WriterRow />
-
         <Row label="Brand">
           <Select
             size="sm"
@@ -2459,6 +2413,7 @@ function SettingsPopover({
         )}
       </div>
 
+      {/* the settings people rarely change — their current values on the line */}
       <button
         type="button"
         onClick={() => setMore((v) => !v)}
@@ -2467,17 +2422,88 @@ function SettingsPopover({
       >
         <span className={`inline-block transition-transform duration-150 ${more ? 'rotate-90' : ''}`}>›</span>
         More options
-        {!more && <span className="ml-auto truncate text-ink-400">{template} · {style}</span>}
+        {!more && <span className="ml-auto truncate text-ink-400">{moreSummary}</span>}
       </button>
       {more && (
-        <div className="space-y-2 rounded-xl bg-ink-50 p-2.5">
-          <p className="text-[11px] leading-snug text-ink-500">
-            Used by <span className="text-brand">✦</span> Write it for me when it turns your idea into a full prompt.
-          </p>
-          <div className="flex gap-2">
-            <Select size="sm" className="min-w-0 flex-1" value={template} onChange={setTemplate} options={TEMPLATES[type].map((x) => ({ value: x }))} />
-            <Select size="sm" align="right" className="min-w-0 flex-1" value={style} onChange={setStyle} options={STYLES.map((x) => ({ value: x }))} />
+        <div className="rounded-xl bg-ink-50 px-2.5 pb-1">
+          <div className="grid grid-cols-1 md:grid-cols-2 md:gap-x-6">
+        {motion && (
+          <Row
+            label="Storyboard"
+            hint={
+              motionReview
+                ? 'Paste your story — the AI plans the scenes, you check and edit them, then make the video'
+                : 'Straight to the video — the AI writes and renders it in one go'
+            }
+          >
+            <Segmented>
+              {[
+                [true, 'Review first'],
+                [false, 'Make directly'],
+              ].map(([v, label]) => (
+                <button key={label} type="button" onClick={() => setMotionReview(v)} className={`${seg(motionReview === v)} px-0 text-[11.5px]`}>
+                  {label}
+                </button>
+              ))}
+            </Segmented>
+          </Row>
+        )}
+
+        {motion && motionReview && (
+          <Row
+            label="Length"
+            hint={motionLength === 'auto' ? `As long as your story needs — 30 s to ${motionGoal === 'training' || motionGoal === 'auto' ? '10 min for a training, 2' : '2'} min` : 'About this long'}
+          >
+            <Segmented>
+              {(motionGoal === 'training' || motionGoal === 'auto'
+                ? [
+                    ['auto', 'Auto'],
+                    ['120', '2 min'],
+                    ['300', '5 min'],
+                    ['600', '10 min'],
+                  ]
+                : [
+                    ['auto', 'Auto'],
+                    ['60', '1 min'],
+                    ['120', '2 min'],
+                  ]
+              ).map(([v, label]) => (
+                <button key={v} type="button" onClick={() => setMotionLength(v)} className={`${seg(motionLength === v)} px-0 text-[11.5px]`}>
+                  {label}
+                </button>
+              ))}
+            </Segmented>
+          </Row>
+        )}
+
+        {motion && (
+          <Row label="Music" hint={motionMusic ? 'A track matched to the mood, quiet under the voice' : 'No background music'}>
+            <Segmented>
+              {[
+                [true, 'On'],
+                [false, 'Off'],
+              ].map(([v, label]) => (
+                <button key={label} type="button" onClick={() => setMotionMusic(v)} className={`${seg(motionMusic === v)} px-0 text-[11.5px]`}>
+                  {label}
+                </button>
+              ))}
+            </Segmented>
+          </Row>
+        )}
+
+        <WriterRow />
           </div>
+          {!motion && (
+            <div className="space-y-2 py-2.5">
+              <p className="text-[11px] leading-snug text-ink-500">
+                Used by <span className="text-brand">✦</span> Write it for me when it turns your idea into a full prompt.
+              </p>
+              <div className="flex gap-2">
+                <Select size="sm" className="min-w-0 flex-1" value={template} onChange={setTemplate} options={TEMPLATES[type].map((x) => ({ value: x }))} />
+                <Select size="sm" align="right" className="min-w-0 flex-1" value={style} onChange={setStyle} options={STYLES.map((x) => ({ value: x }))} />
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -2498,13 +2524,18 @@ function WriterRow() {
 
 function Row({ label, hint, children }) {
   return (
-    <div className="flex items-center gap-3 py-2.5">
+    <div className="flex items-center gap-3 border-b border-ink-100 py-2.5">
       <div className="w-14 flex-none">
         <div className="text-[12px] font-semibold text-ink-700">{label}</div>
       </div>
       <div className="min-w-0 flex-1">
         {children}
-        {hint && <div className="mt-1 text-[10.5px] text-ink-400">{hint}</div>}
+        {/* up to two lines — the whole hint on hover */}
+        {hint && (
+          <div className="mt-1 line-clamp-2 text-[10.5px] leading-snug text-ink-400" title={typeof hint === 'string' ? hint : undefined}>
+            {hint}
+          </div>
+        )}
       </div>
     </div>
   )

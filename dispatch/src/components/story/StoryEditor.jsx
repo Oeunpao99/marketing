@@ -439,7 +439,7 @@ export default function StoryEditor({ storyId, compact = false, onDeleted, onSto
 
       {showFinal && <ResultCard story={story} voice={voice} onUseFinal={useFinal} onLibrary={() => navigate('/library')} />}
 
-      <div className="grid items-start gap-5 xl:grid-cols-[minmax(280px,340px)_minmax(0,1fr)] 2xl:grid-cols-[360px_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(280px,340px)_minmax(0,1fr)] 2xl:grid-cols-[360px_minmax(0,1fr)]">
         {/* ── Brief ── */}
         <aside className={`${card} space-y-4 p-5 xl:sticky xl:top-[calc(4.5rem+var(--tabs-h,0px)+var(--studio-head,0px))]`}>
           <div>
@@ -490,7 +490,7 @@ export default function StoryEditor({ storyId, compact = false, onDeleted, onSto
               Check each clip — change any text — then <b className="text-ink-700">Generate clips</b>. Nothing is made, or charged, before that.
             </p>
           )}
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
             {story.scenes.map((scene, index) => (
               <ClipCard
                 key={scene.key}

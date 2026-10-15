@@ -128,7 +128,7 @@ export default function VideoBuilder() {
   }
 
   return (
-    <div className="grid items-start gap-5 xl:grid-cols-[minmax(300px,380px)_minmax(0,1fr)]">
+    <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(300px,380px)_minmax(0,1fr)]">
       {/* ── Brief ── */}
       <section className={`${card} p-5`}>
         <h2 className="text-[15px] font-semibold text-ink-900">Brief</h2>

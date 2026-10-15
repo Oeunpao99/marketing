@@ -178,7 +178,7 @@ export function TopContentGrid({ rows, icons, mediaSrc, onOpen, engagementOf }) 
     )
   }
   return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
       {rows.map((it, i) => {
         const m = it.metrics || {}
         const Icon = icons[it.platform_slug] || FiGrid
@@ -256,7 +256,7 @@ const KIND_ICON = { format: FiPlay, timing: FiClock, platform: FiLayers, questio
 
 export function InsightCards({ items }) {
   return (
-    <div className="grid gap-3 md:grid-cols-2">
+    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
       {items.map((it) => {
         const Icon = KIND_ICON[it.kind] || FiTarget
         const max = Math.max(...it.evidence.map((e) => e.value), 1)
@@ -334,7 +334,7 @@ export function Funnel({ steps }) {
 
 export function ActionCards({ items }) {
   return (
-    <div className="grid gap-4 md:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
       {items.map((a) => (
         <div key={a.id} className={`${cardCls} flex flex-col p-4`}>
           <div className="text-[14px] font-semibold text-ink-900">{a.title}</div>

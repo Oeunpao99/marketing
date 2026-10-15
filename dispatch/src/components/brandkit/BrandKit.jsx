@@ -84,7 +84,7 @@ export function BrandKitPanel({ brand, assets, setAssets, showToast }) {
   }
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
+    <div className="grid grid-cols-1 gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
       {/* logo */}
       <section className="card p-5">
         <h2 className="text-[14.5px] font-semibold text-ink-900">Logo</h2>

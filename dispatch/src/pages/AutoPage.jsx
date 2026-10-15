@@ -179,7 +179,67 @@ export default function AutoPage() {
         </Link>
       </div>
 
-      <div className={`${card} overflow-hidden`}>
+      {/* Phones: one card per brand — the 760px table only scrolled sideways
+          there (scrollbars are hidden, so it looked cut off). */}
+      <div className="space-y-3 sm:hidden">
+        {auto === null
+          ? [0, 1].map((n) => (
+              <div key={n} className={`${card} p-4`}>
+                <div className="h-4 w-1/2 rounded skeleton" />
+              </div>
+            ))
+          : auto.map((a) => {
+              const topic = TOPIC_SOURCES.find((t) => t.value === a.topic_source)?.short || a.topic_source || '—'
+              const facts = [
+                ['Schedule', a.enabled ? `${a.plan_every === 'day' ? 'Daily' : 'Weekly'} plan · ${Math.min(a.videos_per_day, 2)}/day` : null],
+                ['Topics', a.enabled ? topic : null],
+                ['Mode', a.enabled ? modeOf(a) : null],
+                ['Media', a.auto_media ? 'On' : 'Off'],
+              ]
+              return (
+                <div key={a.id} onClick={() => setEditId(a.id)} className={`${card} cursor-pointer p-4`}>
+                  <div className="flex items-center gap-2.5">
+                    <span className="h-2.5 w-2.5 flex-none rounded-full" style={{ background: colorForBrand(a.brand_slug) }} />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[13.5px] font-semibold text-ink-900">{a.brand_name}</div>
+                      <div className="text-[11.5px] text-ink-500">
+                        {a.brand_lang || 'No language set'}
+                        {a.learn_from_results && a.learnings?.rules?.length > 0 && (
+                          <span className="ml-1.5 inline-flex items-center gap-1 text-emerald-700">
+                            <FiTrendingUp size={11} aria-hidden="true" /> learning from {a.learnings.rules.length} result
+                            {a.learnings.rules.length === 1 ? '' : 's'}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <Toggle on={a.enabled} onChange={(v) => update(a, { enabled: v })} />
+                    </div>
+                  </div>
+                  <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 border-t border-ink-100 pt-3">
+                    {facts.map(([label, value]) => (
+                      <div key={label} className="min-w-0">
+                        <dt className="text-[10.5px] font-semibold uppercase tracking-[.06em] text-ink-400">{label}</dt>
+                        <dd className="truncate text-[12.5px] text-ink-700">{value ?? <span className="text-ink-300">—</span>}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                  <div className="mt-3 flex gap-2" onClick={(e) => e.stopPropagation()}>
+                    {a.enabled && (
+                      <button type="button" onClick={() => openPlan(a)} className="btn-outline flex-1 justify-center">
+                        Open plan <FiArrowRight size={14} />
+                      </button>
+                    )}
+                    <button type="button" onClick={() => setEditId(a.id)} className="btn-ghost flex-1 justify-center">
+                      <FiSettings size={14} /> Settings
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+      </div>
+
+      <div className={`${card} hidden overflow-hidden sm:block`}>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse min-w-[760px]">
             <thead>

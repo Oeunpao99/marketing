@@ -4,7 +4,6 @@ import { applyTheme, isDark } from "../../lib/theme";
 import { openMoreSheet } from "./MobileBar";
 import { useEffect, useState } from "react";
 import Notifications from "./Notifications";
-import StudioSwitcher from "../studio/StudioSwitcher";
 import { useAuth } from "../../auth";
 import { useStore } from "../../store";
 import { useNotifications } from "../../lib/notifications";
@@ -111,8 +110,6 @@ export default function Topbar({ onToggleSidebar }) {
           ⌘ K
         </kbd>
       </button>
-
-      <StudioSwitcher />
 
       <button
         type="button"

@@ -62,7 +62,7 @@ export default function SalesTeamTab({ reps, canManage, onChanged, showToast }) 
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
           ['Reps', `${active.length}`, `${reps.length - active.length ? `${reps.length - active.length} inactive · ` : ''}${totals.inPortal} in the portal`],
           ['Open leads', `${totals.open}`, `of ${totals.capacity} the team can carry`],
@@ -262,7 +262,7 @@ function RepDrawer({ rep, reps, members, busy, onClose, onSave }) {
             <span className="label">Name *</span>
             <input autoFocus required className={FIELD} value={f.name} onChange={set('name')} placeholder="Dara Kim" />
           </label>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="block">
               <span className="label">Email</span>
               <input className={FIELD} value={f.email} onChange={set('email')} placeholder="dara@company.com" type="email" />
@@ -281,7 +281,7 @@ function RepDrawer({ rep, reps, members, busy, onClose, onSave }) {
             <input className={FIELD} value={f.industries} onChange={set('industries')} placeholder="Retail, E-commerce" />
             <span className="mt-1 block text-[11px] text-ink-400">Comma separated. Leads in these industries go to them first.</span>
           </label>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="block">
               <span className="label">Open-lead limit</span>
               <input type="number" min="1" className={FIELD} value={f.capacity} onChange={set('capacity')} />

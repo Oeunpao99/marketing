@@ -459,8 +459,8 @@ def admin_ai_usage(days: int = 30, db: Session = Depends(get_db)):
         t["charged"] = round(t["charged"] + r["charged"], 4)
     by_model: dict[str, dict] = {}
     for r in rows:
-        m = by_model.setdefault(r["model"], {"model": r["model"], "calls": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0, "charged": 0.0})
-        for k in ("calls", "input_tokens", "output_tokens"):
+        m = by_model.setdefault(r["model"], {"model": r["model"], "calls": 0, "input_tokens": 0, "output_tokens": 0, "tokens": 0, "cost": 0.0, "charged": 0.0})
+        for k in ("calls", "input_tokens", "output_tokens", "tokens"):
             m[k] += r[k]
         m["cost"] = round(m["cost"] + r["cost"], 4)
         m["charged"] = round(m["charged"] + r["charged"], 4)

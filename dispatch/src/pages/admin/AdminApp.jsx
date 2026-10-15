@@ -194,7 +194,7 @@ function AdminPortal({ onSignOut }) {
       type="button"
       onClick={() => setTab(t.id)}
       aria-current={tab === t.id ? 'page' : undefined}
-      className={`flex items-center gap-2.5 rounded-xl text-[13.5px] font-semibold transition-colors ${compact ? 'px-3 py-1.5' : 'w-full px-3 py-2.5'} ${
+      className={`flex flex-none items-center gap-2.5 whitespace-nowrap rounded-xl text-[13.5px] font-semibold transition-colors ${compact ? 'px-3 py-1.5' : 'w-full px-3 py-2.5'} ${
         tab === t.id ? 'bg-brand-soft text-brand' : 'text-ink-600 hover:bg-ink-50 hover:text-ink-900'
       }`}
     >
@@ -226,9 +226,10 @@ function AdminPortal({ onSignOut }) {
 
       {/* top bar (phone / tablet) */}
       <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-ink-200/70 bg-white px-4 py-2.5 lg:hidden">
-        {brandMark}
-        <nav className="ml-auto flex gap-1">{TABS.map((t) => navItem(t, true))}</nav>
-        <button type="button" onClick={onSignOut} aria-label="Sign out" className="grid h-9 w-9 place-items-center rounded-lg text-ink-500 hover:bg-ink-50">
+        {/* a phone: the logo alone, the pages in one line (it scrolls if they don't fit) */}
+        <img src="/brand/logo-mark.png" alt="ContentFlow admin" className="h-8 w-8 flex-none object-contain" />
+        <nav className="ml-auto flex min-w-0 gap-1 overflow-x-auto">{TABS.map((t) => navItem(t, true))}</nav>
+        <button type="button" onClick={onSignOut} aria-label="Sign out" className="grid h-9 w-9 flex-none place-items-center rounded-lg text-ink-500 hover:bg-ink-50">
           <FiLogOut size={16} />
         </button>
       </header>
@@ -303,7 +304,7 @@ function Overview({ onOpen, onAll }) {
         ))}
       </section>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
         <section className={`${card} p-5`}>
           <h2 className="text-[14px] font-semibold text-ink-900">Sign-ups, last 14 days</h2>
           <p className="text-[11.5px] text-ink-500">New accounts per day</p>

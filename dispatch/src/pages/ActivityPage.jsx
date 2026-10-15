@@ -269,7 +269,7 @@ export default function ActivityPage() {
               <h2 className="mb-2.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[.06em] text-ink-400">
                 <FiZap size={12} /> This week's content ideas
               </h2>
-              <div className="grid gap-3 md:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                 {plan.ideas.map((idea, n) => {
                   const mine = tasks.filter((t) => t.idea === n)
                   const ok = mine.filter((t) => t.done).length
@@ -315,7 +315,7 @@ export default function ActivityPage() {
           )}
 
           {/* the days */}
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {data.days.map((day) => (
               <DayCard
                 key={day}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { aiModelStore, api } from '../../api/client'
+import ModelLogo from '../ui/ModelLogo'
 import Select from '../ui/Select'
 
 // The AI that writes (captions, ideas, storyboards, the Khmer narration) —
@@ -43,8 +44,18 @@ export default function WriterModelSelect({ size = 'sm', className = 'min-w-0 fl
   if (!data || models.length < 2) return null
   const fallback = models.find((m) => m.key === (data.default || data.platform_default))
   const options = [
-    { value: '', label: `Workspace default${fallback ? ` · ${fallback.label}` : ''}`, hint: 'Set in Settings → AI model' },
-    ...models.map((m) => ({ value: m.key, label: `${m.label}  ${m.tier}`, hint: m.blurb })),
+    {
+      value: '',
+      label: `Workspace default${fallback ? ` · ${fallback.label}` : ''}`,
+      hint: 'Set in Settings → AI model',
+      icon: fallback && <ModelLogo model={fallback.key} vendor={fallback.vendor} size={14} />,
+    },
+    ...models.map((m) => ({
+      value: m.key,
+      label: `${m.label}  ${m.tier}`,
+      hint: m.blurb,
+      icon: <ModelLogo model={m.key} vendor={m.vendor} size={14} />,
+    })),
   ]
   return (
     <Select

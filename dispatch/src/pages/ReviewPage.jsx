@@ -84,7 +84,7 @@ export default function ReviewPage() {
       </div>
 
       {review === null ? (
-        <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
           {[0, 1, 2].map((n) => (
             <div key={n} className={`${card} p-4`}>
               <div className="h-4 w-2/3 rounded-md skeleton" />
@@ -129,7 +129,7 @@ export default function ReviewPage() {
               </span>
             )}
           </div>
-          <div className="grid items-start gap-4 md:grid-cols-2 2xl:grid-cols-3">
+          <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 2xl:grid-cols-3">
             {review.map((r) => (
               <IdeaCard
                 key={r.id}

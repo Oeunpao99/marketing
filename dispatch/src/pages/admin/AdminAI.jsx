@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { FiCheck, FiRefreshCw } from 'react-icons/fi'
+import ModelLogo from '../../components/ui/ModelLogo'
 
 // Admin portal → AI usage (backend app/admin.py /ai/*): every writing model's
 // price per 1M tokens, markup and on/off; what each model and each tenant used
@@ -39,7 +40,7 @@ export default function AiUsage({ api, onOpen }) {
   const total = (u?.models || []).reduce((a, m) => ({ cost: a.cost + m.cost, charged: a.charged + m.charged, calls: a.calls + m.calls }), { cost: 0, charged: 0, calls: 0 })
 
   return (
-    <div className="mx-auto max-w-[1100px] space-y-6">
+    <div className="w-full space-y-6">
       <header className="flex flex-wrap items-end gap-3">
         <div className="min-w-0 flex-1">
           <h1 className="text-[22px] font-bold tracking-tight text-ink-900">AI usage</h1>
@@ -60,7 +61,7 @@ export default function AiUsage({ api, onOpen }) {
       {usage.error && <p className="text-[13px] text-red-600">{usage.error}</p>}
 
       {/* totals */}
-      <div className="grid gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
         {[
           ['AI calls', num(total.calls)],
           ['Cost to us', usd(total.cost)],
@@ -77,13 +78,37 @@ export default function AiUsage({ api, onOpen }) {
       {/* by model */}
       <section className={card}>
         <h2 className="border-b border-ink-100 px-5 py-3 text-[13.5px] font-semibold text-ink-900">By model</h2>
-        <table className="w-full text-[12.5px]">
+        {/* a phone: one card per model */}
+        <ul className="divide-y divide-ink-100 md:hidden">
+          {(u?.models || []).map((m) => (
+            <li key={m.model} className="px-5 py-3">
+              <div className="flex items-center gap-2">
+                <ModelLogo model={m.model} />
+                <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-ink-900">{label(m.model)}</span>
+                <span className="text-[13px] font-bold tabular-nums text-ink-900">{usd(m.charged)}</span>
+              </div>
+              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 pl-6 text-[11.5px] tabular-nums text-ink-500">
+                <span>{num(m.calls)} calls</span>
+                <span>{num(m.tokens)} tokens</span>
+                {m.input_tokens + m.output_tokens > 0 && (
+                  <span>
+                    {num(m.input_tokens)} in · {num(m.output_tokens)} out
+                  </span>
+                )}
+                <span>cost {usd(m.cost)}</span>
+              </div>
+            </li>
+          ))}
+          {u && !u.models.length && <li className="px-5 py-4 text-[12.5px] text-ink-400">No AI writing in this period.</li>}
+        </ul>
+        <table className="hidden w-full text-[12.5px] md:table">
           <thead>
             <tr className="text-left text-ink-400">
               <th className="px-5 py-2 font-medium">Model</th>
               <th className="px-2 py-2 text-right font-medium">Calls</th>
               <th className="px-2 py-2 text-right font-medium">Tokens in</th>
               <th className="px-2 py-2 text-right font-medium">Tokens out</th>
+              <th className="px-2 py-2 text-right font-medium">Total tokens</th>
               <th className="px-2 py-2 text-right font-medium">Cost</th>
               <th className="px-5 py-2 text-right font-medium">Charged</th>
             </tr>
@@ -91,17 +116,23 @@ export default function AiUsage({ api, onOpen }) {
           <tbody className="divide-y divide-ink-100">
             {(u?.models || []).map((m) => (
               <tr key={m.model} className="text-ink-700">
-                <td className="px-5 py-2 font-semibold text-ink-900">{label(m.model)}</td>
+                <td className="px-5 py-2 font-semibold text-ink-900">
+                  <span className="inline-flex items-center gap-2">
+                    <ModelLogo model={m.model} />
+                    {label(m.model)}
+                  </span>
+                </td>
                 <td className="px-2 py-2 text-right tabular-nums">{num(m.calls)}</td>
                 <td className="px-2 py-2 text-right tabular-nums">{num(m.input_tokens)}</td>
                 <td className="px-2 py-2 text-right tabular-nums">{num(m.output_tokens)}</td>
+                <td className="px-2 py-2 text-right tabular-nums">{num(m.tokens)}</td>
                 <td className="px-2 py-2 text-right tabular-nums">{usd(m.cost)}</td>
                 <td className="px-5 py-2 text-right tabular-nums">{usd(m.charged)}</td>
               </tr>
             ))}
             {u && !u.models.length && (
               <tr>
-                <td colSpan={6} className="px-5 py-4 text-ink-400">No AI writing in this period.</td>
+                <td colSpan={7} className="px-5 py-4 text-ink-400">No AI writing in this period.</td>
               </tr>
             )}
           </tbody>
@@ -126,7 +157,12 @@ export default function AiUsage({ api, onOpen }) {
                     <tbody>
                       {t.models.map((m) => (
                         <tr key={m.model} className="text-ink-600">
-                          <td className="py-1">{label(m.model)}</td>
+                          <td className="py-1">
+                            <span className="inline-flex items-center gap-1.5">
+                              <ModelLogo model={m.model} size={13} />
+                              {label(m.model)}
+                            </span>
+                          </td>
                           <td className="py-1 text-right tabular-nums">{num(m.calls)} calls</td>
                           <td className="py-1 text-right tabular-nums">
                             {num(m.input_tokens)} in · {num(m.output_tokens)} out
@@ -181,7 +217,7 @@ function ModelRow({ m, api, onSaved }) {
     }
   }
   const field = (k, label, step) => (
-    <label className="flex items-center gap-1.5 text-[12px] text-ink-500">
+    <label className="flex min-w-0 flex-col gap-1 text-[11px] text-ink-500 md:flex-row md:items-center md:gap-1.5 md:text-[12px]">
       {label}
       <input
         type="number"
@@ -189,14 +225,15 @@ function ModelRow({ m, api, onSaved }) {
         step={step}
         value={v[k]}
         onChange={(e) => setV({ ...v, [k]: Number(e.target.value) })}
-        className="w-20 rounded-lg border border-ink-200 bg-white px-2 py-1 text-[12.5px] tabular-nums text-ink-900 outline-none focus:border-brand"
+        className="w-full min-w-0 rounded-lg border border-ink-200 bg-white px-2 py-1 text-[12.5px] tabular-nums text-ink-900 outline-none focus:border-brand md:w-20"
       />
     </label>
   )
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3">
-      <div className="min-w-[180px] flex-1">
-        <div className="flex items-center gap-2 text-[13px] font-semibold text-ink-900">
+    <div className="flex flex-col gap-2.5 px-5 py-3 md:flex-row md:flex-wrap md:items-center md:gap-x-4 md:gap-y-2">
+      <div className="min-w-0 md:min-w-[180px] md:flex-1">
+        <div className="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-ink-900">
+          <ModelLogo model={m.key} vendor={m.vendor} size={18} />
           {m.label}
           <span className="text-[11px] font-medium text-ink-400">{m.vendor}</span>
           {!m.configured && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10.5px] font-semibold text-amber-700">no key in .env</span>}
@@ -205,6 +242,8 @@ function ModelRow({ m, api, onSaved }) {
           Charged ${(v.price_in * v.markup).toFixed(2)} in · ${(v.price_out * v.markup).toFixed(2)} out per 1M tokens
         </div>
       </div>
+      {/* a phone: the three boxes side by side, then On / Save */}
+      <div className="grid grid-cols-[1fr_1fr_1fr_auto] items-end gap-2 md:contents">
       {field('price_in', 'In $', '0.01')}
       {field('price_out', 'Out $', '0.01')}
       {field('markup', '× markup', '0.05')}
@@ -222,6 +261,7 @@ function ModelRow({ m, api, onSaved }) {
           {m.enabled ? 'On' : 'Off'}
         </button>
       )}
+      </div>
       {note && <span className={`text-[11.5px] ${note.startsWith('⚠') ? 'text-red-600' : 'text-emerald-700'}`}>{note}</span>}
     </div>
   )
@@ -270,7 +310,7 @@ export function AccountAiSection({ id, api }) {
               onClick={() => toggle(c.key)}
               className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-semibold ${on ? 'border-brand bg-brand-soft text-brand' : 'border-ink-200 text-ink-500'}`}
             >
-              {on && <FiCheck size={12} />}
+              {on ? <FiCheck size={12} /> : <ModelLogo model={c.key} size={13} />}
               {c.label}
               {data.default === c.key && <span className="text-[10.5px] font-medium">· default</span>}
             </button>
@@ -294,7 +334,12 @@ export function AccountAiSection({ id, api }) {
             {data.usage.map((r, i) => (
               <tr key={i} className="text-ink-700">
                 <td className="py-1.5">{r.user}</td>
-                <td className="py-1.5">{label(r.model)}</td>
+                <td className="py-1.5">
+                  <span className="inline-flex items-center gap-1.5">
+                    <ModelLogo model={r.model} size={13} />
+                    {label(r.model)}
+                  </span>
+                </td>
                 <td className="py-1.5 text-right tabular-nums">
                   {num(r.input_tokens)} / {num(r.output_tokens)}
                 </td>

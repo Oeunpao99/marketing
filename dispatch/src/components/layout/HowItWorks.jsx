@@ -65,9 +65,8 @@ const STEPS = [
     icon: FiFilm,
     to: '/ai',
     items: [
-      { label: 'Video builder', text: 'Brief → clips → one finished video', icon: FiFilm, to: '/ai?tab=video' },
-      { label: 'Images', text: 'Posters and pictures with your logo', icon: FiImage, to: '/ai?tab=images' },
-      { label: 'Copy per channel', text: 'Captions written by the AI', icon: FiZap, to: '/ai?tab=copy' },
+      { label: 'Studio', text: 'Brief → clips → one finished video', icon: FiFilm, to: '/ai?tab=video' },
+      { label: 'Quick content', text: 'Posters, pictures and quick videos with your logo', icon: FiZap, to: '/ai?tab=images' },
       { label: 'Media Library', text: 'Everything made, ready to post', icon: FiImage, to: '/library' },
     ],
   },

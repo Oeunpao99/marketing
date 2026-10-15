@@ -696,7 +696,7 @@ export default function AddChannelPage() {
         </button>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {Object.entries(PLATFORM_META).map(([id, m]) => {
           // Only channels that are actually connected — every brand has an
           // "off" placeholder row per platform, which isn't a connection.

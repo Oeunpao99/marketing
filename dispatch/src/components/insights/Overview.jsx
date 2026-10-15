@@ -364,7 +364,7 @@ export function PulseCard({ cur, prev, period, viewsReported, topPlatform }) {
   ]
 
   return (
-    <div className="grid overflow-hidden rounded-2xl border border-ink-200/60 bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)] lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+    <div className="grid grid-cols-1 overflow-hidden rounded-2xl border border-ink-200/60 bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)] lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
       <div className="min-w-0 p-5 sm:p-6">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <span className="text-[13px] font-semibold text-ink-700">

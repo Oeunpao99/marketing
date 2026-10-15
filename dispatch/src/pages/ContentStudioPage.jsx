@@ -6,21 +6,22 @@ import VideoBuilder from '../components/studio/VideoBuilder'
 import TemplatesGallery from '../components/studio/TemplatesGallery'
 import AIPromptPage from './AIPromptPage'
 
-// Content studio (/ai) — the boss's layout. Video builder is the default tab;
-// Images and Copy per channel are the AI chat, opened in that mode, so image and
-// caption making stay in one place.
+// Content studio (/ai) — the boss's layout. Studio (the video builder) is the default tab;
+// Quick content is the AI chat (images, Remotion videos, quick clips — and
+// captions, asked for in the chat), so making and writing stay in one place.
 
-// The tools are picked in the top bar (StudioSwitcher).
+// The tools are tabs on the section-tabs line (SectionTabs).
 const TABS = STUDIO_TABS
 
 export default function ContentStudioPage() {
   const [params, setParams] = useSearchParams()
   const location = useLocation()
   const asked = params.get('tab')
-  // An idea handed over without a tab (Calendar's "Use this idea →") is for the chat.
+  // An idea handed over without a tab (Calendar's "Use this idea →") is for the
+  // chat — and so is an old "Copy per channel" link (that tab is gone).
   const tab = TABS.some((t) => t.id === asked)
     ? asked
-    : location.state && !location.state.studio
+    : asked === 'copy' || (location.state && !location.state.studio)
       ? 'images'
       : 'video'
 
@@ -45,7 +46,7 @@ export default function ContentStudioPage() {
           <div className="min-w-0 flex-1">
             <h1 className="page-title flex flex-wrap items-center gap-2.5">
               Content studio
-              {/* which tool is open — they're switched from the top bar */}
+              {/* which tool is open — picked in the tabs above */}
               <span className="rounded-full bg-brand-soft px-2.5 py-0.5 text-[12px] font-semibold text-brand">
                 {TABS.find((t) => t.id === tab)?.label}
               </span>

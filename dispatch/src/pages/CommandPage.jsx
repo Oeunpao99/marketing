@@ -101,7 +101,9 @@ export default function CommandPage() {
         <div className="space-y-5">
           <Kpis k={data.kpis} />
 
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+          {/* grid-cols-1 = one column the width of the screen — without it the column grew to
+              the longest line of text and pushed the cards off a phone's screen */}
+          <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
             <NeedsYou needs={data.needs} autopilot={data.autopilot} showBrand={showBrand} />
             <Today rows={data.today} showBrand={showBrand} acting={acting} onAct={act} />
           </div>
@@ -121,7 +123,7 @@ function Skeleton() {
           <div key={i} className={`${card} h-[104px] skeleton`} />
         ))}
       </div>
-      <div className="grid gap-5 xl:grid-cols-[5fr_7fr]">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
         <div className={`${card} h-72 skeleton`} />
         <div className={`${card} h-72 skeleton`} />
       </div>
@@ -199,7 +201,7 @@ const TONE = {
 
 function NeedsYou({ needs, autopilot, showBrand }) {
   return (
-    <section className={`${card} flex flex-col p-5`}>
+    <section className={`${card} flex min-w-0 flex-col p-5`}>
       <div className="mb-3 flex items-baseline justify-between gap-2">
         <h2 className="text-[15px] font-semibold text-ink-900">Needs you</h2>
         <span className="text-[11.5px] text-ink-400">Everything else runs on its own</span>
@@ -371,7 +373,7 @@ function AgentLog({ log }) {
       {log.length === 0 ? (
         <p className="py-4 text-[12.5px] text-ink-500">Nothing yet today — the daily run writes and posts at its set time.</p>
       ) : (
-        <ol className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+        <ol className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
           {log.map((e, i) => (
             <li key={i} className="rounded-xl border border-ink-200/70 px-3.5 py-3">
               <div className="font-mono text-[11.5px] tabular-nums text-ink-500">

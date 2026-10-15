@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { FiImage, FiInfo, FiMessageCircle, FiRefreshCw, FiTarget, FiX } from 'react-icons/fi'
@@ -204,6 +204,21 @@ function WhyDrawer({ onClose, children }) {
   )
 }
 
+// Below Tailwind's `sm` (640px) the plan card switches to its phone layout.
+// Only one layout is rendered at a time, so the storyboard editor mounts once.
+const PHONE = '(max-width: 639px)'
+function useIsPhone() {
+  const [phone, setPhone] = useState(() => !!window.matchMedia?.(PHONE).matches)
+  useEffect(() => {
+    const m = window.matchMedia?.(PHONE)
+    if (!m) return undefined
+    const on = () => setPhone(m.matches)
+    m.addEventListener('change', on)
+    return () => m.removeEventListener('change', on)
+  }, [])
+  return phone
+}
+
 const dayLabel = (iso) =>
   new Date(`${iso}T00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
 
@@ -257,291 +272,380 @@ function PostCard({ item, brand, makingMedia, busy, onApprove, onSkip, onUnskip,
   const motionReady = useMotionReady() // false: this server can't render Remotion videos
   const motion = fmt === 'motion'
   const hasMedia = fmt === 'image' || motion // a picture or a motion video, made with the plan
+  const phone = useIsPhone()
+  // phones: the details are cut short with a fade until "See more"
+  const [open, setOpen] = useState(false)
+  const [clipped, setClipped] = useState(false)
+  const detailsRef = useRef(null)
+  useLayoutEffect(() => {
+    const el = detailsRef.current
+    setClipped(!!el && el.scrollHeight > el.clientHeight + 2)
+  }, [phone, open, item.insight, item.caption])
+
+  // the picture / video made with the plan — `box` sizes it per layout
+  const media = (box, errW) => (
+    <div className="flex-none">
+      <div className={`relative overflow-hidden rounded-xl border border-ink-100 bg-ink-50 ${box}`}>
+        {item.media_url ? (
+          // the current picture — faded underneath while a new one is made
+          <button
+            type="button"
+            onClick={() => setPreviewing(true)}
+            disabled={picBusy}
+            className="block h-full w-full"
+            title={picBusy ? `A new ${motion ? 'video' : 'picture'} is being made` : 'See it in the feed'}
+          >
+            {motion ? (
+              <video
+                src={kitSrc(item.media_url)}
+                muted
+                loop
+                autoPlay
+                playsInline
+                className={`h-full w-full object-cover transition-opacity duration-500 ${picBusy ? 'opacity-75' : ''}`}
+              />
+            ) : (
+              <img
+                src={kitSrc(item.media_url)}
+                alt=""
+                loading="lazy"
+                className={`h-full w-full object-cover transition-opacity duration-500 ${picBusy ? 'opacity-75' : ''}`}
+              />
+            )}
+          </button>
+        ) : (
+          !picBusy && (
+            <div className="grid h-full w-full place-items-center rounded-xl border-2 border-dashed border-ink-200 px-3 text-center text-[11.5px] leading-snug text-ink-400">
+              <span>
+                <FiImage size={20} className="mx-auto mb-1.5" aria-hidden="true" />
+                {motion ? 'No video yet' : 'No picture yet'}
+              </span>
+            </div>
+          )
+        )}
+        {picBusy && (
+          // the app's "being made" smoke (as in the Calendar and Studio), see-through
+          // when there's an old picture so it shows behind
+          <div className="absolute inset-0">
+            <GeneratingCanvas
+              small
+              icon={motion ? '✺' : '✦'}
+              stage={motion ? 'Making the video…' : 'New picture…'}
+              seeThrough={!!item.media_url}
+            />
+          </div>
+        )}
+      </div>
+      {item.picture_error && !picBusy && <p className={`mt-1.5 text-[11px] leading-snug text-red-600 ${errW}`}>{item.picture_error}</p>}
+    </div>
+  )
+
+  const goalTag = goal && <span className={`rounded-full px-2.5 py-0.5 font-semibold ${stage.tile}`}>{goal.label}</span>
+  const spinner = switching && <FiRefreshCw size={12} className="animate-spin text-brand" aria-label="Changing format" />
+  const formatPill = (
+    <span className="rounded-full bg-ink-100 px-2.5 py-0.5 font-semibold text-ink-700">
+      {fmt === 'image' ? imageKind : FORMATS.find((o) => o.v === fmt)?.l}
+    </span>
+  )
+  // Image · Text · Remotion · AI video, while the post is still undecided
+  const formatSwitch = (wide) => (
+    <span className={`rounded-full border border-ink-200 bg-white p-0.5 ${wide ? 'flex w-full' : 'inline-flex'}`} role="group" aria-label="Post format">
+      {FORMATS.map((o) => (
+        <button
+          key={o.v}
+          type="button"
+          disabled={!!busy || (o.v === 'motion' && motionReady === false && fmt !== o.v)}
+          aria-pressed={fmt === o.v}
+          onClick={() => onFormat(o.v)}
+          title={o.v === 'motion' && motionReady === false ? MOTION_OFF_TIP : fmt !== o.v ? FORMAT_TIPS[o.v] : undefined}
+          className={`whitespace-nowrap rounded-full px-2.5 py-0.5 font-semibold transition-colors disabled:cursor-not-allowed ${wide ? 'flex-1' : ''} ${
+            fmt === o.v
+              ? 'bg-brand-soft text-brand'
+              : o.v === 'motion' && motionReady === false
+                ? 'text-ink-300'
+                : 'text-ink-500 hover:text-ink-800'
+          }`}
+        >
+          {o.v === 'image' && fmt === 'image' ? imageKind : o.l}
+        </button>
+      ))}
+    </span>
+  )
+  const channels = item.channels?.length > 0 && (
+    <span className="ml-auto flex flex-none items-center gap-1" aria-label={`Posts to ${item.channels.join(', ')}`}>
+      {item.channels.map((c) => (
+        <span
+          key={c}
+          title={c}
+          className={`grid h-6 w-6 place-items-center rounded-full bg-ink-50 ring-1 ring-ink-100 ${PLAT_BRAND_CLASS[c] || 'text-ink-500'}`}
+        >
+          <PlatformIcon name={c} />
+        </span>
+      ))}
+    </span>
+  )
+  const title = <h3 className={`text-[15px] font-semibold leading-snug text-ink-900 ${khmer(item.title)}`}>{item.title}</h3>
+
+  // the idea, its call to action and how it's measured
+  const details = (
+    <>
+      {item.insight && <p className={`text-[13px] leading-relaxed text-ink-600 ${khmer(item.insight)}`}>{item.insight}</p>}
+      {(cta || goal) && (
+        <dl className="mt-3 space-y-1.5 rounded-xl bg-ink-50 px-3.5 py-2.5 text-[12px]">
+          {cta && (
+            <div className={phone ? 'flex flex-col gap-0.5' : 'flex items-start gap-2'}>
+              <dt className="flex flex-none items-center gap-1.5 font-medium text-ink-500">
+                <FiMessageCircle size={13} aria-hidden="true" /> Call to action
+              </dt>
+              <dd className={`min-w-0 text-ink-800 ${khmer(cta)}`}>{cta}</dd>
+            </div>
+          )}
+          {goal && (
+            <div className="flex items-start gap-2">
+              <dt className="flex flex-none items-center gap-1.5 font-medium text-ink-500">
+                <FiTarget size={13} aria-hidden="true" /> Measured by
+              </dt>
+              <dd className="font-semibold text-ink-800">{goal.kpi}</dd>
+            </div>
+          )}
+        </dl>
+      )}
+    </>
+  )
+
+  // the fact check, the caption editor and a video post's storyboard
+  const extras = (
+    <>
+      {flagged && !item.state && (
+        <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-[12px] font-medium leading-snug text-amber-900">
+          Check before approving: {item.fact_issues[0]}
+          {item.fact_issues.length > 1 && ` (+${item.fact_issues.length - 1} more)`}
+        </p>
+      )}
+
+      {editing && (
+        <div className="mt-3">
+          <AutoTextarea
+            autoFocus
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onBlur={() => {
+              if (text.trim() && text !== item.caption) onSaveCaption(text)
+            }}
+            className={`w-full rounded-xl border border-brand bg-white px-3 py-2 text-[12.5px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-brand/15 ${khmer(text)}`}
+          />
+          {flagged && (
+            <ul className="mt-2 space-y-0.5">
+              {item.fact_issues.map((issue, i) => (
+                <li key={i} className="text-[11.5px] leading-snug text-amber-800">
+                  • {issue}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {fmt === 'video' && undecided && (
+        <div className="mt-3">
+          {item.story_id ? (
+            <StoryEditor key={item.story_id} storyId={item.story_id} compact onStory={setStory} />
+          ) : (
+            <button type="button" disabled={!!busy} onClick={() => onFormat('video')} className="btn-outline px-3 py-1.5 text-[12.5px]">
+              Write the storyboard
+            </button>
+          )}
+        </div>
+      )}
+    </>
+  )
+
+  const preview = previewing && (
+    <SocialPreview
+      brand={brand}
+      caption={text}
+      media={
+        fmt === 'video' && story?.final_video
+          ? { kind: 'video', url: story.final_video.url }
+          : motion && item.media_url
+            ? { kind: 'video', url: item.media_url }
+            : fmt === 'image' && item.media_url
+            ? { kind: 'image', url: item.media_url }
+            : null
+      }
+      note={
+        fmt === 'image'
+          ? `The ${item.poster || item.meme ? 'poster' : 'picture'} is made when you approve`
+          : fmt === 'video'
+            ? 'The video shows here once it’s made from the storyboard'
+            : motion
+              ? 'The Remotion video shows here once it’s made'
+              : null
+      }
+      platforms={item.channels}
+      onFix={undecided ? (c) => onSaveCaption(c) : undefined}
+      onClose={() => setPreviewing(false)}
+    />
+  )
+
+  // Approve on its own; the rest stacked under it — on a phone a 2×2 grid
+  const secondary = phone ? 'justify-center px-2 py-1.5 text-[12.5px]' : 'px-4 py-1.5 text-[12.5px]'
+  const quiet = phone ? `${secondary} bg-ink-50` : 'px-3 py-1.5 text-[12.5px]'
+  const actions = approved ? (
+    <ApprovedState item={item} fmt={fmt} makingMedia={makingMedia} onMakeImage={onMakeImage} />
+  ) : skipped ? (
+    <>
+      <span className="text-center text-[12px] font-semibold text-ink-500">Skipped</span>
+      <button type="button" onClick={onUnskip} className="btn-outline justify-center px-4 py-1.5 text-[12.5px]">
+        Undo
+      </button>
+    </>
+  ) : (
+    <>
+      <button
+        type="button"
+        disabled={!!busy || picBusy || (fmt === 'video' && !filmReady) || (motion && !item.media_url)}
+        onClick={onApprove}
+        className={`btn-primary justify-center px-4 py-2 text-[13px] ${phone ? 'col-span-2' : ''}`}
+        title={
+          fmt === 'video' && !filmReady
+            ? 'Approve the storyboard first — once the video is finished you can schedule it'
+            : picBusy
+              ? `Wait for the new ${motion ? 'video' : 'picture'}`
+              : motion && !item.media_url
+                ? 'Make the Remotion video first'
+                : undefined
+        }
+      >
+        Approve &amp; schedule
+      </button>
+      {fmt === 'video' && !filmReady && (
+        <p className={`text-center text-[11px] leading-snug text-ink-400 ${phone ? 'col-span-2' : ''}`}>
+          {story?.status === 'draft' ? 'Approve the storyboard first' : 'When the video is finished'}
+        </p>
+      )}
+      {hasMedia && (
+        <button
+          type="button"
+          onClick={onNewPicture}
+          disabled={picBusy || !!busy}
+          className={`btn-outline ${secondary}`}
+          title={
+            motion
+              ? 'Make another Remotion video for this post — a new script, photos and voice. The old one stays in the Media Library.'
+              : 'Make another picture for this post — same brand kit and style. The old one stays in the Media Library.'
+          }
+        >
+          {picBusy ? 'Making…' : item.media_url ? (motion ? 'New video' : 'New picture') : motion ? 'Make video' : 'Make picture'}
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={previewAndFormat}
+        disabled={formatting}
+        className={`btn-outline ${secondary}`}
+        title={
+          formatted
+            ? 'See the post the way it shows in the feed'
+            : 'Formats the caption for phones (long list lines shortened by the AI), then shows it in the feed'
+        }
+      >
+        {formatting ? 'Formatting…' : formatted ? 'Preview' : 'Format & preview'}
+      </button>
+      <button type="button" onClick={() => setEditing((e) => !e)} className={`btn-ghost text-ink-600 ${quiet}`}>
+        {editing ? 'Done' : 'Edit caption'}
+      </button>
+      <button type="button" disabled={!!busy} onClick={onSkip} className={`btn-ghost text-ink-500 ${quiet}`}>
+        Skip
+      </button>
+    </>
+  )
+
+  const cardCls = `${card} ${flagged && !item.state ? 'border-amber-300' : ''} ${skipped ? 'opacity-60' : ''}`
+
+  if (phone) {
+    // Phones: the picture on the left, when + what on the right; the details
+    // under it, cut short with a fade and "See more"; the buttons at the bottom.
+    return (
+      <li className={`${cardCls} p-4`}>
+        <div className="flex gap-3">
+          {hasMedia && media('h-40 w-[120px]', 'w-[120px]')}
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5 text-[11.5px]">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold uppercase tracking-wide text-ink-400">{wd}</span>
+              <span className="text-[18px] font-bold leading-none tabular-nums text-ink-900">{n}</span>
+              <span className="font-mono text-[12px] font-medium tabular-nums text-brand">{item.time || '—'}</span>
+              {channels}
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {goalTag}
+              {!undecided && formatPill}
+              {spinner}
+            </div>
+            {title}
+          </div>
+        </div>
+
+        {undecided && <div className="mt-3 text-[11.5px]">{formatSwitch(true)}</div>}
+
+        {(item.insight || cta || goal) && (
+          <div className="relative mt-3">
+            <div ref={detailsRef} className={open ? '' : 'max-h-[132px] overflow-hidden'}>
+              {details}
+            </div>
+            {clipped && !open && (
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-b from-transparent to-white" aria-hidden="true" />
+            )}
+          </div>
+        )}
+        {(clipped || open) && (
+          <button type="button" onClick={() => setOpen((o) => !o)} className="mt-1 text-[12px] font-semibold text-brand">
+            {open ? 'See less' : 'See more'}
+          </button>
+        )}
+
+        {extras}
+
+        <div className={`mt-3 border-t border-ink-100 pt-3 ${approved || skipped ? 'flex flex-col items-stretch gap-2' : 'grid grid-cols-2 gap-2'}`}>
+          {actions}
+        </div>
+        {preview}
+      </li>
+    )
+  }
 
   return (
-    <li className={`${card} flex gap-4 p-4 sm:gap-5 sm:p-5 ${flagged && !item.state ? 'border-amber-300' : ''} ${skipped ? 'opacity-60' : ''}`}>
+    <li className={`${cardCls} flex gap-5 p-5`}>
       {/* when */}
       <div className="w-14 flex-none text-center">
         <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-400">{wd}</div>
         <div className="text-[26px] font-bold leading-tight tabular-nums text-ink-900">{n}</div>
-        <div className="mt-0.5 font-mono text-[12px] font-medium tabular-nums text-brand">
-          {item.time || '—'}
-        </div>
+        <div className="mt-0.5 font-mono text-[12px] font-medium tabular-nums text-brand">{item.time || '—'}</div>
       </div>
 
       <div className="min-w-0 flex-1">
         {/* goal · format ·········· where it goes */}
         <div className="flex flex-wrap items-center gap-2 text-[11.5px]">
-          {goal && <span className={`rounded-full px-2.5 py-0.5 font-semibold ${stage.tile}`}>{goal.label}</span>}
-          {undecided ? (
-            <span className="inline-flex rounded-full border border-ink-200 bg-white p-0.5" role="group" aria-label="Post format">
-              {FORMATS.map((o) => (
-                <button
-                  key={o.v}
-                  type="button"
-                  disabled={!!busy || (o.v === 'motion' && motionReady === false && fmt !== o.v)}
-                  aria-pressed={fmt === o.v}
-                  onClick={() => onFormat(o.v)}
-                  title={o.v === 'motion' && motionReady === false ? MOTION_OFF_TIP : fmt !== o.v ? FORMAT_TIPS[o.v] : undefined}
-                  className={`rounded-full px-2.5 py-0.5 font-semibold transition-colors disabled:cursor-not-allowed ${
-                    fmt === o.v
-                      ? 'bg-brand-soft text-brand'
-                      : o.v === 'motion' && motionReady === false
-                        ? 'text-ink-300'
-                        : 'text-ink-500 hover:text-ink-800'
-                  }`}
-                >
-                  {o.v === 'image' && fmt === 'image' ? imageKind : o.l}
-                </button>
-              ))}
-            </span>
-          ) : (
-            <span className="rounded-full bg-ink-100 px-2.5 py-0.5 font-semibold text-ink-700">
-              {fmt === 'image' ? imageKind : FORMATS.find((o) => o.v === fmt)?.l}
-            </span>
-          )}
-          {switching && <FiRefreshCw size={12} className="animate-spin text-brand" aria-label="Changing format" />}
-          {item.channels?.length > 0 && (
-            <span className="ml-auto flex items-center gap-1" aria-label={`Posts to ${item.channels.join(', ')}`}>
-              {item.channels.map((c) => (
-                <span
-                  key={c}
-                  title={c}
-                  className={`grid h-6 w-6 place-items-center rounded-full bg-ink-50 ring-1 ring-ink-100 ${PLAT_BRAND_CLASS[c] || 'text-ink-500'}`}
-                >
-                  <PlatformIcon name={c} />
-                </span>
-              ))}
-            </span>
-          )}
+          {goalTag}
+          {undecided ? formatSwitch(false) : formatPill}
+          {spinner}
+          {channels}
         </div>
 
-        <h3 className={`mt-2 text-[15px] font-semibold leading-snug text-ink-900 ${khmer(item.title)}`}>{item.title}</h3>
+        <div className="mt-2">{title}</div>
 
         {/* picture | the idea, its call to action and how it's measured */}
-        <div className={`mt-3 ${hasMedia ? 'grid gap-4 sm:grid-cols-[160px_minmax(0,1fr)]' : ''}`}>
-          {hasMedia && (
-            <div>
-              <div className="relative h-48 w-40 overflow-hidden rounded-xl border border-ink-100 bg-ink-50">
-                {item.media_url ? (
-                  // the current picture — faded underneath while a new one is made
-                  <button
-                    type="button"
-                    onClick={() => setPreviewing(true)}
-                    disabled={picBusy}
-                    className="block h-full w-full"
-                    title={picBusy ? `A new ${motion ? 'video' : 'picture'} is being made` : 'See it in the feed'}
-                  >
-                    {motion ? (
-                      <video
-                        src={kitSrc(item.media_url)}
-                        muted
-                        loop
-                        autoPlay
-                        playsInline
-                        className={`h-full w-full object-cover transition-opacity duration-500 ${picBusy ? 'opacity-75' : ''}`}
-                      />
-                    ) : (
-                      <img
-                        src={kitSrc(item.media_url)}
-                        alt=""
-                        loading="lazy"
-                        className={`h-full w-full object-cover transition-opacity duration-500 ${picBusy ? 'opacity-75' : ''}`}
-                      />
-                    )}
-                  </button>
-                ) : (
-                  !picBusy && (
-                    <div className="grid h-full w-full place-items-center rounded-xl border-2 border-dashed border-ink-200 px-3 text-center text-[11.5px] leading-snug text-ink-400">
-                      <span>
-                        <FiImage size={20} className="mx-auto mb-1.5" aria-hidden="true" />
-                        {motion ? 'No video yet' : 'No picture yet'}
-                      </span>
-                    </div>
-                  )
-                )}
-                {picBusy && (
-                  // the app's "being made" smoke (as in the Calendar and Studio), see-through
-                  // when there's an old picture so it shows behind
-                  <div className="absolute inset-0">
-                    <GeneratingCanvas
-                      small
-                      icon={motion ? '✺' : '✦'}
-                      stage={motion ? 'Making the video…' : 'New picture…'}
-                      seeThrough={!!item.media_url}
-                    />
-                  </div>
-                )}
-              </div>
-              {item.picture_error && !picBusy && <p className="mt-1.5 w-40 text-[11px] leading-snug text-red-600">{item.picture_error}</p>}
-            </div>
-          )}
-
-          <div className="min-w-0">
-            {item.insight && <p className={`text-[13px] leading-relaxed text-ink-600 ${khmer(item.insight)}`}>{item.insight}</p>}
-            {(cta || goal) && (
-              <dl className="mt-3 space-y-1.5 rounded-xl bg-ink-50 px-3.5 py-2.5 text-[12px]">
-                {cta && (
-                  <div className="flex items-start gap-2">
-                    <dt className="flex flex-none items-center gap-1.5 font-medium text-ink-500">
-                      <FiMessageCircle size={13} aria-hidden="true" /> Call to action
-                    </dt>
-                    <dd className={`min-w-0 text-ink-800 ${khmer(cta)}`}>{cta}</dd>
-                  </div>
-                )}
-                {goal && (
-                  <div className="flex items-start gap-2">
-                    <dt className="flex flex-none items-center gap-1.5 font-medium text-ink-500">
-                      <FiTarget size={13} aria-hidden="true" /> Measured by
-                    </dt>
-                    <dd className="font-semibold text-ink-800">{goal.kpi}</dd>
-                  </div>
-                )}
-              </dl>
-            )}
-          </div>
+        <div className={`mt-3 ${hasMedia ? 'grid grid-cols-[160px_minmax(0,1fr)] gap-4' : ''}`}>
+          {hasMedia && media('h-48 w-40', 'w-40')}
+          <div className="min-w-0">{details}</div>
         </div>
 
-        {flagged && !item.state && (
-          <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-[12px] font-medium leading-snug text-amber-900">
-            Check before approving: {item.fact_issues[0]}
-            {item.fact_issues.length > 1 && ` (+${item.fact_issues.length - 1} more)`}
-          </p>
-        )}
-
-        {editing && (
-          <div className="mt-3">
-            <AutoTextarea
-              autoFocus
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onBlur={() => {
-                if (text.trim() && text !== item.caption) onSaveCaption(text)
-              }}
-              className={`w-full rounded-xl border border-brand bg-white px-3 py-2 text-[12.5px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-brand/15 ${khmer(text)}`}
-            />
-            {flagged && (
-              <ul className="mt-2 space-y-0.5">
-                {item.fact_issues.map((issue, i) => (
-                  <li key={i} className="text-[11.5px] leading-snug text-amber-800">
-                    • {issue}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
-
-        {fmt === 'video' && undecided && (
-          <div className="mt-3">
-            {item.story_id ? (
-              <StoryEditor key={item.story_id} storyId={item.story_id} compact onStory={setStory} />
-            ) : (
-              <button type="button" disabled={!!busy} onClick={() => onFormat('video')} className="btn-outline px-3 py-1.5 text-[12.5px]">
-                Write the storyboard
-              </button>
-            )}
-          </div>
-        )}
+        {extras}
       </div>
 
       <div className="flex w-[164px] flex-none flex-col items-stretch gap-2">
-        {previewing && (
-          <SocialPreview
-            brand={brand}
-            caption={text}
-            media={
-              fmt === 'video' && story?.final_video
-                ? { kind: 'video', url: story.final_video.url }
-                : motion && item.media_url
-                  ? { kind: 'video', url: item.media_url }
-                  : fmt === 'image' && item.media_url
-                  ? { kind: 'image', url: item.media_url }
-                  : null
-            }
-            note={
-              fmt === 'image'
-                ? `The ${item.poster || item.meme ? 'poster' : 'picture'} is made when you approve`
-                : fmt === 'video'
-                  ? 'The video shows here once it’s made from the storyboard'
-                  : motion
-                    ? 'The Remotion video shows here once it’s made'
-                    : null
-            }
-            platforms={item.channels}
-            onFix={undecided ? (c) => onSaveCaption(c) : undefined}
-            onClose={() => setPreviewing(false)}
-          />
-        )}
-        {approved ? (
-          <ApprovedState item={item} fmt={fmt} makingMedia={makingMedia} onMakeImage={onMakeImage} />
-        ) : skipped ? (
-          <>
-            <span className="text-center text-[12px] font-semibold text-ink-500">Skipped</span>
-            <button type="button" onClick={onUnskip} className="btn-outline px-4 py-1.5 text-[12.5px]">
-              Undo
-            </button>
-          </>
-        ) : (
-          <>
-            <button
-              type="button"
-              disabled={!!busy || picBusy || (fmt === 'video' && !filmReady) || (motion && !item.media_url)}
-              onClick={onApprove}
-              className="btn-primary px-4 py-2 text-[13px]"
-              title={
-                fmt === 'video' && !filmReady
-                  ? 'Approve the storyboard first — once the video is finished you can schedule it'
-                  : picBusy
-                    ? `Wait for the new ${motion ? 'video' : 'picture'}`
-                    : motion && !item.media_url
-                      ? 'Make the Remotion video first'
-                      : undefined
-              }
-            >
-              Approve &amp; schedule
-            </button>
-            {fmt === 'video' && !filmReady && (
-              <p className="text-center text-[11px] leading-snug text-ink-400">
-                {story?.status === 'draft' ? 'Approve the storyboard first' : 'When the video is finished'}
-              </p>
-            )}
-            {hasMedia && (
-              <button
-                type="button"
-                onClick={onNewPicture}
-                disabled={picBusy || !!busy}
-                className="btn-outline px-4 py-1.5 text-[12.5px]"
-                title={
-                  motion
-                    ? 'Make another Remotion video for this post — a new script, photos and voice. The old one stays in the Media Library.'
-                    : 'Make another picture for this post — same brand kit and style. The old one stays in the Media Library.'
-                }
-              >
-                {picBusy ? 'Making…' : item.media_url ? (motion ? 'New video' : 'New picture') : motion ? 'Make video' : 'Make picture'}
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={previewAndFormat}
-              disabled={formatting}
-              className="btn-outline px-4 py-1.5 text-[12.5px]"
-              title={
-                formatted
-                  ? 'See the post the way it shows in the feed'
-                  : 'Formats the caption for phones (long list lines shortened by the AI), then shows it in the feed'
-              }
-            >
-              {formatting ? 'Formatting…' : formatted ? 'Preview' : 'Format & preview'}
-            </button>
-            <button type="button" onClick={() => setEditing((e) => !e)} className="btn-ghost px-3 py-1.5 text-[12.5px] text-ink-600">
-              {editing ? 'Done' : 'Edit caption'}
-            </button>
-            <button type="button" disabled={!!busy} onClick={onSkip} className="btn-ghost px-3 py-1.5 text-[12.5px] text-ink-500">
-              Skip
-            </button>
-          </>
-        )}
+        {preview}
+        {actions}
       </div>
     </li>
   )

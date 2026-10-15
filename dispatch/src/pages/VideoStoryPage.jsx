@@ -154,7 +154,7 @@ export default function VideoStoryPage() {
         </div>
       )}
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(300px,.8fr)] items-start">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(300px,.8fr)] items-start">
         <form onSubmit={createStory} className={`${card} p-5 lg:p-6`}>
           <div className="flex items-start gap-3">
             <span className="w-10 h-10 rounded-xl bg-brand-soft text-brand grid place-items-center flex-none">
@@ -222,7 +222,7 @@ export default function VideoStoryPage() {
                 Choose a brand to ground the story in its product information.
               </div>
             ) : products === null ? (
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <div className="h-14 rounded-xl skeleton" />
                 <div className="h-14 rounded-xl skeleton" />
               </div>
@@ -234,7 +234,7 @@ export default function VideoStoryPage() {
                 </button>
               </div>
             ) : (
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {brandProducts.map((product) => {
                   const selected = creation.product_ids.includes(product.id)
                   return (

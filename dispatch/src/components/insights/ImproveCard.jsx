@@ -147,7 +147,7 @@ export default function ImproveCard({ post, platformName, weakText, showToast })
         )}
       </header>
 
-      <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+      <div className="grid grid-cols-1 gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
         <div className="space-y-4">
           <Bullets title="Why it likely underperformed" items={result.diagnosis} />
           <Bullets title="What changed" items={result.changes} />

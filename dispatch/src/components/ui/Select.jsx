@@ -4,8 +4,9 @@ import { FiCheck, FiChevronDown } from 'react-icons/fi'
 // A dropdown in the app's own menu style (same look as the sidebar's brand
 // switcher) — use it instead of the browser's native <select> everywhere.
 //
-// options: [{ value, label?, hint?, color? }] — label defaults to value, hint
-// is a smaller second line, color draws a dot (e.g. a brand's colour).
+// options: [{ value, label?, hint?, color?, icon? }] — label defaults to value,
+// hint is a smaller second line, color draws a dot (e.g. a brand's colour),
+// icon is a small element shown before the label (e.g. an AI model's logo).
 // Values keep their type: pass numbers in, get numbers back from onChange.
 // size: "sm" (h-8, compact toolbars) | "md" (default) | "lg" (h-10 forms).
 // align: which edge the menu lines up with when it's wider than the button.
@@ -37,12 +38,28 @@ export default function Select({
 
   // Open upward when there's no room below (e.g. inside a popover at the
   // bottom of the screen) — measured before paint, so it never flickers.
+  // Inside a scrolling panel the panel's edges are the limit, not the window's.
   useLayoutEffect(() => {
     if (!open || !menu.current || !root.current) return setUp(false)
-    const below = window.innerHeight - root.current.getBoundingClientRect().bottom
-    const above = root.current.getBoundingClientRect().top
+    let top = 0
+    let bottom = window.innerHeight
+    let scroller = false
+    for (let el = root.current.parentElement; el; el = el.parentElement) {
+      if (/auto|scroll/.test(getComputedStyle(el).overflowY)) {
+        const r = el.getBoundingClientRect()
+        top = Math.max(top, r.top)
+        bottom = Math.min(bottom, r.bottom)
+        scroller = true
+        break
+      }
+    }
+    const box = root.current.getBoundingClientRect()
+    const below = bottom - box.bottom
+    const above = box.top - top
     const h = menu.current.offsetHeight + 12
-    setUp(below < h && above > below)
+    // When neither side fits, a scroller can still scroll down to the menu —
+    // never up past its top — so only go up there if it truly fits.
+    setUp(below < h && (above >= h || (!scroller && above > below)))
   }, [open])
 
   useEffect(() => {
@@ -109,6 +126,7 @@ export default function Select({
         } ${open ? 'border-brand' : 'border-ink-200 hover:border-ink-300'} ${buttonClassName}`}
         {...aria}
       >
+        {current?.icon}
         {current?.color && dot(current.color)}
         <span className={`min-w-0 flex-1 truncate ${current ? 'text-ink-900' : 'text-ink-400'}`}>
           {current ? current.label ?? current.value : placeholder}
@@ -141,6 +159,7 @@ export default function Select({
                   selected ? 'bg-brand-soft' : i === hover ? 'bg-ink-50' : ''
                 }`}
               >
+                {o.icon}
                 {o.color && dot(o.color)}
                 <span className="min-w-0 flex-1">
                   <span className={`block text-[12px] truncate ${selected ? 'font-semibold text-ink-900' : 'text-ink-700'}`}>

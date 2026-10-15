@@ -38,6 +38,7 @@ import { TZ } from '../../lib/tz'
 import Select from '../ui/Select'
 import HowItWorks from './HowItWorks'
 import { fmtUSD } from '../../lib/money'
+import ModelLogo from '../ui/ModelLogo'
 
 // Settings — every control here is real and saves to the backend
 // (app/auth.py): profile, password, workspace name, and the team (add people
@@ -1061,7 +1062,10 @@ function AiModelSection({ canManage, showToast }) {
               } ${!canManage ? 'cursor-default' : ''}`}
             >
               <div className="flex items-center justify-between gap-2">
-                <span className="text-[13px] font-semibold text-ink-900">{m.label}</span>
+                <span className="inline-flex items-center gap-2 text-[13px] font-semibold text-ink-900">
+                  {m.key && <ModelLogo model={m.key} vendor={m.vendor} />}
+                  {m.label}
+                </span>
                 <span className="text-[11px] font-bold text-ink-400">{saving === (m.key || 'default') ? 'Saving…' : on ? 'Default' : m.tier}</span>
               </div>
               <div className="mt-0.5 text-[11.5px] text-ink-500">{m.blurb}</div>
@@ -1091,7 +1095,12 @@ function AiModelSection({ canManage, showToast }) {
               {rows.map((r, i) => (
                 <tr key={i} className="text-ink-700">
                   <td className="px-3.5 py-1.5">{r.user}</td>
-                  <td className="px-2 py-1.5">{label(r.model)}</td>
+                  <td className="px-2 py-1.5">
+                    <span className="inline-flex items-center gap-1.5">
+                      <ModelLogo model={r.model} size={13} />
+                      {label(r.model)}
+                    </span>
+                  </td>
                   <td className="px-2 py-1.5 text-right tabular-nums">{r.calls}</td>
                   <td className="px-2 py-1.5 text-right tabular-nums">{r.tokens.toLocaleString()}</td>
                   <td className="px-3.5 py-1.5 text-right tabular-nums">${r.charged.toFixed(2)}</td>
@@ -1755,7 +1764,7 @@ function InvitePanel({ features, onClose, onCreated, showToast }) {
 
   return (
     <div className="space-y-4 rounded-2xl border border-brand/25 bg-brand-soft/30 p-4 animate-fadein">
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <div className="mb-1.5 text-[12px] font-semibold text-ink-800">They join as</div>
           <div className="inline-flex rounded-lg bg-white p-0.5 ring-1 ring-ink-200">
@@ -1845,7 +1854,7 @@ function AddMember({ onCancel, onAdded, showToast }) {
 
   return (
     <div className="rounded-2xl border border-brand/25 bg-brand-soft/30 p-4 space-y-3 animate-fadein">
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <input autoFocus placeholder="Full name" value={form.name} onChange={set('name')} className={input} />
         <input type="email" placeholder="Email" value={form.email} onChange={set('email')} className={input} />
         <Select
@@ -1903,7 +1912,7 @@ function ToggleRow({ title, desc, on, onChange, disabled = false }) {
 
 function Row({ label, hint, children }) {
   return (
-    <label className="grid gap-1.5 sm:grid-cols-[170px_1fr] sm:items-center sm:gap-4">
+    <label className="grid grid-cols-1 gap-1.5 sm:grid-cols-[170px_1fr] sm:items-center sm:gap-4">
       <span className="text-[12.5px] font-medium text-ink-700">{label}</span>
       <span>
         {children}

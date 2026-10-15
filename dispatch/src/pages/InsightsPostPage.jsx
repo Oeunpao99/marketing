@@ -545,7 +545,7 @@ export default function InsightsPostPage() {
                   ]}
                 />
 
-                <div className="grid gap-4 lg:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
                   <section className={`${card} p-5`}>
                     <h2 className="text-[14.5px] font-semibold tracking-tight text-ink-900">Engagement mix</h2>
                     <p className="mb-4 mt-0.5 text-[12px] text-ink-500">What people did with this post</p>
@@ -579,7 +579,7 @@ export default function InsightsPostPage() {
             )}
 
             {/* Over time: this post's own growth, and where it sits among your posts */}
-            <div className="grid gap-4 xl:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
               {showEngagement || m.views != null ? (
                 <GrowthCard history={history} publishedAt={post.published_at} seriesColors={SERIES_COLORS} platformName={platformName} />
               ) : m.subscribers != null ? (
@@ -588,14 +588,14 @@ export default function InsightsPostPage() {
               {series.length >= 2 && <PostsTrendCard series={series} activeId={post.target_id} usual={usualEngagement} platformName={platformName} />}
             </div>
 
-            <div className="grid gap-4 xl:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
               <PostingTimeCard post={post} peers={samePlatform} platformName={platformName} />
               <MoreFromChannel post={post} items={items} icons={PLATFORM_ICONS} engagementOf={engagementOf} onOpen={openPost} />
             </div>
 
             <section className={`${card} p-5`}>
               <h2 className="mb-3 text-[14.5px] font-semibold tracking-tight text-ink-900">What to do next</h2>
-              <ol className="grid gap-2.5 sm:grid-cols-2">
+              <ol className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                 {tips.map((t, i) => (
                   <li key={i} className="flex items-center gap-3 rounded-xl bg-ink-50/70 px-3.5 py-2.5">
                     <span className="grid h-8 w-8 flex-none place-items-center rounded-lg bg-brand-soft text-brand">

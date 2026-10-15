@@ -94,7 +94,7 @@ export default function LeadDialog({ lead, brands, defaultBrandId, saving, onSav
           </button>
         </header>
 
-        <div className="grid flex-1 gap-4 overflow-y-auto px-6 py-5 sm:grid-cols-2">
+        <div className="grid grid-cols-1 flex-1 gap-4 overflow-y-auto px-6 py-5 sm:grid-cols-2">
           {!lead && brands.length > 1 && (
             <div className="sm:col-span-2">
               <Field label="Brand">

@@ -134,12 +134,18 @@ export default function ProductsPage() {
 
         <span className="hidden h-6 w-px bg-ink-200 sm:block" aria-hidden="true" />
 
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5" role="group" aria-label="Brand">
+        {/* phones: the brand chips get their own line under the tabs + Add
+            (scrolls sideways with many brands); one row from sm up */}
+        <div
+          className="order-last flex min-w-0 basis-full items-center gap-1.5 overflow-x-auto sm:order-none sm:flex-1 sm:basis-auto sm:flex-wrap"
+          role="group"
+          aria-label="Brand"
+        >
           {view === 'products' && (
             <button
               type="button"
               onClick={() => setBrandFilter('all')}
-              className={`rounded-full border px-3 py-1.5 text-[12px] font-semibold transition-colors ${
+              className={`flex-none whitespace-nowrap rounded-full border px-3 py-1.5 text-[12px] font-semibold transition-colors ${
                 brandFilter === 'all' ? 'border-brand-line bg-brand-soft text-brand' : 'border-ink-200 bg-white text-ink-600 hover:border-brand-line'
               }`}
             >
@@ -154,7 +160,7 @@ export default function ProductsPage() {
                 key={b.id}
                 type="button"
                 onClick={() => setBrandFilter(b.slug)}
-                className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-semibold transition-colors ${
+                className={`flex flex-none items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-[12px] font-semibold transition-colors ${
                   on ? 'border-brand-line bg-brand-soft text-brand' : 'border-ink-200 bg-white text-ink-600 hover:border-brand-line'
                 }`}
               >
@@ -194,7 +200,7 @@ export default function ProductsPage() {
           <div className="py-20 text-center text-[13px] text-ink-500">Create a brand first.</div>
         )
       ) : items === null ? (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="rounded-2xl border border-ink-100 bg-white p-5 space-y-3">
               <div className="h-3 w-24 rounded skeleton" />
@@ -217,7 +223,7 @@ export default function ProductsPage() {
           </button>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {filtered.map((p) => (
             <ProductCard
               key={p.id}

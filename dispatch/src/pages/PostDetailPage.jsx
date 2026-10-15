@@ -271,7 +271,7 @@ export default function PostDetailPage() {
         </div>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px] items-start">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_340px] items-start">
         <div className="min-w-0 space-y-5">
           {editing ? (
             <section className={`${card} p-5`}>
@@ -393,7 +393,7 @@ export default function PostDetailPage() {
                   {passed} of {checks.length} good
                 </span>
               </div>
-              <ul className="grid gap-2 sm:grid-cols-2">
+              <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {checks.map((c, i) => {
                   const tone = c.ok === true ? "bg-emerald-50 text-emerald-700" : c.ok === false ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-700";
                   const word = c.ok === true ? "Good" : c.ok === false ? "Fix" : "Tip";

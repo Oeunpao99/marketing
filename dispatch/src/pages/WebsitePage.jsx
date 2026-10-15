@@ -343,7 +343,7 @@ export default function WebsitePage() {
       ) : !site || editing ? (
         /* set the website */
         <section className={`${card} p-6 lg:p-8`}>
-          <div className="grid items-center gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,460px)]">
+          <div className="grid grid-cols-1 items-center gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,460px)]">
             <div className="flex items-start gap-4">
               <div className="grid h-14 w-14 flex-none place-items-center rounded-2xl bg-brand-soft text-brand">
                 <FiGlobe size={24} />
@@ -478,7 +478,7 @@ export default function WebsitePage() {
 
               <GoogleScores pagespeed={r.pagespeed} />
 
-              <div className="grid gap-4 lg:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 {sections.map((s) => (
                   <Section key={s.key} s={s} />
                 ))}

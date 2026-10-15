@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react'
-import { FiArrowRight } from 'react-icons/fi'
+import { FiArrowRight, FiChevronRight } from 'react-icons/fi'
 import { useNavigate } from 'react-router-dom'
 import { GOALS, STAGES } from '../../lib/goals'
 import { GOAL_TEMPLATES, MOTION_TEMPLATES, templateById } from '../../lib/motionTemplates'
@@ -115,6 +115,12 @@ export default function TemplatesGallery() {
   const navigate = useNavigate()
   const use = (t) => navigate('/ai?tab=images', { state: { motionStory: t.story } })
   const [goal, setGoal] = useState('all')
+  const top = useRef(null)
+  // from the goal list at the bottom: filter the gallery and bring it into view
+  const showGoal = (gk) => {
+    setGoal(gk)
+    top.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   const counts = Object.fromEntries(FILTERS.map(([k]) => [k, k === 'all' ? MOTION_TEMPLATES.length : MOTION_TEMPLATES.filter((t) => t.goals.includes(k)).length]))
   const shown = goal === 'all' ? MOTION_TEMPLATES : MOTION_TEMPLATES.filter((t) => t.goals.includes(goal))
@@ -128,7 +134,9 @@ export default function TemplatesGallery() {
         </p>
       </div>
 
-      <GoalTabs value={goal} onPick={setGoal} counts={counts} />
+      <div ref={top} className="scroll-mt-40">
+        <GoalTabs value={goal} onPick={setGoal} counts={counts} />
+      </div>
 
       {/* Picture-only cards, like the Media Library: the name sits on the
           preview; on hover the clip plays and "Use this template" shows — a
@@ -141,7 +149,10 @@ export default function TemplatesGallery() {
 
       <section className={`${card} p-5`}>
         <h2 className="text-[15px] font-semibold text-ink-900">Which templates each goal uses</h2>
-        <p className="mt-0.5 text-[12px] text-ink-500">The weekly plan follows this — a goal with two templates takes either, so the week doesn’t repeat one look.</p>
+        <p className="mt-0.5 text-[12px] leading-snug text-ink-500">
+          Each post in the weekly plan has a goal. Its video uses one of that goal’s templates, taking turns so the week
+          doesn’t repeat one look. Tap a goal to see its templates.
+        </p>
         <div className="mt-4 grid gap-5 lg:grid-cols-3">
           {Object.entries(STAGES).map(([key, stage]) => (
             <div key={key}>
@@ -151,10 +162,22 @@ export default function TemplatesGallery() {
                   .filter(([, g]) => g.stage === key)
                   .map(([gk, g]) => (
                     <li key={gk}>
-                      <button type="button" onClick={() => setGoal(gk)} className="flex w-full items-center justify-between gap-3 py-2.5 text-left">
-                        <span className="text-[13px] font-medium text-ink-800">{g.label}</span>
-                        <span className="text-right text-[12px] font-semibold text-ink-900">
-                          {(GOAL_TEMPLATES[gk] || []).map((id) => templateById(id)?.name).filter(Boolean).join(' · ')}
+                      {/* the goal on its own line, its templates as chips under it */}
+                      <button type="button" onClick={() => showGoal(gk)} className="group block w-full py-3 text-left">
+                        <span className="flex items-center gap-2">
+                          <span className="text-[13px] font-semibold text-ink-900">{g.label}</span>
+                          <span className="text-[11.5px] text-ink-400">{(GOAL_TEMPLATES[gk] || []).length} templates</span>
+                          <FiChevronRight size={14} className="ml-auto flex-none text-ink-300 group-hover:text-brand" aria-hidden="true" />
+                        </span>
+                        <span className="mt-1.5 flex flex-wrap gap-1.5">
+                          {(GOAL_TEMPLATES[gk] || [])
+                            .map((id) => templateById(id)?.name)
+                            .filter(Boolean)
+                            .map((name) => (
+                              <span key={name} className="whitespace-nowrap rounded-full bg-ink-100 px-2 py-0.5 text-[11.5px] font-medium text-ink-700">
+                                {name}
+                              </span>
+                            ))}
                         </span>
                       </button>
                     </li>
