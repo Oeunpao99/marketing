@@ -59,14 +59,27 @@ def _reader_name(narrator: str | None) -> str:
     return m.group(1) if m else narrator
 
 
-def readers(language: str = "Khmer") -> dict:
-    """Who reads a video's lines for Female and Male now — the comparison
-    plays these next to the brand voice."""
+def readers(language: str = "Khmer") -> list[dict]:
+    """The readers the comparison plays next to the brand voice: Azure's
+    Sreymom and Piseth (when Azure Speech is set up) and whoever reads the
+    videos' Female and Male lines now (Gemini's, when it's on) — no repeats.
+    [{"voice": what /ai/motion/say takes, "name", "note"}]"""
     from app import speech
 
     if not speech.ready():
-        return {}
-    return {g: _reader_name(speech.voice_for(language, g)) for g in ("female", "male")}
+        return []
+    out, seen = [], set()
+    if speech.provider() == "azure":
+        for v, g in (("sreymom", "female"), ("piseth", "male")):
+            name = speech.VOICES[("km", g)]
+            seen.add(name)
+            out.append({"voice": v, "name": _reader_name(name), "note": f"Azure · {g}"})
+    for g in ("female", "male"):
+        name = speech.voice_for(language, g)
+        if name and name not in seen:
+            seen.add(name)
+            out.append({"voice": g, "name": _reader_name(name), "note": f"Video {g} reader"})
+    return out
 
 
 def _learn(brand_id: int, recording: bytes, sample: str) -> None:
@@ -81,9 +94,9 @@ def _learn(brand_id: int, recording: bytes, sample: str) -> None:
             patch = {"status": "ready", "fingerprint": url, "base": got["base"], "seconds": got["seconds"], "pitch": got["pitch"], "error": ""}
         except voice_clone.VoiceCloneError as exc:
             patch = {"status": "failed", "error": str(exc)}
-        except Exception as exc:  # noqa: BLE001 — the page must stop waiting either way
+        except Exception:  # noqa: BLE001 — the page must stop waiting either way
             log.exception("brand %s: voice not learned", brand_id)
-            patch = {"status": "failed", "error": f"The voice couldn't be learned — {exc}"}
+            patch = {"status": "failed", "error": "Something went wrong while learning the voice — try the recording again in a moment."}
         brand = db.get(Brand, brand_id)
         clone = (brand.voice_clone or {}) if brand is not None else {}
         if clone.get("status") == "learning" and clone.get("sample") == sample:

@@ -109,6 +109,12 @@ def transliterate(words: list[str]) -> dict[str, str]:
     say them (Facebook → ហ្វេសប៊ុក) — the local voice can't read Latin
     letters. One AI call for the words not seen before; cached in memory.
     Returns {} for the words it couldn't do (they're then skipped)."""
+    from app.khmer_speech import khmer_for
+
+    for w in words:  # common loanwords and acronyms are known — no AI needed
+        known = khmer_for(w) if w else None
+        if known:
+            _translit_cache[w.lower()] = known
     todo = sorted({w for w in words if w and w.lower() not in _translit_cache})
     if todo:
         from app.content_ai import ContentAIError, _chat

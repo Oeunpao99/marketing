@@ -190,6 +190,9 @@ def convert(audio: bytes, fingerprint: bytes, strength: float = STRENGTH) -> byt
     return _mp3(wav)
 
 
+AZURE_NAMED = {"sreymom": "female", "piseth": "male"}
+
+
 def ready_for(brand) -> bool:
     return (getattr(brand, "voice_clone", None) or {}).get("status") == "ready"
 
@@ -204,6 +207,10 @@ def narrator_for(brand, language: str, voice: str, style: str | None = None) -> 
 
     if not speech.ready() or voice == "none":
         return None, None
+    # Azure's own Khmer voices by name (the Voice tab's comparison), whatever
+    # reads the videos — None when Azure Speech isn't set up
+    if voice in AZURE_NAMED:
+        return (speech.VOICES[("km", AZURE_NAMED[voice])] if speech.provider() == "azure" else None), None
     if voice != "brand":
         return speech.voice_for(language, voice, style), None
     clone = (getattr(brand, "voice_clone", None) or {}) if brand is not None else {}

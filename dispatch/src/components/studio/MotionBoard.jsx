@@ -186,7 +186,7 @@ export function MotionMaking({ progress, pct, stage, elapsed, onStop }) {
             </div>
             {progress?.why && <div className="mt-0.5 text-[11.5px] text-ink-400">AI picked {style}: {progress.why}</div>}
             {progress?.voice_note && (
-              <div className="mt-1 rounded-lg bg-amber-50 px-2 py-1 text-[11.5px] font-medium text-amber-800">⚠ {progress.voice_note}</div>
+              <div className="mt-1 rounded-lg bg-ink-50 px-2 py-1 text-[11.5px] text-ink-600">{progress.voice_note}</div>
             )}
             <div className="mt-0.5 truncate text-[12px] text-ink-500">{stage}</div>
           </div>

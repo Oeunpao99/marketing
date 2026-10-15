@@ -220,7 +220,7 @@ export default function BrandVoice({ brand, showToast }) {
         <div className="m-5 h-40 rounded-xl skeleton" />
       ) : (
         <>
-          {status === 'ready' && <Compare brand={brand} readers={voice.readers || {}} base={voice.base} showToast={showToast} />}
+          {status === 'ready' && <Compare brand={brand} readers={voice.readers || []} base={voice.base} showToast={showToast} />}
 
           <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
             {/* the text to read */}
@@ -459,9 +459,10 @@ function LearningFlow({ since }) {
   )
 }
 
-/** One line read three ways — the Female reader, the Male reader and the
- *  brand voice — so the owner hears what the clone sounds like (each ▶ is a
- *  voice preview: POST /ai/motion/say, a little AI credit). */
+/** One line read by the brand voice and every reader the server has — Azure's
+ *  Sreymom and Piseth, and Gemini's when it reads the videos — so the owner
+ *  hears what the clone sounds like (each ▶ is a voice preview: POST
+ *  /ai/motion/say, a little AI credit). */
 function Compare({ brand, readers, base, showToast }) {
   const [line, setLine] = useState(COMPARE_LINE)
   const [clips, setClips] = useState({}) // voice → { url, text } or "busy"
@@ -470,10 +471,13 @@ function Compare({ brand, readers, base, showToast }) {
 
   useEffect(() => () => Object.values(clips).forEach((c) => c?.url && URL.revokeObjectURL(c.url)), []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // the brand voice is a video reader's line turned into the owner's voice —
+  // name the reader it's made from (Gemini's when Gemini reads the videos)
+  const from = readers.find((x) => x.voice === (base === 'male' ? 'male' : 'female')) ||
+    readers.find((x) => x.voice === (base === 'male' ? 'piseth' : 'sreymom'))
   const voices = [
-    { v: 'female', name: readers.female || 'Female', note: 'Female reader' },
-    { v: 'male', name: readers.male || 'Male', note: 'Male reader' },
-    { v: 'brand', name: `${brand.name} voice`, note: `Your voice · from the ${base === 'male' ? 'male' : 'female'} reader`, you: true },
+    { v: 'brand', name: `${brand.name} voice`, note: `Your voice${from ? ` · made from ${from.name}` : ''}`, you: true },
+    ...readers.map((x) => ({ v: x.voice, name: x.name, note: x.note })),
   ]
 
   const play = async (v) => {
@@ -514,7 +518,7 @@ function Compare({ brand, readers, base, showToast }) {
         maxLength={300}
         className="mt-2 w-full rounded-xl border border-ink-200 bg-white px-3 py-2 font-khmer text-[13.5px] leading-relaxed text-ink-800 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15"
       />
-      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {voices.map(({ v, name, note, you }) => {
           const clip = clips[v]
           const on = playing === v

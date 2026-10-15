@@ -2737,16 +2737,21 @@ def spoken_text(say: str, pronunciations: list[dict] | None) -> tuple[str, list[
 
 
 def voice_pronunciations(voice: str, says: list[str], pronunciations: list[dict] | None) -> list[dict]:
-    """The brand's pronunciation list — plus, for the local Khmer voice (which
-    can't read Latin letters), every other English / brand word in ``says``
-    written in Khmer letters by the AI (local_voice.transliterate)."""
+    """The brand's pronunciation list — plus every other English / brand word
+    in a Khmer line written in Khmer letters, the way a Cambodian says it
+    (khmer_speech.LOANWORDS, acronyms spelled out, else the AI —
+    local_voice.transliterate): a Khmer voice reading Latin letters inside a
+    Khmer sentence guesses and gets them wrong. English lines stay as they
+    are, except for the local Khmer voice, which can't read Latin at all."""
     from app import local_voice
 
     rules = list(pronunciations or [])
-    if not voice.startswith(local_voice.PREFIX):
+    local = voice.startswith(local_voice.PREFIX)
+    lines = [s for s in says if s and (local or any("ក" <= ch <= "៿" for ch in s))]
+    if not lines:
         return rules
     known = {(p.get("word") or "").strip().lower() for p in rules}
-    latin = sorted({w for say in says for w in local_voice.LATIN_WORD.findall(say or "") if w.lower() not in known})
+    latin = sorted({w for say in lines for w in local_voice.LATIN_WORD.findall(say) if w.lower() not in known})
     if latin:
         rules += [{"word": w, "say": k} for w, k in local_voice.transliterate(latin).items()]
     return rules
@@ -2859,7 +2864,11 @@ def add_voice(
     new_failures = speech.GEMINI_FAILURES[failed_before:]
     if new_failures:
         # say it on the card: the voice that read it isn't the one chosen
-        _report(job_id, voice_note=f"Gemini voice failed ({new_failures[-1]}) — Azure read {len(new_failures)} line(s) instead")
+        # the reason (a key, a quota…) is for the team, in the log — the person
+        # making the video just needs to know a backup voice read some lines
+        log.error("motion %s: Gemini voice failed (%s) — Azure read %s line(s)", job_id, new_failures[-1], len(new_failures))
+        n = len(new_failures)
+        _report(job_id, voice_note=f"Our main voice was busy, so a backup voice read {n} line{'s' if n != 1 else ''} — it may sound a little different.")
     del speech.GEMINI_FAILURES[:-50]
     if spoken and not local:
         billing.charge(
@@ -3471,8 +3480,9 @@ def say_line(
         mp3, _words = speech.speak_timed(text, narrator)
         if clone:
             mp3 = voice_clone.convert(mp3, clone)
-    except Exception as exc:  # noqa: BLE001 — the voice service's own message
-        raise HTTPException(502, f"The voice couldn't be made — {exc}") from exc
+    except Exception as exc:  # noqa: BLE001 — the details are for the log, not the person
+        log.warning("voice preview failed (%s): %s", narrator, exc)
+        raise HTTPException(502, "That line couldn't be read just now — try again in a moment.") from exc
     if not narrator.startswith("local:"):  # the local Khmer voice costs nothing
         billing.charge(ws, "video", len(payload.text) * speech.price_per_char(narrator), user_id=user.id, model=narrator, note="Voice preview")
     return Response(content=mp3, media_type="audio/mpeg", headers={"Cache-Control": "no-store"})

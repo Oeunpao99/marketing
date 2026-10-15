@@ -70,6 +70,66 @@ _PATTERNS = [
 ]
 
 
+# English words in everyday Cambodian marketing, written the way they're said
+# out loud — a Khmer voice reading them in Latin letters guesses (and often gets
+# them wrong). Free, instant and always the same; anything not here is written
+# in Khmer letters by the AI (local_voice.transliterate). The brand's own
+# pronunciation list wins over both.
+LOANWORDS = {
+    "facebook": "ហ្វេសប៊ុក",
+    "page": "ផេក",
+    "tiktok": "ធីកតុក",
+    "telegram": "តេឡេក្រាម",
+    "youtube": "យូធូប",
+    "instagram": "អ៊ីនស្តាក្រាម",
+    "google": "ហ្គូហ្គល",
+    "messenger": "មេសេនជ័រ",
+    "online": "អនឡាញ",
+    "offline": "អហ្វឡាញ",
+    "inbox": "អ៊ីនបុក",
+    "chat": "ឆាត",
+    "video": "វីដេអូ",
+    "follow": "ហ្វូឡូ",
+    "like": "ឡាយ",
+    "share": "ស៊ែរ",
+    "comment": "ខមមិន",
+    "promotion": "ប្រូម៉ូសិន",
+    "promo": "ប្រូម៉ូ",
+    "website": "វេបសាយ",
+    "app": "អែប",
+    "email": "អ៊ីមែល",
+    "link": "លីង",
+    "admin": "អេដមីន",
+    "ok": "អូខេ",
+    "wifi": "វ៉ាយហ្វាយ",
+    "free": "ហ្វ្រី",
+    "phone": "ហ្វូន",
+    "iphone": "អាយហ្វូន",
+    "laptop": "ឡេបថប",
+    "software": "សូហ្វវែរ",
+    "menu": "ម៉ឺនុយ",
+    "coffee": "កាហ្វេ",
+}
+# Letter names as said in Khmer — acronyms are spelled out (AI → អេអាយ).
+LETTERS = {
+    "A": "អេ", "B": "ប៊ី", "C": "ស៊ី", "D": "ឌី", "E": "អ៊ី", "F": "អេហ្វ", "G": "ជី", "H": "អេច", "I": "អាយ",
+    "J": "ជេ", "K": "ខេ", "L": "អែល", "M": "អឹម", "N": "អិន", "O": "អូ", "P": "ភី", "Q": "ឃ្យូ", "R": "អា",
+    "S": "អេស", "T": "ធី", "U": "យូ", "V": "វី", "W": "ដាប់បលយូ", "X": "អ៊ិច", "Y": "វ៉ាយ", "Z": "ហ្សេដ",
+}  # fmt: skip
+
+
+def khmer_for(word: str) -> str | None:
+    """A Latin word as a Khmer voice should say it, when that's known without
+    the AI: a common loanword, or an acronym / single letter spelled out."""
+    w = word.strip(".'’-")
+    hit = LOANWORDS.get(w.lower())
+    if hit:
+        return hit
+    if w.isascii() and w.isalpha() and (len(w) == 1 or (len(w) <= 6 and w.isupper())):
+        return "".join(LETTERS[c] for c in w.upper())
+    return None
+
+
 def _is_latin(word: str) -> bool:
     return bool(re.search(r"[A-Za-z]", word))
 
