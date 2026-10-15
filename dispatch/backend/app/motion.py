@@ -3321,10 +3321,10 @@ def _build_plan(payload: "PlanIn", ws: int, user_id: int) -> dict:
         db.close()
 
 
-def _run_plan(plan_id: str, payload: "PlanIn", ws: int, user_id: int) -> None:
+def _run_plan(plan_id: str, payload: "PlanIn", ws: int, user_id: int, model: str = "") -> None:
     from app.content_ai import ContentAIError
 
-    billing.bind(ws, user_id)  # the AI calls in this thread are charged to them
+    billing.bind(ws, user_id, model)  # the AI calls in this thread are charged to them (and use their pick)
     try:
         _plans[plan_id].update(status="done", result=_build_plan(payload, ws, user_id))
     except ContentAIError as exc:
@@ -3353,7 +3353,7 @@ def plan_motion(
         _plans.pop(k, None)
     plan_id = uuid.uuid4().hex
     _plans[plan_id] = {"ws": ws, "status": "running", "at": now}
-    threading.Thread(target=_run_plan, args=(plan_id, payload, ws, user.id), daemon=True, name=f"plan-{plan_id[:8]}").start()
+    threading.Thread(target=_run_plan, args=(plan_id, payload, ws, user.id, billing.requested_model()), daemon=True, name=f"plan-{plan_id[:8]}").start()
     return {"plan_id": plan_id, "status": "running"}
 
 
@@ -3462,7 +3462,7 @@ def create_motion(
     db.refresh(job)
     threading.Thread(
         target=_make,
-        args=(job.id, payload.product_id, payload.language, payload.voice, "", payload.music, payload.goal, payload.script, payload.ratio, payload.ref_url),
+        args=(job.id, payload.product_id, payload.language, payload.voice, "", payload.music, payload.goal, payload.script, payload.ratio, payload.ref_url, billing.requested_model()),
         daemon=True,
         name=f"motion-{job.id}",
     ).start()
@@ -3522,6 +3522,7 @@ def _make(
     reviewed: dict | None = None,
     ratio: str = "9:16",
     ref_url: str = "",
+    model: str = "",
 ) -> None:
     from app.content_ai import ContentAIError
     from app.video import _ready_push
@@ -3529,7 +3530,7 @@ def _make(
     db = SessionLocal()
     try:
         job = db.get(GenerationJob, job_id)
-        billing.bind(job.workspace_id, job.user_id)  # the script is an AI call
+        billing.bind(job.workspace_id, job.user_id, model)  # the script is an AI call — written by the model they picked
         job.status = "running"
         db.commit()
         _report(job_id, stage="story")  # also marks the job as alive in this process (video._tick)

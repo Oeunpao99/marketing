@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import {
   FiActivity,
   FiAlertTriangle,
+  FiCpu,
   FiDollarSign,
   FiGrid,
   FiLogOut,
@@ -18,6 +19,7 @@ import {
 import Select from '../../components/ui/Select'
 import { hideSplash } from '../../lib/splash'
 import PlatformIcon, { PLAT_BRAND_CLASS } from '../../components/ui/PlatformIcon'
+import AiUsage, { AccountAiSection } from './AdminAI'
 
 // The platform admin portal (/admin-mkt — backend app/admin.py): who signed
 // up, who uses ContentFlow and how much AI they spend, with the controls to
@@ -169,6 +171,7 @@ function AdminLogin({ onIn }) {
 const TABS = [
   { id: 'overview', label: 'Overview', icon: FiGrid },
   { id: 'accounts', label: 'Accounts', icon: FiUsers },
+  { id: 'ai', label: 'AI usage', icon: FiCpu },
 ]
 
 function AdminPortal({ onSignOut }) {
@@ -233,6 +236,8 @@ function AdminPortal({ onSignOut }) {
       <main className="min-w-0 flex-1 px-5 py-7 lg:px-10">
         {tab === 'overview' ? (
           <Overview key={stamp} onOpen={setOpenId} onAll={() => setTab('accounts')} />
+        ) : tab === 'ai' ? (
+          <AiUsage key={stamp} api={adminApi} onOpen={setOpenId} />
         ) : (
           <Accounts key={stamp} onOpen={setOpenId} />
         )}
@@ -680,6 +685,10 @@ function AccountDrawer({ id, onClose, onChanged }) {
                     ))}
                   </ul>
                 )}
+              </Section>
+
+              <Section title="AI models">
+                <AccountAiSection id={id} api={adminApi} />
               </Section>
 
               <Section title="AI credit activity">

@@ -19,6 +19,37 @@ export const tokenStore = {
   },
 }
 
+// The writing model picked in the composer (backend app/ai_models.py): sent
+// with every request as X-AI-Model; "" = the workspace's default.
+const AI_MODEL_KEY = 'cf_ai_model'
+export const aiModelStore = {
+  get: () => {
+    try {
+      return localStorage.getItem(AI_MODEL_KEY) || ''
+    } catch {
+      return ''
+    }
+  },
+  set: (m) => {
+    try {
+      if (m) localStorage.setItem(AI_MODEL_KEY, m)
+      else localStorage.removeItem(AI_MODEL_KEY)
+    } catch {
+      /* ignore */
+    }
+  },
+}
+
+/** The headers every call carries: the sign-in token and the picked model. */
+function baseHeaders() {
+  const headers = {}
+  const token = tokenStore.get()
+  if (token) headers.Authorization = `Bearer ${token}`
+  const model = aiModelStore.get()
+  if (model) headers['X-AI-Model'] = model
+  return headers
+}
+
 // Server updating / in maintenance: a 503 marked `maintenance` (backend
 // MAINTENANCE_MODE, or nginx while the backend restarts) or no answer at all.
 // Tell the app to show its "updating" screen (MaintenanceOverlay) and give the
@@ -61,10 +92,8 @@ async function request(method, path, body) {
   // Accept both "/views/x" and "/api/views/x" — BASE is added once either way.
   if (path.startsWith('/api/')) path = path.slice(4)
 
-  const headers = {}
+  const headers = baseHeaders()
   if (body !== undefined) headers['Content-Type'] = 'application/json'
-  const token = tokenStore.get()
-  if (token) headers.Authorization = `Bearer ${token}`
 
   const res = await send(BASE + path, {
     method,
@@ -97,9 +126,7 @@ async function request(method, path, body) {
 
 async function upload(path, formData) {
   if (path.startsWith('/api/')) path = path.slice(4)
-  const headers = {}
-  const token = tokenStore.get()
-  if (token) headers.Authorization = `Bearer ${token}`
+  const headers = baseHeaders()
   const res = await send(BASE + path, { method: 'POST', headers, body: formData })
   const data = parse(await res.text())
   checkMaintenance(res, data)
@@ -112,9 +139,7 @@ async function upload(path, formData) {
 // POST that answers with a file (e.g. an MP3 voice preview) — a Blob.
 async function blob(path, body) {
   if (path.startsWith('/api/')) path = path.slice(4)
-  const headers = { 'Content-Type': 'application/json' }
-  const token = tokenStore.get()
-  if (token) headers.Authorization = `Bearer ${token}`
+  const headers = { ...baseHeaders(), 'Content-Type': 'application/json' }
   const res = await send(BASE + path, { method: 'POST', headers, body: JSON.stringify(body ?? {}) })
   if (!res.ok) {
     const data = parse(await res.text())

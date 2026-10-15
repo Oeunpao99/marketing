@@ -37,6 +37,8 @@ import { fmtUSD } from '../lib/money'
 import { PILLAR_LABELS, pillarChipClass } from '../lib/angles'
 import { kitSrc, TemplatePicker } from '../components/brandkit/BrandKit'
 import { MOTION_OFF_TIP, useMotionReady } from '../lib/motionStatus'
+import WriterModelSelect, { useWriterModels, writerHint } from '../components/studio/WriterModelSelect'
+import { aiModelStore } from '../api/client'
 
 // AI Agent — one chat for both asking and creating. A message that reads
 // like a question ("how is my engagement?", "what should I post next?") goes
@@ -2432,6 +2434,8 @@ function SettingsPopover({
           </Row>
         )}
 
+        <WriterRow />
+
         <Row label="Brand">
           <Select
             size="sm"
@@ -2477,6 +2481,18 @@ function SettingsPopover({
         </div>
       )}
     </div>
+  )
+}
+
+/** "Writer AI": which model writes — shown when the workspace may pick from 2+. */
+function WriterRow() {
+  const data = useWriterModels()
+  const [pick, setPick] = useState(aiModelStore.get())
+  if (!data || (data.models || []).length < 2) return null
+  return (
+    <Row label="Writer AI" hint={writerHint(data, pick)}>
+      <WriterModelSelect onPick={setPick} />
+    </Row>
   )
 }
 

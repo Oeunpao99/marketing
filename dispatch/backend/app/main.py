@@ -33,6 +33,7 @@ from app.admin import router as admin_router
 from app.leads import intake_router as leads_intake_router
 from app.leads import router as leads_router
 from app.sales_alerts import router as sales_alerts_router
+from app.ai_models_api import router as ai_models_router
 
 logging.basicConfig(level=logging.INFO)
 settings = get_settings()
@@ -72,7 +73,7 @@ MAINTENANCE_DEFAULT = "ContentFlow is down for scheduled maintenance. We'll be b
 @app.middleware("http")
 async def billing_payer(request: Request, call_next):
     """Open this request's "who pays for AI" holder (app/billing.py)."""
-    billing.begin_request()
+    billing.begin_request(request.headers.get("x-ai-model", ""))
     return await call_next(request)
 
 
@@ -148,6 +149,7 @@ api.include_router(activity_router, dependencies=authed)
 api.include_router(command_router, dependencies=authed)
 api.include_router(leads_router, dependencies=authed)
 api.include_router(sales_alerts_router, dependencies=authed)
+api.include_router(ai_models_router, dependencies=authed)
 api.include_router(views_public_router)
 api.include_router(leads_intake_router)  # chatbots: X-ContentFlow-Key, no login
 api.include_router(admin_router)  # /admin-mkt: its own .env login (X-Admin-Token), not a customer's

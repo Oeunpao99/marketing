@@ -992,6 +992,8 @@ function WorkspaceTab({ showToast }) {
         </div>
       </section>
 
+      <AiModelSection canManage={canManage} showToast={showToast} />
+
       {/* privacy */}
       <section className="flex items-start gap-3 rounded-2xl bg-ink-50 px-4 py-3.5">
         <FiLock size={15} className="mt-0.5 flex-none text-ink-500" />
@@ -1001,6 +1003,105 @@ function WorkspaceTab({ showToast }) {
         </p>
       </section>
     </div>
+  )
+}
+
+// ── AI model ──────────────────────────────────────────────────────────────
+// Which AI writes for this workspace (backend app/ai_models.py): the models the
+// platform lets it use, each with what 1M tokens costs its credit; the default
+// (owner / admin); and the last 30 days of AI writing by model and person.
+function AiModelSection({ canManage, showToast }) {
+  const [data, setData] = useState(null)
+  const [usage, setUsage] = useState(null)
+  const [saving, setSaving] = useState('')
+
+  useEffect(() => {
+    api.get('/ai-models').then(setData).catch(() => setData(null))
+    api.get('/ai-models/usage?days=30').then(setUsage).catch(() => setUsage(null))
+  }, [])
+
+  if (!data || !data.models?.length) return null
+  const current = data.default || ''
+  const pick = async (key) => {
+    if (!canManage || key === current) return
+    setSaving(key || 'default')
+    try {
+      const r = await api.put('/ai-models/default', { model: key })
+      setData({ ...data, default: r.default })
+      showToast('Default AI model saved')
+    } catch (e) {
+      showToast(`Couldn’t save — ${e.message}`)
+    } finally {
+      setSaving('')
+    }
+  }
+  const platform = data.models.find((m) => m.key === data.platform_default)
+  const options = [{ key: '', label: 'Platform default', blurb: platform ? `Currently ${platform.label}` : 'Chosen by ContentFlow', tier: '' }, ...data.models]
+  const rows = (usage?.rows || []).slice().sort((a, b) => b.charged - a.charged)
+  const label = (k) => data.models.find((m) => m.key === k)?.label || k || 'Other'
+
+  return (
+    <section>
+      <h3 className="text-[13px] font-semibold text-ink-900">AI model</h3>
+      <p className="mt-0.5 text-[12px] text-ink-500">
+        The AI that writes your captions, ideas and video stories.{' '}
+        {canManage ? 'Everyone can still pick another in the composer’s settings.' : 'Only an owner or admin can change the default.'}
+      </p>
+      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        {options.map((m) => {
+          const on = m.key === current
+          return (
+            <button
+              key={m.key || 'default'}
+              type="button"
+              disabled={!canManage || saving !== ''}
+              onClick={() => pick(m.key)}
+              className={`rounded-2xl border px-3.5 py-3 text-left transition-colors ${
+                on ? 'border-brand bg-brand-soft' : 'border-ink-200 hover:border-ink-300'
+              } ${!canManage ? 'cursor-default' : ''}`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[13px] font-semibold text-ink-900">{m.label}</span>
+                <span className="text-[11px] font-bold text-ink-400">{saving === (m.key || 'default') ? 'Saving…' : on ? 'Default' : m.tier}</span>
+              </div>
+              <div className="mt-0.5 text-[11.5px] text-ink-500">{m.blurb}</div>
+              {m.key && (
+                <div className="mt-1 text-[11px] tabular-nums text-ink-400">
+                  ${m.price_in} in · ${m.price_out} out per 1M tokens
+                </div>
+              )}
+            </button>
+          )
+        })}
+      </div>
+      {rows.length > 0 && (
+        <div className="mt-4 overflow-hidden rounded-2xl border border-ink-200">
+          <div className="bg-ink-50 px-3.5 py-2 text-[11.5px] font-semibold text-ink-600">Last 30 days · AI writing by model</div>
+          <table className="w-full text-[12px]">
+            <thead>
+              <tr className="text-left text-ink-400">
+                <th className="px-3.5 py-1.5 font-medium">Who</th>
+                <th className="px-2 py-1.5 font-medium">Model</th>
+                <th className="px-2 py-1.5 text-right font-medium">Calls</th>
+                <th className="px-2 py-1.5 text-right font-medium">Tokens</th>
+                <th className="px-3.5 py-1.5 text-right font-medium">Credit</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-ink-100">
+              {rows.map((r, i) => (
+                <tr key={i} className="text-ink-700">
+                  <td className="px-3.5 py-1.5">{r.user}</td>
+                  <td className="px-2 py-1.5">{label(r.model)}</td>
+                  <td className="px-2 py-1.5 text-right tabular-nums">{r.calls}</td>
+                  <td className="px-2 py-1.5 text-right tabular-nums">{r.tokens.toLocaleString()}</td>
+                  <td className="px-3.5 py-1.5 text-right tabular-nums">${r.charged.toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   )
 }
 

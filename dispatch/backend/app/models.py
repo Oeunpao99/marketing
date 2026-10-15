@@ -74,6 +74,27 @@ class Workspace(Base, TimestampMixin):
     sales_tg_chat_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
     sales_tg_title: Mapped[str] = mapped_column(String(200), default="", server_default="")
     sales_tg_code: Mapped[str | None] = mapped_column(String(12), nullable=True)
+    # The AI that writes for this workspace (app/ai_models.py): a model key, ""
+    # = the platform default. A request may still pick another allowed one.
+    ai_model: Mapped[str] = mapped_column(String(40), default="", server_default="")
+    # Which writing models the platform admin lets this workspace use — null =
+    # every enabled model (/admin-mkt sets it).
+    ai_models_allowed: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+
+
+class AiModel(Base):
+    """A writing model customers may pick (app/ai_models.py has the catalog):
+    the platform admin turns it on and off, and sets what it costs us per 1M
+    tokens and the markup a workspace's credit is charged at."""
+
+    __tablename__ = "ai_models"
+
+    key: Mapped[str] = mapped_column(String(40), primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    price_in: Mapped[float] = mapped_column(Numeric(10, 4), default=0, server_default="0")  # $ / 1M input tokens
+    price_out: Mapped[float] = mapped_column(Numeric(10, 4), default=0, server_default="0")  # $ / 1M output tokens
+    markup: Mapped[float] = mapped_column(Numeric(6, 3), default=1.3, server_default="1.3")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 class CreditEntry(Base):
@@ -97,6 +118,11 @@ class CreditEntry(Base):
     amount_usd: Mapped[float] = mapped_column(Numeric(12, 6))
     model: Mapped[str] = mapped_column(String(80), default="", server_default="")
     tokens: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # text calls: tokens in and out, and what the provider charged us — the
+    # amount above is that times the model's markup
+    input_tokens: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    output_tokens: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    cost_usd: Mapped[float] = mapped_column(Numeric(12, 6), default=0, server_default="0")
     seconds: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     note: Mapped[str] = mapped_column(String(300), default="", server_default="")
     job_id: Mapped[int | None] = mapped_column(

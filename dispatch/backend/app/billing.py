@@ -60,6 +60,9 @@ TEXT_PRICES = {
     "gpt-4o": (2.50, 10.00),
 }
 DEFAULT_TEXT = (1.25, 10.00)
+# Credit a text call costs a workspace = our cost × the model's markup (set per
+# model in the admin portal, app/ai_models.py); models outside the catalog use this.
+DEFAULT_MARKUP = 1.3
 # Images from token-billed models (gpt-image-*): per 1M tokens (input, output).
 IMAGE_TOKEN_PRICES = (5.00, 40.00)
 # Images from models that don't report tokens (Imagen), and the hold for an
@@ -85,10 +88,11 @@ class OutOfCredit(RuntimeError):
 _payer: ContextVar[dict | None] = ContextVar("billing_payer", default=None)
 
 
-def begin_request() -> None:
+def begin_request(model: str = "") -> None:
     """Middleware: a fresh holder per request. It's a mutable dict so the
-    auth dependency (run in a copied context) can fill it in for the handler."""
-    _payer.set({})
+    auth dependency (run in a copied context) can fill it in for the handler.
+    ``model``: the writing model the person picked (header X-AI-Model)."""
+    _payer.set({"model": (model or "")[:40]})
 
 
 def bind_user(user: TeamMember) -> None:
@@ -97,9 +101,15 @@ def bind_user(user: TeamMember) -> None:
         holder.update(ws=user.workspace_id, user=user.id)
 
 
-def bind(ws: int | None, user_id: int | None = None) -> None:
-    """Background work: charge AI calls in this thread to workspace ``ws``."""
-    _payer.set({"ws": ws, "user": user_id})
+def bind(ws: int | None, user_id: int | None = None, model: str = "") -> None:
+    """Background work: charge AI calls in this thread to workspace ``ws``
+    (and write with ``model`` when the person picked one — app/ai_models.py)."""
+    _payer.set({"ws": ws, "user": user_id, "model": model or ""})
+
+
+def requested_model() -> str:
+    """The writing model picked for this request / background job, or ""."""
+    return (_payer.get() or {}).get("model") or ""
 
 
 def bind_brand(brand_id: int) -> None:
@@ -251,6 +261,9 @@ def charge(
     seconds: int = 0,
     note: str = "",
     job_id: int | None = None,
+    input_tokens: int = 0,
+    output_tokens: int = 0,
+    cost: float = 0.0,
 ) -> None:
     """Record a spend (``amount`` > 0 is taken off the balance). Uses its own
     session so it never mixes into the caller's transaction."""
@@ -266,6 +279,9 @@ def charge(
                 amount_usd=-round(amount, 6),
                 model=(model or "")[:80],
                 tokens=tokens or 0,
+                input_tokens=input_tokens or 0,
+                output_tokens=output_tokens or 0,
+                cost_usd=round(cost or amount, 6),
                 seconds=seconds or 0,
                 note=" ".join((note or "").split())[:300],
                 job_id=job_id,
@@ -280,16 +296,26 @@ def charge(
 
 
 def charge_text(model: str, usage: dict | None, note: str = "") -> float:
-    """Charge one chat completion to whoever is paying in this context."""
+    """Charge one chat completion to whoever is paying in this context: what
+    the provider charges us (the admin's price per model, app/ai_models.py,
+    else TEXT_PRICES) times the model's markup."""
+    from app import ai_models
+
     usage = usage or {}
+    model = ai_models.canonical(model)  # "gpt-5-mini-2025-08-07" → "gpt-5-mini"
     tin = usage.get("prompt_tokens") or usage.get("input_tokens") or 0
     tout = usage.get("completion_tokens") or usage.get("output_tokens") or 0
-    cost = text_cost(model, tin, tout)
+    priced = ai_models.pricing(model)
+    if priced:
+        cost = (tin * priced[0] + tout * priced[1]) / 1_000_000
+        markup = priced[2]
+    else:
+        cost, markup = text_cost(model, tin, tout), DEFAULT_MARKUP
     ws, user = payer()
     if ws is None:
         log.debug("unattributed AI text call (%s tokens)", tin + tout)
         return cost
-    charge(ws, "text", cost, user_id=user, model=model, tokens=tin + tout, note=note)
+    charge(ws, "text", cost * markup, user_id=user, model=model, tokens=tin + tout, note=note, input_tokens=tin, output_tokens=tout, cost=cost)
     return cost
 
 

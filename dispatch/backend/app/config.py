@@ -54,6 +54,10 @@ class Settings(BaseSettings):
     azure_openai_writer_deployment: str = ""
     azure_openai_writer_endpoint: str = ""
     azure_openai_writer_api_key: str = ""
+    # Claude on Microsoft Foundry (app/ai_models.py): the resource name (the
+    # part before .services.ai.azure.com) and its key. Blank = Claude not offered.
+    azure_claude_resource: str = ""
+    azure_claude_api_key: str = ""
 
     # In-portal video generation (AI agent → "Generate video").
     # Provider: "azure_sora" or "gemini_veo".

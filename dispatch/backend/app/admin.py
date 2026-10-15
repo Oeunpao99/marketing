@@ -37,6 +37,7 @@ from app.auth import client_ip
 from app.config import get_settings
 from app.database import get_db
 from app.models import (
+    AiModel,
     Brand,
     Channel,
     CreditEntry,
@@ -385,3 +386,129 @@ def admin_set_user_active(user_id: int, payload: ActiveIn, db: Session = Depends
     db.commit()
     log.warning("admin portal: user %s %s", user_id, "enabled" if payload.is_active else "disabled")
     return {"is_active": m.is_active, "signed_out": signed_out}
+
+
+# ── AI models: prices, markup, who may use which, and the usage ───────────
+@router.get("/ai/models", dependencies=[Depends(require_admin)])
+def admin_ai_models(db: Session = Depends(get_db)):
+    """Every catalog model: on/off, our price per 1M tokens, the markup, and
+    whether the platform has the keys it needs."""
+    from app import ai_models
+
+    rows = {r.key: r for r in db.scalars(select(AiModel)).all()}
+    out = []
+    for key, info in ai_models.CATALOG.items():
+        r = rows.get(key)
+        out.append(
+            {
+                "key": key,
+                **info,
+                "enabled": bool(r and r.enabled),
+                "price_in": float(r.price_in) if r else 0.0,
+                "price_out": float(r.price_out) if r else 0.0,
+                "markup": float(r.markup) if r else 1.3,
+                "configured": ai_models.configured(key),
+            }
+        )
+    return {"models": out}
+
+
+class AiModelIn(BaseModel):
+    enabled: bool | None = None
+    price_in: float | None = Field(default=None, ge=0, le=1000)
+    price_out: float | None = Field(default=None, ge=0, le=1000)
+    markup: float | None = Field(default=None, ge=1, le=10)
+
+
+@router.patch("/ai/models/{key}", dependencies=[Depends(require_admin)])
+def admin_update_ai_model(key: str, payload: AiModelIn, db: Session = Depends(get_db)):
+    from app import ai_models
+
+    if key not in ai_models.CATALOG:
+        raise HTTPException(404, "Unknown model.")
+    r = db.get(AiModel, key) or AiModel(key=key, enabled=False, price_in=0, price_out=0, markup=1.3)
+    for field in ("enabled", "price_in", "price_out", "markup"):
+        value = getattr(payload, field)
+        if value is not None:
+            setattr(r, field, value)
+    if r.enabled and not (float(r.price_in) or float(r.price_out)):
+        raise HTTPException(422, "Set its price before turning it on — credit is charged from it.")
+    db.add(r)
+    db.commit()
+    ai_models.forget()
+    log.warning("admin portal: AI model %s -> %s", key, payload.model_dump(exclude_none=True))
+    return admin_ai_models(db)
+
+
+@router.get("/ai/usage", dependencies=[Depends(require_admin)])
+def admin_ai_usage(days: int = 30, db: Session = Depends(get_db)):
+    """AI writing per workspace and model over the last ``days`` days: calls,
+    tokens in / out, what it cost us and what their credit was charged."""
+    from app.ai_models_api import usage_rows
+
+    since = datetime.now(UTC) - timedelta(days=max(1, min(days, 366)))
+    names = dict(db.execute(select(Workspace.id, Workspace.name)).all())
+    rows = usage_rows(db, since)
+    tenants: dict[int, dict] = {}
+    for r in rows:
+        t = tenants.setdefault(r["who"], {"id": r["who"], "name": names.get(r["who"], f"#{r['who']}"), "calls": 0, "tokens": 0, "cost": 0.0, "charged": 0.0, "models": []})
+        t["models"].append({k: v for k, v in r.items() if k != "who"})
+        for k in ("calls", "tokens"):
+            t[k] += r[k]
+        t["cost"] = round(t["cost"] + r["cost"], 4)
+        t["charged"] = round(t["charged"] + r["charged"], 4)
+    by_model: dict[str, dict] = {}
+    for r in rows:
+        m = by_model.setdefault(r["model"], {"model": r["model"], "calls": 0, "input_tokens": 0, "output_tokens": 0, "cost": 0.0, "charged": 0.0})
+        for k in ("calls", "input_tokens", "output_tokens"):
+            m[k] += r[k]
+        m["cost"] = round(m["cost"] + r["cost"], 4)
+        m["charged"] = round(m["charged"] + r["charged"], 4)
+    return {
+        "days": days,
+        "tenants": sorted(tenants.values(), key=lambda t: -t["charged"]),
+        "models": sorted(by_model.values(), key=lambda m: -m["charged"]),
+    }
+
+
+@router.get("/workspaces/{ws_id}/ai", dependencies=[Depends(require_admin)])
+def admin_workspace_ai(ws_id: int, days: int = 30, db: Session = Depends(get_db)):
+    """One workspace: its default model, which models it may use, and each
+    person's usage by model."""
+    from app import ai_models
+    from app.ai_models_api import usage_rows
+
+    w = _workspace(db, ws_id)
+    since = datetime.now(UTC) - timedelta(days=max(1, min(days, 366)))
+    names = dict(db.execute(select(TeamMember.id, TeamMember.name).where(TeamMember.workspace_id == ws_id)).all())
+    users = usage_rows(db, since, ws=ws_id, by_user=True)
+    for r in users:
+        r["user"] = names.get(r.pop("who"), "Automations")
+    return {
+        "default": w.ai_model,
+        "allowed": w.ai_models_allowed,  # null = every enabled model
+        "catalog": [{"key": k, "label": v["label"]} for k, v in ai_models.CATALOG.items()],
+        "usage": users,
+    }
+
+
+class AllowedIn(BaseModel):
+    allowed: list[str] | None = None  # null = every enabled model
+
+
+@router.post("/workspaces/{ws_id}/ai-models", dependencies=[Depends(require_admin)])
+def admin_set_workspace_models(ws_id: int, payload: AllowedIn, db: Session = Depends(get_db)):
+    from app import ai_models
+
+    w = _workspace(db, ws_id)
+    if payload.allowed is not None:
+        unknown = [k for k in payload.allowed if k not in ai_models.CATALOG]
+        if unknown:
+            raise HTTPException(422, f"Unknown model: {', '.join(unknown)}")
+        if w.ai_model and w.ai_model not in payload.allowed:
+            w.ai_model = ""  # their default isn't allowed any more — back to the platform's
+    w.ai_models_allowed = payload.allowed
+    db.commit()
+    ai_models.forget_workspace(ws_id)
+    log.warning("admin portal: workspace %s AI models -> %s", ws_id, payload.allowed)
+    return {"allowed": w.ai_models_allowed, "default": w.ai_model}

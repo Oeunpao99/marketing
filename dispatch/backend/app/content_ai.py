@@ -623,10 +623,15 @@ def _system_prompt(brand_lang: str, week: bool = False) -> str:
 
 
 def writer_model(khmer: bool = False) -> str:
-    """The model that writes content: the WRITER (AZURE_OPENAI_WRITER_DEPLOYMENT)
-    when set up, else the Khmer deployment for Khmer, else the default one."""
+    """The model that writes content: the one the person / workspace picked
+    (app/ai_models.py choose — only models they may use), else the WRITER
+    (AZURE_OPENAI_WRITER_DEPLOYMENT), else the Khmer deployment for Khmer,
+    else the default one."""
+    from app import ai_models
+
     cfg = get_settings()
-    return cfg.azure_openai_writer_deployment or (cfg.azure_openai_khmer_deployment if khmer else "") or cfg.azure_openai_deployment
+    platform = cfg.azure_openai_writer_deployment or (cfg.azure_openai_khmer_deployment if khmer else "") or cfg.azure_openai_deployment
+    return ai_models.choose(platform)
 
 
 def _endpoint_for(model: str) -> tuple[str, str]:
@@ -638,9 +643,23 @@ def _endpoint_for(model: str) -> tuple[str, str]:
 
 
 def _chat(messages: list[dict], model: str, max_tokens: int = 4000, effort: str = "") -> dict:
-    """One JSON-mode chat completion against Azure OpenAI; returns the parsed
-    JSON object the model replied with. ``effort``: the reasoning effort
-    ("low" … "high") for reasoning models; "" = the model's default."""
+    """One JSON-mode chat completion; returns the parsed JSON object the model
+    replied with. Azure OpenAI, or Claude / Gemini for those catalog models
+    (app/ai_models.py). ``effort``: the reasoning effort ("low" … "high") for
+    reasoning models; "" = the model's default."""
+    from app import ai_models
+
+    if ai_models.CATALOG.get(model, {}).get("provider") in ("azure_claude", "gemini"):
+        try:
+            billing.require_current()
+        except billing.OutOfCredit as exc:
+            raise ContentAIError(str(exc)) from exc
+        try:
+            out, usage = ai_models.complete(messages, model, max_tokens, effort)
+        except ai_models.ModelError as exc:
+            raise ContentAIError(str(exc)) from exc
+        billing.charge_text(model, usage, _note(messages))
+        return _no_nul(out)
     cfg = get_settings()
     if not cfg.azure_openai_api_key or not cfg.azure_openai_endpoint:
         raise ContentAIError("AI service is not configured.")
