@@ -608,11 +608,12 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
 
   // A storyboard is written in the background (several AI steps can take
   // minutes — longer than the proxy waits on one request): ask until it's ready.
-  const waitForPlan = async (planId) => {
+  const waitForPlan = async (planId, onThinking) => {
     const until = Date.now() + 20 * 60 * 1000
     for (;;) {
       const res = await api.get(`/ai/motion/plan/${planId}`)
       if (res.status === 'done') return res
+      if (res.style) onThinking?.(res) // the template it picked, and why — shown on the card
       if (res.status === 'failed') throw new Error(res.error || 'The storyboard couldn’t be written.')
       if (Date.now() > until) throw new Error('The storyboard is taking too long — try again.')
       await new Promise((r) => setTimeout(r, 2500))
@@ -623,7 +624,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
   const resumePlan = async (turn) => {
     const live = () => turnsRef.current.find((x) => x.id === turn.id)?.status === 'working'
     try {
-      const res = await waitForPlan(turn.planId)
+      const res = await waitForPlan(turn.planId, (p) => live() && patchTurn(turn.id, { progress: { stage: 'story', style: p.style, why: p.why } }))
       if (!mountedRef.current) return persistLate(turn.id, { status: 'review', plan: { ...res.script, why: res.why || '' } })
       if (live()) patchTurn(turn.id, { status: 'review', plan: { ...res.script, why: res.why || '' } })
       refreshCounts()
@@ -705,7 +706,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
         let res = started
         if (started.plan_id && started.status !== 'done') {
           update(turn.id, { planId: started.plan_id })
-          res = await waitForPlan(started.plan_id)
+          res = await waitForPlan(started.plan_id, (p) => update(turn.id, { progress: { stage: 'story', style: p.style, why: p.why } }))
         }
         update(turn.id, { status: 'review', plan: { ...res.script, why: res.why || '' } })
         refreshCounts()
@@ -1967,7 +1968,15 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary, onPlanChange, onMake,
       <div className="flex flex-col items-start">
         {/* A Remotion video: one card — progress, the steps, the storyboard rows. */}
         {t.status === 'working' && motion && (
-          <MotionMaking progress={t.progress} pct={pct} stage={stage} elapsed={elapsed} onStop={onStop} />
+          <MotionMaking
+            progress={t.progress}
+            pct={pct}
+            stage={stage}
+            elapsed={elapsed}
+            onStop={onStop}
+            request={t.auto ? '' : t.prompt}
+            meta={[t.language || 'Khmer', t.ratio, t.brandName].filter(Boolean).join(' · ')}
+          />
         )}
 
         {t.status === 'working' && !motion && (

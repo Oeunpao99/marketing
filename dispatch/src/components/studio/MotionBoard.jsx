@@ -170,11 +170,50 @@ const STEP_HINT = {
 /** Progress, the four steps and the storyboard rows, top to bottom, in one
  * full-width card (replaces the smoke canvas + side storyboard for Remotion).
  * A step that has started can be clicked to see its work; a row opens alone. */
-export function MotionMaking({ progress, pct, stage, elapsed, onStop }) {
+/** Before the first scene: the AI's thinking, step by step — it read the
+ * request, it knows the brand and settings, it picked a template (and why),
+ * it's writing the story — so the wait shows work, not just a percentage. */
+function Thinking({ request, meta, style, why, elapsed }) {
+  const lines = [
+    { done: true, label: 'Read your request', body: request ? `“${request}”` : 'Make one for me — the AI picks the topic' },
+    { at: 1.2, done: true, label: 'Your brand and settings', body: meta },
+    { at: 2.4, done: !!style, label: style ? `Picked the template: ${style}` : 'Choosing the best template for it', body: style ? why : '' },
+    { at: 2.4, wait: !style, done: false, label: 'Writing your story, scene by scene', body: 'Each scene’s words on screen and what the voice says' },
+  ]
+  return (
+    <ol className="mx-4 mb-4 space-y-2.5 rounded-xl bg-ink-50 px-4 py-3.5">
+      {lines.map((l, i) => {
+        if ((l.at || 0) > elapsed || l.wait) return null
+        const busy = !l.done
+        return (
+          <li key={i} className="flex items-start gap-2.5 animate-fadein">
+            <span
+              className={`mt-0.5 grid h-5 w-5 flex-none place-items-center rounded-full text-[11px] ${
+                busy ? 'bg-brand-soft text-brand' : 'bg-emerald-500 text-white'
+              }`}
+            >
+              {busy ? <span className="h-2 w-2 animate-ping rounded-full bg-brand" /> : '✓'}
+            </span>
+            <span className="min-w-0">
+              <span className={`block text-[12.5px] ${busy ? 'font-semibold text-ink-900' : 'text-ink-700'}`}>
+                {l.label}
+                {busy && <span className="ml-0.5 inline-block animate-pulse">…</span>}
+              </span>
+              {l.body && <span className="mt-0.5 block line-clamp-2 text-[11.5px] leading-snug text-ink-500">{l.body}</span>}
+            </span>
+          </li>
+        )
+      })}
+    </ol>
+  )
+}
+
+export function MotionMaking({ progress, pct, stage, elapsed, onStop, request = '', meta = '' }) {
   const scenes = progress?.scenes || []
   const step = stepOf(progress?.stage)
   const rendering = progress?.stage === 'render'
   const style = STYLE_LABELS[progress?.style]
+  const thinking = scenes.length === 0 && (!progress?.stage || progress.stage === 'story')
   const [view, setView] = useState(null) // 'story' | 'voice' | 'render' | null
   const [opened, setOpened] = useState(() => new Set())
   const toggleRow = (i) =>
@@ -194,7 +233,7 @@ export function MotionMaking({ progress, pct, stage, elapsed, onStop }) {
               {scenes.length > 0 && <span className="text-[11.5px] text-ink-400">{scenes.length} scenes</span>}
               {progress?.look && <LookChip look={progress.look} />}
             </div>
-            {progress?.why && <div className="mt-0.5 text-[11.5px] text-ink-400">AI picked {style}: {progress.why}</div>}
+            {progress?.why && !thinking && <div className="mt-0.5 text-[11.5px] text-ink-400">AI picked {style}: {progress.why}</div>}
             {progress?.voice_note && (
               <div className="mt-1 rounded-lg bg-ink-50 px-2 py-1 text-[11.5px] text-ink-600">{progress.voice_note}</div>
             )}
@@ -247,6 +286,8 @@ export function MotionMaking({ progress, pct, stage, elapsed, onStop }) {
         </ol>
         {view && <p className="mt-2 text-[11.5px] text-ink-500">{STEP_HINT[view]} · click the step again to close</p>}
       </header>
+      {/* before the first scene: what the AI understood and decided */}
+      {thinking && <Thinking request={request} meta={meta} style={style} why={progress?.why} elapsed={elapsed || 0} />}
 
       <div className="border-t border-ink-100">
         {scenes.length === 0 ? (

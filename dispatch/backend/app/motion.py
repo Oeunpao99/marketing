@@ -3656,8 +3656,9 @@ _plans: dict[str, dict] = {}
 _PLAN_KEEP = 3600  # seconds a finished storyboard waits to be picked up
 
 
-def _build_plan(payload: "PlanIn", ws: int, user_id: int) -> dict:
-    """The storyboard itself — the slow part (several AI calls)."""
+def _build_plan(payload: "PlanIn", ws: int, user_id: int, on_style=None) -> dict:
+    """The storyboard itself — the slow part (several AI calls). ``on_style``
+    hears the template picked (and why) as soon as it's decided, for the page."""
     db = SessionLocal()
     try:
         brand = db.get(Brand, payload.brand_id)
@@ -3668,6 +3669,8 @@ def _build_plan(payload: "PlanIn", ws: int, user_id: int) -> dict:
             if payload.goal in ("auto", "")
             else (_style_of(payload.goal, payload.product_id), "", None)
         )
+        if on_style:
+            on_style(style, why)
         shape = final_ratio(payload.ratio, style, suggested)
         seconds = story_seconds(payload.idea, payload.length, 600 if style in LONG_STYLES else 120)
         r, g, b = accent_for(brand.slug)
@@ -3689,12 +3692,14 @@ def _run_plan(plan_id: str, payload: "PlanIn", ws: int, user_id: int, model: str
 
     billing.bind(ws, user_id, model)  # the AI calls in this thread are charged to them (and use their pick)
     try:
-        _plans[plan_id].update(status="done", result=_build_plan(payload, ws, user_id))
+        # the template and why, as soon as they're picked — the page shows its thinking
+        result = _build_plan(payload, ws, user_id, on_style=lambda style, why: _plans[plan_id].update(style=style, why=why))
+        _plans[plan_id].update(status="done", result=result)
     except ContentAIError as exc:
         _plans[plan_id].update(status="failed", error=str(exc))
-    except Exception as exc:  # noqa: BLE001 — the page shows it instead of waiting forever
+    except Exception:  # noqa: BLE001 — the page shows it instead of waiting forever
         log.exception("storyboard %s failed", plan_id)
-        _plans[plan_id].update(status="failed", error=f"The storyboard couldn't be written — {exc}")
+        _plans[plan_id].update(status="failed", error="The storyboard couldn't be written just now — try again in a moment.")
 
 
 @router.post("/plan")
@@ -3753,7 +3758,8 @@ def plan_status(plan_id: str, ws: int = Depends(current_workspace_id)):
     if not job or job["ws"] != ws:
         raise HTTPException(404, "This storyboard isn't here any more — write it again.")
     if job["status"] == "running":
-        return {"status": "running"}
+        # what the AI has decided so far (the template and why) — the card shows it
+        return {"status": "running", "style": job.get("style"), "why": job.get("why") or ""}
     if job["status"] == "failed":
         return {"status": "failed", "error": job.get("error") or "The storyboard couldn't be written."}
     return {"status": "done", **job["result"]}
