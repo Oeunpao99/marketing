@@ -4017,8 +4017,19 @@ DESIGN_REVIEW_PROMPT = (
 )
 
 
-def _sheet(mp4: bytes, times: list[float]) -> bytes | None:
-    """The preview's frame at each time, side by side with its number — one JPEG."""
+def _small(im) -> str:
+    """A frame as a small JPEG data URI (~10 KB) — for the live making card."""
+    im = im.copy()
+    im.thumbnail((360, 360))
+    buf = io.BytesIO()
+    im.save(buf, "JPEG", quality=72)
+    return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
+
+
+def _sheet(mp4: bytes, times: list[float], sketches: list | None = None) -> bytes | None:
+    """The preview's frame at each time, side by side with its number — one
+    JPEG. ``sketches`` (a list) gets each scene's frame as a small picture
+    (a data URI, None where there's none) — the making card shows them live."""
     import imageio_ffmpeg
     from PIL import Image, ImageDraw
 
@@ -4031,6 +4042,8 @@ def _sheet(mp4: bytes, times: list[float]) -> bytes | None:
             subprocess.run([imageio_ffmpeg.get_ffmpeg_exe(), "-y", "-loglevel", "error", "-ss", f"{t:.2f}", "-i", str(src), "-frames:v", "1", "-q:v", "4", str(out)], capture_output=True, timeout=60)
             if out.exists():
                 frames.append(Image.open(out).convert("RGB"))
+            if sketches is not None:
+                sketches.append(_small(frames[-1]) if out.exists() else None)
     if not frames:
         return None
     w, h = frames[0].size
@@ -4082,7 +4095,10 @@ def review_design(brand: Brand, script: dict, logo: str | None, khmer: bool, job
             last = max([float(L.get("at") or 0) for L in sc.get("layers") or []] + [0.0]) + float(sc.get("pause") or 0)
             times.append(start + min(dur - 0.3, last + 1.2))
             start += dur - TRANSITION_S
-        sheet = _sheet(mp4, times)
+        sketches: list = []
+        sheet = _sheet(mp4, times, sketches)
+        if any(sketches):  # the card swaps them in, scene by scene, while the video is made
+            _report(job_id, sketches=sketches)
         if not sheet:
             return done(0)
         design = [
