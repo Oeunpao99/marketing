@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { FiMic, FiMusic, FiPause, FiPlay, FiX } from 'react-icons/fi'
 import { api } from '../../api/client'
-import { templateById } from '../../lib/motionTemplates'
+import { previewSrc, templateById } from '../../lib/motionTemplates'
 import MarkdownText from '../ui/MarkdownText'
 
 const mediaBase = window.location.port === '5173' ? 'http://localhost:8000' : ''
@@ -103,7 +103,7 @@ export default function MakingDrawer({ jobId, onClose }) {
                 <div className="mt-4 flex flex-wrap items-center gap-1.5 text-[11.5px]">
                   {template && (
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-soft py-0.5 pl-0.5 pr-2.5 font-semibold text-brand">
-                      <img src={`/templates/${template.id}.jpg`} alt="" className="h-5 w-5 rounded-full object-cover object-top" />
+                      <img src={previewSrc(template.id)} alt="" className="h-5 w-5 rounded-full object-cover object-top" />
                       {template.name}
                     </span>
                   )}

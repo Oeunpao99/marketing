@@ -4,6 +4,11 @@
 // (AIPromptPage MOTION_STORIES); the preview pictures are made by
 // motion/tools/make_previews.sh into public/templates/.
 
+/** A template's preview picture / clip (public/templates/), with the build's
+ * version on it: the files keep their names when they're re-made, and the
+ * browser keeps them for hours — a new deploy must bring the new ones. */
+export const previewSrc = (id, ext = 'jpg') => `/templates/${id}.${ext}?v=${encodeURIComponent(__APP_VERSION__)}`
+
 export const MOTION_TEMPLATES = [
   {
     id: 'training',

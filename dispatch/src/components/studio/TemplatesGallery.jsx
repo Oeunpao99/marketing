@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import { FiArrowRight, FiChevronRight, FiSearch, FiX } from 'react-icons/fi'
 import { useNavigate } from 'react-router-dom'
 import { GOALS, STAGES } from '../../lib/goals'
-import { GOAL_TEMPLATES, MOTION_TEMPLATES, templateById } from '../../lib/motionTemplates'
+import { GOAL_TEMPLATES, MOTION_TEMPLATES, previewSrc, templateById } from '../../lib/motionTemplates'
 
 // Content studio → Templates: every Remotion video template as a preview card
 // with the content goals that use it — filtered by goal; hovering a card plays
@@ -77,10 +77,10 @@ function TemplateCard({ t, onUse }) {
       aria-label={`Use the ${t.name} template`}
       className="group relative block aspect-[9/16] w-full overflow-hidden rounded-2xl bg-night-950 text-left transition-shadow hover:shadow-card-hover"
     >
-      <img src={`/templates/${t.id}.jpg`} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover object-top" />
+      <img src={previewSrc(t.id)} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover object-top" />
       <video
         ref={video}
-        src={`/templates/${t.id}.mp4`}
+        src={previewSrc(t.id, 'mp4')}
         muted
         loop
         playsInline

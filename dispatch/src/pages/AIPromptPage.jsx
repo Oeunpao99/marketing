@@ -39,7 +39,7 @@ import { kitSrc, TemplatePicker } from '../components/brandkit/BrandKit'
 import { MOTION_OFF_TIP, useMotionReady } from '../lib/motionStatus'
 import WriterModelSelect, { useWriterModels, writerHint } from '../components/studio/WriterModelSelect'
 import { aiModelStore } from '../api/client'
-import { MOTION_TEMPLATES } from '../lib/motionTemplates'
+import { MOTION_TEMPLATES, previewSrc } from '../lib/motionTemplates'
 import MakingDrawer from '../components/studio/MakingDrawer'
 import { backupName, useVoiceStatus } from '../lib/voiceStatus'
 
@@ -208,7 +208,7 @@ const MOTION_STORIES = [
 // as in Content studio → Templates) so people see what it looks like.
 const STORY_OPTIONS = MOTION_STORIES.map((o) => {
   const t = MOTION_TEMPLATES.find((x) => x.story === o.value)
-  return t ? { ...o, thumb: `/templates/${t.id}.jpg` } : o
+  return t ? { ...o, thumb: previewSrc(t.id) } : o
 })
 
 export default function AIPromptPage({ embedded = false, preset = null }) {
