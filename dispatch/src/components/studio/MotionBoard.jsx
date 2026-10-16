@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { FiCheck, FiChevronDown, FiMic, FiMicOff, FiMonitor } from 'react-icons/fi'
+import { kitSrc } from '../brandkit/BrandKit'
 
 // The live storyboard of a Remotion video while it's made — what the AI is
 // doing right now, scene by scene (app/motion.py _progress, polled with the
@@ -261,7 +262,7 @@ function Asks({ asks }) {
  * scenes off as they're done. */
 const SWAPS = ['cf-swap-slide', 'cf-swap-zoom', 'cf-swap-wipe', 'cf-swap-flip', 'cf-swap-blur']
 function SceneSketches({ sketches, render }) {
-  const shots = sketches || []
+  const shots = (sketches || []).map((u) => (u ? kitSrc(u) : null)) // /api/… links (the dev server is on :8000)
   const n = shots.length
   const at = Math.min(n - 1, Math.floor((render || 0) * n))
   const cur = shots[at] ? at : shots.findIndex(Boolean)
@@ -283,8 +284,8 @@ function SceneSketches({ sketches, render }) {
         <img key={cur} src={shots[cur]} alt={`Scene ${cur + 1}`} className={`absolute inset-0 h-full w-full object-contain ${SWAPS[cur % SWAPS.length]}`} />
         {/* the status, on the picture */}
         <div className="absolute inset-x-0 top-0 flex items-center justify-between bg-gradient-to-b from-black/55 to-transparent px-3 pb-6 pt-2.5 text-[11.5px] font-semibold text-white">
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+          <span className="inline-flex items-center gap-2">
+            <img src="/brand/logo-mark.png" alt="" className="h-5 w-5 animate-pulse object-contain" />
             Animating scene {at + 1} of {n}
           </span>
           <span className="tabular-nums">{Math.round(100 * (render || 0))}%</span>

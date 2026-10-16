@@ -27,6 +27,7 @@ import signal
 import subprocess
 import tempfile
 import threading
+import secrets
 import time
 import uuid
 from pathlib import Path
@@ -49,6 +50,9 @@ from app.tenancy import current_workspace_id, get_current_user, owned
 log = logging.getLogger("app.motion")
 
 router = APIRouter(prefix="/ai/motion", tags=["AI"])
+# The making card's scene pictures: an <img> can't send the login, so each
+# video's set sits behind an unguessable code, in memory, for a few hours.
+sketch_router = APIRouter(prefix="/ai/motion", tags=["AI"])
 
 MOTION_DIR = Path(__file__).resolve().parents[2] / "motion"
 # Scene overlap while one changes to the next — motion/src/MotionPost.jsx TRANSITION.
@@ -4023,7 +4027,7 @@ def render(props: dict, job_id: int | None = None, preview: bool = False) -> byt
                     # all cores Remotion is allowed (containers too); the default log
                     # level prints "Rendered 120/900" lines — the page's progress
                     "--concurrency=100%",
-                    *(["--scale=0.4", "--muted", "--crf=32"] if preview else []),
+                    *(["--scale=0.4", "--muted", "--crf=22"] if preview else []),
                 ],
                 cwd=MOTION_DIR,
                 stdout=subprocess.PIPE,
@@ -4094,13 +4098,34 @@ DESIGN_REVIEW_PROMPT = (
 )
 
 
-def _small(im) -> str:
-    """A frame as a small JPEG data URI (~10 KB) — for the live making card."""
-    im = im.copy()
-    im.thumbnail((360, 360))
+def _small(im) -> bytes:
+    """A frame as a JPEG at the preview's full size — for the live making card."""
     buf = io.BytesIO()
-    im.save(buf, "JPEG", quality=72)
-    return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
+    im.save(buf, "JPEG", quality=86)
+    return buf.getvalue()
+
+
+_SKETCHES: dict[str, tuple[float, list]] = {}
+
+
+def _keep_sketches(frames: list) -> list:
+    """The pictures kept behind a new unguessable code; their URLs (None where there's none)."""
+    now = time.time()
+    for k, (at, _) in list(_SKETCHES.items()):
+        if now - at > 3 * 3600:
+            _SKETCHES.pop(k, None)
+    code = secrets.token_urlsafe(18)
+    _SKETCHES[code] = (now, frames)
+    return [f"/api/ai/motion/sketch/{code}/{i}.jpg" if f else None for i, f in enumerate(frames)]
+
+
+@sketch_router.get("/sketch/{code}/{n}.jpg", include_in_schema=False)
+def sketch(code: str, n: int):
+    """One scene picture of a video being made (see _keep_sketches)."""
+    frames = (_SKETCHES.get(code) or (0, []))[1]
+    if not (0 <= n < len(frames)) or not frames[n]:
+        raise HTTPException(404, "Not here any more.")
+    return Response(content=frames[n], media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600"})
 
 
 def _sheet(mp4: bytes, times: list[float], sketches: list | None = None) -> bytes | None:
@@ -4152,7 +4177,7 @@ def _sketch(props: dict, job_id: int) -> None:
         sketches: list = []
         _sheet(mp4, times, sketches)
         if any(sketches) and job_id in _progress:
-            _report(job_id, sketches=sketches)
+            _report(job_id, sketches=_keep_sketches(sketches))
     except Exception as exc:  # noqa: BLE001 — pictures for the card only
         log.warning("motion %s: no scene pictures for the card: %s", job_id, exc)
 
@@ -4194,7 +4219,7 @@ def review_design(brand: Brand, script: dict, logo: str | None, khmer: bool, job
         sketches: list = []
         sheet = _sheet(mp4, times, sketches)
         if any(sketches):  # the card swaps them in, scene by scene, while the video is made
-            _report(job_id, sketches=sketches)
+            _report(job_id, sketches=_keep_sketches(sketches))
         if not sheet:
             return done(0)
         design = [
