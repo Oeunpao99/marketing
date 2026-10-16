@@ -116,7 +116,12 @@ def _learn(brand_id: int, recording: bytes, sample: str) -> None:
 
 @router.get("")
 def get_voice(brand_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
-    return {**public(owned(db, Brand, brand_id, ws).voice_clone), "readers": readers()}
+    from app import gemini_keys, speech
+
+    brand = owned(db, Brand, brand_id, ws)
+    # the comparison lists Gemini's readers while our key — or theirs — can read
+    speech.use_workspace_key(gemini_keys.workspace_key(db, ws))
+    return {**public(brand.voice_clone), "readers": readers()}
 
 
 @router.post("")
