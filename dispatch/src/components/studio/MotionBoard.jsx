@@ -109,7 +109,7 @@ export function motionStage(progress) {
     case 'story':
       return `Writing the story${style ? ` · ${style}` : ''}…`
     case 'polish':
-      return 'Polishing the Khmer…'
+      return 'Polishing the script — one story, scene to scene…'
     case 'pictures':
       return 'Picking your brand photos…'
     case 'check':

@@ -2617,6 +2617,7 @@ def write_script(
         if len(shots or []) < 2:
             allowed = tuple(t for t in allowed if t != "stack")
     story = bool(seconds and idea.strip())
+    extra += SCRIPT_CRAFT + (SCRIPT_CRAFT_STORY if story else "")
     if story:  # their own story: the video speaks its language, whatever the picker says
         language = story_language(idea, language)
         khmer = "khmer" in language.lower()
@@ -2693,6 +2694,9 @@ def write_script(
                 )
                 for (obj, key, n), value in zip(slots, fixed):
                     obj[key] = _line(_fix_khmer_punctuation(value), n)
+        if not (story and own_voice(idea)):
+            _report(job_id, stage="polish", scenes=_board(script), asks=asks_status(script))
+            _narrate(script, brand, products, model, khmer, own=story, narrator=story)
         _report(job_id, stage="pictures", scenes=_board(script), asks=asks_status(script))
         return script
     # A hook first and a call to action last, whatever came back.
@@ -2723,7 +2727,7 @@ def write_script(
         locate_targets(script["scenes"], shots)
     if moods:
         script["mood"] = raw.get("mood") if raw.get("mood") in moods else moods[0]
-    _report(job_id, stage="polish" if khmer else "pictures", scenes=_board(script), look=script.get("look"))
+    _report(job_id, stage="polish" if khmer or not (story and own_voice(idea)) else "pictures", scenes=_board(script), look=script.get("look"))
 
     if khmer:
         # Every line — on screen and spoken — through the native editor
@@ -2784,6 +2788,10 @@ def write_script(
             ),
         ):
             s["say"] = line
+        _report(job_id, stage="pictures", scenes=_board(script))
+    elif not (story and own_voice(idea)):
+        # English: the same storyteller pass — the lines linked into one spoken story
+        _narrate(script, brand, products, model, False, own=story, narrator=story)
         _report(job_id, stage="pictures", scenes=_board(script))
     return script
 
@@ -2977,6 +2985,61 @@ def _data_uri(blob: bytes, max_side: int, keep_alpha: bool = False) -> str | Non
 
 
 # ── The voice script: every Khmer voice line rewritten to be SPOKEN ────────
+# How a professional scriptwriter writes the video — every template's first
+# draft follows it (write_script), on top of the template's own scene recipe.
+SCRIPT_CRAFT = (
+    "\n\nWRITE IT LIKE A PROFESSIONAL SCRIPTWRITER — a story the viewer follows, never a list of "
+    "features read out:\n"
+    "- ONE PERSON, ONE MOMENT: open on someone the viewer recognises in a real moment (the shop "
+    "owner answering messages at 11 pm, a mum choosing between two prices) and follow them to the "
+    "end. Concrete details — a time, a place, a thing in their hand — never \"businesses today\".\n"
+    "- AN ARC: the hook (a tension felt in 3 seconds) → the struggle (concrete, felt) → the turn "
+    "(the moment it changes — the product) → how it works, shown through what it does FOR that "
+    "person → the payoff (their day now) → the close, which calls back to the opening image or "
+    "line, plus one clear action.\n"
+    "- LINKED SCENES: each line hands off to the next, so the viewer never feels a reset. Use the "
+    "real bridges of speech: a question the next scene answers, a turn (\"But…\", \"That's "
+    "when…\", \"So…\"), time moving on (\"By Friday…\"), a word picked up from the line before. "
+    "Read all the `say` lines in a row before answering: they must sound like ONE voice telling ONE "
+    "story; rewrite any line that starts from zero or could be cut without losing anything.\n"
+    "- SHOW, DON'T LIST: one idea a scene; a feature appears only as what it does for the person "
+    "(\"Her phone stays quiet at midnight — the replies are already sent\"), never \"Feature: …\".\n"
+    "- SCREEN AND VOICE WORK TOGETHER: the screen carries the headline or the keyword; the voice "
+    "says what it MEANS — never read the screen out loud.\n"
+    "- RHYTHM: vary the length — a short punchy line (3-6 words) at the turn, after a longer one; "
+    "the rule of three once at most; one real question to the viewer.\n"
+    "- NO ADVERTISING CLICHÉS: never \"in today's fast-paced world\", \"Are you tired of…\", "
+    "\"look no further\", \"say goodbye to\", \"game-changer\", \"revolutionize\", \"take it "
+    "to the next level\", \"unlock\", \"seamless\".\n"
+)
+SCRIPT_CRAFT_STORY = (
+    "\nTHE PERSON'S OWN WORDS WIN: use the craft above only to shape and link what they wrote — "
+    "never to add a person, a moment or a claim their script doesn't have.\n"
+)
+
+VOICE_SCRIPT_EN_PROMPT = (
+    "You are a senior scriptwriter for short brand films. Below is a short video: for each scene, "
+    "what the viewer SEES on screen and a DRAFT of what the narrator says. Rewrite the narration "
+    "into ONE spoken story told by one warm, confident voice — the lines must flow into each "
+    "other, never sound like separate captions. Viewers HEAR it; they don't read it.\n"
+    "\n"
+    "RULES:\n"
+    "1. ONE STORY: the opening moment → the problem → the turn (the product) → what it does for "
+    "the person → how life feels now → the close that echoes the opening, then the action. Each "
+    "line carries on from the one before; a bridge (\"But…\", \"So…\", \"That's when…\", a "
+    "question answered next) starts at most a third of the lines.\n"
+    "2. TALK ABOUT THEIR LIFE, NOT THE SCREEN: the picture already shows the words, the lists and "
+    "the numbers — never read them out; say what they MEAN. At most one feature a line.\n"
+    "3. PLAIN ENGLISH (CEFR A2-B1): common words, sentences of max 14 words, 1-2 a line; one short "
+    "punchy line (3-6 words) at the turn; one real question somewhere. No idioms, slang or "
+    "buzzwords (leverage, seamless, unlock, elevate, game-changer, next level, revolutionize).\n"
+    "4. Keep every fact, number, price, brand and product name EXACTLY. Never add a claim, a "
+    "number or a feature the drafts don't have.\n"
+    "5. Each line still belongs to its scene (it plays while that scene is shown) and is about the "
+    "same length as its draft (±30%). No brackets, emoji, lists or abbreviations.\n"
+    'Return JSON {"lines": [...]} — one line per scene, the same number, in the same order.'
+)
+
 VOICE_SCRIPT_PROMPT = (
     "You are a Cambodian storyteller and voice-over writer. Below is a short video: for each scene, "
     "what the viewer SEES on screen and a DRAFT of what the narrator says. The drafts sound robotic — "
@@ -3073,6 +3136,57 @@ def voice_script_khmer(
         return lines
     fix = (lambda x: x) if narrator else _bong  # a storyteller may say អ្នក to everyone
     return [_line(fix(_fix_khmer_punctuation(x.strip())), 300) for x in new]
+
+
+def voice_script_english(lines: list[str], model: str, keep: list[str], own: bool = False, shows: list[str] | None = None) -> list[str]:
+    """The English voice lines rewritten as one linked spoken story
+    (VOICE_SCRIPT_EN_PROMPT) — the pass Khmer has always had. Best effort:
+    on any failure the lines are kept."""
+    from app.content_ai import ContentAIError, _chat
+
+    if not lines:
+        return lines
+    system = VOICE_SCRIPT_EN_PROMPT + (VOICE_SCRIPT_LIGHT if own else "")
+    if keep:
+        system += "\n\nNames to copy EXACTLY as written: " + ", ".join(k for k in keep if k)
+    try:
+        out = _chat(
+            [
+                {"role": "system", "content": system},
+                {
+                    "role": "user",
+                    "content": json.dumps(
+                        {"scenes": [{"shows": sh, "draft": line} for sh, line in zip(shows, lines)]} if shows and len(shows) == len(lines) else {"lines": lines},
+                        ensure_ascii=False,
+                    ),
+                },
+            ],
+            model,
+            max_tokens=12000,
+            effort="low",
+        )
+    except ContentAIError:
+        return lines
+    new = out.get("lines") if isinstance(out, dict) else None
+    if not (isinstance(new, list) and len(new) == len(lines) and all(isinstance(x, str) and x.strip() for x in new)):
+        return lines
+    return [_line(x.strip(), 300) for x in new]
+
+
+def _narrate(script: dict, brand: Brand, products: list, model: str, khmer: bool, own: bool, narrator: bool) -> None:
+    """Every voice line rewritten as one linked spoken story, in place —
+    Khmer (voice_script_khmer) or English (voice_script_english)."""
+    spoken = [s for s in script["scenes"] if s.get("say")]
+    if not spoken:
+        return
+    shows = [screen for screen, _ in script_lines({"scenes": spoken})]
+    keep = [brand.name, *(p.name for p in products)]
+    if khmer:
+        new = voice_script_khmer([s["say"] for s in spoken], model, keep, brand.voice_examples or "", own=own, shows=shows, narrator=narrator)
+    else:
+        new = voice_script_english([s["say"] for s in spoken], model, keep, own=own, shows=shows)
+    for s, line in zip(spoken, new):
+        s["say"] = line
 
 
 # អ្នក as part of a noun (seller, buyer, who, user, …) — never "you"; the rest of
