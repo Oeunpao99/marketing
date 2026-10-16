@@ -18,9 +18,9 @@ const PRIVACY = [
     title: 'Who we are',
     body: (
       <p>
-        Marketing ឆ្លាតវ៉ៃ ({SITE}) is an AI marketing tool that helps businesses write, design, schedule and publish
+        Marketing ឆ្លាតវៃ ({SITE}) is an AI marketing tool that helps businesses write, design, schedule and publish
         social media posts. It is operated by {COMPANY}, Phnom Penh, Cambodia (“we”, “us”). This policy explains
-        what information Marketing ឆ្លាតវ៉ៃ collects, why, and the choices you have. Questions: {mail}.
+        what information Marketing ឆ្លាតវៃ collects, why, and the choices you have. Questions: {mail}.
       </p>
     ),
   },
@@ -45,7 +45,7 @@ const PRIVACY = [
           </li>
           <li>
             <b>Post performance</b> — likes, comments, shares and views that the platforms make available for posts
-            published through Marketing ឆ្លាតវ៉ៃ.
+            published through Marketing ឆ្លាតវៃ.
           </li>
           <li>
             <b>Sign-in history</b> — for your security, each sign-in attempt records the email typed, the IP address,
@@ -85,7 +85,7 @@ const PRIVACY = [
     body: (
       <>
         <p>
-          Marketing ឆ្លាតវ៉ៃ only acts on a connected account when you (or an automation you set up) publish or schedule a
+          Marketing ឆ្លាតវៃ only acts on a connected account when you (or an automation you set up) publish or schedule a
           post, or to read the performance of posts it published. We request only the permissions needed for that:
         </p>
         <ul>
@@ -105,7 +105,7 @@ const PRIVACY = [
         </ul>
         <p>
           Access tokens are kept on our servers, are never shown back in the app, and are used only for the actions
-          above. You can disconnect a channel in Marketing ឆ្លាតវ៉ៃ at any time, and you can also revoke our access in each
+          above. You can disconnect a channel in Marketing ឆ្លាតវៃ at any time, and you can also revoke our access in each
           platform’s own settings (for example Facebook → Settings → Business integrations, or LinkedIn → Settings →
           Data privacy → Permitted services).
         </p>
@@ -117,7 +117,7 @@ const PRIVACY = [
     title: 'Who we share it with',
     body: (
       <>
-        <p>We don’t sell your information. We share it only with services that run Marketing ឆ្លាតវ៉ៃ for you:</p>
+        <p>We don’t sell your information. We share it only with services that run Marketing ឆ្លាតវៃ for you:</p>
         <ul>
           <li>
             <b>Microsoft Azure</b> — hosts our servers and database, and provides the AI (Azure OpenAI) that writes
@@ -164,12 +164,12 @@ const PRIVACY = [
       <>
         <p>
           To delete your account and everything in it — content, media, connected-account tokens and sign-in history —
-          email {mail} from the address you signed up with, with the subject “Delete my Marketing ឆ្លាតវ៉ៃ account”. We
+          email {mail} from the address you signed up with, with the subject “Delete my Marketing ឆ្លាតវៃ account”. We
           confirm and complete the deletion within 30 days.
         </p>
         <p>
-          To remove only a connected Facebook, Instagram, TikTok or LinkedIn account, disconnect it in Marketing ឆ្លាតវ៉ៃ
-          (Channels) — its access token is deleted immediately. Revoking Marketing ឆ្លាតវ៉ៃ in that platform’s own settings
+          To remove only a connected Facebook, Instagram, TikTok or LinkedIn account, disconnect it in Marketing ឆ្លាតវៃ
+          (Channels) — its access token is deleted immediately. Revoking Marketing ឆ្លាតវៃ in that platform’s own settings
           also stops the token from working at once.
         </p>
       </>
@@ -199,7 +199,7 @@ const PRIVACY = [
   {
     id: 'children',
     title: 'Children',
-    body: <p>Marketing ឆ្លាតវ៉ៃ is a business tool and is not intended for anyone under 16.</p>,
+    body: <p>Marketing ឆ្លាតវៃ is a business tool and is not intended for anyone under 16.</p>,
   },
   {
     id: 'changes',
@@ -219,8 +219,8 @@ const TERMS = [
     title: 'Agreement',
     body: (
       <p>
-        These terms are an agreement between you and {COMPANY} for use of Marketing ឆ្លាតវ៉ៃ ({SITE}). By creating an account
-        or using Marketing ឆ្លាតវ៉ៃ you accept them. If you use it for a business, you confirm you’re allowed to accept them
+        These terms are an agreement between you and {COMPANY} for use of Marketing ឆ្លាតវៃ ({SITE}). By creating an account
+        or using Marketing ឆ្លាតវៃ you accept them. If you use it for a business, you confirm you’re allowed to accept them
         for that business.
       </p>
     ),
@@ -243,7 +243,7 @@ const TERMS = [
       <>
         <p>
           You own the content you create or upload. You give us permission to store, process and publish it only as
-          needed to provide Marketing ឆ្លាតវ៉ៃ to you — for example sending it to an AI model or posting it to the channels you
+          needed to provide Marketing ឆ្លាតវៃ to you — for example sending it to an AI model or posting it to the channels you
           choose.
         </p>
         <p>
@@ -258,7 +258,7 @@ const TERMS = [
     title: 'AI-generated content',
     body: (
       <p>
-        Marketing ឆ្លាតវ៉ៃ uses AI to suggest text, images and videos. AI can be wrong, out of date or unsuitable, so review
+        Marketing ឆ្លាតវៃ uses AI to suggest text, images and videos. AI can be wrong, out of date or unsuitable, so review
         everything before it is published — including posts created by automations. Generated media may carry an
         invisible watermark from the AI provider identifying it as AI-made.
       </p>
@@ -270,7 +270,7 @@ const TERMS = [
     body: (
       <>
         <p>
-          A brand voice lets Marketing ឆ្លាតវ៉ៃ narrate your videos in a real person’s voice. You record or upload that
+          A brand voice lets Marketing ឆ្លាតវៃ narrate your videos in a real person’s voice. You record or upload that
           person speaking; the AI learns how the voice sounds and uses it to read your videos’ lines. By adding a
           voice, you agree that:
         </p>
@@ -281,7 +281,7 @@ const TERMS = [
             you can show it if asked. Their permission can be withdrawn at any time; if it is, remove the voice.
           </li>
           <li>
-            <b>Only for your brand’s own content.</b> The voice is used to narrate videos made in Marketing ឆ្លាតវ៉ៃ for the
+            <b>Only for your brand’s own content.</b> The voice is used to narrate videos made in Marketing ឆ្លាតវៃ for the
             brand it belongs to. You won’t use it to make anyone appear to say something they didn’t say or wouldn’t
             agree to.
           </li>
@@ -318,7 +318,7 @@ const TERMS = [
     title: 'Acceptable use',
     body: (
       <>
-        <p>Don’t use Marketing ឆ្លាតវ៉ៃ to:</p>
+        <p>Don’t use Marketing ឆ្លាតវៃ to:</p>
         <ul>
           <li>publish anything illegal, hateful, harassing, sexually explicit, deceptive or infringing;</li>
           <li>send spam or break the rules of the platforms you post to;</li>
@@ -344,7 +344,7 @@ const TERMS = [
     title: 'Plans and fees',
     body: (
       <p>
-        Marketing ឆ្លាតវ៉ៃ is currently free to use and may include usage limits (for example on AI video). If we introduce
+        Marketing ឆ្លាតវៃ is currently free to use and may include usage limits (for example on AI video). If we introduce
         paid plans we’ll tell you the prices in advance, and nothing is charged without your agreement.
       </p>
     ),
@@ -354,7 +354,7 @@ const TERMS = [
     title: 'Availability',
     body: (
       <p>
-        We work to keep Marketing ឆ្លាតវ៉ៃ running, but it is provided “as is” and may sometimes be unavailable — for example
+        We work to keep Marketing ឆ្លាតវៃ running, but it is provided “as is” and may sometimes be unavailable — for example
         during updates or maintenance, or when a platform or AI provider has an outage. Scheduled posts may be delayed
         or fail in those cases.
       </p>
@@ -375,7 +375,7 @@ const TERMS = [
     title: 'Ending your use',
     body: (
       <p>
-        You can stop using Marketing ឆ្លាតវ៉ៃ at any time and ask us to delete your account (see the Privacy Policy). We may
+        You can stop using Marketing ឆ្លាតវៃ at any time and ask us to delete your account (see the Privacy Policy). We may
         suspend or close accounts that break these terms.
       </p>
     ),
@@ -406,7 +406,7 @@ export default function LegalPage({ kind }) {
   const doc = DOCS[kind] || DOCS.privacy
 
   useEffect(() => {
-    document.title = `${doc.title} · Marketing ឆ្លាតវ៉ៃ`
+    document.title = `${doc.title} · Marketing ឆ្លាតវៃ`
     document.getElementById('splash')?.remove()
     // Arrived with #data-deletion etc.: scroll to it once rendered.
     if (window.location.hash) document.querySelector(window.location.hash)?.scrollIntoView()
@@ -419,7 +419,7 @@ export default function LegalPage({ kind }) {
           <a href="/" className="flex items-center gap-2">
             <img src="/brand/logo-mark.png" alt="" className="h-7 w-7 object-contain" />
             <span className="text-[15px] font-bold tracking-tight text-ink-900">
-              Marketing <span className="font-khmer text-brand">ឆ្លាតវ៉ៃ</span>
+              Marketing <span className="font-khmer text-brand">ឆ្លាតវៃ</span>
             </span>
           </a>
           <nav className="ml-auto flex gap-1 text-[12.5px] font-medium">
@@ -462,7 +462,7 @@ export default function LegalPage({ kind }) {
         </div>
 
         <footer className="mt-14 border-t border-ink-200 pt-6 text-[12px] text-ink-500">
-          © {new Date().getFullYear()} {COMPANY} · Marketing ឆ្លាតវ៉ៃ · <a href={`mailto:${CONTACT}`}>{CONTACT}</a>
+          © {new Date().getFullYear()} {COMPANY} · Marketing ឆ្លាតវៃ · <a href={`mailto:${CONTACT}`}>{CONTACT}</a>
         </footer>
       </main>
     </div>

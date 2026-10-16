@@ -165,7 +165,7 @@ export default function HowItWorks({ onClose }) {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-[16px] font-bold text-ink-900">How Marketing ឆ្លាតវ៉ៃ works</h2>
+        <h2 className="text-[16px] font-bold text-ink-900">How Marketing ឆ្លាតវៃ works</h2>
         <p className="mt-0.5 text-[12.5px] text-ink-500">
           Five steps, left to right. Set up once — then the AI plans and posts, your chatbot brings leads, and the results make the
           next plan better. Click any box to open it.
@@ -195,7 +195,7 @@ export default function HowItWorks({ onClose }) {
             <div className="relative">
               <div className="rounded-2xl bg-brand px-6 py-3.5 text-center text-white shadow-sm">
                 <div className="text-[15px] font-bold">
-                  Marketing <span className="font-khmer">ឆ្លាតវ៉ៃ</span>
+                  Marketing <span className="font-khmer">ឆ្លាតវៃ</span>
                 </div>
                 <div className="text-[11.5px] text-white/80">Your AI marketing team</div>
               </div>

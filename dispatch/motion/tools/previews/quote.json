@@ -1,6 +1,6 @@
 {
  "brand": {
-  "name": "ContentFlow",
+  "name": "Marketing ឆ្លាតវៃ",
   "color": "#1F4E8C",
   "logo": null
  },
@@ -10,7 +10,7 @@
    "type": "quote",
    "image": "sample/soap.png",
    "text": "Customers don't remember the price. They remember ⟦how fast you cared⟧.",
-   "author": "ContentFlow"
+   "author": "Marketing ឆ្លាតវៃ"
   }
  ],
  "frame": 150,
@@ -25,7 +25,7 @@
    "type": "quote",
    "image": "sample/soap.png",
    "text": "Customers don't remember the price. They remember ⟦how fast you cared⟧.",
-   "author": "ContentFlow"
+   "author": "Marketing ឆ្លាតវៃ"
   },
   {
    "type": "cta",

@@ -59,7 +59,7 @@ export default function JoiningCanvas({ story }) {
           <span className="h-2 w-2 rounded-full bg-[#28C840]" />
         </span>
         <img src="/brand/logo-mark.png" alt="" className="ml-1.5 h-4 w-4 object-contain" />
-        <span className="truncate text-[10.5px] font-semibold text-white/70">Marketing ឆ្លាតវ៉ៃ Editor — {story.title}</span>
+        <span className="truncate text-[10.5px] font-semibold text-white/70">Marketing ឆ្លាតវៃ Editor — {story.title}</span>
         <span className="ml-auto inline-flex flex-none items-center gap-1.5 rounded-full bg-brand/20 px-2 py-0.5 text-[9.5px] font-bold text-brand-light">
           <span className="h-1.5 w-1.5 rounded-full bg-brand-light animate-pulse" /> Exporting MP4
         </span>

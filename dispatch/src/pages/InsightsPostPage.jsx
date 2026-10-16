@@ -104,14 +104,14 @@ function explain(post, platformName) {
       tone: 'blue',
       title: 'Posted privately — no public numbers',
       body: note,
-      action: `Make the video public in ${platformName}, or wait until Marketing ឆ្លាតវ៉ៃ's ${platformName} app is approved to post publicly.`,
+      action: `Make the video public in ${platformName}, or wait until Marketing ឆ្លាតវៃ's ${platformName} app is approved to post publicly.`,
     }
   }
   if (/token|access|auth|reconnect|expired|permission/i.test(note)) {
     return {
       icon: FiAlertTriangle,
       tone: 'amber',
-      title: `Marketing ឆ្លាតវ៉ៃ can't read ${platformName} right now`,
+      title: `Marketing ឆ្លាតវៃ can't read ${platformName} right now`,
       body: note,
       action: `Reconnect the ${platformName} channel, then refresh this page.`,
       link: { to: '/channels', label: 'Go to Channels' },
@@ -408,7 +408,7 @@ export default function InsightsPostPage() {
           <FiArrowLeft size={16} /> Back to Analytics
         </Link>
         <div className="flex items-center gap-2">
-          <button type="button" onClick={() => setDeleting(true)} className="btn-ghost px-3 py-1.5 text-red-600 hover:bg-red-50" title="Delete this post from the platform and Marketing ឆ្លាតវ៉ៃ">
+          <button type="button" onClick={() => setDeleting(true)} className="btn-ghost px-3 py-1.5 text-red-600 hover:bg-red-50" title="Delete this post from the platform and Marketing ឆ្លាតវៃ">
             <FiTrash2 size={14} /> Delete
           </button>
           <button type="button" onClick={() => setReposting(true)} className="btn-outline" title="Post this again — now or later, here or on another channel">

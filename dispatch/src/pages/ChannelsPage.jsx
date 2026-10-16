@@ -451,8 +451,8 @@ export default function ChannelsPage() {
                 Delete {removing.brand.name}?
               </div>
               <p className="mt-2 text-[12px] text-ink-600 leading-relaxed">
-                This permanently removes the brand from Marketing ឆ្លាតវ៉ៃ. Posts already published on
-                Facebook, TikTok and other platforms stay there — only Marketing ឆ្លាតវ៉ៃ’s copy goes.
+                This permanently removes the brand from Marketing ឆ្លាតវៃ. Posts already published on
+                Facebook, TikTok and other platforms stay there — only Marketing ឆ្លាតវៃ’s copy goes.
                 Images and videos stay in your Library.
               </p>
               <div className="mt-3 rounded-xl bg-ink-50 px-3 py-2.5 text-[11.5px] text-ink-700">

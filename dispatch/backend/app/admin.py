@@ -348,7 +348,7 @@ def admin_add_credit(ws_id: int, payload: CreditIn, db: Session = Depends(get_db
             workspace_id=ws_id,
             kind="grant",
             amount_usd=round(payload.amount_usd, 2),
-            note=(payload.note.strip() or "Added by Marketing ឆ្លាតវ៉ៃ")[:300],
+            note=(payload.note.strip() or "Added by Marketing ឆ្លាតវៃ")[:300],
         )
     )
     db.commit()

@@ -71,7 +71,7 @@ export default function ChatLinkCard({ brandSlug }) {
         <div className="min-w-0">
           <h2 className="text-[15px] font-semibold text-ink-900">Chat link in every post</h2>
           <p className="mt-0.5 max-w-[72ch] text-[12px] leading-relaxed text-ink-500">
-            When a post is published, Marketing ឆ្លាតវ៉ៃ adds a link to your chatbot at the end — with that post’s own code. Anyone who
+            When a post is published, Marketing ឆ្លាតវៃ adds a link to your chatbot at the end — with that post’s own code. Anyone who
             taps it and chats becomes a lead that shows which post brought them. Added on Telegram, Facebook and LinkedIn
             (Instagram and TikTok captions can’t open links).
           </p>

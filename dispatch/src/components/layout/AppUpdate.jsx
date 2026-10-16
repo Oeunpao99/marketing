@@ -28,7 +28,7 @@ export default function AppUpdate() {
       {available && !dismissed && (
         <div className="fixed inset-x-0 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] lg:bottom-6 z-[75] flex justify-center px-4 pointer-events-none">
           <div className="pointer-events-auto flex items-center gap-3 rounded-2xl glass-panel py-2 pl-4 pr-2 animate-fadein">
-            <span className="text-[12.5px] font-medium text-ink-800">✨ A new version of Marketing ឆ្លាតវ៉ៃ is ready</span>
+            <span className="text-[12.5px] font-medium text-ink-800">✨ A new version of Marketing ឆ្លាតវៃ is ready</span>
             <button type="button" onClick={applyUpdate} className="btn-primary px-3 py-1.5">
               Update
             </button>

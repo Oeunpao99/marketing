@@ -73,7 +73,7 @@ export default function MaintenanceOverlay() {
         )}
 
         <h2 className="mt-5 text-[17px] font-bold tracking-tight text-ink-900">
-          {done ? 'All set!' : 'Marketing ឆ្លាតវ៉ៃ is updating'}
+          {done ? 'All set!' : 'Marketing ឆ្លាតវៃ is updating'}
         </h2>
         <p className="mt-2 text-[13px] leading-relaxed text-ink-600">
           {done

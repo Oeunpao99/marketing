@@ -57,9 +57,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Marketing ឆ្លាតវ៉ៃ API",
+    title="Marketing ឆ្លាតវៃ API",
     version="0.1.0",
-    description="Backend for Marketing ឆ្លាតវ៉ៃ, the AI social content portal.",
+    description="Backend for Marketing ឆ្លាតវៃ, the AI social content portal.",
     lifespan=lifespan,
 )
 
@@ -71,7 +71,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-MAINTENANCE_DEFAULT = "Marketing ឆ្លាតវ៉ៃ is down for scheduled maintenance. We'll be back shortly."
+MAINTENANCE_DEFAULT = "Marketing ឆ្លាតវៃ is down for scheduled maintenance. We'll be back shortly."
 
 
 @app.middleware("http")

@@ -1733,7 +1733,7 @@ function AskTurn({ t, onRetry, onGenerate, onEdit }) {
 
       <div className="flex items-start gap-3">
         <span className="mt-0.5 w-8 h-8 flex-none rounded-xl grid place-items-center bg-white ring-1 ring-ink-200/80 shadow-sm">
-          <img src="/brand/logo-mark.png" alt="Marketing ឆ្លាតវ៉ៃ" className="w-6 h-6 object-contain" />
+          <img src="/brand/logo-mark.png" alt="Marketing ឆ្លាតវៃ" className="w-6 h-6 object-contain" />
         </span>
         <div className="min-w-0 flex-1 max-w-[860px]">
           {t.status === 'working' && (

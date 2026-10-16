@@ -30,7 +30,7 @@ export default function DeletePostDialog({ post, onClose, onDeleted }) {
         return
       }
       const r = res?.channels?.[0]?.result
-      showToast(r === 'removed' ? `Deleted from ${name} and Marketing ឆ្លាតវ៉ៃ` : 'Removed from Marketing ឆ្លាតវ៉ៃ')
+      showToast(r === 'removed' ? `Deleted from ${name} and Marketing ឆ្លាតវៃ` : 'Removed from Marketing ឆ្លាតវៃ')
       refreshQueue?.()
       onDeleted()
     } catch (e) {
@@ -53,7 +53,7 @@ export default function DeletePostDialog({ post, onClose, onDeleted }) {
         {!manual && (
           <p className="mt-2 text-[12.5px] leading-relaxed text-ink-600">
             This deletes the post from <b className="text-ink-900">{name}</b> first, then removes it and its numbers from
-            Marketing ឆ្លាតវ៉ៃ. It can’t be undone.
+            Marketing ឆ្លាតវៃ. It can’t be undone.
           </p>
         )}
 
@@ -64,7 +64,7 @@ export default function DeletePostDialog({ post, onClose, onDeleted }) {
               {problem}
               <div className="mt-1 text-amber-800">
                 Still showing here, so nothing is hidden while it may be live. If it’s already gone from {name}, remove it
-                from Marketing ឆ្លាតវ៉ៃ only.
+                from Marketing ឆ្លាតវៃ only.
               </div>
             </div>
           </div>
@@ -76,7 +76,7 @@ export default function DeletePostDialog({ post, onClose, onDeleted }) {
           </button>
           {problem && (
             <button type="button" onClick={() => remove(true)} disabled={busy} className="btn-outline">
-              {manual ? `I deleted it on ${manual} — remove here` : 'Remove from Marketing ឆ្លាតវ៉ៃ only'}
+              {manual ? `I deleted it on ${manual} — remove here` : 'Remove from Marketing ឆ្លាតវៃ only'}
             </button>
           )}
           {!manual && (

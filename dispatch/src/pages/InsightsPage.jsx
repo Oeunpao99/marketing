@@ -157,12 +157,12 @@ export function OriginBadge({ origin, platform }) {
   const name = { facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok', telegram: 'Telegram', linkedin: 'LinkedIn', youtube: 'YouTube' }[platform] || 'the platform'
   return (
     <span
-      title={native ? `Posted directly on ${name} — imported from the connected account` : 'Posted with Marketing ឆ្លាតវ៉ៃ'}
+      title={native ? `Posted directly on ${name} — imported from the connected account` : 'Posted with Marketing ឆ្លាតវៃ'}
       className={`inline-flex flex-none items-center whitespace-nowrap rounded-full px-1.5 py-px text-[10px] font-semibold ${
         native ? 'bg-ink-100 text-ink-600' : 'bg-brand-soft text-brand'
       }`}
     >
-      {native ? `On ${name}` : 'Marketing ឆ្លាតវ៉ៃ'}
+      {native ? `On ${name}` : 'Marketing ឆ្លាតវៃ'}
     </span>
   )
 }
@@ -1161,7 +1161,7 @@ export default function InsightsPage() {
           label="Posted from"
           options={[
             { value: 'all', label: 'Posted from anywhere' },
-            { value: 'contentflow', label: 'Posted with Marketing ឆ្លាតវ៉ៃ' },
+            { value: 'contentflow', label: 'Posted with Marketing ឆ្លាតវៃ' },
             { value: 'native', label: 'Posted directly on the Page' },
           ]}
         />

@@ -125,6 +125,21 @@ def music_tracks() -> dict[str, list[str]]:
             out[mood] = [f"music/{mood}/{f}" for f in files]
     return out
 
+# How an English video talks: viewers in Cambodia often read English at A2-B1
+# (the user, 2026-10-16: "the AI seems too high level, hard to understand").
+# Used by every story prompt's LANGUAGE line; a pasted story is still followed
+# as written (story mode).
+_PLAIN_ENGLISH = (
+    "English: PLAIN ENGLISH for learners (CEFR A2-B1) — someone who learned English at school "
+    "must understand every word the first time. Short sentences (max 12 words), one idea each. "
+    "Common everyday words (\"use\", \"help\", \"fast\", \"easy\", \"save time\"), present "
+    "tense, \"you\" and \"we\". No idioms, slang or phrasal-verb tricks (\"game-changer\", "
+    "\"level up\", \"take it to the next level\", \"hit the ground running\"), no buzzwords "
+    "(leverage, seamless, streamline, empower, unlock, elevate, robust, cutting-edge, "
+    "revolutionize, synergy, next-gen, effortless), no long noun stacks. A technical word only "
+    "when needed — then say what it means in simple words. Friendly and clear beats clever.\n"
+)
+
 SELL_PROMPT = (
     "You are the best short-form video storyteller in Cambodia. You plan a vertical "
     "REMOTION VIDEO (TikTok / Facebook Reels, about 60 s): no actors — animated app-style "
@@ -171,9 +186,9 @@ SELL_PROMPT = (
     "\n"
     "LANGUAGE: write in the LANGUAGE given. Khmer: everyday spoken Khmer as Cambodian "
     "sellers write on Facebook — short common words, correct spelling, address the viewer "
-    "as បង (never អ្នក), brand / product / app names in Latin exactly as written. English: "
-    "plain and punchy.\n"
-    "FACTS: only what the product information supports — never invent prices, features or "
+    "as បង (never អ្នក), brand / product / app names in Latin exactly as written. "
+    + _PLAIN_ENGLISH
+    + "FACTS: only what the product information supports — never invent prices, features or "
     "results. The brief may be a long prompt written for a filmed video — ignore camera, "
     "actors and lighting; keep only its topic and message.\n"
     "\n"
@@ -244,8 +259,9 @@ TEACH_PROMPT = (
     "\n"
     "LANGUAGE: write in the LANGUAGE given. Khmer: everyday spoken Khmer — short common "
     "words, correct spelling, digits are fine; speak to the viewer as បង, or as a storyteller "
-    "to everyone as អ្នក — pick one and keep it. English: plain and punchy.\n"
-    "The topic may come from a brand that sells something related — teach the topic, don't "
+    "to everyone as អ្នក — pick one and keep it. "
+    + _PLAIN_ENGLISH
+    + "The topic may come from a brand that sells something related — teach the topic, don't "
     "sell. The brief may be a long prompt written for a filmed video — keep only its topic.\n"
     "\n"
     "Return ONLY a JSON object, no markdown:\n"
@@ -266,8 +282,9 @@ _COMMON_RULES = (
     "\n"
     "LANGUAGE: write in the LANGUAGE given. Khmer: everyday spoken Khmer — short common "
     "words, correct spelling, address the viewer as បង (never អ្នក), brand / product names in "
-    "Latin exactly as written. English: plain and punchy.\n"
-    "FACTS: only what the product information supports or common knowledge — never invent "
+    "Latin exactly as written. "
+    + _PLAIN_ENGLISH
+    + "FACTS: only what the product information supports or common knowledge — never invent "
     "statistics, studies, prices or results. The brief may be a long prompt written for a "
     "filmed video — keep only its topic.\n"
     "\n"

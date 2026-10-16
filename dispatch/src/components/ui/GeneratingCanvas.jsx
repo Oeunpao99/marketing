@@ -41,7 +41,7 @@ export default function GeneratingCanvas({ icon = '▶', stage, small = false, s
               <img src="/brand/logo-mark.png" alt="" className={`object-contain ${small ? 'w-7 h-7' : 'w-12 h-12'}`} />
             </span>
           </div>
-          {!small && <span className="mt-3 text-[14px] font-bold tracking-tight text-ink-900/80">Marketing ឆ្លាតវ៉ៃ</span>}
+          {!small && <span className="mt-3 text-[14px] font-bold tracking-tight text-ink-900/80">Marketing ឆ្លាតវៃ</span>}
         </div>
       </div>
 

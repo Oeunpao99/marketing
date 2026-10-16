@@ -96,7 +96,7 @@ function ago(iso) {
 export default function AdminApp() {
   const [signedIn, setSignedIn] = useState(() => !!tokenGet())
   useEffect(() => {
-    document.title = 'Admin · Marketing ឆ្លាតវ៉ៃ'
+    document.title = 'Admin · Marketing ឆ្លាតវៃ'
     const out = () => setSignedIn(false)
     window.addEventListener('admin:signed-out', out)
     return () => window.removeEventListener('admin:signed-out', out)
@@ -144,13 +144,13 @@ function AdminLogin({ onIn }) {
           <img src="/brand/logo-mark.png" alt="" className="h-10 w-10 object-contain" />
           <div>
             <div className="text-[16px] font-bold tracking-tight text-ink-900">
-              Marketing <span className="font-khmer text-brand">ឆ្លាតវ៉ៃ</span>
+              Marketing <span className="font-khmer text-brand">ឆ្លាតវៃ</span>
             </div>
             <div className="text-[11px] font-semibold uppercase tracking-[.08em] text-brand">Admin portal</div>
           </div>
         </div>
         <h1 className="mt-6 text-[18px] font-bold text-ink-900">Sign in</h1>
-        <p className="mt-1 text-[12.5px] text-ink-500">For the Marketing ឆ្លាតវ៉ៃ team — not a customer account.</p>
+        <p className="mt-1 text-[12.5px] text-ink-500">For the Marketing ឆ្លាតវៃ team — not a customer account.</p>
         <label className="mt-5 block text-[12px] font-semibold text-ink-700">
           Username
           <input autoFocus autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} className={`${input} mt-1.5`} />
@@ -186,7 +186,7 @@ function AdminPortal({ onSignOut }) {
       <img src="/brand/logo-mark.png" alt="" className="h-8 w-8 object-contain" />
       <div className="leading-tight">
         <div className="text-[14px] font-bold tracking-tight text-ink-900">
-          Marketing <span className="font-khmer text-brand">ឆ្លាតវ៉ៃ</span>
+          Marketing <span className="font-khmer text-brand">ឆ្លាតវៃ</span>
         </div>
         <div className="text-[10.5px] font-bold uppercase tracking-[.08em] text-brand">Admin portal</div>
       </div>
@@ -217,7 +217,7 @@ function AdminPortal({ onSignOut }) {
           {TABS.map((t) => navItem(t))}
         </nav>
         <div className="mt-auto border-t border-ink-100 pt-4">
-          <div className="px-3 text-[11.5px] leading-snug text-ink-400">Signed in as the Marketing ឆ្លាតវ៉ៃ team · this tab only</div>
+          <div className="px-3 text-[11.5px] leading-snug text-ink-400">Signed in as the Marketing ឆ្លាតវៃ team · this tab only</div>
           <button
             type="button"
             onClick={onSignOut}
@@ -231,7 +231,7 @@ function AdminPortal({ onSignOut }) {
       {/* top bar (phone / tablet) */}
       <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-ink-200/70 bg-white px-4 py-2.5 lg:hidden">
         {/* a phone: the logo alone, the pages in one line (it scrolls if they don't fit) */}
-        <img src="/brand/logo-mark.png" alt="Marketing ឆ្លាតវ៉ៃ admin" className="h-8 w-8 flex-none object-contain" />
+        <img src="/brand/logo-mark.png" alt="Marketing ឆ្លាតវៃ admin" className="h-8 w-8 flex-none object-contain" />
         <nav className="ml-auto flex min-w-0 gap-1 overflow-x-auto">{TABS.map((t) => navItem(t, true))}</nav>
         <button type="button" onClick={onSignOut} aria-label="Sign out" className="grid h-9 w-9 flex-none place-items-center rounded-lg text-ink-500 hover:bg-ink-50">
           <FiLogOut size={16} />
@@ -290,7 +290,7 @@ function Overview({ onOpen, onAll }) {
     <div className="space-y-5">
       <div>
         <h1 className="text-[24px] font-bold tracking-tight text-ink-900">Overview</h1>
-        <p className="mt-1 text-[13px] text-ink-500">Who signed up and who uses Marketing ឆ្លាតវ៉ៃ</p>
+        <p className="mt-1 text-[13px] text-ink-500">Who signed up and who uses Marketing ឆ្លាតវៃ</p>
       </div>
 
       <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">

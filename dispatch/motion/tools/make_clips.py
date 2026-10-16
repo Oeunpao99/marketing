@@ -28,7 +28,7 @@ for id in ids:
     json.dump({"brand": d["brand"], "style": d["style"], "look": d.get("look"), "scenes": d["clip"]}, open(props, "w", encoding="utf-8"), ensure_ascii=False)
     mp4 = motion / "out" / f"clip-{id}.mp4"
     subprocess.run(
-        [npx, "remotion", "render", str(bundle), "MotionPost", str(mp4), f"--props={props}", "--scale=0.4", "--muted", "--crf=30", "--timeout=120000", "--log=error"],
+        [npx, "remotion", "render", str(bundle), "MotionPost", str(mp4), f"--props={props}", "--scale=0.4", "--muted", "--crf=30", "--timeout=120000", "--concurrency=2", "--log=error"],  # 2 workers: the computer stays usable
         cwd=motion,
         check=True,
     )

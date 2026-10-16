@@ -12,7 +12,7 @@ import AutoTextarea from '../ui/AutoTextarea'
 // it's ready, one line is played by the Female reader, the Male reader and
 // the brand voice side by side.
 const SCRIPT = [
-  'ខ្ញុំយល់ព្រមឱ្យ Marketing ឆ្លាតវ៉ៃ បង្កើតសំឡេង AI ពីសំឡេងរបស់ខ្ញុំ ដើម្បីប្រើក្នុងវីដេអូរបស់ហាងខ្ញុំ។',
+  'ខ្ញុំយល់ព្រមឱ្យ Marketing ឆ្លាតវៃ បង្កើតសំឡេង AI ពីសំឡេងរបស់ខ្ញុំ ដើម្បីប្រើក្នុងវីដេអូរបស់ហាងខ្ញុំ។',
   'សួស្តីបង! ថ្ងៃនេះបងសុខសប្បាយទេ?',
   'ហាងយើងបើករាល់ថ្ងៃ ចាប់ពីម៉ោងប្រាំពីរព្រឹក ដល់ម៉ោងដប់យប់។',
   'បើបងមានសំណួរអ្វី អាចឆាតមកយើងបានគ្រប់ពេល។',
