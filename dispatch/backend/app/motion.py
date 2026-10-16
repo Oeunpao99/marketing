@@ -1863,6 +1863,68 @@ def own_voice(text: str) -> list[str]:
     return [ln.strip().strip("\"“”«»'").strip() for ln in _VOICE_LINE.findall(text or "") if ln.strip()]
 
 
+_QUOTED = re.compile(r"[\"“]([^\"“”\n]{2,120})[\"”]")
+
+
+def own_onscreen(text: str) -> list[str]:
+    """Every line a numbered script puts on screen in quotes — "On screen:",
+    "Subtitle:", its features, its final titles — never its Voice lines."""
+    first = _SCENE_HEAD.search(text or "")
+    if not first:
+        return []
+    out = []
+    for line in text[first.start():].splitlines():
+        if _VOICE_LINE.match(line):
+            continue
+        for q in _QUOTED.findall(line):  # "A · B" may be shown as two items — each part counts
+            out += [part.strip() for part in re.split(r"\s+[·|]\s+", q) if len(part.strip()) > 1]
+    return list(dict.fromkeys(out))
+
+
+def _shown(raw_scenes) -> str:
+    """Every word a raw storyboard puts on screen (all its text but the voice lines), plain."""
+    bits: list[str] = []
+
+    def walk(v, key=""):
+        if key == "say":
+            return
+        if isinstance(v, str):
+            bits.append(v)
+        elif isinstance(v, dict):
+            for k, x in v.items():
+                walk(x, k)
+        elif isinstance(v, list):
+            for x in v:
+                walk(x, key)
+
+    walk(raw_scenes)
+    return _plain(" ".join(bits))
+
+
+def _missing_onscreen(idea: str, raw: dict) -> list[str]:
+    shown = _shown(raw.get("scenes") or [])
+    return [q for q in own_onscreen(idea) if _plain(q) not in shown]
+
+
+def _keep_own_voice(script: dict, idea: str) -> None:
+    """A script with its own Voice lines: a `say` that isn't from them (the AI
+    filled a scene with a line of its own) is taken out — the scene plays
+    without a voice rather than say something they never wrote."""
+    lines = own_voice(idea)
+    if not lines:
+        return
+    theirs = _plain(" ".join(lines))
+    words = set(theirs.split())
+    for sc in script["scenes"]:
+        said = _plain(sc.get("say"))
+        if not said or said in theirs:
+            continue
+        mine = [w.strip(".,!?;:") for w in said.split()]
+        if sum(1 for w in mine if w in words) / max(1, len(mine)) < 0.75:
+            log.info("storyboard: a voice line the script doesn't have taken out: %s", _line(sc["say"], 80))
+            sc["say"] = ""
+
+
 def own_design(text: str) -> bool:
     """A script that designs its own film: numbered scenes AND visual
     direction (looks, backgrounds, colours, a pause, a reveal…) — the AI
@@ -2759,7 +2821,10 @@ def write_script(
                 "final line, not an extra scene. When a scene gives its own Voice line, "
                 "`say` is THAT line, word for word — never write a voice line the script doesn't have, "
                 "and never add the brand's name or a slogan it doesn't say. Its on-screen text stays "
-                "exactly as written."
+                "exactly as written — every quoted line (On screen, Subtitle, features, final titles) is on "
+                "screen. Sample content inside a screen (a typed caption, a chat, a name, a number) comes "
+                "from THIS brief's subject — never an unrelated example (no coffee in a security film), "
+                "and no made-up people's names."
             )
     raw = _chat(
         [
@@ -2782,6 +2847,32 @@ def write_script(
         # Khmer editor pass after it still runs at high effort.
         effort="low",
     )
+    if story and own_scenes(idea):
+        missing = _missing_onscreen(idea, raw)
+        if missing:
+            # their quoted on-screen lines are the brief's contract: one more pass with what's missing
+            log.info("storyboard: %d quoted line(s) missing — asking again: %s", len(missing), "; ".join(missing)[:200])
+            try:
+                again = _chat(
+                    [
+                        {"role": "system", "content": prompt + extra},
+                        {"role": "user", "content": f"BRAND: {brand.name}\nLANGUAGE: {language}\nPRODUCTS:\n{facts}\n\nTHE VIDEO IS ABOUT: {idea.strip()[:12000]}"},
+                        {"role": "assistant", "content": json.dumps(raw, ensure_ascii=False)[:60000]},
+                        {
+                            "role": "user",
+                            "content": "Your storyboard leaves out these on-screen lines of the script — each must be on screen, "
+                            "character for character, in the scene where the script puts it (add a scene for a reveal or "
+                            "a feature that has none):\n- " + "\n- ".join(missing) + "\nReturn the WHOLE storyboard again, same JSON.",
+                        },
+                    ],
+                    model,
+                    max_tokens=(32000 if style in LONG_STYLES or style == "canvas" else 16000),
+                    effort="low",
+                )
+                if isinstance(again.get("scenes"), list) and len(_missing_onscreen(idea, again)) < len(missing):
+                    raw = again
+            except ContentAIError as exc:
+                log.warning("storyboard: the second pass for missing lines failed: %s", exc)
     names = {p.name.strip().lower(): p.name for p in products}
     scenes = [
         s
@@ -2795,6 +2886,8 @@ def write_script(
             raise ContentAIError("The AI didn't return a usable storyboard — try again.")
         r, g, b = accent_for(brand.slug)
         theme = clean_theme(raw.get("theme"), f"#{r:02x}{g:02x}{b:02x}")
+        if story:
+            _keep_own_voice({"scenes": scenes}, idea)
         script = {"scenes": [apply_theme(sc, theme) for sc in scenes[: (count if story else most)]], "style": style, "asks": _clean_asks(raw.get("asks")), "theme": theme}
         if moods:
             script["mood"] = raw.get("mood") if raw.get("mood") in moods else moods[0]
@@ -2850,6 +2943,7 @@ def write_script(
     script = {"scenes": [hooks[0], *middle, ctas[0]], "style": style}
     if story:  # a chart / number the story never gave becomes a plain statement of that line
         script["scenes"] = [_only_story_numbers(s, idea, allowed) for s in script["scenes"]]
+        _keep_own_voice(script, idea)
     if style == "custom":
         r, g, b = accent_for(brand.slug)
         script["look"] = clean_look(raw.get("look"), f"#{r:02x}{g:02x}{b:02x}")
