@@ -1867,7 +1867,17 @@ def _apps(value) -> list[dict]:
 
 
 def _clean_scene(raw: dict, names: dict[str, str]) -> dict | None:
-    """One scene from the AI, checked and trimmed — None when it's unusable."""
+    """One scene from the AI, checked and trimmed — None when it's unusable.
+    A scene whose fields have the wrong shape (a number where a list goes…)
+    is left out, never fails the whole storyboard."""
+    try:
+        return _clean_one(raw, names)
+    except (TypeError, ValueError, AttributeError, KeyError, IndexError) as exc:
+        log.warning("storyboard: a %s scene left out — malformed (%s)", str(raw.get("type"))[:20], exc)
+        return None
+
+
+def _clean_one(raw: dict, names: dict[str, str]) -> dict | None:
     kind = raw.get("type")
     say = _line(raw.get("say"), 300)
     if kind == "hook":
@@ -3486,7 +3496,7 @@ def add_voice(
             scene["seconds"] = round(max(default_seconds(scene), lead + duration + VOICE_TAIL), 2)
             scene["voiceSeconds"] = round(duration, 2)  # subtitles follow the voice
             if words:
-                scene["words"] = words  # …word by word, when Azure said when each word is
+                scene["voiceWords"] = words  # …word by word, when Azure said when each word is (not "words": phones / stack / roll show their own)
             else:
                 scene["pauses"] = _pauses(path)  # …else phrase by phrase, at the voice's own pauses
             mark(n, voice="done", seconds=round(duration, 1))
@@ -3502,7 +3512,7 @@ def add_voice(
         # (the reason is for the team, in the log).
         log.error("motion %s: Gemini voice failed on %s line(s) (%s) — reading the whole video with %s", job_id, len(new_failures), new_failures[-1], backup)
         for scene in props["scenes"]:
-            for k in ("audio", "words", "pauses", "voiceSeconds"):
+            for k in ("audio", "voiceWords", "pauses", "voiceSeconds"):
                 scene.pop(k, None)
         _report(job_id, voice_note=_backup_note(backup))
         return add_voice(props, script, backup, ws, user_id, job_id, pronunciations, clone)

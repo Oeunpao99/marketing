@@ -796,7 +796,7 @@ export const MotionPost = ({ brand, scenes, music, musicList, style, look, sfx =
               <Sequence from={(i ? TRANSITION : 0) + 6 + Math.round((Number(scene.pause) || 0) * FPS)} layout="none">
                 {/* Subtitles — not where the screen says it already (the chat's bubbles, a quote). */}
                 {scene.caption && !noCaption.includes(scene.type) && (
-                  <Caption text={scene.caption} words={scene.words} pauses={scene.pauses} seconds={scene.voiceSeconds || sceneFrames(scene) / FPS - 0.6} top={captionTop} look={t.caption} />
+                  <Caption text={scene.caption} words={scene.voiceWords} pauses={scene.pauses} seconds={scene.voiceSeconds || sceneFrames(scene) / FPS - 0.6} top={captionTop} look={t.caption} />
                 )}
                 {scene.audio && <Html5Audio src={srcOf(scene.audio)} />}
               </Sequence>
