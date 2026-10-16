@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import re
 import logging
 
 import httpx
@@ -77,7 +78,12 @@ def key_status(db: Session = Depends(get_db), ws: int = Depends(current_workspac
 @router.put("/gemini-key")
 def key_save(payload: KeyIn, db: Session = Depends(get_db), user: TeamMember = Depends(require_manager)):
     """Save (or replace) the workspace's own Gemini key — checked with Google first."""
-    key = payload.key.strip()
+    key = payload.key.strip().strip("\"'")
+    # a key is plain letters, digits, - and _ — anything else is text copied along with it
+    if not re.fullmatch(r"[A-Za-z0-9_\-.]{20,200}", key):
+        raise HTTPException(400, "That doesn't look like a Gemini API key — copy just the key (it starts with AIza…) from Google AI Studio.")
+    if not key.startswith("AIza"):
+        raise HTTPException(400, "That isn't a Gemini API key — in Google AI Studio (aistudio.google.com/apikey) create one; it starts with AIza…")
     _check(key)
     w = db.get(Workspace, user.workspace_id)
     w.gemini_key_enc = _fernet().encrypt(key.encode()).decode()
