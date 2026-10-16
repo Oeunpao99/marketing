@@ -273,6 +273,12 @@ def _speak_timed(text: str, voice: str) -> tuple[bytes, list[dict]]:
     events: list = []
     synth.synthesis_word_boundary.connect(events.append)
     result = synth.speak_text_async(text).get()  # as given: word positions ("o") index into it
+    if result.reason == sdk.ResultReason.SynthesizingAudioCompleted and not result.audio_data:
+        # "completed" with no audio (seen on prod for some lines): read it again
+        # the plain way — no word timings (the subtitles estimate them), but
+        # the scene has its voice instead of staying silent
+        log.warning("Azure Speech gave no audio for a %d-character line (%s) — reading it again without word timings", len(text), voice)
+        return speak(text, voice), []
     if result.reason != sdk.ResultReason.SynthesizingAudioCompleted or not result.audio_data:
         details = getattr(result, "cancellation_details", None)
         raise SpeechError(f"Azure Speech failed: {getattr(details, 'error_details', '') or result.reason}")
