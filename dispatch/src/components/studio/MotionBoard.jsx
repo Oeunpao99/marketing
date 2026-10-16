@@ -170,6 +170,26 @@ const STEP_HINT = {
 /** Progress, the four steps and the storyboard rows, top to bottom, in one
  * full-width card (replaces the smoke canvas + side storyboard for Remotion).
  * A step that has started can be clicked to see its work; a row opens alone. */
+/** A long request (a whole pasted brief): 3 lines and a fade, "See more"
+ * opens it all. Short ones show as they are. */
+function LongText({ text }) {
+  const [open, setOpen] = useState(false)
+  const long = text.length > 220 || text.split(/\n/).length > 3
+  return (
+    <span className="mt-0.5 block">
+      <span className={`relative block whitespace-pre-line text-[11.5px] leading-snug text-ink-500 ${long && !open ? 'max-h-[4.2em] overflow-hidden' : ''}`}>
+        {text}
+        {long && !open && <span className="pointer-events-none absolute inset-x-0 bottom-0 h-[2.2em] bg-gradient-to-b from-transparent to-ink-50" aria-hidden="true" />}
+      </span>
+      {long && (
+        <button type="button" onClick={() => setOpen((o) => !o)} className="mt-0.5 text-[11.5px] font-semibold text-brand hover:underline">
+          {open ? 'See less' : 'See more'}
+        </button>
+      )}
+    </span>
+  )
+}
+
 /** Before the first scene: the AI's thinking, step by step — it read the
  * request, it knows the brand and settings, it picked a template (and why),
  * it's writing the story — so the wait shows work, not just a percentage. */
@@ -199,7 +219,7 @@ function Thinking({ request, meta, style, why, elapsed }) {
                 {l.label}
                 {busy && <span className="ml-0.5 inline-block animate-pulse">…</span>}
               </span>
-              {l.body && <span className="mt-0.5 block line-clamp-2 text-[11.5px] leading-snug text-ink-500">{l.body}</span>}
+              {l.body && (i === 0 ? <LongText text={l.body} /> : <span className="mt-0.5 line-clamp-2 text-[11.5px] leading-snug text-ink-500">{l.body}</span>)}
             </span>
           </li>
         )
