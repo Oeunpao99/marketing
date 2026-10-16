@@ -309,6 +309,8 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
   // (an attached image takes its place).
   const isClip = type === 'video' && !isStory && !isMotion
   const maxRefs = isMotion ? MAX_REFS : isImage ? MAX_IMAGE_REFS : 1
+  // one attached image shows big; several go small, so a row of them stays neat
+  const thumb = refImgs.length > 1 ? 'h-14 w-14 rounded-xl' : 'h-[104px] w-[104px] rounded-2xl' 
   const videoFrame = isClip && !refImg && !!kitProduct
 
   useEffect(() => {
@@ -1261,35 +1263,38 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
           )}
 
           {refImgs.length > 0 && (
-            <div className="flex flex-wrap items-end gap-2 px-4 pt-4">
+            <div className="flex flex-wrap items-end gap-1.5 px-4 pt-4">
               {refImgs.map((img, i) => (
-                <div key={img.previewUrl} className="group relative w-[104px] h-[104px] overflow-hidden rounded-2xl bg-ink-100 ring-1 ring-ink-200">
+                <div key={img.previewUrl} className={`group relative overflow-hidden bg-ink-100 ring-1 ring-ink-200 ${thumb}`}>
                   <img src={img.previewUrl} alt={i ? `Screenshot ${i + 1}` : 'Reference'} className="h-full w-full object-cover" />
                   {!img.url && (
                     <div className="absolute inset-0 grid place-items-center bg-white/60">
                       <span className="h-5 w-5 animate-spin rounded-full border-2 border-brand/30 border-t-brand" />
                     </div>
                   )}
-                  <span className="absolute bottom-1.5 left-1.5 rounded-md bg-black/55 px-1.5 py-0.5 text-[9.5px] font-semibold text-white">
-                    {refImgs.length > 1 ? `${isMotion ? 'Screen' : 'Image'} ${i + 1}` : 'Reference'}
+                  <span className={`absolute rounded-md bg-black/55 font-semibold text-white ${refImgs.length > 1 ? 'bottom-1 left-1 px-1 text-[9px]' : 'bottom-1.5 left-1.5 px-1.5 py-0.5 text-[9.5px]'}`}>
+                    {refImgs.length > 1 ? i + 1 : 'Reference'}
                   </span>
                   <button
                     type="button"
                     onClick={() => setRefImgs((cur) => cur.filter((x) => x.previewUrl !== img.previewUrl))}
                     title="Remove"
                     aria-label="Remove this image"
-                    className="absolute right-1.5 top-1.5 h-6 w-6 rounded-full grid place-items-center bg-black/60 text-white sm:opacity-0 sm:group-hover:opacity-100 hover:bg-black/80 transition"
+                    className="absolute right-1 top-1 h-5 w-5 rounded-full grid place-items-center bg-black/60 text-white sm:opacity-0 sm:group-hover:opacity-100 hover:bg-black/80 transition"
                   >
-                    <FiX size={13} />
+                    <FiX size={11} />
                   </button>
                 </div>
               ))}
               {maxRefs > 1 && refImgs.length < maxRefs && (
-                <label className="grid h-[104px] w-[104px] cursor-pointer place-items-center rounded-2xl border border-dashed border-ink-300 text-center text-[11px] font-semibold text-ink-500 hover:border-brand hover:text-brand">
+                <label
+                  title={isMotion ? `Add a screen (up to ${maxRefs})` : `Add an image (up to ${maxRefs})`}
+                  className="grid h-14 w-14 cursor-pointer place-items-center rounded-xl border border-dashed border-ink-300 text-ink-500 hover:border-brand hover:text-brand"
+                >
                   <input type="file" accept="image/*" multiple className="hidden" onChange={attach} />
-                  <span>
-                    <FiPlus size={16} className="mx-auto mb-1" />
-                    {isMotion ? 'Add a screen' : 'Add an image'}
+                  <span className="text-center text-[9.5px] font-semibold leading-tight">
+                    <FiPlus size={14} className="mx-auto" />
+                    {refImgs.length}/{maxRefs}
                   </span>
                 </label>
               )}
