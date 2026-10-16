@@ -46,7 +46,7 @@ export const SCENE_LABELS = {
   form: 'Form',
   word: 'Big word',
   tasks: 'The work today',
-  canvas: 'Designed scene',
+  canvas: 'Scene',
   send: 'Device → device',
   address: 'The address',
   lookup: 'The lookup',
@@ -254,10 +254,9 @@ function Asks({ asks }) {
   )
 }
 
-/** The live design view: while the AI checks its design, the scenes are
- * "sketched" (pencil strokes); once the preview is rendered, each scene's
- * picture comes in and the big view swaps from scene to scene — following the
- * voice line being recorded, then the scene being animated. */
+/** The live design view in the Animate step: each designed scene's picture
+ * (from the self-check's preview) — the big view follows the scene being
+ * animated, the filmstrip ticks scenes off as they're done. */
 function SceneSketches({ sketches, count, stage, speaking, render }) {
   const shots = sketches || []
   const ready = shots.filter(Boolean).length > 0
@@ -407,7 +406,8 @@ export function MotionMaking({ progress, pct, stage, elapsed, onStop, request = 
       {thinking && <Thinking request={request} meta={meta} style={style} why={progress?.why} elapsed={elapsed || 0} />}
 
       <div className="border-t border-ink-100">
-        {(progress?.sketches?.length > 0 || progress?.stage === 'check') && (
+        {/* the designed scenes, live — in the Animate step only */}
+        {progress?.stage === 'render' && progress?.sketches?.some(Boolean) && (
           <SceneSketches
             sketches={progress.sketches}
             count={scenes.length}
