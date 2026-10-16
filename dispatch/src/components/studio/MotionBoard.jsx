@@ -231,6 +231,29 @@ function Thinking({ request, meta, style, why, elapsed }) {
   )
 }
 
+// AI design's checklist: every ask in the brief, and whether the design has it
+function Asks({ asks }) {
+  const [open, setOpen] = useState(false)
+  const got = asks.filter((a) => a.ok).length
+  return (
+    <div className="mt-1">
+      <button type="button" onClick={() => setOpen((v) => !v)} className="text-[11.5px] font-semibold text-ink-500 hover:text-ink-800">
+        Your brief · {got}/{asks.length} asks in the design {open ? '▴' : '▾'}
+      </button>
+      {open && (
+        <ul className="mt-1 space-y-0.5">
+          {asks.map((a) => (
+            <li key={a.id} className="flex gap-1.5 text-[11.5px] leading-snug">
+              <span className={a.ok ? 'text-emerald-600' : 'text-amber-600'}>{a.ok ? '✓' : '○'}</span>
+              <span className={a.ok ? 'text-ink-600' : 'text-ink-400'}>{a.need}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 export function MotionMaking({ progress, pct, stage, elapsed, onStop, request = '', meta = '' }) {
   const scenes = progress?.scenes || []
   const step = stepOf(progress?.stage)
@@ -258,6 +281,7 @@ export function MotionMaking({ progress, pct, stage, elapsed, onStop, request = 
             </div>
             {progress?.why && !thinking && <div className="mt-0.5 text-[11.5px] text-ink-400">AI picked {style}: {progress.why}</div>}
             {progress?.design_note && <div className="mt-0.5 text-[11.5px] text-emerald-700">✓ {progress.design_note}</div>}
+            {progress?.asks?.length > 0 && <Asks asks={progress.asks} />}
             {progress?.voice_note && (
               <div className="mt-1 rounded-lg bg-ink-50 px-2 py-1 text-[11.5px] text-ink-600">{progress.voice_note}</div>
             )}

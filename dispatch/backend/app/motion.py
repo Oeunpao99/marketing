@@ -1084,6 +1084,18 @@ CANVAS_PROMPT = (
     "- stream: from [x, y], to [x, y], color, count — glowing packets flowing between two points "
     "(data moving, two worlds converging).\n"
     "\n"
+    "FIRST, THE CHECKLIST — \"asks\": read the brief line by line and list EVERY thing it asks "
+    "for, one small item each (\"24/7 monitoring, threat detection\" = two items): {\"id\": \"R1\", "
+    "\"kind\": text | visual | motion | timing | style | brand | avoid, \"need\": one sentence you "
+    "could check on the screen, \"text\": the EXACT on-screen words when the brief quotes them "
+    "(same script, spelling, capitals and mixed English/Khmer — never translate or correct a name)}. "
+    "An \"avoid\" (\"no cartoon visuals\") becomes a rule you can check. Something the layers can't "
+    "show literally (people, a real city, music) is still delivered as motion graphics (people → "
+    "an icon tile or a device with their dashboard, a city → the city background). Then every "
+    "scene and every layer says which asks it delivers: \"req\": [\"R1\", …]. EVERY ask is "
+    "delivered by at least one scene, and quoted text appears character for character in a "
+    "layer.\n"
+    "\n"
     "DESIGN RULES: 3-7 layers a scene, ONE clear focal point, generous space, nothing outside 6-94 % "
     "x / 8-88 % y, text never under 40 px, no two text layers overlapping (keep their centres "
     "apart). The bottom 15 % of the frame stays clear — the subtitles live there. Reveals: a "
@@ -1094,8 +1106,66 @@ CANVAS_PROMPT = (
     "last scene ends on the brand (logo or name) and the call to action or the tagline.\n"
     "\n"
     + _COMMON_RULES
-    + '{"scenes": [{"type": "canvas", "seconds": 5, "pal": {…}, "bg": {…}, "layers": [{…}], "say": "..."}, ...]}'
+    + '{"asks": [{"id": "R1", "kind": "text", "need": "...", "text": "..."}, ...], "scenes": [{"type": "canvas", '
+    '"req": ["R1"], "seconds": 5, "pal": {…}, "bg": {…}, "layers": [{"kind": "text", "req": ["R1"], …}], "say": "..."}, ...]}'
 )
+
+
+def _reqs(v) -> list[str]:
+    """The asks a scene / layer delivers: ["R1", "R4"]."""
+    return list(dict.fromkeys(str(x).strip().upper() for x in (v if isinstance(v, list) else []) if re.fullmatch(r"R\d{1,2}", str(x).strip(), re.I)))[:8]
+
+
+def _clean_asks(raw) -> list[dict]:
+    """AI design's checklist: every ask in the brief, {"id", "kind", "need", "text"?}."""
+    asks, seen = [], set()
+    for a in raw if isinstance(raw, list) else []:
+        if not isinstance(a, dict):
+            continue
+        aid = str(a.get("id") or "").strip().upper()
+        need = _line(a.get("need"), 160)
+        if not re.fullmatch(r"R\d{1,2}", aid) or aid in seen or not need:
+            continue
+        seen.add(aid)
+        ask = {"id": aid, "kind": a.get("kind") if a.get("kind") in ("text", "visual", "motion", "timing", "style", "brand", "avoid") else "visual", "need": need}
+        if _line(a.get("text"), 120):
+            ask["text"] = _line(a.get("text"), 120)
+        asks.append(ask)
+        if len(asks) >= 30:
+            break
+    return asks
+
+
+def _plain(v) -> str:
+    """Text as it reads on screen — no [highlight] marks, zero-width spaces or extra spaces, any case."""
+    return re.sub(r"\s+", " ", re.sub(r"[\[\]⟦⟧\u200b\u200c\u200d]", "", str(v or ""))).strip().casefold()
+
+
+def _scene_words(sc: dict) -> str:
+    """Every word a canvas scene shows, as one plain string."""
+    out = []
+    for L in sc.get("layers") or []:
+        out += [L.get(k) for k in ("text", "title", "label") if L.get(k)]
+        out += list(L.get("lines") or [])
+        out += [x.get("text") for x in L.get("items") or [] if isinstance(x, dict)]
+    return _plain(" ".join(str(x) for x in out))
+
+
+def asks_status(script: dict) -> list[dict]:
+    """Each ask of the brief and whether the design delivers it: a quoted text
+    must be on screen as written; any other ask needs a scene or layer
+    tagged with it. [{"id", "need", "ok"}]"""
+    scenes = script.get("scenes") or []
+    tagged = {x for sc in scenes for x in [*(sc.get("req") or []), *(r for L in sc.get("layers") or [] for r in L.get("req") or [])]}
+    words = [_scene_words(sc) for sc in scenes]
+    out = []
+    for a in script.get("asks") or []:
+        if a.get("text"):
+            ok = any(_plain(a["text"]) in w for w in words)
+        else:
+            ok = a["id"] in tagged
+        out.append({"id": a["id"], "need": a["need"], "ok": ok})
+    return out
 
 
 def _hex(v, fallback=None):
@@ -1163,6 +1233,8 @@ def _clean_canvas(raw: dict, say: str) -> dict | None:
         }
         if L.get("loop") in CANVAS_LOOP:
             out["loop"] = L["loop"]
+        if _reqs(L.get("req")):
+            out["req"] = _reqs(L.get("req"))
         for k, lo, hi in (("z", 0, 9), ("rotate", -30, 30), ("w", 20, 1700), ("h", 20, 1000), ("radius", 0, 200), ("opacity", 0.05, 1), ("blur", 0, 120), ("stroke", 0, 30), ("maxw", 20, 95)):
             if _num(L.get(k), lo, hi) is not None:
                 out[k] = _num(L.get(k), lo, hi)
@@ -1242,7 +1314,10 @@ def _clean_canvas(raw: dict, say: str) -> dict | None:
         layers.append(out)
     if not layers:
         return None
-    return {"type": "canvas", "seconds": _num(raw.get("seconds"), 2.5, 9, 5), "pal": pal, "bg": back, "layers": layers, "say": say}
+    scene = {"type": "canvas", "seconds": _num(raw.get("seconds"), 2.5, 9, 5), "pal": pal, "bg": back, "layers": layers, "say": say}
+    if _reqs(raw.get("req")):
+        scene["req"] = _reqs(raw.get("req"))
+    return scene
 
 
 # ── Showcase (motion/src/showcase.jsx) — a bright SaaS promo ───────────────
@@ -2363,6 +2438,7 @@ _TEXT_FIELDS = {
     "roll": (("lead", 24), ("text", 80), ("say", 300)),
     "table": (("title", 40), ("say", 300)),
     "board": (("title", 80), ("say", 300)),
+    "canvas": (("say", 300),),  # its layers' words: write_script's AI-design branch
 }
 
 
@@ -2523,6 +2599,35 @@ def write_script(
         for s in (_clean_scene(r, names) for r in (raw.get("scenes") or []) if isinstance(r, dict))
         if s and s["type"] in allowed
     ][: ((MAX_LONG_SCENES if style in LONG_STYLES else MAX_STORY_SCENES) + 2) if story else 14]
+    if style == "canvas":
+        # AI design: its own scenes in the brief's order (no hook / CTA types), and its checklist
+        if len(scenes) < 2:
+            raise ContentAIError("The AI didn't return a usable storyboard — try again.")
+        script = {"scenes": scenes[: (count if story else most)], "style": style, "asks": _clean_asks(raw.get("asks"))}
+        if moods:
+            script["mood"] = raw.get("mood") if raw.get("mood") in moods else moods[0]
+        if khmer:  # the native editor polishes what the AI wrote — never the brief's quoted words
+            quoted = {_plain(a.get("text")) for a in script["asks"] if a.get("text")}
+            slots = [
+                (L, k, n)
+                for sc in script["scenes"]
+                for L in sc["layers"]
+                for k, n in (("text", 120), ("title", 50))
+                if L.get(k) and _plain(L[k]) not in quoted and not any(q and q in _plain(L[k]) for q in quoted)
+            ]
+            if slots:
+                fixed = _polish_khmer(
+                    [obj[key] for obj, key, _ in slots],
+                    model,
+                    voice_examples=brand.voice_examples or "",
+                    khmer_only="english" not in (brand.lang or "").lower(),
+                    keep=[brand.name, *(p.name for p in products)],
+                    effort="low",
+                )
+                for (obj, key, n), value in zip(slots, fixed):
+                    obj[key] = _line(_fix_khmer_punctuation(value), n)
+        _report(job_id, stage="pictures", scenes=_board(script), asks=asks_status(script))
+        return script
     # A hook first and a call to action last, whatever came back.
     hooks = [s for s in scenes if s["type"] == "hook"]
     ctas = [s for s in scenes if s["type"] == "cta"]
@@ -3700,7 +3805,11 @@ DESIGN_REVIEW_PROMPT = (
     "layer, or add a small accent. KEEP the wording, the story, the scene order and the brand.\n"
     "Return ONLY JSON: {\"fixes\": [{\"scene\": <its number>, \"pal\"?: {...}, \"bg\"?: {...}, "
     "\"layers\": [<the scene's FULL corrected layer list>]}], \"note\": <max 12 words>}. "
-    "\"fixes\": [] when every scene is fine."
+    "\"fixes\": [] when every scene is fine.\n"
+    "You also get THE CHECKLIST — every ask in the client's brief — and the asks NOT DELIVERED "
+    "yet. Each missing ask is a real problem: deliver it in the scene where it belongs (change a "
+    "layer or add one; quoted text character for character; tag the layer \"req\": [its id]). "
+    "Keep every layer's \"req\" tags."
 )
 
 
@@ -3748,6 +3857,17 @@ def review_design(brand: Brand, script: dict, logo: str | None, khmer: bool, job
     if script.get("style") != "canvas" or not scenes:
         return script
     _report(job_id, stage="check")
+    asks = script.get("asks") or []
+
+    def done(fixed: int) -> dict:
+        status = asks_status(script)
+        got = sum(1 for a in status if a["ok"])
+        note = f"{fixed} scene{'s' if fixed != 1 else ''} improved" if fixed else "it looks right"
+        if status:
+            note += f" · {got} of your {len(status)} asks in it"
+        _report(job_id, design_note="Checked the design · " + note, asks=status)
+        return script
+
     try:
         props = build_props(brand, script, logo, khmer)
         mp4 = render(props, job_id, preview=True)
@@ -3760,18 +3880,24 @@ def review_design(brand: Brand, script: dict, logo: str | None, khmer: bool, job
             start += dur - TRANSITION_S
         sheet = _sheet(mp4, times)
         if not sheet:
-            return script
+            return done(0)
         design = [
             {"scene": i + 1, "pal": sc.get("pal"), "bg": sc.get("bg"), "layers": [{k: ("<picture>" if k == "src" else v) for k, v in L.items()} for L in sc.get("layers") or []]}
             for i, sc in enumerate(scenes)
         ]
+        missing = [a for a, st in zip(asks, asks_status(script)) if not st["ok"]]
         out = _chat(
             [
                 {"role": "system", "content": DESIGN_REVIEW_PROMPT},
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": "THE DESIGN:\n" + json.dumps(design, ensure_ascii=False)},
+                        {
+                            "type": "text",
+                            "text": "THE DESIGN:\n" + json.dumps(design, ensure_ascii=False)
+                            + "\n\nTHE CHECKLIST:\n" + json.dumps(asks, ensure_ascii=False)
+                            + "\n\nNOT DELIVERED YET:\n" + (json.dumps(missing, ensure_ascii=False) if missing else "(none)"),
+                        },
                         {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + base64.b64encode(sheet).decode()}},
                     ],
                 },
@@ -3784,7 +3910,7 @@ def review_design(brand: Brand, script: dict, logo: str | None, khmer: bool, job
         raise
     except (ContentAIError, RuntimeError, OSError, subprocess.SubprocessError, ValueError) as exc:
         log.warning("motion %s: design check skipped: %s", job_id, exc)
-        return script
+        return done(0)
     fixed = 0
     for fx in (out.get("fixes") or [])[: len(scenes)]:
         try:
@@ -3795,7 +3921,7 @@ def review_design(brand: Brand, script: dict, logo: str | None, khmer: bool, job
             continue
         old = scenes[n]
         pictures = [L.get("src") for L in old.get("layers") or [] if L.get("src")]
-        cand = {"type": "canvas", "seconds": old.get("seconds"), "pal": fx.get("pal") or old.get("pal"), "bg": fx.get("bg") or old.get("bg"), "layers": fx["layers"]}
+        cand = {"type": "canvas", "seconds": old.get("seconds"), "req": old.get("req"), "pal": fx.get("pal") or old.get("pal"), "bg": fx.get("bg") or old.get("bg"), "layers": fx["layers"]}
         # the pictures were sent as "<picture>": they keep the brand kit's own
         for L in cand["layers"]:
             if isinstance(L, dict) and L.get("src") == "<picture>":
@@ -3805,8 +3931,7 @@ def review_design(brand: Brand, script: dict, logo: str | None, khmer: bool, job
             scenes[n] = clean
             fixed += 1
     log.info("motion %s: design check fixed %s scene(s) — %s", job_id, fixed, _line(out.get("note"), 80))
-    _report(job_id, design_note=f"Checked the design · {fixed} scene{'s' if fixed != 1 else ''} improved" if fixed else "Checked the design · it looks right")
-    return script
+    return done(fixed)
 
 
 # ── API ───────────────────────────────────────────────────────────────────
@@ -4195,6 +4320,8 @@ def checked_script(raw: dict, products: list[Product]) -> dict:
         script["ratio"] = raw["ratio"]
     if style == "custom":
         script["look"] = clean_look(raw.get("look"), "#6366F1")
+    if style == "canvas":
+        script["asks"] = _clean_asks(raw.get("asks"))
     if raw.get("mood") in music_tracks():
         script["mood"] = raw["mood"]
     return script
