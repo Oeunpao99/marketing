@@ -50,15 +50,23 @@ def workspace_key(db: Session, ws: int | None) -> str:
         return ""
 
 
-def _check(key: str) -> None:
-    """Google accepts the key (listing its models costs nothing). Raises HTTPException."""
+def _check(key: str) -> bool:
+    """Google accepts the key — a free token count, sent the way the voice's
+    requests are (a POST, through GEMINI_BASE_URL). True = checked; False =
+    Google couldn't be asked from this server's region (not the key's fault).
+    Raises HTTPException when the key is refused or Google can't be reached."""
     try:
-        resp = httpx.get(gemini_url("/v1beta/models"), headers={"x-goog-api-key": key}, params={"pageSize": 1}, timeout=20.0)
+        resp = httpx.post(
+            gemini_url(f"/v1beta/models/{get_settings().gemini_tts_model}:countTokens"),  # the voice's own model
+            headers={"x-goog-api-key": key},
+            json={"contents": [{"parts": [{"text": "hi"}]}]},
+            timeout=20.0,
+        )
     except httpx.HTTPError as exc:
         log.warning("Gemini key check couldn't reach Google: %s", exc)
         raise HTTPException(502, "Couldn't check the key with Google just now — try again in a moment.") from exc
     if resp.status_code == 200:
-        return
+        return True
     try:
         err = resp.json().get("error") or {}
     except ValueError:
@@ -67,7 +75,9 @@ def _check(key: str) -> None:
     log.warning("Gemini key check: Google said %s — %s", resp.status_code, why)  # the reason, never the key
     if resp.status_code in (400, 401, 403) and ("API key" in why or "API_KEY" in why or "PERMISSION_DENIED" in why or resp.status_code == 401):
         raise HTTPException(400, "Google didn't accept that key — copy it again from Google AI Studio.")
-    # not about the key (the server's region, Google busy, …): the key isn't blamed
+    if "location is not supported" in why.lower():
+        return False  # the server's region, not the key — saved; the voice goes through the proxy
+    # not about the key (Google busy, …): the key isn't blamed
     raise HTTPException(502, "Couldn't check the key with Google just now — try again in a moment.")
 
 
@@ -90,12 +100,12 @@ def key_save(payload: KeyIn, db: Session = Depends(get_db), user: TeamMember = D
     # anything else is text copied along with it — Google itself decides the rest
     if not re.fullmatch(r"[A-Za-z0-9_\-.]{20,200}", key):
         raise HTTPException(400, "That doesn't look like a key — copy just the key from Google AI Studio, with the copy button beside it.")
-    _check(key)
+    checked = _check(key)
     w = db.get(Workspace, user.workspace_id)
     w.gemini_key_enc = _fernet().encrypt(key.encode()).decode()
     w.gemini_key_hint = key[-4:]
     db.commit()
-    return {"configured": True, "hint": w.gemini_key_hint}
+    return {"configured": True, "hint": w.gemini_key_hint, "checked": checked}
 
 
 @router.delete("/gemini-key")

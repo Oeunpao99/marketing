@@ -68,9 +68,10 @@ function KeyDrawer({ state, setState, onClose, showToast }) {
     setBusy(true)
     setError('')
     try {
-      setState(await api.put('/ai/voice/gemini-key', { key: key.trim() }))
+      const res = await api.put('/ai/voice/gemini-key', { key: key.trim() })
+      setState(res)
       setKey('')
-      showToast?.('Your Gemini key is saved')
+      showToast?.(res.checked === false ? 'Your Gemini key is saved — Google couldn’t be asked from here to confirm it' : 'Your Gemini key is saved')
       onClose()
     } catch (err) {
       setError(err.message)
