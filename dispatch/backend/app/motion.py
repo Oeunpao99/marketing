@@ -2680,7 +2680,7 @@ def write_script(
             slots += [(s, key, n) for key, n in _TEXT_FIELDS[s["type"]]]
             slots += [(m, "text", 140) for m in s.get("messages", [])]
             slots += [(i, "text", 80) for i in s.get("items", [])]
-            slots += [(p, "name", 40) for p in (s.get("left"), s.get("right")) if p and "name" in p]
+            slots += [(p, "name", 40) for p in (s.get("left"), s.get("right")) if isinstance(p, dict) and "name" in p]
             if s["type"] == "split":
                 for p in (s["left"], s["right"]):
                     slots += [(p, "label", 40)] + [(p["points"], k, 60) for k in range(len(p["points"]))]
@@ -3130,7 +3130,9 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
             scene["caption"] = t(s["say"]).replace("⟦", "").replace("⟧", "")  # the subtitles
         for side in ("left", "right"):
             if scene.get(side):
-                if "points" in scene[side]:  # split: a way and its points
+                if isinstance(scene[side], str):  # pair: a plain word either side of the card
+                    scene[side] = t(scene[side])
+                elif "points" in scene[side]:  # split: a way and its points
                     scene[side] = {**scene[side], "label": t(scene[side]["label"]), "points": [t(x) for x in scene[side]["points"]]}
                 else:
                     scene[side] = {**scene[side], "name": t(scene[side]["name"])}
