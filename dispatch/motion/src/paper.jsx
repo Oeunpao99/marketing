@@ -1,6 +1,6 @@
 /**
  * "AI notes · Paper" — a light, editorial AI explainer: warm paper with a dot
- * grid, black and red only; a spaced red kicker, a bold italic headline whose
+ * grid, navy and orange; an orange kicker tag, a bold upright headline whose
  * words light up as they're said (the current one red, the rest still grey),
  * tech icons floating around the text, dots and sparkles, a red line drawing
  * itself — and, faint behind it all, AI maths (σ(wx+b), ∑, ∂L/∂w, softmax…)
@@ -11,7 +11,8 @@
 import { AbsoluteFill, Easing, interpolate, random, spring, useCurrentFrame, useVideoConfig } from 'remotion'
 import { EM_CLOSE, EM_OPEN, FONT, Icon, ZWSP, clean, fitSize } from './shared'
 
-const C = { paper: '#F6F4F0', ink: '#111111', red: '#D7263D', grey: '#B9B6B0', soft: '#6B6862', dot: 'rgba(17,17,17,0.13)' }
+// navy and orange on cool graph paper — `red` is the accent's name here (it's orange)
+const C = { paper: '#F2F5F9', ink: '#13234A', red: '#F26B1D', grey: '#B7C0CF', soft: '#5E6B85', dot: 'rgba(19,35,74,0.09)' }
 const MONO = "'JetBrains Mono', ui-monospace, Consolas, monospace"
 const KHMER = /[ក-៿]/
 const clamp = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
@@ -47,7 +48,7 @@ function Paper({ icon }) {
     : [[0.13, 0.19], [0.87, 0.21], [0.1, 0.84], [0.9, 0.82], [0.32, 0.9], [0.68, 0.92]]
   return (
     <AbsoluteFill style={{ backgroundColor: C.paper, overflow: 'hidden' }}>
-      <AbsoluteFill style={{ backgroundImage: `radial-gradient(${C.dot} ${2.2 * u}px, transparent ${2.4 * u}px)`, backgroundSize: `${44 * u}px ${44 * u}px` }} />
+      <AbsoluteFill style={{ backgroundImage: `linear-gradient(${C.dot} 1px, transparent 1px), linear-gradient(90deg, ${C.dot} 1px, transparent 1px)`, backgroundSize: `${48 * u}px ${48 * u}px` }} />
       {/* the network, faint */}
       <svg width={width} height={height} style={{ position: 'absolute', inset: 0, opacity: 0.18 }}>
         {nodes.map((n, i) => {
@@ -96,7 +97,9 @@ function Page({ scene, children, gap = 34 }) {
   return (
     <AbsoluteFill>
       <Paper icon={scene.icon} />
-      <div style={{ position: 'absolute', top: top - 90 * u, left: 0, right: 0, textAlign: 'center', fontFamily: MONO, fontSize: 30 * u, letterSpacing: '0.32em', color: C.red, ...rise(k, 12) }}>{KICKER[scene.type] || 'AI'}</div>
+      <div style={{ position: 'absolute', top: top - 100 * u, left: 0, right: 0, display: 'flex', justifyContent: 'center', ...rise(k, 12) }}>
+        <span style={{ fontFamily: MONO, fontWeight: 700, fontSize: 26 * u, letterSpacing: '0.12em', color: C.red, background: 'rgba(242,107,29,0.12)', border: `1.5px solid rgba(242,107,29,0.35)`, borderRadius: 999, padding: `${8 * u}px ${22 * u}px` }}>{KICKER[scene.type] || 'AI'}</span>
+      </div>
       <AbsoluteFill style={{ top, bottom, justifyContent: 'center', alignItems: 'center', gap: gap * u, fontFamily: FONT }}>{children}</AbsoluteFill>
     </AbsoluteFill>
   )
@@ -127,7 +130,7 @@ function Lit({ text, size, width, italic = true, span = 0.6, color = C.ink, alig
   const lit = interpolate(frame, [8, durationInFrames * span], [0, pieces.length], clamp)
   const km = KHMER.test(clean(text))
   return (
-    <div style={{ width, display: 'flex', flexWrap: 'wrap', justifyContent: align === 'center' ? 'center' : 'flex-start', fontSize: fitSize(text, size), fontWeight: 800, fontStyle: italic && !km ? 'italic' : 'normal', lineHeight: km ? 1.55 : 1.15, letterSpacing: km ? 0 : '-0.02em' }}>
+    <div style={{ width, display: 'flex', flexWrap: 'wrap', justifyContent: align === 'center' ? 'center' : 'flex-start', fontSize: fitSize(text, size), fontWeight: 800, fontStyle: 'normal', lineHeight: km ? 1.55 : 1.15, letterSpacing: km ? 0 : '-0.02em' }}>
       {pieces.map(({ p, gap, em: hi }, n) => {
         const now = n < lit && n >= lit - 1
         const done = n < lit - 1

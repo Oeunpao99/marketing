@@ -187,7 +187,7 @@ export const MOTION_TEMPLATES = [
     id: 'paper',
     story: 'paper',
     name: 'AI notes · Paper',
-    look: 'Light paper with a dot grid, black and red — a bold headline lighting up word by word, tech icons floating round it, AI maths behind',
+    look: 'Cool graph paper, navy and orange — a bold headline lighting up word by word, tech icons floating round it, AI maths behind',
     steps: ['Big question', 'Key points', 'Before → with AI', 'Timeline / two people / number', 'Quote', 'Comment question'],
     note: 'For explaining an AI or tech idea simply — Khmer or English',
     goals: ['education', 'authority'],
