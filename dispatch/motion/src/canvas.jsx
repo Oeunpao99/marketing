@@ -14,7 +14,12 @@
  * Layer kinds: text · card · icon · shape · device · logo · image · chart ·
  * metric · pill · list · alert · stream
  * Backgrounds: solid · gradient · grid · dots · city · network · streams ·
- * particles · rings · spotlight
+ * particles · rings · spotlight · aurora · trails · hex · waves · warp
+ *
+ * Cinema: scene.pause = seconds of near-black held before the scene shows
+ * (the breath before a grand reveal — the music dips, MotionPost.jsx); a
+ * layer's hit = a big reveal: a riser builds up to it, an impact lands with a
+ * flash and a short shake (sfx.jsx cues the sounds on the same frames).
  */
 import { AbsoluteFill, Img, interpolate, random, spring, useCurrentFrame, useVideoConfig } from 'remotion'
 import { FONT, Icon, Words, clean, srcOf, tint } from './shared'
@@ -65,6 +70,11 @@ function Background({ bg = {}, pal }) {
       {kind === 'city' && <City width={width} height={height} a={a} dark={dark} frame={frame} />}
       {kind === 'network' && <Network width={width} height={height} a={a} b={b} frame={frame} />}
       {kind === 'streams' && <Streams width={width} height={height} a={a} b={b} frame={frame} />}
+      {kind === 'aurora' && <Aurora a={a} b={b} frame={frame} dark={dark} />}
+      {kind === 'trails' && <Trails width={width} height={height} a={a} b={b} frame={frame} />}
+      {kind === 'hex' && <Hex width={width} height={height} a={a} frame={frame} dark={dark} />}
+      {kind === 'waves' && <Waves width={width} height={height} a={a} b={b} frame={frame} />}
+      {kind === 'warp' && <Warp width={width} height={height} a={a} b={b} frame={frame} />}
       {kind === 'particles' &&
         Array.from({ length: 40 }, (_, i) => {
           const x = random(`px${i}`) * width
@@ -145,10 +155,115 @@ function Streams({ width, height, a, b, frame }) {
   )
 }
 
+/** Soft bands of colour drifting like northern lights. */
+function Aurora({ a, b, frame, dark }) {
+  const k = frame / 90
+  const blob = (c, x, y, w, h, o) => `radial-gradient(ellipse ${w}% ${h}% at ${x}% ${y}%, ${tint(c, o)}, transparent 70%)`
+  return (
+    <AbsoluteFill
+      style={{
+        background: [
+          blob(a, 30 + Math.sin(k) * 14, 30 + Math.cos(k * 0.8) * 8, 60, 38, dark ? 0.42 : 0.3),
+          blob(b, 70 + Math.cos(k * 0.9) * 12, 42 + Math.sin(k * 1.1) * 10, 55, 34, dark ? 0.36 : 0.26),
+          blob(a, 50 + Math.sin(k * 0.6) * 20, 75 + Math.cos(k) * 6, 70, 28, dark ? 0.22 : 0.16),
+        ].join(', '),
+      }}
+    />
+  )
+}
+
+/** Light trails racing out of the centre — speed, a city at night, the future. */
+function Trails({ width, height, a, b, frame }) {
+  const cx = width / 2
+  const cy = height * 0.46
+  const R = Math.hypot(width, height) * 0.62
+  return (
+    <svg width={width} height={height} style={{ position: 'absolute', inset: 0 }}>
+      {Array.from({ length: 34 }, (_, i) => {
+        const ang = random(`ta${i}`) * Math.PI * 2
+        const p = ((frame / 45 + random(`tp${i}`)) % 1) ** 2.2
+        const q = Math.min(1, p + 0.08 + random(`tl${i}`) * 0.1)
+        const c = i % 3 ? a : b
+        return (
+          <line
+            key={i}
+            x1={cx + Math.cos(ang) * R * p}
+            y1={cy + Math.sin(ang) * R * p * 0.7}
+            x2={cx + Math.cos(ang) * R * q}
+            y2={cy + Math.sin(ang) * R * q * 0.7}
+            stroke={c}
+            strokeWidth={1 + p * 5}
+            strokeLinecap="round"
+            opacity={0.15 + p * 0.7}
+          />
+        )
+      })}
+      <circle cx={cx} cy={cy} r={Math.min(width, height) * 0.1} fill={tint(a, 0.18)} />
+    </svg>
+  )
+}
+
+/** A honeycomb grid, a few cells lighting up — security, structure, tech. */
+function Hex({ width, height, a, frame, dark }) {
+  const r = 46
+  const w = Math.sqrt(3) * r
+  const cols = Math.ceil(width / w) + 1
+  const rows = Math.ceil(height / (r * 1.5)) + 1
+  const pts = (x, y) => Array.from({ length: 6 }, (_, k) => `${x + r * Math.cos(((60 * k - 30) * Math.PI) / 180)},${y + r * Math.sin(((60 * k - 30) * Math.PI) / 180)}`).join(' ')
+  const cells = []
+  for (let j = 0; j < rows; j++)
+    for (let i = 0; i < cols; i++) {
+      const lit = random(`hx${i}-${j}-${Math.floor((frame + i * 7 + j * 13) / 40)}`) > 0.93
+      cells.push(<polygon key={`${i}-${j}`} points={pts(i * w + (j % 2) * (w / 2), j * r * 1.5)} fill={lit ? tint(a, 0.22) : 'none'} stroke={dark ? tint(a, 0.16) : 'rgba(15,23,42,0.08)'} strokeWidth="1.5" />)
+    }
+  const mask = 'radial-gradient(ellipse 80% 70% at 50% 45%, black 25%, transparent 100%)'
+  return (
+    <svg width={width} height={height} style={{ position: 'absolute', inset: 0, maskImage: mask, WebkitMaskImage: mask }}>
+      {cells}
+    </svg>
+  )
+}
+
+/** Flowing lines of light, like sound or data in waves. */
+function Waves({ width, height, a, b, frame }) {
+  return (
+    <svg width={width} height={height} style={{ position: 'absolute', inset: 0 }}>
+      {Array.from({ length: 7 }, (_, i) => {
+        const y0 = height * (0.55 + i * 0.045)
+        const amp = height * (0.035 + i * 0.008)
+        const d = Array.from({ length: 41 }, (_, k) => {
+          const x = (k / 40) * width
+          const y = y0 + Math.sin(k / 6 + frame / (30 + i * 4) + i) * amp
+          return `${k ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`
+        }).join(' ')
+        return <path key={i} d={d} fill="none" stroke={i % 2 ? b : a} strokeWidth="2.5" opacity={0.18 + (i % 3) * 0.12} />
+      })}
+    </svg>
+  )
+}
+
+/** Stars streaking past — the jump into something new. */
+function Warp({ width, height, a, b, frame }) {
+  const cx = width / 2
+  const cy = height / 2
+  const R = Math.hypot(width, height) / 2
+  return (
+    <svg width={width} height={height} style={{ position: 'absolute', inset: 0 }}>
+      {Array.from({ length: 70 }, (_, i) => {
+        const ang = random(`wa${i}`) * Math.PI * 2
+        const p = (frame / 70 + random(`wp${i}`)) % 1
+        const d1 = R * p ** 2.5
+        const d2 = R * Math.min(1, (p + 0.04) ** 2.5)
+        return <line key={i} x1={cx + Math.cos(ang) * d1} y1={cy + Math.sin(ang) * d1} x2={cx + Math.cos(ang) * d2} y2={cy + Math.sin(ang) * d2} stroke={i % 4 ? '#FFFFFF' : i % 2 ? a : b} strokeWidth={1 + p * 3} opacity={p} strokeLinecap="round" />
+      })}
+    </svg>
+  )
+}
+
 // ── layers ─────────────────────────────────────────────────────────────────
 /** How far in (0..1) a layer is, and its style while arriving. */
-function arrive(L, frame, fps) {
-  const at = Math.round((L.at || 0) * fps)
+function arrive(L, frame, fps, delay = 0) {
+  const at = Math.round((L.at || 0) * fps) + delay
   const f = frame - at
   const s = spring({ frame: f, fps, config: { damping: L.in === 'pop' ? 9 : 15 } })
   const t = interpolate(f, [0, 14], [0, 1], { ...clamp, easing: ease })
@@ -176,10 +291,10 @@ function loopStyle(L, frame) {
   }[L.loop] || {}
 }
 
-function Layer({ L, pal, brand, u }) {
+function Layer({ L, pal, brand, u, delay }) {
   const frame = useCurrentFrame()
   const { fps, width, height } = useVideoConfig()
-  const { f, t, style } = arrive(L, frame, fps)
+  const { f, t, style } = arrive(L, frame, fps, delay)
   if (f < 0) return null
   const loop = loopStyle(L, frame)
   const color = col(pal, L.color)
@@ -436,17 +551,42 @@ function imageOf(src, brand) {
   return /^(data:|\/media\/|https?:)/.test(src) ? src : null
 }
 
+/** The frames (in the scene) the big reveals land on — sfx.jsx puts the impacts there. */
+export const hitFrames = (scene, fps = 30) => {
+  const delay = Math.round((Number(scene.pause) || 0) * fps)
+  return (scene.layers || []).filter((L) => L.hit).map((L) => Math.round((L.at || 0) * fps) + delay)
+}
+
 /** One AI-designed scene: its background and its layers, in its act's palette. */
 export function CanvasScene({ scene, brand }) {
-  const { width, height } = useVideoConfig()
+  const frame = useCurrentFrame()
+  const { width, height, fps } = useVideoConfig()
   const u = Math.min(width, height) / 1080
   const pal = { bg: '#070B16', a: '#3B82F6', b: '#22D3EE', ink: '#FFFFFF', sub: 'rgba(226,232,255,0.72)', mode: 'dark', white: '#FFFFFF', black: '#000000', ...(scene.pal || {}) }
+  // the breath before a reveal: near-black, then the scene fades up
+  const delay = Math.round((Number(scene.pause) || 0) * fps)
+  const dark = delay ? interpolate(frame, [delay - 2, delay + 12], [0.94, 0], clamp) : 0
+  // a big reveal lands: a flash and a short, settling shake
+  let flash = 0
+  let shake = 0
+  for (const h of hitFrames(scene, fps)) {
+    const d = frame - h
+    if (d >= 0 && d < 24) {
+      flash = Math.max(flash, interpolate(d, [0, 2, 10], [0, 0.32, 0], clamp))
+      shake = Math.max(shake, Math.exp(-d / 5) * 9 * u)
+    }
+  }
+  const jolt = shake ? `translate(${Math.sin(frame * 2.7) * shake}px, ${Math.cos(frame * 3.1) * shake}px)` : undefined
   return (
     <AbsoluteFill style={{ backgroundColor: pal.bg }}>
-      <Background bg={scene.bg} pal={pal} />
-      {(scene.layers || []).map((L, i) => (
-        <Layer key={i} L={L} pal={pal} brand={brand} u={u} />
-      ))}
+      <AbsoluteFill style={{ transform: jolt }}>
+        <Background bg={scene.bg} pal={pal} />
+        {(scene.layers || []).map((L, i) => (
+          <Layer key={i} L={L} pal={pal} brand={brand} u={u} delay={delay} />
+        ))}
+      </AbsoluteFill>
+      {flash > 0 && <AbsoluteFill style={{ background: pal.mode === 'light' ? '#FFFFFF' : tint(pal.a, 0.9), opacity: flash, mixBlendMode: 'screen' }} />}
+      {dark > 0 && <AbsoluteFill style={{ background: '#000', opacity: dark }} />}
     </AbsoluteFill>
   )
 }

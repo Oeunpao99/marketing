@@ -8,8 +8,9 @@
  */
 import { Html5Audio, Sequence, staticFile } from 'remotion'
 import { FPS } from './shared'
+import { hitFrames } from './canvas'
 
-const VOLUME = { whoosh: 0.22, pop: 0.3, blop: 0.32, click: 0.35, ding: 0.28, tick: 0.18 }
+const VOLUME = { whoosh: 0.22, pop: 0.3, blop: 0.32, click: 0.35, ding: 0.28, tick: 0.18, impact: 0.55, riser: 0.3 }
 const SAAS = new Set(['trend', 'pov', 'demo', 'offer', 'custom', 'showcase', 'launch', 'clarity', 'countdown', 'thisorthat', 'reviews', 'tips', 'hottake', 'casestudy', 'faq', 'report'])
 
 /** [{ at: frame in the scene, s: sound }] for one scene. */
@@ -250,6 +251,23 @@ export function cuesFor(scene, style, frames, first) {
     case 'compare':
       add(14, 'pop')
       break
+    case 'canvas': {
+      // AI design (canvas.jsx): a riser builds to each big reveal, the impact lands on it
+      const pause = Math.round((Number(scene.pause) || 0) * FPS)
+      if (pause) cues.length = 0 // the breath before a reveal is silent
+      for (const h of hitFrames(scene, FPS)) {
+        if (h >= 42) add(h - 42, 'riser') // the riser is 1.4 s — it peaks on the hit
+        add(h, 'impact')
+      }
+      let pops = 0
+      for (const L of scene.layers || []) {
+        if (L.hit) continue
+        const at = (L.at || 0) * FPS + pause
+        if (L.kind === 'alert') add(at, 'blop')
+        else if (L.in === 'pop' && pops++ < 3) add(at, 'pop')
+      }
+      break
+    }
     default: // hook, news, reveal, verdict, quote, customer, product, point
       add(4, 'pop')
   }

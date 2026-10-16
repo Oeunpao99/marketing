@@ -1040,7 +1040,7 @@ TECHFLOW_PROMPT = (
 # draws any design _clean_canvas lets through, so every video can look new.
 CANVAS_TYPES = ("canvas",)
 CANVAS_LAYERS = ("text", "card", "icon", "shape", "device", "logo", "image", "chart", "metric", "pill", "list", "alert", "stream")
-CANVAS_BGS = ("solid", "gradient", "grid", "dots", "city", "network", "streams", "particles", "rings", "spotlight")
+CANVAS_BGS = ("solid", "gradient", "grid", "dots", "city", "network", "streams", "particles", "rings", "spotlight", "aurora", "trails", "hex", "waves", "warp")
 CANVAS_IN = ("fade", "rise", "drop", "scale", "pop", "slide-left", "slide-right", "blur", "zoom", "type")
 CANVAS_LOOP = ("float", "pulse", "spin", "glow")
 CANVAS_PROMPT = (
@@ -1058,7 +1058,11 @@ CANVAS_PROMPT = (
     "\"light\"} — strong contrast between ink and bg.\n"
     "BACKGROUND: {\"kind\": solid | gradient | grid | dots | city (line-drawn skyline, data between "
     "the roofs) | network (nodes and pulsing links) | streams (light streaks of data) | particles | "
-    "rings | spotlight, \"color\": optional hex, \"color2\": optional (gradient), \"angle\": optional}.\n"
+    "rings | spotlight | aurora (soft drifting bands of colour — elegant, hopeful) | trails (light "
+    "trails racing out of the centre — speed, the future) | hex (honeycomb, cells lighting up — "
+    "security, structure) | waves (flowing lines of light — sound, data, calm) | warp (stars "
+    "streaking past — the jump into something new, a launch), \"color\": optional hex, \"color2\": "
+    "optional (gradient), \"angle\": optional}.\n"
     "LAYER — every layer: {\"kind\", \"x\": 0-100, \"y\": 0-100 (its CENTRE, % of the frame), \"at\": "
     "seconds after the scene starts (stagger 0.2-0.8 s — a choreography, not all at once), \"in\": "
     "fade | rise | drop | scale | pop | slide-left | slide-right | blur | zoom | type, \"loop\": "
@@ -1102,12 +1106,18 @@ CANVAS_PROMPT = (
     "dramatic product reveal = a big text with zoom or blur, a pill above it, a soft shape glow "
     "behind it. Use the brand's screenshots in devices when they help. Keep it premium: no cartoon "
     "clutter, no more than two accents a scene.\n"
+    "CINEMA (use it for the big moments only, never every scene): \"hit\": true on a layer = THE "
+    "reveal of the scene — a riser builds up to it and an impact sound lands on it with a flash "
+    "and a short shake (the product name, the grand finale; 1 a scene, 2-3 a video; give it \"at\" "
+    "≥ 1.5 so the build-up has room). \"pause\": 0.5-1.5 on a scene = a near-black, quiet breath "
+    "BEFORE it shows (the music dips) — the brief's \"pause before the final reveal\"; then the "
+    "scene's reveal layer usually has \"hit\". Vary backgrounds between acts.\n"
     "THE STORY: 6-12 scenes, following the brief's own order; the voice tells it as one story. The "
     "last scene ends on the brand (logo or name) and the call to action or the tagline.\n"
     "\n"
     + _COMMON_RULES
     + '{"asks": [{"id": "R1", "kind": "text", "need": "...", "text": "..."}, ...], "scenes": [{"type": "canvas", '
-    '"req": ["R1"], "seconds": 5, "pal": {…}, "bg": {…}, "layers": [{"kind": "text", "req": ["R1"], …}], "say": "..."}, ...]}'
+    '"req": ["R1"], "seconds": 5, "pause": 0, "pal": {…}, "bg": {…}, "layers": [{"kind": "text", "req": ["R1"], "hit": false, …}], "say": "..."}, ...]}'
 )
 
 
@@ -1235,6 +1245,8 @@ def _clean_canvas(raw: dict, say: str) -> dict | None:
             out["loop"] = L["loop"]
         if _reqs(L.get("req")):
             out["req"] = _reqs(L.get("req"))
+        if L.get("hit") is True and sum(1 for x in layers if x.get("hit")) < 2:
+            out["hit"] = True
         for k, lo, hi in (("z", 0, 9), ("rotate", -30, 30), ("w", 20, 1700), ("h", 20, 1000), ("radius", 0, 200), ("opacity", 0.05, 1), ("blur", 0, 120), ("stroke", 0, 30), ("maxw", 20, 95)):
             if _num(L.get(k), lo, hi) is not None:
                 out[k] = _num(L.get(k), lo, hi)
@@ -1317,6 +1329,8 @@ def _clean_canvas(raw: dict, say: str) -> dict | None:
     scene = {"type": "canvas", "seconds": _num(raw.get("seconds"), 2.5, 9, 5), "pal": pal, "bg": back, "layers": layers, "say": say}
     if _reqs(raw.get("req")):
         scene["req"] = _reqs(raw.get("req"))
+    if _num(raw.get("pause"), 0.3, 1.5) is not None and float(raw.get("pause") or 0) > 0:
+        scene["pause"] = _num(raw.get("pause"), 0.3, 1.5)  # the breath before a reveal
     return scene
 
 
@@ -3239,8 +3253,8 @@ def default_seconds(scene: dict) -> float:
         return 2.6 + 0.9 * min(3, len(scene.get("fields") or [])) + (1.4 if scene.get("toggle") else 0)
     if kind == "word":
         return 3.0 + 0.6 * min(3, len(scene.get("rows") or []))
-    if kind == "canvas":
-        return max(2.5, min(9.0, float(scene.get("seconds") or 5)))
+    if kind == "canvas":  # + the breath before a reveal (canvas.jsx scene.pause)
+        return max(2.5, min(9.0, float(scene.get("seconds") or 5))) + min(1.5, max(0.0, float(scene.get("pause") or 0)))
     if kind == "hops":
         return 3.0 + 0.8 * min(5, len(scene.get("nodes") or []))
     if kind in ("send", "address", "lookup", "assemble"):
@@ -3466,7 +3480,7 @@ def add_voice(
                 continue
             scene["audio"] = "data:audio/mpeg;base64," + base64.b64encode(mp3).decode()
             # The line starts once the scene has slid in + 6 frames breathing room (MotionPost.jsx).
-            lead = (TRANSITION_S if n else 0.0) + 0.2
+            lead = (TRANSITION_S if n else 0.0) + 0.2 + min(1.5, float(scene.get("pause") or 0))
             scene["seconds"] = round(max(default_seconds(scene), lead + duration + VOICE_TAIL), 2)
             scene["voiceSeconds"] = round(duration, 2)  # subtitles follow the voice
             if words:
@@ -3875,7 +3889,7 @@ def review_design(brand: Brand, script: dict, logo: str | None, khmer: bool, job
         times, start = [], 0.0
         for sc in props["scenes"]:
             dur = sc.get("seconds") or default_seconds(sc)
-            last = max([float(L.get("at") or 0) for L in sc.get("layers") or []] + [0.0])
+            last = max([float(L.get("at") or 0) for L in sc.get("layers") or []] + [0.0]) + float(sc.get("pause") or 0)
             times.append(start + min(dur - 0.3, last + 1.2))
             start += dur - TRANSITION_S
         sheet = _sheet(mp4, times)
@@ -3921,7 +3935,7 @@ def review_design(brand: Brand, script: dict, logo: str | None, khmer: bool, job
             continue
         old = scenes[n]
         pictures = [L.get("src") for L in old.get("layers") or [] if L.get("src")]
-        cand = {"type": "canvas", "seconds": old.get("seconds"), "req": old.get("req"), "pal": fx.get("pal") or old.get("pal"), "bg": fx.get("bg") or old.get("bg"), "layers": fx["layers"]}
+        cand = {"type": "canvas", "seconds": old.get("seconds"), "pause": old.get("pause"), "req": old.get("req"), "pal": fx.get("pal") or old.get("pal"), "bg": fx.get("bg") or old.get("bg"), "layers": fx["layers"]}
         # the pictures were sent as "<picture>": they keep the brand kit's own
         for L in cand["layers"]:
             if isinstance(L, dict) and L.get("src") == "<picture>":

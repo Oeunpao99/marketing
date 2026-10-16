@@ -70,8 +70,8 @@ export function defaultSeconds(s) {
     case 'word':
       return 3.0 + 0.6 * Math.min(3, (s.rows || []).length)
     // AI design (canvas.jsx): as long as the AI planned it (app/motion.py says the same)
-    case 'canvas':
-      return Math.min(9, Math.max(2.5, Number(s.seconds) || 5))
+    case 'canvas': // + the breath before a reveal (canvas.jsx scene.pause)
+      return Math.min(9, Math.max(2.5, Number(s.seconds) || 5)) + Math.min(1.5, Math.max(0, Number(s.pause) || 0))
     // Tech explainer (techflow.jsx) — app/motion.py default_seconds says the same
     case 'hops':
       return 3.0 + 0.8 * Math.min(5, (s.nodes || []).length)

@@ -6,7 +6,9 @@ samples), so there is no licence question, like tools/make_music.py.
 Writes public/sfx/<name>.mp3 — the sounds motion/src/sfx.jsx puts on the
 scenes: whoosh (scene change), pop (something springs in), blop (a chat
 bubble / notification), click (a button pressed), ding (success), tick (a
-countdown second). Re-running overwrites them (same seed → same sounds).
+countdown second), impact (a cinematic hit on a big reveal), riser (the
+build-up before it). Re-running overwrites them (same seed → same sounds);
+name some to make only those: make_sfx.py impact riser
 """
 
 from __future__ import annotations
@@ -110,6 +112,27 @@ def tick() -> np.ndarray:
     return fade(np.sin(2 * np.pi * 2600 * t(sec)) * decay(sec, 220), 1)
 
 
+def impact() -> np.ndarray:
+    # a cinematic hit: a deep falling boom, a sub tail and a dark noise burst
+    sec = 1.6
+    x = t(sec)
+    boom = sweep(110, 38, sec, 0.35) * np.exp(-x * 3.2)
+    sub = np.sin(2 * np.pi * 45 * x) * np.exp(-x * 2.2) * 0.6
+    burst = lowpass(rng.standard_normal(len(x)), 900) * np.exp(-x * 14) * 2.5
+    return fade(boom + sub + burst, 2)
+
+
+def riser() -> np.ndarray:
+    # the build-up: rising filtered air and a climbing tone, cut at the top
+    sec = 1.4
+    x = t(sec)
+    k = x / sec
+    noise = rng.standard_normal(len(x))
+    air = lowpass(noise, 250 + 5500 * k**2) - lowpass(noise, 120 + 1500 * k**2)
+    tone = sweep(180, 900, sec, 2.0) * 0.25
+    return fade((air * 2.0 + tone) * k**1.6, 6)
+
+
 def write_mp3(mono: np.ndarray, path: Path) -> None:
     import imageio_ffmpeg
 
@@ -125,7 +148,12 @@ def write_mp3(mono: np.ndarray, path: Path) -> None:
 
 
 def main() -> None:
-    for name, make in (("whoosh", whoosh), ("pop", pop), ("blop", blop), ("click", click), ("ding", ding), ("tick", tick)):
+    import sys
+
+    only = set(sys.argv[1:])
+    for name, make in (("whoosh", whoosh), ("pop", pop), ("blop", blop), ("click", click), ("ding", ding), ("tick", tick), ("impact", impact), ("riser", riser)):
+        if only and name not in only:
+            continue
         path = OUT / f"{name}.mp3"
         write_mp3(make(), path)
         print(path)

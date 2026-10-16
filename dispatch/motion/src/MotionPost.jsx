@@ -667,13 +667,13 @@ function BackgroundMusic({ src, scenes }) {
   let start = 0
   const spans = scenes.map((s, i) => {
     const len = sceneFrames(s) - (i < scenes.length - 1 ? TRANSITION : 0)
-    const span = { from: start, to: start + len, voiced: !!s.audio }
+    const span = { from: start, to: start + len, voiced: !!s.audio, hush: start + Math.round((Number(s.pause) || 0) * FPS) }
     start += len
     return span
   })
   const volume = (f) => {
     const span = spans.find((x) => f >= x.from && f < x.to)
-    const level = span?.voiced ? 0.22 : 0.5 // tracks are levelled to -19 dB (tools/make_music.py)
+    const level = f < span?.hush ? 0.06 : span?.voiced ? 0.22 : 0.5 // tracks are levelled to -19 dB (tools/make_music.py); a scene's pause dips it
     const fadeIn = interpolate(f, [0, 30], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })
     const fadeOut = interpolate(f, [durationInFrames - 45, durationInFrames], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })
     return level * fadeIn * fadeOut
@@ -791,8 +791,9 @@ export const MotionPost = ({ brand, scenes, music, musicList, style, look, sfx =
               {/* whoosh / pop / blop … on the scene's moves (sfx.jsx) */}
               {sfx && <SceneSfx scene={scene} style={style} frames={sceneFrames(scene)} first={i === 0} />}
               {/* The voice-over line (app/motion.py add_voice) and its subtitles start together, once
-                  the scene has slid in + 6 frames breathing room so the visual title is registered right as or slightly before the voice speaks. */}
-              <Sequence from={(i ? TRANSITION : 0) + 6} layout="none">
+                  the scene has slid in + 6 frames breathing room so the visual title is registered right as or slightly before the voice speaks.
+                  An AI design scene's pause (canvas.jsx) comes first: the voice waits for the reveal. */}
+              <Sequence from={(i ? TRANSITION : 0) + 6 + Math.round((Number(scene.pause) || 0) * FPS)} layout="none">
                 {/* Subtitles — not where the screen says it already (the chat's bubbles, a quote). */}
                 {scene.caption && !noCaption.includes(scene.type) && (
                   <Caption text={scene.caption} words={scene.words} pauses={scene.pauses} seconds={scene.voiceSeconds || sceneFrames(scene) / FPS - 0.6} top={captionTop} look={t.caption} />
