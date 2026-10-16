@@ -15,7 +15,9 @@
 import { AbsoluteFill, Easing, interpolate, random, spring, useCurrentFrame, useVideoConfig } from 'remotion'
 import { FONT, Icon, Words, clean, fitSize } from './shared'
 
-const C = { bg: '#0B1026', surface: '#1A2350', blue: '#4F8BFF', purple: '#9B6BFF', amber: '#FFB020', text: '#FFFFFF', muted: '#A9B4D8' }
+// black, navy and red: `purple` (the second accent) and `amber` (highlights, the
+// latest moment, the big number) are both red now — no purple anywhere
+const C = { bg: '#05070D', surface: '#0E1A3A', blue: '#2F5BFF', purple: '#E5243B', amber: '#FF3B4E', text: '#FFFFFF', muted: '#A9B4C8' }
 const clamp = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
 const a = (hex, o) => {
   const n = parseInt(hex.slice(1), 16)
@@ -62,9 +64,9 @@ function NeuralBg() {
   const t = frame / 30
   // soft glowing orbs, blurred, drifting slowly
   const orbs = [
-    { c: C.blue, x: 0.22 + Math.sin(t / 7) * 0.06, y: 0.28 + Math.cos(t / 9) * 0.05, r: 0.55, o: 0.5 },
-    { c: C.purple, x: 0.82 + Math.cos(t / 8) * 0.05, y: 0.62 + Math.sin(t / 6) * 0.06, r: 0.6, o: 0.45 },
-    { c: C.amber, x: 0.5 + Math.sin(t / 11) * 0.08, y: 0.95, r: 0.35, o: 0.18 },
+    { c: '#1E3A8A', x: 0.22 + Math.sin(t / 7) * 0.06, y: 0.28 + Math.cos(t / 9) * 0.05, r: 0.6, o: 0.6 }, // navy
+    { c: C.purple, x: 0.82 + Math.cos(t / 8) * 0.05, y: 0.62 + Math.sin(t / 6) * 0.06, r: 0.55, o: 0.3 }, // red
+    { c: C.amber, x: 0.5 + Math.sin(t / 11) * 0.08, y: 0.95, r: 0.35, o: 0.14 },
   ]
   // the grid: flat and faint up top, a glowing floor in perspective below, moving toward us
   const cell = 90 * u
@@ -76,10 +78,10 @@ function NeuralBg() {
       ))}
       <AbsoluteFill
         style={{
-          backgroundImage: `linear-gradient(${a(C.blue, 0.07)} 1px, transparent 1px), linear-gradient(90deg, ${a(C.blue, 0.07)} 1px, transparent 1px)`,
+          backgroundImage: `linear-gradient(${a(C.blue, 0.16)} 1px, transparent 1px), linear-gradient(90deg, ${a(C.blue, 0.16)} 1px, transparent 1px)`,
           backgroundSize: `${cell}px ${cell}px`,
-          maskImage: 'radial-gradient(ellipse 80% 60% at 50% 35%, black 20%, transparent 80%)',
-          WebkitMaskImage: 'radial-gradient(ellipse 80% 60% at 50% 35%, black 20%, transparent 80%)',
+          maskImage: 'radial-gradient(ellipse 110% 90% at 50% 40%, black 45%, transparent 100%)',
+          WebkitMaskImage: 'radial-gradient(ellipse 110% 90% at 50% 40%, black 45%, transparent 100%)',
         }}
       />
       <div style={{ position: 'absolute', left: -width * 0.5, right: -width * 0.5, bottom: -height * 0.05, height: height * 0.55, perspective: 700 * u, overflow: 'hidden', maskImage: 'linear-gradient(to top, black 30%, transparent 95%)', WebkitMaskImage: 'linear-gradient(to top, black 30%, transparent 95%)' }}>
@@ -381,7 +383,7 @@ function Cta({ scene }) {
 
 export const NEURAL = {
   scenes: { hook: Hook, list: List, beforeafter: BeforeAfter, timeline: Timeline, compare: Compare, quote: Quote, stat: Stat, cta: Cta },
-  root: { backgroundColor: C.bg, '--hl-bg': C.amber, '--hl-text': C.bg },
+  root: { backgroundColor: C.bg, '--hl-bg': C.amber, '--hl-text': '#FFFFFF' },
   light: false,
   captionTop: (h) => (h < 1200 ? h - 175 : 1480),
 }
