@@ -184,6 +184,15 @@ export const MOTION_TEMPLATES = [
     goals: ['education', 'solution'],
   },
   {
+    id: 'neural',
+    story: 'neural',
+    name: 'AI explainer · Neural',
+    look: 'Navy with glowing orbs and a neon grid floor — a big question, glass cards, before vs with AI, a timeline, two people, a glowing number, a quote',
+    steps: ['Big question', 'The answer', 'Before → with AI', 'Timeline / two people / number', 'Quote', 'Comment question'],
+    note: 'For AI & tech lessons and mindset videos — Khmer or English',
+    goals: ['education', 'authority'],
+  },
+  {
     id: 'unveil',
     story: 'unveil',
     name: 'Unveil',

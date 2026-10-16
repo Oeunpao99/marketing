@@ -1,0 +1,60 @@
+{
+ "brand": {
+  "name": "Marketing ឆ្លាតវៃ",
+  "color": "#2F7A68",
+  "logo": null
+ },
+ "style": "neural",
+ "frame": 75,
+ "scenes": [
+  {
+   "type": "hook",
+   "text": "Will AI take your job — or ⟦help you⟧?",
+   "icon": "Zap"
+  }
+ ],
+ "clip": [
+  {
+   "type": "hook",
+   "text": "Will AI take your job — or ⟦help you⟧?",
+   "icon": "Zap"
+  },
+  {
+   "type": "list",
+   "title": "The real answer",
+   "items": [
+    {
+     "icon": "Users",
+     "text": "AI doesn’t replace people"
+    },
+    {
+     "icon": "Zap",
+     "text": "People who use AI"
+    },
+    {
+     "icon": "TrendingUp",
+     "text": "move ahead faster"
+    }
+   ]
+  },
+  {
+   "type": "beforeafter",
+   "title": "Replying to customers",
+   "before": "One by one, by hand — customers wait",
+   "after": "AI replies in seconds, 24/7"
+  },
+  {
+   "type": "stat",
+   "value": 70,
+   "prefix": "",
+   "suffix": "%",
+   "label": "of repeat work AI can help with",
+   "icon": "TrendingUp"
+  },
+  {
+   "type": "cta",
+   "text": "What do you already use AI for?",
+   "button": "Follow"
+  }
+ ]
+}
