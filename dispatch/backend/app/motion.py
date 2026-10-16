@@ -4144,6 +4144,8 @@ class MotionIn(BaseModel):
     # An attached screenshot of the brand's own app (a media URL): the design
     # the video copies, and screenshot 1 it can show.
     ref_url: str = Field(default="", max_length=500)
+    # More screenshots attached with it (up to 6 in all) — screenshots 2, 3…
+    ref_urls: list[str] = Field(default_factory=list, max_length=6)
 
 
 class PlanIn(BaseModel):
@@ -4156,6 +4158,7 @@ class PlanIn(BaseModel):
     length: str = "auto"  # "auto" | "60" | "120" | "300" | "600" (the last two: a training)
     ratio: str = "auto"  # "auto" (the director picks) | "9:16" | "16:9" — see final_ratio
     ref_url: str = Field(default="", max_length=500)  # see MotionIn
+    ref_urls: list[str] = Field(default_factory=list, max_length=6)  # see MotionIn
 
 
 # ── The director: Story "Auto" reads the brief and picks the template ──────
@@ -4311,6 +4314,21 @@ def _design_prompt(design: dict) -> str:
     return text + " The video's look is set from this design — keep \"look\" close to it."
 
 
+MAX_ATTACHED = 6
+
+
+def attached_shots(ref_url: str, ref_urls: list[str] | None) -> list[dict]:
+    """The screenshots attached after the first one (screenshots 2, 3…), in
+    the order attached — the plan and the video number them the same way."""
+    urls = [u for u in dict.fromkeys(str(u or "")[:500] for u in (ref_urls or [])) if u and u != ref_url][: MAX_ATTACHED - 1]
+    out = []
+    for u in urls:  # numbered as they land (an unreadable one takes no number)
+        shot = _shot_from_blob(read_media(u) or b"", f"Your app (attached screenshot {len(out) + 2})")
+        if shot:
+            out.append(shot)
+    return out
+
+
 def reference_shot(db: Session, ref_url: str, brand_hex: str) -> tuple[dict | None, dict | None]:
     """(screenshot, design) for an attached reference, or (None, None)."""
     if not ref_url:
@@ -4357,7 +4375,10 @@ def _build_plan(payload: "PlanIn", ws: int, user_id: int, on_style=None) -> dict
         seconds = story_seconds(payload.idea, payload.length, 600 if style in LONG_STYLES else 120)
         r, g, b = accent_for(brand.slug)
         ref, design = reference_shot(db, payload.ref_url, f"#{r:02x}{g:02x}{b:02x}")
-        shots = ([ref] if ref else []) + (brand_screens(db, brand.id) if style in SCREEN_STYLES else [])
+        more = attached_shots(payload.ref_url, payload.ref_urls) if ref else []
+        for shot in more:  # what each one shows, so the storyboard knows where it belongs
+            shot["note"] = describe_screen(base64.b64decode(shot["uri"].split(",", 1)[1]))
+        shots = ([ref] if ref else []) + more + (brand_screens(db, brand.id) if style in SCREEN_STYLES else [])
         db.rollback()  # no transaction held open through the AI calls
         script = write_script(
             brand, products, payload.idea, payload.language, "", list(music_tracks()) if payload.music else [], style,
@@ -4548,6 +4569,7 @@ def create_motion(
     threading.Thread(
         target=_make,
         args=(job.id, payload.product_id, payload.language, payload.voice, "", payload.music, payload.goal, payload.script, payload.ratio, payload.ref_url, billing.requested_model()),
+        kwargs={"ref_urls": payload.ref_urls},
         daemon=True,
         name=f"motion-{job.id}",
     ).start()
@@ -4608,6 +4630,7 @@ def _make(
     ratio: str = "9:16",
     ref_url: str = "",
     model: str = "",
+    ref_urls: list[str] | None = None,
 ) -> None:
     from app.content_ai import ContentAIError
     from app.video import _ready_push
@@ -4649,7 +4672,10 @@ def _make(
                 _report(job_id, stage="story", style=style, why=why)
                 r, g, b = accent_for(brand.slug)
                 ref, design = reference_shot(db, ref_url, f"#{r:02x}{g:02x}{b:02x}")
-                shots = ([ref] if ref else []) + (brand_screens(db, brand.id) if style in SCREEN_STYLES else [])
+                more = attached_shots(ref_url, ref_urls) if ref else []
+                for shot in more:  # what each one shows, so the storyboard knows where it belongs
+                    shot["note"] = describe_screen(base64.b64decode(shot["uri"].split(",", 1)[1]))
+                shots = ([ref] if ref else []) + more + (brand_screens(db, brand.id) if style in SCREEN_STYLES else [])
                 script = write_script(
                     brand, products, job.prompt, language, learned, moods, style, job_id=job_id, shots=shots, design=design, wide=shape == "16:9"
                 )
@@ -4662,7 +4688,8 @@ def _make(
                 db.commit()
             by_product, order, logo = _brand_pictures(db, brand.id)
             ref_shot = _shot_from_blob(read_media(ref_url) or b"", "reference") if ref_url else None  # screenshot 1, as planned
-            shots_now = ([ref_shot] if ref_shot else []) + (brand_screens(db, brand.id) if script.get("style") in SCREEN_STYLES else [])
+            more_now = attached_shots(ref_url, ref_urls) if ref_shot else []  # screenshots 2, 3… as planned
+            shots_now = ([ref_shot] if ref_shot else []) + more_now + (brand_screens(db, brand.id) if script.get("style") in SCREEN_STYLES else [])
             pick_pictures(script, all_products, by_product, order, product_id, shots_now)
             # AI design: a quick preview, the AI looks at it and fixes what looks off
             script = review_design(brand, script, logo, "khmer" in language.lower(), job_id)

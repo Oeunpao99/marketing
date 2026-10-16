@@ -116,6 +116,7 @@ const MOTION_VOICES = [
   ['male', 'Male'],
   ['none', 'Off'],
 ]
+const MAX_REFS = 6 // screenshots one Remotion video can take (app/motion.py MAX_ATTACHED)
 const isImageUrl = (url) => /\.(png|jpe?g|webp|gif)$/i.test(url || '')
 
 let turnSeq = 0
@@ -134,6 +135,7 @@ function serializeTurn(t) {
     brandId: t.brandId,
     brandName: t.brandName,
     refUrl: t.refUrl || '',
+    refUrls: t.refUrls || [],
     refPreview: t.refUrl ? `${mediaBase}${t.refUrl}` : '',
     history: t.history,
     status: t.status,
@@ -250,8 +252,13 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
 
   // composer
   const [text, setText] = useState('')
-  const [refImg, setRefImg] = useState(null) // { previewUrl, url, name }
-  const [uploading, setUploading] = useState(false)
+  // attached images: [{ previewUrl, url, name }] — a Remotion video takes up to
+  // MAX_REFS screenshots of their app; every other kind uses the first only
+  const [refImgs, setRefImgs] = useState([])
+  const refImg = refImgs[0] || null
+  const setRefImg = (img) => setRefImgs(img ? [img] : [])
+  const [uploadCount, setUploadCount] = useState(0)
+  const uploading = uploadCount > 0
   const [writing, setWriting] = useState(false)
   const [intentPick, setIntentPick] = useState(null) // null = auto | 'ask' | 'create'
   // Embedded in the Content studio: our header buttons go on its title line
@@ -701,6 +708,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
           length: turn.length || 'auto',
           ratio: turn.shape || 'auto',
           ref_url: turn.refUrl || '', // a screenshot of their app: the design the video copies
+          ref_urls: turn.refUrls || [], // …and more of its screens (screenshots 2, 3…)
         })
         // Saved on the turn, so leaving and coming back picks it up again
         // (resumePlan) instead of "Interrupted when the page closed".
@@ -724,6 +732,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
           script: turn.script || null, // a reviewed storyboard: made exactly as it is
           ratio: turn.script?.ratio || turn.shape || (turn.ratio === '16:9' ? '16:9' : '9:16'), // a reviewed plan keeps its shape
           ref_url: turn.refUrl || '',
+          ref_urls: turn.refUrls || [],
         })
         trackJob(res.id, 'video')
         update(turn.id, { jobId: res.id })
@@ -884,6 +893,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
       brandId: brandObj?.id ?? null,
       brandName: brandObj?.name || '',
       refUrl: refImg?.url || '',
+      refUrls: isMotion ? refImgs.map((i) => i.url).filter(Boolean) : [],
       refPreview: refImg?.previewUrl || '',
       kit: isMotion
         ? null
@@ -972,39 +982,47 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
     if (!file.type.startsWith('image/')) return showToast('Reference must be an image')
     const name = file.name && file.name !== 'image.png' ? file.name : `pasted-${Date.now()}.png`
     const previewUrl = URL.createObjectURL(file)
-    setRefImg({ previewUrl, url: null, name })
-    setUploading(true)
+    setRefImgs((cur) => (!isMotion ? [{ previewUrl, url: null, name }] : cur.length >= MAX_REFS ? cur : [...cur, { previewUrl, url: null, name }]))
+    setUploadCount((n) => n + 1)
     try {
       const fd = new FormData()
       fd.append('file', file, name)
       const up = await api.upload('/media/upload', fd)
-      setRefImg((cur) => (cur?.previewUrl === previewUrl ? { ...cur, url: up.url } : cur))
+      setRefImgs((cur) => cur.map((i) => (i.previewUrl === previewUrl ? { ...i, url: up.url } : i)))
     } catch (err) {
-      setRefImg((cur) => (cur?.previewUrl === previewUrl ? null : cur))
+      setRefImgs((cur) => cur.filter((i) => i.previewUrl !== previewUrl))
       showToast(`Upload failed — ${err.message}`)
     } finally {
-      setUploading(false)
+      setUploadCount((n) => n - 1)
     }
   }
 
+  // the files that still fit: Remotion takes up to MAX_REFS, the rest one
+  const fitting = (files) => {
+    if (!isMotion) return files.slice(0, 1)
+    const room = MAX_REFS - refImgs.length
+    if (files.length > room) showToast(room > 0 ? `Up to ${MAX_REFS} screenshots for one video — added ${room}` : `Up to ${MAX_REFS} screenshots for one video`)
+    return files.slice(0, Math.max(0, room))
+  }
+
   const attach = (e) => {
-    const file = e.target.files?.[0]
+    const files = [...(e.target.files || [])]
     e.target.value = ''
-    attachFile(file)
+    for (const f of fitting(files)) attachFile(f)
   }
 
   const onPaste = (e) => {
     const item = [...(e.clipboardData?.items || [])].find((i) => i.kind === 'file' && i.type.startsWith('image/'))
     if (!item) return // plain text paste — leave it alone
     e.preventDefault()
-    attachFile(item.getAsFile())
+    for (const f of fitting([item.getAsFile()])) attachFile(f)
   }
 
   const onDrop = (e) => {
     e.preventDefault()
     setDragging(false)
-    const file = [...(e.dataTransfer?.files || [])].find((f) => f.type.startsWith('image/'))
-    if (file) attachFile(file)
+    const files = [...(e.dataTransfer?.files || [])].filter((f) => f.type.startsWith('image/'))
+    if (files.length) for (const f of fitting(files)) attachFile(f)
     else if (e.dataTransfer?.files?.length) showToast('Reference must be an image')
   }
 
@@ -1237,28 +1255,39 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
             </div>
           )}
 
-          {refImg && (
-            <div className="px-4 pt-4">
-              <div className="group relative w-[104px] h-[104px] overflow-hidden rounded-2xl bg-ink-100 ring-1 ring-ink-200">
-                <img src={refImg.previewUrl} alt="Reference" className="h-full w-full object-cover" />
-                {uploading && !refImg.url && (
-                  <div className="absolute inset-0 grid place-items-center bg-white/60 backdrop-blur-[1px]">
-                    <span className="h-5 w-5 animate-spin rounded-full border-2 border-brand/30 border-t-brand" />
-                  </div>
-                )}
-                <span className="absolute bottom-1.5 left-1.5 rounded-md bg-black/55 px-1.5 py-0.5 text-[9.5px] font-semibold text-white">
-                  Reference
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setRefImg(null)}
-                  title="Remove reference"
-                  aria-label="Remove reference"
-                  className="absolute right-1.5 top-1.5 h-6 w-6 rounded-full grid place-items-center bg-black/60 text-white sm:opacity-0 sm:group-hover:opacity-100 hover:bg-black/80 transition"
-                >
-                  <FiX size={13} />
-                </button>
-              </div>
+          {refImgs.length > 0 && (
+            <div className="flex flex-wrap items-end gap-2 px-4 pt-4">
+              {refImgs.map((img, i) => (
+                <div key={img.previewUrl} className="group relative w-[104px] h-[104px] overflow-hidden rounded-2xl bg-ink-100 ring-1 ring-ink-200">
+                  <img src={img.previewUrl} alt={i ? `Screenshot ${i + 1}` : 'Reference'} className="h-full w-full object-cover" />
+                  {!img.url && (
+                    <div className="absolute inset-0 grid place-items-center bg-white/60">
+                      <span className="h-5 w-5 animate-spin rounded-full border-2 border-brand/30 border-t-brand" />
+                    </div>
+                  )}
+                  <span className="absolute bottom-1.5 left-1.5 rounded-md bg-black/55 px-1.5 py-0.5 text-[9.5px] font-semibold text-white">
+                    {refImgs.length > 1 ? `Screen ${i + 1}` : 'Reference'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setRefImgs((cur) => cur.filter((x) => x.previewUrl !== img.previewUrl))}
+                    title="Remove"
+                    aria-label="Remove this image"
+                    className="absolute right-1.5 top-1.5 h-6 w-6 rounded-full grid place-items-center bg-black/60 text-white sm:opacity-0 sm:group-hover:opacity-100 hover:bg-black/80 transition"
+                  >
+                    <FiX size={13} />
+                  </button>
+                </div>
+              ))}
+              {isMotion && refImgs.length < MAX_REFS && (
+                <label className="grid h-[104px] w-[104px] cursor-pointer place-items-center rounded-2xl border border-dashed border-ink-300 text-center text-[11px] font-semibold text-ink-500 hover:border-brand hover:text-brand">
+                  <input type="file" accept="image/*" multiple className="hidden" onChange={attach} />
+                  <span>
+                    <FiPlus size={16} className="mx-auto mb-1" />
+                    Add a screen
+                  </span>
+                </label>
+              )}
             </div>
           )}
 
@@ -1422,7 +1451,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
               className="h-9 w-9 rounded-full grid place-items-center text-ink-600 hover:bg-ink-100 cursor-pointer"
               title="Attach an image — ask about it, or make an image / video from it (or paste / drop one into the box)"
             >
-              <input type="file" accept="image/*" className="hidden" onChange={attach} />
+              <input type="file" accept="image/*" multiple={isMotion} className="hidden" onChange={attach} />
               <FiPaperclip size={15} />
             </label>
 
@@ -1956,7 +1985,13 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary, onPlanChange, onMake,
       {/* your prompt */}
       <div className="flex flex-col items-end">
         <div className="max-w-[70%] rounded-2xl rounded-br-md bg-brand-soft/70 px-4 py-2.5 text-[13px] leading-relaxed text-ink-900 whitespace-pre-wrap">
-          {t.refPreview && <img src={t.refPreview} alt="" className="mb-2 w-20 h-20 rounded-lg object-cover" />}
+          {t.refPreview && (
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {[t.refPreview, ...(t.refUrls || []).slice(1).map((u) => `${mediaBase}${u}`)].map((src) => (
+                <img key={src} src={src} alt="" className="w-20 h-20 rounded-lg object-cover" />
+              ))}
+            </div>
+          )}
           {long && !expanded ? `${prompt.slice(0, 320).trimEnd()}…` : prompt}
           {long && (
             <button type="button" onClick={() => setExpanded((v) => !v)} className="ml-1 text-[12px] font-semibold text-brand">
