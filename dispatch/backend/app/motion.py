@@ -102,6 +102,8 @@ MUSIC_MOODS = {
     "warm": "heartfelt — stories, community, local moments",
     "corporate": "modern and confident — B2B, tech, services, explainers",
     "festive": "celebration — holidays, Khmer New Year, big sales",
+    "cinematic": "epic and building — launch films, big reveals, event screens, brand stories",
+    "tech": "driving synth pulse — technology, apps, SaaS, AI, how-it-works",
 }
 
 
@@ -112,7 +114,25 @@ MUSIC_NEIGHBOURS = {
     "warm": ("calm", "corporate"),
     "upbeat": ("festive", "corporate"),
     "festive": ("upbeat", "warm"),
+    "cinematic": ("tech", "corporate"),
+    "tech": ("corporate", "cinematic"),
 }
+
+
+_TRACK_SECONDS: dict[str, float] = {}
+
+
+def track_for(tracks: list[str], seconds: float) -> str:
+    """A track for a video of about ``seconds``: one at least that long when the
+    mood has one (a short loop repeating under a long video is noticeable),
+    else the longest — any of them at random among those that fit."""
+    from app.story import _probe
+
+    for t in tracks:
+        if t not in _TRACK_SECONDS:
+            _TRACK_SECONDS[t] = _probe(str(MOTION_DIR / "public" / t))[1]
+    fit = [t for t in tracks if _TRACK_SECONDS[t] >= seconds]
+    return random.choice(fit) if fit else max(tracks, key=lambda t: _TRACK_SECONDS[t])
 
 
 def music_tracks() -> dict[str, list[str]]:
@@ -3372,7 +3392,8 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
     library = music_tracks()
     tracks = library.get(script.get("mood") or "")
     if tracks:
-        props["music"] = random.choice(tracks)  # a file under public/ — the template mixes it in
+        # a file under public/ — the template mixes it in; the voice adds ~20 % to the length
+        props["music"] = track_for(tracks, 1.2 * sum(default_seconds(x) for x in scenes))
         if sum(1 for x in scenes if x["type"] == "chapter") >= 2:
             # a long video with chapters: a new track per chapter — the mood's own
             # tracks first, then the calm / corporate ones that sit under a talk

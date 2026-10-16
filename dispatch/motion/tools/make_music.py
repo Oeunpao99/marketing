@@ -272,6 +272,154 @@ def compose(spec: dict) -> np.ndarray:
     return stereo * min(1.0, 0.89 / max(np.max(np.abs(stereo)), 1e-9))
 
 
+# ── long tracks (1-2 min) in sections — they build and change, never loop ──
+def tom(m: float, rng) -> np.ndarray:
+    n = int(0.7 * SR)
+    t = np.arange(n) / SR
+    f = hz(m) * (1 + 0.6 * np.exp(-t / 0.04))
+    return np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t / 0.22) + 0.15 * _noise(rng, n) * np.exp(-t / 0.02)
+
+
+def boom(rng) -> np.ndarray:
+    """The hit that opens a bigger section."""
+    n = int(2.2 * SR)
+    t = np.arange(n) / SR
+    f = 30 + 70 * np.exp(-t / 0.25)
+    body = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t / 0.9)
+    hit = np.convolve(_noise(rng, n), np.ones(40) / 40, mode="same") * np.exp(-t / 0.08) * 3
+    return body + hit
+
+
+def swell(rng, dur: float) -> np.ndarray:
+    """Rising air into the next section."""
+    n = int(dur * SR)
+    k = np.arange(n) / n
+    x = _noise(rng, n)
+    return (x - np.convolve(x, np.ones(6) / 6, mode="same")) * 0.25 * k**2.2
+
+
+def saw(m: float, dur: float, bright: float = 1.0) -> np.ndarray:
+    """A bright synth note (saw-like) — the tech arpeggio and lead."""
+    n = int(dur * SR)
+    parts = [(h, (1 / h) * (bright if h > 3 else 1)) for h in range(1, 10)]
+    decay = [0.25 + 0.1 / h for h in range(1, 10)]
+    return additive(hz(m), n, parts, decay) * env(n, 0.004, 0.05, 1.0, 0.05) * 0.5
+
+
+def strings(notes, dur: float) -> np.ndarray:
+    """A slow-swelling string section."""
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    out = np.zeros(n)
+    for m in notes:
+        for d in (-0.08, 0.0, 0.08):
+            out += additive(hz(m + d), n, [(h, 1 / h**1.2) for h in range(1, 8)])
+    return out * env(n, 0.9, 0.3, 0.85, 0.9) * (1 + 0.05 * np.sin(2 * np.pi * 5 * t)) / (3 * max(1, len(notes)))
+
+
+def compose_long(spec: dict) -> np.ndarray:
+    """A 1-2 minute track in sections [(bars, level 0-3, progression)]: each
+    level adds layers, a riser and a hit lead into every bigger section, and
+    the melody changes section to section — so it never sounds like a loop."""
+    rng = np.random.default_rng(spec["seed"])
+    bpm, key, style = spec["bpm"], spec["key"], spec["style"]
+    beat = 60 / bpm
+    bar = 4 * beat
+    total = sum(b for b, _, _ in spec["sections"]) * bar
+    tr = Track(total + 2 * bar)
+    t0, prev = 0.0, 0
+    for si, (nb, level, pi) in enumerate(spec["sections"]):
+        prog = spec["progs"][pi % len(spec["progs"])]
+        motif = [int(x) for x in rng.integers(0, 4, 8)]  # a new melody each section
+        if si and level > prev:
+            tr.add(swell(rng, bar), t0 - bar, 0.5 if style == "cinematic" else 0.32)
+            tr.add(boom(rng), t0, 0.55 if style == "cinematic" else 0.3, 0, 0.4)
+        for b in range(nb):
+            tb = t0 + b * bar
+            deg = prog[b % len(prog)]
+            notes = chord(key, deg, spec.get("sevenths", False))
+            tones = chord(key, deg, True, 5)
+            root = 12 * 3 + key + MAJOR[deg % 7] - (12 if MAJOR[deg % 7] > 7 else 0)
+            last = b == nb - 1
+            if style == "cinematic":
+                tr.add(strings([m - 12 for m in notes], bar * 1.05), tb, 0.34, 0, 0.6)
+                tr.add(bass(root - 12, bar * 0.98), tb, 0.3)  # the low drone
+                if level <= 1:  # the quiet motif
+                    for k in range(4):
+                        if k % 2 == 0 or level:
+                            tr.add(piano(tones[motif[(b * 4 + k) % 8]], beat * 1.8), tb + k * beat, 0.26, 0.2 * (k % 2) - 0.1, 0.6)
+                if level >= 1:  # the ostinato
+                    for k in range(8):
+                        tr.add(pluck(root + (7 if k % 4 == 3 else 0) + 12, beat * 0.3, 0.6), tb + k * beat / 2, 0.16 + 0.05 * level, 0.25, 0.3)
+                if level >= 2:  # the drums
+                    for k, g in ((0, 0.8), (6, 0.5), (8, 0.7), (11, 0.4), (14, 0.5)):
+                        tr.add(tom(root - 12 + (5 if k > 8 else 0), rng), tb + k * beat / 4, g * 0.6, 0.15 * (k % 3 - 1), 0.25)
+                    tr.add(kick(rng), tb, 0.7)
+                    tr.add(kick(rng), tb + 2 * beat, 0.6)
+                if level >= 3:
+                    tr.add(strings([m + 12 for m in notes], bar * 1.05), tb, 0.22, 0, 0.6)
+                    tr.add(bell(tones[motif[b % 8]] + 12, beat * 2), tb, 0.18, 0.3, 0.6)
+                if level >= 2 and last:  # a tom fill into what comes next
+                    for k in range(8, 16):
+                        tr.add(tom(root - 12 + k % 4, rng), tb + k * beat / 4, 0.35 + 0.03 * k, 0.2 * (k % 2) - 0.1, 0.2)
+            else:  # tech
+                tr.add(pad(notes, bar * 1.05, 0.7), tb, 0.18, 0, 0.5)
+                if level == 0:
+                    for k in range(8):
+                        tr.add(rim(rng), tb + k * beat / 2, 0.18 if k % 2 else 0.3, 0.4 * (k % 2) - 0.2)
+                if level >= 1:  # the arpeggio — 8ths, then 16ths
+                    step = 4 if level >= 2 else 2
+                    for k in range(4 * step):
+                        m = tones[[0, 1, 2, 3, 2, 1][k % 6]]
+                        tr.add(saw(m, beat / step * 0.9, 0.9), tb + k * beat / step, 0.14, 0.45 if k % 2 else -0.45, 0.3)
+                    for k in range(4):  # off-beat pulse bass
+                        tr.add(bass(root, beat * 0.42), tb + k * beat + beat / 2, 0.42)
+                if level >= 2:
+                    for k in range(16):
+                        at = tb + k * beat / 4
+                        if k % 4 == 0:
+                            tr.add(kick(rng), at, 0.85)
+                        if k in (4, 12):
+                            tr.add(clap(rng), at, 0.4, 0.1, 0.3)
+                        if k % 4 == 2:
+                            tr.add(hat(rng), at, 0.6, 0.35)
+                if level >= 3:
+                    for k in range(2):  # the lead
+                        tr.add(saw(tones[motif[(b * 2 + k) % 8]] + 12, beat * 1.9, 0.7), tb + k * 2 * beat, 0.13, -0.2, 0.5)
+                    for k in range(16):
+                        tr.add(hat(rng, 0.5), tb + k * beat / 4, 0.4, -0.35)
+        prev = level
+        t0 += nb * bar
+    wet = reverb(tr.wet, 2.2 if style == "cinematic" else 1.4, rng)
+    cut = int(total * SR)
+    L, R = (tr.L + wet)[:cut], (tr.R + wet)[:cut]
+    fade = np.ones(cut)
+    fade[: int(1.5 * SR)] = np.linspace(0, 1, int(1.5 * SR))
+    fade[-int(3 * SR) :] = np.linspace(1, 0, int(3 * SR))
+    stereo = np.stack([L * fade, R * fade], axis=1)
+    rms = np.sqrt(np.mean(stereo**2))
+    stereo *= 0.12 / max(rms, 1e-9)  # the same loudness as the short loops
+    stereo = np.tanh(stereo * 1.2) / 1.2
+    return stereo * min(1.0, 0.89 / max(np.max(np.abs(stereo)), 1e-9))
+
+
+# Long tracks: (bars, level, progression) per section — ~60 s and ~2 min.
+LONG_SPECS = {
+    "cinematic": [
+        dict(style="cinematic", bpm=96, key=2, progs=[[5, 3, 0, 4], [5, 4, 3, 4]], seed=61,
+             sections=[(4, 0, 0), (6, 1, 0), (8, 2, 1), (4, 3, 0), (2, 0, 1)]),
+        dict(style="cinematic", bpm=92, key=9, progs=[[5, 3, 0, 4], [3, 4, 5, 5], [0, 4, 5, 3]], seed=62,
+             sections=[(6, 0, 0), (8, 1, 1), (8, 2, 0), (4, 1, 2), (10, 3, 1), (6, 3, 0), (4, 0, 2)]),
+    ],
+    "tech": [
+        dict(style="tech", bpm=118, key=7, progs=[[5, 3, 0, 4], [0, 4, 5, 3]], seed=71,
+             sections=[(4, 0, 0), (8, 1, 0), (8, 2, 1), (4, 1, 0), (6, 3, 1), (2, 0, 0)]),
+        dict(style="tech", bpm=122, key=4, progs=[[0, 5, 3, 4], [5, 3, 0, 4], [3, 4, 0, 5]], seed=72,
+             sections=[(8, 0, 0), (8, 1, 1), (12, 2, 0), (8, 1, 2), (12, 3, 1), (8, 3, 0), (4, 0, 2)]),
+    ],
+}
+
+
 # Two tracks per mood: tempo, key (semitones above C), progression (scale degrees, 0 = I).
 SPECS = {
     "upbeat": [
@@ -310,12 +458,25 @@ def write_mp3(stereo: np.ndarray, path: Path) -> None:
 
 
 def main() -> None:
+    # name moods to make only those: make_music.py cinematic tech
+    only = set(sys.argv[1:])
     for mood, specs in SPECS.items():
+        if only and mood not in only:
+            continue
         (OUT / mood).mkdir(parents=True, exist_ok=True)
         for i, spec in enumerate(specs, 1):
             path = OUT / mood / f"contentflow-{mood}-{i}.mp3"
             write_mp3(compose(spec), path)
             print(f"{path.relative_to(OUT.parent)}  {spec['bpm']} bpm", flush=True)
+    for mood, specs in LONG_SPECS.items():
+        if only and mood not in only:
+            continue
+        (OUT / mood).mkdir(parents=True, exist_ok=True)
+        for i, spec in enumerate(specs, 1):
+            path = OUT / mood / f"contentflow-{mood}-{i}.mp3"
+            stereo = compose_long(spec)
+            write_mp3(stereo, path)
+            print(f"{path.relative_to(OUT.parent)}  {spec['bpm']} bpm  {len(stereo) / SR:.0f} s", flush=True)
 
 
 if __name__ == "__main__":

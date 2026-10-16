@@ -15,7 +15,10 @@ tracks) into the folder for their mood:
 | `warm`      | stories, community, thank-yous, local moments  |
 | `corporate` | B2B, tech, services, explainers                |
 | `festive`   | holidays, Khmer New Year, Pchum Ben, sales     |
+| `cinematic` | launch films, big reveals, event screens (60 s and 2 min, in sections) |
+| `tech`      | technology, apps, SaaS, AI, how-it-works (65 s and 2 min, in sections) |
 
 The AI picks the mood for each video from the folders that have tracks
-(backend app/motion.py `music_tracks`); a track is picked at random. Keep each
+(backend app/motion.py `music_tracks`); a track at least as long as the video is
+picked when the mood has one (`track_for`), else the longest. Keep each
 file under ~5 MB. Keep a note of where each track came from and its licence.
