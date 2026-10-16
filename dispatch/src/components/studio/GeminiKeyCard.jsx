@@ -109,7 +109,7 @@ function KeyDrawer({ state, setState, onClose, showToast }) {
       Click <b>Create API key</b>, then the copy button beside it
     </>,
     <>
-      Paste it below — it starts with <span className="font-mono">AIza</span>
+      Paste it below — it starts with <span className="font-mono">AQ.</span> or <span className="font-mono">AIza</span>
     </>,
   ]
 
@@ -177,7 +177,7 @@ function KeyDrawer({ state, setState, onClose, showToast }) {
                   setKey(e.target.value)
                   setError('')
                 }}
-                placeholder={state?.configured ? 'Paste a new key to replace it' : 'AIza…'}
+                placeholder={state?.configured ? 'Paste a new key to replace it' : 'Paste your key — AQ.… or AIza…'}
                 aria-label="Your Gemini API key"
                 className="w-full rounded-xl border border-ink-200 bg-white px-3.5 py-2.5 font-mono text-[13px] text-ink-900 placeholder:font-sans placeholder:text-ink-400 focus:border-brand focus:outline-none"
               />

@@ -79,11 +79,10 @@ def key_status(db: Session = Depends(get_db), ws: int = Depends(current_workspac
 def key_save(payload: KeyIn, db: Session = Depends(get_db), user: TeamMember = Depends(require_manager)):
     """Save (or replace) the workspace's own Gemini key — checked with Google first."""
     key = payload.key.strip().strip("\"'")
-    # a key is plain letters, digits, - and _ — anything else is text copied along with it
+    # a key is plain letters, digits, - _ . (AI Studio's are "AIza…" or the newer "AQ.…");
+    # anything else is text copied along with it — Google itself decides the rest
     if not re.fullmatch(r"[A-Za-z0-9_\-.]{20,200}", key):
-        raise HTTPException(400, "That doesn't look like a Gemini API key — copy just the key (it starts with AIza…) from Google AI Studio.")
-    if not key.startswith("AIza"):
-        raise HTTPException(400, "That isn't a Gemini API key — in Google AI Studio (aistudio.google.com/apikey) create one; it starts with AIza…")
+        raise HTTPException(400, "That doesn't look like a key — copy just the key from Google AI Studio, with the copy button beside it.")
     _check(key)
     w = db.get(Workspace, user.workspace_id)
     w.gemini_key_enc = _fernet().encrypt(key.encode()).decode()
