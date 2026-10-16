@@ -1100,6 +1100,15 @@ NEURAL_PROMPT = (
     + '{"scenes": [{"type": "hook", "text": "...", "icon": "Brain", "say": "..."}, ...]}'
 )
 
+# "AI notes · Paper" (motion/src/paper.jsx) — the same story as Neural, on light
+# paper: black and red, tech icons floating round the words, AI maths behind.
+PAPER_PROMPT = NEURAL_PROMPT.replace(
+    "Look: navy with a glowing neural network, electric blue and purple, amber highlights — calm, "
+    "smart, premium.",
+    "Look: warm paper with a dot grid, black and red only, tech icons floating around the words and "
+    "faint AI maths behind — an editorial explainer, clever and clean.",
+)
+
 CANVAS_TYPES = ("canvas",)
 CANVAS_LAYERS = ("text", "card", "icon", "shape", "device", "logo", "image", "chart", "metric", "pill", "list", "alert", "stream")
 CANVAS_BGS = ("solid", "gradient", "grid", "dots", "city", "network", "streams", "particles", "rings", "spotlight", "aurora", "trails", "hex", "waves", "warp")
@@ -1815,6 +1824,7 @@ STYLES = {
     "techflow": (TECHFLOW_PROMPT, TECHFLOW_TYPES, 6, None),
     "canvas": (CANVAS_PROMPT, CANVAS_TYPES, 12, "canvas"),
     "neural": (NEURAL_PROMPT, NEURAL_TYPES, 8, None),
+    "paper": (PAPER_PROMPT, NEURAL_TYPES, 8, None),
     "clarity": (CLARITY_PROMPT, CLARITY_TYPES, 8, None),
     "countdown": (COUNTDOWN_PROMPT, COUNTDOWN_TYPES, 7, "rank"),
     "thisorthat": (THISORTHAT_PROMPT, THISORTHAT_TYPES, 6, "choice"),
@@ -1832,7 +1842,7 @@ LONG_STYLES = {"training"}
 # The templates laid out for 16:9 too (motion/src/training.jsx, saas.jsx wide scenes);
 # every other template is always vertical. Scenes drawn only for a tall frame are
 # left out of a wide video.
-WIDE_STYLES = {"neural", "training", "custom", "demo", "offer", "trend", "pov", "showcase", "launch", "unveil", "gridcards", "techflow", "canvas", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
+WIDE_STYLES = {"neural", "paper", "training", "custom", "demo", "offer", "trend", "pov", "showcase", "launch", "unveil", "gridcards", "techflow", "canvas", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
 TALL_ONLY_TYPES = {"problem", "chat", "product", "point"}
 
 
@@ -2017,7 +2027,7 @@ GOAL_STYLES = {
     "solution": ("tech", "demo", "custom", "showcase", "clarity", "gridcards"),
     "conversion": ("offer", "tech", "launch", "reviews", "casestudy", "unveil"),
     "teach": ("explainer",),
-    "education": ("explainer", "training", "custom", "clarity", "tips", "gridcards", "techflow", "neural"),
+    "education": ("explainer", "training", "custom", "clarity", "tips", "gridcards", "techflow", "neural", "paper"),
     "reach": ("pov", "explainer", "countdown", "thisorthat", "hottake"),
     "awareness": ("trend", "custom", "clarity", "showcase", "report", "unveil", "canvas"),
     "authority": ("versus", "report", "casestudy", "hottake", "clarity", "techflow"),
@@ -4506,6 +4516,7 @@ TEMPLATE_GUIDE = {
     "unveil": "unveiling a product or a new feature in a light, elegant way — one big word, the app card coming into focus, a field typing itself, a check with confetti",
     "gridcards": "how a product or service solves an everyday problem — the repetitive work today, then one input becoming several results (a post, a price poster, a caption), clear and friendly",
     "techflow": "explaining HOW a technology works step by step (the internet, email, payments, AI, apps) — devices, data packets travelling, addresses, lookups, the path, a recap",
+    "paper": "an AI / tech concept explained simply on light paper (what is machine learning, deep learning, an API…) — editorial, black and red, icons and maths floating around",
     "neural": "a tech or AI explainer / lesson / history with a motivating message — a big question, before vs after with AI, a timeline, two people who chose differently, a quote to remember",
     "canvas": "a brief that asks for its OWN look or scenes — an event / LED-screen film, a cinematic launch with acts and colours of its own, or anything no template fits: the AI designs every scene",
     "showcase": "a bright, polished promo / launch video for a SaaS or app — the tools it connects, its table and board views, who it is for",

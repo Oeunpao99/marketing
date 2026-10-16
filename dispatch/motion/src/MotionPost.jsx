@@ -58,6 +58,7 @@ import { TESTIMONIAL } from './testimonial'
 import { CASESTUDY, CLARITY, COUNTDOWN, DEMO, FAQ, GRIDCARDS, HOTTAKE, TECHFLOW, LAUNCH, OFFER, POV, REPORT, REVIEWS, SHOWCASE, THISORTHAT, TIPS, TREND, UNVEIL, customTemplate } from './saas'
 import { SceneSfx } from './sfx'
 import { NEURAL } from './neural'
+import { PAPER } from './paper'
 import { TRAINING } from './training'
 
 export { FPS, TRANSITION, defaultSeconds, sceneFrames }
@@ -624,13 +625,13 @@ function Chrome({ scenes, brand }) {
           background: 'rgba(255,255,255,0.92)',
           borderRadius: 10,
           border: 0,
-          padding: brand.logo ? '10px 24px' : '14px 28px',
+          padding: brand.logo ? '10px 14px' : '14px 28px',
           boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
         }}
       >
         {/* The logo alone — it already says who we are; the name only when there's no logo. */}
         {brand.logo ? (
-          <Img src={srcOf(brand.logo)} style={{ height: 60, maxWidth: 260, objectFit: 'contain' }} />
+          <Img src={srcOf(brand.logo)} style={{ height: 84, maxWidth: 300, objectFit: 'contain' }} />
         ) : (
           <>
             <div style={{ width: 22, height: 22, borderRadius: 11, background: brand.color }} />
@@ -739,6 +740,7 @@ const TEMPLATES = {
   launch: { ...LAUNCH, scenes: { ...SCENES, ...LAUNCH.scenes } },
   unveil: { ...UNVEIL, scenes: { ...SCENES, ...UNVEIL.scenes } },
   neural: { ...NEURAL, scenes: { ...SCENES, ...NEURAL.scenes } },
+  paper: { ...PAPER, scenes: { ...SCENES, ...PAPER.scenes } },
   gridcards: { ...GRIDCARDS, scenes: { ...SCENES, ...GRIDCARDS.scenes } },
   techflow: { ...TECHFLOW, scenes: { ...SCENES, ...TECHFLOW.scenes } },
   canvas: { ...CANVAS, scenes: { ...SCENES, ...CANVAS.scenes } }, // AI design — the AI designs every scene

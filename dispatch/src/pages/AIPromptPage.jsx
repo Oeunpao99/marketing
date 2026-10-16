@@ -200,6 +200,7 @@ const MOTION_STORIES = [
   { value: 'report', label: 'Data report', hint: 'Bars, a percent ring, numbers with their source' },
   { value: 'clarity', label: 'SaaS explainer', hint: 'Calm white and blue — the mess of tools today, your app in a frame, how it works' },
   { value: 'launch', label: 'Product launch', hint: 'A cinematic launch film — the one click that does the job, your screens stacking up, “Now live”' },
+  { value: 'paper', label: 'AI notes · Paper', hint: 'Light paper, black and red — a word-by-word headline, tech icons floating round it, AI maths in the background' },
   { value: 'neural', label: 'AI explainer · Neural', hint: 'Navy with a glowing neural network — a big question, before vs with AI, a timeline, two people who chose differently, a quote to remember' },
   { value: 'canvas', label: 'AI design (new)', hint: 'The AI designs every scene for your brief — its own colours, backgrounds, layout and motion; best for a brief with its own look, an event screen or a cinematic launch' },
   { value: 'techflow', label: 'Tech explainer', hint: 'How a technology works — devices, data packets travelling, an address, a lookup, the path, a checklist' },

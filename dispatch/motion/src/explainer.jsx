@@ -631,10 +631,10 @@ export function ExplainerChrome({ scenes, brand }) {
   const frame = useCurrentFrame()
   return (
     <AbsoluteFill style={{ padding: '64px 48px 0', pointerEvents: 'none', opacity: chipOpacity(scenes, frame) }}>
-      <div style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 14, background: 'white', border: 0, borderRadius: 10, padding: brand.logo ? '8px 22px' : '12px 26px' }}>
+      <div style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 14, background: 'white', border: 0, borderRadius: 10, padding: brand.logo ? '8px 12px' : '12px 26px' }}>
         {/* The logo alone; the name only when there's no logo. */}
         {brand.logo ? (
-          <Img src={srcOf(brand.logo)} style={{ height: 58, maxWidth: 250, objectFit: 'contain' }} />
+          <Img src={srcOf(brand.logo)} style={{ height: 82, maxWidth: 300, objectFit: 'contain' }} />
         ) : (
           <>
             <div style={{ width: 22, height: 22, borderRadius: 11, background: EX.yellow, border: `3px solid ${EX.ink}` }} />

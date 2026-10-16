@@ -184,6 +184,15 @@ export const MOTION_TEMPLATES = [
     goals: ['education', 'solution'],
   },
   {
+    id: 'paper',
+    story: 'paper',
+    name: 'AI notes · Paper',
+    look: 'Light paper with a dot grid, black and red — a bold headline lighting up word by word, tech icons floating round it, AI maths behind',
+    steps: ['Big question', 'Key points', 'Before → with AI', 'Timeline / two people / number', 'Quote', 'Comment question'],
+    note: 'For explaining an AI or tech idea simply — Khmer or English',
+    goals: ['education', 'authority'],
+  },
+  {
     id: 'neural',
     story: 'neural',
     name: 'AI explainer · Neural',
