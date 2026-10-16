@@ -1209,7 +1209,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
       </div>
 
       {/* composer */}
-      <div className="composer-dock sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] lg:bottom-0 z-20 -mx-5 lg:-mx-10 px-5 lg:px-10 pb-5 pt-6 bg-gradient-to-t from-canvas via-canvas to-transparent">
+      <div className="composer-dock sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] lg:bottom-0 z-20 -mx-5 lg:-mx-10 px-5 lg:px-10 pb-3 pt-6 bg-gradient-to-t from-canvas via-canvas to-transparent">
         {/* While the Brand kit popover is open the page behind dims (plain, no
             blur); the composer and the popover stay on top. A tap on it closes
             the popover (its outside-click handler). */}
@@ -1538,9 +1538,6 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
             </div>
           </div>
         </div>
-        <p className="kb-hide-hint mt-2 text-center text-[10.5px] text-ink-400">
-          Enter to send · Shift + Enter for a new line · answers use your own brands, products and post numbers
-        </p>
       </div>
 
       {historyOpen && (
