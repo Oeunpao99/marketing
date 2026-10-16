@@ -4672,7 +4672,9 @@ def _build_plan(payload: "PlanIn", ws: int, user_id: int, on_style=None) -> dict
             seconds=seconds, shots=shots, design=design, wide=shape == "16:9",
         )
         script["ratio"] = shape
-        return {"script": script, "target_seconds": seconds, "estimate_seconds": estimate_seconds(script), "why": why}
+        # a script that designs its own film, put in a fixed template: the page offers AI design
+        misfit = style != "canvas" and own_design(payload.idea)
+        return {"script": script, "target_seconds": seconds, "estimate_seconds": estimate_seconds(script), "why": why, "misfit": misfit}
     finally:
         db.close()
 

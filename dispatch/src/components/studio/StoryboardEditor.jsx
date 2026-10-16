@@ -321,6 +321,21 @@ export default function StoryboardEditor({ plan, onChange, onMake, onRewrite, vo
           </span>
         )}
       </div>
+      {/* their script designs its own film, but a fixed template was picked */}
+      {plan?.misfit && (
+        <div className="flex flex-wrap items-center gap-2 border-b border-ink-200/70 bg-brand-soft px-4 py-2.5 text-[12px] text-ink-800">
+          <span className="min-w-0 flex-1">
+            Your script describes its own looks — backgrounds, reveals, a pause. <b>{style}</b> can only use its own scene types; <b>AI design</b> builds every scene to match your script.
+          </span>
+          <button
+            type="button"
+            onClick={() => onRewrite('canvas')}
+            className="flex-none rounded-lg bg-brand px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-brand-dark"
+          >
+            Use AI design
+          </button>
+        </div>
+      )}
 
       <ol className="divide-y divide-ink-200/60">
         {scenes.map((s, i) => {
@@ -430,7 +445,7 @@ export default function StoryboardEditor({ plan, onChange, onMake, onRewrite, vo
           )}
           <button
             type="button"
-            onClick={onRewrite}
+            onClick={() => onRewrite()}
             className="inline-flex items-center gap-1.5 rounded-xl border border-ink-200 px-3 py-2 text-[12.5px] font-semibold text-ink-700 hover:bg-ink-50"
           >
             <FiRefreshCw size={13} /> Write it again

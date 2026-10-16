@@ -637,8 +637,8 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
     const live = () => turnsRef.current.find((x) => x.id === turn.id)?.status === 'working'
     try {
       const res = await waitForPlan(turn.planId, (p) => live() && patchTurn(turn.id, { progress: { stage: 'story', style: p.style, why: p.why } }))
-      if (!mountedRef.current) return persistLate(turn.id, { status: 'review', plan: { ...res.script, why: res.why || '' } })
-      if (live()) patchTurn(turn.id, { status: 'review', plan: { ...res.script, why: res.why || '' } })
+      if (!mountedRef.current) return persistLate(turn.id, { status: 'review', plan: { ...res.script, why: res.why || '', misfit: !!res.misfit } })
+      if (live()) patchTurn(turn.id, { status: 'review', plan: { ...res.script, why: res.why || '', misfit: !!res.misfit } })
       refreshCounts()
     } catch (e) {
       if (!mountedRef.current) return persistLate(turn.id, { status: 'failed', error: e.message })
@@ -722,7 +722,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
           update(turn.id, { planId: started.plan_id })
           res = await waitForPlan(started.plan_id, (p) => update(turn.id, { progress: { stage: 'story', style: p.style, why: p.why } }))
         }
-        update(turn.id, { status: 'review', plan: { ...res.script, why: res.why || '' } })
+        update(turn.id, { status: 'review', plan: { ...res.script, why: res.why || '', misfit: !!res.misfit } })
         refreshCounts()
       } else if (turn.kind === 'motion') {
         // Script, brand photos and render all happen on the server (~1 min).
@@ -1079,9 +1079,11 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
     patchTurn(turn.id, { status: 'working', script: turn.plan, progress: null, startedAt: go.startedAt })
     run(go)
   }
-  const rewritePlan = (turn) => {
-    patchTurn(turn.id, { plan: null, script: null, startedAt: Date.now() })
-    run({ ...turn, plan: null, script: null })
+  // ``goal``: write it again in another template (the storyboard's "Use AI design")
+  const rewritePlan = (turn, goal) => {
+    const next = goal ? { goal } : {}
+    patchTurn(turn.id, { plan: null, script: null, startedAt: Date.now(), ...next })
+    run({ ...turn, plan: null, script: null, ...next })
   }
 
   const regenerate = (turn) => {
@@ -1226,7 +1228,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
               onStop={() => stopOne(t)}
               onPlanChange={(plan) => changePlan(t, plan)}
               onMake={() => makeFromPlan(t)}
-              onRewrite={() => rewritePlan(t)}
+              onRewrite={(goal) => rewritePlan(t, goal)}
             />
             ),
           )}
