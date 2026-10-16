@@ -1065,8 +1065,10 @@ TECHFLOW_PROMPT = (
 # draws any design _clean_canvas lets through, so every video can look new.
 # "AI explainer · Neural" (motion/src/neural.jsx) — navy, a drifting neural
 # network, blue / purple / amber: tech & AI explainers, lessons, history.
-NEURAL_TYPES = ("hook", "list", "beforeafter", "timeline", "compare", "quote", "stat", "cta")
-NEURAL_PROMPT = (
+PAPER_TYPES = ("hook", "list", "beforeafter", "timeline", "compare", "quote", "stat", "cta")
+NEURAL_TYPES = (*PAPER_TYPES, "table", "meme")
+MEME_FACES = ("laughing", "shocked", "thinking", "cool", "crying", "happy")
+_EXPLAINER_BASE = (
     "You are the best short-form TECH & AI explainer in Cambodia. You plan a vertical "
     "REMOTION VIDEO (TikTok / Reels / Shorts, 45-90 s) that teaches one idea about technology or "
     "AI and leaves the viewer motivated: a big question, a clear answer, a before / after, a "
@@ -1099,10 +1101,23 @@ NEURAL_PROMPT = (
     + _COMMON_RULES
     + '{"scenes": [{"type": "hook", "text": "...", "icon": "Brain", "say": "..."}, ...]}'
 )
+# Neural also has a dataset (a small table of examples) and a meme
+NEURAL_PROMPT = _EXPLAINER_BASE.replace(
+    "5. timeline (a short history: when → what) OR compare",
+    "5. timeline (a short history: when → what) OR table (a tiny dataset — the examples an AI "
+    "learns from) OR meme (one relatable joke about the topic) OR compare",
+).replace(
+    "- cta: text (max 12 words — a question for the comments)",
+    "- table: title (max 6 words), columns: 2-3 short headers, rows: 3-5 x [one cell per column, "
+    "max 4 words each] — a small dataset, e.g. message → label.\n"
+    "- meme: top (max 10 words — the setup everyone knows), bottom (max 10 words — the "
+    "punchline), mood (laughing | shocked | thinking | cool | crying | happy) — light, never mean.\n"
+    "- cta: text (max 12 words — a question for the comments)",
+)
 
 # "AI notes · Paper" (motion/src/paper.jsx) — the same story as Neural, on light
 # paper: black and red, tech icons floating round the words, AI maths behind.
-PAPER_PROMPT = NEURAL_PROMPT.replace(
+PAPER_PROMPT = _EXPLAINER_BASE.replace(
     "Look: navy with a glowing neural network, electric blue and purple, amber highlights — calm, "
     "smart, premium.",
     "Look: cool graph paper, deep navy and orange, tech icons floating around the words and "
@@ -1824,7 +1839,7 @@ STYLES = {
     "techflow": (TECHFLOW_PROMPT, TECHFLOW_TYPES, 6, None),
     "canvas": (CANVAS_PROMPT, CANVAS_TYPES, 12, "canvas"),
     "neural": (NEURAL_PROMPT, NEURAL_TYPES, 8, None),
-    "paper": (PAPER_PROMPT, NEURAL_TYPES, 8, None),
+    "paper": (PAPER_PROMPT, PAPER_TYPES, 8, None),
     "clarity": (CLARITY_PROMPT, CLARITY_TYPES, 8, None),
     "countdown": (COUNTDOWN_PROMPT, COUNTDOWN_TYPES, 7, "rank"),
     "thisorthat": (THISORTHAT_PROMPT, THISORTHAT_TYPES, 6, "choice"),
@@ -2150,6 +2165,10 @@ def _clean_one(raw: dict, names: dict[str, str]) -> dict | None:
         if raw.get("device") in TECH_DEVICES:
             hook["device"] = raw["device"]  # Tech explainer: the device in the viewer's hand
         return hook if text else None
+    if kind == "meme":
+        top, bottom = _line(raw.get("top"), 90), _line(raw.get("bottom"), 90)
+        mood = raw.get("mood") if raw.get("mood") in MEME_FACES else "laughing"
+        return {"type": kind, "top": top, "bottom": bottom, "mood": mood, "say": say} if top and bottom else None
     if kind == "take":
         text = _line(raw.get("text"), 120)
         return {"type": kind, "before": _line(raw.get("before"), 80), "text": text, "say": say} if text else None
@@ -2690,6 +2709,7 @@ _TEXT_FIELDS = {
     "platform": (("text", 100), ("say", 300)),
     "rank": (("title", 70), ("text", 120), ("say", 300)),
     "take": (("before", 80), ("text", 120), ("say", 300)),
+    "meme": (("top", 90), ("bottom", 90), ("say", 300)),
     "client": (("field", 50), ("text", 140), ("say", 300)),
     "metrics": (("title", 60), ("say", 300)),
     "timeline": (("title", 60), ("say", 300)),
@@ -3166,6 +3186,8 @@ def script_lines(script: dict) -> list[tuple[str, str]]:
             screen = s["title"] + (f" — {s['text']}" if s.get("text") else "") + (f" ✓ {s['result']}" if s.get("result") else "")
         elif s["type"] == "take":
             screen = (f"Not: {s['before']} → " if s.get("before") else "") + s["text"]
+        elif s["type"] == "meme":
+            screen = f"{s['top']} / {s['bottom']}"
         elif s["type"] == "client":
             screen = f"{s['name']}" + (f" ({s['field']})" if s.get("field") else "") + f" — {s['text']}" + (" [example]" if s.get("example") else "")
         elif s["type"] == "metrics":
@@ -3566,7 +3588,7 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
     scenes = []
     for s in script["scenes"]:
         scene = {k: v for k, v in s.items() if k not in ("say", "product", "target", "shot")}
-        for key in ("text", "title", "label", "button", "myth", "fact", "question", "author", "name", "business", "before", "after", "headline", "tag", "result", "badge", "plan", "period", "sub", "word", "action", "sticker"):
+        for key in ("text", "title", "label", "button", "myth", "fact", "question", "author", "name", "business", "before", "after", "headline", "tag", "result", "badge", "plan", "period", "sub", "word", "action", "sticker", "top", "bottom"):
             if scene.get(key):
                 scene[key] = t(scene[key])
         if s.get("say"):
@@ -3679,6 +3701,8 @@ def default_seconds(scene: dict) -> float:
         return 2.6 + 0.35 * min(8, len(scene.get("apps") or []))
     if kind == "take":
         return 5.2 if scene.get("before") else 4.2
+    if kind == "meme":
+        return 4.6
     if kind == "metrics":
         return 3.6 + 0.8 * min(3, len(scene.get("rows") or []))
     if kind == "timeline":
@@ -4036,6 +4060,8 @@ def _scene_summary(s: dict) -> str:
         text = s.get("title") or ""
     elif t == "take":
         text = s.get("text") or ""
+    elif t == "meme":
+        text = f"{s.get('top') or ''} / {s.get('bottom') or ''}"
     elif t == "client":
         text = s.get("name") or ""
     elif t in ("metrics", "timeline", "bars"):

@@ -26,6 +26,8 @@ export function defaultSeconds(s) {
       return 4.2
     case 'take':
       return s.before ? 5.2 : 4.2
+    case 'meme': // app/motion.py default_seconds says the same
+      return 4.6
     case 'client':
       return 5.0
     case 'metrics':

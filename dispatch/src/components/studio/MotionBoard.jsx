@@ -69,6 +69,7 @@ export const SCENE_LABELS = {
   logos: 'Trusted by',
   save: 'Save this',
   take: 'Hot take',
+  meme: 'Meme',
   client: 'The customer',
   metrics: 'Before → after',
   timeline: 'Timeline',
