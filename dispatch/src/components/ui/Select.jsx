@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { FiCheck, FiChevronDown } from 'react-icons/fi'
+import { FiCheck, FiChevronDown, FiSearch } from 'react-icons/fi'
 
 // A dropdown in the app's own menu style (same look as the sidebar's brand
 // switcher) — use it instead of the browser's native <select> everywhere.
@@ -12,6 +12,7 @@ import { FiCheck, FiChevronDown } from 'react-icons/fi'
 // Values keep their type: pass numbers in, get numbers back from onChange.
 // size: "sm" (h-8, compact toolbars) | "md" (default) | "lg" (h-10 forms).
 // align: which edge the menu lines up with when it's wider than the button.
+// searchable: a search box on top of the menu — on by itself for long lists.
 const SIZES = {
   sm: 'h-8 rounded-lg px-2 text-[11.5px]',
   md: 'rounded-xl px-3 py-2 text-[12.5px]',
@@ -29,16 +30,23 @@ export default function Select({
   className = '',
   buttonClassName = '',
   title,
+  searchable,
   ...aria
 }) {
   const [open, setOpen] = useState(false)
   const [hover, setHover] = useState(-1)
   const [up, setUp] = useState(false)
   const [nudge, setNudge] = useState(null) // { left, maxWidth }: keeps a wide menu inside its panel
+  const [query, setQuery] = useState('')
   const root = useRef(null)
   const menu = useRef(null)
+  const list = useRef(null)
+  const search = useRef(null)
   const current = options.find((o) => o.value === value)
   const thumbs = options.some((o) => o.thumb)
+  const withSearch = searchable ?? options.length > 10
+  const q = query.trim().toLowerCase()
+  const shown = q ? options.filter((o) => `${o.label ?? o.value} ${o.hint || ''}`.toLowerCase().includes(q)) : options
 
   // Open upward when there's no room below (e.g. inside a popover at the
   // bottom of the screen) — measured before paint, so it never flickers.
@@ -101,10 +109,16 @@ export default function Select({
   }, [open])
 
   useEffect(() => {
-    if (open && hover >= 0) menu.current?.children[hover]?.scrollIntoView({ block: 'nearest' })
+    if (open && hover >= 0) list.current?.children[hover]?.scrollIntoView({ block: 'nearest' })
   }, [open, hover])
 
+  // the search box takes the typing at once — not on a phone, where the keyboard would cover the list
+  useEffect(() => {
+    if (open && withSearch && window.matchMedia?.('(pointer: fine)').matches) search.current?.focus()
+  }, [open, withSearch])
+
   const openMenu = () => {
+    setQuery('')
     setHover(Math.max(0, options.findIndex((o) => o.value === value)))
     setOpen(true)
   }
@@ -119,10 +133,10 @@ export default function Select({
       e.preventDefault()
       if (!open) return openMenu()
       const step = e.key === 'ArrowDown' ? 1 : -1
-      setHover((h) => (h + step + options.length) % options.length)
-    } else if ((e.key === 'Enter' || e.key === ' ') && open && options[hover]) {
+      if (shown.length) setHover((h) => (h + step + shown.length) % shown.length)
+    } else if ((e.key === 'Enter' || (e.key === ' ' && e.target !== search.current)) && open && shown[hover]) {
       e.preventDefault()
-      pick(options[hover])
+      pick(shown[hover])
     } else if (e.key === 'Tab') {
       setOpen(false)
     }
@@ -165,7 +179,27 @@ export default function Select({
             align === 'right' ? 'right-0' : 'left-0'
           } ${up ? 'bottom-[calc(100%+6px)]' : 'top-[calc(100%+6px)]'}`}
         >
-          {options.map((o, i) => {
+          {withSearch && (
+            <div className="sticky -top-1.5 z-10 -mx-1.5 -mt-1.5 mb-1 bg-white px-1.5 pb-1 pt-1.5">
+              <label className="flex items-center gap-2 rounded-lg border border-ink-200 px-2.5 py-1.5 focus-within:border-brand">
+                <FiSearch size={13} className="flex-none text-ink-400" aria-hidden="true" />
+                <input
+                  ref={search}
+                  value={query}
+                  onChange={(e) => {
+                    setQuery(e.target.value)
+                    setHover(0)
+                  }}
+                  placeholder="Search…"
+                  aria-label="Search the list"
+                  className="min-w-0 flex-1 bg-transparent text-[12px] text-ink-900 placeholder:text-ink-400 focus:outline-none"
+                />
+              </label>
+            </div>
+          )}
+          <div ref={list}>
+          {shown.length === 0 && <div className="px-2.5 py-3 text-center text-[12px] text-ink-400">No match for “{query.trim()}”</div>}
+          {shown.map((o, i) => {
             const selected = o.value === value
             return (
               <button
@@ -201,6 +235,7 @@ export default function Select({
               </button>
             )
           })}
+          </div>
         </div>
       )}
     </div>
