@@ -57,11 +57,18 @@ def _check(key: str) -> None:
     except httpx.HTTPError as exc:
         log.warning("Gemini key check couldn't reach Google: %s", exc)
         raise HTTPException(502, "Couldn't check the key with Google just now — try again in a moment.") from exc
-    if resp.status_code in (400, 401, 403):
+    if resp.status_code == 200:
+        return
+    try:
+        err = resp.json().get("error") or {}
+    except ValueError:
+        err = {}
+    why = f"{err.get('status', '')} {err.get('message', '')}".strip()[:200] or resp.text[:200]
+    log.warning("Gemini key check: Google said %s — %s", resp.status_code, why)  # the reason, never the key
+    if resp.status_code in (400, 401, 403) and ("API key" in why or "API_KEY" in why or "PERMISSION_DENIED" in why or resp.status_code == 401):
         raise HTTPException(400, "Google didn't accept that key — copy it again from Google AI Studio.")
-    if resp.status_code != 200:
-        log.warning("Gemini key check: Google said %s", resp.status_code)
-        raise HTTPException(502, "Couldn't check the key with Google just now — try again in a moment.")
+    # not about the key (the server's region, Google busy, …): the key isn't blamed
+    raise HTTPException(502, "Couldn't check the key with Google just now — try again in a moment.")
 
 
 class KeyIn(BaseModel):
