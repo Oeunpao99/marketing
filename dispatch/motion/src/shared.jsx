@@ -152,10 +152,13 @@ export const sceneFrames = (s) => Math.round((s.seconds || defaultSeconds(s)) * 
 // Plus Jakarta Sans (strong, modern — public/fonts, SIL OFL); it has no Khmer
 // letters, so those fall through to Kantumruy Pro (made for Khmer). A mixed
 // line ("កញ្ចប់ Pro $29") gets both. The render waits for both.
+// TEXT_SCALE draws every letter of both a little smaller, in every template —
+// one place instead of each scene's sizes (the layouts fit as they are).
+const TEXT_SCALE = '88%'
 const fontWait = delayRender('Loading the fonts')
 Promise.all([
-  new FontFace('CFLatin', `url(${staticFile('fonts/PlusJakartaSans.ttf')})`, { weight: '200 800' }).load(),
-  new FontFace('Kantumruy', `url(${staticFile('fonts/KantumruyPro.ttf')})`, { weight: '100 700' }).load(),
+  new FontFace('CFLatin', `url(${staticFile('fonts/PlusJakartaSans.ttf')})`, { weight: '200 800', sizeAdjust: TEXT_SCALE }).load(),
+  new FontFace('Kantumruy', `url(${staticFile('fonts/KantumruyPro.ttf')})`, { weight: '100 700', sizeAdjust: TEXT_SCALE }).load(),
 ])
   .then((faces) => {
     faces.forEach((f) => document.fonts.add(f))

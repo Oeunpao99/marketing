@@ -17,7 +17,7 @@
  *   { type: "cta",         text, button? }                   closing
  */
 import { AbsoluteFill, Img, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion'
-import { FONT, Icon, Words, clean, fitSize, srcOf, tint } from './shared'
+import { FONT, Icon, Words, clean, fitSize, srcOf } from './shared'
 
 const T = { bg: '#F6F7FB', card: '#FFFFFF', ink: '#0F172A', sub: '#526077', line: '#E3E7EF', soft: '#EEF1F7' }
 
@@ -319,12 +319,10 @@ function TrClosing({ scene, brand }) {
   )
 }
 
-/** Thin progress line at the very bottom and the logo top-left — quiet, like a deck. */
-function TrainingChrome({ scenes, brand, sceneFrames, TRANSITION }) {
-  const frame = useCurrentFrame()
-  const { durationInFrames, width, height } = useVideoConfig()
+/** The logo top-left — quiet, like a deck (no progress line). */
+function TrainingChrome({ brand }) {
+  const { width, height } = useVideoConfig()
   const wide = width > height
-  const p = Math.min(1, frame / Math.max(1, durationInFrames - 1))
   return (
     <AbsoluteFill style={{ pointerEvents: 'none' }}>
       <div style={{ position: 'absolute', top: wide ? 52 : 70, left: wide ? 120 : 72, display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -333,9 +331,6 @@ function TrainingChrome({ scenes, brand, sceneFrames, TRANSITION }) {
         ) : (
           <span style={{ fontFamily: FONT, fontWeight: 700, fontSize: 32, color: T.ink }}>{clean(brand.name)}</span>
         )}
-      </div>
-      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 8, background: tint('#0F172A', 0.08) }}>
-        <div style={{ height: '100%', width: `${p * 100}%`, background: 'var(--brand)' }} />
       </div>
     </AbsoluteFill>
   )

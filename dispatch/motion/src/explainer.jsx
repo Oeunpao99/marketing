@@ -16,7 +16,7 @@
  * Any scene may carry `caption` (its spoken line) — shown as subtitles.
  */
 import { AbsoluteFill, Img, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion'
-import { FONT, FPS, Icon, NeatGrid, TRANSITION, Words, ZWSP, clean, fitSize, sceneFrames, srcOf } from './shared'
+import { FONT, FPS, Icon, NeatGrid, Words, ZWSP, clean, fitSize, srcOf } from './shared'
 
 export const EX = {
   bg: '#FBF6EC',
@@ -626,26 +626,11 @@ export const EXPLAINER_SCENES = {
   cta: ExCta,
 }
 
-/** Progress bars (dark on cream) and the brand chip. */
-export function ExplainerChrome({ scenes, brand }) {
-  const frame = useCurrentFrame()
-  let start = 0
-  const spans = scenes.map((s, i) => {
-    const len = sceneFrames(s) - (i < scenes.length - 1 ? TRANSITION : 0)
-    const span = [start, start + len]
-    start += len
-    return span
-  })
+/** The brand chip, top-left (no progress bars — they cluttered the top). */
+export function ExplainerChrome({ brand }) {
   return (
-    <AbsoluteFill style={{ padding: '56px 48px 0', pointerEvents: 'none' }}>
-      <div style={{ display: 'flex', gap: 10 }}>
-        {spans.map(([a, b], i) => (
-          <div key={i} style={{ flex: 1, height: 8, borderRadius: 4, background: 'rgba(21,21,21,0.15)', overflow: 'hidden' }}>
-            <div style={{ height: '100%', background: EX.ink, width: `${interpolate(frame, [a, b], [0, 100], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })}%` }} />
-          </div>
-        ))}
-      </div>
-      <div style={{ marginTop: 30, alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 14, background: 'white', border: `4px solid ${EX.ink}`, borderRadius: 999, padding: brand.logo ? '8px 22px' : '12px 26px' }}>
+    <AbsoluteFill style={{ padding: '64px 48px 0', pointerEvents: 'none' }}>
+      <div style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 14, background: 'white', border: `4px solid ${EX.ink}`, borderRadius: 999, padding: brand.logo ? '8px 22px' : '12px 26px' }}>
         {/* The logo alone; the name only when there's no logo. */}
         {brand.logo ? (
           <Img src={srcOf(brand.logo)} style={{ height: 58, maxWidth: 250, objectFit: 'contain' }} />

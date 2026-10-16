@@ -607,34 +607,12 @@ function CtaScene({ scene, brand }) {
   )
 }
 
-/** Story-style bars at the top (one per scene) and the brand chip. */
-function Chrome({ scenes, brand }) {
-  const frame = useCurrentFrame()
-  let start = 0
-  const spans = scenes.map((s, i) => {
-    const len = sceneFrames(s) - (i < scenes.length - 1 ? TRANSITION : 0)
-    const span = [start, start + len]
-    start += len
-    return span
-  })
+/** The brand chip, top-left (no progress bars — they cluttered the top). */
+function Chrome({ brand }) {
   return (
-    <AbsoluteFill style={{ padding: '56px 48px 0', pointerEvents: 'none' }}>
-      <div style={{ display: 'flex', gap: 10 }}>
-        {spans.map(([a, b], i) => (
-          <div key={i} style={{ flex: 1, height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.35)', overflow: 'hidden' }}>
-            <div
-              style={{
-                height: '100%',
-                background: 'white',
-                width: `${interpolate(frame, [a, b], [0, 100], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })}%`,
-              }}
-            />
-          </div>
-        ))}
-      </div>
+    <AbsoluteFill style={{ padding: '64px 48px 0', pointerEvents: 'none' }}>
       <div
         style={{
-          marginTop: 30,
           alignSelf: 'flex-start',
           display: 'flex',
           alignItems: 'center',
