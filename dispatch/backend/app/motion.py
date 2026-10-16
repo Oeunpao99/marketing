@@ -1109,6 +1109,13 @@ def _ccol(v):
     return v if v in ("a", "b", "ink", "sub", "bg", "white", "black") else _hex(v)
 
 
+def _src_ok(v) -> bool:
+    """A picture a design may show: a brand-kit ref ("shot:N", "product:<name>")
+    or one the server already put in (/media/…, a data: image) — never a web link."""
+    v = str(v or "")
+    return bool(re.fullmatch(r"(shot:\d{1,2}|product:.{1,60})", v)) or v.startswith(("/media/", "data:image/"))
+
+
 def _num(v, lo, hi, default=None):
     try:
         n = float(v)
@@ -1186,11 +1193,11 @@ def _clean_canvas(raw: dict, say: str) -> dict | None:
         elif kind == "device":
             out["device"] = L.get("device") if L.get("device") in ("phone", "tablet", "laptop", "monitor", "screen") else "laptop"
             out["lines"] = [_line(x, 40) for x in (L.get("lines") or []) if _line(x, 40)][:6]
-            if re.fullmatch(r"(shot:\d{1,2}|product:.{1,60})", str(L.get("src") or "")):
+            if _src_ok(L.get("src")):
                 out["src"] = L["src"]
         elif kind in ("logo", "image"):
             if kind == "image":
-                if not re.fullmatch(r"(shot:\d{1,2}|product:.{1,60})", str(L.get("src") or "")):
+                if not _src_ok(L.get("src")):
                     continue
                 out["src"] = L["src"]
             if _num(L.get("size"), 30, 200) is not None:
@@ -3609,9 +3616,10 @@ def _entry() -> tuple[str, Path]:
     return "src/index.jsx", MOTION_DIR / "public"
 
 
-def render(props: dict, job_id: int | None = None) -> bytes:
+def render(props: dict, job_id: int | None = None, preview: bool = False) -> bytes:
     """The MP4 for ``props`` — Remotion, run as a subprocess. Raises
-    RuntimeError, or Stopped when the person pressed Stop."""
+    RuntimeError, or Stopped when the person pressed Stop. ``preview``: small
+    and silent, for AI design's self-check (review_design) — quick."""
     reason = not_ready()
     if reason:
         raise RuntimeError(reason)
@@ -3632,6 +3640,7 @@ def render(props: dict, job_id: int | None = None) -> bytes:
                     # all cores Remotion is allowed (containers too); the default log
                     # level prints "Rendered 120/900" lines — the page's progress
                     "--concurrency=100%",
+                    *(["--scale=0.4", "--muted", "--crf=32"] if preview else []),
                 ],
                 cwd=MOTION_DIR,
                 stdout=subprocess.PIPE,
@@ -3649,6 +3658,8 @@ def render(props: dict, job_id: int | None = None) -> bytes:
                     tail.append(line)
                     del tail[:-60]
                     m = re.search(r"Rendered (\d+)/(\d+)", line)
+                    if preview:
+                        continue  # the self-check's preview isn't the video's progress
                     if m and int(m[2]):
                         _report(job_id, render=round(int(m[1]) / int(m[2]), 3))
                     elif "Encoded" in line or "Stitch" in line:
@@ -3673,6 +3684,129 @@ def render(props: dict, job_id: int | None = None) -> bytes:
             return out.read_bytes()
         finally:
             shutil.rmtree(assets, ignore_errors=True)
+
+
+# ── AI design's self-check (stage 2) ───────────────────────────────────────
+DESIGN_REVIEW_PROMPT = (
+    "You are the art director checking an animated video's DESIGN before it is rendered for the "
+    "client. The image is a contact sheet: each scene at its settled moment, numbered 1..N in the "
+    "top-left corner. You also get the design (each scene's palette, background and layers; "
+    "x/y = a layer's centre in % of the frame).\n"
+    "Look for real problems only: text overlapping text or other elements, text or elements cut "
+    "off at the frame's edge, text too small or low contrast to read, a crowded or cluttered "
+    "scene, an empty or unbalanced one, anything in the bottom 15 % of the frame (the subtitles go "
+    "there), a reveal that looks weak.\n"
+    "Fix only what is wrong — move (x, y), resize (size, w, h), reorder (z), recolour, remove a "
+    "layer, or add a small accent. KEEP the wording, the story, the scene order and the brand.\n"
+    "Return ONLY JSON: {\"fixes\": [{\"scene\": <its number>, \"pal\"?: {...}, \"bg\"?: {...}, "
+    "\"layers\": [<the scene's FULL corrected layer list>]}], \"note\": <max 12 words>}. "
+    "\"fixes\": [] when every scene is fine."
+)
+
+
+def _sheet(mp4: bytes, times: list[float]) -> bytes | None:
+    """The preview's frame at each time, side by side with its number — one JPEG."""
+    import imageio_ffmpeg
+    from PIL import Image, ImageDraw
+
+    frames = []
+    with tempfile.TemporaryDirectory() as tmp:
+        src = Path(tmp) / "p.mp4"
+        src.write_bytes(mp4)
+        for i, t in enumerate(times):
+            out = Path(tmp) / f"f{i}.jpg"
+            subprocess.run([imageio_ffmpeg.get_ffmpeg_exe(), "-y", "-loglevel", "error", "-ss", f"{t:.2f}", "-i", str(src), "-frames:v", "1", "-q:v", "4", str(out)], capture_output=True, timeout=60)
+            if out.exists():
+                frames.append(Image.open(out).convert("RGB"))
+    if not frames:
+        return None
+    w, h = frames[0].size
+    cols = 3 if w > h else 4
+    rows = -(-len(frames) // cols)
+    sheet = Image.new("RGB", (cols * (w + 12) + 12, rows * (h + 12) + 12), "white")
+    draw = ImageDraw.Draw(sheet)
+    for i, im in enumerate(frames):
+        x, y = 12 + (i % cols) * (w + 12), 12 + (i // cols) * (h + 12)
+        sheet.paste(im.resize((w, h)), (x, y))
+        draw.rectangle([x, y, x + 46, y + 34], fill="#E11D48")
+        draw.text((x + 14, y + 8), str(i + 1), fill="white")
+    buf = io.BytesIO()
+    sheet.save(buf, "JPEG", quality=80)
+    return buf.getvalue()
+
+
+def review_design(brand: Brand, script: dict, logo: str | None, khmer: bool, job_id: int | None) -> dict:
+    """AI design (style "canvas"), stage 2: a quick small preview of the
+    designed scenes is rendered, each scene's settled frame goes on a contact
+    sheet, and the AI looks at it and fixes what looks off — overlaps, text off
+    the frame, crowding, contrast. The fixes pass _clean_canvas like any
+    design. Anything going wrong here just keeps the design as it was: the
+    check never blocks a video."""
+    from app.content_ai import ContentAIError, _chat
+
+    scenes = script.get("scenes") or []
+    if script.get("style") != "canvas" or not scenes:
+        return script
+    _report(job_id, stage="check")
+    try:
+        props = build_props(brand, script, logo, khmer)
+        mp4 = render(props, job_id, preview=True)
+        # when each scene has settled: its last layer is in, plus a second
+        times, start = [], 0.0
+        for sc in props["scenes"]:
+            dur = sc.get("seconds") or default_seconds(sc)
+            last = max([float(L.get("at") or 0) for L in sc.get("layers") or []] + [0.0])
+            times.append(start + min(dur - 0.3, last + 1.2))
+            start += dur - TRANSITION_S
+        sheet = _sheet(mp4, times)
+        if not sheet:
+            return script
+        design = [
+            {"scene": i + 1, "pal": sc.get("pal"), "bg": sc.get("bg"), "layers": [{k: ("<picture>" if k == "src" else v) for k, v in L.items()} for L in sc.get("layers") or []]}
+            for i, sc in enumerate(scenes)
+        ]
+        out = _chat(
+            [
+                {"role": "system", "content": DESIGN_REVIEW_PROMPT},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "THE DESIGN:\n" + json.dumps(design, ensure_ascii=False)},
+                        {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + base64.b64encode(sheet).decode()}},
+                    ],
+                },
+            ],
+            get_settings().azure_openai_vision_deployment or get_settings().azure_openai_deployment,
+            max_tokens=12000,
+            effort="low",
+        )
+    except Stopped:
+        raise
+    except (ContentAIError, RuntimeError, OSError, subprocess.SubprocessError, ValueError) as exc:
+        log.warning("motion %s: design check skipped: %s", job_id, exc)
+        return script
+    fixed = 0
+    for fx in (out.get("fixes") or [])[: len(scenes)]:
+        try:
+            n = int(fx.get("scene")) - 1
+        except (TypeError, ValueError):
+            continue
+        if not (0 <= n < len(scenes)) or not isinstance(fx.get("layers"), list):
+            continue
+        old = scenes[n]
+        pictures = [L.get("src") for L in old.get("layers") or [] if L.get("src")]
+        cand = {"type": "canvas", "seconds": old.get("seconds"), "pal": fx.get("pal") or old.get("pal"), "bg": fx.get("bg") or old.get("bg"), "layers": fx["layers"]}
+        # the pictures were sent as "<picture>": they keep the brand kit's own
+        for L in cand["layers"]:
+            if isinstance(L, dict) and L.get("src") == "<picture>":
+                L["src"] = pictures.pop(0) if pictures else None
+        clean = _clean_canvas(cand, old.get("say") or "")
+        if clean:
+            scenes[n] = clean
+            fixed += 1
+    log.info("motion %s: design check fixed %s scene(s) — %s", job_id, fixed, _line(out.get("note"), 80))
+    _report(job_id, design_note=f"Checked the design · {fixed} scene{'s' if fixed != 1 else ''} improved" if fixed else "Checked the design · it looks right")
+    return script
 
 
 # ── API ───────────────────────────────────────────────────────────────────
@@ -4216,6 +4350,8 @@ def _make(
             ref_shot = _shot_from_blob(read_media(ref_url) or b"", "reference") if ref_url else None  # screenshot 1, as planned
             shots_now = ([ref_shot] if ref_shot else []) + (brand_screens(db, brand.id) if script.get("style") in SCREEN_STYLES else [])
             pick_pictures(script, all_products, by_product, order, product_id, shots_now)
+            # AI design: a quick preview, the AI looks at it and fixes what looks off
+            script = review_design(brand, script, logo, "khmer" in language.lower(), job_id)
             props = build_props(brand, script, logo, "khmer" in language.lower())
             db.rollback()  # no transaction held open through the voice and render
             from app import voice_clone

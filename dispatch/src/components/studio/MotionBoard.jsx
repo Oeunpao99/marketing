@@ -112,6 +112,8 @@ export function motionStage(progress) {
       return 'Polishing the Khmer…'
     case 'pictures':
       return 'Picking your brand photos…'
+    case 'check':
+      return 'Checking its design — fixing anything that looks off…'
     case 'voice':
       return speaking >= 0 ? `Recording the voice · scene ${speaking + 1} of ${scenes.length}` : 'Recording the voice…'
     case 'render':
@@ -255,6 +257,7 @@ export function MotionMaking({ progress, pct, stage, elapsed, onStop, request = 
               {progress?.look && <LookChip look={progress.look} />}
             </div>
             {progress?.why && !thinking && <div className="mt-0.5 text-[11.5px] text-ink-400">AI picked {style}: {progress.why}</div>}
+            {progress?.design_note && <div className="mt-0.5 text-[11.5px] text-emerald-700">✓ {progress.design_note}</div>}
             {progress?.voice_note && (
               <div className="mt-1 rounded-lg bg-ink-50 px-2 py-1 text-[11.5px] text-ink-600">{progress.voice_note}</div>
             )}
