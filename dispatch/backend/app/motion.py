@@ -1848,6 +1848,16 @@ def own_scenes(text: str) -> int:
     return len(nums) if len(nums) >= 3 else 0
 
 
+_MOMENT = re.compile(r"(?m)^\s*(?:[-•*]|\d{1,2}[.)])\s+\S")
+
+
+def own_moments(text: str) -> int:
+    """The moments a numbered script lists inside its scenes (its "- 24/7
+    Monitoring" bullets, its "1. Customers captured" points) — each is a scene."""
+    first = _SCENE_HEAD.search(text or "")
+    return len(_MOMENT.findall(text[first.start():])) if first else 0
+
+
 def own_voice(text: str) -> list[str]:
     """The script's own voice lines ("Voice: …"), quotes taken off."""
     return [ln.strip().strip("\"“”«»'").strip() for ln in _VOICE_LINE.findall(text or "") if ln.strip()]
@@ -1860,12 +1870,25 @@ def own_design(text: str) -> bool:
     return own_scenes(text) >= 3 and len(_LOOK_WORDS.findall(text or "")) >= 4
 
 
+def stated_seconds(text: str) -> int:
+    """The length a brief asks for in its first lines ("Duration: about 2 minutes
+    (120 seconds)", "about 80 seconds") — 0 when it doesn't say."""
+    head = (text or "")[:600]
+    m = re.search(r"(\d{2,3})\s*(?:seconds|secs?)\b", head, re.I)
+    if m:
+        return int(m[1])
+    m = re.search(r"(\d(?:\.\d)?)\s*(?:minutes?|mins?)\b", head, re.I)
+    return int(float(m[1]) * 60) if m else 0
+
+
 def story_seconds(text: str, length: str = "auto", cap: int = 120) -> int:
     """How long a story video should be: "60" / "120" / "300" / "600", or from
     how long the story takes to read aloud (Khmer ~11 characters a second,
     English ~2.6 words), between 30 s and ``cap`` (2 minutes; 10 for a training)."""
     if length in ("60", "120", "300", "600"):
         return min(int(length), cap)
+    if stated_seconds(text) >= 20:  # the brief says how long
+        return int(min(cap, stated_seconds(text)))
     lines = own_voice(text)
     if lines and own_scenes(text):  # a written script: its voice lines + a beat per scene
         said = " ".join(lines)
@@ -2721,17 +2744,19 @@ def write_script(
     if story:
         count = max(5, min(MAX_LONG_SCENES if style in LONG_STYLES else MAX_STORY_SCENES, round(seconds / 6.5)))
         numbered = own_scenes(idea)
-        if numbered:  # their own scene list: that many scenes, no more
-            count = max(2, min(MAX_LONG_SCENES if style in LONG_STYLES else MAX_STORY_SCENES, numbered))
+        if numbered:  # their own scene list — plus a scene for each moment a scene lists
+            count = max(2, min(MAX_LONG_SCENES if style in LONG_STYLES else MAX_STORY_SCENES, numbered + own_moments(idea)))
         most = count  # the person's story sets the length, not the template
         extra += STORY_RULES.format(count=count, seconds=seconds)
         if numbered:
             extra += (
-                f"\nTHE SCRIPT IS WRITTEN SCENE BY SCENE ({numbered} numbered scenes): make ONE scene per "
-                "numbered scene, in the same order — never split one into two, never merge two, never "
-                "drop one (a scene whose visual doesn't fit a scene type is shown with the closest one). "
-                "Its hook is scene 1; if the template needs a closing call to action, it is the last "
-                "scene's own call to action, not an extra scene. When a scene gives its own Voice line, "
+                f"\nTHE SCRIPT IS WRITTEN SCENE BY SCENE ({numbered} numbered scenes): follow them in the same "
+                "order — never merge two, never drop one (a scene whose visual doesn't fit a scene type is "
+                "shown with the closest one). A numbered scene that lists several moments of its own "
+                "(features one at a time, a reveal then its points) gets ONE scene per moment, in its "
+                f"order; otherwise one scene. About {count} scenes in all. Its hook is scene 1; if the "
+                "template needs a closing call to action, it is the last scene's own call to action or "
+                "final line, not an extra scene. When a scene gives its own Voice line, "
                 "`say` is THAT line, word for word — never write a voice line the script doesn't have, "
                 "and never add the brand's name or a slogan it doesn't say. Its on-screen text stays "
                 "exactly as written."
@@ -2751,7 +2776,7 @@ def write_script(
         ],
         model,
         # AI design writes every layer of every scene — it needs more room
-        max_tokens=(32000 if style in LONG_STYLES else 16000) if story else (20000 if style == "canvas" else 9000),
+        max_tokens=(32000 if style in LONG_STYLES or style == "canvas" else 16000) if story else (20000 if style == "canvas" else 9000),
         # A storyboard follows the template's recipe — it doesn't need long
         # reasoning; the default (medium) took 1-2 minutes on gpt-5-mini. The
         # Khmer editor pass after it still runs at high effort.
@@ -2766,6 +2791,7 @@ def write_script(
     if style == "canvas":
         # AI design: its own scenes in the brief's order (no hook / CTA types), and its checklist
         if len(scenes) < 2:
+            log.warning("AI design unusable: %d scenes back, %d kept", len(raw.get("scenes") or []), len(scenes))
             raise ContentAIError("The AI didn't return a usable storyboard — try again.")
         r, g, b = accent_for(brand.slug)
         theme = clean_theme(raw.get("theme"), f"#{r:02x}{g:02x}{b:02x}")
@@ -2810,7 +2836,16 @@ def write_script(
                 kept.append(sc)
         middle = kept
     middle = middle[:most]
-    if not hooks or not ctas or not middle or (must and not any(s["type"] == must for s in middle)):
+    if story and len(scenes) >= 2 and not (hooks and ctas):
+        # their own script needn't open on a "hook" or end on a "cta" scene
+        # type (a grand reveal, a tagline): it is kept as written, in its order
+        log.info("storyboard: their script kept in its own order (%s)", ", ".join(s["type"] for s in scenes))
+        hooks, ctas, middle = [scenes[0]], [scenes[-1]], scenes[1:-1][:most]
+    if not hooks or not ctas or not middle or (must and not story and not any(s["type"] == must for s in middle)):
+        log.warning(
+            "storyboard unusable (%s): %d scenes back (%s), hook %s, cta %s",
+            style, len(raw.get("scenes") or []), ", ".join(str(x.get("type")) for x in (raw.get("scenes") or []) if isinstance(x, dict))[:300], bool(hooks), bool(ctas),
+        )
         raise ContentAIError("The AI didn't return a usable storyboard — try again.")
     script = {"scenes": [hooks[0], *middle, ctas[0]], "style": style}
     if story:  # a chart / number the story never gave becomes a plain statement of that line
