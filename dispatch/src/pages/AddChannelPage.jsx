@@ -13,6 +13,7 @@ import Tag from "../components/ui/Tag";
 import { PLAT } from "../data/brands";
 import { colorForBrand } from "../lib/brandColor";
 import { useStore } from "../store";
+import { BrandMark, useBrandLogos } from '../lib/brandMarks';
 
 /** Strip t.me / telegram.me URLs and a leading @, keep numeric -100… ids as-is. */
 function normalizeChatId(raw) {
@@ -89,6 +90,7 @@ const PLATFORM_META = {
 };
 
 export default function AddChannelPage() {
+  const logos = useBrandLogos();
   const { brands, channels, setChannels, refreshChannels, showToast } = useStore();
   const location = useLocation();
   const navigate = useNavigate();
@@ -617,13 +619,17 @@ export default function AddChannelPage() {
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <span
-                    className="w-3 h-3 rounded-full flex-none"
-                    style={{
-                      background: color,
-                      boxShadow: `0 0 8px ${color}30`,
-                    }}
-                  />
+                  {logos[b.id] ? (
+                    <BrandMark brand={b} logo={logos[b.id]} size={28} />
+                  ) : (
+                    <span
+                      className="w-3 h-3 rounded-full flex-none"
+                      style={{
+                        background: color,
+                        boxShadow: `0 0 8px ${color}30`,
+                      }}
+                    />
+                  )}
                   <div className="flex-1 min-w-0">
                     <div className="font-semibold text-ink-800 text-sm">
                       {b.name}

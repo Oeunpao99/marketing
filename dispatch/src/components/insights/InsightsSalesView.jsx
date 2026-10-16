@@ -19,9 +19,9 @@ import {
 } from 'react-icons/fi'
 import { api } from '../../api/client'
 import { useStore } from '../../store'
-import { colorForBrand } from '../../lib/brandColor'
 import Select from '../ui/Select'
 import { downloadCsv, insightsCsv } from '../../lib/insightsCsv'
+import { useBrandMarks } from '../../lib/brandMarks'
 
 // The 9 goals in 3 stages corresponding to backend app/goals.py and src/lib/goals.js
 const GOAL_SPECS = [
@@ -119,6 +119,7 @@ export default function InsightsSalesView({
   mode = 'sales',
   onSwitchMode,
 }) {
+  const markOf = useBrandMarks()
   const { brands, showToast } = useStore()
   const [rangeId, setRangeId] = useState('today')
   const [brandId, setBrandId] = useState(0) // 0 = all brands
@@ -468,7 +469,7 @@ export default function InsightsSalesView({
                 ...brands.map((b) => ({
                   value: b.id,
                   label: b.name,
-                  color: colorForBrand(b.slug),
+                  ...markOf(b),
                 })),
               ]}
             />

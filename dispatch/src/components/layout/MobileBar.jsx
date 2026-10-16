@@ -26,12 +26,12 @@ import {
   FiZap,
 } from "react-icons/fi";
 import { useAuth } from "../../auth";
-import { colorForBrand } from "../../lib/brandColor";
 import { canOpen } from "../../lib/access";
 import { useNotifications } from "../../lib/notifications";
 import { useStore } from "../../store";
 import { openCreateBrand } from "./CreateBrandDrawer";
 import { applyUpdate } from "../../lib/update";
+import { BrandMark, useBrandLogos } from '../../lib/brandMarks';
 
 // Phone navigation: four everyday tabs + the AI button, and "More" — a bottom
 // sheet with every module, the brand switcher, Inbox, Settings and sign-out,
@@ -143,6 +143,7 @@ export default function MobileBar() {
 }
 
 function MoreSheet({ onClose }) {
+  const logos = useBrandLogos();
   const { brands, activeBrand, switchBrand, showToast, libraryNew } = useStore();
   const { user, logout } = useAuth();
   const modules = MODULES.filter((m) => canOpen(user, m.to));
@@ -207,7 +208,7 @@ function MoreSheet({ onClose }) {
                     on ? "border-brand bg-brand-soft text-brand" : "border-ink-200 text-ink-700"
                   }`}
                 >
-                  <span className="h-2.5 w-2.5 rounded-full" style={{ background: colorForBrand(b.slug) }} />
+                  <BrandMark brand={b} logo={logos[b.id]} size={18} />
                   {b.name}
                   {on && <FiCheck size={13} />}
                 </button>

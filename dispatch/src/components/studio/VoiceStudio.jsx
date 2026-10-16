@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { FiCheck } from 'react-icons/fi'
 import { useStore } from '../../store'
-import { colorForBrand } from '../../lib/brandColor'
 import BrandVoice from '../brandkit/BrandVoice'
+import { BrandMark, useBrandLogos } from '../../lib/brandMarks'
 
 // Content studio → Voice: record or upload the owner's voice so videos can
 // speak in it — one voice per brand (the same card as Products → Brand kit).
 export default function VoiceStudio() {
+  const logos = useBrandLogos()
   const { brands, showToast } = useStore()
   const [pick, setPick] = useState(null)
   const brand = brands.find((b) => b.id === pick) || brands[0]
@@ -27,7 +28,7 @@ export default function VoiceStudio() {
                   on ? 'border-brand-line bg-brand-soft text-brand' : 'border-ink-200 bg-white text-ink-600 hover:border-brand-line'
                 }`}
               >
-                <span className="h-2 w-2 flex-none rounded-full" style={{ background: colorForBrand(b.slug) }} />
+                <BrandMark brand={b} logo={logos[b.id]} size={16} />
                 {b.name}
                 {b.voiceReady && <FiCheck size={12} className="text-emerald-600" aria-label="has a voice" />}
               </button>

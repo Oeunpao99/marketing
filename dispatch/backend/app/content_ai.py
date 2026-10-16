@@ -578,6 +578,20 @@ BILINGUAL_GUIDE = (
 )
 
 
+# English captions in plain English (CEFR A2-B1) — most readers in Cambodia
+# learned English at school; the video scripts follow the same rule
+# (motion._PLAIN_ENGLISH).
+ENGLISH_GUIDE = (
+    "\n\nENGLISH — PLAIN ENGLISH for learners (CEFR A2-B1): someone who learned English at "
+    "school must understand every word the first time. Short sentences (max 15 words), one idea "
+    "each, common everyday words, \"you\" and \"we\". No idioms or slang (\"game-changer\", "
+    "\"level up\", \"hit the ground running\"), no buzzwords (leverage, seamless, streamline, "
+    "empower, unlock, elevate, robust, cutting-edge, revolutionize, synergy, next-gen, "
+    "effortless). A technical word only when needed — then say what it means in simple words. "
+    "Friendly and clear beats clever."
+)
+
+
 def _is_bilingual(brand_lang: str) -> bool:
     return "then english" in (brand_lang or "").lower()
 
@@ -615,9 +629,9 @@ FORMATS = ("image", "text", "video")
 def _system_prompt(brand_lang: str, week: bool = False) -> str:
     base = SYSTEM_PROMPT.replace("for ONE day", "for ONE week") + WEEK_GUIDE if week else SYSTEM_PROMPT
     if not _is_khmer(brand_lang):
-        return base
+        return base + ENGLISH_GUIDE
     if _is_bilingual(brand_lang):
-        return base + BILINGUAL_GUIDE
+        return base + BILINGUAL_GUIDE + ENGLISH_GUIDE.replace("ENGLISH —", "THE ENGLISH HALF —")
     mixed = "english" in (brand_lang or "").lower()
     return base + (MIXED_GUIDE if mixed else KHMER_GUIDE)
 

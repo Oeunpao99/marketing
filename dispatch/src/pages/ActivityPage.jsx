@@ -11,12 +11,12 @@ import {
   FiZap,
 } from 'react-icons/fi'
 import { api } from '../api/client'
-import { colorForBrand } from '../lib/brandColor'
 import { PLAT } from '../data/brands'
 import { fullDayLabel } from '../lib/tz'
 import { useSmoothProgress } from '../lib/autoRuns'
 import { useStore } from '../store'
 import Select from '../components/ui/Select'
+import { useBrandMarks } from '../lib/brandMarks'
 
 // Activity plan (backend app/activity.py): the goals the AI picked for the
 // brand's week and the team's day-by-day to-do list — a shared checklist.
@@ -41,6 +41,7 @@ const short = (iso) => {
 }
 
 export default function ActivityPage() {
+  const markOf = useBrandMarks()
   const { brands, activeBrand, switchBrand, showToast } = useStore()
   const brand = brands.find((b) => b.slug === activeBrand) || brands[0]
   const [week, setWeek] = useState(null) // Monday, YYYY-MM-DD; null = this week
@@ -143,7 +144,7 @@ export default function ActivityPage() {
             value={brand.slug}
             onChange={switchBrand}
             buttonClassName="font-medium"
-            options={brands.map((b) => ({ value: b.slug, label: b.name, color: colorForBrand(b.slug) }))}
+            options={brands.map((b) => ({ value: b.slug, label: b.name, ...markOf(b) }))}
           />
         )}
       </div>

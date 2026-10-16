@@ -8,7 +8,6 @@ import { GOALS, goalOfItem, ruleAction, stageOf } from '../lib/goals'
 import { phnomPenhClock } from '../lib/tz'
 import { kitSrc } from '../components/brandkit/BrandKit'
 import PlatformIcon, { PLAT_BRAND_CLASS } from '../components/ui/PlatformIcon'
-import { colorForBrand } from '../lib/brandColor'
 import { useSmoothProgress } from '../lib/autoRuns'
 import { useStore } from '../store'
 import { PLAT } from '../data/brands'
@@ -16,6 +15,7 @@ import Select from '../components/ui/Select'
 import BestTime from '../components/weekly/BestTime'
 import ContentGoals from '../components/weekly/ContentGoals'
 import PlanBoard, { formatOf, pictureBusy } from '../components/weekly/PlanBoard'
+import { useBrandMarks } from '../lib/brandMarks'
 
 // The plan habit (backend app/weekly.py): how the last 7 days went, what the
 // AI learned, and the coming posts — next week's, or tomorrow's for a brand
@@ -32,6 +32,7 @@ const spanOf = (planEvery) => (planEvery === 'day' ? 'tomorrow' : 'next week')
 const khmer = (text) => (/[ក-៿]/.test(text || '') ? 'font-khmer' : '')
 
 export default function WeeklyPage() {
+  const markOf = useBrandMarks()
   const { brands, activeBrand, switchBrand, refreshReview, showToast } = useStore()
   const brand = brands.find((b) => b.slug === activeBrand) || brands[0]
   const [data, setData] = useState(null)
@@ -345,7 +346,7 @@ export default function WeeklyPage() {
               value={brand.slug}
               onChange={switchBrand}
               buttonClassName="font-medium"
-              options={brands.map((b) => ({ value: b.slug, label: b.name, color: colorForBrand(b.slug) }))}
+              options={brands.map((b) => ({ value: b.slug, label: b.name, ...markOf(b) }))}
             />
           )}
         </div>

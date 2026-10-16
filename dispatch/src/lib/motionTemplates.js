@@ -166,34 +166,31 @@ export const MOTION_TEMPLATES = [
     goals: ['conversion'],
   },
   {
-    // not in a goal's rotation yet (app/motion.py GOAL_STYLES) — picked by hand or by Auto
     id: 'techflow',
     story: 'techflow',
     name: 'Tech explainer',
     look: 'How a technology works — dark navy grid, line-drawn devices, cyan data packets travelling, an address changing, a lookup typing out, the network path, a checklist',
     steps: ['The question', 'Device → device', 'The address', 'The lookup', 'The path', 'It comes back', 'Remember'],
     note: 'For “how does it work” topics — the internet, email, payments, apps, AI',
-    goals: [],
+    goals: ['education', 'authority'],
   },
   {
-    // not in a goal's rotation yet (app/motion.py GOAL_STYLES) — picked by hand or by Auto
     id: 'gridcards',
     story: 'gridcards',
     name: 'How it works · Grid',
     look: 'Grid paper, navy and lime — the repetitive work on cards, then one photo becoming a post, a price poster and a caption; word-by-word subtitles',
     steps: ['Hook', 'The work today', 'One → many', 'What else', 'Call to action'],
     note: 'Add a product photo in Products → Brand kit — it becomes the one input',
-    goals: [],
+    goals: ['education', 'solution'],
   },
   {
-    // not in a goal's rotation yet (app/motion.py GOAL_STYLES) — picked by hand or by Auto
     id: 'unveil',
     story: 'unveil',
     name: 'Unveil',
     look: 'A light, elegant launch — one big word, the app card coming into focus, a field typing itself, a check with confetti',
     steps: ['Hook', 'Big word + card', 'Typing', 'Done ✓', 'Call to action'],
     note: 'Best for a new feature: what it lets you do, the click, the result',
-    goals: [],
+    goals: ['conversion', 'awareness'],
   },
   {
     id: 'showcase',

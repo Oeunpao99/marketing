@@ -31,7 +31,6 @@ import { MotionMaking, motionPercent, motionStage } from '../components/studio/M
 import StoryboardEditor from '../components/studio/StoryboardEditor'
 import StoryEditor from '../components/story/StoryEditor'
 import { handoff } from '../lib/handoff'
-import { colorForBrand } from '../lib/brandColor'
 import { trackJob, untrackJob } from '../lib/genJobs'
 import { fmtUSD } from '../lib/money'
 import { PILLAR_LABELS, pillarChipClass } from '../lib/angles'
@@ -42,6 +41,7 @@ import { aiModelStore } from '../api/client'
 import { MOTION_TEMPLATES, previewSrc } from '../lib/motionTemplates'
 import MakingDrawer from '../components/studio/MakingDrawer'
 import { backupName, useVoiceStatus } from '../lib/voiceStatus'
+import { useBrandMarks } from '../lib/brandMarks'
 
 // AI Agent — one chat for both asking and creating. A message that reads
 // like a question ("how is my engagement?", "what should I post next?") goes
@@ -2291,6 +2291,7 @@ function SettingsPopover({
   voice, setVoice, brands, brand, setBrand, style, setStyle, template, setTemplate,
   products = [], product, setProduct, onClose,
 }) {
+  const markOf = useBrandMarks()
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', onKey)
@@ -2527,7 +2528,7 @@ function SettingsPopover({
             align="right"
             value={brand || ''}
             onChange={setBrand}
-            options={brands.map((b) => ({ value: b.slug, label: b.name, color: colorForBrand(b.slug) }))}
+            options={brands.map((b) => ({ value: b.slug, label: b.name, ...markOf(b) }))}
           />
         </Row>
 

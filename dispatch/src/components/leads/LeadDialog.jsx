@@ -5,6 +5,7 @@ import AutoTextarea from '../ui/AutoTextarea'
 import Select from '../ui/Select'
 import { api } from '../../api/client'
 import { chatText, parseChat } from '../../lib/leads'
+import { useBrandMarks } from '../../lib/brandMarks'
 
 // Add or edit a lead — what a chatbot sends later, entered by hand for now.
 // Leave the score empty and the server works it out from what is filled in.
@@ -22,6 +23,7 @@ function Field({ label, hint, children }) {
 }
 
 export default function LeadDialog({ lead, brands, defaultBrandId, saving, onSave, onClose }) {
+  const markOf = useBrandMarks()
   const [f, setF] = useState({
     brand_id: lead?.brand_id || defaultBrandId || brands[0]?.id,
     name: lead?.name || '',
@@ -101,7 +103,7 @@ export default function LeadDialog({ lead, brands, defaultBrandId, saving, onSav
                 <Select
                   value={f.brand_id}
                   onChange={(v) => setF((x) => ({ ...x, brand_id: v, post_id: 0 }))}
-                  options={brands.map((b) => ({ value: b.id, label: b.name }))}
+                  options={brands.map((b) => ({ value: b.id, label: b.name, ...markOf(b) }))}
                 />
               </Field>
             </div>

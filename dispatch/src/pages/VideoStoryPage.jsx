@@ -6,6 +6,7 @@ import AutoTextarea from '../components/ui/AutoTextarea'
 import Select from '../components/ui/Select'
 import StoryEditor, { StatusPill, storyInput as input } from '../components/story/StoryEditor'
 import { useStore } from '../store'
+import { useBrandMarks } from '../lib/brandMarks'
 
 // Video stories on their own page: the list, a full create form, and one
 // story full-size (/story?id= — where the "scenes ready" notifications land).
@@ -31,6 +32,7 @@ function sceneCount(totalSeconds, sceneSeconds) {
 }
 
 export default function VideoStoryPage() {
+  const markOf = useBrandMarks()
   const { brands, activeBrand, showToast } = useStore()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -175,7 +177,7 @@ export default function VideoStoryPage() {
                 onChange={selectBrand}
                 disabled={!brands.length}
                 placeholder={brands.length ? 'Select a brand' : 'Create a brand first'}
-                options={brands.map((brand) => ({ value: brand.id, label: brand.name }))}
+                options={brands.map((brand) => ({ value: brand.id, label: brand.name, ...markOf(brand) }))}
               />
             </div>
             <div>

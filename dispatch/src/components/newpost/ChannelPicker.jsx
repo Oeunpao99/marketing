@@ -1,8 +1,10 @@
 import { PLAT } from '../../data/brands'
 import { colorForBrand } from '../../lib/brandColor'
 import PlatformIcon, { PLAT_BRAND_CLASS as PLAT_COLORS } from '../ui/PlatformIcon'
+import { BrandMark, useBrandLogos } from '../../lib/brandMarks'
 
 export default function ChannelPicker({ brands, channels, selectedChannels, toggle }) {
+  const logos = useBrandLogos()
   return (
     <section className="mb-7">
       <h2 className="mb-2.5 text-[10px] font-bold tracking-[.08em] uppercase text-ink-400">Where it goes</h2>
@@ -13,7 +15,7 @@ export default function ChannelPicker({ brands, channels, selectedChannels, togg
           return (
             <div key={b.id} className="bg-white border border-ink-100 rounded-2xl px-4 py-3.5 shadow-card hover:shadow-card-hover transition-all duration-150">
               <div className="flex items-center gap-2 mb-1">
-                <span className="w-2 h-2 rounded-full" style={{ background: color, boxShadow: `0 0 6px ${color}30` }} />
+                {logos[b.id] ? <BrandMark brand={b} logo={logos[b.id]} size={18} /> : <span className="w-2 h-2 rounded-full" style={{ background: color, boxShadow: `0 0 6px ${color}30` }} />}
                 <span className="text-sm font-bold text-ink-800">{b.name}</span>
               </div>
               <div className="text-[11px] text-ink-400 mb-2">{b.lang}</div>

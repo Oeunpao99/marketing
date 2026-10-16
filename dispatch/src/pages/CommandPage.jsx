@@ -2,9 +2,9 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { FiArrowDownRight, FiArrowUpRight, FiCheck, FiChevronRight, FiPlus, FiRefreshCw } from 'react-icons/fi'
 import { api } from '../api/client'
-import { colorForBrand } from '../lib/brandColor'
 import { useStore } from '../store'
 import Select from '../components/ui/Select'
+import { useBrandMarks } from '../lib/brandMarks'
 
 // Command center (backend app/command.py): what the AI is doing, and the few
 // things that need a person. One read, refreshed every minute; rows link to
@@ -16,6 +16,7 @@ const fmt = (n) => (n == null ? '—' : n >= 10000 ? `${(n / 1000).toFixed(1)}k`
 const pct = (now, before) => (now != null && before > 0 ? Math.round(((now - before) / before) * 100) : null)
 
 export default function CommandPage() {
+  const markOf = useBrandMarks()
   const { brands, showToast, refreshReview } = useStore()
   const [brandId, setBrandId] = useState(0) // 0 = all brands
   const [data, setData] = useState(null)
@@ -76,7 +77,7 @@ export default function CommandPage() {
               buttonClassName="font-medium"
               options={[
                 { value: 0, label: 'All brands', hint: brands.map((b) => b.name).join(' · ') },
-                ...brands.map((b) => ({ value: b.id, label: b.name, color: colorForBrand(b.slug) })),
+                ...brands.map((b) => ({ value: b.id, label: b.name, ...markOf(b) })),
               ]}
             />
           )}

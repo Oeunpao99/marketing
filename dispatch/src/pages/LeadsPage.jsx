@@ -3,7 +3,6 @@ import { useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { FiPlus, FiUsers, FiX } from 'react-icons/fi'
 import { api } from '../api/client'
-import { colorForBrand } from '../lib/brandColor'
 import { TEMP, slaLine, statusChip } from '../lib/leads'
 import { useStore } from '../store'
 import Select from '../components/ui/Select'
@@ -11,6 +10,7 @@ import LeadDialog from '../components/leads/LeadDialog'
 import SalesTeamTab from '../components/leads/SalesTeamTab'
 import CustomersTab from '../components/leads/CustomersTab'
 import { useAuth } from '../auth'
+import { useBrandMarks } from '../lib/brandMarks'
 
 // Leads & hand-off (backend app/leads.py): qualified chatbot leads, the rep
 // the hand-off rules pick for each, and the sales team's load. Leads arrive by
@@ -20,6 +20,7 @@ const card = 'bg-white rounded-2xl border border-ink-200/60 shadow-[0_1px_2px_rg
 const khmer = (text) => (/[ក-៿]/.test(text || '') ? 'font-khmer' : '')
 
 export default function LeadsPage() {
+  const markOf = useBrandMarks()
   const { brands, showToast } = useStore()
   const [brandId, setBrandId] = useState(0) // 0 = all brands
   const [data, setData] = useState(null)
@@ -147,7 +148,7 @@ export default function LeadsPage() {
               buttonClassName="font-medium"
               options={[
                 { value: 0, label: 'All brands', hint: brands.map((b) => b.name).join(' · ') },
-                ...brands.map((b) => ({ value: b.id, label: b.name, color: colorForBrand(b.slug) })),
+                ...brands.map((b) => ({ value: b.id, label: b.name, ...markOf(b) })),
               ]}
             />
           )}

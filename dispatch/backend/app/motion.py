@@ -1751,13 +1751,13 @@ def estimate_seconds(script: dict) -> int:
 # random per video, so a week's plan doesn't repeat the same look.
 GOAL_STYLES = {
     "sell": ("tech",),
-    "solution": ("tech", "demo", "custom", "showcase", "clarity"),
-    "conversion": ("offer", "tech", "launch", "reviews", "casestudy"),
+    "solution": ("tech", "demo", "custom", "showcase", "clarity", "gridcards"),
+    "conversion": ("offer", "tech", "launch", "reviews", "casestudy", "unveil"),
     "teach": ("explainer",),
-    "education": ("explainer", "training", "custom", "clarity", "tips"),
+    "education": ("explainer", "training", "custom", "clarity", "tips", "gridcards", "techflow"),
     "reach": ("pov", "explainer", "countdown", "thisorthat", "hottake"),
-    "awareness": ("trend", "custom", "clarity", "showcase", "report"),
-    "authority": ("versus", "report", "casestudy", "hottake", "clarity"),
+    "awareness": ("trend", "custom", "clarity", "showcase", "report", "unveil", "canvas"),
+    "authority": ("versus", "report", "casestudy", "hottake", "clarity", "techflow"),
     "engagement": ("poll", "thisorthat", "faq", "countdown", "hottake"),
     "followers": ("quote", "explainer", "tips", "countdown", "hottake"),
     "trust": ("testimonial", "reviews", "casestudy", "faq", "report"),

@@ -10,6 +10,7 @@ import { colorForBrand } from '../lib/brandColor'
 import { phnomPenhClock, phnomPenhDate } from '../lib/tz'
 import { useStore } from '../store'
 import Select from '../components/ui/Select'
+import { useBrandMarks } from '../lib/brandMarks'
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -38,6 +39,7 @@ const timeOf = (it) => {
 const platformsOf = (it) => [...new Set((it.targets || []).map((t) => t.platform_name).filter(Boolean))]
 
 export default function CalendarPage() {
+  const markOf = useBrandMarks()
   const { brands, showToast, activeBrand } = useStore()
   const navigate = useNavigate()
   const today = phnomPenhDate(0) // "YYYY-MM-DD"
@@ -256,7 +258,7 @@ export default function CalendarPage() {
             ...brands.map((b) => ({
               value: b.slug,
               label: b.name,
-              color: colorForBrand(b.slug),
+              ...markOf(b),
               hint: `${brandCounts[b.slug] || 0} this month`,
             })),
           ]}

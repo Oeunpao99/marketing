@@ -4,6 +4,7 @@ import { FiEdit2, FiPlus, FiX } from 'react-icons/fi'
 import { api } from '../../api/client'
 import { useStore } from '../../store'
 import Select from '../ui/Select'
+import { useBrandMarks } from '../../lib/brandMarks'
 
 // Setup → "Chat link in every post": the brand's chatbot (Telegram bot and/or
 // Messenger page). When a post is published, ContentFlow adds a line like
@@ -17,6 +18,7 @@ const DEFAULT_LABEL = '👉 Chat with us:'
 const handle = (v) => (v || '').trim().replace(/^(https?:\/\/)?(www\.)?(t\.me\/|telegram\.me\/|m\.me\/|facebook\.com\/)/i, '').replace(/^@/, '').replace(/\/+$/, '')
 
 export default function ChatLinkCard({ brandSlug }) {
+  const markOf = useBrandMarks()
   const { brands, showToast } = useStore()
   const [brandId, setBrandId] = useState(null)
   const [f, setF] = useState(null)
@@ -91,7 +93,7 @@ export default function ChatLinkCard({ brandSlug }) {
           {brands.length > 1 && (
             <div className="w-[220px]">
               <span className="label">Brand</span>
-              <Select value={brandId} onChange={setBrandId} options={brands.map((b) => ({ value: b.id, label: b.name }))} />
+              <Select value={brandId} onChange={setBrandId} options={brands.map((b) => ({ value: b.id, label: b.name, ...markOf(b) }))} />
             </div>
           )}
           <div className="min-w-0 pb-1 text-[12.5px] text-ink-700">

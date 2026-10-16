@@ -1,3 +1,4 @@
+import { useBrandMarks } from '../lib/brandMarks'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import InsightsSalesView from '../components/insights/InsightsSalesView'
@@ -636,6 +637,7 @@ function ContentTypeChart({ rows, height = 260 }) {
 }
 
 export default function InsightsPage() {
+  const markOf = useBrandMarks()
   const { brands, channels, showToast } = useStore()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -1142,7 +1144,7 @@ export default function InsightsPage() {
           label="Brand"
           options={[
             { value: 'all', label: 'All brands' },
-            ...brands.map((b) => ({ value: b.slug, label: b.name, color: colorForBrand(b.slug) })),
+            ...brands.map((b) => ({ value: b.slug, label: b.name, ...markOf(b) })),
           ]}
         />
         <Dropdown

@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 
 from app.advisor import _take_quota
 from app.content_ai import (
+    ENGLISH_GUIDE,
     KHMER_GUIDE,
     ContentAIError,
     _chat,
@@ -168,7 +169,7 @@ def improve(target_id: int, db: Session = Depends(get_db), ws: int = Depends(cur
     try:
         out = _chat(
             [
-                {"role": "system", "content": SYSTEM_PROMPT + (KHMER_GUIDE if khmer else "")},
+                {"role": "system", "content": SYSTEM_PROMPT + (KHMER_GUIDE if khmer else ENGLISH_GUIDE)},
                 {"role": "user", "content": "\n".join(lines)},
             ],
             model,

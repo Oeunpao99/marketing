@@ -15,9 +15,9 @@ import {
   FiZap,
 } from 'react-icons/fi'
 import { api } from '../api/client'
-import { colorForBrand } from '../lib/brandColor'
 import { useStore } from '../store'
 import Select from '../components/ui/Select'
+import { useBrandMarks } from '../lib/brandMarks'
 
 // Website check (backend app/website.py): is the brand's site working, can
 // Google find it, does it look good when shared, how fast is it, and is the
@@ -244,6 +244,7 @@ function JobBar({ job }) {
 }
 
 export default function WebsitePage() {
+  const markOf = useBrandMarks()
   const { brands, activeBrand, switchBrand, showToast } = useStore()
   const brand = brands.find((b) => b.slug === activeBrand) || brands[0]
   const [data, setData] = useState(null)
@@ -333,7 +334,7 @@ export default function WebsitePage() {
             value={brand.slug}
             onChange={switchBrand}
             buttonClassName="font-medium"
-            options={brands.map((b) => ({ value: b.slug, label: b.name, color: colorForBrand(b.slug) }))}
+            options={brands.map((b) => ({ value: b.slug, label: b.name, ...markOf(b) }))}
           />
         )}
       </div>

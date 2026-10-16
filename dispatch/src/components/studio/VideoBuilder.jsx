@@ -6,6 +6,7 @@ import { useStore } from '../../store'
 import AutoTextarea from '../ui/AutoTextarea'
 import Select from '../ui/Select'
 import StoryEditor, { storyInput } from '../story/StoryEditor'
+import { useBrandMarks } from '../../lib/brandMarks'
 
 // Content studio → Video builder. No video open: the brief on the left and the
 // clip board (dimmed preview + recent videos) on the right. A video open
@@ -35,6 +36,7 @@ const langFor = (brand) =>
   /khmer/i.test(brand?.lang || '') ? (/english/i.test(brand.lang) ? 'Khmer + English' : 'Khmer') : 'English'
 
 export default function VideoBuilder() {
+  const markOf = useBrandMarks()
   const { brands, activeBrand, showToast } = useStore()
   const navigate = useNavigate()
   const location = useLocation()
@@ -134,7 +136,7 @@ export default function VideoBuilder() {
         <h2 className="text-[15px] font-semibold text-ink-900">Brief</h2>
         {brands.length > 1 ? (
           <div className="mt-3">
-            <Select value={brand?.id} onChange={setBrandId} options={brands.map((b) => ({ value: b.id, label: b.name }))} />
+            <Select value={brand?.id} onChange={setBrandId} options={brands.map((b) => ({ value: b.id, label: b.name, ...markOf(b) }))} />
           </div>
         ) : (
           brand && <p className="mt-0.5 text-[12px] text-ink-500">{brand.name}</p>
