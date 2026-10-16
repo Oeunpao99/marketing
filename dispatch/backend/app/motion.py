@@ -1035,6 +1035,209 @@ TECHFLOW_PROMPT = (
     + '{"scenes": [{"type": "hook", "text": "...", "device": "phone", "say": "..."}, ...]}'
 )
 
+# ── AI design (motion/src/canvas.jsx) — the AI designs every scene ─────────
+# The AI writes a DESIGN (layers, colours, motion) — never code; canvas.jsx
+# draws any design _clean_canvas lets through, so every video can look new.
+CANVAS_TYPES = ("canvas",)
+CANVAS_LAYERS = ("text", "card", "icon", "shape", "device", "logo", "image", "chart", "metric", "pill", "list", "alert", "stream")
+CANVAS_BGS = ("solid", "gradient", "grid", "dots", "city", "network", "streams", "particles", "rings", "spotlight")
+CANVAS_IN = ("fade", "rise", "drop", "scale", "pop", "slide-left", "slide-right", "blur", "zoom", "type")
+CANVAS_LOOP = ("float", "pulse", "spin", "glow")
+CANVAS_PROMPT = (
+    "You are an award-winning motion designer and art director. You DESIGN a REMOTION VIDEO "
+    "scene by scene for this exact brief — not from a template: every scene is a canvas you "
+    "compose from layers, in colours and a mood that fit THIS brief (an LED screen at a corporate "
+    "event, a TikTok for a café, a SaaS launch… each must look different). If the brief describes "
+    "its own scenes, acts, colours or messages, FOLLOW THEM in order and keep their exact wording "
+    "for titles and product names.\n"
+    "\n"
+    "Every scene: {\"type\": \"canvas\", \"seconds\": 3-8, \"pal\": PALETTE, \"bg\": BACKGROUND, "
+    "\"layers\": [LAYER, …], \"say\": the voice line}.\n"
+    "PALETTE (per scene — change it between acts, e.g. dark cyber blue → bright purple): {\"bg\": "
+    "\"#RRGGBB\", \"a\": main accent, \"b\": second accent, \"ink\": text colour, \"mode\": \"dark\" | "
+    "\"light\"} — strong contrast between ink and bg.\n"
+    "BACKGROUND: {\"kind\": solid | gradient | grid | dots | city (line-drawn skyline, data between "
+    "the roofs) | network (nodes and pulsing links) | streams (light streaks of data) | particles | "
+    "rings | spotlight, \"color\": optional hex, \"color2\": optional (gradient), \"angle\": optional}.\n"
+    "LAYER — every layer: {\"kind\", \"x\": 0-100, \"y\": 0-100 (its CENTRE, % of the frame), \"at\": "
+    "seconds after the scene starts (stagger 0.2-0.8 s — a choreography, not all at once), \"in\": "
+    "fade | rise | drop | scale | pop | slide-left | slide-right | blur | zoom | type, \"loop\": "
+    "optional float | pulse | spin | glow, \"z\": optional layer order}. Colours in layers: a palette "
+    "name (\"a\", \"b\", \"ink\", \"sub\") or a hex. Sizes are pixels of a 1080-px-high frame.\n"
+    "- text: text (max 12 words — wrap the key words in [brackets] to highlight), size 40-140 "
+    "(headline 80-130, line 44-64), weight 300-800 (thin 300 for elegant big words), color, align, "
+    "maxw (% width, e.g. 70), highlight (colour of the [bracket] marker); in \"type\" types it out.\n"
+    "- card: a UI panel — title, lines (1-5 short rows), icon, iconBg, w, h, radius, glass (true = "
+    "frosted), fill, size.\n"
+    "- icon: name (from the icon list), size 60-260, color, tile (a colour → a solid rounded tile).\n"
+    "- shape: shape circle | rect | ring | line, w, h, color, gradient (second colour), stroke, blur "
+    "(soft glow shapes), opacity — for depth and accents, never clutter.\n"
+    "- device: device phone | tablet | laptop | monitor | screen (a big LED / dashboard screen), w, "
+    "lines (rows shown on it), src (\"shot:N\" = THE BRAND'S SCREENSHOT N, or \"product:<name>\").\n"
+    "- logo: the brand's logo (or its name as a wordmark), w, size.\n"
+    "- image: src \"product:<name>\" or \"shot:N\", w, radius.\n"
+    "- chart: chart line | bars | donut, values (3-8 small SAMPLE numbers), color, w, h.\n"
+    "- metric: value, prefix, suffix, label, size 90-200 — counts up; only a TRUE number.\n"
+    "- pill: text (1-4 words), icon, color, fill, caps (true = SMALL CAPS LABEL), size 26-40.\n"
+    "- list: items (2-5 x {\"icon\", \"text\": 2-6 words}), color, w, size.\n"
+    "- alert: text (max 6 words), level info | warn | danger | ok, icon — a notification toast.\n"
+    "- stream: from [x, y], to [x, y], color, count — glowing packets flowing between two points "
+    "(data moving, two worlds converging).\n"
+    "\n"
+    "DESIGN RULES: 3-7 layers a scene, ONE clear focal point, generous space, nothing outside 6-94 % "
+    "x / 8-88 % y, text never under 40 px, no two text layers overlapping (keep their centres "
+    "apart). The bottom 15 % of the frame stays clear — the subtitles live there. Reveals: a "
+    "dramatic product reveal = a big text with zoom or blur, a pill above it, a soft shape glow "
+    "behind it. Use the brand's screenshots in devices when they help. Keep it premium: no cartoon "
+    "clutter, no more than two accents a scene.\n"
+    "THE STORY: 6-12 scenes, following the brief's own order; the voice tells it as one story. The "
+    "last scene ends on the brand (logo or name) and the call to action or the tagline.\n"
+    "\n"
+    + _COMMON_RULES
+    + '{"scenes": [{"type": "canvas", "seconds": 5, "pal": {…}, "bg": {…}, "layers": [{…}], "say": "..."}, ...]}'
+)
+
+
+def _hex(v, fallback=None):
+    v = str(v or "").strip()
+    return v if re.fullmatch(r"#[0-9a-fA-F]{6}", v) else fallback
+
+
+def _ccol(v):
+    """A layer colour: a palette name or a hex — else None (the default)."""
+    v = str(v or "").strip()
+    return v if v in ("a", "b", "ink", "sub", "bg", "white", "black") else _hex(v)
+
+
+def _num(v, lo, hi, default=None):
+    try:
+        n = float(v)
+    except (TypeError, ValueError):
+        return default
+    return max(lo, min(hi, n))
+
+
+def _clean_canvas(raw: dict, say: str) -> dict | None:
+    """An AI-designed scene, checked layer by layer: only kinds, colours and
+    motions canvas.jsx draws, numbers clamped onto the frame, text trimmed —
+    whatever doesn't pass is left out, so a design can't break the render."""
+    pal_raw = raw.get("pal") if isinstance(raw.get("pal"), dict) else {}
+    bg = _hex(pal_raw.get("bg"), "#070B16")
+    lum = sum(int(bg[i : i + 2], 16) for i in (1, 3, 5)) / 3
+    mode = pal_raw.get("mode") if pal_raw.get("mode") in ("dark", "light") else ("light" if lum > 150 else "dark")
+    ink = _hex(pal_raw.get("ink"), "#0F172A" if mode == "light" else "#FFFFFF")
+    pal = {
+        "bg": bg,
+        "a": _hex(pal_raw.get("a"), "#3B82F6"),
+        "b": _hex(pal_raw.get("b"), "#22D3EE"),
+        "ink": ink,
+        "sub": "rgba(15,23,42,0.66)" if mode == "light" else "rgba(226,232,255,0.72)",
+        "mode": mode,
+    }
+    bg_raw = raw.get("bg") if isinstance(raw.get("bg"), dict) else {}
+    back = {"kind": bg_raw.get("kind") if bg_raw.get("kind") in CANVAS_BGS else "solid"}
+    for k in ("color", "color2", "accent"):
+        if _ccol(bg_raw.get(k)):
+            back[k] = _ccol(bg_raw.get(k))
+    if _num(bg_raw.get("angle"), 0, 360) is not None:
+        back["angle"] = _num(bg_raw.get("angle"), 0, 360)
+
+    layers = []
+    for L in (raw.get("layers") or [])[:9]:
+        if not isinstance(L, dict) or L.get("kind") not in CANVAS_LAYERS:
+            continue
+        kind = L["kind"]
+        out = {
+            "kind": kind,
+            "x": _num(L.get("x"), 6, 94, 50),
+            "y": _num(L.get("y"), 8, 88, 50),
+            "at": _num(L.get("at"), 0, 6, 0),
+            "in": L.get("in") if L.get("in") in CANVAS_IN else "fade",
+        }
+        if L.get("loop") in CANVAS_LOOP:
+            out["loop"] = L["loop"]
+        for k, lo, hi in (("z", 0, 9), ("rotate", -30, 30), ("w", 20, 1700), ("h", 20, 1000), ("radius", 0, 200), ("opacity", 0.05, 1), ("blur", 0, 120), ("stroke", 0, 30), ("maxw", 20, 95)):
+            if _num(L.get(k), lo, hi) is not None:
+                out[k] = _num(L.get(k), lo, hi)
+        for k in ("color", "fill", "tile", "iconBg", "highlight", "gradient", "border"):
+            if _ccol(L.get(k)):
+                out[k] = _ccol(L[k])
+        if kind == "text":
+            text = _line(L.get("text"), 120)
+            if not text:
+                continue
+            out.update(text=text, size=_num(L.get("size"), 40, 180, 64), weight=int(_num(L.get("weight"), 300, 800, 700)))
+            if L.get("align") in ("left", "center", "right"):
+                out["align"] = L["align"]
+            if L.get("mono"):
+                out["mono"] = True
+        elif kind == "card":
+            out.update(title=_line(L.get("title"), 50), lines=[_line(x, 60) for x in (L.get("lines") or []) if _line(x, 60)][:5])
+            if L.get("icon"):
+                out["icon"] = _icon(L.get("icon"))
+            if L.get("glass") is False:
+                out["glass"] = False
+            if _num(L.get("size"), 28, 64) is not None:
+                out["size"] = _num(L.get("size"), 28, 64)
+        elif kind == "icon":
+            out.update(name=_icon(L.get("name") or L.get("icon")), size=_num(L.get("size"), 60, 260, 120))
+        elif kind == "shape":
+            out["shape"] = L.get("shape") if L.get("shape") in ("circle", "rect", "ring", "line") else "circle"
+        elif kind == "device":
+            out["device"] = L.get("device") if L.get("device") in ("phone", "tablet", "laptop", "monitor", "screen") else "laptop"
+            out["lines"] = [_line(x, 40) for x in (L.get("lines") or []) if _line(x, 40)][:6]
+            if re.fullmatch(r"(shot:\d{1,2}|product:.{1,60})", str(L.get("src") or "")):
+                out["src"] = L["src"]
+        elif kind in ("logo", "image"):
+            if kind == "image":
+                if not re.fullmatch(r"(shot:\d{1,2}|product:.{1,60})", str(L.get("src") or "")):
+                    continue
+                out["src"] = L["src"]
+            if _num(L.get("size"), 30, 200) is not None:
+                out["size"] = _num(L.get("size"), 30, 200)
+        elif kind == "chart":
+            vals = [_num(v, -1e9, 1e9) for v in (L.get("values") or [])]
+            out.update(chart=L.get("chart") if L.get("chart") in ("line", "bars", "donut") else "line", values=[v for v in vals if v is not None][:8])
+            if len(out["values"]) < 1:
+                continue
+        elif kind == "metric":
+            if _num(L.get("value"), -1e12, 1e12) is None:
+                continue
+            out.update(value=_num(L.get("value"), -1e12, 1e12), prefix=_line(L.get("prefix"), 4), suffix=_line(L.get("suffix"), 6), label=_line(L.get("label"), 50), size=_num(L.get("size"), 90, 200, 150))
+        elif kind == "pill":
+            text = _line(L.get("text"), 40)
+            if not text:
+                continue
+            out.update(text=text, size=_num(L.get("size"), 24, 44, 32))
+            if L.get("icon"):
+                out["icon"] = _icon(L.get("icon"))
+            if L.get("caps"):
+                out["caps"] = True
+        elif kind == "list":
+            items = [{"icon": _icon(x.get("icon"), "Check"), "text": _line(x.get("text"), 50)} for x in (L.get("items") or []) if isinstance(x, dict) and _line(x.get("text"), 50)][:5]
+            if not items:
+                continue
+            out.update(items=items, size=_num(L.get("size"), 32, 60, 44))
+        elif kind == "alert":
+            text = _line(L.get("text"), 50)
+            if not text:
+                continue
+            out.update(text=text, level=L.get("level") if L.get("level") in ("info", "warn", "danger", "ok") else "info", size=_num(L.get("size"), 26, 44, 34))
+            if L.get("icon"):
+                out["icon"] = _icon(L.get("icon"))
+        elif kind == "stream":
+            pts = [L.get("from"), L.get("to")]
+            if not all(isinstance(q, (list, tuple)) and len(q) == 2 for q in pts):
+                continue
+            out["from"] = [_num(pts[0][0], 0, 100, 10), _num(pts[0][1], 0, 100, 50)]
+            out["to"] = [_num(pts[1][0], 0, 100, 50), _num(pts[1][1], 0, 100, 50)]
+            out["count"] = int(_num(L.get("count"), 2, 10, 6))
+        layers.append(out)
+    if not layers:
+        return None
+    return {"type": "canvas", "seconds": _num(raw.get("seconds"), 2.5, 9, 5), "pal": pal, "bg": back, "layers": layers, "say": say}
+
+
 # ── Showcase (motion/src/showcase.jsx) — a bright SaaS promo ───────────────
 SHOWCASE_TYPES = ("hook", "roll", "apps", "table", "board", "screen", "flow", "dashboard", "list", "stat", "cta")
 SHOWCASE_PROMPT = (
@@ -1380,6 +1583,7 @@ STYLES = {
     "unveil": (UNVEIL_PROMPT, UNVEIL_TYPES, 6, None),
     "gridcards": (GRID_PROMPT, GRID_TYPES, 5, "fanout"),
     "techflow": (TECHFLOW_PROMPT, TECHFLOW_TYPES, 6, None),
+    "canvas": (CANVAS_PROMPT, CANVAS_TYPES, 12, "canvas"),
     "clarity": (CLARITY_PROMPT, CLARITY_TYPES, 8, None),
     "countdown": (COUNTDOWN_PROMPT, COUNTDOWN_TYPES, 7, "rank"),
     "thisorthat": (THISORTHAT_PROMPT, THISORTHAT_TYPES, 6, "choice"),
@@ -1397,7 +1601,7 @@ LONG_STYLES = {"training"}
 # The templates laid out for 16:9 too (motion/src/training.jsx, saas.jsx wide scenes);
 # every other template is always vertical. Scenes drawn only for a tall frame are
 # left out of a wide video.
-WIDE_STYLES = {"training", "custom", "demo", "offer", "trend", "pov", "showcase", "launch", "unveil", "gridcards", "techflow", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
+WIDE_STYLES = {"training", "custom", "demo", "offer", "trend", "pov", "showcase", "launch", "unveil", "gridcards", "techflow", "canvas", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
 TALL_ONLY_TYPES = {"problem", "chat", "product", "point"}
 
 
@@ -1411,7 +1615,7 @@ def final_ratio(asked: str, style: str, suggested: str | None = None) -> str:
     if asked == "auto":
         return suggested if suggested in ("16:9", "9:16") else ("16:9" if style == "training" else "9:16")
     return "9:16"
-SCREEN_STYLES = {"custom", "demo", "showcase", "launch", "unveil", "clarity"}  # the stories that can show the brand's screenshots
+SCREEN_STYLES = {"custom", "demo", "showcase", "launch", "unveil", "clarity", "canvas"}  # the stories that can show the brand's screenshots
 # The templates that sell (the auto topic picks a product, not a teaching topic).
 SELLING_STYLES = {"tech", "demo", "offer", "showcase", "launch", "unveil", "gridcards"}
 
@@ -1697,6 +1901,8 @@ def _clean_scene(raw: dict, names: dict[str, str]) -> dict | None:
     if kind == "launch":
         name = _line(raw.get("name"), 30)
         return {"type": kind, "name": names.get(name.lower(), name), "text": _line(raw.get("text"), 100), "badge": _line(raw.get("badge"), 16), "say": say} if name else None
+    if kind == "canvas":  # AI design — the AI designed it; checked layer by layer
+        return _clean_canvas(raw, say)
     if kind in ("send", "address", "lookup", "hops", "assemble"):  # Tech explainer
         dev = lambda v, d="phone": v if v in TECH_DEVICES else d  # noqa: E731
         text = _line(raw.get("text"), 80)
@@ -2297,7 +2503,8 @@ def write_script(
             },
         ],
         model,
-        max_tokens=(32000 if style in LONG_STYLES else 16000) if story else 9000,
+        # AI design writes every layer of every scene — it needs more room
+        max_tokens=(32000 if style in LONG_STYLES else 16000) if story else (20000 if style == "canvas" else 9000),
         # A storyboard follows the template's recipe — it doesn't need long
         # reasoning; the default (medium) took 1-2 minutes on gpt-5-mini. The
         # Khmer editor pass after it still runs at high effort.
@@ -2530,6 +2737,8 @@ def script_lines(script: dict) -> list[tuple[str, str]]:
             screen = f"{s['left']} [{s.get('label') or 'card'}] {s['right']}"
         elif s["type"] == "launch":
             screen = f"Introducing {s['name']}" + (f" — {s['text']}" if s.get("text") else "") + (f" [{s['badge']}]" if s.get("badge") else "")
+        elif s["type"] == "canvas":
+            screen = " / ".join(str(L.get("text") or L.get("title") or "") for L in s["layers"] if L.get("text") or L.get("title")) or "Designed scene"
         elif s["type"] == "send":
             screen = f"{s['from']['label'] or s['from']['device']} → {s['to']['label'] or s['to']['device']}" + (f" — {s['text']}" if s.get("text") else "")
         elif s["type"] == "address":
@@ -2758,6 +2967,15 @@ def pick_pictures(
             s["image"], s["imgW"], s["imgH"] = shot["uri"], shot["w"], shot["h"]
         elif s["type"] in ("product", "fanout"):
             s["image"] = by_product.get(ids.get(s.get("product") or "")) or main
+        elif s["type"] == "canvas":  # "shot:N" / "product:<name>" → the brand kit's own picture
+            for L in s["layers"]:
+                src = str(L.get("src") or "")
+                if src.startswith("shot:") and 1 <= int(src[5:]) <= len(shots):
+                    L["src"] = shots[int(src[5:]) - 1]["uri"]
+                elif src.startswith("product:"):
+                    L["src"] = by_product.get(ids.get(src[8:].strip())) or main or ""
+                elif src:
+                    L.pop("src", None)
         elif s["type"] in ("hook", "cta", "offer") or script.get("style") == "quote":
             s["image"] = main
 
@@ -2815,6 +3033,19 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
             scene["nodes"] = [{**n, "label": t(n["label"]), "sub": t(n["sub"]) if n.get("sub") else ""} for n in scene["nodes"]]
         if "notes" in scene:
             scene["notes"] = [{**n, "text": t(n["text"])} for n in scene["notes"]]
+        if s["type"] == "canvas":  # every word the AI put on its canvas
+            layers = []
+            for L in scene.get("layers") or []:
+                L = dict(L)
+                for k in ("text", "title"):
+                    if L.get(k):
+                        L[k] = t(L[k])
+                if L.get("lines"):
+                    L["lines"] = [t(x) for x in L["lines"]]
+                if L.get("items"):
+                    L["items"] = [{**x, "text": t(x["text"])} for x in L["items"]]
+                layers.append(L)
+            scene["layers"] = layers
         if s["type"] == "send":
             scene["from"] = {**scene["from"], "label": t(scene["from"]["label"])}
             scene["to"] = {**scene["to"], "label": t(scene["to"]["label"])}
@@ -2896,6 +3127,8 @@ def default_seconds(scene: dict) -> float:
         return 2.6 + 0.9 * min(3, len(scene.get("fields") or [])) + (1.4 if scene.get("toggle") else 0)
     if kind == "word":
         return 3.0 + 0.6 * min(3, len(scene.get("rows") or []))
+    if kind == "canvas":
+        return max(2.5, min(9.0, float(scene.get("seconds") or 5)))
     if kind == "hops":
         return 3.0 + 0.8 * min(5, len(scene.get("nodes") or []))
     if kind in ("send", "address", "lookup", "assemble"):
@@ -3256,6 +3489,8 @@ def _scene_summary(s: dict) -> str:
         text = f"{s.get('left', '')} · {s.get('right', '')}"
     elif t == "word":
         text = s.get("word") or s.get("title") or ""
+    elif t == "canvas":
+        text = " ".join(str(L.get("text") or L.get("title") or "") for L in s.get("layers") or [])
     elif t in ("send", "address", "hops", "assemble"):
         text = s.get("text") or s.get("label") or ""
     elif t == "lookup":
@@ -3499,6 +3734,7 @@ TEMPLATE_GUIDE = {
     "unveil": "unveiling a product or a new feature in a light, elegant way — one big word, the app card coming into focus, a field typing itself, a check with confetti",
     "gridcards": "how a product or service solves an everyday problem — the repetitive work today, then one input becoming several results (a post, a price poster, a caption), clear and friendly",
     "techflow": "explaining HOW a technology works step by step (the internet, email, payments, AI, apps) — devices, data packets travelling, addresses, lookups, the path, a recap",
+    "canvas": "a brief that asks for its OWN look or scenes — an event / LED-screen film, a cinematic launch with acts and colours of its own, or anything no template fits: the AI designs every scene",
     "showcase": "a bright, polished promo / launch video for a SaaS or app — the tools it connects, its table and board views, who it is for",
     "training": "a team training, an internal presentation, a workshop, a lesson or a long talk with parts / sections — chapters, key points, checklists, recap",
     "explainer": "a story with people — characters with feelings (stick figures), everyday life, money and life lessons, a tale that teaches",

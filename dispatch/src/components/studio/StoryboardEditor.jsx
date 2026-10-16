@@ -113,6 +113,8 @@ const FIELDS = {
     ['button', 'Button'],
   ],
   done: [['text', 'Result']],
+  // AI design: the AI's layers aren't edited here — the voice line is
+  canvas: [],
   // Tech explainer
   send: [['text', 'On screen']],
   address: [
@@ -207,6 +209,7 @@ function extras(s) {
   if (s.type === 'chaos') return (s.cards || []).map((x) => `${x.app}: ${x.title}`).join(' / ')
   if (s.type === 'phones') return (s.words || []).join(' ')
   if (s.type === 'form') return (s.fields || []).map((f) => `${f.label}: ${f.value}`).join(' · ')
+  if (s.type === 'canvas') return (s.layers || []).map((L) => L.text || L.title).filter(Boolean).join(' · ')
   if (s.type === 'send') return `${s.from?.label || s.from?.device} → ${s.to?.label || s.to?.device}`
   if (s.type === 'hops') return (s.nodes || []).map((n) => n.label || n.device).join(' → ')
   if (s.type === 'tasks') return (s.items || []).map((x) => x.text).join(' · ')
@@ -221,7 +224,7 @@ function extras(s) {
 // Seconds a scene runs — mirrors app/motion.py estimate_seconds.
 const KHMER = /[ក-៿]/g
 const spokenSeconds = (say = '') => (say.match(KHMER) || []).length / 11 + (say.match(/[A-Za-z0-9]+/g) || []).length / 2.6
-const MIN_SECONDS = { chart: 5.2, compare: 4.2, character: 3.8, cta: 3.8, product: 3.6, myth: 5, quote: 5.6, options: 9.8, split: 8, beforeafter: 5.4, result: 4.2, review: 6, customer: 4.4, news: 5, notify: 7, step: 4.8, offer: 5.6, screen: 5, dashboard: 5.2, flow: 6.4, chapter: 3.2, checklist: 5.8, recap: 6, apps: 5, table: 5.1, board: 4.6, roll: 4.8, launch: 4.2, button: 4.6, form: 5.2, word: 4.2, field: 4.8, done: 3.4, tasks: 5.3, fanout: 6.4, send: 4.2, address: 4.4, lookup: 5.2, hops: 6.2, assemble: 4.6, stack: 4.9, platform: 4.4, orbit: 5, chaos: 5, phones: 5, pair: 3.8, rank: 4.2, tip: 4.6, choice: 5, reviews: 5.8, logos: 4, save: 3.4, take: 5.2, client: 5, metrics: 5.2, timeline: 5.2, qa: 4.5, bars: 5, donut: 4.6 }
+const MIN_SECONDS = { chart: 5.2, compare: 4.2, character: 3.8, cta: 3.8, product: 3.6, myth: 5, quote: 5.6, options: 9.8, split: 8, beforeafter: 5.4, result: 4.2, review: 6, customer: 4.4, news: 5, notify: 7, step: 4.8, offer: 5.6, screen: 5, dashboard: 5.2, flow: 6.4, chapter: 3.2, checklist: 5.8, recap: 6, apps: 5, table: 5.1, board: 4.6, roll: 4.8, launch: 4.2, button: 4.6, form: 5.2, word: 4.2, field: 4.8, done: 3.4, tasks: 5.3, fanout: 6.4, canvas: 5, send: 4.2, address: 4.4, lookup: 5.2, hops: 6.2, assemble: 4.6, stack: 4.9, platform: 4.4, orbit: 5, chaos: 5, phones: 5, pair: 3.8, rank: 4.2, tip: 4.6, choice: 5, reviews: 5.8, logos: 4, save: 3.4, take: 5.2, client: 5, metrics: 5.2, timeline: 5.2, qa: 4.5, bars: 5, donut: 4.6 }
 
 export function estimateSeconds(scenes) {
   const total = scenes.reduce((n, s) => n + Math.max(MIN_SECONDS[s.type] || 3.4, spokenSeconds(s.say) + 1.3), 0)
