@@ -57,6 +57,7 @@ import { POLL, QUOTE, VERSUS } from './goaltemplates'
 import { TESTIMONIAL } from './testimonial'
 import { CASESTUDY, CLARITY, COUNTDOWN, DEMO, FAQ, GRIDCARDS, HOTTAKE, TECHFLOW, LAUNCH, OFFER, POV, REPORT, REVIEWS, SHOWCASE, THISORTHAT, TIPS, TREND, UNVEIL, customTemplate } from './saas'
 import { SceneSfx } from './sfx'
+import { NEURAL } from './neural'
 import { TRAINING } from './training'
 
 export { FPS, TRANSITION, defaultSeconds, sceneFrames }
@@ -737,6 +738,7 @@ const TEMPLATES = {
   showcase: { ...SHOWCASE, scenes: { ...SCENES, ...SHOWCASE.scenes } },
   launch: { ...LAUNCH, scenes: { ...SCENES, ...LAUNCH.scenes } },
   unveil: { ...UNVEIL, scenes: { ...SCENES, ...UNVEIL.scenes } },
+  neural: { ...NEURAL, scenes: { ...SCENES, ...NEURAL.scenes } },
   gridcards: { ...GRIDCARDS, scenes: { ...SCENES, ...GRIDCARDS.scenes } },
   techflow: { ...TECHFLOW, scenes: { ...SCENES, ...TECHFLOW.scenes } },
   canvas: { ...CANVAS, scenes: { ...SCENES, ...CANVAS.scenes } }, // AI design — the AI designs every scene
