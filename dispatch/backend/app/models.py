@@ -80,6 +80,11 @@ class Workspace(Base, TimestampMixin):
     # Which writing models the platform admin lets this workspace use — null =
     # every enabled model (/admin-mkt sets it).
     ai_models_allowed: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    # Its own Gemini API key (app/gemini_keys.py): the Khmer voice's second
+    # chance when the platform's key is out — kept encrypted, never shown back
+    # (only its last 4 characters).
+    gemini_key_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
+    gemini_key_hint: Mapped[str] = mapped_column(String(8), default="", server_default="")
 
 
 class AiModel(Base):

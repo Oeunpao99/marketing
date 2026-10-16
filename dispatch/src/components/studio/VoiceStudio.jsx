@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { FiCheck } from 'react-icons/fi'
 import { useStore } from '../../store'
 import BrandVoice from '../brandkit/BrandVoice'
+import GeminiKeyCard from './GeminiKeyCard'
 import { BrandMark, useBrandLogos } from '../../lib/brandMarks'
 
 // Content studio → Voice: record or upload the owner's voice so videos can
@@ -40,6 +41,7 @@ export default function VoiceStudio() {
       <div className="grid">
         <BrandVoice key={brand.id} brand={brand} showToast={showToast} />
       </div>
+      <GeminiKeyCard showToast={showToast} />
     </div>
   )
 }

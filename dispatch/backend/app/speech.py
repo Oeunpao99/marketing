@@ -17,6 +17,8 @@ when Gemini fails. Gemini gives no word timings: Khmer subtitles use the estimat
 
 from __future__ import annotations
 
+import contextvars
+import hashlib
 import logging
 import random
 import time
@@ -79,8 +81,41 @@ GEMINI = "gemini:"
 GEMINI_FAILURES: list[str] = []
 # Gemini voice models known to be out until then (a used-up daily quota, a
 # rejected key): the next model reads, and once they all are, Khmer lines go
-# straight to Azure instead of failing one by one. {model: (until epoch s, why)}
+# straight to Azure instead of failing one by one. Per key — ours and each
+# workspace's own: {"<slot>|<model>": (until epoch s, why)}
 _GEMINI_OUT: dict[str, tuple[float, str]] = {}
+
+# The workspace's own Gemini key for this job / request (app/gemini_keys.py):
+# read with after ours, before Azure. Its tally counts the characters it read
+# (they aren't charged — Google bills them). Threads started for a job copy
+# the context (app/motion.py add_voice).
+_WS_KEY: contextvars.ContextVar[str] = contextvars.ContextVar("ws_gemini_key", default="")
+_WS_TALLY: contextvars.ContextVar[dict | None] = contextvars.ContextVar("ws_gemini_tally", default=None)
+
+
+def use_workspace_key(key: str) -> dict:
+    """From here on (this thread / context): the workspace's own Gemini key
+    after ours. Returns the tally of characters it reads: {"chars": n}."""
+    tally = {"chars": 0}
+    _WS_KEY.set(key or "")
+    _WS_TALLY.set(tally)
+    return tally
+
+
+def _slot(key: str | None) -> str:
+    return "ours" if not key else "ws:" + hashlib.sha256(key.encode()).hexdigest()[:10]
+
+
+def _out(key: str | None, model: str) -> tuple[float, str]:
+    return _GEMINI_OUT.get(f"{_slot(key)}|{model}", (0.0, ""))
+
+
+def _keys() -> list[str | None]:
+    """The Gemini keys to try, in order: ours (None), then the workspace's own."""
+    out: list[str | None] = [None] if _ours_ready() else []
+    if _WS_KEY.get() and _provider_ok():
+        out.append(_WS_KEY.get())
+    return out
 
 
 def gemini_models() -> list[str]:
@@ -89,14 +124,15 @@ def gemini_models() -> list[str]:
     return list(dict.fromkeys([s.gemini_tts_model, *(m.strip() for m in s.gemini_tts_backup_models.split(",") if m.strip())]))
 
 
-def _live_models() -> list[str]:
+def _live_models(key: str | None = None) -> list[str]:
     now = time.time()
-    return [m for m in gemini_models() if _GEMINI_OUT.get(m, (0.0, ""))[0] <= now]
+    return [m for m in gemini_models() if _out(key, m)[0] <= now]
 
 
 def gemini_available() -> bool:
-    """Gemini is set up and at least one of its voice models isn't out."""
-    return gemini_ready() and bool(_live_models())
+    """Gemini is set up and at least one of its voice models isn't out — with
+    our key or the workspace's own."""
+    return any(_live_models(k) for k in _keys())
 
 
 def gemini_status() -> dict:
@@ -111,7 +147,8 @@ def gemini_status() -> dict:
         "native": local_voice.ready(),
         "configured": gemini_ready(),
         "available": gemini_available(),
-        "back_at": min((_GEMINI_OUT.get(m, (0.0, ""))[0] for m in gemini_models()), default=None) if out else None,
+        "back_at": min((_out(k, m)[0] for k in _keys() for m in gemini_models()), default=None) if out else None,
+        "own_key": bool(_WS_KEY.get()),
         "backup": {g: VOICES[("km", g)].split("-")[2].removesuffix("Neural") for g in ("female", "male")} if provider() == "azure" else {},
     }
 
@@ -139,7 +176,7 @@ def _gemini_error(resp: httpx.Response) -> str:
     return f"{resp.status_code} {err.get('status', '')} {quota or reasons} — {(err.get('message') or '')[:140]}".strip()
 
 
-def _mark_out(model: str, resp: httpx.Response, detail: str) -> bool:
+def _mark_out(model: str, resp: httpx.Response, detail: str, key: str | None = None) -> bool:
     """A model's daily quota used up: that model is out until it's back (the
     quota's retry delay, else an hour). A rejected key: every model, tried
     again in 10 min. True when something was marked out."""
@@ -150,8 +187,9 @@ def _mark_out(model: str, resp: httpx.Response, detail: str) -> bool:
     else:
         return False
     for m in models:
-        _GEMINI_OUT[m] = (time.time() + wait, why)
-    log.error("Gemini voice %s is out for %.0f min (%s): %s", ", ".join(models), wait / 60, why, detail)
+        _GEMINI_OUT[f"{_slot(key)}|{m}"] = (time.time() + wait, why)
+    whose = "our key" if not key else "the workspace's own key"
+    log.error("Gemini voice %s (%s) is out for %.0f min (%s): %s", ", ".join(models), whose, wait / 60, why, detail)
     return True
 
 
@@ -172,11 +210,17 @@ def _why(exc: Exception) -> str:
 PRICE_PER_CHAR_GEMINI = 30 / 1_000_000
 
 
+def _provider_ok() -> bool:
+    return get_settings().khmer_speech_provider in ("", "gemini")
+
+
+def _ours_ready() -> bool:
+    return bool(get_settings().gemini_api_key) and _provider_ok()
+
+
 def gemini_ready() -> bool:
-    s = get_settings()
-    if not s.gemini_api_key:
-        return False
-    return s.khmer_speech_provider in ("", "gemini")
+    """Gemini can read Khmer here: our key, or the workspace's own."""
+    return bool(_keys())
 
 
 def price_per_char(voice: str) -> float:
@@ -314,9 +358,20 @@ def speak(text: str, voice: str) -> bytes:
     if voice.startswith(GEMINI):  # "gemini:<voice>" or "gemini:<voice>|<template>"
         name, _, style = voice[len(GEMINI) :].partition("|")
         try:
-            if not _live_models():  # every voice model known out: don't ask again
-                raise SpeechError("Gemini is out (every voice model's daily limit is used up)")
-            return _gemini(text, name, style)
+            exc_last: SpeechError | None = None
+            for key in _keys():  # ours first, then the workspace's own
+                try:
+                    if not _live_models(key):  # every voice model known out with this key: don't ask
+                        raise SpeechError("Gemini is out (every voice model's daily limit is used up)")
+                    mp3 = _gemini(text, name, style, key=key)
+                    if key and _WS_TALLY.get() is not None:
+                        _WS_TALLY.get()["chars"] += len(text)
+                    return mp3
+                except SpeechError as e:
+                    exc_last = e
+                    if key is None and _WS_KEY.get():
+                        log.info("Our Gemini key couldn't read the line (%s) — trying the workspace's own key", e)
+            raise exc_last or SpeechError("Gemini isn't set up")
         except SpeechError as exc:
             # Gemini down / out of credit / bad key: Azure reads this line instead
             s = get_settings()
@@ -338,7 +393,7 @@ def speak(text: str, voice: str) -> bytes:
     return _openai(text, voice) if which == "openai" else _azure(text, voice)
 
 
-def _gemini(text: str, voice: str, style: str = "", plain: bool = False) -> bytes:
+def _gemini(text: str, voice: str, style: str = "", plain: bool = False, key: str | None = None) -> bytes:
     """Gemini TTS: 24 kHz 16-bit PCM back, made an MP3 here. The director's
     notes (HOW + the template's ACT) say how to read it, kept apart from the
     transcript in the layout Google's TTS guide uses. Now and then a voice
@@ -365,7 +420,8 @@ def _gemini(text: str, voice: str, style: str = "", plain: bool = False) -> byte
         },
     }
     resp, detail = None, ""
-    models = _live_models()
+    api_key = key or s.gemini_api_key
+    models = _live_models(key)
     for i, model in enumerate(models):  # the main voice model, then the next when one is used up
         waited = 0.0
         while True:
@@ -373,7 +429,7 @@ def _gemini(text: str, voice: str, style: str = "", plain: bool = False) -> byte
                 # the key in a header, never in the url — urls end up in logs
                 resp = httpx.post(
                     gemini_url(f"/v1beta/models/{model}:generateContent"),
-                    headers={"x-goog-api-key": s.gemini_api_key},
+                    headers={"x-goog-api-key": api_key},
                     json=body,
                     timeout=180.0,
                 )
@@ -398,7 +454,7 @@ def _gemini(text: str, voice: str, style: str = "", plain: bool = False) -> byte
         busy_minute = resp.status_code == 429 and "PerDay" not in detail
         if busy_minute:
             continue  # this model is full for the minute — the next one tries
-        if not _mark_out(model, resp, detail) or "API key" in _GEMINI_OUT.get(model, (0, ""))[1]:
+        if not _mark_out(model, resp, detail, key) or "API key" in _out(key, model)[1]:
             break  # not a used-up model (or the key): the next model won't do better
     if resp is None:
         raise SpeechError("Gemini is out (every voice model's daily limit is used up)")
@@ -411,7 +467,7 @@ def _gemini(text: str, voice: str, style: str = "", plain: bool = False) -> byte
     if not plain and len(pcm) / 48000 > 3.0 + len(said) * 0.14:
         # ~0.07 s a character is normal speech: twice that and more = it read the notes too
         log.warning("Gemini TTS read the notes aloud (%.1fs for %s chars) — asking again with the text only", len(pcm) / 48000, len(said))
-        return _gemini(text, voice, style, plain=True)
+        return _gemini(text, voice, style, plain=True, key=key)
     pcm = _trim_tail(pcm)
     done = subprocess.run(
         [imageio_ffmpeg.get_ffmpeg_exe(), "-y", "-loglevel", "error", "-f", "s16le", "-ar", "24000", "-ac", "1", "-i", "pipe:0",

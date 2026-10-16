@@ -16,6 +16,7 @@ the status says so instead of failing half-way.
 from __future__ import annotations
 
 import base64
+import contextvars
 import io
 import json
 import logging
@@ -3825,7 +3826,7 @@ def add_voice(
         pool = ThreadPoolExecutor(max_workers=4)
         for n, say in enumerate(says):
             if say:
-                ahead[n] = pool.submit(lambda t: (t, speech.speak_timed(t[0], voice)), spoken_text(say, pronunciations))
+                ahead[n] = pool.submit(contextvars.copy_context().run, lambda t: (t, speech.speak_timed(t[0], voice)), spoken_text(say, pronunciations))
 
     spoken = 0
     with tempfile.TemporaryDirectory() as tmp:
@@ -3904,9 +3905,10 @@ def add_voice(
     if voice.startswith("km-KH") and speech.gemini_ready() and not speech.gemini_available():
         # the person picked the Gemini voice; Gemini is out, so a backup read it
         _report(job_id, voice_note=_backup_note(voice))
-    if spoken and not local:
+    own = min(spoken, (speech._WS_TALLY.get() or {}).get("chars", 0))  # read with the workspace's own Gemini key
+    if spoken - own > 0 and not local:
         billing.charge(
-            ws, "video", spoken * speech.price_per_char(voice), user_id=user_id, model=voice, note="Remotion video voice-over", job_id=job_id
+            ws, "video", (spoken - own) * speech.price_per_char(voice), user_id=user_id, model=voice, note="Remotion video voice-over", job_id=job_id
         )
     return spoken
 
@@ -4718,11 +4720,13 @@ def plan_motion(
 
 
 @router.get("/voice-status")
-def voice_status():
+def voice_status(db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
     """Whether the Gemini voice reads Khmer right now — the composer says so
-    before a video is made, and who reads instead (Sreymom / Piseth)."""
-    from app import speech
+    before a video is made, and who reads instead (Sreymom / Piseth). Counts
+    the workspace's own Gemini key."""
+    from app import gemini_keys, speech
 
+    speech.use_workspace_key(gemini_keys.workspace_key(db, ws))
     return speech.gemini_status()
 
 
@@ -4780,6 +4784,9 @@ def say_line(
     from app import voice_clone
 
     brand = owned(db, Brand, payload.brand_id, ws)
+    from app import gemini_keys
+
+    tally = speech.use_workspace_key(gemini_keys.workspace_key(db, ws))  # Khmer: ours, then theirs, then Azure
     narrator, clone = voice_clone.narrator_for(brand, payload.language, payload.voice if payload.voice != "none" else "female", payload.style or None)
     if not narrator:
         raise HTTPException(503, "No voice service is set up on this server.")
@@ -4792,7 +4799,7 @@ def say_line(
     except Exception as exc:  # noqa: BLE001 — the details are for the log, not the person
         log.warning("voice preview failed (%s): %s", narrator, exc)
         raise HTTPException(502, "That line couldn't be read just now — try again in a moment.") from exc
-    if not narrator.startswith("local:"):  # the local Khmer voice costs nothing
+    if not narrator.startswith("local:") and not tally["chars"]:  # the local voice and their own key cost us nothing
         billing.charge(ws, "video", len(payload.text) * speech.price_per_char(narrator), user_id=user.id, model=narrator, note="Voice preview")
     return Response(content=mp3, media_type="audio/mpeg", headers={"Cache-Control": "no-store"})
 
@@ -4994,6 +5001,9 @@ def _make(
             from app import voice_clone
 
             # "brand": read by the closest base voice, then turned into the brand's own
+            from app import gemini_keys, speech
+
+            speech.use_workspace_key(gemini_keys.workspace_key(db, job.workspace_id))  # Khmer: ours, then theirs, then Azure
             narrator, clone = voice_clone.narrator_for(brand, language, voice, script.get("style"))
             if narrator:
                 add_voice(props, script, narrator, job.workspace_id, job.user_id, job_id, brand.pronunciations or [], clone)
