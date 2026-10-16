@@ -18,7 +18,7 @@ import logging
 
 import httpx
 from cryptography.fernet import Fernet, InvalidToken
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -115,3 +115,33 @@ def key_delete(db: Session = Depends(get_db), user: TeamMember = Depends(require
     w.gemini_key_hint = ""
     db.commit()
     return {"configured": False, "hint": ""}
+
+
+SAMPLE = "សួស្តីបង! នេះគឺជាសំឡេងពី key Gemini របស់បងផ្ទាល់។"
+
+
+@router.post("/gemini-key/test")
+def key_test(db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    """One short Khmer line read with the workspace's OWN key only (never ours,
+    never Azure) — so they hear it works now. Uses one of their key's requests;
+    not charged to their credit."""
+    from app import speech
+
+    key = workspace_key(db, ws)
+    if not key:
+        raise HTTPException(400, "Save your Gemini key first.")
+    try:
+        mp3 = speech._gemini(SAMPLE, get_settings().gemini_tts_voice_female, key=key)
+    except speech.SpeechError as exc:
+        why = str(exc)
+        log.warning("workspace %s: own Gemini key test failed: %s", ws, why[:200])  # the reason, never the key
+        if "PerDay" in why or "daily limit" in why:
+            msg = "Your key works, but its voice limit for today is used up — it reads again tomorrow (or turn on billing in Google AI Studio)."
+        elif "API key" in why or "API_KEY" in why or "PERMISSION_DENIED" in why:
+            msg = "Google didn't accept the saved key — paste it again, or make a new one in Google AI Studio."
+        elif "location" in why.lower():
+            msg = "Google can't be reached from this server's region right now — the team has been told."
+        else:
+            msg = "Your key couldn't read the test line just now — try again in a moment."
+        raise HTTPException(400, msg) from exc
+    return Response(content=mp3, media_type="audio/mpeg", headers={"Cache-Control": "no-store"})

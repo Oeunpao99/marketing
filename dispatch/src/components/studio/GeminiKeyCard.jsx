@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { FiCheck, FiExternalLink, FiKey, FiLock, FiX } from 'react-icons/fi'
+import { FiCheck, FiExternalLink, FiKey, FiLock, FiPlay, FiX } from 'react-icons/fi'
 import { api } from '../../api/client'
 
 // Content studio → Voice: the workspace's own Gemini API key (optional). The
@@ -55,6 +55,20 @@ function KeyDrawer({ state, setState, onClose, showToast }) {
   const [key, setKey] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [test, setTest] = useState(null) // null | 'reading' | 'ok' | error text
+
+  // one short Khmer line read with THEIR key only — they hear it works now
+  const runTest = async () => {
+    setTest('reading')
+    try {
+      const blob = await api.blob('/ai/voice/gemini-key/test', {})
+      const audio = new Audio(URL.createObjectURL(blob))
+      audio.play().catch(() => {})
+      setTest('ok')
+    } catch (err) {
+      setTest(err.message || 'Your key couldn’t read the test line just now.')
+    }
+  }
 
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose()
@@ -159,6 +173,21 @@ function KeyDrawer({ state, setState, onClose, showToast }) {
                   <button type="button" onClick={remove} disabled={busy} className="ml-auto text-[12px] font-semibold text-ink-500 hover:text-red-600 disabled:opacity-50">
                     Remove
                   </button>
+                </div>
+              )}
+              {state?.configured && (
+                <div className="mb-4">
+                  <button
+                    type="button"
+                    onClick={runTest}
+                    disabled={test === 'reading'}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-brand/40 px-3 py-1.5 text-[12.5px] font-semibold text-brand hover:bg-brand-soft disabled:opacity-60"
+                  >
+                    <FiPlay size={13} /> {test === 'reading' ? 'Reading with your key…' : 'Test my key'}
+                  </button>
+                  {test === 'ok' && <p className="mt-2 text-[12px] leading-snug text-emerald-700">✓ Your key works — that was Kore, read with your own key.</p>}
+                  {test && test !== 'ok' && test !== 'reading' && <p className="mt-2 text-[12px] leading-snug text-red-600">{test}</p>}
+                  <p className="mt-1.5 text-[11px] text-ink-400">Reads one short Khmer line with your key only — uses one of its requests.</p>
                 </div>
               )}
               <ol className="mb-3 space-y-1.5">
