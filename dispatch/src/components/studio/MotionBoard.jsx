@@ -277,6 +277,8 @@ function SceneSketches({ sketches, render }) {
   return (
     <div className="border-b border-ink-100 px-4 py-3">
       <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-night ring-1 ring-ink-200" style={{ perspective: 1200 }}>
+        {/* a vertical video: its own picture, soft and wide, fills the space beside it */}
+        <img key={`bg${cur}`} src={shots[cur]} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full scale-110 object-cover opacity-40 blur-2xl animate-fadein" />
         {prev.under >= 0 && shots[prev.under] && <img src={shots[prev.under]} alt="" className="absolute inset-0 h-full w-full object-contain" />}
         <img key={cur} src={shots[cur]} alt={`Scene ${cur + 1}`} className={`absolute inset-0 h-full w-full object-contain ${SWAPS[cur % SWAPS.length]}`} />
         {/* the status, on the picture */}

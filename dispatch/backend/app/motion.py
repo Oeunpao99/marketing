@@ -4138,6 +4138,25 @@ def _sheet(mp4: bytes, times: list[float], sketches: list | None = None) -> byte
     return buf.getvalue()
 
 
+def _sketch(props: dict, job_id: int) -> None:
+    """Each scene's picture once it has settled, from a quick small silent
+    preview — the making card's Animate step shows them. Best effort: the
+    video never waits on a failure here."""
+    try:
+        mp4 = render(props, None, preview=True)
+        times, start = [], 0.0
+        for sc in props["scenes"]:
+            dur = sc.get("seconds") or default_seconds(sc)
+            times.append(start + min(dur - 0.3, 1.8))  # the templates have settled by then
+            start += dur - TRANSITION_S
+        sketches: list = []
+        _sheet(mp4, times, sketches)
+        if any(sketches) and job_id in _progress:
+            _report(job_id, sketches=sketches)
+    except Exception as exc:  # noqa: BLE001 — pictures for the card only
+        log.info("motion %s: no scene pictures for the card: %s", job_id, exc)
+
+
 def review_design(brand: Brand, script: dict, logo: str | None, khmer: bool, job_id: int | None) -> dict:
     """AI design (style "canvas"), stage 2: a quick small preview of the
     designed scenes is rendered, each scene's settled frame goes on a contact
@@ -4811,6 +4830,11 @@ def _make(
             script = review_design(brand, script, logo, "khmer" in language.lower(), job_id)
             props = build_props(brand, script, logo, "khmer" in language.lower())
             db.rollback()  # no transaction held open through the voice and render
+            if not (_progress.get(job_id) or {}).get("sketches"):
+                # a template video: its scene pictures for the making card, from a
+                # quick silent preview made while the voice records (AI design has
+                # them from its self-check already)
+                threading.Thread(target=_sketch, args=(json.loads(json.dumps(props)), job_id), daemon=True, name=f"sketch-{job_id}").start()
             from app import voice_clone
 
             # "brand": read by the closest base voice, then turned into the brand's own
