@@ -203,11 +203,11 @@ def gather(
     template_id: int | None = None,
     product_id: int | None = None,
     logo: bool = False,
-    extra: bytes | None = None,
+    extra: bytes | list[bytes] | None = None,
 ) -> tuple[list[bytes], str]:
     """Reference images for one generation, in order, and the instructions
     that name each one. ``extra`` is a reference the person attached
-    themselves (it goes last). Returns ([], "") when nothing is selected.
+    themselves — or several (they go last). Returns ([], "") when nothing is selected.
     Assets must belong to ``brand_id`` — callers pass an owned brand."""
     images: list[bytes] = []
     parts: list[str] = []
@@ -237,10 +237,11 @@ def gather(
         if b := load(lg):
             images.append(b)
             parts.append(_logo_part(len(images)))
+    own = [e for e in (extra if isinstance(extra, list) else [extra]) if e]
     if not images:
-        return ([extra] if extra else []), ""
-    if extra:
-        images.append(extra)
+        return own, own_guide(len(own))
+    for e in own:
+        images.append(e)
         parts.append(f"IMAGE {len(images)} — the person's own reference: use it the way the brief says.")
     guide = (
         "You are given reference images from the brand's kit, in this order:\n"
@@ -250,6 +251,18 @@ def gather(
         "social media poster from this brand.\n\nTHE NEW POSTER:\n"
     )
     return images, guide
+
+
+def own_guide(n: int) -> str:
+    """Names the person's own attached images when there are several (one needs no naming)."""
+    if n < 2:
+        return ""
+    return (
+        f"You are given {n} reference images the person attached, numbered IMAGE 1 to IMAGE {n} in "
+        "that order. Use each one the way the brief says (\"the product from image 1, the style of "
+        "image 2…\"); when the brief doesn't say, combine them into one coherent design.\n\n"
+        "THE NEW IMAGE:\n"
+    )
 
 
 def product_photo(db: Session, brand_id: int, product_id: int) -> bytes | None:

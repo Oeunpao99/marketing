@@ -117,6 +117,7 @@ const MOTION_VOICES = [
   ['none', 'Off'],
 ]
 const MAX_REFS = 6 // screenshots one Remotion video can take (app/motion.py MAX_ATTACHED)
+const MAX_IMAGE_REFS = 4 // pictures one image can build on (app/video.py ImageIn.reference_urls)
 const isImageUrl = (url) => /\.(png|jpe?g|webp|gif)$/i.test(url || '')
 
 let turnSeq = 0
@@ -307,6 +308,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
   // Instant video: the chosen product photo becomes the clip's first frame
   // (an attached image takes its place).
   const isClip = type === 'video' && !isStory && !isMotion
+  const maxRefs = isMotion ? MAX_REFS : isImage ? MAX_IMAGE_REFS : 1
   const videoFrame = isClip && !refImg && !!kitProduct
 
   useEffect(() => {
@@ -681,6 +683,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
           aspect_ratio: turn.ratio,
           brand_id: turn.brandId,
           reference_url: turn.refUrl || '',
+          reference_urls: turn.refUrls || [], // more attached images — IMAGE 2, 3, 4
           template_id: turn.kit?.templateId ?? null,
           product_id: turn.kit?.productId ?? null,
           use_logo: !!turn.kit?.logo,
@@ -893,7 +896,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
       brandId: brandObj?.id ?? null,
       brandName: brandObj?.name || '',
       refUrl: refImg?.url || '',
-      refUrls: isMotion ? refImgs.map((i) => i.url).filter(Boolean) : [],
+      refUrls: maxRefs > 1 ? refImgs.map((i) => i.url).filter(Boolean).slice(0, maxRefs) : [],
       refPreview: refImg?.previewUrl || '',
       kit: isMotion
         ? null
@@ -982,7 +985,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
     if (!file.type.startsWith('image/')) return showToast('Reference must be an image')
     const name = file.name && file.name !== 'image.png' ? file.name : `pasted-${Date.now()}.png`
     const previewUrl = URL.createObjectURL(file)
-    setRefImgs((cur) => (!isMotion ? [{ previewUrl, url: null, name }] : cur.length >= MAX_REFS ? cur : [...cur, { previewUrl, url: null, name }]))
+    setRefImgs((cur) => (maxRefs === 1 ? [{ previewUrl, url: null, name }] : cur.length >= maxRefs ? cur : [...cur, { previewUrl, url: null, name }]))
     setUploadCount((n) => n + 1)
     try {
       const fd = new FormData()
@@ -997,11 +1000,13 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
     }
   }
 
-  // the files that still fit: Remotion takes up to MAX_REFS, the rest one
+  // the files that still fit: Remotion takes up to MAX_REFS screenshots, an
+  // image up to MAX_IMAGE_REFS pictures, the rest one
   const fitting = (files) => {
-    if (!isMotion) return files.slice(0, 1)
-    const room = MAX_REFS - refImgs.length
-    if (files.length > room) showToast(room > 0 ? `Up to ${MAX_REFS} screenshots for one video — added ${room}` : `Up to ${MAX_REFS} screenshots for one video`)
+    if (maxRefs === 1) return files.slice(0, 1)
+    const room = maxRefs - refImgs.length
+    const what = isMotion ? `${maxRefs} screenshots for one video` : `${maxRefs} images for one picture`
+    if (files.length > room) showToast(room > 0 ? `Up to ${what} — added ${room}` : `Up to ${what}`)
     return files.slice(0, Math.max(0, room))
   }
 
@@ -1266,7 +1271,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
                     </div>
                   )}
                   <span className="absolute bottom-1.5 left-1.5 rounded-md bg-black/55 px-1.5 py-0.5 text-[9.5px] font-semibold text-white">
-                    {refImgs.length > 1 ? `Screen ${i + 1}` : 'Reference'}
+                    {refImgs.length > 1 ? `${isMotion ? 'Screen' : 'Image'} ${i + 1}` : 'Reference'}
                   </span>
                   <button
                     type="button"
@@ -1279,12 +1284,12 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
                   </button>
                 </div>
               ))}
-              {isMotion && refImgs.length < MAX_REFS && (
+              {maxRefs > 1 && refImgs.length < maxRefs && (
                 <label className="grid h-[104px] w-[104px] cursor-pointer place-items-center rounded-2xl border border-dashed border-ink-300 text-center text-[11px] font-semibold text-ink-500 hover:border-brand hover:text-brand">
                   <input type="file" accept="image/*" multiple className="hidden" onChange={attach} />
                   <span>
                     <FiPlus size={16} className="mx-auto mb-1" />
-                    Add a screen
+                    {isMotion ? 'Add a screen' : 'Add an image'}
                   </span>
                 </label>
               )}
@@ -1451,7 +1456,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
               className="h-9 w-9 rounded-full grid place-items-center text-ink-600 hover:bg-ink-100 cursor-pointer"
               title="Attach an image — ask about it, or make an image / video from it (or paste / drop one into the box)"
             >
-              <input type="file" accept="image/*" multiple={isMotion} className="hidden" onChange={attach} />
+              <input type="file" accept="image/*" multiple={maxRefs > 1} className="hidden" onChange={attach} />
               <FiPaperclip size={15} />
             </label>
 
@@ -1749,7 +1754,13 @@ function AskTurn({ t, onRetry, onGenerate, onEdit }) {
     <div className="space-y-4 animate-fadein">
       <div className="flex flex-col items-end">
         <div className={`max-w-[70%] rounded-2xl rounded-br-md bg-brand-soft/70 px-4 py-2.5 text-[13px] leading-relaxed text-ink-900 whitespace-pre-wrap ${khmer(t.prompt)}`}>
-          {t.refPreview && <img src={t.refPreview} alt="" className="mb-2 w-28 h-28 rounded-lg object-cover" />}
+          {t.refPreview && (
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {[t.refPreview, ...(t.refUrls || []).slice(1).map((u) => `${mediaBase}${u}`)].map((src) => (
+                <img key={src} src={src} alt="" className="w-28 h-28 rounded-lg object-cover" />
+              ))}
+            </div>
+          )}
           {t.prompt}
         </div>
         <div className="mt-1 flex items-center text-ink-400">

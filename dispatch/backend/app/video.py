@@ -722,6 +722,8 @@ class ImageIn(BaseModel):
     brand_id: int | None = None
     # A "/media/..." url the user already uploaded — the model edits / builds on it.
     reference_url: str = ""
+    # More images attached with it (up to 4 in all) — IMAGE 2, 3, 4 in the brief.
+    reference_urls: list[str] = Field(default_factory=list, max_length=4)
     # Brand kit (app/brand_kit.py): a poster template to follow, a product whose
     # photo to feature, and whether to put the brand's logo on it.
     template_id: int | None = None
@@ -747,13 +749,16 @@ def create_image(
         raise HTTPException(503, "Image generation is turned off (IMAGE_GENERATION_ENABLED=false).")
 
     billing.require(ws, billing.IMAGE_HOLD, db)
-    reference: bytes | None = None
-    if payload.reference_url:
-        reference = read_media(payload.reference_url)
-        if reference is None:
-            raise HTTPException(400, "Reference image not found.")
-    references: bytes | list[bytes] | None = reference
-    guide = ""
+    own: list[bytes] = []
+    for url in [u for u in dict.fromkeys([payload.reference_url, *payload.reference_urls]) if u][:4]:
+        blob = read_media(url)
+        if blob is None:
+            raise HTTPException(400, "One of the attached images couldn't be found — attach it again.")
+        own.append(blob)
+    from app.brand_kit import own_guide
+
+    references: bytes | list[bytes] | None = (own[0] if len(own) == 1 else own) or None
+    guide = own_guide(len(own))
     if payload.brand_id is not None and (payload.template_id or payload.product_id or payload.use_logo):
         from app.brand_kit import gather
 
@@ -763,7 +768,7 @@ def create_image(
             template_id=payload.template_id,
             product_id=payload.product_id,
             logo=payload.use_logo,
-            extra=reference,
+            extra=own,
         )
 
     job = GenerationJob(
