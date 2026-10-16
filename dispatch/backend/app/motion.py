@@ -1740,12 +1740,41 @@ STORY_RULES = (
 )
 
 
+_SCENE_HEAD = re.compile(r"(?im)^\W*(?:scene|act|shot|ឈុត(?:ទី)?)\s*(\d{1,2})\b")
+_VOICE_LINE = re.compile(r"(?im)^\W*(?:voice(?:[- ]?over)?|vo|narrat(?:or|ion)|សំឡេង)\s*[:：]\s*(.+)$")
+_LOOK_WORDS = re.compile(r"(?i)\b(?:look|visual|background|colou?r|palette|lighting|transition|pause|reveal|impact|split screen|led screen)\b")
+
+
+def own_scenes(text: str) -> int:
+    """How many numbered scenes a pasted script has ("Scene 1", "SCENE 2 –",
+    "ឈុតទី 3"…) — 0 when it isn't written scene by scene (fewer than 3)."""
+    nums = {int(m) for m in _SCENE_HEAD.findall(text or "")}
+    return len(nums) if len(nums) >= 3 else 0
+
+
+def own_voice(text: str) -> list[str]:
+    """The script's own voice lines ("Voice: …"), quotes taken off."""
+    return [ln.strip().strip("\"“”«»'").strip() for ln in _VOICE_LINE.findall(text or "") if ln.strip()]
+
+
+def own_design(text: str) -> bool:
+    """A script that designs its own film: numbered scenes AND visual
+    direction (looks, backgrounds, colours, a pause, a reveal…) — the AI
+    design style follows that; a fixed template can't."""
+    return own_scenes(text) >= 3 and len(_LOOK_WORDS.findall(text or "")) >= 4
+
+
 def story_seconds(text: str, length: str = "auto", cap: int = 120) -> int:
     """How long a story video should be: "60" / "120" / "300" / "600", or from
     how long the story takes to read aloud (Khmer ~11 characters a second,
     English ~2.6 words), between 30 s and ``cap`` (2 minutes; 10 for a training)."""
     if length in ("60", "120", "300", "600"):
         return min(int(length), cap)
+    lines = own_voice(text)
+    if lines and own_scenes(text):  # a written script: its voice lines + a beat per scene
+        said = " ".join(lines)
+        spoken = sum(1 for ch in said if "\u1780" <= ch <= "\u17ff") / 11 + len(re.findall(r"[A-Za-z0-9]+", said)) / 2.6 + 2.5 * own_scenes(text)
+        return int(min(cap, max(30, round(spoken / 5) * 5)))
     khmer = sum(1 for ch in text if "\u1780" <= ch <= "\u17ff")
     spoken = khmer / 11 + len(re.findall(r"[A-Za-z0-9]+", text)) / 2.6
     return int(min(cap, max(30, round(spoken / 15) * 15)))
@@ -2594,8 +2623,22 @@ def write_script(
         model = writer_model(khmer)
     if story:
         count = max(5, min(MAX_LONG_SCENES if style in LONG_STYLES else MAX_STORY_SCENES, round(seconds / 6.5)))
+        numbered = own_scenes(idea)
+        if numbered:  # their own scene list: that many scenes, no more
+            count = max(2, min(MAX_LONG_SCENES if style in LONG_STYLES else MAX_STORY_SCENES, numbered))
         most = count  # the person's story sets the length, not the template
         extra += STORY_RULES.format(count=count, seconds=seconds)
+        if numbered:
+            extra += (
+                f"\nTHE SCRIPT IS WRITTEN SCENE BY SCENE ({numbered} numbered scenes): make ONE scene per "
+                "numbered scene, in the same order — never split one into two, never merge two, never "
+                "drop one (a scene whose visual doesn't fit a scene type is shown with the closest one). "
+                "Its hook is scene 1; if the template needs a closing call to action, it is the last "
+                "scene's own call to action, not an extra scene. When a scene gives its own Voice line, "
+                "`say` is THAT line, word for word — never write a voice line the script doesn't have, "
+                "and never add the brand's name or a slogan it doesn't say. Its on-screen text stays "
+                "exactly as written."
+            )
     raw = _chat(
         [
             {"role": "system", "content": prompt + extra},
@@ -4053,6 +4096,10 @@ def pick_style(idea: str, products: list[Product], has_product: bool, has_ui: bo
         if ratio == "auto"
         else ""
     )
+    if own_design(idea):
+        # scene by scene with its own looks, backgrounds, pauses and reveals:
+        # only AI design can follow that — a fixed template would drop it
+        return "canvas", "Your script designs each scene — the AI builds every scene to match it", "16:9" if re.search(r"16\s*:\s*9|landscape|led screen|youtube", idea, re.I) else None
     names = ", ".join(p.name for p in products[:10]) or "(none)"
     try:
         out = _chat(
