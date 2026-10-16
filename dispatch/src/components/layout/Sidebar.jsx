@@ -265,14 +265,16 @@ export default function Sidebar({ collapsed = false }) {
       {/* App name */}
       <NavLink
         to="/"
-        title="ContentFlow"
+        title="Marketing ឆ្លាតវ៉ៃ"
         className={`flex items-center gap-2.5 pt-5 pb-3 ${collapsed ? "justify-center px-0" : "px-5"}`}
       >
-        <img src="/brand/logo-mark.png" alt="ContentFlow" className="w-9 h-9 flex-none object-contain" />
+        <img src="/brand/logo-mark.png" alt="Marketing ឆ្លាតវ៉ៃ" className="w-9 h-9 flex-none object-contain" />
         {!collapsed && (
           <span className="min-w-0">
-            <span className="block text-[15px] font-bold text-ink-900 tracking-tight leading-tight">ContentFlow</span>
-            <span className="block text-[11px] text-ink-500">AI Marketing Hub</span>
+            <span className="block text-[15px] font-bold text-ink-900 tracking-tight leading-tight">
+              Marketing <span className="font-khmer text-brand">ឆ្លាតវ៉ៃ</span>
+            </span>
+            <span className="block text-[11px] text-ink-500">Your AI marketing team</span>
           </span>
         )}
       </NavLink>

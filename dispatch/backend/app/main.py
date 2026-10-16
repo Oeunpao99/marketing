@@ -37,6 +37,9 @@ from app.sales_alerts import router as sales_alerts_router
 from app.ai_models_api import router as ai_models_router
 
 logging.basicConfig(level=logging.INFO)
+# httpx logs every request's full url — and some carry secrets in it (Meta's
+# access_token, any ?key=): never write those to the log.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 settings = get_settings()
 
 
@@ -54,9 +57,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="ContentFlow API",
+    title="Marketing ឆ្លាតវ៉ៃ API",
     version="0.1.0",
-    description="Backend for ContentFlow, the AI social content portal.",
+    description="Backend for Marketing ឆ្លាតវ៉ៃ, the AI social content portal.",
     lifespan=lifespan,
 )
 
@@ -68,7 +71,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-MAINTENANCE_DEFAULT = "ContentFlow is down for scheduled maintenance. We'll be back shortly."
+MAINTENANCE_DEFAULT = "Marketing ឆ្លាតវ៉ៃ is down for scheduled maintenance. We'll be back shortly."
 
 
 @app.middleware("http")

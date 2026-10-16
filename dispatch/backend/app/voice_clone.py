@@ -209,6 +209,13 @@ def narrator_for(brand, language: str, voice: str, style: str | None = None) -> 
         return None, None
     # Azure's own Khmer voices by name (the Voice tab's comparison), whatever
     # reads the videos — None when Azure Speech isn't set up
+    # "native": the open-source Khmer voice from Hugging Face, run on this server
+    # (app/local_voice.py) — only where KHMER_TTS_MODEL is set (its licence is
+    # non-commercial, so it's off unless the owner turns it on)
+    if voice == "native":
+        from app import local_voice
+
+        return (local_voice.PREFIX + local_voice.model_id() if local_voice.ready() else speech.voice_for(language, "female", style)), None
     if voice in AZURE_NAMED:
         return (speech.VOICES[("km", AZURE_NAMED[voice])] if speech.provider() == "azure" else None), None
     if voice != "brand":

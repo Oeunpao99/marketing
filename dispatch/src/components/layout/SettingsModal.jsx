@@ -437,7 +437,7 @@ function InstallApp({ showToast }) {
     <section className="flex items-start gap-4 rounded-2xl border border-ink-200 p-4">
       <img src="/brand/icon-192.png" alt="" className="h-12 w-12 flex-none rounded-xl ring-1 ring-ink-200" />
       <div className="min-w-0 flex-1">
-        <div className="text-[13px] font-semibold text-ink-900">ContentFlow app</div>
+        <div className="text-[13px] font-semibold text-ink-900">Marketing ឆ្លាតវ៉ៃ app</div>
         {state === 'installed' && (
           <div className="text-[12px] text-emerald-700">Installed — you’re using the app right now.</div>
         )}
@@ -448,12 +448,12 @@ function InstallApp({ showToast }) {
           <ol className="mt-1 space-y-0.5 text-[12px] text-ink-600">
             <li>1. Tap the <b>Share</b> button in Safari (the square with the arrow).</li>
             <li>2. Scroll down and tap <b>Add to Home Screen</b>.</li>
-            <li>3. Tap <b>Add</b> — ContentFlow appears with your other apps.</li>
+            <li>3. Tap <b>Add</b> — Marketing ឆ្លាតវ៉ៃ appears with your other apps.</li>
           </ol>
         )}
         {state === 'unsupported' && (
           <div className="text-[12px] text-ink-500">
-            Open ContentFlow in Chrome, Edge or Safari on your phone, then use <b>Install app</b> / <b>Add to Home Screen</b>{' '}
+            Open Marketing ឆ្លាតវ៉ៃ in Chrome, Edge or Safari on your phone, then use <b>Install app</b> / <b>Add to Home Screen</b>{' '}
             from the browser menu.
           </div>
         )}
@@ -463,7 +463,7 @@ function InstallApp({ showToast }) {
           type="button"
           onClick={async () => {
             const r = await promptInstall()
-            if (r === 'accepted') showToast('Installed — find ContentFlow on your home screen')
+            if (r === 'accepted') showToast('Installed — find Marketing ឆ្លាតវ៉ៃ on your home screen')
           }}
           className="btn-primary flex-none"
         >
@@ -517,7 +517,7 @@ function NotificationsTab({ showToast }) {
 // Phone lock-screen / desktop notifications via Web Push (app/push.py).
 const PUSH_HELP = {
   'ios-install':
-    'On iPhone, add ContentFlow to your Home Screen first (Share → Add to Home Screen), open it from there, then turn this on.',
+    'On iPhone, add Marketing ឆ្លាតវ៉ៃ to your Home Screen first (Share → Add to Home Screen), open it from there, then turn this on.',
   insecure: 'Needs a secure (https://) address — it works on your live site, not on a local Wi-Fi preview.',
   unsupported: 'This browser can’t receive push notifications. Try Chrome, Edge, or the installed app.',
   denied: 'Notifications are blocked for this site — allow them in your browser or phone settings, then come back.',
@@ -574,7 +574,7 @@ function PushSection({ showToast }) {
     <section>
       <SectionTitle
         title="Push notifications"
-        sub="Alerts on your phone’s lock screen or your computer — even when ContentFlow is closed."
+        sub="Alerts on your phone’s lock screen or your computer — even when Marketing ឆ្លាតវ៉ៃ is closed."
       />
       <div className="mt-3 rounded-2xl border border-ink-200 px-4">
         <ToggleRow
@@ -1037,7 +1037,7 @@ function AiModelSection({ canManage, showToast }) {
     }
   }
   const platform = data.models.find((m) => m.key === data.platform_default)
-  const options = [{ key: '', label: 'Platform default', blurb: platform ? `Currently ${platform.label}` : 'Chosen by ContentFlow', tier: '' }, ...data.models]
+  const options = [{ key: '', label: 'Platform default', blurb: platform ? `Currently ${platform.label}` : 'Chosen by Marketing ឆ្លាតវ៉ៃ', tier: '' }, ...data.models]
   const rows = (usage?.rows || []).slice().sort((a, b) => b.charged - a.charged)
   const label = (k) => data.models.find((m) => m.key === k)?.label || k || 'Other'
 
@@ -1840,7 +1840,7 @@ function AddMember({ onCancel, onAdded, showToast }) {
       const m = await api.post('/auth/members', { ...form, name: form.name.trim(), email: form.email.trim() })
       try {
         await navigator.clipboard.writeText(
-          `ContentFlow login\n${window.location.origin}\nEmail: ${m.email}\nTemporary password: ${form.password}`,
+          `Marketing ឆ្លាតវ៉ៃ login\n${window.location.origin}\nEmail: ${m.email}\nTemporary password: ${form.password}`,
         )
       } catch {
         /* clipboard is a nicety */

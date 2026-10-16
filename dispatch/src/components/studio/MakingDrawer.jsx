@@ -109,7 +109,7 @@ export default function MakingDrawer({ jobId, onClose }) {
                   )}
                   <span className="inline-flex items-center gap-1 rounded-full bg-ink-100 px-2.5 py-0.5 font-medium text-ink-700">
                     <FiMic size={11} aria-hidden="true" />
-                    {m.voice === 'none' ? 'No voice' : `${{ male: 'Male', brand: 'Brand voice' }[m.voice] || 'Female'} · ${m.language}`}
+                    {m.voice === 'none' ? 'No voice' : `${{ male: 'Male', brand: 'Brand voice', native: 'Native Khmer' }[m.voice] || 'Female'} · ${m.language}`}
                   </span>
                   {m.music && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-ink-100 px-2.5 py-0.5 font-medium capitalize text-ink-700">

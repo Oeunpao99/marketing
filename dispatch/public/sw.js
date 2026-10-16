@@ -70,7 +70,7 @@ self.addEventListener('push', (event) => {
   try {
     msg = event.data ? event.data.json() : {}
   } catch {
-    msg = { title: 'ContentFlow', body: event.data ? event.data.text() : '' }
+    msg = { title: 'Marketing ឆ្លាតវ៉ៃ', body: event.data ? event.data.text() : '' }
   }
   // The number on the app icon (iPhone / Android / desktop installed app) —
   // the server sends the person's current "needs you" count with each push.
@@ -81,7 +81,7 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     Promise.all([
       badge,
-      self.registration.showNotification(msg.title || 'ContentFlow', {
+      self.registration.showNotification(msg.title || 'Marketing ឆ្លាតវ៉ៃ', {
         body: msg.body || '',
         icon: '/brand/icon-192.png',
         badge: '/brand/favicon-64.png',

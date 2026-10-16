@@ -41,6 +41,7 @@ import WriterModelSelect, { useWriterModels, writerHint } from '../components/st
 import { aiModelStore } from '../api/client'
 import { MOTION_TEMPLATES } from '../lib/motionTemplates'
 import MakingDrawer from '../components/studio/MakingDrawer'
+import { backupName, useVoiceStatus } from '../lib/voiceStatus'
 
 // AI Agent — one chat for both asking and creating. A message that reads
 // like a question ("how is my engagement?", "what should I post next?") goes
@@ -196,6 +197,7 @@ const MOTION_STORIES = [
   { value: 'report', label: 'Data report', hint: 'Bars, a percent ring, numbers with their source' },
   { value: 'clarity', label: 'SaaS explainer', hint: 'Calm white and blue — the mess of tools today, your app in a frame, how it works' },
   { value: 'launch', label: 'Product launch', hint: 'A cinematic launch film — the one click that does the job, your screens stacking up, “Now live”' },
+  { value: 'unveil', label: 'Unveil · Launch (light)', hint: 'A light, elegant launch — one big word, the app card coming into focus, typing, a check with confetti' },
   { value: 'showcase', label: 'Showcase · SaaS promo', hint: 'Bright launch-video look — the apps it joins, its table and board views, a rolling word' },
   { value: 'demo', label: 'Product demo', hint: 'Your product in an app window, step by step — shows the solution' },
   { value: 'offer', label: 'Offer · Pricing', hint: 'A glowing pricing card and one clear action — conversion (prices only from your brief)' },
@@ -279,6 +281,11 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
   // Motion: animated words over the brand's photos (Remotion) — Khmer or English.
   const isMotion = type === 'video' && videoMode === 'motion'
   const motionLang = /english/i.test(voice ?? brandObj?.lang ?? '') && !/khmer/i.test(voice ?? brandObj?.lang ?? '') ? 'English' : 'Khmer'
+  // "Native" is the open-source Khmer voice — Khmer only, and only where the server runs it
+  const nativeVoice = useVoiceStatus()?.native
+  useEffect(() => {
+    if (motionVoice === 'native' && (motionLang !== 'Khmer' || nativeVoice === false)) setMotionVoice('female')
+  }, [motionVoice, motionLang, nativeVoice])
   const storyVoice = voice ?? (VOICES.includes(brandObj?.lang) ? brandObj.lang : 'English')
   const working = turns.some((t) => t.status === 'working')
   const kitTemplates = kitAssets.filter((a) => a.kind === 'template')
@@ -1724,7 +1731,7 @@ function AskTurn({ t, onRetry, onGenerate, onEdit }) {
 
       <div className="flex items-start gap-3">
         <span className="mt-0.5 w-8 h-8 flex-none rounded-xl grid place-items-center bg-white ring-1 ring-ink-200/80 shadow-sm">
-          <img src="/brand/logo-mark.png" alt="ContentFlow" className="w-6 h-6 object-contain" />
+          <img src="/brand/logo-mark.png" alt="Marketing ឆ្លាតវ៉ៃ" className="w-6 h-6 object-contain" />
         </span>
         <div className="min-w-0 flex-1 max-w-[860px]">
           {t.status === 'working' && (
@@ -1991,10 +1998,15 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary, onPlanChange, onMake,
             onChange={onPlanChange}
             onMake={onMake}
             onRewrite={onRewrite}
+            // one voice line, read exactly as the video will — same voice, same acting
+            // (the template's style); the server keeps it, so Make reuses it
+            fetchLine={(text) =>
+              api.blob('/ai/motion/say', { brand_id: t.brandId, text, language: t.language || 'Khmer', voice: t.voice || 'female', style: t.plan?.style || '' })
+            }
+            onError={(e) => showToast(`Couldn’t play the voice — ${e.message}`)}
             onHear={async (text) => {
-              // one voice line, read exactly as the video will (POST /ai/motion/say)
               try {
-                const audio = await api.blob('/ai/motion/say', { brand_id: t.brandId, text, language: t.language || 'Khmer', voice: t.voice || 'female' })
+                const audio = await api.blob('/ai/motion/say', { brand_id: t.brandId, text, language: t.language || 'Khmer', voice: t.voice || 'female', style: t.plan?.style || '' })
                 const url = URL.createObjectURL(audio)
                 const el = new Audio(url)
                 await new Promise((resolve) => {
@@ -2257,6 +2269,7 @@ function SettingsPopover({
   }, [onClose])
   const motionReady = useMotionReady() // false: this server can't render Remotion videos
   const brandVoice = !!brands?.find((b) => b.slug === brand)?.voiceReady // its own voice is learned (Brand kit)
+  const voiceStatus = useVoiceStatus() // the Gemini voice out for now → Sreymom / Piseth read
   const writers = useWriterModels()
   const story = type === 'video' && videoMode === 'story'
   const motion = type === 'video' && videoMode === 'motion'
@@ -2364,7 +2377,9 @@ function SettingsPopover({
             hint={
               motionVoice === 'none'
                 ? 'Silent — words only'
-                : motionVoice === 'brand'
+                : motionVoice === 'native'
+                  ? 'The open-source native Khmer voice (Hugging Face), run on our own server — one voice for all'
+                  : motionVoice === 'brand'
                   ? 'The brand’s own recorded voice reads each scene'
                   : brandVoice
                     ? 'A narrator reads each scene · the video follows the voice'
@@ -2379,12 +2394,32 @@ function SettingsPopover({
             }
           >
             <Segmented>
-              {(brandVoice ? [...MOTION_VOICES.slice(0, 2), ['brand', 'Brand'], MOTION_VOICES[2]] : MOTION_VOICES).map(([v, label]) => (
+              {[
+                ...MOTION_VOICES.slice(0, 2),
+                ...(brandVoice ? [['brand', 'Brand']] : []),
+                // the open-source Khmer voice (Hugging Face) — only where the server runs it
+                ...(voiceStatus?.native && motionLang === 'Khmer' ? [['native', 'Native']] : []),
+                MOTION_VOICES[2],
+              ].map(([v, label]) => (
                 <button key={v} type="button" onClick={() => setMotionVoice(v)} className={`${seg(motionVoice === v)} px-0 text-[11.5px]`}>
                   {label}
                 </button>
               ))}
             </Segmented>
+            {/* the Gemini voice out for now (its daily limit): who reads instead, before anything is made */}
+            {voiceStatus?.configured && !voiceStatus.available && !['none', 'native'].includes(motionVoice) && motionLang === 'Khmer' && (
+              <p className="mt-1.5 rounded-lg bg-ink-50 px-2.5 py-1.5 text-[11px] leading-snug text-ink-600">
+                The Gemini voice isn’t available right now —{' '}
+                {motionVoice === 'brand' ? (
+                  <>your brand voice will be made from {backupName(voiceStatus, 'female')} / {backupName(voiceStatus, 'male')}</>
+                ) : (
+                  <>
+                    <span className="font-semibold text-ink-800">{backupName(voiceStatus, motionVoice)}</span> will read your video
+                  </>
+                )}
+                . You can keep going; Gemini comes back by itself.
+              </p>
+            )}
           </Row>
         )}
 

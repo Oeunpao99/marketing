@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { FiArrowDown, FiArrowUp, FiFilm, FiMic, FiPlay, FiRefreshCw, FiTrash2 } from 'react-icons/fi'
+import { useEffect, useRef, useState } from 'react'
+import { FiArrowDown, FiArrowUp, FiFilm, FiHeadphones, FiMic, FiPlay, FiRefreshCw, FiSquare, FiTrash2 } from 'react-icons/fi'
 import AutoTextarea from '../ui/AutoTextarea'
 import { SCENE_LABELS, STYLE_LABELS } from './MotionBoard'
 
@@ -101,6 +101,18 @@ const FIELDS = {
     ['title', 'Title'],
     ['toggle', 'Toggle'],
   ],
+  // Unveil
+  word: [
+    ['word', 'Big word'],
+    ['title', 'Card'],
+    ['text', 'Line'],
+  ],
+  field: [
+    ['label', 'Label'],
+    ['value', 'Typed'],
+    ['button', 'Button'],
+  ],
+  done: [['text', 'Result']],
   stack: [],
   platform: [['text', 'On screen']],
   orbit: [['text', 'On screen']],
@@ -172,6 +184,7 @@ function extras(s) {
   if (s.type === 'chaos') return (s.cards || []).map((x) => `${x.app}: ${x.title}`).join(' / ')
   if (s.type === 'phones') return (s.words || []).join(' ')
   if (s.type === 'form') return (s.fields || []).map((f) => `${f.label}: ${f.value}`).join(' · ')
+  if (s.type === 'word') return (s.rows || []).map((x) => (x.sub ? `${x.name} (${x.sub})` : x.name)).join(' · ')
   if (s.type === 'stack') return `Screenshots ${(s.shots || []).join(', ')}${s.words?.length ? ` — ${s.words.join(' / ')}` : ''}`
   if (s.type === 'board') return (s.columns || []).map((c) => c.name).join(' → ')
   if (s.features?.length) return [s.price && `${s.price}${s.period || ''}`, ...s.features].filter(Boolean).join(' · ')
@@ -181,7 +194,7 @@ function extras(s) {
 // Seconds a scene runs — mirrors app/motion.py estimate_seconds.
 const KHMER = /[ក-៿]/g
 const spokenSeconds = (say = '') => (say.match(KHMER) || []).length / 11 + (say.match(/[A-Za-z0-9]+/g) || []).length / 2.6
-const MIN_SECONDS = { chart: 5.2, compare: 4.2, character: 3.8, cta: 3.8, product: 3.6, myth: 5, quote: 5.6, options: 9.8, split: 8, beforeafter: 5.4, result: 4.2, review: 6, customer: 4.4, news: 5, notify: 7, step: 4.8, offer: 5.6, screen: 5, dashboard: 5.2, flow: 6.4, chapter: 3.2, checklist: 5.8, recap: 6, apps: 5, table: 5.1, board: 4.6, roll: 4.8, launch: 4.2, button: 4.6, form: 5.2, stack: 4.9, platform: 4.4, orbit: 5, chaos: 5, phones: 5, pair: 3.8, rank: 4.2, tip: 4.6, choice: 5, reviews: 5.8, logos: 4, save: 3.4, take: 5.2, client: 5, metrics: 5.2, timeline: 5.2, qa: 4.5, bars: 5, donut: 4.6 }
+const MIN_SECONDS = { chart: 5.2, compare: 4.2, character: 3.8, cta: 3.8, product: 3.6, myth: 5, quote: 5.6, options: 9.8, split: 8, beforeafter: 5.4, result: 4.2, review: 6, customer: 4.4, news: 5, notify: 7, step: 4.8, offer: 5.6, screen: 5, dashboard: 5.2, flow: 6.4, chapter: 3.2, checklist: 5.8, recap: 6, apps: 5, table: 5.1, board: 4.6, roll: 4.8, launch: 4.2, button: 4.6, form: 5.2, word: 4.2, field: 4.8, done: 3.4, stack: 4.9, platform: 4.4, orbit: 5, chaos: 5, phones: 5, pair: 3.8, rank: 4.2, tip: 4.6, choice: 5, reviews: 5.8, logos: 4, save: 3.4, take: 5.2, client: 5, metrics: 5.2, timeline: 5.2, qa: 4.5, bars: 5, donut: 4.6 }
 
 export function estimateSeconds(scenes) {
   const total = scenes.reduce((n, s) => n + Math.max(MIN_SECONDS[s.type] || 3.4, spokenSeconds(s.say) + 1.3), 0)
@@ -190,8 +203,57 @@ export function estimateSeconds(scenes) {
 
 const fmtLength = (sec) => (sec >= 60 ? `${Math.floor(sec / 60)} min ${String(sec % 60).padStart(2, '0')} s` : `${sec} s`)
 
-export default function StoryboardEditor({ plan, onChange, onMake, onRewrite, voice = true, onHear }) {
+export default function StoryboardEditor({ plan, onChange, onMake, onRewrite, voice = true, onHear, fetchLine, onError }) {
   const [hearing, setHearing] = useState(null) // the line being played
+  // "Listen to the whole voice": every line in order, the next one fetched while
+  // this one plays (no gaps); the scene being read is lit. Lines heard here are
+  // kept on the server a while, so Make the video reuses them.
+  const [playing, setPlaying] = useState(null) // the scene being read in the run
+  const run = useRef(null)
+  useEffect(() => () => run.current?.stop(), [])
+  const listenAll = async () => {
+    if (run.current) return run.current.stop()
+    const lines = scenes.map((s, i) => [i, (s.say || '').trim()]).filter(([, t]) => t)
+    if (!lines.length || !fetchLine) return
+    let stopped = false
+    let audio = null
+    run.current = {
+      stop: () => {
+        stopped = true
+        audio?.pause()
+        run.current = null
+        setPlaying(null)
+      },
+    }
+    let next = fetchLine(lines[0][1])
+    for (let k = 0; k < lines.length && !stopped; k++) {
+      const [i] = lines[k]
+      setPlaying(i)
+      let blob
+      try {
+        blob = await next
+      } catch (e) {
+        onError?.(e)
+        break
+      }
+      if (k + 1 < lines.length) next = fetchLine(lines[k + 1][1])
+      next?.catch?.(() => {}) // handled when it's its turn
+      if (stopped) break
+      const url = URL.createObjectURL(blob)
+      audio = new Audio(url)
+      await new Promise((done) => {
+        audio.onended = done
+        audio.onerror = done
+        audio.play().catch(done)
+      })
+      URL.revokeObjectURL(url)
+    }
+    if (!stopped) {
+      run.current = null
+      setPlaying(null)
+    }
+  }
+
   const hear = async (i, text) => {
     if (!onHear || !text?.trim() || hearing != null) return
     setHearing(i)
@@ -234,7 +296,7 @@ export default function StoryboardEditor({ plan, onChange, onMake, onRewrite, vo
         {scenes.map((s, i) => {
           const more = extras(s)
           return (
-            <li key={i} className="flex gap-3 px-4 py-3">
+            <li key={i} className={`flex gap-3 px-4 py-3 transition-colors ${playing === i ? 'bg-brand-soft/50' : ''}`}>
               <span className="mt-0.5 grid h-6 w-6 flex-none place-items-center rounded-lg bg-ink-100 text-[11px] font-bold tabular-nums text-ink-600">
                 {i + 1}
               </span>
@@ -314,7 +376,28 @@ export default function StoryboardEditor({ plan, onChange, onMake, onRewrite, vo
 
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-ink-200/70 px-4 py-3">
         <span className="text-[11px] text-ink-400">Words in [brackets] are highlighted on screen.</span>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {voice && fetchLine && (
+            <button
+              type="button"
+              onClick={listenAll}
+              disabled={hearing != null || !scenes.some((s) => s.say?.trim())}
+              title="Hear every line in order, as the video will say it — then make the video"
+              className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-[12.5px] font-semibold disabled:opacity-50 ${
+                playing != null ? 'border-brand bg-brand-soft text-brand' : 'border-ink-200 text-ink-700 hover:bg-ink-50'
+              }`}
+            >
+              {playing != null ? (
+                <>
+                  <FiSquare size={12} fill="currentColor" /> Stop · scene {playing + 1}
+                </>
+              ) : (
+                <>
+                  <FiHeadphones size={14} /> Listen to the whole voice
+                </>
+              )}
+            </button>
+          )}
           <button
             type="button"
             onClick={onRewrite}

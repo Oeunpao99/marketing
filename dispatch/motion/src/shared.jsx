@@ -66,6 +66,13 @@ export function defaultSeconds(s) {
       return 4.6
     case 'form':
       return 2.6 + 0.9 * Math.min(3, (s.fields || []).length) + (s.toggle ? 1.4 : 0)
+    // Unveil (unveil.jsx) — app/motion.py default_seconds says the same
+    case 'word':
+      return 3.0 + 0.6 * Math.min(3, (s.rows || []).length)
+    case 'field':
+      return 3.6 + 0.07 * (s.value || '').length
+    case 'done':
+      return 3.4
     case 'roll':
       return 2.4 + 0.6 * Math.min(5, (s.words || []).length)
     case 'list':
@@ -222,6 +229,16 @@ export function Words({ text, delay = 0, stagger = 1, style, align = 'left', col
       }}
     >
       {pieces.map(({ p, gap, em: hi }, n) => {
+        // The marker reaches past the word only into a space (or into the next
+        // marked piece) — Khmer words touch, and an overhang covered the
+        // neighbouring word's letters
+        const prev = pieces[n - 1]
+        const next = pieces[n + 1]
+        const pad = KHMER_RE.test(p) ? '-0.16em' : '-0.12em'
+        const joinL = !!prev && !prev.gap && prev.em // one marker over two touching pieces:
+        const joinR = !gap && !!next && next.em //    no rounded corners where they meet
+        const left = !prev || prev.gap ? pad : joinL ? '-0.01em' : '0em'
+        const right = gap || !next ? pad : joinR ? '-0.01em' : '0em'
         const s = spring({ frame: frame - delay - n * stagger, fps, config: { damping: 40, mass: 0.4 } })
         const sweep = spring({ frame: frame - delay - n * stagger - 3, fps, config: { damping: 40 } })
         return (
@@ -241,12 +258,12 @@ export function Words({ text, delay = 0, stagger = 1, style, align = 'left', col
               <span
                 style={{
                   position: 'absolute',
-                  left: '-0.12em',
-                  right: '-0.12em', // the gap after a word is margin, outside this box
+                  left,
+                  right, // the gap after a word is margin, outside this box
                   // Khmer is taller: vowels sit above the letters (ើ ំ) and stacked
                   // consonants below (្ល) — the marker covers all of it, not a cut-off middle band
-                  ...(KHMER_RE.test(p) ? { top: '-0.02em', bottom: '-0.06em', left: '-0.16em', right: '-0.16em' } : { top: '0.12em', bottom: '0.08em' }),
-                  borderRadius: '0.18em',
+                  ...(KHMER_RE.test(p) ? { top: '-0.02em', bottom: '-0.06em' } : { top: '0.12em', bottom: '0.08em' }),
+                  borderRadius: `${joinL ? 0 : '0.18em'} ${joinR ? 0 : '0.18em'} ${joinR ? 0 : '0.18em'} ${joinL ? 0 : '0.18em'}`,
                   background: 'var(--hl-bg, var(--brand))',
                   transform: `scaleX(${sweep})`,
                   transformOrigin: 'left center',

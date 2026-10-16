@@ -24,25 +24,47 @@ export async function uploadKitAsset(file, { brandId, kind, productId, name = ''
   return api.upload('/brand-kit', fd)
 }
 
-/** Hidden file input + a trigger — `children(open, busy)` renders the trigger. */
+/** Hidden file input + a trigger — `children(open, busy, drop)` renders the
+ *  trigger; spread `drop.props` on it to take files dragged onto it too
+ *  (`drop.over` while one is held over it). */
 function FilePick({ multiple = false, onFiles, children }) {
   const ref = useRef(null)
   const [busy, setBusy] = useState(false)
-  const pick = async (e) => {
-    const files = [...(e.target.files || [])]
-    e.target.value = ''
+  const [over, setOver] = useState(false)
+  const run = async (list) => {
+    const files = [...list].filter((f) => IMAGE_TYPES.split(',').includes(f.type))
     if (!files.length) return
     setBusy(true)
     try {
-      await onFiles(files)
+      await onFiles(multiple ? files : files.slice(0, 1))
     } finally {
       setBusy(false)
     }
   }
+  const pick = (e) => {
+    const files = [...(e.target.files || [])]
+    e.target.value = ''
+    run(files)
+  }
+  const drop = {
+    over,
+    props: {
+      onDragOver: (e) => {
+        e.preventDefault()
+        if (!busy) setOver(true)
+      },
+      onDragLeave: (e) => !e.currentTarget.contains(e.relatedTarget) && setOver(false),
+      onDrop: (e) => {
+        e.preventDefault()
+        setOver(false)
+        if (!busy) run(e.dataTransfer?.files || [])
+      },
+    },
+  }
   return (
     <>
       <input ref={ref} type="file" accept={IMAGE_TYPES} multiple={multiple} className="hidden" onChange={pick} />
-      {children(() => ref.current?.click(), busy)}
+      {children(() => ref.current?.click(), busy, drop)}
     </>
   )
 }
@@ -94,24 +116,32 @@ export function BrandKitPanel({ brand, assets, setAssets, showToast }) {
           Placed on posters exactly as it is. A PNG with a transparent background works best.
         </p>
         <FilePick onFiles={(f) => add(f.slice(0, 1), 'logo')}>
-          {(open, busy) => (
+          {(open, busy, drop) => (
             <button
               type="button"
               onClick={open}
               disabled={busy}
-              className="group relative mt-4 grid aspect-[4/3] w-full place-items-center overflow-hidden rounded-xl border border-dashed border-ink-200 bg-[repeating-conic-gradient(rgb(var(--ink-100))_0_25%,transparent_0_50%)] bg-[length:16px_16px] hover:border-brand-line"
+              {...drop.props}
+              className={`group relative mt-4 grid aspect-[4/3] w-full place-items-center overflow-hidden rounded-xl border-2 border-dashed bg-[repeating-conic-gradient(rgb(var(--ink-100))_0_25%,transparent_0_50%)] bg-[length:16px_16px] transition-colors ${
+                drop.over ? 'border-brand bg-brand-soft' : 'border-ink-200 hover:border-brand-line'
+              }`}
             >
               {logo ? (
                 <img src={kitSrc(logo.url)} alt={`${brand.name} logo`} className="max-h-[70%] max-w-[80%] object-contain" />
               ) : (
                 <span className="flex flex-col items-center gap-1.5 text-[12px] font-semibold text-ink-500">
-                  <FiUploadCloud size={22} />
-                  {busy ? 'Uploading…' : 'Upload logo'}
+                  <FiUploadCloud size={22} className={drop.over ? 'text-brand' : ''} />
+                  {busy ? 'Uploading…' : drop.over ? 'Drop to upload' : 'Upload logo'}
+                  {!busy && !drop.over && <span className="text-[11px] font-normal text-ink-400">or drag a PNG / JPG here</span>}
                 </span>
               )}
               {logo && (
-                <span className="absolute inset-x-0 bottom-0 bg-night-900/60 py-1.5 text-[11.5px] font-semibold text-white opacity-0 transition-opacity group-hover:opacity-100">
-                  {busy ? 'Uploading…' : 'Replace'}
+                <span
+                  className={`absolute inset-x-0 bottom-0 bg-night-900/60 py-1.5 text-[11.5px] font-semibold text-white transition-opacity group-hover:opacity-100 ${
+                    drop.over || busy ? 'opacity-100' : 'opacity-0'
+                  }`}
+                >
+                  {busy ? 'Uploading…' : drop.over ? 'Drop to replace' : 'Replace · or drag a new one here'}
                 </span>
               )}
             </button>
@@ -135,8 +165,15 @@ export function BrandKitPanel({ brand, assets, setAssets, showToast }) {
             </p>
           </div>
           <FilePick multiple onFiles={(f) => add(f, 'template')}>
-            {(open, busy) => (
-              <button type="button" onClick={open} disabled={busy || templates.length >= 12} className="btn-outline flex-none">
+            {(open, busy, drop) => (
+              <button
+                type="button"
+                onClick={open}
+                disabled={busy || templates.length >= 12}
+                {...drop.props}
+                title="Or drag images onto this button"
+                className={`btn-outline flex-none ${drop.over ? 'border-brand bg-brand-soft text-brand' : ''}`}
+              >
                 <FiPlus size={14} /> {busy ? 'Uploading…' : 'Add templates'}
               </button>
             )}
@@ -167,8 +204,15 @@ export function BrandKitPanel({ brand, assets, setAssets, showToast }) {
             </p>
           </div>
           <FilePick multiple onFiles={(f) => add(f, 'screenshot')}>
-            {(open, busy) => (
-              <button type="button" onClick={open} disabled={busy || screens.length >= 12} className="btn-outline flex-none">
+            {(open, busy, drop) => (
+              <button
+                type="button"
+                onClick={open}
+                disabled={busy || screens.length >= 12}
+                {...drop.props}
+                title="Or drag screenshots onto this button"
+                className={`btn-outline flex-none ${drop.over ? 'border-brand bg-brand-soft text-brand' : ''}`}
+              >
                 <FiPlus size={14} /> {busy ? 'Reading the screen…' : 'Add screenshots'}
               </button>
             )}
@@ -242,13 +286,16 @@ export function ProductPhoto({ product, photo, onSaved, showToast }) {
   }
   return (
     <FilePick onFiles={upload}>
-      {(open, busy) => (
+      {(open, busy, drop) => (
         <button
           type="button"
           onClick={open}
           disabled={busy}
-          title={photo ? 'Replace the product photo' : 'Add a real photo — posters will show this exact product'}
-          className="group relative grid h-16 w-16 flex-none place-items-center overflow-hidden rounded-xl border border-ink-200 bg-ink-50 hover:border-brand-line"
+          {...drop.props}
+          title={photo ? 'Replace the product photo — or drag a new one here' : 'Add a real photo (or drag one here) — posters will show this exact product'}
+          className={`group relative grid h-16 w-16 flex-none place-items-center overflow-hidden rounded-xl border bg-ink-50 ${
+            drop.over ? 'border-2 border-brand bg-brand-soft' : 'border-ink-200 hover:border-brand-line'
+          }`}
         >
           {photo ? (
             <>

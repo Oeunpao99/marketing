@@ -212,7 +212,7 @@ export function GrowthCard({ history, publishedAt, seriesColors, platformName })
         <TimeChart series={series} height={190} unitLabel={`${platformName} post ${metric} over time`} />
       ) : (
         <WaitingNote>
-          ContentFlow saves this post’s numbers every few hours. The growth chart appears after the first readings — check back later
+          Marketing ឆ្លាតវ៉ៃ saves this post’s numbers every few hours. The growth chart appears after the first readings — check back later
           today.
         </WaitingNote>
       )}
@@ -269,7 +269,7 @@ export function MembersCard({ history, publishedAt }) {
       {pts.length >= 2 ? (
         <TimeChart series={[{ key: 'members', label: 'Members', color: ACCENT, points: pts }]} marker={pub} unitLabel="Telegram channel members over time" />
       ) : (
-        <WaitingNote>ContentFlow saves the member count every few hours. The chart appears after a couple of readings.</WaitingNote>
+        <WaitingNote>Marketing ឆ្លាតវ៉ៃ saves the member count every few hours. The chart appears after a couple of readings.</WaitingNote>
       )}
     </section>
   )

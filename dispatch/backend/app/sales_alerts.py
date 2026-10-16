@@ -133,7 +133,7 @@ def _message(lead: Lead, rep: SalesRep, brand: Brand, reassigned: bool) -> str:
     if last:
         lines.append(f"Last message: “{e(last[0].get('text', '')[:200])}”")
     url = f"{get_settings().frontend_url.rstrip('/')}/leads?lead={lead.id}"
-    lines += ["", f'<a href="{e(url)}">Open in ContentFlow</a> · mark it Contacted once you call']
+    lines += ["", f'<a href="{e(url)}">Open in Marketing ឆ្លាតវ៉ៃ</a> · mark it Contacted once you call']
     return "\n".join(lines)
 
 
@@ -212,7 +212,7 @@ def telegram_check(db: Session = Depends(get_db), user: TeamMember = Depends(req
             w.sales_tg_code = None
             db.commit()
             try:
-                send(db, w, "✅ <b>ContentFlow sales alerts are on.</b>\nEvery lead handed to a rep will be posted here, mentioning them.")
+                send(db, w, "✅ <b>Marketing ឆ្លាតវ៉ៃ sales alerts are on.</b>\nEvery lead handed to a rep will be posted here, mentioning them.")
             except AlertError:
                 pass
             return {"connected": True, "title": w.sales_tg_title}
@@ -225,7 +225,7 @@ def telegram_test(db: Session = Depends(get_db), user: TeamMember = Depends(requ
     if not w.sales_tg_chat_id:
         raise HTTPException(409, "No sales group is connected.")
     try:
-        send(db, w, f"🔔 Test from ContentFlow — sales alerts reach this group. Sent by {html.escape(user.name)}.")
+        send(db, w, f"🔔 Test from Marketing ឆ្លាតវ៉ៃ — sales alerts reach this group. Sent by {html.escape(user.name)}.")
     except AlertError as exc:
         raise HTTPException(502, f"{exc} — is the bot still in the group?") from exc
     return {"ok": True}

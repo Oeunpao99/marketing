@@ -54,7 +54,7 @@ def _reader_name(narrator: str | None) -> str:
     if narrator.startswith("gemini:"):
         return narrator[len("gemini:") :].split("|")[0] + " · Gemini"
     if narrator.startswith("local:"):
-        return "Local Khmer voice"
+        return "Native Khmer"
     m = re.match(r"[a-z]{2}-[A-Z]{2}-([A-Za-z]+?)(?:Multilingual)?Neural", narrator)
     return m.group(1) if m else narrator
 
@@ -79,6 +79,10 @@ def readers(language: str = "Khmer") -> list[dict]:
         if name and name not in seen:
             seen.add(name)
             out.append({"voice": g, "name": _reader_name(name), "note": f"Video {g} reader"})
+    from app import local_voice
+
+    if local_voice.ready() and not any(n.startswith(local_voice.PREFIX) for n in seen):
+        out.append({"voice": "native", "name": "Native Khmer", "note": "Open-source · Hugging Face"})
     return out
 
 

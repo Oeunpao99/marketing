@@ -885,6 +885,53 @@ LAUNCH_PROMPT = (
     + '{"scenes": [{"type": "hook", "text": "...", "icon": "Rocket", "say": "..."}, ...]}'
 )
 
+# ── Unveil (motion/src/unveil.jsx) — a light, airy product launch ──────────
+UNVEIL_TYPES = ("hook", "word", "field", "done", "screen", "flow", "dashboard", "reveal", "list", "stat", "cta")
+UNVEIL_PROMPT = (
+    "You are the director of premium product launch films in Cambodia. You plan a REMOTION VIDEO "
+    "(about 35-55 s) that UNVEILS a product or a new feature the way the big software companies do: "
+    "a bright white stage with soft teal and blue light, one huge thin word filling the top of the "
+    "frame while the real app card rises into focus under it, cards flying past the camera out of "
+    "focus, a field typing itself in, and a glossy check with confetti when the job is done. Calm, "
+    "elegant, very few words on screen — the product's moment is the hero.\n"
+    "\n"
+    "THE STORY (6-8 scenes):\n"
+    "1. hook — the promise in one line (\"Approvals in one place\").\n"
+    "2-5. the feature at work, the way a user really does it, 2-4 of: `word` (the ONE word for what "
+    "it lets you do + the card that does it), `field` (what the user types, then the button), "
+    "`screen` / `flow` / `dashboard` (the real screens, when there are screenshots).\n"
+    "then. done — the result, in 2-4 words (\"User invited\", \"Request approved\").\n"
+    "last. cta — try it / it's live today.\n"
+    "\n"
+    "SCENE TYPES and their fields:\n"
+    "- hook: text (max 9 words), icon.\n"
+    "- word: word (ONE word, the verb or idea, e.g. \"Collaborate\", \"Approve\", \"សហការ\"), title (the "
+    "card's title, 2-4 words, e.g. \"Collaborators (2)\"), action (a small link on the card, 1 word, "
+    "optional), text (one short line on the card, max 12 words, optional), rows: 1-3 x {\"name\": a "
+    "person or item, 2-3 words, sample data, \"sub\": their role or a detail, max 4 words}.\n"
+    "- field: label (what the field is, 1-3 words, e.g. \"Invite by email\"), value (what the user "
+    "types, max 5 words, sample data — an email, a name, an amount), button (the action, 1-2 words, "
+    "e.g. \"Invite\").\n"
+    "- done: text (the result, 2-4 words), icon (optional).\n"
+    "- screen: shot (the screenshot's number — only from THE BRAND'S SCREENSHOTS), title (max 7 "
+    "words), target (in ENGLISH: the ONE element to point at), action (\"click\" | \"highlight\"), "
+    "result (max 6 words, optional).\n"
+    "- flow: title (max 6 words), nodes: 3-4 x {\"icon\", \"label\": 2-5 words, \"sub\": the app, optional}.\n"
+    "- dashboard: title (optional), metrics: 2-3 x {\"label\", \"value\", \"prefix\", \"suffix\", "
+    "\"delta\"}, chart: \"line\" | \"bars\" — small, believable SAMPLE data.\n"
+    "- reveal: text (max 10 words), icon.\n"
+    "- list: title (max 6 words), items: 3 x {\"icon\", \"text\": 2-6 words}.\n"
+    "- stat: value, prefix, suffix, label (max 6 words), icon — only a TRUE number.\n"
+    "- cta: text (max 9 words), button (2-4 words).\n"
+    "Only features the product information supports — never invent one. Names, emails and typed "
+    "values are sample data, never a real customer's.\n"
+    "\n"
+    + _SAAS_CRAFT
+    + "\n"
+    + _COMMON_RULES
+    + '{"scenes": [{"type": "hook", "text": "...", "icon": "Sparkles", "say": "..."}, ...]}'
+)
+
 # ── Showcase (motion/src/showcase.jsx) — a bright SaaS promo ───────────────
 SHOWCASE_TYPES = ("hook", "roll", "apps", "table", "board", "screen", "flow", "dashboard", "list", "stat", "cta")
 SHOWCASE_PROMPT = (
@@ -1227,6 +1274,7 @@ STYLES = {
     "offer": (OFFER_PROMPT, OFFER_TYPES, 5, "offer"),
     "showcase": (SHOWCASE_PROMPT, SHOWCASE_TYPES, 7, None),
     "launch": (LAUNCH_PROMPT, LAUNCH_TYPES, 7, None),
+    "unveil": (UNVEIL_PROMPT, UNVEIL_TYPES, 6, None),
     "clarity": (CLARITY_PROMPT, CLARITY_TYPES, 8, None),
     "countdown": (COUNTDOWN_PROMPT, COUNTDOWN_TYPES, 7, "rank"),
     "thisorthat": (THISORTHAT_PROMPT, THISORTHAT_TYPES, 6, "choice"),
@@ -1244,7 +1292,7 @@ LONG_STYLES = {"training"}
 # The templates laid out for 16:9 too (motion/src/training.jsx, saas.jsx wide scenes);
 # every other template is always vertical. Scenes drawn only for a tall frame are
 # left out of a wide video.
-WIDE_STYLES = {"training", "custom", "demo", "offer", "trend", "pov", "showcase", "launch", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
+WIDE_STYLES = {"training", "custom", "demo", "offer", "trend", "pov", "showcase", "launch", "unveil", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
 TALL_ONLY_TYPES = {"problem", "chat", "product", "point"}
 
 
@@ -1258,9 +1306,9 @@ def final_ratio(asked: str, style: str, suggested: str | None = None) -> str:
     if asked == "auto":
         return suggested if suggested in ("16:9", "9:16") else ("16:9" if style == "training" else "9:16")
     return "9:16"
-SCREEN_STYLES = {"custom", "demo", "showcase", "launch", "clarity"}  # the stories that can show the brand's screenshots
+SCREEN_STYLES = {"custom", "demo", "showcase", "launch", "unveil", "clarity"}  # the stories that can show the brand's screenshots
 # The templates that sell (the auto topic picks a product, not a teaching topic).
-SELLING_STYLES = {"tech", "demo", "offer", "showcase", "launch"}
+SELLING_STYLES = {"tech", "demo", "offer", "showcase", "launch", "unveil"}
 
 # Story mode (write_script ``seconds``): the person pasted their own story.
 MAX_STORY_SCENES = 20  # ~2 minutes
@@ -1542,6 +1590,24 @@ def _clean_scene(raw: dict, names: dict[str, str]) -> dict | None:
     if kind == "launch":
         name = _line(raw.get("name"), 30)
         return {"type": kind, "name": names.get(name.lower(), name), "text": _line(raw.get("text"), 100), "badge": _line(raw.get("badge"), 16), "say": say} if name else None
+    if kind == "word":
+        word = _line(raw.get("word"), 24)
+        rows = [
+            {"name": _line(x.get("name"), 30), "sub": _line(x.get("sub"), 40)}
+            for x in (raw.get("rows") or [])
+            if isinstance(x, dict) and _line(x.get("name"), 30)
+        ][:3]
+        return (
+            {"type": kind, "word": word, "title": _line(raw.get("title"), 40), "action": _line(raw.get("action"), 14), "text": _line(raw.get("text"), 90), "rows": rows, "say": say}
+            if word
+            else None
+        )
+    if kind == "field":
+        value = _line(raw.get("value"), 40)
+        return {"type": kind, "label": _line(raw.get("label"), 30), "value": value, "button": _line(raw.get("button"), 20), "say": say} if value else None
+    if kind == "done":
+        text = _line(raw.get("text"), 40)
+        return {"type": kind, "text": text, "icon": _icon(raw.get("icon"), "Check"), "say": say} if text else None
     if kind == "button":
         button = _line(raw.get("button"), 28)
         return (
@@ -1918,6 +1984,9 @@ _TEXT_FIELDS = {
     "phones": (("say", 300),),
     "pair": (("left", 30), ("right", 24), ("label", 20), ("say", 300)),
     "button": (("title", 40), ("text", 80), ("button", 28), ("result", 50), ("say", 300)),
+    "word": (("word", 24), ("title", 40), ("text", 90), ("say", 300)),
+    "field": (("label", 30), ("button", 20), ("say", 300)),
+    "done": (("text", 40), ("say", 300)),
     "form": (("title", 40), ("toggle", 50), ("say", 300)),
     "stack": (("say", 300),),
     "roll": (("lead", 24), ("text", 80), ("say", 300)),
@@ -2303,6 +2372,12 @@ def script_lines(script: dict) -> list[tuple[str, str]]:
             screen = f"{s['left']} [{s.get('label') or 'card'}] {s['right']}"
         elif s["type"] == "launch":
             screen = f"Introducing {s['name']}" + (f" — {s['text']}" if s.get("text") else "") + (f" [{s['badge']}]" if s.get("badge") else "")
+        elif s["type"] == "word":
+            screen = f"“{s['word']}” — " + (s.get("title") or "card") + (": " + ", ".join(x["name"] for x in s["rows"]) if s.get("rows") else "")
+        elif s["type"] == "field":
+            screen = (s.get("label") or "Field") + f": {s['value']}" + (f" → [{s['button']}]" if s.get("button") else "")
+        elif s["type"] == "done":
+            screen = f"✓ {s['text']}"
         elif s["type"] == "button":
             screen = (s.get("title") or "Card") + f" → click “{s['button']}”" + (f" ✓ {s['result']}" if s.get("result") else "")
         elif s["type"] == "form":
@@ -2532,7 +2607,7 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
     scenes = []
     for s in script["scenes"]:
         scene = {k: v for k, v in s.items() if k not in ("say", "product", "target", "shot")}
-        for key in ("text", "title", "label", "button", "myth", "fact", "question", "author", "name", "business", "before", "after", "headline", "tag", "result", "badge", "plan", "period", "sub"):
+        for key in ("text", "title", "label", "button", "myth", "fact", "question", "author", "name", "business", "before", "after", "headline", "tag", "result", "badge", "plan", "period", "sub", "word", "action"):
             if scene.get(key):
                 scene[key] = t(scene[key])
         if s.get("say"):
@@ -2568,6 +2643,8 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
             scene["nodes"] = [{**n, "label": t(n["label"]), "sub": t(n["sub"]) if n.get("sub") else ""} for n in scene["nodes"]]
         if "notes" in scene:
             scene["notes"] = [{**n, "text": t(n["text"])} for n in scene["notes"]]
+        if s["type"] == "word" and scene.get("rows"):  # Unveil's card: its people / items
+            scene["rows"] = [{"name": t(x["name"]), "sub": t(x["sub"]) if x.get("sub") else ""} for x in scene["rows"]]
         if s["type"] == "step":
             scene["n"] = sum(1 for x in scenes if x["type"] == "step") + 1  # STEP 1, 2, 3
         if s["type"] in ("rank", "tip", "qa"):  # Top 5 counts down (#5 … #1); tips / questions count up (01 / 05)
@@ -2637,6 +2714,12 @@ def default_seconds(scene: dict) -> float:
         return 1.4 + 1.2 * min(4, len(scene.get("words") or []))
     if kind == "form":
         return 2.6 + 0.9 * min(3, len(scene.get("fields") or [])) + (1.4 if scene.get("toggle") else 0)
+    if kind == "word":
+        return 3.0 + 0.6 * min(3, len(scene.get("rows") or []))
+    if kind == "field":
+        return 3.6 + 0.07 * len(scene.get("value") or "")
+    if kind == "done":
+        return 3.4
     if kind == "stack":
         return 1.6 + 1.1 * min(4, len(scene.get("images") or scene.get("shots") or []))
     if kind == "table":
@@ -2862,19 +2945,33 @@ def add_voice(
     if pool:
         pool.shutdown(wait=False, cancel_futures=True)
     new_failures = speech.GEMINI_FAILURES[failed_before:]
-    if new_failures:
-        # say it on the card: the voice that read it isn't the one chosen
-        # the reason (a key, a quota…) is for the team, in the log — the person
-        # making the video just needs to know a backup voice read some lines
-        log.error("motion %s: Gemini voice failed (%s) — Azure read %s line(s)", job_id, new_failures[-1], len(new_failures))
-        n = len(new_failures)
-        _report(job_id, voice_note=f"Our main voice was busy, so a backup voice read {n} line{'s' if n != 1 else ''} — it may sound a little different.")
     del speech.GEMINI_FAILURES[:-50]
+    backup = speech.backup_for(voice)
+    if new_failures and backup:
+        # Gemini dropped out part-way: some lines are Gemini, some Sreymom.
+        # One video, one voice — the whole thing is read again by the backup
+        # (the reason is for the team, in the log).
+        log.error("motion %s: Gemini voice failed on %s line(s) (%s) — reading the whole video with %s", job_id, len(new_failures), new_failures[-1], backup)
+        for scene in props["scenes"]:
+            for k in ("audio", "words", "pauses", "voiceSeconds"):
+                scene.pop(k, None)
+        _report(job_id, voice_note=_backup_note(backup))
+        return add_voice(props, script, backup, ws, user_id, job_id, pronunciations, clone)
+    if voice.startswith("km-KH") and speech.gemini_ready() and not speech.gemini_available():
+        # the person picked the Gemini voice; Gemini is out, so a backup read it
+        _report(job_id, voice_note=_backup_note(voice))
     if spoken and not local:
         billing.charge(
             ws, "video", spoken * speech.price_per_char(voice), user_id=user_id, model=voice, note="Remotion video voice-over", job_id=job_id
         )
     return spoken
+
+
+def _backup_note(azure_voice: str) -> str:
+    """The video card's note when Sreymom / Piseth read a video instead of
+    Gemini — what happened and that they can carry on, nothing technical."""
+    who = azure_voice.split("-")[2].removesuffix("Neural")
+    return f"The Gemini voice isn’t available right now, so {who} read this whole video. You can keep making videos with {who} — Gemini comes back by itself."
 
 
 class Stopped(Exception):
@@ -2969,6 +3066,10 @@ def _scene_summary(s: dict) -> str:
         text = " ".join(s.get("words") or [])
     elif t == "pair":
         text = f"{s.get('left', '')} · {s.get('right', '')}"
+    elif t == "word":
+        text = s.get("word") or s.get("title") or ""
+    elif t == "field":
+        text = f"{s.get('label') or ''} {s.get('value') or ''}".strip()
     elif t == "button":
         text = s.get("title") or s.get("button") or ""
     elif t == "form":
@@ -3199,6 +3300,7 @@ TEMPLATE_GUIDE = {
     "tips": "practical tips people save — 3-5 numbered tip cards and a \"save this\" ask",
     "clarity": "explaining what a software product does and why it matters — calm, white and light blue: the mess of tools today, the product, how it works",
     "launch": "launching a product or a new feature — a cinematic launch film: the one click that does the job, the product's screens, \"now live\"",
+    "unveil": "unveiling a product or a new feature in a light, elegant way — one big word, the app card coming into focus, a field typing itself, a check with confetti",
     "showcase": "a bright, polished promo / launch video for a SaaS or app — the tools it connects, its table and board views, who it is for",
     "training": "a team training, an internal presentation, a workshop, a lesson or a long talk with parts / sections — chapters, key points, checklists, recap",
     "explainer": "a story with people — characters with feelings (stick figures), everyday life, money and life lessons, a tale that teaches",
@@ -3420,6 +3522,15 @@ def plan_motion(
     return {"plan_id": plan_id, "status": "running"}
 
 
+@router.get("/voice-status")
+def voice_status():
+    """Whether the Gemini voice reads Khmer right now — the composer says so
+    before a video is made, and who reads instead (Sreymom / Piseth)."""
+    from app import speech
+
+    return speech.gemini_status()
+
+
 @router.get("/making/{job_id}")
 def making(job_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
     """A Remotion video's "How it was made": the brief, and — for videos made
@@ -3455,6 +3566,8 @@ class SayIn(BaseModel):
     text: str = Field(min_length=1, max_length=600)
     language: str = "Khmer"
     voice: str = "female"
+    # the storyboard's template: Gemini acts the line the way the video will
+    style: str = Field(default="", max_length=30)
 
 
 @router.post("/say")
@@ -3471,7 +3584,7 @@ def say_line(
     from app import voice_clone
 
     brand = owned(db, Brand, payload.brand_id, ws)
-    narrator, clone = voice_clone.narrator_for(brand, payload.language, payload.voice if payload.voice != "none" else "female")
+    narrator, clone = voice_clone.narrator_for(brand, payload.language, payload.voice if payload.voice != "none" else "female", payload.style or None)
     if not narrator:
         raise HTTPException(503, "No voice service is set up on this server.")
     billing.require(ws, 0.0, db)

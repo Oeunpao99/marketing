@@ -75,22 +75,98 @@ def ready() -> bool:
 
 
 GEMINI = "gemini:"
-# Why Gemini lines fell back to Azure, newest last — the live video card shows it.
+# Why Gemini lines fell back to Azure, newest last — the server log says why.
 GEMINI_FAILURES: list[str] = []
+# Gemini voice models known to be out until then (a used-up daily quota, a
+# rejected key): the next model reads, and once they all are, Khmer lines go
+# straight to Azure instead of failing one by one. {model: (until epoch s, why)}
+_GEMINI_OUT: dict[str, tuple[float, str]] = {}
+
+
+def gemini_models() -> list[str]:
+    """The Gemini voice models, in the order they're tried."""
+    s = get_settings()
+    return list(dict.fromkeys([s.gemini_tts_model, *(m.strip() for m in s.gemini_tts_backup_models.split(",") if m.strip())]))
+
+
+def _live_models() -> list[str]:
+    now = time.time()
+    return [m for m in gemini_models() if _GEMINI_OUT.get(m, (0.0, ""))[0] <= now]
+
+
+def gemini_available() -> bool:
+    """Gemini is set up and at least one of its voice models isn't out."""
+    return gemini_ready() and bool(_live_models())
+
+
+def gemini_status() -> dict:
+    """For the page: is the Gemini voice reading Khmer now — and if it's out,
+    who reads instead and when it's back. No reasons (keys, quotas) — those
+    are in the server log."""
+    from app import local_voice
+
+    out = gemini_ready() and not gemini_available()
+    return {
+        # the open-source Khmer voice can be picked ("Native") on this server
+        "native": local_voice.ready(),
+        "configured": gemini_ready(),
+        "available": gemini_available(),
+        "back_at": min((_GEMINI_OUT.get(m, (0.0, ""))[0] for m in gemini_models()), default=None) if out else None,
+        "backup": {g: VOICES[("km", g)].split("-")[2].removesuffix("Neural") for g in ("female", "male")} if provider() == "azure" else {},
+    }
+
+
+def backup_for(voice: str) -> str | None:
+    """The Azure voice that reads instead of a Gemini one — Sreymom for the
+    female voice, Piseth for the male one. None without Azure Speech."""
+    if not voice.startswith(GEMINI) or provider() != "azure":
+        return None
+    name = voice[len(GEMINI) :].split("|")[0]
+    return VOICES[("km", "female" if name == get_settings().gemini_tts_voice_female else "male")]
+
+
+def _gemini_error(resp: httpx.Response) -> str:
+    """Gemini's error in a line for the log: code, status, quota or message."""
+    try:
+        err = resp.json().get("error") or {}
+    except ValueError:
+        return f"{resp.status_code}: {resp.text[:150]}"
+    quota = next(
+        (v.get("quotaId") for d in err.get("details") or [] for v in d.get("violations") or [] if v.get("quotaId")),
+        "",
+    )
+    reasons = " ".join(d.get("reason", "") for d in err.get("details") or [] if d.get("reason"))
+    return f"{resp.status_code} {err.get('status', '')} {quota or reasons} — {(err.get('message') or '')[:140]}".strip()
+
+
+def _mark_out(model: str, resp: httpx.Response, detail: str) -> bool:
+    """A model's daily quota used up: that model is out until it's back (the
+    quota's retry delay, else an hour). A rejected key: every model, tried
+    again in 10 min. True when something was marked out."""
+    if resp.status_code == 429 and "PerDay" in detail:
+        wait, why, models = _gemini_retry_after_seconds(resp) or 3600.0, "daily limit used up", [model]
+    elif resp.status_code in (400, 401, 403) and ("API_KEY" in detail or "API key" in detail):
+        wait, why, models = 600.0, "API key rejected", gemini_models()
+    else:
+        return False
+    for m in models:
+        _GEMINI_OUT[m] = (time.time() + wait, why)
+    log.error("Gemini voice %s is out for %.0f min (%s): %s", ", ".join(models), wait / 60, why, detail)
+    return True
 
 
 def _why(exc: Exception) -> str:
-    """A short reason a person can act on."""
+    """A short reason for the log."""
     text = str(exc)
+    if "PerDay" in text:
+        return "Gemini's daily limit is used up (billing on the key raises it)"
+    if "API_KEY" in text or "API key not valid" in text:
+        return "the Gemini API key was rejected"
     if "402" in text or "prepayment" in text.lower() or "credit" in text.lower():
-        return "Gemini credit is used up — top it up in AI Studio"
-    if "API key not valid" in text or " 400" in text or " 401" in text or "403" in text:
-        return "the Gemini API key isn't valid on this server — check GEMINI_API_KEY"
-    if "429" in text and ("per_day" in text.lower() or "perday" in text.lower()):
-        return "Gemini's free daily limit is used up (it resets tomorrow — billing on the key raises it)"
+        return "Gemini credit is used up"
     if "429" in text:
         return "Gemini is busy (too many requests)"
-    return text[:120]  # voice_for's names for Gemini TTS voices: "gemini:Kore"
+    return text[:160]  # voice_for's names for Gemini TTS voices: "gemini:Kore"
 # Gemini TTS ≈ $9 per 1M audio tokens (~25 a second) + the text — per character
 # of Khmer that's about twice Azure's.
 PRICE_PER_CHAR_GEMINI = 30 / 1_000_000
@@ -116,10 +192,14 @@ def voice_for(language: str, gender: str, style: str | None = None) -> str | Non
     from app import local_voice
 
     # Khmer → Gemini TTS when it's set up (the most natural Khmer), English → Azure.
-    if "khmer" in (language or "").lower() and gemini_ready():
+    if "khmer" in (language or "").lower() and gemini_available():
         name = s.gemini_tts_voice_female if gender == "female" else s.gemini_tts_voice_male
         # "gemini:Kore|training" — the template sets how the voice acts (GEMINI_ACT)
         return GEMINI + name + (f"|{style}" if style in GEMINI_ACT else "")
+    # Gemini is set up but out for now (daily limit, key): Sreymom / Piseth
+    # read — the voices people know — before any other Khmer voice
+    if "khmer" in (language or "").lower() and gemini_ready() and provider() == "azure":
+        return VOICES[("km", gender)]
 
     # KHMER_TTS_MODEL set: Khmer lines are read by the local open-source voice
     # (one voice — Female and Male both use it); English keeps Azure.
@@ -139,7 +219,33 @@ def _lang(text: str) -> str:
 ZWSP = "​"
 
 
+# Lines already spoken, kept a while: a storyboard's ▶ / "Listen to the whole
+# voice" and then "Make the video" read the same lines — the video reuses them
+# instead of asking Gemini (and its daily limit) twice. Only a line read by the
+# voice asked for is kept, never a fallback. {(voice, text): (mp3, words, at)}
+_SPOKEN: dict[tuple[str, str], tuple[bytes, list, float]] = {}
+_SPOKEN_KEEP = 3 * 3600  # seconds
+_SPOKEN_MAX = 400
+
+
 def speak_timed(text: str, voice: str) -> tuple[bytes, list[dict]]:
+    """``text`` read aloud with its word timings — reused when this exact line
+    was read by this exact voice in the last few hours (see _speak_timed)."""
+    key = (voice, text)
+    hit = _SPOKEN.get(key)
+    if hit and time.time() - hit[2] < _SPOKEN_KEEP:
+        return hit[0], list(hit[1])
+    failed_before = len(GEMINI_FAILURES)
+    mp3, words = _speak_timed(text, voice)
+    if len(GEMINI_FAILURES) == failed_before:  # read by the voice asked for — worth keeping
+        if len(_SPOKEN) >= _SPOKEN_MAX:
+            for k in sorted(_SPOKEN, key=lambda k: _SPOKEN[k][2])[: _SPOKEN_MAX // 4]:
+                _SPOKEN.pop(k, None)
+        _SPOKEN[key] = (mp3, list(words), time.time())
+    return mp3, words
+
+
+def _speak_timed(text: str, voice: str) -> tuple[bytes, list[dict]]:
     """``text`` read aloud, with when each word is said — (MP3 bytes,
     [{"w": word, "t": start s, "e": end s, "sp": space before it}]). The
     subtitles follow these exactly (motion/src/explainer.jsx Caption).
@@ -202,6 +308,8 @@ def speak(text: str, voice: str) -> bytes:
     if voice.startswith(GEMINI):  # "gemini:<voice>" or "gemini:<voice>|<template>"
         name, _, style = voice[len(GEMINI) :].partition("|")
         try:
+            if not _live_models():  # every voice model known out: don't ask again
+                raise SpeechError("Gemini is out (every voice model's daily limit is used up)")
             return _gemini(text, name, style)
         except SpeechError as exc:
             # Gemini down / out of credit / bad key: Azure reads this line instead
@@ -242,28 +350,46 @@ def _gemini(text: str, voice: str, style: str = "") -> bytes:
             "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": voice}}},
         },
     }
-    waited = 0.0
-    while True:
-        try:
-            resp = httpx.post(
-                gemini_url(f"/v1beta/models/{s.gemini_tts_model}:generateContent"),
-                params={"key": s.gemini_api_key},
-                json=body,
-                timeout=180.0,
-            )
-        except httpx.HTTPError as exc:
-            raise SpeechError(f"Could not reach Gemini: {exc}") from exc
-        # 429 = over Gemini's per-minute limit (several lines are asked for at
-        # once): wait as long as Google says and ask again, up to a minute in all.
-        # A used-up daily quota won't come back by waiting — Azure reads it.
-        delay = _gemini_retry_after(resp) if resp.status_code == 429 else None
-        if delay is None or waited + delay > 60:
+    resp, detail = None, ""
+    models = _live_models()
+    for i, model in enumerate(models):  # the main voice model, then the next when one is used up
+        waited = 0.0
+        while True:
+            try:
+                # the key in a header, never in the url — urls end up in logs
+                resp = httpx.post(
+                    gemini_url(f"/v1beta/models/{model}:generateContent"),
+                    headers={"x-goog-api-key": s.gemini_api_key},
+                    json=body,
+                    timeout=180.0,
+                )
+            except httpx.HTTPError as exc:
+                raise SpeechError(f"Could not reach Gemini: {exc}") from exc
+            # 429 = over this model's per-minute limit (10 lines a minute; several
+            # are asked for at once). Another model with room reads it now;
+            # only the last one waits as long as Google says, up to a minute.
+            # A used-up daily quota won't come back by waiting.
+            delay = _gemini_retry_after(resp) if resp.status_code == 429 else None
+            if delay is not None and i + 1 < len(models):
+                log.info("Gemini TTS %s busy this minute — trying %s", model, models[i + 1])
+                break
+            if delay is None or waited + delay > 60:
+                break
+            log.info("Gemini TTS %s busy — trying again in %.0fs", model, delay)
+            time.sleep(delay)
+            waited += delay
+        if resp.status_code == 200:
             break
-        log.info("Gemini TTS busy — trying again in %.0fs", delay)
-        time.sleep(delay)
-        waited += delay
+        detail = _gemini_error(resp)
+        busy_minute = resp.status_code == 429 and "PerDay" not in detail
+        if busy_minute:
+            continue  # this model is full for the minute — the next one tries
+        if not _mark_out(model, resp, detail) or "API key" in _GEMINI_OUT.get(model, (0, ""))[1]:
+            break  # not a used-up model (or the key): the next model won't do better
+    if resp is None:
+        raise SpeechError("Gemini is out (every voice model's daily limit is used up)")
     if resp.status_code != 200:
-        raise SpeechError(f"Gemini said {resp.status_code}: {resp.text[:200]}")
+        raise SpeechError(f"Gemini said {detail}")
     try:
         pcm = base64.b64decode(resp.json()["candidates"][0]["content"]["parts"][0]["inlineData"]["data"])
     except (KeyError, IndexError, ValueError) as exc:
@@ -313,6 +439,15 @@ def _trim_tail(pcm: bytes, rate: int = 24000) -> bytes:
     if quiet < 5:  # no pause before it = part of the speech
         return pcm
     return s[: (i + 1 + quiet // 2) * n].tobytes()
+
+
+def _gemini_retry_after_seconds(resp: httpx.Response) -> float | None:
+    """Google's own retryDelay, as it says (a daily quota: hours)."""
+    try:
+        details = resp.json()["error"].get("details") or []
+        return float(str(next(d["retryDelay"] for d in details if "retryDelay" in d)).rstrip("s"))
+    except (ValueError, KeyError, StopIteration, AttributeError, TypeError):
+        return None
 
 
 def _gemini_retry_after(resp: httpx.Response) -> float | None:

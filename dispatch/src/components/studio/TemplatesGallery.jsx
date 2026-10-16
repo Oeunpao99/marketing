@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react'
-import { FiArrowRight, FiChevronRight } from 'react-icons/fi'
+import { FiArrowRight, FiChevronRight, FiSearch, FiX } from 'react-icons/fi'
 import { useNavigate } from 'react-router-dom'
 import { GOALS, STAGES } from '../../lib/goals'
 import { GOAL_TEMPLATES, MOTION_TEMPLATES, templateById } from '../../lib/motionTemplates'
@@ -122,16 +122,42 @@ export default function TemplatesGallery() {
     top.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
-  const counts = Object.fromEntries(FILTERS.map(([k]) => [k, k === 'all' ? MOTION_TEMPLATES.length : MOTION_TEMPLATES.filter((t) => t.goals.includes(k)).length]))
-  const shown = goal === 'all' ? MOTION_TEMPLATES : MOTION_TEMPLATES.filter((t) => t.goals.includes(goal))
+  // search: the name, its look, its steps and its goals — any word typed
+  const [query, setQuery] = useState('')
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean)
+  const found = (t) => {
+    if (!words.length) return true
+    const hay = [t.name, t.look, t.note, ...(t.steps || []), ...t.goals.map((g) => GOALS[g]?.label || g)].join(' ').toLowerCase()
+    return words.every((w) => hay.includes(w))
+  }
+  const pool = MOTION_TEMPLATES.filter(found)
+  const counts = Object.fromEntries(FILTERS.map(([k]) => [k, k === 'all' ? pool.length : pool.filter((t) => t.goals.includes(k)).length]))
+  const shown = goal === 'all' ? pool : pool.filter((t) => t.goals.includes(goal))
 
   return (
     <div className="space-y-5">
-      <div>
-        <h2 className="text-[15px] font-semibold text-ink-900">Video templates · {MOTION_TEMPLATES.length}</h2>
-        <p className="mt-0.5 max-w-[80ch] text-[12.5px] text-ink-500">
-          Animated videos from your brand, with voice, subtitles and music. Hover to preview, click to start.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-[15px] font-semibold text-ink-900">Video templates · {MOTION_TEMPLATES.length}</h2>
+          <p className="mt-0.5 max-w-[80ch] text-[12.5px] text-ink-500">
+            Animated videos from your brand, with voice, subtitles and music. Hover to preview, click to start.
+          </p>
+        </div>
+        <label className="flex h-10 w-full items-center gap-2 rounded-xl border border-ink-200 bg-white px-3 focus-within:border-brand sm:w-[300px]">
+          <FiSearch size={15} className="flex-none text-ink-400" aria-hidden="true" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search templates — launch, quiz, review…"
+            aria-label="Search templates"
+            className="min-w-0 flex-1 border-0 bg-transparent text-[13px] text-ink-900 outline-none placeholder:text-ink-400"
+          />
+          {query && (
+            <button type="button" onClick={() => setQuery('')} aria-label="Clear search" className="text-ink-400 hover:text-ink-700">
+              <FiX size={14} />
+            </button>
+          )}
+        </label>
       </div>
 
       <div ref={top} className="scroll-mt-40">
@@ -146,6 +172,14 @@ export default function TemplatesGallery() {
           <TemplateCard key={t.id} t={t} onUse={() => use(t)} />
         ))}
       </div>
+      {!shown.length && (
+        <p className="rounded-2xl border border-dashed border-ink-200 px-5 py-8 text-center text-[13px] text-ink-500">
+          No template matches “{query}”{goal !== 'all' ? ' in this goal' : ''}.{' '}
+          <button type="button" onClick={() => { setQuery(''); setGoal('all') }} className="font-semibold text-brand hover:underline">
+            Show all
+          </button>
+        </p>
+      )}
 
       <section className={`${card} p-5`}>
         <h2 className="text-[15px] font-semibold text-ink-900">Which templates each goal uses</h2>

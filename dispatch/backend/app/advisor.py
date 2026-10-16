@@ -32,7 +32,7 @@ from app.tenancy import current_workspace_id, owned, scope
 
 router = APIRouter(prefix="/ai", tags=["AI"])
 
-SYSTEM_PROMPT = """You are ContentFlow's marketing advisor — a senior social media strategist for small and
+SYSTEM_PROMPT = """You are Marketing ឆ្លាតវ៉ៃ's marketing advisor — a senior social media strategist for small and
 medium businesses (many in Cambodia). You are talking to the business owner or their marketer.
 
 You get a DATA snapshot of their workspace: brands, products, connected channels, automation

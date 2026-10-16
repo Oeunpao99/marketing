@@ -109,6 +109,12 @@ class Settings(BaseSettings):
     # line that fails is read by Azure instead, so a video never loses its voice.
     khmer_speech_provider: str = ""
     gemini_tts_model: str = "gemini-3.8-flash-tts"
+    # Google caps every voice model at ~100 lines a day (10 a minute), even on
+    # Tier 1: when one is used up the next reads (each counted on its own),
+    # and Sreymom / Piseth only once they all are. Comma-separated, in order.
+    gemini_tts_backup_models: str = (
+        "gemini-3.8-flash-lite-tts,gemini-3.1-flash-tts-preview,gemini-2.5-flash-preview-tts,gemini-2.5-pro-preview-tts"
+    )
     gemini_tts_voice_female: str = "Kore"
     gemini_tts_voice_male: str = "Charon"
     # Veo output size: "720p", "1080p" or "4k" (4k not on Lite). Google allows

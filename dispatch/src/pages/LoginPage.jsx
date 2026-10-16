@@ -162,7 +162,7 @@ export function BrandPanel() {
           <span className="bg-gradient-to-r from-[#5CC8F0] to-[#7FA8FF] bg-clip-text text-transparent">on autopilot.</span>
         </h2>
         <p className="mt-4 max-w-[460px] text-[15px] leading-relaxed text-white/65">
-          ContentFlow writes your posts, designs the visuals and publishes them to every channel — all
+          Marketing ឆ្លាតវ៉ៃ writes your posts, designs the visuals and publishes them to every channel — all
           grounded in your real products.
         </p>
 
@@ -179,7 +179,7 @@ export function BrandPanel() {
       </div>
 
       <div className="absolute bottom-7 left-14 xl:left-20 text-[11px] text-white/35">
-        © {new Date().getFullYear()} ContentFlow · Proudly a Khmer brand
+        © {new Date().getFullYear()} Marketing ឆ្លាតវ៉ៃ · Proudly a Khmer brand
       </div>
     </aside>
   )
@@ -258,9 +258,11 @@ export function BrandLockup() {
     const t = setInterval(() => setI((n) => (n + 1) % DOES.length), 2200)
     return () => clearInterval(t)
   }, [])
-  const letters = [...'Content']
+  // "Marketing" letter by letter; the Khmer word comes in whole — its vowels
+  // and subscripts belong to the letter before them and can't be split off
+  const letters = [...'Marketing']
     .map((ch) => [ch, 'text-ink-900 font-extrabold'])
-    .concat([...'Flow'].map((ch) => [ch, 'text-brand font-semibold']))
+    .concat([[' ', ''], ['ឆ្លាតវ៉ៃ', 'text-brand font-bold font-khmer']])
 
   return (
     <div className="mb-8 flex flex-col items-center text-center">
@@ -272,7 +274,7 @@ export function BrandLockup() {
           className="cf-float relative w-20 h-20 object-contain drop-shadow-[0_10px_18px_rgba(26,111,196,.25)]"
         />
       </div>
-      <div className="mt-4 text-[34px] leading-none tracking-tight" aria-label="ContentFlow">
+      <div className="mt-4 text-[34px] leading-none tracking-tight" aria-label="Marketing ឆ្លាតវ៉ៃ">
         {letters.map(([ch, cls], k) => (
           <span
             key={k}

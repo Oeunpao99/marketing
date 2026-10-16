@@ -60,7 +60,7 @@ def get_current_user(
         raise HTTPException(401, "Account not found")
     if db.scalar(select(Workspace.suspended_at).where(Workspace.id == user.workspace_id)):
         # suspended by the platform admin (app/admin.py) — signed out everywhere
-        raise HTTPException(401, "This account is suspended — please contact ContentFlow support.")
+        raise HTTPException(401, "This account is suspended — please contact Marketing ឆ្លាតវ៉ៃ support.")
     from app import sessions  # local import: sessions imports this module
     from app.billing import bind_user  # local import: billing imports this module
 

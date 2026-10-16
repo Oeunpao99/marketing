@@ -995,24 +995,43 @@ const barBtn = 'grid h-8 w-8 flex-none place-items-center rounded-full bg-white/
 
 /** One picture in the grid — the image alone at its real shape. Brand, date
  * and actions show on hover (tap opens the detail panel on a phone); small
- * marks say the caption is ready / being written, and the ♥ stays when set. */
+ * marks say the caption is ready / being written, and the ♥ stays when set.
+ * A video plays silently while the pointer is over it, like the Templates. */
 function LibraryCard({ it, isNew, busy, onOpen, onUse, onWrite, onDelete, onFavorite, onFolder }) {
   const writingNow = busy || it.caption_status === 'writing'
+  const clip = useRef(null)
+  const [playing, setPlaying] = useState(false)
   const stop = (fn) => (e) => {
     e.stopPropagation()
     fn(e)
   }
+  const preview = (on) => {
+    const v = clip.current
+    if (!v || it.kind === 'image' || !window.matchMedia?.('(hover: hover)').matches) return
+    if (on) {
+      v.play().then(() => setPlaying(true)).catch(() => {}) // not loaded / blocked — the still stays
+    } else {
+      v.pause()
+      v.currentTime = 0.1
+      setPlaying(false)
+    }
+  }
   return (
-    <div className="group relative overflow-hidden rounded-2xl bg-ink-100" style={{ aspectRatio: ratioOf(it) }}>
+    <div
+      className="group relative overflow-hidden rounded-2xl bg-ink-100"
+      style={{ aspectRatio: ratioOf(it) }}
+      onMouseEnter={() => preview(true)}
+      onMouseLeave={() => preview(false)}
+    >
       <button type="button" onClick={onOpen} aria-label={`Open ${it.kind}`} className="absolute inset-0 block h-full w-full">
         {it.kind === 'image' ? (
           <img src={abs(it.url)} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]" />
         ) : (
-          <video src={`${abs(it.url)}#t=0.1`} className="h-full w-full object-cover" muted preload="metadata" playsInline />
+          <video ref={clip} src={`${abs(it.url)}#t=0.1`} className="h-full w-full object-cover" muted loop preload="metadata" playsInline />
         )}
       </button>
 
-      {it.kind === 'video' && (
+      {it.kind === 'video' && !playing && (
         <span className="pointer-events-none absolute inset-0 grid place-items-center">
           <span className="grid h-10 w-10 place-items-center rounded-full bg-black/55 text-white">
             <FiPlay size={16} className="ml-0.5" />

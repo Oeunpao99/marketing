@@ -121,7 +121,7 @@ def test_push(user: TeamMember = Depends(get_current_user), db: Session = Depend
         db,
         subs,
         {
-            "title": "ContentFlow notifications are on ✓",
+            "title": "Marketing ឆ្លាតវ៉ៃ notifications are on ✓",
             "body": "This is how you’ll hear about posts going live, failures and new ideas.",
             "url": "/",
             "tag": "test",

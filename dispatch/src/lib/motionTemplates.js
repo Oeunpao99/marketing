@@ -161,6 +161,16 @@ export const MOTION_TEMPLATES = [
     goals: ['conversion'],
   },
   {
+    // not in a goal's rotation yet (app/motion.py GOAL_STYLES) — picked by hand or by Auto
+    id: 'unveil',
+    story: 'unveil',
+    name: 'Unveil',
+    look: 'A light, elegant launch — one big word, the app card coming into focus, a field typing itself, a check with confetti',
+    steps: ['Hook', 'Big word + card', 'Typing', 'Done ✓', 'Call to action'],
+    note: 'Best for a new feature: what it lets you do, the click, the result',
+    goals: [],
+  },
+  {
     id: 'showcase',
     story: 'showcase',
     name: 'Showcase',

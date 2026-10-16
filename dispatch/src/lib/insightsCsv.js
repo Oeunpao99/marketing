@@ -17,7 +17,7 @@ export function insightsCsv(data, { brand, period, goals = [] }) {
     rows.forEach((r) => out.push(line(r)))
   }
 
-  out.push(line(['ContentFlow · Insights & sales report']))
+  out.push(line(['Marketing ឆ្លាតវ៉ៃ · Insights & sales report']))
   out.push(line(['Brand', brand]))
   out.push(line(['Period', period]))
   out.push(line(['Exported', new Date().toLocaleString('en-GB')]))

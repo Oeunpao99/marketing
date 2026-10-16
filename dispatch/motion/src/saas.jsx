@@ -31,6 +31,7 @@ import { AbsoluteFill, Img, interpolate, random, spring, useCurrentFrame, useVid
 import { FONT, Icon, NeatGrid, Words, clean, fitSize, srcOf, tint } from './shared'
 import { showcaseScenes } from './showcase'
 import { launchScenes } from './launch'
+import { Mist, unveilScenes } from './unveil'
 import { clarityScenes } from './clarity'
 import { choiceScenes, countdownScenes, reviewScenes, tipScenes } from './clean'
 import { caseScenes, faqScenes, reportScenes, takeScenes } from './clean2'
@@ -76,6 +77,7 @@ const PALETTES = {
   tips: palette({ bg: '#F2F8F5', a: '#0F9D74', b: '#3B82F6', mode: 'light', background: 'neat', icon: 'Lightbulb' }),
   clarity: palette({ bg: '#F4F6FA', a: '#2F6FED', b: '#4FB3F6', mode: 'light', background: 'rings', icon: 'FileText' }),
   launch: palette({ bg: '#14082A', a: '#8B5CF6', b: '#5EEAD4', mode: 'dark', background: 'launch', icon: 'Rocket', card: '#1C0F38' }),
+  unveil: palette({ bg: '#EEF4F3', a: '#2F7A68', b: '#9EC9F2', mode: 'light', background: 'mist', icon: 'Sparkles' }),
 }
 
 const ON = '#FFFFFF' // on an accent tile / a dark phone — white in every look
@@ -184,6 +186,7 @@ function AiBg({ P }) {
   return (
     <AbsoluteFill style={{ backgroundColor: P.bg, overflow: 'hidden' }}>
       {kind === 'airy' && <Airy P={P} />}
+      {kind === 'mist' && <Mist P={P} />}
       {kind === 'launch' && <LaunchLight P={P} />}
       {kind === 'rings' && <Rings P={P} />}
       {kind === 'neat' && <NeatGrid color={P.light ? 'rgba(20,26,36,0.06)' : 'rgba(255,255,255,0.07)'} />}
@@ -1498,6 +1501,8 @@ const CP = PALETTES.clarity
 export const CLARITY = template(CP, 'clarity', { ...clarityScenes(CP, AiBg), step: makeStep(CP), screen: makeScreen(CP), dashboard: makeDashboard(CP), flow: makeFlow(CP) })
 const LP = PALETTES.launch
 export const LAUNCH = template(LP, 'launch', { ...launchScenes(LP, AiBg), step: makeStep(LP), screen: makeScreen(LP), dashboard: makeDashboard(LP), flow: makeFlow(LP) })
+const UP = PALETTES.unveil
+export const UNVEIL = template(UP, 'unveil', { ...unveilScenes(UP, AiBg), step: makeStep(UP), screen: makeScreen(UP), dashboard: makeDashboard(UP), flow: makeFlow(UP) })
 export const SHOWCASE = template(SP, 'showcase', { ...showcaseScenes(SP, AiBg), step: makeStep(SP), screen: makeScreen(SP), dashboard: makeDashboard(SP), flow: makeFlow(SP) })
 
 /** "Designed for you": the look the AI picked for this video (props.look). */
