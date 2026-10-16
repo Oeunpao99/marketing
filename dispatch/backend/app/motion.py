@@ -4154,7 +4154,7 @@ def _sketch(props: dict, job_id: int) -> None:
         if any(sketches) and job_id in _progress:
             _report(job_id, sketches=sketches)
     except Exception as exc:  # noqa: BLE001 — pictures for the card only
-        log.info("motion %s: no scene pictures for the card: %s", job_id, exc)
+        log.warning("motion %s: no scene pictures for the card: %s", job_id, exc)
 
 
 def review_design(brand: Brand, script: dict, logo: str | None, khmer: bool, job_id: int | None) -> dict:
