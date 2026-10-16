@@ -27,7 +27,7 @@ function useLayout() {
   const { width, height, fps } = useVideoConfig()
   const wide = width > height
   const u = Math.min(width, height) / 1080
-  return { width, height, fps, wide, u, content: wide ? width * 0.72 : width * 0.86, top: (wide ? 150 : 230) * u, bottom: (wide ? 190 : 380) * u }
+  return { width, height, fps, wide, u, content: wide ? width * 0.72 : width * 0.86, top: (wide ? 140 : 230) * u, bottom: (wide ? 250 : 380) * u } // the bottom stays clear for the subtitles
 }
 
 function useEnter(delay = 0, damping = 16) {
