@@ -197,6 +197,7 @@ const MOTION_STORIES = [
   { value: 'report', label: 'Data report', hint: 'Bars, a percent ring, numbers with their source' },
   { value: 'clarity', label: 'SaaS explainer', hint: 'Calm white and blue — the mess of tools today, your app in a frame, how it works' },
   { value: 'launch', label: 'Product launch', hint: 'A cinematic launch film — the one click that does the job, your screens stacking up, “Now live”' },
+  { value: 'gridcards', label: 'How it works · Grid', hint: 'Grid paper, navy and lime — the repetitive work, then one photo becoming a post, a price poster, a caption' },
   { value: 'unveil', label: 'Unveil · Launch (light)', hint: 'A light, elegant launch — one big word, the app card coming into focus, typing, a check with confetti' },
   { value: 'showcase', label: 'Showcase · SaaS promo', hint: 'Bright launch-video look — the apps it joins, its table and board views, a rolling word' },
   { value: 'demo', label: 'Product demo', hint: 'Your product in an app window, step by step — shows the solution' },

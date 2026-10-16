@@ -932,6 +932,48 @@ UNVEIL_PROMPT = (
     + '{"scenes": [{"type": "hook", "text": "...", "icon": "Sparkles", "say": "..."}, ...]}'
 )
 
+# ── How it works · Grid (motion/src/gridcards.jsx) — solution / awareness ──
+GRID_TYPES = ("hook", "tasks", "fanout", "reveal", "list", "stat", "step", "flow", "cta")
+GRID_PROMPT = (
+    "You are the best explainer-video director in Cambodia. You plan a REMOTION VIDEO (about 30-50 s) "
+    "that shows how a product or service SOLVES a daily problem, the way the best Khmer TikTok "
+    "explainers do: pale grid paper, navy and lime green, bold Khmer headlines with a lime marker "
+    "under the key word, white cards with navy icon tiles, a tilted lime sticker, and subtitles that "
+    "light up word by word. Clear, friendly, useful — one idea per scene.\n"
+    "\n"
+    "THE STORY (5-7 scenes):\n"
+    "1. hook — the everyday pain as a question or a line (\"Still writing every caption [by hand]?\").\n"
+    "2. tasks — the repetitive work it takes today, and a sticker that names the pain.\n"
+    "3. reveal or hook — the turn: the product does it for you.\n"
+    "4. fanout — ONE input (the product, a photo, a message) becomes 2-3 results, numbered — the "
+    "heart of the video.\n"
+    "5. list, stat, step or flow — what else it gives, the proof (stat only with a TRUE number).\n"
+    "last. cta — try it / message us.\n"
+    "\n"
+    "SCENE TYPES and their fields:\n"
+    "- hook: text (max 9 words), icon.\n"
+    "- tasks: title (optional, max 7 words), items: 3 x {\"icon\", \"text\": the task, 2-5 words}, sticker "
+    "(the pain in 2-4 words, e.g. \"ធ្វើដដែលៗរាល់ថ្ងៃ\").\n"
+    "- fanout: title (the promise, max 7 words, e.g. \"1 photo, [3] posts\"), product (a product's name "
+    "from the product information, when it is about one), icon (when there is no product), outputs: "
+    "2-3 x {\"kind\": \"post\" | \"price\" | \"tags\" | \"chat\" | \"list\", \"value\": what it shows — "
+    "the price for price (e.g. \"$12\"), the reply for chat (max 8 words), a platform for post "
+    "(\"facebook\" | \"tiktok\" | \"instagram\" | \"telegram\"), optional otherwise}, checks: 1-2 short "
+    "results (max 5 words each, e.g. \"Ready to post\").\n"
+    "- reveal: text (max 10 words), icon.\n"
+    "- list: title (max 6 words), items: 3 x {\"icon\", \"text\": 2-6 words}.\n"
+    "- stat: value, prefix, suffix, label (max 6 words), icon — only a TRUE number.\n"
+    "- step: title (max 7 words), text (one line), result (max 6 words, optional).\n"
+    "- flow: title (max 6 words), nodes: 3-4 x {\"icon\", \"label\": 2-5 words, \"sub\": optional}.\n"
+    "- cta: text (max 9 words), button (2-4 words).\n"
+    "Prices only from the product information. Only what the product really does.\n"
+    "\n"
+    + _SAAS_CRAFT
+    + "\n"
+    + _COMMON_RULES
+    + '{"scenes": [{"type": "hook", "text": "...", "icon": "Clock", "say": "..."}, ...]}'
+)
+
 # ── Showcase (motion/src/showcase.jsx) — a bright SaaS promo ───────────────
 SHOWCASE_TYPES = ("hook", "roll", "apps", "table", "board", "screen", "flow", "dashboard", "list", "stat", "cta")
 SHOWCASE_PROMPT = (
@@ -1275,6 +1317,7 @@ STYLES = {
     "showcase": (SHOWCASE_PROMPT, SHOWCASE_TYPES, 7, None),
     "launch": (LAUNCH_PROMPT, LAUNCH_TYPES, 7, None),
     "unveil": (UNVEIL_PROMPT, UNVEIL_TYPES, 6, None),
+    "gridcards": (GRID_PROMPT, GRID_TYPES, 5, "fanout"),
     "clarity": (CLARITY_PROMPT, CLARITY_TYPES, 8, None),
     "countdown": (COUNTDOWN_PROMPT, COUNTDOWN_TYPES, 7, "rank"),
     "thisorthat": (THISORTHAT_PROMPT, THISORTHAT_TYPES, 6, "choice"),
@@ -1292,7 +1335,7 @@ LONG_STYLES = {"training"}
 # The templates laid out for 16:9 too (motion/src/training.jsx, saas.jsx wide scenes);
 # every other template is always vertical. Scenes drawn only for a tall frame are
 # left out of a wide video.
-WIDE_STYLES = {"training", "custom", "demo", "offer", "trend", "pov", "showcase", "launch", "unveil", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
+WIDE_STYLES = {"training", "custom", "demo", "offer", "trend", "pov", "showcase", "launch", "unveil", "gridcards", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
 TALL_ONLY_TYPES = {"problem", "chat", "product", "point"}
 
 
@@ -1308,7 +1351,7 @@ def final_ratio(asked: str, style: str, suggested: str | None = None) -> str:
     return "9:16"
 SCREEN_STYLES = {"custom", "demo", "showcase", "launch", "unveil", "clarity"}  # the stories that can show the brand's screenshots
 # The templates that sell (the auto topic picks a product, not a teaching topic).
-SELLING_STYLES = {"tech", "demo", "offer", "showcase", "launch", "unveil"}
+SELLING_STYLES = {"tech", "demo", "offer", "showcase", "launch", "unveil", "gridcards"}
 
 # Story mode (write_script ``seconds``): the person pasted their own story.
 MAX_STORY_SCENES = 20  # ~2 minutes
@@ -1590,6 +1633,27 @@ def _clean_scene(raw: dict, names: dict[str, str]) -> dict | None:
     if kind == "launch":
         name = _line(raw.get("name"), 30)
         return {"type": kind, "name": names.get(name.lower(), name), "text": _line(raw.get("text"), 100), "badge": _line(raw.get("badge"), 16), "say": say} if name else None
+    if kind == "tasks":
+        items = [
+            {"icon": _icon(x.get("icon"), "Repeat"), "text": _line(x.get("text"), 40)}
+            for x in (raw.get("items") or [])
+            if isinstance(x, dict) and _line(x.get("text"), 40)
+        ][:4]
+        return {"type": kind, "title": _line(raw.get("title"), 60), "items": items, "sticker": _line(raw.get("sticker"), 40), "say": say} if len(items) >= 2 else None
+    if kind == "fanout":
+        kinds = ("post", "price", "tags", "chat", "list")
+        outputs = [
+            {"kind": x.get("kind"), "value": _line(x.get("value"), 50)}
+            for x in (raw.get("outputs") or [])
+            if isinstance(x, dict) and x.get("kind") in kinds
+        ][:3]
+        name = _line(raw.get("product"), 60)
+        checks = [_line(c, 40) for c in (raw.get("checks") or []) if _line(c, 40)][:2]
+        return (
+            {"type": kind, "title": _line(raw.get("title"), 60), "product": names.get(name.lower(), name), "icon": _icon(raw.get("icon"), "Image"), "outputs": outputs, "checks": checks, "say": say}
+            if len(outputs) >= 2
+            else None
+        )
     if kind == "word":
         word = _line(raw.get("word"), 24)
         rows = [
@@ -1985,6 +2049,8 @@ _TEXT_FIELDS = {
     "pair": (("left", 30), ("right", 24), ("label", 20), ("say", 300)),
     "button": (("title", 40), ("text", 80), ("button", 28), ("result", 50), ("say", 300)),
     "word": (("word", 24), ("title", 40), ("text", 90), ("say", 300)),
+    "tasks": (("title", 60), ("sticker", 40), ("say", 300)),
+    "fanout": (("title", 60), ("say", 300)),
     "field": (("label", 30), ("button", 20), ("say", 300)),
     "done": (("text", 40), ("say", 300)),
     "form": (("title", 40), ("toggle", 50), ("say", 300)),
@@ -2372,6 +2438,10 @@ def script_lines(script: dict) -> list[tuple[str, str]]:
             screen = f"{s['left']} [{s.get('label') or 'card'}] {s['right']}"
         elif s["type"] == "launch":
             screen = f"Introducing {s['name']}" + (f" — {s['text']}" if s.get("text") else "") + (f" [{s['badge']}]" if s.get("badge") else "")
+        elif s["type"] == "tasks":
+            screen = (f"{s['title']} — " if s.get("title") else "") + ", ".join(x["text"] for x in s["items"]) + (f" [{s['sticker']}]" if s.get("sticker") else "")
+        elif s["type"] == "fanout":
+            screen = (s.get("title") or "One → many") + " — " + " / ".join(o["kind"] + (f" {o['value']}" if o.get("value") else "") for o in s["outputs"]) + ("".join(f" ✓ {c}" for c in s.get("checks") or []))
         elif s["type"] == "word":
             screen = f"“{s['word']}” — " + (s.get("title") or "card") + (": " + ", ".join(x["name"] for x in s["rows"]) if s.get("rows") else "")
         elif s["type"] == "field":
@@ -2584,7 +2654,7 @@ def pick_pictures(
         if s["type"] == "screen":
             shot = shots[s["shot"] - 1]
             s["image"], s["imgW"], s["imgH"] = shot["uri"], shot["w"], shot["h"]
-        elif s["type"] == "product":
+        elif s["type"] in ("product", "fanout"):
             s["image"] = by_product.get(ids.get(s.get("product") or "")) or main
         elif s["type"] in ("hook", "cta", "offer") or script.get("style") == "quote":
             s["image"] = main
@@ -2607,7 +2677,7 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
     scenes = []
     for s in script["scenes"]:
         scene = {k: v for k, v in s.items() if k not in ("say", "product", "target", "shot")}
-        for key in ("text", "title", "label", "button", "myth", "fact", "question", "author", "name", "business", "before", "after", "headline", "tag", "result", "badge", "plan", "period", "sub", "word", "action"):
+        for key in ("text", "title", "label", "button", "myth", "fact", "question", "author", "name", "business", "before", "after", "headline", "tag", "result", "badge", "plan", "period", "sub", "word", "action", "sticker"):
             if scene.get(key):
                 scene[key] = t(scene[key])
         if s.get("say"):
@@ -2643,6 +2713,9 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
             scene["nodes"] = [{**n, "label": t(n["label"]), "sub": t(n["sub"]) if n.get("sub") else ""} for n in scene["nodes"]]
         if "notes" in scene:
             scene["notes"] = [{**n, "text": t(n["text"])} for n in scene["notes"]]
+        if s["type"] == "fanout":
+            scene["outputs"] = [{**o, "value": t(o["value"]) if o.get("value") else ""} for o in scene.get("outputs") or []]
+            scene["checks"] = [t(c) for c in scene.get("checks") or []]
         if s["type"] == "word" and scene.get("rows"):  # Unveil's card: its people / items
             scene["rows"] = [{"name": t(x["name"]), "sub": t(x["sub"]) if x.get("sub") else ""} for x in scene["rows"]]
         if s["type"] == "step":
@@ -2716,6 +2789,10 @@ def default_seconds(scene: dict) -> float:
         return 2.6 + 0.9 * min(3, len(scene.get("fields") or [])) + (1.4 if scene.get("toggle") else 0)
     if kind == "word":
         return 3.0 + 0.6 * min(3, len(scene.get("rows") or []))
+    if kind == "tasks":
+        return 2.2 + 0.7 * min(4, len(scene.get("items") or [])) + (1.0 if scene.get("sticker") else 0)
+    if kind == "fanout":
+        return 3.0 + 0.8 * min(3, len(scene.get("outputs") or [])) + 0.5 * min(2, len(scene.get("checks") or []))
     if kind == "field":
         return 3.6 + 0.07 * len(scene.get("value") or "")
     if kind == "done":
@@ -3068,6 +3145,10 @@ def _scene_summary(s: dict) -> str:
         text = f"{s.get('left', '')} · {s.get('right', '')}"
     elif t == "word":
         text = s.get("word") or s.get("title") or ""
+    elif t == "tasks":
+        text = s.get("title") or " · ".join(x.get("text", "") for x in s.get("items") or [])
+    elif t == "fanout":
+        text = s.get("title") or " / ".join(o.get("kind", "") for o in s.get("outputs") or [])
     elif t == "field":
         text = f"{s.get('label') or ''} {s.get('value') or ''}".strip()
     elif t == "button":
@@ -3301,6 +3382,7 @@ TEMPLATE_GUIDE = {
     "clarity": "explaining what a software product does and why it matters — calm, white and light blue: the mess of tools today, the product, how it works",
     "launch": "launching a product or a new feature — a cinematic launch film: the one click that does the job, the product's screens, \"now live\"",
     "unveil": "unveiling a product or a new feature in a light, elegant way — one big word, the app card coming into focus, a field typing itself, a check with confetti",
+    "gridcards": "how a product or service solves an everyday problem — the repetitive work today, then one input becoming several results (a post, a price poster, a caption), clear and friendly",
     "showcase": "a bright, polished promo / launch video for a SaaS or app — the tools it connects, its table and board views, who it is for",
     "training": "a team training, an internal presentation, a workshop, a lesson or a long talk with parts / sections — chapters, key points, checklists, recap",
     "explainer": "a story with people — characters with feelings (stick figures), everyday life, money and life lessons, a tale that teaches",

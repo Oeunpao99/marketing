@@ -69,6 +69,10 @@ export function defaultSeconds(s) {
     // Unveil (unveil.jsx) — app/motion.py default_seconds says the same
     case 'word':
       return 3.0 + 0.6 * Math.min(3, (s.rows || []).length)
+    case 'tasks':
+      return 2.2 + 0.7 * Math.min(4, (s.items || []).length) + (s.sticker ? 1.0 : 0)
+    case 'fanout':
+      return 3.0 + 0.8 * Math.min(3, (s.outputs || []).length) + 0.5 * Math.min(2, (s.checks || []).length)
     case 'field':
       return 3.6 + 0.07 * (s.value || '').length
     case 'done':
@@ -262,7 +266,8 @@ export function Words({ text, delay = 0, stagger = 1, style, align = 'left', col
                   right, // the gap after a word is margin, outside this box
                   // Khmer is taller: vowels sit above the letters (ើ ំ) and stacked
                   // consonants below (្ល) — the marker covers all of it, not a cut-off middle band
-                  ...(KHMER_RE.test(p) ? { top: '-0.02em', bottom: '-0.06em' } : { top: '0.12em', bottom: '0.08em' }),
+                  // a template can lower the marker into a highlighter stroke (--hl-top, e.g. How it works · Grid)
+                  ...(KHMER_RE.test(p) ? { top: 'var(--hl-top, -0.02em)', bottom: '-0.06em' } : { top: 'var(--hl-top, 0.12em)', bottom: '0.08em' }),
                   borderRadius: `${joinL ? 0 : '0.18em'} ${joinR ? 0 : '0.18em'} ${joinR ? 0 : '0.18em'} ${joinL ? 0 : '0.18em'}`,
                   background: 'var(--hl-bg, var(--brand))',
                   transform: `scaleX(${sweep})`,

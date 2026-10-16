@@ -53,7 +53,7 @@ import {
 import { EX, EXPLAINER_SCENES, Caption, ExplainerChrome } from './explainer'
 import { POLL, QUOTE, VERSUS } from './goaltemplates'
 import { TESTIMONIAL } from './testimonial'
-import { CASESTUDY, CLARITY, COUNTDOWN, DEMO, FAQ, HOTTAKE, LAUNCH, OFFER, POV, REPORT, REVIEWS, SHOWCASE, THISORTHAT, TIPS, TREND, UNVEIL, customTemplate } from './saas'
+import { CASESTUDY, CLARITY, COUNTDOWN, DEMO, FAQ, GRIDCARDS, HOTTAKE, LAUNCH, OFFER, POV, REPORT, REVIEWS, SHOWCASE, THISORTHAT, TIPS, TREND, UNVEIL, customTemplate } from './saas'
 import { SceneSfx } from './sfx'
 import { TRAINING } from './training'
 
@@ -754,6 +754,7 @@ const TEMPLATES = {
   showcase: { ...SHOWCASE, scenes: { ...SCENES, ...SHOWCASE.scenes } },
   launch: { ...LAUNCH, scenes: { ...SCENES, ...LAUNCH.scenes } },
   unveil: { ...UNVEIL, scenes: { ...SCENES, ...UNVEIL.scenes } },
+  gridcards: { ...GRIDCARDS, scenes: { ...SCENES, ...GRIDCARDS.scenes } },
   clarity: { ...CLARITY, scenes: { ...SCENES, ...CLARITY.scenes } },
   countdown: { ...COUNTDOWN, scenes: { ...SCENES, ...COUNTDOWN.scenes } },
   thisorthat: { ...THISORTHAT, scenes: { ...SCENES, ...THISORTHAT.scenes } },
@@ -791,7 +792,7 @@ export const MotionPost = ({ brand, scenes, music, musicList, style, look, sfx =
               <Sequence from={(i ? TRANSITION : 0) + 6} layout="none">
                 {/* Subtitles — not where the screen says it already (the chat's bubbles, a quote). */}
                 {scene.caption && !noCaption.includes(scene.type) && (
-                  <Caption text={scene.caption} words={scene.words} pauses={scene.pauses} seconds={scene.voiceSeconds || sceneFrames(scene) / FPS - 0.6} top={captionTop} />
+                  <Caption text={scene.caption} words={scene.words} pauses={scene.pauses} seconds={scene.voiceSeconds || sceneFrames(scene) / FPS - 0.6} top={captionTop} look={t.caption} />
                 )}
                 {scene.audio && <Html5Audio src={srcOf(scene.audio)} />}
               </Sequence>

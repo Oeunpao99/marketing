@@ -162,6 +162,16 @@ export const MOTION_TEMPLATES = [
   },
   {
     // not in a goal's rotation yet (app/motion.py GOAL_STYLES) — picked by hand or by Auto
+    id: 'gridcards',
+    story: 'gridcards',
+    name: 'How it works · Grid',
+    look: 'Grid paper, navy and lime — the repetitive work on cards, then one photo becoming a post, a price poster and a caption; word-by-word subtitles',
+    steps: ['Hook', 'The work today', 'One → many', 'What else', 'Call to action'],
+    note: 'Add a product photo in Products → Brand kit — it becomes the one input',
+    goals: [],
+  },
+  {
+    // not in a goal's rotation yet (app/motion.py GOAL_STYLES) — picked by hand or by Auto
     id: 'unveil',
     story: 'unveil',
     name: 'Unveil',

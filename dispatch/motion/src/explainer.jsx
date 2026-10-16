@@ -161,7 +161,7 @@ function Tag({ text, x, y, color = EX.yellow, delay = 10, size = 64, anchor = 'c
  * phrase appears the moment its first word is spoken; without them the
  * phrases are spread over the line (``seconds``) by how long they take to
  * say. The pill fades in and out; inside it each new phrase fades up. */
-export function Caption({ text, seconds, words, pauses, top = 1225 }) {
+export function Caption({ text, seconds, words, pauses, top = 1225, look }) {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
   const MAX = 22 // characters per phrase — one line
@@ -176,6 +176,44 @@ export function Caption({ text, seconds, words, pauses, top = 1225 }) {
     interpolate(frame, [last.to - FADE, last.to], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }),
   )
   const line = interpolate(frame, [now.from, now.from + FADE], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })
+  if (look?.kind === 'karaoke' && now.ws?.length) {
+    // Karaoke (a template's caption look): no pill — big bold words; the ones
+    // said are ink, the one being said has the marker sweeping under it, the
+    // ones still to come are grey
+    const cur = [...now.ws].reverse().find((w) => frame >= w.from) || now.ws[0]
+    return (
+      <div style={{ position: 'absolute', top, left: 0, right: 0, display: 'flex', justifyContent: 'center', padding: '0 70px', opacity: pill }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', fontFamily: FONT, fontWeight: 700, fontSize: look.size || 64, lineHeight: 1.35, opacity: line, transform: `translateY(${(1 - line) * 8}px)` }}>
+          {now.ws.map((w, k) => {
+            const said = frame >= w.from
+            const on = w === cur
+            const next = now.ws[k + 1]
+            const sweep = on ? interpolate(frame, [w.from, next ? next.from : w.from + 12], [0.15, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }) : 0
+            return (
+              <span key={k} style={{ position: 'relative', display: 'inline-block', marginLeft: w.sp ? '0.28em' : 0, color: said ? look.ink : look.todo, textShadow: '0 2px 14px rgba(255,255,255,0.9)' }}>
+                {on && (
+                  <span
+                    style={{
+                      position: 'absolute',
+                      left: '-0.04em',
+                      right: '-0.04em',
+                      bottom: '0.06em',
+                      height: '0.42em',
+                      background: look.marker,
+                      transform: `scaleX(${sweep})`,
+                      transformOrigin: 'left center',
+                      zIndex: -1,
+                    }}
+                  />
+                )}
+                {w.w}
+              </span>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
   return (
     <div style={{ position: 'absolute', top, left: 0, right: 0, display: 'flex', justifyContent: 'center', padding: '0 70px', opacity: pill }}>
       <div
@@ -206,12 +244,14 @@ function fromWords(words, fps, max) {
   let cur = null
   for (const w of words) {
     const piece = (cur && w.sp ? ' ' : '') + w.w
+    const at = Math.max(0, Math.round(w.t * fps) - LEAD)
     if (!cur || (cur.c + piece).length > max) {
       if (cur) out.push(cur)
-      cur = { c: w.w, from: Math.max(0, Math.round(w.t * fps) - LEAD), end: w.e }
+      cur = { c: w.w, from: at, end: w.e, ws: [{ w: w.w, sp: false, from: at }] }
     } else {
       cur.c += piece
       cur.end = w.e
+      cur.ws.push({ w: w.w, sp: !!w.sp, from: at })
     }
     if (/[.!?។៕]$/.test(w.w)) {
       out.push(cur)
@@ -219,7 +259,7 @@ function fromWords(words, fps, max) {
     }
   }
   if (cur) out.push(cur)
-  return out.map((p, i) => ({ c: p.c, from: p.from, to: i < out.length - 1 ? out[i + 1].from : Math.round((p.end + 0.5) * fps) }))
+  return out.map((p, i) => ({ c: p.c, ws: p.ws, from: p.from, to: i < out.length - 1 ? out[i + 1].from : Math.round((p.end + 0.5) * fps) }))
 }
 
 /** Phrases spread over the line by how long they take to say — measured in
@@ -271,7 +311,18 @@ function fromText(text, seconds, fps, max, pauses = []) {
   return chunks.map((c, i) => {
     const from = i ? Math.round(starts[i]) - (snapped ? 0 : LEAD + 5) : 0
     const to = i < chunks.length - 1 ? Math.round(starts[i + 1]) - (snapped ? 0 : LEAD + 5) : Math.round(span + 0.4 * fps)
-    return { c: clean(c), from: Math.max(0, from), to }
+    // its words (Khmer split at the zero-width spaces), each starting by how long the ones before take to say
+    const parts = []
+    for (const w of c.split(' ').filter(Boolean)) w.split(ZWSP).filter(Boolean).forEach((p, k) => parts.push({ w: clean(p), sp: k === 0 && parts.length > 0 }))
+    const sum = parts.reduce((n, p) => n + weight(p.w), 0) || 1
+    const len = Math.max(1, (i < chunks.length - 1 ? starts[i + 1] : span) - starts[i])
+    let acc = 0
+    const ws = parts.map((p) => {
+      const at = Math.max(0, from) + Math.round((acc / sum) * len * 0.92)
+      acc += weight(p.w)
+      return { ...p, from: at }
+    })
+    return { c: clean(c), ws, from: Math.max(0, from), to }
   })
 }
 

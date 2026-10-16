@@ -32,6 +32,7 @@ import { FONT, Icon, NeatGrid, Words, clean, fitSize, srcOf, tint } from './shar
 import { showcaseScenes } from './showcase'
 import { launchScenes } from './launch'
 import { Mist, unveilScenes } from './unveil'
+import { LIME, NAVY, Paper, gridScenes } from './gridcards'
 import { clarityScenes } from './clarity'
 import { choiceScenes, countdownScenes, reviewScenes, tipScenes } from './clean'
 import { caseScenes, faqScenes, reportScenes, takeScenes } from './clean2'
@@ -78,6 +79,7 @@ const PALETTES = {
   clarity: palette({ bg: '#F4F6FA', a: '#2F6FED', b: '#4FB3F6', mode: 'light', background: 'rings', icon: 'FileText' }),
   launch: palette({ bg: '#14082A', a: '#8B5CF6', b: '#5EEAD4', mode: 'dark', background: 'launch', icon: 'Rocket', card: '#1C0F38' }),
   unveil: palette({ bg: '#EEF4F3', a: '#2F7A68', b: '#9EC9F2', mode: 'light', background: 'mist', icon: 'Sparkles' }),
+  gridcards: palette({ bg: '#EEF1F6', a: '#1E3470', b: '#7CC242', mode: 'light', background: 'paper', icon: 'Lightbulb' }),
 }
 
 const ON = '#FFFFFF' // on an accent tile / a dark phone — white in every look
@@ -187,6 +189,7 @@ function AiBg({ P }) {
     <AbsoluteFill style={{ backgroundColor: P.bg, overflow: 'hidden' }}>
       {kind === 'airy' && <Airy P={P} />}
       {kind === 'mist' && <Mist P={P} />}
+      {kind === 'paper' && <Paper />}
       {kind === 'launch' && <LaunchLight P={P} />}
       {kind === 'rings' && <Rings P={P} />}
       {kind === 'neat' && <NeatGrid color={P.light ? 'rgba(20,26,36,0.06)' : 'rgba(255,255,255,0.07)'} />}
@@ -237,18 +240,34 @@ function AiBg({ P }) {
 }
 
 /** A glowing icon with a spinning gradient ring. */
+/** The opening icon, as a flat sticker (the user's pick, 2026-10-16 — the
+ * glowing gradient orb looked like every other AI tool): a solid tile in the
+ * main colour, a white icon, a bold outline and a hard shadow, tilted a
+ * little; it pops in like a sticker and then sits gently bobbing. */
 function Orb({ P, icon, size = 240, delay = 0 }) {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
-  const s = spring({ frame: frame - delay, fps, config: { damping: 12 } })
-  const half = size / 2
+  const s = spring({ frame: frame - delay, fps, config: { damping: 9, mass: 0.8 } })
+  const tile = size * 0.82
+  const line = P.light ? '#141A2E' : 'rgba(255,255,255,0.92)'
+  const bob = Math.sin((frame - delay) / 22) * size * 0.015
   return (
-    <div style={{ position: 'relative', width: size, height: size, transform: `scale(${s})` }}>
-      <div style={{ position: 'absolute', inset: -30, borderRadius: half + 30, background: `radial-gradient(circle, ${tint(P.a, 0.45)}, transparent 70%)` }} />
-      <div style={{ position: 'absolute', inset: 0, borderRadius: half, background: `conic-gradient(from ${frame * 4}deg, ${P.a}, ${P.b}, transparent 55%, ${P.a})` }} />
-      <div style={{ position: 'absolute', inset: 9, borderRadius: half - 9, background: `radial-gradient(circle at 35% 30%, ${tint(P.a, 0.3)}, ${P.bg} 70%)` }} />
-      <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center' }}>
-        <Icon name={icon} size={size * 0.44} color={P.ink} stroke={2} />
+    <div style={{ position: 'relative', width: size, height: size, display: 'grid', placeItems: 'center' }}>
+      <div
+        style={{
+          width: tile,
+          height: tile,
+          borderRadius: tile * 0.26,
+          background: P.a,
+          border: `${Math.max(4, size * 0.022)}px solid ${line}`,
+          boxShadow: `0 ${size * 0.05}px 0 ${line}`,
+          display: 'grid',
+          placeItems: 'center',
+          opacity: Math.min(1, s * 2),
+          transform: `translateY(${bob}px) scale(${s}) rotate(${-4 + (1 - s) * -14}deg)`,
+        }}
+      >
+        <Icon name={icon} size={tile * 0.5} color={P.light ? '#FFFFFF' : P.bg} stroke={2.4} />
       </div>
     </div>
   )
@@ -1501,6 +1520,14 @@ const CP = PALETTES.clarity
 export const CLARITY = template(CP, 'clarity', { ...clarityScenes(CP, AiBg), step: makeStep(CP), screen: makeScreen(CP), dashboard: makeDashboard(CP), flow: makeFlow(CP) })
 const LP = PALETTES.launch
 export const LAUNCH = template(LP, 'launch', { ...launchScenes(LP, AiBg), step: makeStep(LP), screen: makeScreen(LP), dashboard: makeDashboard(LP), flow: makeFlow(LP) })
+const GP = PALETTES.gridcards
+const GRID = template(GP, 'gridcards', { ...gridScenes(), step: makeStep(GP), flow: makeFlow(GP) })
+/** How it works · Grid: navy ink on a lime highlighter stroke, karaoke subtitles. */
+export const GRIDCARDS = {
+  ...GRID,
+  root: { ...GRID.root, '--hl-bg': LIME, '--hl-text': NAVY, '--hl-top': '0.82em' },
+  caption: { kind: 'karaoke', ink: NAVY, todo: 'rgba(30,52,112,0.32)', marker: LIME, size: 62 },
+}
 const UP = PALETTES.unveil
 export const UNVEIL = template(UP, 'unveil', { ...unveilScenes(UP, AiBg), step: makeStep(UP), screen: makeScreen(UP), dashboard: makeDashboard(UP), flow: makeFlow(UP) })
 export const SHOWCASE = template(SP, 'showcase', { ...showcaseScenes(SP, AiBg), step: makeStep(SP), screen: makeScreen(SP), dashboard: makeDashboard(SP), flow: makeFlow(SP) })
