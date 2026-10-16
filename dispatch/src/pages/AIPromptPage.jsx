@@ -1882,6 +1882,22 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary, onPlanChange, onMake,
   const [expanded, setExpanded] = useState(false)
   const [viewing, setViewing] = useState(false)
   const [making, setMaking] = useState(false) // a Remotion video's "How it was made"
+  // A Remotion video that just finished: 'in' = the card shows it complete,
+  // 'out' = it fades, then false = the video reveals itself (animate-media-reveal)
+  const [finishing, setFinishing] = useState(false)
+  const wasStatus = useRef(t.status)
+  useEffect(() => {
+    const was = wasStatus.current
+    wasStatus.current = t.status
+    if (t.kind !== 'motion' || was !== 'working' || t.status !== 'done') return undefined
+    setFinishing('in')
+    const a = setTimeout(() => setFinishing('out'), 1100)
+    const b = setTimeout(() => setFinishing(false), 1600)
+    return () => {
+      clearTimeout(a)
+      clearTimeout(b)
+    }
+  }, [t.status, t.kind])
   const [copied, setCopied] = useState(false)
   // Chats saved by an older page version can hold a turn without a prompt.
   const prompt = t.prompt || ''
@@ -1967,16 +1983,20 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary, onPlanChange, onMake,
       {/* result */}
       <div className="flex flex-col items-start">
         {/* A Remotion video: one card — progress, the steps, the storyboard rows. */}
-        {t.status === 'working' && motion && (
+        {(t.status === 'working' || finishing) && motion && (
+          // a finished video doesn't just replace the card: the card completes
+          // (100 %, every step ticked, "ready"), fades, then the video comes in
+          <div className={finishing ? 'transition-all duration-500 ease-out' : ''} style={finishing === 'out' ? { opacity: 0, transform: 'scale(0.98)' } : undefined}>
           <MotionMaking
-            progress={t.progress}
-            pct={pct}
-            stage={stage}
+            progress={finishing ? { ...t.progress, stage: 'done' } : t.progress}
+            pct={finishing ? 100 : pct}
+            stage={finishing ? 'Your video is ready ✓' : stage}
             elapsed={elapsed}
-            onStop={onStop}
             request={t.auto ? '' : t.prompt}
             meta={[t.language || 'Khmer', t.ratio, t.brandName].filter(Boolean).join(' · ')}
+            onStop={finishing ? undefined : onStop}
           />
+          </div>
         )}
 
         {t.status === 'working' && !motion && (
@@ -2042,7 +2062,7 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary, onPlanChange, onMake,
           </div>
         )}
 
-        {t.status === 'done' && url && (
+        {t.status === 'done' && url && !finishing && (
           <>
             {isImageUrl(t.video.url) ? (
               <button

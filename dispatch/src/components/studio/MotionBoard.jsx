@@ -138,7 +138,7 @@ const STEPS = [
   { key: 'render', label: 'Animate' },
   { key: 'done', label: 'Done' },
 ]
-const stepOf = (stage) => (stage === 'voice' ? 1 : stage === 'render' ? 2 : 0)
+const stepOf = (stage) => (stage === 'voice' ? 1 : stage === 'render' ? 2 : stage === 'done' ? 4 : 0) // done: every step ticked
 const clock = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
 
 const BACKGROUNDS = { grid: 'grid', glow: 'soft glow', dots: 'dots', clean: 'clean' }
@@ -257,7 +257,7 @@ export function MotionMaking({ progress, pct, stage, elapsed, onStop, request = 
             {progress?.voice_note && (
               <div className="mt-1 rounded-lg bg-ink-50 px-2 py-1 text-[11.5px] text-ink-600">{progress.voice_note}</div>
             )}
-            <div className="mt-0.5 truncate text-[12px] text-ink-500">{stage}</div>
+            <div className={`mt-0.5 truncate text-[12px] ${progress?.stage === 'done' ? 'font-semibold text-emerald-600' : 'text-ink-500'}`}>{stage}</div>
           </div>
           {onStop && (
             <button
