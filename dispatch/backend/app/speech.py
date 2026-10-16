@@ -332,19 +332,27 @@ def speak(text: str, voice: str) -> bytes:
     return _openai(text, voice) if which == "openai" else _azure(text, voice)
 
 
-def _gemini(text: str, voice: str, style: str = "") -> bytes:
-    """Gemini TTS: 24 kHz 16-bit PCM back, made an MP3 here. The style line
-    (HOW) tells it how to say it — it doesn't read the instruction aloud."""
+def _gemini(text: str, voice: str, style: str = "", plain: bool = False) -> bytes:
+    """Gemini TTS: 24 kHz 16-bit PCM back, made an MP3 here. The director's
+    notes (HOW + the template's ACT) say how to read it, kept apart from the
+    transcript in the layout Google's TTS guide uses. Now and then a voice
+    model reads the notes aloud anyway: a line far longer than its words can
+    take is asked for again as the bare text (``plain``) — never the notes."""
     import base64
     import subprocess
 
     import imageio_ffmpeg
 
     s = get_settings()
+    said = text.replace(ZWSP, "").strip()
     body = {
         # Gemini reads Khmer as written — the zero-width spaces between words are
         # for Azure's word timings, and make Gemini read word by word
-        "contents": [{"parts": [{"text": f"{GEMINI_HOW[_lang(text)]} {GEMINI_ACT.get(style, '')}\n\n{text.replace(ZWSP, '').strip()}"}]}],
+        "contents": [{"parts": [{"text": said if plain else (
+            "### DIRECTOR'S NOTES — how to read it. Never say these notes aloud.\n"
+            f"{GEMINI_HOW[_lang(text)]} {GEMINI_ACT.get(style, '')}".rstrip()
+            + f"\n\n#### TRANSCRIPT — say exactly this, and nothing else:\n{said}"
+        )}]}],
         "generationConfig": {
             "responseModalities": ["AUDIO"],
             "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": voice}}},
@@ -394,6 +402,10 @@ def _gemini(text: str, voice: str, style: str = "") -> bytes:
         pcm = base64.b64decode(resp.json()["candidates"][0]["content"]["parts"][0]["inlineData"]["data"])
     except (KeyError, IndexError, ValueError) as exc:
         raise SpeechError("Gemini returned no audio.") from exc
+    if not plain and len(pcm) / 48000 > 3.0 + len(said) * 0.14:
+        # ~0.07 s a character is normal speech: twice that and more = it read the notes too
+        log.warning("Gemini TTS read the notes aloud (%.1fs for %s chars) — asking again with the text only", len(pcm) / 48000, len(said))
+        return _gemini(text, voice, style, plain=True)
     pcm = _trim_tail(pcm)
     done = subprocess.run(
         [imageio_ffmpeg.get_ffmpeg_exe(), "-y", "-loglevel", "error", "-f", "s16le", "-ar", "24000", "-ac", "1", "-i", "pipe:0",
@@ -464,14 +476,14 @@ def _gemini_retry_after(resp: httpx.Response) -> float | None:
         return 10.0 + random.uniform(0, 5)
 
 
-# How Gemini should say it (it follows a short style line before the text).
+# How Gemini should say it — the director's notes before the transcript (_gemini).
 GEMINI_HOW = {
     "km": (
-        "Read this in natural, fluent Cambodian Khmer with a native Phnom Penh accent — warm and "
-        "friendly, like a young Cambodian seller talking to one customer, with natural pauses and "
-        "rising and falling intonation. Brand and product names as written:"
+        "Natural, fluent Cambodian Khmer with a native Phnom Penh accent — warm and friendly, like "
+        "a young Cambodian seller talking to one customer, with natural pauses and rising and "
+        "falling intonation. Brand and product names as written."
     ),
-    "en": "Read this in a warm, friendly, natural voice, like a small-business owner talking to one customer:",
+    "en": "A warm, friendly, natural voice, like a small-business owner talking to one customer.",
 }
 # …and how to act it, by the video's template (app/motion.py STYLES).
 GEMINI_ACT = {
