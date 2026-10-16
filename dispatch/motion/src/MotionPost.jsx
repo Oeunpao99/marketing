@@ -53,7 +53,7 @@ import {
 import { EX, EXPLAINER_SCENES, Caption, ExplainerChrome } from './explainer'
 import { POLL, QUOTE, VERSUS } from './goaltemplates'
 import { TESTIMONIAL } from './testimonial'
-import { CASESTUDY, CLARITY, COUNTDOWN, DEMO, FAQ, GRIDCARDS, HOTTAKE, LAUNCH, OFFER, POV, REPORT, REVIEWS, SHOWCASE, THISORTHAT, TIPS, TREND, UNVEIL, customTemplate } from './saas'
+import { CASESTUDY, CLARITY, COUNTDOWN, DEMO, FAQ, GRIDCARDS, HOTTAKE, TECHFLOW, LAUNCH, OFFER, POV, REPORT, REVIEWS, SHOWCASE, THISORTHAT, TIPS, TREND, UNVEIL, customTemplate } from './saas'
 import { SceneSfx } from './sfx'
 import { TRAINING } from './training'
 
@@ -755,6 +755,7 @@ const TEMPLATES = {
   launch: { ...LAUNCH, scenes: { ...SCENES, ...LAUNCH.scenes } },
   unveil: { ...UNVEIL, scenes: { ...SCENES, ...UNVEIL.scenes } },
   gridcards: { ...GRIDCARDS, scenes: { ...SCENES, ...GRIDCARDS.scenes } },
+  techflow: { ...TECHFLOW, scenes: { ...SCENES, ...TECHFLOW.scenes } },
   clarity: { ...CLARITY, scenes: { ...SCENES, ...CLARITY.scenes } },
   countdown: { ...COUNTDOWN, scenes: { ...SCENES, ...COUNTDOWN.scenes } },
   thisorthat: { ...THISORTHAT, scenes: { ...SCENES, ...THISORTHAT.scenes } },

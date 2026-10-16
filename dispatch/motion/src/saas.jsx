@@ -33,6 +33,7 @@ import { showcaseScenes } from './showcase'
 import { launchScenes } from './launch'
 import { Mist, unveilScenes } from './unveil'
 import { LIME, NAVY, Paper, gridScenes } from './gridcards'
+import { TechGrid, techScenes } from './techflow'
 import { clarityScenes } from './clarity'
 import { choiceScenes, countdownScenes, reviewScenes, tipScenes } from './clean'
 import { caseScenes, faqScenes, reportScenes, takeScenes } from './clean2'
@@ -79,6 +80,7 @@ const PALETTES = {
   clarity: palette({ bg: '#F4F6FA', a: '#2F6FED', b: '#4FB3F6', mode: 'light', background: 'rings', icon: 'FileText' }),
   launch: palette({ bg: '#14082A', a: '#8B5CF6', b: '#5EEAD4', mode: 'dark', background: 'launch', icon: 'Rocket', card: '#1C0F38' }),
   unveil: palette({ bg: '#EEF4F3', a: '#2F7A68', b: '#9EC9F2', mode: 'light', background: 'mist', icon: 'Sparkles' }),
+  techflow: palette({ bg: '#0B1220', a: '#22D3EE', b: '#10B981', mode: 'dark', background: 'techgrid', icon: 'Cpu', card: '#111B2E' }),
   gridcards: palette({ bg: '#EEF1F6', a: '#1E3470', b: '#7CC242', mode: 'light', background: 'paper', icon: 'Lightbulb' }),
 }
 
@@ -190,6 +192,7 @@ function AiBg({ P }) {
       {kind === 'airy' && <Airy P={P} />}
       {kind === 'mist' && <Mist P={P} />}
       {kind === 'paper' && <Paper />}
+      {kind === 'techgrid' && <TechGrid />}
       {kind === 'launch' && <LaunchLight P={P} />}
       {kind === 'rings' && <Rings P={P} />}
       {kind === 'neat' && <NeatGrid color={P.light ? 'rgba(20,26,36,0.06)' : 'rgba(255,255,255,0.07)'} />}
@@ -1520,6 +1523,9 @@ const CP = PALETTES.clarity
 export const CLARITY = template(CP, 'clarity', { ...clarityScenes(CP, AiBg), step: makeStep(CP), screen: makeScreen(CP), dashboard: makeDashboard(CP), flow: makeFlow(CP) })
 const LP = PALETTES.launch
 export const LAUNCH = template(LP, 'launch', { ...launchScenes(LP, AiBg), step: makeStep(LP), screen: makeScreen(LP), dashboard: makeDashboard(LP), flow: makeFlow(LP) })
+const TP = PALETTES.techflow
+/** Tech explainer: its own hook / journey scenes / checklist; the cta from the kit. */
+export const TECHFLOW = template(TP, 'techflow', techScenes())
 const GP = PALETTES.gridcards
 const GRID = template(GP, 'gridcards', { ...gridScenes(), step: makeStep(GP), flow: makeFlow(GP) })
 /** How it works · Grid: navy ink on a lime highlighter stroke, karaoke subtitles. */

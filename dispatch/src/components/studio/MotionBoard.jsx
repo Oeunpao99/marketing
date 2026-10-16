@@ -46,6 +46,11 @@ export const SCENE_LABELS = {
   form: 'Form',
   word: 'Big word',
   tasks: 'The work today',
+  send: 'Device → device',
+  address: 'The address',
+  lookup: 'The lookup',
+  hops: 'The path',
+  assemble: 'It comes back',
   fanout: 'One → many',
   field: 'Typing',
   done: 'Done ✓',
@@ -70,7 +75,7 @@ export const SCENE_LABELS = {
   donut: 'Percent',
 }
 
-export const STYLE_LABELS = { tech: 'Sell', explainer: 'Teach', versus: 'Compare', poll: 'Poll', quote: 'Quote', testimonial: 'Testimonial', trend: 'AI News', pov: 'POV', demo: 'Product demo', offer: 'Offer', showcase: 'Showcase', launch: 'Product launch', unveil: 'Unveil', gridcards: 'How it works · Grid', clarity: 'SaaS explainer', countdown: 'Top 5', thisorthat: 'This or that', reviews: 'Review wall', tips: 'Tip cards', hottake: 'Hot take', casestudy: 'Case study', faq: 'FAQ', report: 'Data report', custom: 'Designed for you', training: 'Training' }
+export const STYLE_LABELS = { tech: 'Sell', explainer: 'Teach', versus: 'Compare', poll: 'Poll', quote: 'Quote', testimonial: 'Testimonial', trend: 'AI News', pov: 'POV', demo: 'Product demo', offer: 'Offer', showcase: 'Showcase', launch: 'Product launch', unveil: 'Unveil', gridcards: 'How it works · Grid', techflow: 'Tech explainer', clarity: 'SaaS explainer', countdown: 'Top 5', thisorthat: 'This or that', reviews: 'Review wall', tips: 'Tip cards', hottake: 'Hot take', casestudy: 'Case study', faq: 'FAQ', report: 'Data report', custom: 'Designed for you', training: 'Training' }
 
 /** 0-99 from the real steps: the story is the only part without a count, so
  * it creeps up with time; the voice counts lines, the render counts frames. */

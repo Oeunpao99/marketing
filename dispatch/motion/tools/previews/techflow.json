@@ -1,0 +1,117 @@
+{
+ "brand": {
+  "name": "Marketing ឆ្លាតវ៉ៃ",
+  "color": "#22D3EE",
+  "logo": null
+ },
+ "style": "techflow",
+ "frame": 60,
+ "scenes": [
+  {
+   "type": "hops",
+   "nodes": [
+    {
+     "device": "router",
+     "label": "Router"
+    },
+    {
+     "device": "server",
+     "label": "ISP"
+    },
+    {
+     "device": "globe",
+     "label": "Internet"
+    },
+    {
+     "device": "cloud",
+     "label": "Data center"
+    },
+    {
+     "device": "server",
+     "label": "Google"
+    }
+   ],
+   "text": "Packets travel through ⟦many routers⟧"
+  }
+ ],
+ "clip": [
+  {
+   "type": "hook",
+   "text": "What happens when you open a ⟦website⟧?",
+   "device": "phone",
+   "icon": "Zap"
+  },
+  {
+   "type": "send",
+   "from": {
+    "device": "phone",
+    "label": "Your phone"
+   },
+   "to": {
+    "device": "router",
+    "label": "Wi-Fi router"
+   },
+   "text": "Your data is split into ⟦packets⟧"
+  },
+  {
+   "type": "address",
+   "device": "router",
+   "from": "192.168.1.10",
+   "to": "203.144.x.x",
+   "text": "Every device has an ⟦address⟧"
+  },
+  {
+   "type": "lookup",
+   "server": "DNS",
+   "question": "Where is google.com?",
+   "answer": "142.250.x.x"
+  },
+  {
+   "type": "hops",
+   "nodes": [
+    {
+     "device": "router",
+     "label": "Router"
+    },
+    {
+     "device": "server",
+     "label": "ISP"
+    },
+    {
+     "device": "globe",
+     "label": "Internet"
+    },
+    {
+     "device": "cloud",
+     "label": "Data center"
+    },
+    {
+     "device": "server",
+     "label": "Google"
+    }
+   ],
+   "text": "Packets travel through ⟦many routers⟧"
+  },
+  {
+   "type": "assemble",
+   "device": "phone",
+   "label": "google.com",
+   "text": "The page ⟦comes back⟧ to you"
+  },
+  {
+   "type": "checklist",
+   "title": "Remember",
+   "checks": [
+    "Packets",
+    "IP address",
+    "DNS",
+    "Routing"
+   ]
+  },
+  {
+   "type": "cta",
+   "text": "Follow for more tech in Khmer",
+   "button": "Follow"
+  }
+ ]
+}

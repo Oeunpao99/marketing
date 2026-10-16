@@ -162,6 +162,16 @@ export const MOTION_TEMPLATES = [
   },
   {
     // not in a goal's rotation yet (app/motion.py GOAL_STYLES) — picked by hand or by Auto
+    id: 'techflow',
+    story: 'techflow',
+    name: 'Tech explainer',
+    look: 'How a technology works — dark navy grid, line-drawn devices, cyan data packets travelling, an address changing, a lookup typing out, the network path, a checklist',
+    steps: ['The question', 'Device → device', 'The address', 'The lookup', 'The path', 'It comes back', 'Remember'],
+    note: 'For “how does it work” topics — the internet, email, payments, apps, AI',
+    goals: [],
+  },
+  {
+    // not in a goal's rotation yet (app/motion.py GOAL_STYLES) — picked by hand or by Auto
     id: 'gridcards',
     story: 'gridcards',
     name: 'How it works · Grid',

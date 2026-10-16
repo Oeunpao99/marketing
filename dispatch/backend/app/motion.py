@@ -974,6 +974,50 @@ GRID_PROMPT = (
     + '{"scenes": [{"type": "hook", "text": "...", "icon": "Clock", "say": "..."}, ...]}'
 )
 
+# ── Tech explainer (motion/src/techflow.jsx) — how a technology works ───────
+TECH_DEVICES = ("phone", "laptop", "router", "cloud", "server", "globe", "database", "lock", "user", "store")
+TECHFLOW_TYPES = ("hook", "send", "address", "lookup", "hops", "assemble", "checklist", "cta")
+TECHFLOW_PROMPT = (
+    "You are the best tech-explainer director in Cambodia. You plan a REMOTION VIDEO (about 40-60 s) "
+    "that explains HOW a technology works, step by step, so anyone understands it: a dark navy stage "
+    "with a faint moving grid, flat line-drawn devices (phone, router, cloud, server, globe…), glowing "
+    "cyan data packets travelling between them, an address changing, a question answered as it "
+    "types out, packets hopping across a network, and a checklist to remember. Calm, clear, accurate "
+    "— one idea per scene, max 8 words on screen.\n"
+    "\n"
+    "THE STORY (6-8 scenes):\n"
+    "1. hook — the question everyone has (\"What happens when you open a website?\"), device: the "
+    "thing in the viewer's hand.\n"
+    "2-6. the journey, in the order it really happens, 4-5 of: `send` (data goes from one device to "
+    "the next), `address` (a name or number changes into another), `lookup` (a question asked of a "
+    "server, its answer), `hops` (the path across many machines), `assemble` (the answer comes back "
+    "and becomes what you see).\n"
+    "7. checklist — the 3-4 ideas to remember, one or two words each.\n"
+    "last. cta — follow for more / try it.\n"
+    "\n"
+    "DEVICES (the `device` / `icon` value of a device): phone, laptop, router, cloud, server, globe, "
+    "database, lock, user, store.\n"
+    "SCENE TYPES and their fields:\n"
+    "- hook: text (max 8 words), device.\n"
+    "- send: from {\"device\", \"label\": 1-3 words}, to {\"device\", \"label\"}, text (max 8 words — "
+    "what is happening, e.g. \"Your data is split into packets\").\n"
+    "- address: device, from (the first value, e.g. \"192.168.1.10\", max 20 chars), to (what it "
+    "becomes, max 20 chars), text (max 8 words).\n"
+    "- lookup: server (its short name, e.g. \"DNS\"), question (max 6 words, e.g. \"Where is "
+    "google.com?\"), answer (max 20 chars, e.g. \"142.250.x.x\"), text (max 8 words, optional).\n"
+    "- hops: nodes: 4-5 x {\"device\", \"label\": 1-2 words}, from the first stop to the last, text "
+    "(max 8 words).\n"
+    "- assemble: device (where it ends up), label (what forms, max 3 words, e.g. \"google.com\"), text "
+    "(max 8 words).\n"
+    "- checklist: title (max 5 words), checks: 3-4 x 1-3 words.\n"
+    "- cta: text (max 8 words), button (2-4 words).\n"
+    "Technically CORRECT — never invent a fact; simplify, don't distort. Addresses and numbers are "
+    "examples (write x for hidden digits).\n"
+    "\n"
+    + _COMMON_RULES
+    + '{"scenes": [{"type": "hook", "text": "...", "device": "phone", "say": "..."}, ...]}'
+)
+
 # ── Showcase (motion/src/showcase.jsx) — a bright SaaS promo ───────────────
 SHOWCASE_TYPES = ("hook", "roll", "apps", "table", "board", "screen", "flow", "dashboard", "list", "stat", "cta")
 SHOWCASE_PROMPT = (
@@ -1318,6 +1362,7 @@ STYLES = {
     "launch": (LAUNCH_PROMPT, LAUNCH_TYPES, 7, None),
     "unveil": (UNVEIL_PROMPT, UNVEIL_TYPES, 6, None),
     "gridcards": (GRID_PROMPT, GRID_TYPES, 5, "fanout"),
+    "techflow": (TECHFLOW_PROMPT, TECHFLOW_TYPES, 6, None),
     "clarity": (CLARITY_PROMPT, CLARITY_TYPES, 8, None),
     "countdown": (COUNTDOWN_PROMPT, COUNTDOWN_TYPES, 7, "rank"),
     "thisorthat": (THISORTHAT_PROMPT, THISORTHAT_TYPES, 6, "choice"),
@@ -1335,7 +1380,7 @@ LONG_STYLES = {"training"}
 # The templates laid out for 16:9 too (motion/src/training.jsx, saas.jsx wide scenes);
 # every other template is always vertical. Scenes drawn only for a tall frame are
 # left out of a wide video.
-WIDE_STYLES = {"training", "custom", "demo", "offer", "trend", "pov", "showcase", "launch", "unveil", "gridcards", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
+WIDE_STYLES = {"training", "custom", "demo", "offer", "trend", "pov", "showcase", "launch", "unveil", "gridcards", "techflow", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
 TALL_ONLY_TYPES = {"problem", "chat", "product", "point"}
 
 
@@ -1516,6 +1561,8 @@ def _clean_scene(raw: dict, names: dict[str, str]) -> dict | None:
         apps = _apps(raw.get("apps"))
         if apps:
             hook["apps"] = apps  # Showcase: the bubbles floating round the line
+        if raw.get("device") in TECH_DEVICES:
+            hook["device"] = raw["device"]  # Tech explainer: the device in the viewer's hand
         return hook if text else None
     if kind == "take":
         text = _line(raw.get("text"), 120)
@@ -1633,6 +1680,29 @@ def _clean_scene(raw: dict, names: dict[str, str]) -> dict | None:
     if kind == "launch":
         name = _line(raw.get("name"), 30)
         return {"type": kind, "name": names.get(name.lower(), name), "text": _line(raw.get("text"), 100), "badge": _line(raw.get("badge"), 16), "say": say} if name else None
+    if kind in ("send", "address", "lookup", "hops", "assemble"):  # Tech explainer
+        dev = lambda v, d="phone": v if v in TECH_DEVICES else d  # noqa: E731
+        text = _line(raw.get("text"), 80)
+        if kind == "send":
+            ends = [raw.get("from") or {}, raw.get("to") or {}]
+            if not all(isinstance(e, dict) for e in ends):
+                return None
+            (a, b) = ({"device": dev(e.get("device"), d), "label": _line(e.get("label"), 30)} for e, d in zip(ends, ("phone", "router")))
+            return {"type": kind, "from": a, "to": b, "text": text, "say": say}
+        if kind == "address":
+            frm, to = _line(raw.get("from"), 24), _line(raw.get("to"), 24)
+            return {"type": kind, "device": dev(raw.get("device"), "router"), "from": frm, "to": to, "text": text, "say": say} if frm and to else None
+        if kind == "lookup":
+            q, a = _line(raw.get("question"), 60), _line(raw.get("answer"), 30)
+            return {"type": kind, "server": _line(raw.get("server"), 16) or "Server", "question": q, "answer": a, "text": text, "say": say} if q and a else None
+        if kind == "hops":
+            nodes = [
+                {"device": dev(x.get("device"), "server"), "label": _line(x.get("label"), 24)}
+                for x in (raw.get("nodes") or [])
+                if isinstance(x, dict)
+            ][:5]
+            return {"type": kind, "nodes": nodes, "text": text, "say": say} if len(nodes) >= 3 else None
+        return {"type": kind, "device": dev(raw.get("device")), "label": _line(raw.get("label"), 30), "text": text, "say": say}
     if kind == "tasks":
         items = [
             {"icon": _icon(x.get("icon"), "Repeat"), "text": _line(x.get("text"), 40)}
@@ -2050,6 +2120,11 @@ _TEXT_FIELDS = {
     "button": (("title", 40), ("text", 80), ("button", 28), ("result", 50), ("say", 300)),
     "word": (("word", 24), ("title", 40), ("text", 90), ("say", 300)),
     "tasks": (("title", 60), ("sticker", 40), ("say", 300)),
+    "send": (("text", 80), ("say", 300)),
+    "address": (("text", 80), ("say", 300)),
+    "lookup": (("question", 60), ("text", 80), ("say", 300)),
+    "hops": (("text", 80), ("say", 300)),
+    "assemble": (("text", 80), ("say", 300)),
     "fanout": (("title", 60), ("say", 300)),
     "field": (("label", 30), ("button", 20), ("say", 300)),
     "done": (("text", 40), ("say", 300)),
@@ -2438,6 +2513,16 @@ def script_lines(script: dict) -> list[tuple[str, str]]:
             screen = f"{s['left']} [{s.get('label') or 'card'}] {s['right']}"
         elif s["type"] == "launch":
             screen = f"Introducing {s['name']}" + (f" — {s['text']}" if s.get("text") else "") + (f" [{s['badge']}]" if s.get("badge") else "")
+        elif s["type"] == "send":
+            screen = f"{s['from']['label'] or s['from']['device']} → {s['to']['label'] or s['to']['device']}" + (f" — {s['text']}" if s.get("text") else "")
+        elif s["type"] == "address":
+            screen = f"{s['from']} → {s['to']}" + (f" — {s['text']}" if s.get("text") else "")
+        elif s["type"] == "lookup":
+            screen = f"{s['server']}: “{s['question']}” → {s['answer']}"
+        elif s["type"] == "hops":
+            screen = " → ".join(n["label"] or n["device"] for n in s["nodes"]) + (f" — {s['text']}" if s.get("text") else "")
+        elif s["type"] == "assemble":
+            screen = (s.get("label") or s["device"]) + (f" — {s['text']}" if s.get("text") else "")
         elif s["type"] == "tasks":
             screen = (f"{s['title']} — " if s.get("title") else "") + ", ".join(x["text"] for x in s["items"]) + (f" [{s['sticker']}]" if s.get("sticker") else "")
         elif s["type"] == "fanout":
@@ -2713,6 +2798,11 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
             scene["nodes"] = [{**n, "label": t(n["label"]), "sub": t(n["sub"]) if n.get("sub") else ""} for n in scene["nodes"]]
         if "notes" in scene:
             scene["notes"] = [{**n, "text": t(n["text"])} for n in scene["notes"]]
+        if s["type"] == "send":
+            scene["from"] = {**scene["from"], "label": t(scene["from"]["label"])}
+            scene["to"] = {**scene["to"], "label": t(scene["to"]["label"])}
+        if s["type"] == "hops":
+            scene["nodes"] = [{**n, "label": t(n["label"])} for n in scene["nodes"]]
         if s["type"] == "fanout":
             scene["outputs"] = [{**o, "value": t(o["value"]) if o.get("value") else ""} for o in scene.get("outputs") or []]
             scene["checks"] = [t(c) for c in scene.get("checks") or []]
@@ -2789,6 +2879,10 @@ def default_seconds(scene: dict) -> float:
         return 2.6 + 0.9 * min(3, len(scene.get("fields") or [])) + (1.4 if scene.get("toggle") else 0)
     if kind == "word":
         return 3.0 + 0.6 * min(3, len(scene.get("rows") or []))
+    if kind == "hops":
+        return 3.0 + 0.8 * min(5, len(scene.get("nodes") or []))
+    if kind in ("send", "address", "lookup", "assemble"):
+        return {"send": 4.2, "address": 4.4, "lookup": 5.2, "assemble": 4.6}[kind]
     if kind == "tasks":
         return 2.2 + 0.7 * min(4, len(scene.get("items") or [])) + (1.0 if scene.get("sticker") else 0)
     if kind == "fanout":
@@ -3145,6 +3239,10 @@ def _scene_summary(s: dict) -> str:
         text = f"{s.get('left', '')} · {s.get('right', '')}"
     elif t == "word":
         text = s.get("word") or s.get("title") or ""
+    elif t in ("send", "address", "hops", "assemble"):
+        text = s.get("text") or s.get("label") or ""
+    elif t == "lookup":
+        text = f"{s.get('question', '')} {s.get('answer', '')}"
     elif t == "tasks":
         text = s.get("title") or " · ".join(x.get("text", "") for x in s.get("items") or [])
     elif t == "fanout":
@@ -3383,6 +3481,7 @@ TEMPLATE_GUIDE = {
     "launch": "launching a product or a new feature — a cinematic launch film: the one click that does the job, the product's screens, \"now live\"",
     "unveil": "unveiling a product or a new feature in a light, elegant way — one big word, the app card coming into focus, a field typing itself, a check with confetti",
     "gridcards": "how a product or service solves an everyday problem — the repetitive work today, then one input becoming several results (a post, a price poster, a caption), clear and friendly",
+    "techflow": "explaining HOW a technology works step by step (the internet, email, payments, AI, apps) — devices, data packets travelling, addresses, lookups, the path, a recap",
     "showcase": "a bright, polished promo / launch video for a SaaS or app — the tools it connects, its table and board views, who it is for",
     "training": "a team training, an internal presentation, a workshop, a lesson or a long talk with parts / sections — chapters, key points, checklists, recap",
     "explainer": "a story with people — characters with feelings (stick figures), everyday life, money and life lessons, a tale that teaches",

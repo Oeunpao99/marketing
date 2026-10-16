@@ -69,6 +69,17 @@ export function defaultSeconds(s) {
     // Unveil (unveil.jsx) — app/motion.py default_seconds says the same
     case 'word':
       return 3.0 + 0.6 * Math.min(3, (s.rows || []).length)
+    // Tech explainer (techflow.jsx) — app/motion.py default_seconds says the same
+    case 'hops':
+      return 3.0 + 0.8 * Math.min(5, (s.nodes || []).length)
+    case 'send':
+      return 4.2
+    case 'address':
+      return 4.4
+    case 'lookup':
+      return 5.2
+    case 'assemble':
+      return 4.6
     case 'tasks':
       return 2.2 + 0.7 * Math.min(4, (s.items || []).length) + (s.sticker ? 1.0 : 0)
     case 'fanout':
