@@ -566,7 +566,8 @@ function CtaScene({ scene, brand }) {
         <div
           style={{
             background: 'white',
-            borderRadius: 5,
+            borderRadius: 10,
+            border: 0,
             padding: '26px 40px',
             marginBottom: 70,
             transform: `scale(${logo})`,
@@ -620,7 +621,8 @@ function Chrome({ scenes, brand }) {
           alignItems: 'center',
           gap: 16,
           background: 'rgba(255,255,255,0.92)',
-          borderRadius: 5,
+          borderRadius: 10,
+          border: 0,
           padding: brand.logo ? '10px 24px' : '14px 28px',
           boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
         }}

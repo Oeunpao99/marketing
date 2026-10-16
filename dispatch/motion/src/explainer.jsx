@@ -573,7 +573,7 @@ function ExCta({ scene, brand }) {
       <Paper />
       {brand.logo && (
         <div style={{ position: 'absolute', top: 330, left: 0, right: 0, display: 'flex', justifyContent: 'center', transform: `scale(${logo})` }}>
-          <div style={{ background: 'white', border: `5px solid ${EX.ink}`, borderRadius: 5, padding: '24px 40px' }}>
+          <div style={{ background: 'white', border: 0, borderRadius: 10, padding: '24px 40px' }}>
             <Img src={srcOf(brand.logo)} style={{ height: 120, objectFit: 'contain' }} />
           </div>
         </div>
@@ -631,7 +631,7 @@ export function ExplainerChrome({ scenes, brand }) {
   const frame = useCurrentFrame()
   return (
     <AbsoluteFill style={{ padding: '64px 48px 0', pointerEvents: 'none', opacity: chipOpacity(scenes, frame) }}>
-      <div style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 14, background: 'white', border: `4px solid ${EX.ink}`, borderRadius: 5, padding: brand.logo ? '8px 22px' : '12px 26px' }}>
+      <div style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 14, background: 'white', border: 0, borderRadius: 10, padding: brand.logo ? '8px 22px' : '12px 26px' }}>
         {/* The logo alone; the name only when there's no logo. */}
         {brand.logo ? (
           <Img src={srcOf(brand.logo)} style={{ height: 58, maxWidth: 250, objectFit: 'contain' }} />

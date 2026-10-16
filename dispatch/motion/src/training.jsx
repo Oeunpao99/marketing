@@ -303,7 +303,7 @@ function TrClosing({ scene, brand }) {
       <Body center>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 40 }}>
           {brand.logo ? (
-            <div style={{ ...card, borderRadius: 5, padding: '26px 44px' }}>
+            <div style={{ ...card, border: 0, borderRadius: 10, padding: '26px 44px' }}>
               <Img src={srcOf(brand.logo)} style={{ height: wide ? 110 : 120, maxWidth: 560, objectFit: 'contain' }} />
             </div>
           ) : (

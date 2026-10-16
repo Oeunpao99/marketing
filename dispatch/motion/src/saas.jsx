@@ -441,7 +441,7 @@ function makeCta(P) {
         <AiBg P={P} />
         {brand.logo && (
           <div style={{ ...center, top: 320 }}>
-            <div style={{ ...glass(P, true), background: 'rgba(255,255,255,0.95)', borderRadius: 5, padding: '24px 40px' }}>
+            <div style={{ ...glass(P, true), background: 'rgba(255,255,255,0.95)', border: 0, borderRadius: 10, padding: '24px 40px' }}>
               <Img src={srcOf(brand.logo)} style={{ height: 110, maxWidth: 520, objectFit: 'contain' }} />
             </div>
           </div>
@@ -1166,7 +1166,7 @@ function makeWideCta(P) {
         <AiBg P={P} />
         <div style={{ position: 'absolute', left: 260, right: 260, top: WL.top, bottom: 1080 - WL.bottom, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 44, textAlign: 'center' }}>
           {brand.logo && (
-            <div style={{ ...glass(P, true), background: 'rgba(255,255,255,0.95)', borderRadius: 5, padding: '20px 38px' }}>
+            <div style={{ ...glass(P, true), background: 'rgba(255,255,255,0.95)', border: 0, borderRadius: 10, padding: '20px 38px' }}>
               <Img src={srcOf(brand.logo)} style={{ height: 90, maxWidth: 460, objectFit: 'contain' }} />
             </div>
           )}
