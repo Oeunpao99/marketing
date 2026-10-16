@@ -436,24 +436,24 @@ html.dark .cf-halo { background-color: rgb(var(--brand) / .45); }
   }
 }
 
-/* The making card's live design view (MotionBoard.jsx SceneSketches) */
-@keyframes cf-draw {
-  0%   { stroke-dashoffset: 1; opacity: 0.9; }
-  70%  { stroke-dashoffset: 0; opacity: 0.9; }
-  100% { stroke-dashoffset: 0; opacity: 0; }
-}
-.cf-draw path {
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  animation: cf-draw 2.4s ease-in-out infinite;
-}
+/* The making card's live design view (MotionBoard.jsx SceneSketches):
+   each scene comes in with a transition, in turn */
+@keyframes cf-swap-slide { from { transform: translateX(14%) scale(0.96); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes cf-swap-zoom  { from { transform: scale(1.18); opacity: 0; filter: blur(6px); } to { transform: none; opacity: 1; filter: none; } }
+@keyframes cf-swap-wipe  { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes cf-swap-flip  { from { transform: rotateY(-70deg) scale(0.9); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes cf-swap-blur  { from { filter: blur(14px) brightness(1.6); opacity: 0; } to { filter: none; opacity: 1; } }
+.cf-swap-slide { animation: cf-swap-slide 0.7s cubic-bezier(0.22, 1, 0.36, 1) both, cf-drift 6s ease-out 0.7s forwards; }
+.cf-swap-zoom  { animation: cf-swap-zoom 0.8s cubic-bezier(0.22, 1, 0.36, 1) both, cf-drift 6s ease-out 0.8s forwards; }
+.cf-swap-wipe  { animation: cf-swap-wipe 0.8s cubic-bezier(0.65, 0, 0.35, 1) both, cf-drift 6s ease-out 0.8s forwards; }
+.cf-swap-flip  { animation: cf-swap-flip 0.8s cubic-bezier(0.22, 1, 0.36, 1) both, cf-drift 6s ease-out 0.8s forwards; transform-origin: left center; }
+.cf-swap-blur  { animation: cf-swap-blur 0.8s ease-out both, cf-drift 6s ease-out 0.8s forwards; }
 @keyframes cf-drift {
-  from { transform: scale(1.02); }
-  to   { transform: scale(1.09); }
+  from { transform: scale(1); }
+  to   { transform: scale(1.05); }
 }
-.cf-drift { animation: cf-drift 2.2s ease-out forwards; }
 @keyframes cf-scan {
   from { transform: translateX(-100%); }
-  to   { transform: translateX(100%); }
+  to   { transform: translateX(300%); }
 }
 .cf-scan { animation: cf-scan 1.6s linear infinite; }

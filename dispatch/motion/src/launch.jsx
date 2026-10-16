@@ -71,7 +71,7 @@ function makeLaunchReveal(P, Bg) {
         <Bg P={P} />
         <AbsoluteFill style={{ paddingTop: wide ? 170 : 300, paddingBottom: wide ? 220 : 480, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: wide ? 26 : 34, textAlign: 'center' }}>
           {brand.logo ? (
-            <div style={{ opacity: kick, transform: `translateY(${(1 - kick) * -20}px)`, background: 'rgba(255,255,255,0.95)', borderRadius: 24, padding: '14px 28px' }}>
+            <div style={{ opacity: kick, transform: `translateY(${(1 - kick) * -20}px)`, background: 'rgba(255,255,255,0.95)', borderRadius: 5, padding: '14px 28px' }}>
               <Img src={srcOf(brand.logo)} style={{ height: wide ? 64 : 80, maxWidth: 380, objectFit: 'contain' }} />
             </div>
           ) : (

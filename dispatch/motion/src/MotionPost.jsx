@@ -43,6 +43,7 @@ import {
   Icon,
   NeatGrid,
   Words,
+  chipOpacity,
   clean,
   defaultSeconds,
   fitSize,
@@ -565,7 +566,7 @@ function CtaScene({ scene, brand }) {
         <div
           style={{
             background: 'white',
-            borderRadius: 40,
+            borderRadius: 5,
             padding: '26px 40px',
             marginBottom: 70,
             transform: `scale(${logo})`,
@@ -608,9 +609,10 @@ function CtaScene({ scene, brand }) {
 }
 
 /** The brand chip, top-left (no progress bars — they cluttered the top). */
-function Chrome({ brand }) {
+function Chrome({ scenes, brand }) {
+  const frame = useCurrentFrame()
   return (
-    <AbsoluteFill style={{ padding: '64px 48px 0', pointerEvents: 'none' }}>
+    <AbsoluteFill style={{ padding: '64px 48px 0', pointerEvents: 'none', opacity: chipOpacity(scenes, frame) }}>
       <div
         style={{
           alignSelf: 'flex-start',
@@ -618,7 +620,7 @@ function Chrome({ brand }) {
           alignItems: 'center',
           gap: 16,
           background: 'rgba(255,255,255,0.92)',
-          borderRadius: 999,
+          borderRadius: 5,
           padding: brand.logo ? '10px 24px' : '14px 28px',
           boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
         }}

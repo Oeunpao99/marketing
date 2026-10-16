@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { FiCheck, FiChevronDown, FiMic, FiMicOff, FiMonitor } from 'react-icons/fi'
 
 // The live storyboard of a Remotion video while it's made — what the AI is
@@ -255,60 +255,53 @@ function Asks({ asks }) {
 }
 
 /** The live design view in the Animate step: each designed scene's picture
- * (from the self-check's preview) — the big view follows the scene being
- * animated, the filmstrip ticks scenes off as they're done. */
-function SceneSketches({ sketches, count, stage, speaking, render }) {
+ * (from the self-check's preview), full width, the status on top of it. The
+ * big view follows the scene being animated, and every change of scene plays
+ * a transition (slide, zoom, wipe, flip, blur — in turn); the filmstrip ticks
+ * scenes off as they're done. */
+const SWAPS = ['cf-swap-slide', 'cf-swap-zoom', 'cf-swap-wipe', 'cf-swap-flip', 'cf-swap-blur']
+function SceneSketches({ sketches, render }) {
   const shots = sketches || []
-  const ready = shots.filter(Boolean).length > 0
-  const n = ready ? shots.length : Math.max(3, Math.min(count || 6, 8))
-  const [tick, setTick] = useState(0)
-  useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 2200)
-    return () => clearInterval(id)
-  }, [])
-  const animating = stage === 'render'
-  const at = animating
-    ? Math.min(n - 1, Math.floor((render || 0) * n))
-    : stage === 'voice' && speaking >= 0
-      ? speaking
-      : tick % n
+  const n = shots.length
+  const at = Math.min(n - 1, Math.floor((render || 0) * n))
   const cur = shots[at] ? at : shots.findIndex(Boolean)
+  // the scene shown before this one stays underneath while the new one comes in
+  const [prev, setPrev] = useState({ shown: cur, under: -1 })
+  useEffect(() => {
+    if (cur !== prev.shown) setPrev({ shown: cur, under: prev.shown })
+  }, [cur, prev.shown])
+  const strip = useRef(null)
+  useEffect(() => {
+    strip.current?.children[cur]?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' })
+  }, [cur])
   return (
     <div className="border-b border-ink-100 px-4 py-3">
-      <div className="mb-2 flex items-center justify-between text-[11px] font-semibold text-ink-500">
-        <span>{ready ? (animating ? `Animating scene ${at + 1} of ${n}` : `Scene ${cur + 1} of ${n} · designed`) : 'Sketching the scenes…'}</span>
-        {ready && animating && <span className="tabular-nums text-ink-400">{Math.round(100 * (render || 0))}%</span>}
-      </div>
-      {/* the big view */}
-      <div className="relative mx-auto aspect-video w-full max-w-[520px] overflow-hidden rounded-xl bg-night ring-1 ring-ink-200">
-        {ready ? (
-          <img key={cur} src={shots[cur]} alt={`Scene ${cur + 1}`} className="cf-drift absolute inset-0 h-full w-full object-contain animate-fadein" />
-        ) : (
-          <svg viewBox="0 0 160 90" className="cf-draw absolute inset-0 h-full w-full" fill="none" stroke="currentColor" strokeWidth="0.8" strokeLinecap="round" aria-hidden="true" style={{ color: 'rgba(255,255,255,0.55)' }}>
-            <path pathLength="1" d="M18 22 H96" />
-            <path pathLength="1" d="M18 32 H74" style={{ animationDelay: '0.2s' }} />
-            <path pathLength="1" d="M18 48 h40 v22 h-40 z" style={{ animationDelay: '0.4s' }} />
-            <path pathLength="1" d="M70 48 h40 v22 h-40 z" style={{ animationDelay: '0.6s' }} />
-            <path pathLength="1" d="M128 30 a14 14 0 1 0 0.1 0" style={{ animationDelay: '0.8s' }} />
-          </svg>
-        )}
-        {animating && ready && (
-          <span className="absolute inset-x-0 bottom-0 h-1 overflow-hidden bg-white/10">
-            <span className="cf-scan block h-full w-1/3 bg-white/70" />
+      <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-night ring-1 ring-ink-200" style={{ perspective: 1200 }}>
+        {prev.under >= 0 && shots[prev.under] && <img src={shots[prev.under]} alt="" className="absolute inset-0 h-full w-full object-contain" />}
+        <img key={cur} src={shots[cur]} alt={`Scene ${cur + 1}`} className={`absolute inset-0 h-full w-full object-contain ${SWAPS[cur % SWAPS.length]}`} />
+        {/* the status, on the picture */}
+        <div className="absolute inset-x-0 top-0 flex items-center justify-between bg-gradient-to-b from-black/55 to-transparent px-3 pb-6 pt-2.5 text-[11.5px] font-semibold text-white">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+            Animating scene {at + 1} of {n}
           </span>
-        )}
+          <span className="tabular-nums">{Math.round(100 * (render || 0))}%</span>
+        </div>
+        <span className="absolute inset-x-0 bottom-0 h-1 overflow-hidden bg-white/10">
+          <span className="cf-scan block h-full w-1/3 bg-white/70" />
+        </span>
       </div>
       {/* the filmstrip */}
-      <div className="mt-2 flex gap-1.5 overflow-x-auto pb-0.5">
-        {Array.from({ length: n }, (_, i) => {
-          const done = animating && i < at
-          const now = ready && i === cur
+      <div ref={strip} className="mt-2 flex gap-1.5 overflow-x-auto pb-0.5">
+        {shots.map((src, i) => {
+          const done = i < at
+          const now = i === cur
           return (
             <span
               key={i}
-              className={`relative aspect-video w-16 flex-none overflow-hidden rounded-md bg-night ring-1 transition ${now ? 'ring-2 ring-brand' : 'ring-ink-200'} ${ready && !now && !done ? 'opacity-60' : ''}`}
+              className={`relative aspect-video w-16 flex-none overflow-hidden rounded-md bg-night transition duration-300 ${now ? 'scale-105 ring-2 ring-brand' : 'ring-1 ring-ink-200'} ${!now && !done ? 'opacity-55' : ''}`}
             >
-              {shots[i] ? <img src={shots[i]} alt="" className="h-full w-full object-cover" /> : <span className="absolute inset-0 animate-pulse bg-white/10" />}
+              {src ? <img src={src} alt="" className="h-full w-full object-cover" /> : <span className="absolute inset-0 animate-pulse bg-white/10" />}
               {done && (
                 <span className="absolute right-0.5 top-0.5 grid h-3.5 w-3.5 place-items-center rounded-full bg-brand text-white">
                   <FiCheck size={9} strokeWidth={3} />
@@ -408,13 +401,7 @@ export function MotionMaking({ progress, pct, stage, elapsed, onStop, request = 
       <div className="border-t border-ink-100">
         {/* the designed scenes, live — in the Animate step only */}
         {progress?.stage === 'render' && progress?.sketches?.some(Boolean) && (
-          <SceneSketches
-            sketches={progress.sketches}
-            count={scenes.length}
-            stage={progress.stage}
-            speaking={scenes.findIndex((x) => x.voice === 'speaking')}
-            render={progress.render}
-          />
+          <SceneSketches sketches={progress.sketches} render={progress.render} />
         )}
         {scenes.length === 0 ? (
           <div className="space-y-2.5 px-4 py-4">

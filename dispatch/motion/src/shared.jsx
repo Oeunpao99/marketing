@@ -1,4 +1,4 @@
-import { AbsoluteFill, cancelRender, continueRender, delayRender, spring, staticFile, useCurrentFrame, useVideoConfig } from 'remotion'
+import { AbsoluteFill, cancelRender, continueRender, delayRender, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from 'remotion'
 import * as Lucide from 'lucide-react'
 
 // Pieces every style shares: timing, the Khmer font, word-by-word text,
@@ -147,6 +147,25 @@ export function defaultSeconds(s) {
 }
 
 export const sceneFrames = (s) => Math.round((s.seconds || defaultSeconds(s)) * FPS)
+
+// Scenes that show the brand's logo big — the corner chip steps aside for them
+// (one logo on screen, never two).
+const LOGO_SCENES = new Set(['cta', 'launch', 'platform', 'apps'])
+export const showsLogo = (s) => LOGO_SCENES.has(s.type) || (s.type === 'canvas' && (s.layers || []).some((L) => L.kind === 'logo'))
+
+/** The corner logo chip's opacity at ``frame``: it fades out over a scene that shows the logo itself. */
+export function chipOpacity(scenes, frame) {
+  let start = 0
+  let hide = 0
+  scenes.forEach((s, i) => {
+    const len = sceneFrames(s) - (i < scenes.length - 1 ? TRANSITION : 0)
+    if (showsLogo(s)) {
+      hide = Math.max(hide, interpolate(frame, [start - 10, start + 2, start + len, start + len + 10], [0, 1, 1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }))
+    }
+    start += len
+  })
+  return 1 - hide
+}
 
 // Two fonts, picked letter by letter: English letters, digits and signs in
 // Plus Jakarta Sans (strong, modern — public/fonts, SIL OFL); it has no Khmer

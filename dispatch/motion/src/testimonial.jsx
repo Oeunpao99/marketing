@@ -219,7 +219,7 @@ function TsCta({ scene, brand }) {
       <Warm />
       {brand.logo && (
         <div style={{ position: 'absolute', top: 330, left: 0, right: 0, display: 'flex', justifyContent: 'center' }}>
-          <div style={{ background: 'white', border: `5px solid ${T.ink}`, borderRadius: 36, padding: '22px 36px' }}>
+          <div style={{ background: 'white', border: `5px solid ${T.ink}`, borderRadius: 5, padding: '22px 36px' }}>
             <Img src={srcOf(brand.logo)} style={{ height: 110, objectFit: 'contain' }} />
           </div>
         </div>

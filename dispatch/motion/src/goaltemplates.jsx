@@ -180,7 +180,7 @@ function VsCta({ scene, brand }) {
       <VsPaper />
       {brand.logo && (
         <div style={{ position: 'absolute', top: 330, left: 0, right: 0, display: 'flex', justifyContent: 'center' }}>
-          <div style={{ background: 'white', border: `5px solid ${V.ink}`, borderRadius: 36, padding: '22px 36px' }}>
+          <div style={{ background: 'white', border: `5px solid ${V.ink}`, borderRadius: 5, padding: '22px 36px' }}>
             <Img src={srcOf(brand.logo)} style={{ height: 110, objectFit: 'contain' }} />
           </div>
         </div>
@@ -371,7 +371,7 @@ function PollCta({ scene, brand }) {
       </div>
       {brand.logo && (
         <div style={{ position: 'absolute', bottom: 470, left: 0, right: 0, display: 'flex', justifyContent: 'center' }}>
-          <div style={{ background: 'white', borderRadius: 28, padding: '14px 26px' }}>
+          <div style={{ background: 'white', borderRadius: 5, padding: '14px 26px' }}>
             <Img src={srcOf(brand.logo)} style={{ height: 70, objectFit: 'contain' }} />
           </div>
         </div>
@@ -454,7 +454,7 @@ function QuoteCta({ scene, brand }) {
       <Cinema image={scene.image} />
       {brand.logo && (
         <div style={{ position: 'absolute', top: 470, left: 0, right: 0, display: 'flex', justifyContent: 'center', opacity: b }}>
-          <div style={{ background: 'rgba(255,255,255,0.92)', borderRadius: 30, padding: '18px 30px' }}>
+          <div style={{ background: 'rgba(255,255,255,0.92)', borderRadius: 5, padding: '18px 30px' }}>
             <Img src={srcOf(brand.logo)} style={{ height: 96, objectFit: 'contain' }} />
           </div>
         </div>

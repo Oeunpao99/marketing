@@ -17,7 +17,7 @@
  *   { type: "cta",         text, button? }                   closing
  */
 import { AbsoluteFill, Img, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion'
-import { FONT, Icon, Words, clean, fitSize, srcOf } from './shared'
+import { FONT, Icon, Words, chipOpacity, clean, fitSize, srcOf } from './shared'
 
 const T = { bg: '#F6F7FB', card: '#FFFFFF', ink: '#0F172A', sub: '#526077', line: '#E3E7EF', soft: '#EEF1F7' }
 
@@ -303,7 +303,7 @@ function TrClosing({ scene, brand }) {
       <Body center>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 40 }}>
           {brand.logo ? (
-            <div style={{ ...card, padding: '26px 44px' }}>
+            <div style={{ ...card, borderRadius: 5, padding: '26px 44px' }}>
               <Img src={srcOf(brand.logo)} style={{ height: wide ? 110 : 120, maxWidth: 560, objectFit: 'contain' }} />
             </div>
           ) : (
@@ -320,11 +320,12 @@ function TrClosing({ scene, brand }) {
 }
 
 /** The logo top-left — quiet, like a deck (no progress line). */
-function TrainingChrome({ brand }) {
+function TrainingChrome({ scenes, brand }) {
+  const frame = useCurrentFrame()
   const { width, height } = useVideoConfig()
   const wide = width > height
   return (
-    <AbsoluteFill style={{ pointerEvents: 'none' }}>
+    <AbsoluteFill style={{ pointerEvents: 'none', opacity: chipOpacity(scenes, frame) }}>
       <div style={{ position: 'absolute', top: wide ? 52 : 70, left: wide ? 120 : 72, display: 'flex', alignItems: 'center', gap: 14 }}>
         {brand.logo ? (
           <Img src={srcOf(brand.logo)} style={{ height: wide ? 54 : 62, maxWidth: 280, objectFit: 'contain' }} />
