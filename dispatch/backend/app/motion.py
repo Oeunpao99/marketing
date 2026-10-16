@@ -1071,11 +1071,18 @@ CANVAS_PROMPT = (
     "its own scenes, acts, colours or messages, FOLLOW THEM in order and keep their exact wording "
     "for titles and product names.\n"
     "\n"
-    "Every scene: {\"type\": \"canvas\", \"seconds\": 3-8, \"pal\": PALETTE, \"bg\": BACKGROUND, "
-    "\"layers\": [LAYER, …], \"say\": the voice line}.\n"
-    "PALETTE (per scene — change it between acts, e.g. dark cyber blue → bright purple): {\"bg\": "
-    "\"#RRGGBB\", \"a\": main accent, \"b\": second accent, \"ink\": text colour, \"mode\": \"dark\" | "
-    "\"light\"} — strong contrast between ink and bg.\n"
+    "ONE DESIGN SYSTEM FOR THE WHOLE FILM — it must look like one film by one studio, never a "
+    "different style each scene. Set it once in \"theme\": {\"dark\": \"#RRGGBB\" (the dark "
+    "background), \"light\": \"#RRGGBB\" (the light background), \"a\": main accent, \"b\": second "
+    "accent (the same two accents in EVERY scene), \"backgrounds\": [1-3 BACKGROUND kinds the whole "
+    "film uses], \"card\": \"glass\" | \"solid\", \"radius\": 6-28}. Each scene only picks "
+    "\"tone\": \"dark\" | \"light\" (keep runs of the same tone — switch only at a change of act, "
+    "e.g. the problem dark → the product light) and one of the theme's backgrounds. One type scale: "
+    "headline 96-120, line 56-72, label 40-44. A recurring layout: the same few compositions "
+    "(centred focal / text left + visual right / a row of cards), so scenes rhyme.\n"
+    "\n"
+    "Every scene: {\"type\": \"canvas\", \"seconds\": 3-8, \"tone\": \"dark\" | \"light\", \"bg\": "
+    "BACKGROUND, \"layers\": [LAYER, …], \"say\": the voice line}.\n"
     "BACKGROUND: {\"kind\": solid | gradient | grid | dots | city (line-drawn skyline, data between "
     "the roofs) | network (nodes and pulsing links) | streams (light streaks of data) | particles | "
     "rings | spotlight | aurora (soft drifting bands of colour — elegant, hopeful) | trails (light "
@@ -1120,8 +1127,9 @@ CANVAS_PROMPT = (
     "delivered by at least one scene, and quoted text appears character for character in a "
     "layer.\n"
     "\n"
-    "DESIGN RULES: 3-7 layers a scene, ONE clear focal point, generous space, nothing outside 6-94 % "
-    "x / 8-88 % y, text never under 40 px, no two text layers overlapping (keep their centres "
+    "DESIGN RULES: 3-6 layers a scene, ONE clear focal point and at most two supporting elements, "
+    "generous empty space — calm, never crowded. The top-left corner (x under 26 %, y under 18 %) "
+    "is the logo's: keep it empty. Nothing outside 6-94 % x / 8-88 % y, text never under 40 px, no two text layers overlapping (keep their centres "
     "apart). The bottom 15 % of the frame stays clear — the subtitles live there. Reveals: a "
     "dramatic product reveal = a big text with zoom or blur, a pill above it, a soft shape glow "
     "behind it. Use the brand's screenshots in devices when they help. Keep it premium: no cartoon "
@@ -1136,9 +1144,71 @@ CANVAS_PROMPT = (
     "last scene ends on the brand (logo or name) and the call to action or the tagline.\n"
     "\n"
     + _COMMON_RULES
-    + '{"asks": [{"id": "R1", "kind": "text", "need": "...", "text": "..."}, ...], "scenes": [{"type": "canvas", '
-    '"req": ["R1"], "seconds": 5, "pause": 0, "pal": {…}, "bg": {…}, "layers": [{"kind": "text", "req": ["R1"], "hit": false, …}], "say": "..."}, ...]}'
+    + '{"asks": [{"id": "R1", "kind": "text", "need": "...", "text": "..."}, ...], "theme": {"dark": "#0B1020", "light": "#F5F7FB", '
+    '"a": "#…", "b": "#…", "backgrounds": ["grid", "aurora"], "card": "glass", "radius": 14}, "scenes": [{"type": "canvas", '
+    '"req": ["R1"], "seconds": 5, "pause": 0, "tone": "dark", "bg": {…}, "layers": [{"kind": "text", "req": ["R1"], "hit": false, …}], "say": "..."}, ...]}'
 )
+
+
+TYPE_SCALE = (40, 44, 56, 64, 72, 96, 120, 150)
+
+
+def clean_theme(raw, brand_hex: str = "#3B82F6") -> dict:
+    """AI design's one design system for the film (see CANVAS_PROMPT)."""
+    t = raw if isinstance(raw, dict) else {}
+    kinds = [k for k in (t.get("backgrounds") or []) if k in CANVAS_BGS][:3] if isinstance(t.get("backgrounds"), list) else []
+    return {
+        "dark": _hex(t.get("dark"), "#0B1020"),
+        "light": _hex(t.get("light"), "#F5F7FB"),
+        "a": _hex(t.get("a"), brand_hex),
+        "b": _hex(t.get("b"), "#22D3EE"),
+        "backgrounds": kinds or ["grid", "aurora"],
+        "card": "solid" if t.get("card") == "solid" else "glass",
+        "radius": int(_num(t.get("radius"), 6, 28, 14)),
+    }
+
+
+def apply_theme(scene: dict, theme: dict) -> dict:
+    """One AI-designed scene put into the film's design system: the theme's
+    palette for its tone, one of the theme's backgrounds, the theme's cards,
+    text on the type scale, the logo's corner left empty."""
+    if scene.get("type") != "canvas" or not theme:
+        return scene
+    tone = scene.get("tone")
+    if tone not in ("dark", "light"):  # older designs: the tone their own palette had
+        tone = (scene.get("pal") or {}).get("mode") if (scene.get("pal") or {}).get("mode") in ("dark", "light") else "dark"
+    light = tone == "light"
+    scene["tone"] = tone
+    scene["pal"] = {
+        "bg": theme["light"] if light else theme["dark"],
+        "a": theme["a"],
+        "b": theme["b"],
+        "ink": "#0F172A" if light else "#FFFFFF",
+        "sub": "rgba(15,23,42,0.66)" if light else "rgba(226,232,255,0.72)",
+        "mode": tone,
+    }
+    bg = dict(scene.get("bg") or {})
+    if bg.get("kind") not in theme["backgrounds"]:
+        bg["kind"] = theme["backgrounds"][0]
+    bg.pop("color", None)
+    bg.pop("color2", None)  # the theme's colours, not a one-off
+    scene["bg"] = bg
+    for L in scene.get("layers") or []:
+        if L["kind"] == "card":
+            L["glass"] = theme["card"] == "glass"
+            L["radius"] = theme["radius"]
+            L.pop("fill", None)
+        if L["kind"] in ("image", "device") and "radius" in L:
+            L["radius"] = theme["radius"]
+        if L["kind"] == "text":
+            L["size"] = min(TYPE_SCALE, key=lambda v: abs(v - L.get("size", 64)))
+        for k in ("color", "highlight", "iconBg", "tile", "gradient", "border"):  # theme colours only
+            if str(L.get(k) or "").startswith("#") and L[k].upper() not in (theme["a"].upper(), theme["b"].upper()):
+                L[k] = "a"
+        # the top-left corner is the logo chip's
+        if L["kind"] not in ("shape", "stream") and L["x"] < 26 and L["y"] < 18:
+            L["y"] = 22
+    return scene
 
 
 def _reqs(v) -> list[str]:
@@ -1347,6 +1417,8 @@ def _clean_canvas(raw: dict, say: str) -> dict | None:
     if not layers:
         return None
     scene = {"type": "canvas", "seconds": _num(raw.get("seconds"), 2.5, 9, 5), "pal": pal, "bg": back, "layers": layers, "say": say}
+    if raw.get("tone") in ("dark", "light"):
+        scene["tone"] = raw["tone"]
     if _reqs(raw.get("req")):
         scene["req"] = _reqs(raw.get("req"))
     if _num(raw.get("pause"), 0.3, 1.5) is not None and float(raw.get("pause") or 0) > 0:
@@ -2691,7 +2763,9 @@ def write_script(
         # AI design: its own scenes in the brief's order (no hook / CTA types), and its checklist
         if len(scenes) < 2:
             raise ContentAIError("The AI didn't return a usable storyboard — try again.")
-        script = {"scenes": scenes[: (count if story else most)], "style": style, "asks": _clean_asks(raw.get("asks"))}
+        r, g, b = accent_for(brand.slug)
+        theme = clean_theme(raw.get("theme"), f"#{r:02x}{g:02x}{b:02x}")
+        script = {"scenes": [apply_theme(sc, theme) for sc in scenes[: (count if story else most)]], "style": style, "asks": _clean_asks(raw.get("asks")), "theme": theme}
         if moods:
             script["mood"] = raw.get("mood") if raw.get("mood") in moods else moods[0]
         if khmer:  # the native editor polishes what the AI wrote — never the brief's quoted words
@@ -4005,8 +4079,11 @@ DESIGN_REVIEW_PROMPT = (
     "off at the frame's edge, text too small or low contrast to read, a crowded or cluttered "
     "scene, an empty or unbalanced one, anything in the bottom 15 % of the frame (the subtitles go "
     "there), a reveal that looks weak.\n"
-    "Fix only what is wrong — move (x, y), resize (size, w, h), reorder (z), recolour, remove a "
-    "layer, or add a small accent. KEEP the wording, the story, the scene order and the brand.\n"
+    "Also judge the film as ONE design: a scene that looks out of family (crowded, a different "
+    "layout logic, an odd element) is a real problem — make it rhyme with the others. Colours "
+    "and backgrounds come from the film's theme; a scene may only switch \"tone\" (dark | light).\n"
+    "Fix only what is wrong — move (x, y), resize (size, w, h), reorder (z), remove a "
+    "layer (fewer is often the fix), or add a small accent. KEEP the wording, the story, the scene order and the brand.\n"
     "Return ONLY JSON: {\"fixes\": [{\"scene\": <its number>, \"pal\"?: {...}, \"bg\"?: {...}, "
     "\"layers\": [<the scene's FULL corrected layer list>]}], \"note\": <max 12 words>}. "
     "\"fixes\": [] when every scene is fine.\n"
@@ -4141,14 +4218,14 @@ def review_design(brand: Brand, script: dict, logo: str | None, khmer: bool, job
             continue
         old = scenes[n]
         pictures = [L.get("src") for L in old.get("layers") or [] if L.get("src")]
-        cand = {"type": "canvas", "seconds": old.get("seconds"), "pause": old.get("pause"), "req": old.get("req"), "pal": fx.get("pal") or old.get("pal"), "bg": fx.get("bg") or old.get("bg"), "layers": fx["layers"]}
+        cand = {"type": "canvas", "seconds": old.get("seconds"), "pause": old.get("pause"), "tone": fx.get("tone") or old.get("tone"), "req": old.get("req"), "pal": fx.get("pal") or old.get("pal"), "bg": fx.get("bg") or old.get("bg"), "layers": fx["layers"]}
         # the pictures were sent as "<picture>": they keep the brand kit's own
         for L in cand["layers"]:
             if isinstance(L, dict) and L.get("src") == "<picture>":
                 L["src"] = pictures.pop(0) if pictures else None
         clean = _clean_canvas(cand, old.get("say") or "")
         if clean:
-            scenes[n] = clean
+            scenes[n] = apply_theme(clean, script.get("theme") or clean_theme({}))
             fixed += 1
     log.info("motion %s: design check fixed %s scene(s) — %s", job_id, fixed, _line(out.get("note"), 80))
     return done(fixed)
@@ -4567,6 +4644,8 @@ def checked_script(raw: dict, products: list[Product]) -> dict:
         script["look"] = clean_look(raw.get("look"), "#6366F1")
     if style == "canvas":
         script["asks"] = _clean_asks(raw.get("asks"))
+        script["theme"] = clean_theme(raw.get("theme"))
+        script["scenes"] = [apply_theme(sc, script["theme"]) for sc in script["scenes"]]
     if raw.get("mood") in music_tracks():
         script["mood"] = raw["mood"]
     return script
