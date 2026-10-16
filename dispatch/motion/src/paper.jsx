@@ -18,13 +18,12 @@ const KHMER = /[ក-៿]/
 const clamp = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
 const TECH = ['Brain', 'Cpu', 'Network', 'Database', 'Bot', 'Sparkles', 'CircuitBoard', 'Code', 'Layers', 'Zap']
 const MATH = ['σ(wx + b)', '∑ wᵢxᵢ', '∂L/∂w', 'softmax(z)', 'f(x) = Wx + b', 'ReLU(x)', 'P(y | x)', '∇θ J(θ)', 'y = mx + c', 'eˣ / ∑ eᶻ']
-const KICKER = { hook: 'AI · TECH', list: 'KEY POINTS', beforeafter: 'BEFORE · AFTER', timeline: 'TIMELINE', compare: 'TWO CHOICES', stat: 'BY THE NUMBERS', quote: 'REMEMBER', cta: 'YOUR TURN' }
 
 function useLayout() {
   const { width, height, fps, durationInFrames } = useVideoConfig()
   const wide = width > height
   const u = Math.min(width, height) / 1080
-  return { width, height, fps, durationInFrames, wide, u, content: wide ? width * 0.68 : width * 0.84, top: (wide ? 130 : 260) * u, bottom: (wide ? 250 : 400) * u }
+  return { width, height, fps, durationInFrames, wide, u, content: wide ? width * 0.68 : width * 0.84, top: (wide ? 130 : 260) * u, bottom: (wide ? 250 : 460) * u } // the bottom stays clear of the subtitles (they start at 1480)
 }
 function useEnter(delay = 0, damping = 15) {
   const frame = useCurrentFrame()
@@ -93,14 +92,10 @@ function Paper({ icon }) {
 /** A scene: the paper, the spaced red kicker, the content centred. */
 function Page({ scene, children, gap = 34 }) {
   const { u, top, bottom } = useLayout()
-  const k = useEnter(0)
   return (
     <AbsoluteFill>
       <Paper icon={scene.icon} />
-      <div style={{ position: 'absolute', top: top - 100 * u, left: 0, right: 0, display: 'flex', justifyContent: 'center', ...rise(k, 12) }}>
-        <span style={{ fontFamily: MONO, fontWeight: 700, fontSize: 26 * u, letterSpacing: '0.12em', color: C.red, background: 'rgba(242,107,29,0.12)', border: `1.5px solid rgba(242,107,29,0.35)`, borderRadius: 999, padding: `${8 * u}px ${22 * u}px` }}>{KICKER[scene.type] || 'AI'}</span>
-      </div>
-      <AbsoluteFill style={{ top, bottom, justifyContent: 'center', alignItems: 'center', gap: gap * u, fontFamily: FONT }}>{children}</AbsoluteFill>
+      <AbsoluteFill style={{ top, bottom, height: 'auto', justifyContent: 'center', alignItems: 'center', gap: gap * u, fontFamily: FONT }}>{children}</AbsoluteFill>
     </AbsoluteFill>
   )
 }
@@ -164,6 +159,20 @@ function Badge({ children, size, delay = 0.4 }) {
   )
 }
 
+/** The scene's tech icon, spinning ring and all, bobbing above the title — tall videos only. */
+function Hero({ scene, name }) {
+  const frame = useCurrentFrame()
+  const { u, wide } = useLayout()
+  if (wide) return null
+  return (
+    <div style={{ transform: `translateY(${Math.sin(frame / 14) * 8 * u}px)` }}>
+      <Badge size={150 * u} delay={0.1}>
+        <Icon name={scene.icon || name} size={66 * u} color="white" />
+      </Badge>
+    </div>
+  )
+}
+
 // ── the scenes ─────────────────────────────────────────────────────────────
 function Hook({ scene }) {
   const { u, content } = useLayout()
@@ -181,6 +190,7 @@ function List({ scene }) {
   const { u, content } = useLayout()
   return (
     <Page scene={scene} gap={30}>
+      <Hero scene={scene} name="ListChecks" />
       {scene.title && <Lit text={scene.title} size={84 * u} width={content} span={0.3} />}
       <div style={{ width: content, display: 'flex', flexDirection: 'column', gap: 22 * u }}>
         {(scene.items || []).map((it, i) => (
@@ -213,6 +223,7 @@ function BeforeAfter({ scene }) {
   )
   return (
     <Page scene={scene} gap={36}>
+      <Hero scene={scene} name="Sparkles" />
       {scene.title && <Lit text={scene.title} size={78 * u} width={content} span={0.25} />}
       <div style={{ width: content, display: 'flex', flexDirection: wide ? 'row' : 'column', gap: 26 * u }}>
         {card(km ? '✗ របៀបចាស់' : '✗ BEFORE', scene.before, false, b)}
@@ -229,6 +240,7 @@ function Timeline({ scene }) {
   const step = Math.max(0.6, (durationInFrames / fps - 2) / Math.max(1, steps.length))
   return (
     <Page scene={scene} gap={30}>
+      <Hero scene={scene} name="History" />
       {scene.title && <Lit text={scene.title} size={78 * u} width={content} span={0.25} />}
       <div style={{ width: content, display: 'flex', flexDirection: 'column', gap: 22 * u, borderLeft: `4px dashed ${C.ink}`, paddingLeft: 36 * u }}>
         {steps.map((s, i) => (

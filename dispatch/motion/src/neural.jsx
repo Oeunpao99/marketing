@@ -15,6 +15,7 @@
 import { AbsoluteFill, Easing, interpolate, random, spring, useCurrentFrame, useVideoConfig } from 'remotion'
 import { EM_CLOSE, EM_OPEN, FONT, Icon, Words, ZWSP, clean, fitSize } from './shared'
 
+const ORANGE = '#F26B1D' // the floating icon tiles
 const MONO = "'JetBrains Mono', ui-monospace, Consolas, monospace"
 const TECH = ['Brain', 'Cpu', 'Network', 'Database', 'Bot', 'Sparkles', 'CircuitBoard', 'Code']
 const MATH = ['σ(wx + b)', '∑ wᵢxᵢ', '∂L/∂w', 'softmax(z)', 'f(x) = Wx + b', 'ReLU(x)', 'P(y | x)', '∇θ J(θ)', 'eˣ / ∑ eᶻ', 'argmax ŷ']
@@ -33,7 +34,7 @@ function useLayout() {
   const { width, height, fps } = useVideoConfig()
   const wide = width > height
   const u = Math.min(width, height) / 1080
-  return { width, height, fps, wide, u, content: wide ? width * 0.72 : width * 0.86, top: (wide ? 140 : 230) * u, bottom: (wide ? 250 : 380) * u } // the bottom stays clear for the subtitles
+  return { width, height, fps, wide, u, content: wide ? width * 0.72 : width * 0.86, top: (wide ? 140 : 230) * u, bottom: (wide ? 250 : 460) * u } // the bottom stays clear for the subtitles
 }
 
 function useEnter(delay = 0, damping = 16) {
@@ -135,7 +136,7 @@ function NeuralBg({ icon }) {
           : [[0.13, 0.19], [0.87, 0.21], [0.1, 0.84], [0.9, 0.82], [0.32, 0.9], [0.68, 0.92]])[i]
         const red = i === 0 || i === 3
         return (
-          <div key={`i${i}`} style={{ position: 'absolute', left: x * width - 44 * u, top: y * height - 44 * u + Math.sin(t * 1.3 + i) * 14 * u, width: 88 * u, height: 88 * u, borderRadius: 26 * u, display: 'grid', placeItems: 'center', transform: `rotate(${Math.sin(t * 0.8 + i * 2) * 8}deg)`, background: red ? `linear-gradient(135deg, ${C.purple}, ${a(C.purple, 0.6)})` : a('#1E3A8A', 0.55), border: `1px solid ${red ? a('#FFFFFF', 0.25) : a(C.blue, 0.5)}`, boxShadow: `0 0 ${26 * u}px ${red ? a(C.purple, 0.55) : a(C.blue, 0.45)}`, backdropFilter: `blur(${10 * u}px)`, opacity: interpolate(frame, [i * 4, i * 4 + 12], [0, 0.95], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }) }}>
+          <div key={`i${i}`} style={{ position: 'absolute', left: x * width - 44 * u, top: y * height - 44 * u + Math.sin(t * 1.3 + i) * 14 * u, width: 88 * u, height: 88 * u, borderRadius: 26 * u, display: 'grid', placeItems: 'center', transform: `rotate(${Math.sin(t * 0.8 + i * 2) * 8}deg)`, background: red ? `linear-gradient(135deg, ${ORANGE}, ${a(ORANGE, 0.65)})` : a('#1E3A8A', 0.32), border: `1px solid ${red ? a('#FFFFFF', 0.3) : a('#6E8BFF', 0.45)}`, boxShadow: `0 0 ${26 * u}px ${red ? a(ORANGE, 0.6) : a(C.blue, 0.4)}`, backdropFilter: `blur(${18 * u}px)`, WebkitBackdropFilter: `blur(${18 * u}px)`, opacity: interpolate(frame, [i * 4, i * 4 + 12], [0, 0.95], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }) }}>
             <Icon name={name} size={42 * u} color="white" />
           </div>
         )
@@ -174,7 +175,7 @@ function Stage({ children, gap = 32, icon }) {
   return (
     <AbsoluteFill>
       <NeuralBg icon={icon} />
-      <AbsoluteFill style={{ top, bottom, justifyContent: 'center', alignItems: 'center', gap: gap * u, fontFamily: FONT }}>{children}</AbsoluteFill>
+      <AbsoluteFill style={{ top, bottom, height: 'auto', justifyContent: 'center', alignItems: 'center', gap: gap * u, fontFamily: FONT }}>{children}</AbsoluteFill>
     </AbsoluteFill>
   )
 }
