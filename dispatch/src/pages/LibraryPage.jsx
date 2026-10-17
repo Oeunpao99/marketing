@@ -1258,7 +1258,17 @@ function DetailPanel({ it, busy, folders, onClose, onUse, onDelete, onRewrite, o
           {it.kind === 'image' ? (
             <img src={abs(it.url)} alt="" className="max-h-[42vh] lg:max-h-[82vh] w-auto max-w-full rounded-xl object-contain" />
           ) : (
-            <video src={abs(it.url)} controls autoPlay className="max-h-[42vh] lg:max-h-[82vh] w-auto max-w-full rounded-xl" />
+            // its real shape from the start, with the first frame showing while it loads
+            <video
+              src={abs(it.url)}
+              poster={it.url?.startsWith('/media/') ? abs(`/media/thumb/${it.url.slice(7)}`) : undefined}
+              controls
+              autoPlay
+              playsInline
+              preload="auto"
+              style={{ aspectRatio: ratioOf(it) }}
+              className="h-[42vh] lg:h-[82vh] w-auto max-w-full rounded-xl bg-black object-contain"
+            />
           )}
         </div>
 
