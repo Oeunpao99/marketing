@@ -36,6 +36,19 @@ import { useStore } from '../store'
 const mediaBase = window.location.port === '5173' ? 'http://localhost:8000' : ''
 const abs = (u) => `${mediaBase}${u}`
 
+/** A grid picture: the server's small JPEG of an image or of a video's first
+ * frame, never the full file (whole MP4s just for a still made the page
+ * crawl). An image whose thumbnail can't be made falls back to the original;
+ * a video then just shows the grey card with its play mark. */
+function Thumb({ url, kind, className }) {
+  const [step, setStep] = useState(0)
+  const own = typeof url === 'string' && url.startsWith('/media/') && !url.startsWith('/media/thumb/')
+  const video = kind ? kind !== 'image' : /\.(mp4|mov|webm|m4v)$/i.test(url || '')
+  if (!url || step > (video ? 0 : 1) || (!own && video)) return null
+  const src = own && step === 0 ? abs(`/media/thumb/${url.slice(7)}`) : abs(url)
+  return <img src={src} alt="" loading="lazy" decoding="async" onError={() => setStep((n) => n + 1)} className={className} />
+}
+
 function when(iso) {
   if (!iso) return ''
   const d = new Date(iso)
@@ -766,9 +779,9 @@ function Covers({ urls }) {
   }
   return (
     <span className="grid h-full w-full grid-cols-3 grid-rows-2 gap-0.5">
-      <img src={abs(urls[0])} alt="" loading="lazy" className={`h-full w-full object-cover ${urls.length > 1 ? 'col-span-2' : 'col-span-3'} row-span-2`} />
+      <Thumb url={urls[0]} className={`h-full w-full object-cover ${urls.length > 1 ? 'col-span-2' : 'col-span-3'} row-span-2`} />
       {urls.slice(1, 3).map((u, i) => (
-        <img key={u} src={abs(u)} alt="" loading="lazy" className={`h-full w-full object-cover ${urls.length === 2 && i === 0 ? 'row-span-2' : ''}`} />
+        <Thumb key={u} url={u} className={`h-full w-full object-cover ${urls.length === 2 && i === 0 ? 'row-span-2' : ''}`} />
       ))}
     </span>
   )
@@ -999,22 +1012,16 @@ const barBtn = 'grid h-8 w-8 flex-none place-items-center rounded-full bg-white/
  * A video plays silently while the pointer is over it, like the Templates. */
 function LibraryCard({ it, isNew, busy, onOpen, onUse, onWrite, onDelete, onFavorite, onFolder }) {
   const writingNow = busy || it.caption_status === 'writing'
-  const clip = useRef(null)
+  const [hover, setHover] = useState(false)
   const [playing, setPlaying] = useState(false)
   const stop = (fn) => (e) => {
     e.stopPropagation()
     fn(e)
   }
   const preview = (on) => {
-    const v = clip.current
-    if (!v || it.kind === 'image' || !window.matchMedia?.('(hover: hover)').matches) return
-    if (on) {
-      v.play().then(() => setPlaying(true)).catch(() => {}) // not loaded / blocked — the still stays
-    } else {
-      v.pause()
-      v.currentTime = 0.1
-      setPlaying(false)
-    }
+    if (it.kind === 'image' || !window.matchMedia?.('(hover: hover)').matches) return
+    setHover(on) // the clip loads only now, and goes away again after
+    if (!on) setPlaying(false)
   }
   return (
     <div
@@ -1024,10 +1031,9 @@ function LibraryCard({ it, isNew, busy, onOpen, onUse, onWrite, onDelete, onFavo
       onMouseLeave={() => preview(false)}
     >
       <button type="button" onClick={onOpen} aria-label={`Open ${it.kind}`} className="absolute inset-0 block h-full w-full">
-        {it.kind === 'image' ? (
-          <img src={abs(it.url)} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]" />
-        ) : (
-          <video ref={clip} src={`${abs(it.url)}#t=0.1`} className="h-full w-full object-cover" muted loop preload="metadata" playsInline />
+        <Thumb url={it.url} kind={it.kind} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]" />
+        {it.kind !== 'image' && hover && (
+          <video src={abs(it.url)} className={`absolute inset-0 h-full w-full object-cover ${playing ? '' : 'opacity-0'}`} muted loop autoPlay playsInline onPlaying={() => setPlaying(true)} />
         )}
       </button>
 
@@ -1135,10 +1141,10 @@ function LibraryRow({ it, isNew, busy, onOpen, onUse, onWrite, onFavorite }) {
     >
       <div className="relative h-14 w-14 flex-none overflow-hidden rounded-xl bg-ink-100">
         {it.kind === 'image' ? (
-          <img src={abs(it.url)} alt="" loading="lazy" className="h-full w-full object-cover" />
+          <Thumb url={it.url} kind="image" className="h-full w-full object-cover" />
         ) : (
           <>
-            <video src={`${abs(it.url)}#t=0.1`} className="h-full w-full object-cover" muted preload="metadata" playsInline />
+            <Thumb url={it.url} kind="video" className="h-full w-full object-cover" />
             <span className="absolute inset-0 grid place-items-center text-white">
               <FiPlay size={14} />
             </span>

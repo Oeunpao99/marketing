@@ -7,13 +7,19 @@ fallback for assets generated before this change.
 
 from __future__ import annotations
 
+import io
+import logging
 import mimetypes
+import re
+import subprocess
+import tempfile
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.responses import FileResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal, get_db
@@ -23,7 +29,12 @@ from app.tenancy import current_workspace_id, owned
 MEDIA_DIR = Path(__file__).resolve().parent.parent / "media"
 MEDIA_DIR.mkdir(exist_ok=True)
 
+log = logging.getLogger(__name__)
+
 MAX_BYTES = 200 * 1024 * 1024
+THUMB_W = 480  # the Library grid's small pictures
+RANGE_CHUNK = 2 * 1024 * 1024  # an open-ended video range gets this much at a time
+CACHE = {"Cache-Control": "public, max-age=31536000, immutable"}
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 
 router = APIRouter(prefix="/media", tags=["Media"])
@@ -104,15 +115,91 @@ def delete_media(db: Session, url: str) -> None:
         path.unlink(missing_ok=True)
 
 
+def _thumb_bytes(data: bytes, name: str) -> bytes | None:
+    """A small JPEG of an image, or of a video's first frame (ffmpeg)."""
+    from PIL import Image, ImageOps
+
+    if Path(name).suffix.lower() in IMAGE_EXTS:
+        src = io.BytesIO(data)
+    else:
+        from app.story import _ffmpeg
+
+        with tempfile.TemporaryDirectory() as d:
+            clip, frame = Path(d) / f"in{Path(name).suffix or '.mp4'}", Path(d) / "frame.jpg"
+            clip.write_bytes(data)
+            subprocess.run(
+                [_ffmpeg(), "-hide_banner", "-loglevel", "error", "-y", "-ss", "0.1", "-i", str(clip),
+                 "-frames:v", "1", "-vf", f"scale={THUMB_W}:-2", str(frame)],
+                timeout=60, check=False, capture_output=True,
+            )
+            if not frame.is_file():
+                return None
+            src = io.BytesIO(frame.read_bytes())
+    img = ImageOps.exif_transpose(Image.open(src)).convert("RGB")
+    img.thumbnail((THUMB_W, THUMB_W * 4))
+    out = io.BytesIO()
+    img.save(out, "JPEG", quality=80, optimize=True)
+    return out.getvalue()
+
+
+@serve_router.get("/media/thumb/{name}", include_in_schema=False)
+def serve_thumb(name: str, db: Session = Depends(get_db)):
+    """A small JPEG of '/media/<name>' for grids — made once, then kept as its
+    own blob. The Library showed every card from the full-size file (whole
+    MP4s just for a still), which made the page crawl. 404 when no picture can
+    be made; the page then falls back to the original."""
+    tname = f"thumb{THUMB_W}-{Path(name).stem}.jpg"[:120]
+    kept = db.scalar(select(MediaBlob.data).where(MediaBlob.name == tname))
+    if kept is not None:
+        return Response(content=bytes(kept), media_type="image/jpeg", headers=CACHE)
+    data = read_media(f"/media/{name}")
+    if data is None:
+        raise HTTPException(404, "Media not found.")
+    try:
+        jpg = _thumb_bytes(data, name)
+    except Exception:  # an odd file — the page shows the original instead
+        log.warning("thumbnail failed for %s", name, exc_info=True)
+        jpg = None
+    if not jpg:
+        raise HTTPException(404, "No thumbnail.")
+    db.add(MediaBlob(name=tname, content_type="image/jpeg", size_bytes=len(jpg), data=jpg))
+    try:
+        db.commit()
+    except IntegrityError:  # made at the same moment by another request
+        db.rollback()
+    return Response(content=jpg, media_type="image/jpeg", headers=CACHE)
+
+
+_RANGE = re.compile(r"bytes=(\d*)-(\d*)$")
+
+
 @serve_router.get("/media/{name}", include_in_schema=False)
-def serve_media(name: str, db: Session = Depends(get_db)):
-    blob = db.scalar(select(MediaBlob).where(MediaBlob.name == name))
-    if blob is not None:
-        return Response(
-            content=bytes(blob.data),
-            media_type=blob.content_type or "application/octet-stream",
-            headers={"Cache-Control": "public, max-age=31536000, immutable"},
-        )
+def serve_media(name: str, request: Request, db: Session = Depends(get_db)):
+    head = db.execute(
+        select(MediaBlob.content_type, func.length(MediaBlob.data)).where(MediaBlob.name == name)
+    ).first()
+    if head is not None:
+        ctype, size = head[0] or "application/octet-stream", int(head[1] or 0)
+        m = _RANGE.match((request.headers.get("range") or "").strip())
+        if m and size and (m.group(1) or m.group(2)):
+            # a video asking for a piece: send just that piece, read from the
+            # database in place, instead of the whole file every time
+            if m.group(1):
+                start = int(m.group(1))
+                end = min(int(m.group(2)) if m.group(2) else start + RANGE_CHUNK - 1, size - 1)
+            else:  # "bytes=-N": the last N bytes
+                start, end = max(0, size - int(m.group(2))), size - 1
+            if start >= size or end < start:
+                return Response(status_code=416, headers={"Content-Range": f"bytes */{size}"})
+            part = db.scalar(
+                select(func.substr(MediaBlob.data, start + 1, end - start + 1)).where(MediaBlob.name == name)
+            )
+            return Response(
+                content=bytes(part or b""), status_code=206, media_type=ctype,
+                headers={**CACHE, "Accept-Ranges": "bytes", "Content-Range": f"bytes {start}-{end}/{size}"},
+            )
+        data = db.scalar(select(MediaBlob.data).where(MediaBlob.name == name))
+        return Response(content=bytes(data or b""), media_type=ctype, headers={**CACHE, "Accept-Ranges": "bytes"})
     path = local_path_for(f"/media/{name}")
     if path is not None:
         return FileResponse(path)
