@@ -14,12 +14,14 @@ import {
   FiGrid,
   FiHeart,
   FiList,
+  FiMonitor,
   FiPlay,
   FiPlus,
   FiRefreshCw,
   FiSearch,
   FiSend,
   FiSliders,
+  FiSmartphone,
   FiTrash2,
   FiX,
 } from 'react-icons/fi'
@@ -672,6 +674,7 @@ export default function LibraryPage() {
           onRewrite={(opts) => writeCaption(open, opts)}
           onSaved={(patch) => patchItem(open.id, patch)}
           onEdit={(patch) => editItem(open, patch)}
+          onShaped={refresh}
           showToast={showToast}
         />
       )}
@@ -1204,8 +1207,11 @@ const GOAL_OPTIONS = [{ value: '', label: 'Any goal' }, ...Object.entries(GOAL_L
 
 /** One item up close: the media, its caption (edit, copy, rewrite with an
  * angle / goal), how it was made, its ♥ and folder, and what to do with it. */
-function DetailPanel({ it, busy, folders, onClose, onUse, onDelete, onRewrite, onSaved, onEdit, showToast }) {
+function DetailPanel({ it, busy, folders, onClose, onUse, onDelete, onRewrite, onSaved, onEdit, onShaped, showToast }) {
   const [text, setText] = useState(it.caption || '')
+  // The same video in the other shape: a template video is drawn again, anything else fitted (POST /ai/motion/other-shape)
+  const target = ratioOf(it) > 1 ? '9:16' : '16:9'
+  const [shape, setShape] = useState(null) // { id, redraw, pct } while it's being made
   const [saving, setSaving] = useState(false)
   const [angle, setAngle] = useState('')
   const [goal, setGoal] = useState('')
@@ -1221,6 +1227,43 @@ function DetailPanel({ it, busy, folders, onClose, onUse, onDelete, onRewrite, o
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
+
+  useEffect(() => {
+    if (!shape?.id) return undefined
+    let alive = true
+    const timer = setInterval(async () => {
+      try {
+        const j = await api.get(`/ai/video/${shape.id}`)
+        if (!alive) return
+        if (j.status === 'succeeded') {
+          setShape(null)
+          showToast(`The ${target} version is in your Library`)
+          onShaped()
+        } else if (j.status === 'failed') {
+          setShape(null)
+          showToast(j.error && j.error !== 'Stopped' ? j.error : 'Could not make it — try again')
+        } else {
+          setShape((s) => s && { ...s, pct: Math.round((j.progress?.render || 0) * 100) })
+        }
+      } catch {
+        // a missed poll — the next one tries again
+      }
+    }, 3000)
+    return () => {
+      alive = false
+      clearInterval(timer)
+    }
+  }, [shape?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const makeShape = async () => {
+    try {
+      const res = await api.post(`/ai/motion/other-shape/${it.id}`)
+      setShape({ id: res.id, redraw: res.redraw, pct: 0 })
+      showToast(res.redraw ? `Drawing it again in ${target} — same scenes and voice` : `Fitting it into ${target}`)
+    } catch (e) {
+      showToast(`Could not start — ${e.message}`)
+    }
+  }
 
   const dirty = text.trim() !== (it.caption || '').trim()
   const writingNow = busy || it.caption_status === 'writing'
@@ -1418,6 +1461,18 @@ function DetailPanel({ it, busy, folders, onClose, onUse, onDelete, onRewrite, o
             <a href={abs(it.url)} download={it.filename} className="btn-outline">
               <FiDownload size={13} /> Download
             </a>
+            {it.kind !== 'image' && (
+              <button
+                type="button"
+                onClick={makeShape}
+                disabled={!!shape}
+                title={`The same video in ${target} — a template video is drawn again for the new shape, others are fitted`}
+                className="btn-outline disabled:opacity-70"
+              >
+                {target === '9:16' ? <FiSmartphone size={13} /> : <FiMonitor size={13} />}
+                {shape ? `Making ${target}… ${shape.pct ? `${shape.pct}%` : ''}` : `Make ${target} version`}
+              </button>
+            )}
             <button
               type="button"
               onClick={onDelete}
