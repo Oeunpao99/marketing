@@ -1061,6 +1061,8 @@ TECHFLOW_PROMPT = (
 )
 
 # ── AI design (motion/src/canvas.jsx) — the AI designs every scene ─────────
+# It picks a designed layout per scene and fills it (app/canvas_layouts.py);
+# older designs (layers placed by the AI) still draw.
 # The AI writes a DESIGN (layers, colours, motion) — never code; canvas.jsx
 # draws any design _clean_canvas lets through, so every video can look new.
 # "AI explainer · Neural" (motion/src/neural.jsx) — navy, a drifting neural
@@ -1286,94 +1288,65 @@ RISE_PROMPT = (
 )
 
 CANVAS_TYPES = ("canvas",)
+from app.canvas_layouts import LAYOUTS, LOOK_BACKGROUNDS, LOOKS  # noqa: E402
+from app.canvas_layouts import layout_layers  # noqa: E402
+from app.canvas_layouts import look as canvas_look  # noqa: E402
 CANVAS_LAYERS = ("text", "card", "icon", "shape", "device", "logo", "image", "chart", "metric", "pill", "list", "alert", "stream")
 CANVAS_BGS = ("solid", "gradient", "grid", "dots", "city", "network", "streams", "particles", "rings", "spotlight", "aurora", "trails", "hex", "waves", "warp")
 CANVAS_IN = ("fade", "rise", "drop", "scale", "pop", "slide-left", "slide-right", "blur", "zoom", "type")
 CANVAS_LOOP = ("float", "pulse", "spin", "glow")
 CANVAS_PROMPT = (
     "You are an award-winning motion designer and art director. You DESIGN a REMOTION VIDEO "
-    "scene by scene for this exact brief — not from a template: every scene is a canvas you "
-    "compose from layers, in colours and a mood that fit THIS brief (an LED screen at a corporate "
-    "event, a TikTok for a café, a SaaS launch… each must look different). If the brief describes "
-    "its own scenes, acts, colours or messages, FOLLOW THEM in order and keep their exact wording "
-    "for titles and product names.\n"
+    "for this exact brief — an LED screen at a corporate event, a TikTok for a café, a SaaS "
+    "launch… If the brief describes its own scenes, acts, colours or messages, FOLLOW THEM in "
+    "order and keep their exact wording for titles and product names.\n"
     "\n"
-    "ONE DESIGN SYSTEM FOR THE WHOLE FILM — it must look like one film by one studio, never a "
-    "different style each scene. Set it once in \"theme\": {\"dark\": \"#RRGGBB\" (the dark "
-    "background), \"light\": \"#RRGGBB\" (the light background), \"a\": main accent, \"b\": second "
-    "accent (the same two accents in EVERY scene), \"backgrounds\": [1-3 BACKGROUND kinds the whole "
-    "film uses], \"card\": \"glass\" | \"solid\", \"radius\": 6-28}. Each scene only picks "
-    "\"tone\": \"dark\" | \"light\" (keep runs of the same tone — switch only at a change of act, "
-    "e.g. the problem dark → the product light) and one of the theme's backgrounds. One type scale: "
-    "headline 96-120, line 56-72, label 40-44. A recurring layout: the same few compositions "
-    "(centred focal / text left + visual right / a row of cards), so scenes rhyme.\n"
+    "HOW YOU DESIGN: you never place things yourself. Each scene picks ONE designed LAYOUT and "
+    "fills its slots; the studio places everything so every frame is balanced. Vary the layouts "
+    "through the film (never the same one twice in a row) and give it rhythm: a big hero, then "
+    "detail, then a number, then the reveal.\n"
     "\n"
-    "Every scene: {\"type\": \"canvas\", \"seconds\": 3-8, \"tone\": \"dark\" | \"light\", \"bg\": "
-    "BACKGROUND, \"layers\": [LAYER, …], \"say\": the voice line}.\n"
-    "BACKGROUND: {\"kind\": solid | gradient | grid | dots | city (line-drawn skyline, data between "
-    "the roofs) | network (nodes and pulsing links) | streams (light streaks of data) | particles | "
-    "rings | spotlight | aurora (soft drifting bands of colour — elegant, hopeful) | trails (light "
-    "trails racing out of the centre — speed, the future) | hex (honeycomb, cells lighting up — "
-    "security, structure) | waves (flowing lines of light — sound, data, calm) | warp (stars "
-    "streaking past — the jump into something new, a launch), \"color\": optional hex, \"color2\": "
-    "optional (gradient), \"angle\": optional}.\n"
-    "LAYER — every layer: {\"kind\", \"x\": 0-100, \"y\": 0-100 (its CENTRE, % of the frame), \"at\": "
-    "seconds after the scene starts (stagger 0.2-0.8 s — a choreography, not all at once), \"in\": "
-    "fade | rise | drop | scale | pop | slide-left | slide-right | blur | zoom | type, \"loop\": "
-    "optional float | pulse | spin | glow, \"z\": optional layer order}. Colours in layers: a palette "
-    "name (\"a\", \"b\", \"ink\", \"sub\") or a hex. Sizes are pixels of a 1080-px-high frame.\n"
-    "- text: text (max 12 words — wrap the key words in [brackets] to highlight), size 40-140 "
-    "(headline 80-130, line 44-64), weight 300-800 (thin 300 for elegant big words), color, align, "
-    "maxw (% width, e.g. 70), highlight (colour of the [bracket] marker); in \"type\" types it out.\n"
-    "- card: a UI panel — title, lines (1-5 short rows), icon, iconBg, w, h, radius, glass (true = "
-    "frosted), fill, size.\n"
-    "- icon: name (from the icon list), size 60-260, color, tile (a colour → a solid rounded tile).\n"
-    "- shape: shape circle | rect | ring | line, w, h, color, gradient (second colour), stroke, blur "
-    "(soft glow shapes), opacity — for depth and accents, never clutter.\n"
-    "- device: device phone | tablet | laptop | monitor | screen (a big LED / dashboard screen), w, "
-    "lines (rows shown on it), src (\"shot:N\" = THE BRAND'S SCREENSHOT N, or \"product:<name>\").\n"
-    "- logo: the brand's logo (or its name as a wordmark), w, size.\n"
-    "- image: src \"product:<name>\" or \"shot:N\", w, radius.\n"
-    "- chart: chart line | bars | donut, values (3-8 small SAMPLE numbers), color, w, h.\n"
-    "- metric: value, prefix, suffix, label, size 90-200 — counts up; only a TRUE number.\n"
-    "- pill: text (1-4 words), icon, color, fill, caps (true = SMALL CAPS LABEL), size 26-40.\n"
-    "- list: items (2-5 x {\"icon\", \"text\": 2-6 words}), color, w, size.\n"
-    "- alert: text (max 6 words), level info | warn | danger | ok, icon — a notification toast.\n"
-    "- stream: from [x, y], to [x, y], color, count — glowing packets flowing between two points "
-    "(data moving, two worlds converging).\n"
+    "THE LOOK — return \"theme\": {\"look\": one of: "
+    + "; ".join(f"{k} ({v['say']})" for k, v in LOOKS.items())
+    + "; brand (the brand's own colour), \"accent\": \"#RRGGBB\" ONLY if the brief names its "
+    "colours, \"backgrounds\": 1-2 of: " + ", ".join(LOOK_BACKGROUNDS) + "}. Each scene picks "
+    "\"tone\": dark | light (keep runs of the same tone — switch only at a change of act) and "
+    "\"bg\": one of the theme's backgrounds.\n"
+    "\n"
+    "THE LAYOUTS and their slots:\n"
+    + "\n".join(f"- {k}: {v}" for k, v in LAYOUTS.items())
+    + "\n"
+    "SLOTS (fill only what the layout uses): kicker (1-4 words, a small label), title (max 10 "
+    "words — wrap the key words in [brackets]), sub (max 14 words), icon (an icon name), visual "
+    "({\"kind\": device, \"device\": phone | laptop | tablet, \"src\": \"shot:N\" or \"product:<name>\", "
+    "\"lines\": up to 4 short rows shown on it} | {\"kind\": image, \"src\": \"product:<name>\" or "
+    "\"shot:N\"} | {\"kind\": icon, \"icon\": …} | {\"kind\": chart, \"chart\": line | bars | donut, "
+    "\"values\": 3-6 small SAMPLE numbers}), cards (2-3 x {icon, title (max 4 words), line (max 8 "
+    "words)}), items (2-5 x {icon, text (2-6 words)}), value + prefix + suffix + label (metric — "
+    "ONLY a true number), quote + author, steps (3 x {icon, label (max 3 words)}), before / after "
+    "({title, lines: 1-3 short rows, icon}), alert ({text (max 6 words), level: info | warn | danger "
+    "| ok}), cta (1-3 words — the end's button). hit: true on the scene's big reveal (2-3 a film); "
+    "pause: 0.5-1.5 = a quiet near-black breath BEFORE the scene (the brief's \"pause before the "
+    "reveal\").\n"
+    "\n"
+    "Every scene: {\"type\": \"canvas\", \"layout\": …, \"seconds\": 3-8, \"tone\": …, \"bg\": …, "
+    "\"req\": [asks it delivers], …its slots…, \"say\": the voice line}.\n"
     "\n"
     "FIRST, THE CHECKLIST — \"asks\": read the brief line by line and list EVERY thing it asks "
     "for, one small item each (\"24/7 monitoring, threat detection\" = two items): {\"id\": \"R1\", "
     "\"kind\": text | visual | motion | timing | style | brand | avoid, \"need\": one sentence you "
     "could check on the screen, \"text\": the EXACT on-screen words when the brief quotes them "
     "(same script, spelling, capitals and mixed English/Khmer — never translate or correct a name)}. "
-    "An \"avoid\" (\"no cartoon visuals\") becomes a rule you can check. Something the layers can't "
-    "show literally (people, a real city, music) is still delivered as motion graphics (people → "
-    "an icon tile or a device with their dashboard, a city → the city background). Then every "
-    "scene and every layer says which asks it delivers: \"req\": [\"R1\", …]. EVERY ask is "
-    "delivered by at least one scene, and quoted text appears character for character in a "
-    "layer.\n"
-    "\n"
-    "DESIGN RULES: 3-6 layers a scene, ONE clear focal point and at most two supporting elements, "
-    "generous empty space — calm, never crowded. The top-left corner (x under 26 %, y under 18 %) "
-    "is the logo's: keep it empty. Nothing outside 6-94 % x / 8-88 % y, text never under 40 px, no two text layers overlapping (keep their centres "
-    "apart). The bottom 15 % of the frame stays clear — the subtitles live there. Reveals: a "
-    "dramatic product reveal = a big text with zoom or blur, a pill above it, a soft shape glow "
-    "behind it. Use the brand's screenshots in devices when they help. Keep it premium: no cartoon "
-    "clutter, no more than two accents a scene.\n"
-    "CINEMA (use it for the big moments only, never every scene): \"hit\": true on a layer = THE "
-    "reveal of the scene — a riser builds up to it and an impact sound lands on it with a flash "
-    "and a short shake (the product name, the grand finale; 1 a scene, 2-3 a video; give it \"at\" "
-    "≥ 1.5 so the build-up has room). \"pause\": 0.5-1.5 on a scene = a near-black, quiet breath "
-    "BEFORE it shows (the music dips) — the brief's \"pause before the final reveal\"; then the "
-    "scene's reveal layer usually has \"hit\". Vary backgrounds between acts.\n"
+    "Every scene says which asks it delivers (\"req\"); EVERY ask is delivered by at least one "
+    "scene, and quoted text appears character for character in a slot. Use the brand's "
+    "screenshots in devices when they help.\n"
     "THE STORY: 6-12 scenes, following the brief's own order; the voice tells it as one story. The "
-    "last scene ends on the brand (logo or name) and the call to action or the tagline.\n"
+    "last scene is the end layout (logo, tagline, call to action).\n"
     "\n"
     + _COMMON_RULES
-    + '{"asks": [{"id": "R1", "kind": "text", "need": "...", "text": "..."}, ...], "theme": {"dark": "#0B1020", "light": "#F5F7FB", '
-    '"a": "#…", "b": "#…", "backgrounds": ["grid", "aurora"], "card": "glass", "radius": 14}, "scenes": [{"type": "canvas", '
-    '"req": ["R1"], "seconds": 5, "pause": 0, "tone": "dark", "bg": {…}, "layers": [{"kind": "text", "req": ["R1"], "hit": false, …}], "say": "..."}, ...]}'
+    + '{"asks": [{"id": "R1", "kind": "text", "need": "...", "text": "..."}, ...], "theme": {"look": "midnight", '
+    '"backgrounds": ["grid", "network"]}, "scenes": [{"type": "canvas", "layout": "hero", "req": ["R1"], "seconds": 5, '
+    '"tone": "dark", "bg": "grid", "kicker": "...", "title": "...", "sub": "...", "icon": "Sparkles", "say": "..."}, ...]}'
 )
 
 
@@ -1521,10 +1494,29 @@ def _num(v, lo, hi, default=None):
     return max(lo, min(hi, n))
 
 
+LAYOUT_ARROWS = ("ArrowRight", "ArrowDown")  # the layouts' own arrows (not in ICONS, which the AI picks from)
+
+
+def _resolve_slots(layers: list[dict]) -> list[dict]:
+    """A layout's icon names checked against the icon list (the slots come from the AI)."""
+    for L in layers:
+        for k in ("name", "icon"):
+            if L.get(k) and L[k] not in LAYOUT_ARROWS:
+                L[k] = _icon(L[k])
+        for it in L.get("items") or []:
+            it["icon"] = _icon(it.get("icon"), "CircleCheck")
+    return layers
+
+
 def _clean_canvas(raw: dict, say: str) -> dict | None:
     """An AI-designed scene, checked layer by layer: only kinds, colours and
     motions canvas.jsx draws, numbers clamped onto the frame, text trimmed —
     whatever doesn't pass is left out, so a design can't break the render."""
+    design = raw.get("layout") if raw.get("layout") in LAYOUTS else None
+    if design and not raw.get("layers"):  # a layout + its slots: placed here, not by the AI
+        raw = {**raw, "layers": _resolve_slots(layout_layers(raw, bool(raw.get("_wide"))))}
+        if isinstance(raw.get("bg"), str):
+            raw["bg"] = {"kind": raw["bg"]}
     pal_raw = raw.get("pal") if isinstance(raw.get("pal"), dict) else {}
     bg = _hex(pal_raw.get("bg"), "#070B16")
     lum = sum(int(bg[i : i + 2], 16) for i in (1, 3, 5)) / 3
@@ -1588,7 +1580,8 @@ def _clean_canvas(raw: dict, say: str) -> dict | None:
             if _num(L.get("size"), 28, 64) is not None:
                 out["size"] = _num(L.get("size"), 28, 64)
         elif kind == "icon":
-            out.update(name=_icon(L.get("name") or L.get("icon")), size=_num(L.get("size"), 60, 260, 120))
+            name = L.get("name") or L.get("icon")
+            out.update(name=name if name in LAYOUT_ARROWS else _icon(name), size=_num(L.get("size"), 60, 260, 120))
         elif kind == "shape":
             out["shape"] = L.get("shape") if L.get("shape") in ("circle", "rect", "ring", "line") else "circle"
         elif kind == "device":
@@ -1644,6 +1637,8 @@ def _clean_canvas(raw: dict, say: str) -> dict | None:
     if not layers:
         return None
     scene = {"type": "canvas", "seconds": _num(raw.get("seconds"), 2.5, 9, 5), "pal": pal, "bg": back, "layers": layers, "say": say}
+    if design or raw.get("design") in LAYOUTS:
+        scene["design"] = design or raw["design"]  # placed by a layout: the design check leaves it alone
     if raw.get("tone") in ("dark", "light"):
         scene["tone"] = raw["tone"]
     if _reqs(raw.get("req")):
@@ -3217,6 +3212,10 @@ def write_script(
             except ContentAIError as exc:
                 log.warning("storyboard: the second pass for missing lines failed: %s", exc)
     names = {p.name.strip().lower(): p.name for p in products}
+    if style == "canvas":  # AI design's layouts are placed for the video's shape
+        for r in raw.get("scenes") or []:
+            if isinstance(r, dict):
+                r["_wide"] = wide
     scenes = [
         s
         for s in (_clean_scene(r, names) for r in (raw.get("scenes") or []) if isinstance(r, dict))
@@ -3228,7 +3227,8 @@ def write_script(
             log.warning("AI design unusable: %d scenes back, %d kept", len(raw.get("scenes") or []), len(scenes))
             raise ContentAIError("The AI didn't return a usable storyboard — try again.")
         r, g, b = accent_for(brand.slug)
-        theme = clean_theme(raw.get("theme"), f"#{r:02x}{g:02x}{b:02x}")
+        theme_raw = raw.get("theme") if isinstance(raw.get("theme"), dict) else {}
+        theme = canvas_look(theme_raw, f"#{r:02x}{g:02x}{b:02x}") if "look" in theme_raw else clean_theme(theme_raw, f"#{r:02x}{g:02x}{b:02x}")
         if story:
             _keep_own_voice({"scenes": scenes}, idea)
         script = {"scenes": [apply_theme(sc, theme) for sc in scenes[: (count if story else most)]], "style": style, "asks": _clean_asks(raw.get("asks")), "theme": theme}
@@ -4730,6 +4730,12 @@ def review_design(brand: Brand, script: dict, logo: str | None, khmer: bool, job
         return script
     _report(job_id, stage="check")
     asks = script.get("asks") or []
+    if all(sc.get("design") for sc in scenes):  # placed by layouts: nothing to fix by eye
+
+        status = asks_status(script)
+        if status:
+            _report(job_id, design_note=f"Checked the design · {sum(1 for a in status if a['ok'])} of your {len(status)} asks in it", asks=status)
+        return script
 
     def done(fixed: int) -> dict:
         status = asks_status(script)
@@ -5237,7 +5243,9 @@ def checked_script(raw: dict, products: list[Product]) -> dict:
         script["cast"], script["place"] = clean_cast(raw.get("cast")), _line(raw.get("place"), 400)
     if style == "canvas":
         script["asks"] = _clean_asks(raw.get("asks"))
-        script["theme"] = clean_theme(raw.get("theme"))
+        t = raw.get("theme") if isinstance(raw.get("theme"), dict) else {}
+        # a look from LOOKS keeps its name and its accent (the brand's colour, or the brief's)
+        script["theme"] = canvas_look({"look": t["name"], "accent": t.get("a"), "backgrounds": t.get("backgrounds")}, "#3B82F6") if t.get("name") else clean_theme(t)
         script["scenes"] = [apply_theme(sc, script["theme"]) for sc in script["scenes"]]
     if raw.get("mood") in music_tracks():
         script["mood"] = raw["mood"]
