@@ -63,10 +63,42 @@
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
-    <!-- Launch splash (phones + the installed app): plain HTML/CSS so it shows
-         instantly, before any JS loads; src/lib/splash.js fades it out once
-         the app is ready. Desktop browsers skip it. -->
+    <!-- Kantumruy Pro for the launch screen's Khmer — only the letters of ឆ្លាតវៃ, so it's tiny -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@700&text=%E1%9E%86%E1%9F%92%E1%9E%9B%E1%9E%B6%E1%9E%8F%E1%9E%9C%E1%9F%83&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Launch screen: plain HTML/CSS so it shows instantly, before any JS
+         loads — the logo, then the app's own flow lighting up step by step
+         (connect → plan → design → write → you approve). src/lib/splash.js
+         fades it out once the app knows who's signed in. Follows the saved
+         theme + accent (src/lib/theme.js caches them in localStorage). -->
+    <script>
+      try {
+        var cf = JSON.parse(localStorage.getItem("contentflow.appearance") || "{}");
+        var dark = cf.theme === "dark" || (cf.theme === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+        if (dark) document.documentElement.classList.add("dark");
+        if (/^#[0-9a-f]{6}$/i.test(cf.accent || "")) document.documentElement.style.setProperty("--sp-accent", cf.accent);
+      } catch (e) {}
+    </script>
     <style>
+      :root {
+        --sp-accent: #1f4e8c;
+        --sp-bg: #f4f6f9;
+        --sp-ink: #16191e;
+        --sp-sub: #6b7683;
+        --sp-node: #ffffff;
+        --sp-line: #dde3ea;
+        --sp-ok: #16a34a;
+      }
+      html.dark {
+        --sp-bg: #0e1115;
+        --sp-ink: #f1f4f8;
+        --sp-sub: #8b96a3;
+        --sp-node: #181c23;
+        --sp-line: #2a313b;
+        --sp-ok: #22c55e;
+      }
       #splash {
         position: fixed;
         inset: 0;
@@ -75,146 +107,307 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        background: #f7f9fc;
-        font-family:
-          "IBM Plex Sans",
-          system-ui,
-          -apple-system,
-          "Segoe UI",
-          sans-serif;
-        transition: opacity 0.5s ease 0.45s;
+        padding: 24px 16px;
+        background-color: var(--sp-bg);
+        background-image: radial-gradient(color-mix(in srgb, var(--sp-ink) 9%, transparent) 1px, transparent 1px);
+        background-size: 22px 22px;
+        color: var(--sp-ink);
+        font-family: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+        transition: opacity 0.45s ease 0.3s;
       }
-      /* exit: words drift up, logo zooms toward you, then the
-         background dissolves into the app */
       #splash.cf-hide {
         opacity: 0;
         pointer-events: none;
       }
-      #splash.cf-hide .cf-name {
-        animation: cf-out-up 0.4s ease forwards;
-      }
-      #splash.cf-hide .cf-tag {
-        animation: cf-out-up 0.35s ease forwards;
-      }
-      #splash.cf-hide .cf-mark {
-        animation: cf-zoom-out 0.65s cubic-bezier(0.5, 0, 0.75, 0) 0.1s forwards;
+      #splash.cf-hide .sp-head,
+      #splash.cf-hide .sp-flow {
+        animation: sp-out 0.4s ease forwards;
       }
 
-      #splash .cf-mark {
-        position: relative;
-        width: 96px;
-        height: 96px;
-        animation: cf-pop 0.7s cubic-bezier(0.2, 0.9, 0.25, 1.25) both;
+      /* the logo: pops in, a dashed ring turning round it */
+      .sp-head {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
       }
-      #splash .cf-mark img {
+      .sp-mark {
+        position: relative;
+        width: 84px;
+        height: 84px;
+        animation: sp-pop 0.7s cubic-bezier(0.2, 0.9, 0.25, 1.25) both;
+      }
+      .sp-mark img {
         position: relative;
         width: 100%;
         height: 100%;
         object-fit: contain;
-        filter: drop-shadow(0 8px 14px rgba(16, 24, 40, 0.1));
-        animation: cf-bob 2.6s ease-in-out 0.7s infinite;
+        filter: drop-shadow(0 10px 18px rgba(16, 24, 40, 0.14));
       }
-      #splash .cf-name {
-        margin-top: 20px;
-        font-size: 30px;
-        letter-spacing: -0.02em;
-        line-height: 1;
-        color: #16191e;
-        opacity: 0;
-        animation: cf-rise 0.6s ease 0.35s forwards;
+      .sp-mark::before {
+        content: "";
+        position: absolute;
+        inset: -14px;
+        border-radius: 50%;
+        border: 2px dashed color-mix(in srgb, var(--sp-accent) 45%, transparent);
+        animation: sp-spin 9s linear infinite;
       }
-      #splash .cf-name b {
+      .sp-name {
+        margin-top: 26px;
+        font-size: 28px;
         font-weight: 800;
-      }
-      #splash .cf-name span {
-        font-weight: 600;
-        color: #1a6fc4;
-      }
-      #splash .cf-tag {
-        margin-top: 10px;
-        font-size: 13px;
-        color: #6b7683;
+        letter-spacing: -0.02em;
         opacity: 0;
-        animation: cf-rise 0.6s ease 0.6s forwards;
+        animation: sp-rise 0.55s ease 0.25s forwards;
       }
-      @keyframes cf-pop {
-        0% {
-          opacity: 0;
-          transform: scale(0.5) rotate(-12deg);
-        }
-        70% {
-          opacity: 1;
-          transform: scale(1.08) rotate(3deg);
-        }
-        100% {
-          opacity: 1;
-          transform: scale(1) rotate(0);
-        }
+      .sp-name span {
+        font-family: "Kantumruy Pro", "IBM Plex Sans", sans-serif;
+        font-weight: 700;
+        color: var(--sp-accent);
       }
-      @keyframes cf-bob {
-        0%,
-        100% {
-          transform: translateY(0);
-        }
-        50% {
-          transform: translateY(-6px);
-        }
+      .sp-tag {
+        margin-top: 8px;
+        font-size: 13.5px;
+        color: var(--sp-sub);
+        opacity: 0;
+        animation: sp-rise 0.55s ease 0.4s forwards;
       }
-      @keyframes cf-out-up {
-        from {
-          opacity: 1;
-          transform: translateY(0);
-        }
-        to {
-          opacity: 0;
-          transform: translateY(-14px);
-        }
+
+      /* the flow: five steps on a line that fills as each one lights up */
+      .sp-flow {
+        position: relative;
+        display: flex;
+        justify-content: space-between;
+        width: min(640px, 100%);
+        margin: 44px 0 0;
+        list-style: none;
+        padding: 0;
       }
-      @keyframes cf-zoom-out {
-        from {
-          opacity: 1;
-          transform: scale(1);
-        }
-        to {
-          opacity: 0;
-          transform: scale(1.6);
-        }
+      .sp-flow::before,
+      .sp-flow::after {
+        content: "";
+        position: absolute;
+        left: 10%;
+        right: 10%;
+        top: 25px;
+        height: 3px;
+        border-radius: 3px;
+        background: var(--sp-line);
       }
-      @keyframes cf-rise {
-        from {
-          opacity: 0;
-          transform: translateY(10px);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
+      .sp-flow::after {
+        right: auto;
+        width: 0;
+        background: var(--sp-accent);
+        animation: sp-fill 1.5s cubic-bezier(0.4, 0, 0.2, 1) 0.6s forwards;
       }
-      @media (min-width: 1024px) and (display-mode: browser) {
-        #splash {
+      .sp-step {
+        position: relative;
+        z-index: 1;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        text-align: center;
+        opacity: 0;
+        animation: sp-rise 0.45s ease forwards;
+        animation-delay: calc(0.55s + var(--i) * 0.3s);
+      }
+      .sp-dot {
+        position: relative;
+        flex: none;
+        display: grid;
+        place-items: center;
+        width: 52px;
+        height: 52px;
+        border-radius: 16px;
+        background: var(--sp-node);
+        border: 1.5px solid var(--sp-line);
+        color: var(--sp-sub);
+        box-shadow: 0 6px 16px rgba(16, 24, 40, 0.06);
+        animation: sp-on 0.4s ease forwards;
+        animation-delay: calc(0.75s + var(--i) * 0.3s);
+      }
+      .sp-dot svg {
+        width: 24px;
+        height: 24px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .sp-step:last-of-type .sp-dot {
+        animation-name: sp-done;
+      }
+      /* "AI" tag on the steps the AI does */
+      .sp-ai {
+        position: absolute;
+        top: -8px;
+        right: -10px;
+        padding: 1px 6px;
+        border-radius: 999px;
+        font-size: 9.5px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        color: #fff;
+        background: var(--sp-accent);
+        box-shadow: 0 0 0 2px var(--sp-bg);
+        transform: scale(0);
+        animation: sp-pop 0.45s cubic-bezier(0.2, 0.9, 0.25, 1.4) forwards;
+        animation-delay: calc(0.95s + var(--i) * 0.3s);
+      }
+      .sp-label {
+        max-width: 118px;
+        font-size: 12.5px;
+        font-weight: 600;
+        line-height: 1.3;
+        color: var(--sp-sub);
+        animation: sp-ink 0.4s ease forwards;
+        animation-delay: calc(0.75s + var(--i) * 0.3s);
+      }
+      /* the platforms the first step connects */
+      .sp-apps {
+        display: flex;
+        justify-content: center;
+        gap: 4px;
+        margin-top: 6px;
+      }
+      .sp-apps i {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        transform: scale(0);
+        animation: sp-pop 0.35s ease forwards;
+      }
+      .sp-apps i:nth-child(1) { background: #1877f2; animation-delay: 0.9s; }
+      .sp-apps i:nth-child(2) { background: #e1306c; animation-delay: 1s; }
+      .sp-apps i:nth-child(3) { background: var(--sp-ink); animation-delay: 1.1s; }
+      .sp-apps i:nth-child(4) { background: #29a9eb; animation-delay: 1.2s; }
+      .sp-apps i:nth-child(5) { background: #0a66c2; animation-delay: 1.3s; }
+      /* a soft shine running along the line while the app is still loading */
+      .sp-shine {
+        position: absolute;
+        top: 22px;
+        left: 10%;
+        width: 40px;
+        height: 9px;
+        border-radius: 9px;
+        background: color-mix(in srgb, var(--sp-accent) 40%, transparent);
+        filter: blur(4px);
+        opacity: 0;
+        animation: sp-run 1.6s ease-in-out 2.3s infinite;
+      }
+
+      @keyframes sp-pop {
+        0% { opacity: 0; transform: scale(0.5) rotate(-10deg); }
+        70% { opacity: 1; transform: scale(1.08) rotate(2deg); }
+        100% { opacity: 1; transform: scale(1) rotate(0); }
+      }
+      @keyframes sp-spin { to { transform: rotate(360deg); } }
+      @keyframes sp-rise {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes sp-out { to { opacity: 0; transform: translateY(-12px) scale(0.98); } }
+      @keyframes sp-fill { to { width: 80%; } }
+      @keyframes sp-fill-down { to { height: calc(100% - 52px); } }
+      @keyframes sp-on {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.14); }
+        100% { transform: scale(1); background: var(--sp-accent); border-color: var(--sp-accent); color: #fff; box-shadow: 0 10px 22px color-mix(in srgb, var(--sp-accent) 35%, transparent); }
+      }
+      @keyframes sp-done {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.18); }
+        100% { transform: scale(1); background: var(--sp-ok); border-color: var(--sp-ok); color: #fff; box-shadow: 0 10px 22px color-mix(in srgb, var(--sp-ok) 35%, transparent); }
+      }
+      @keyframes sp-ink { to { color: var(--sp-ink); } }
+      @keyframes sp-run {
+        0% { opacity: 0; left: 10%; }
+        15% { opacity: 1; }
+        85% { opacity: 1; }
+        100% { opacity: 0; left: calc(90% - 40px); }
+      }
+
+      /* phones: the steps stack, the line runs down the left */
+      @media (max-width: 560px) {
+        .sp-flow {
+          flex-direction: column;
+          gap: 14px;
+          width: auto;
+          margin-top: 36px;
+        }
+        .sp-flow::before,
+        .sp-flow::after {
+          left: 25px;
+          right: auto;
+          top: 26px;
+          bottom: 26px;
+          width: 3px;
+          height: auto;
+        }
+        .sp-flow::after {
+          bottom: auto;
+          height: 0;
+          animation-name: sp-fill-down;
+        }
+        .sp-step {
+          flex-direction: row;
+          gap: 14px;
+          text-align: left;
+        }
+        .sp-label {
+          max-width: none;
+          font-size: 14px;
+        }
+        .sp-apps {
+          justify-content: flex-start;
+        }
+        .sp-shine {
           display: none;
         }
       }
       @media (prefers-reduced-motion: reduce) {
         #splash *,
-        #splash {
-          animation: none !important;
-          transition: none !important;
-        }
-        #splash .cf-name,
-        #splash .cf-tag {
-          opacity: 1;
+        #splash *::before,
+        #splash *::after {
+          animation-duration: 0.01s !important;
+          animation-delay: 0s !important;
+          animation-iteration-count: 1 !important;
         }
       }
     </style>
   </head>
   <body>
-    <div id="splash" aria-hidden="true">
-      <div class="cf-mark">
-        <img src="/brand/logo-mark.png" alt="" />
+    <div id="splash" role="status" aria-label="Loading Marketing ឆ្លាតវៃ">
+      <div class="sp-head">
+        <div class="sp-mark"><img src="/brand/logo-mark.png" alt="" /></div>
+        <div class="sp-name">Marketing <span>ឆ្លាតវៃ</span></div>
+        <div class="sp-tag">Your AI marketing team — you just approve</div>
       </div>
-      <div class="cf-name"><b>Content</b><span>Flow</span></div>
-      <div class="cf-tag">Content that flows · by AI</div>
+      <ol class="sp-flow">
+        <li class="sp-step" style="--i: 0">
+          <div class="sp-dot"><svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4" /></svg></div>
+          <div class="sp-label">Connect your pages<div class="sp-apps"><i></i><i></i><i></i><i></i><i></i></div></div>
+        </li>
+        <li class="sp-step" style="--i: 1">
+          <div class="sp-dot"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01" /></svg><span class="sp-ai">AI</span></div>
+          <div class="sp-label">Plans your week</div>
+        </li>
+        <li class="sp-step" style="--i: 2">
+          <div class="sp-dot"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21" /></svg><span class="sp-ai">AI</span></div>
+          <div class="sp-label">Designs the posts</div>
+        </li>
+        <li class="sp-step" style="--i: 3">
+          <div class="sp-dot"><svg viewBox="0 0 24 24"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg><span class="sp-ai">AI</span></div>
+          <div class="sp-label">Writes the captions</div>
+        </li>
+        <li class="sp-step" style="--i: 4">
+          <div class="sp-dot"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><path d="m9 12 2 2 4-4" /></svg></div>
+          <div class="sp-label">You approve ✓</div>
+        </li>
+        <span class="sp-shine"></span>
+      </ol>
     </div>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>

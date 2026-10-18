@@ -114,9 +114,8 @@ function Gate() {
 
   if (loading) {
     return (
-      <div className="min-h-screen grid place-items-center bg-ink-50 text-ink-400 text-[12px]">
-        Loading…
-      </div>
+      // the launch screen (index.html #splash) covers this until we know who's signed in
+      <div className="min-h-screen bg-canvas" />
     );
   }
   if (joinToken) return <JoinPage token={joinToken} onDone={() => setJoinToken(null)} />;
