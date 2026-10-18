@@ -48,6 +48,26 @@ export function defaultSeconds(s) {
       return 3.4 + 0.6 * Math.min(4, (s.cards || []).length)
     case 'logos':
       return 4.0
+    case 'climb': // app/motion.py default_seconds says the same
+      return s.text ? 4.6 : 4.0
+    case 'mirror':
+      return 4.8
+    case 'grow':
+      return 4.8
+    case 'summit':
+      return 5.2
+    case 'whiteboard':
+      return 2.4 + 1.1 * Math.min(4, (s.parts || []).length)
+    case 'example':
+      return 2.6 + 1.3 * Math.min(3, (s.people || []).length)
+    case 'remember':
+      return 4.4
+    case 'talk':
+      return 2.8 + Math.min(2.4, String(s.text || '').length / 30) + (s.item ? 0.6 : 0)
+    case 'note':
+      return 2.6 + 0.6 * Math.min(5, (s.checks || []).length)
+    case 'doodle': // app/motion.py default_seconds says the same
+      return s.text ? 4.8 : 4.2
     case 'tip':
       return 4.6
     case 'save':

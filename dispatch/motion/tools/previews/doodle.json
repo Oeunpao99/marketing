@@ -1,0 +1,15 @@
+{
+ "brand": {"name": "Marketing ឆ្លាតវៃ", "color": "#2F7A68", "logo": null},
+ "style": "doodle",
+ "frame": 70,
+ "scenes": [
+  {"type": "hook", "text": "ហេតុ​អ្វី​បាន​ជា​យើង​ តែង​តែ​ ⟦គិត​ច្រើន⟧?", "icon": "Brain", "image": "previews/doodle-awake.png"}
+ ],
+ "clip": [
+  {"type": "hook", "text": "ហេតុ​អ្វី​បាន​ជា​យើង​ តែង​តែ​ ⟦គិត​ច្រើន⟧?", "icon": "Brain", "image": "previews/doodle-awake.png"},
+  {"type": "doodle", "title": "ខួរក្បាល​ ⟦មិន​ឈប់​⟧ សម្រាក", "text": "គំនិត​មួយ​នាំ​មក​គំនិត​មួយ​ទៀត", "icon": "Brain", "image": "previews/doodle-scribbles.png"},
+  {"type": "doodle", "title": "ដកដង្ហើម​ ⟦យឺតៗ⟧", "icon": "Wind"},
+  {"type": "list", "title": "៣ ⟦វិធី⟧ ងាយៗ", "items": [{"icon": "Pen", "text": "សរសេរ​អ្វី​ដែល​អ្នក​គិត"}, {"icon": "Footprints", "text": "ដើរ​លេង​ ១០​ នាទី"}, {"icon": "Moon", "text": "ដាក់​ទូរស័ព្ទ​ឲ្យ​ឆ្ងាយ"}]},
+  {"type": "cta", "text": "អ្នក​ ⟦គិត​ច្រើន⟧ ដែរ​ឬ​ទេ?", "button": "Follow"}
+ ]
+}

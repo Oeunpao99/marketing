@@ -1,0 +1,18 @@
+{
+ "brand": {"name": "Marketing ឆ្លាតវៃ", "color": "#2F7A68", "logo": null},
+ "style": "cartoon",
+ "frame": 90,
+ "cast": [{"name": "បង​ វិសាល", "look": "apron", "color": "teal"}, {"name": "ស្រីនាង", "look": "cap", "color": "green"}],
+ "place": {"image": "previews/cartoon-shop.jpg"},
+ "scenes": [
+  {"type": "talk", "who": 2, "mood": "happy", "text": "បង! ទំនិញ​ ⟦មក​ដល់​ហើយ⟧", "item": {"icon": "Package", "label": "៥​ ប្រអប់"}}
+ ],
+ "clip": [
+  {"type": "hook", "text": "លក់​ដាច់... ⟦លុយ​ទៅ​ណា?⟧", "icon": "CircleDollarSign", "who": 1, "mood": "thinking"},
+  {"type": "talk", "who": 2, "mood": "happy", "text": "បង! ទំនិញ​ ⟦មក​ដល់​ហើយ⟧", "item": {"icon": "Package", "label": "៥​ ប្រអប់"}},
+  {"type": "talk", "who": 1, "mood": "worried", "text": "ខែ​នេះ​លក់​ដាច់ ប៉ុន្តែ​ ⟦លុយ​អស់​ទៅ​ណា?⟧", "think": true, "icon": "Wallet"},
+  {"type": "note", "who": 2, "mood": "happy", "title": "បញ្ជី​ទំនិញ", "checks": ["ទឹក​ ១០​ កេស", "មី​ ៥​ កេស", "ស្ករ​ ២​ បាវ"]},
+  {"type": "talk", "who": 1, "mood": "shocked", "text": "អ្ហា! ខ្ញុំ​ ⟦មិន​បាន​កត់​ត្រា⟧ សោះ!", "item": {"icon": "NotebookPen", "label": "កត់​ត្រា"}},
+  {"type": "cta", "text": "បង​ ⟦កត់​ត្រា​លុយ⟧ ដែរ​ឬ​ទេ?", "button": "Follow"}
+ ]
+}

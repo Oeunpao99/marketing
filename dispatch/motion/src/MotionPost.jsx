@@ -59,6 +59,10 @@ import { CASESTUDY, CLARITY, COUNTDOWN, DEMO, FAQ, GRIDCARDS, HOTTAKE, TECHFLOW,
 import { SceneSfx } from './sfx'
 import { NEURAL } from './neural'
 import { PAPER } from './paper'
+import { DOODLE } from './doodle'
+import { CARTOON } from './cartoon'
+import { LESSON } from './lesson'
+import { RISE } from './rise'
 import { TRAINING } from './training'
 
 export { FPS, TRANSITION, defaultSeconds, sceneFrames }
@@ -741,6 +745,10 @@ const TEMPLATES = {
   unveil: { ...UNVEIL, scenes: { ...SCENES, ...UNVEIL.scenes } },
   neural: { ...NEURAL, scenes: { ...SCENES, ...NEURAL.scenes } },
   paper: { ...PAPER, scenes: { ...SCENES, ...PAPER.scenes } },
+  doodle: { ...DOODLE, scenes: { ...SCENES, ...DOODLE.scenes } },
+  cartoon: { ...CARTOON, scenes: { ...SCENES, ...CARTOON.scenes } },
+  lesson: { ...LESSON, scenes: { ...SCENES, ...LESSON.scenes } },
+  rise: { ...RISE, scenes: { ...SCENES, ...RISE.scenes } },
   gridcards: { ...GRIDCARDS, scenes: { ...SCENES, ...GRIDCARDS.scenes } },
   techflow: { ...TECHFLOW, scenes: { ...SCENES, ...TECHFLOW.scenes } },
   canvas: { ...CANVAS, scenes: { ...SCENES, ...CANVAS.scenes } }, // AI design — the AI designs every scene
@@ -756,12 +764,14 @@ const TEMPLATES = {
   training: { ...TRAINING, scenes: { ...SCENES, ...TRAINING.scenes } },
 }
 
-export const MotionPost = ({ brand, scenes, music, musicList, style, look, sfx = true }) => {
+export const MotionPost = ({ brand, scenes, music, musicList, style, look, cast, place, sfx = true }) => {
   let point = 0
   // "custom": its scenes are drawn in the look the AI picked for this video
   const custom = useMemo(() => (style === 'custom' ? customTemplate(look) : null), [style, look])
   const t = custom ? { ...custom, scenes: { ...SCENES, ...custom.scenes } } : TEMPLATES[style] || TEMPLATES.tech
   const noCaption = ['chat', ...(t.noCaption || [])]
+  // Story · Characters: its two people, its place and the question kept on top (cartoon.jsx)
+  const story = useMemo(() => ({ title: scenes.find((s) => s.type === 'hook')?.text }), [scenes])
   const { height } = useVideoConfig()
   const captionTop = typeof t.captionTop === 'function' ? t.captionTop(height) : t.captionTop
   return (
@@ -770,7 +780,7 @@ export const MotionPost = ({ brand, scenes, music, musicList, style, look, sfx =
       <TransitionSeries>
         {scenes.flatMap((scene, i) => {
           const Scene = t.scenes[scene.type]
-          const body = Scene ? <Scene scene={scene} brand={brand} /> : <PointScene scene={scene} brand={brand} n={++point} />
+          const body = Scene ? <Scene scene={scene} brand={brand} cast={cast} place={place} story={story} /> : <PointScene scene={scene} brand={brand} n={++point} />
           const out = [
             <TransitionSeries.Sequence key={`s${i}`} durationInFrames={sceneFrames(scene)}>
               {body}

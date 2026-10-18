@@ -1,0 +1,171 @@
+{
+ "brand": {
+  "name": "Marketing ឆ្លាតវៃ",
+  "color": "#2F7A68",
+  "logo": null
+ },
+ "style": "lesson",
+ "frame": 75,
+ "scenes": [
+  {
+   "type": "whiteboard",
+   "title": "ប្រាក់ចំណេញ ⟦គិតយ៉ាងម៉េច?⟧",
+   "kind": "sum",
+   "parts": [
+    {
+     "icon": "Banknote",
+     "label": "លក់បាន",
+     "value": "$1000"
+    },
+    {
+     "icon": "ShoppingCart",
+     "label": "ថ្លៃទំនិញ",
+     "value": "$700"
+    },
+    {
+     "icon": "PiggyBank",
+     "label": "ចំណេញ",
+     "value": "$300"
+    }
+   ]
+  }
+ ],
+ "clip": [
+  {
+   "type": "hook",
+   "text": "លក់បានច្រើន ⟦តែមិនចំណេញ?⟧",
+   "icon": "CircleDollarSign"
+  },
+  {
+   "type": "whiteboard",
+   "title": "ប្រាក់ចំណេញ ⟦គិតយ៉ាងម៉េច?⟧",
+   "kind": "sum",
+   "parts": [
+    {
+     "icon": "Banknote",
+     "label": "លក់បាន",
+     "value": "$1000"
+    },
+    {
+     "icon": "ShoppingCart",
+     "label": "ថ្លៃទំនិញ",
+     "value": "$700",
+     "op": "-"
+    },
+    {
+     "icon": "PiggyBank",
+     "label": "ចំណេញ",
+     "value": "$300"
+    }
+   ]
+  },
+  {
+   "type": "whiteboard",
+   "title": "លុយ ⟦ចេញទៅណា?⟧",
+   "kind": "bars",
+   "parts": [
+    {
+     "label": "ទំនិញ",
+     "value": "700"
+    },
+    {
+     "label": "ជួលហាង",
+     "value": "200"
+    },
+    {
+     "label": "ភ្លើង",
+     "value": "50"
+    },
+    {
+     "label": "ចំណេញ",
+     "value": "50"
+    }
+   ]
+  },
+  {
+   "type": "example",
+   "title": "⟦ឧទាហរណ៍⟧ អ្នកលក់ ៣ នាក់",
+   "people": [
+    {
+     "name": "ដារ៉ា",
+     "look": "cap",
+     "color": "green",
+     "mood": "happy",
+     "icon": "NotebookPen",
+     "text": "កត់ត្រារាល់ថ្ងៃ",
+     "value": "+$300",
+     "tone": "good"
+    },
+    {
+     "name": "សុខា",
+     "look": "ponytail",
+     "color": "orange",
+     "mood": "worried",
+     "icon": "HelpCircle",
+     "text": "មិនដែលកត់",
+     "value": "?",
+     "tone": "bad"
+    },
+    {
+     "name": "វិសាល",
+     "look": "apron",
+     "color": "purple",
+     "mood": "sad",
+     "icon": "Wallet",
+     "text": "យកលុយហាងចាយ",
+     "value": "-$50",
+     "tone": "bad"
+    }
+   ]
+  },
+  {
+   "type": "whiteboard",
+   "title": "⟦៣ ជំហាន⟧ ងាយៗ",
+   "kind": "flow",
+   "parts": [
+    {
+     "icon": "NotebookPen",
+     "label": "កត់ត្រា"
+    },
+    {
+     "icon": "Calculator",
+     "label": "គិតរាល់ខែ"
+    },
+    {
+     "icon": "PiggyBank",
+     "label": "ទុកចំណេញ"
+    }
+   ]
+  },
+  {
+   "type": "remember",
+   "title": "⟦ចាំ⟧ ពាក្យនេះ",
+   "text": "លក់ច្រើន មិនមែន ⟦ចំណេញច្រើន⟧ ទេ",
+   "icon": "Star"
+  },
+  {
+   "type": "whiteboard",
+   "title": "⟦ត្រូវធ្វើ⟧ រាល់ថ្ងៃ",
+   "kind": "list",
+   "parts": [
+    {
+     "icon": "Receipt",
+     "label": "រក្សាវិក្កយបត្រ"
+    },
+    {
+     "icon": "Calculator",
+     "label": "រាប់លុយពេលបិទហាង"
+    },
+    {
+     "icon": "Wallet",
+     "label": "ញែកលុយហាង និងលុយខ្លួន"
+    }
+   ]
+  },
+  {
+   "type": "cta",
+   "text": "បង ⟦កត់ត្រាលុយ⟧ ដែរឬទេ?",
+   "button": "Follow"
+  }
+ ]
+}

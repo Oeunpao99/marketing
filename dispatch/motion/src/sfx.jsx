@@ -28,6 +28,25 @@ export function cuesFor(scene, style, frames, first) {
       for (let i = 0; i < n(scene.items); i++) add(start + i * step, 'pop')
       break
     }
+    case 'climb': // rise.jsx: the hero lands on the next step
+      add(24, 'pop')
+      break
+    case 'whiteboard': // lesson.jsx usePointer: each part arrives as the stick reaches it
+    case 'example': {
+      const list = scene.type === 'whiteboard' ? scene.parts : scene.people
+      const k = n(list, scene.type === 'whiteboard' ? 4 : 3)
+      const start = (scene.type === 'whiteboard' ? 0.6 : 0.7) * FPS
+      const step = Math.max(0.7 * FPS, Math.min(1.6 * FPS, (frames - start - 0.8 * FPS) / Math.max(1, k)))
+      for (let i = 0; i < k; i++) add(start + i * step, 'pop')
+      break
+    }
+    case 'talk': // cartoon.jsx: the bubble pops, the item lands
+      add(6, 'pop')
+      if (scene.item) add(18, 'blop')
+      break
+    case 'note':
+      for (let i = 0; i < n(scene.checks, 5); i++) add(23 + i * 16, 'pop')
+      break
     case 'problem':
       add(4, 'pop')
       if (scene.count) add(12, 'blop')

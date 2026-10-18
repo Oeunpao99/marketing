@@ -1124,6 +1124,167 @@ PAPER_PROMPT = _EXPLAINER_BASE.replace(
     "faint AI maths behind — an editorial explainer, clever and clean.",
 )
 
+# "Doodle notes" (motion/src/doodle.jsx) — the Khmer self-help Reel: grid paper, a bold
+# headline with its key words in orange and a hand-drawn ink sketch under it (app/doodle.py
+# draws one per scene from its `draw`).
+DOODLE_TYPES = ("hook", "doodle", "list", "quote", "cta")
+DOODLE_PROMPT = (
+    "You are the best short-form self-improvement storyteller in Cambodia. You plan a vertical "
+    "REMOTION VIDEO (Reels / TikTok, 30-60 s) in the style of the popular Khmer \"growth\" "
+    "pages: pale grid paper, a bold two-line headline with its key words in orange, and under "
+    "it ONE simple hand-drawn ink sketch that shows the feeling — a person lying awake staring "
+    "at the clock, a head full of scribbles, someone breathing slowly. Calm, wise, relatable: "
+    "life, mindset, habits, money, work, relationships, learning — or the brand's field told "
+    "the same way (a lesson, never a sales pitch).\n"
+    "\n"
+    "THE STORY (5-8 scenes):\n"
+    "1. hook — the question everyone has asked themselves (\"Why do we always [overthink]?\").\n"
+    "2-5. doodle — one idea per scene: the reason, what it does to us, the turn, what to do. "
+    "Each its own picture.\n"
+    "optional. list — 2-4 small things to try today.\n"
+    "optional. quote — the one line to remember.\n"
+    "last. cta — a gentle question for the comments or \"save this\".\n"
+    "\n"
+    "SCENE TYPES and their fields:\n"
+    "- hook: text (max 10 words — a question or a striking line), icon, draw.\n"
+    "- doodle: title (max 8 words — the idea as a headline), text (optional, max 12 words — "
+    "one line under the picture), icon, draw.\n"
+    "- list: title (max 6 words), items: 2-4 x {icon, text (2-7 words)}.\n"
+    "- quote: text (max 18 words — the lesson), author (optional — only a real person who "
+    "said it).\n"
+    "- cta: text (max 12 words), button (1-3 words, e.g. \"Follow\", \"Save\"), draw (optional).\n"
+    "\n"
+    "draw (ALWAYS in English, whatever the video's language): what the sketch shows, 10-25 "
+    "words — one person (or two) and the props that tell the feeling, e.g. \"a young man lying "
+    "awake in bed, eyes wide open, a wall clock above him, stress lines around\". Everyday "
+    "Cambodian life when it fits. Never any text, signs, screens with words, logos or brand "
+    "products in the picture. Each scene's drawing different from the others.\n"
+    + _COMMON_RULES
+    + '{"scenes": [{"type": "hook", "text": "...", "icon": "Brain", "draw": "...", "say": "..."}, ...]}'
+)
+
+# "Story · Characters" (motion/src/cartoon.jsx) — the Khmer cartoon-story Reel: two drawn
+# characters in one AI-drawn place (app/doodle.py draw_place), talking in bubbles, thinking
+# in clouds with an icon, the thing they talk about popping up beside them.
+CARTOON_TYPES = ("hook", "talk", "note", "cta")
+CARTOON_MOODS = ("happy", "excited", "sad", "worried", "thinking", "shocked", "angry")
+CAST_LOOKS = ("cap", "apron", "tie", "glasses", "bun", "ponytail")
+CAST_COLORS = ("green", "blue", "red", "orange", "purple", "grey", "teal", "yellow")
+CARTOON_PROMPT = (
+    "You are the best animated-story writer in Cambodia. You plan a REMOTION VIDEO (Reels / "
+    "TikTok, 40-70 s) in the style of the popular Khmer cartoon-story pages: TWO simple cartoon "
+    "characters in ONE everyday place (a mini-mart, a market stall, a coffee shop, an office, a "
+    "home), talking to each other in speech bubbles. A real everyday problem, a funny or "
+    "surprising turn, a clear lesson (or the brand's product as the fix, shown in the story — "
+    "never an advert read out). The story's question stays on top of the screen.\n"
+    "\n"
+    "THE CAST — return \"cast\": exactly 2 x {name (a short Cambodian first name, or a role like "
+    "the shop owner), look (one of: " + ", ".join(CAST_LOOKS) + "), color (one of: "
+    + ", ".join(CAST_COLORS) + ")}. Character 1 is usually the one with the problem, 2 the one who "
+    "helps or brings news. Give them different looks and colours.\n"
+    "THE PLACE — return \"place\": the one place it all happens, in ENGLISH, 15-35 words — what "
+    "is in it (counter, shelves, boxes, a fridge, a street outside…), Cambodian everyday life. No "
+    "people, no text.\n"
+    "\n"
+    "THE STORY (7-11 scenes):\n"
+    "1. hook — the story's question in a few words (\"Selling well... [where did the money go]?\").\n"
+    "then talk scenes — the two take turns, short lines like real people talk, each moving the "
+    "story on; a think scene when someone worries or gets an idea; a note scene when there is a "
+    "list (stock, costs, steps).\n"
+    "last. cta — the lesson as a question for the comments, or follow for part 2.\n"
+    "\n"
+    "SCENE TYPES and their fields (who = 1 or 2, mood one of: " + ", ".join(CARTOON_MOODS) + "):\n"
+    "- hook: text (max 8 words), who, mood, icon (what the character is wondering about).\n"
+    "- talk: who, mood, text (max 14 words — what they say, in the bubble), think (true when it "
+    "is a thought, not said aloud), icon (with think: the thing in the cloud), item (optional "
+    "{icon, label (max 3 words)} — the thing the line is about: the delivery, the money, the "
+    "phone, a receipt).\n"
+    "- note: who, mood, title (max 4 words), checks: 2-5 short lines (max 5 words each) — a "
+    "clipboard list they hold up.\n"
+    "- cta: text (max 12 words), button (1-3 words).\n"
+    "`say` for a talk scene is that character speaking — the bubble's line said fully and "
+    "naturally (it may add a few words); for hook / note / cta a narrator.\n"
+    + _COMMON_RULES
+    + '{"cast": [{"name": "...", "look": "apron", "color": "teal"}, {...}], "place": "...", '
+    '"scenes": [{"type": "hook", "text": "...", "who": 1, "mood": "thinking", "icon": "Wallet", "say": "..."}, ...]}'
+)
+
+# "Lesson · Teacher" (motion/src/lesson.jsx) — a cartoon teacher with a pointer stick
+# explains one idea on a whiteboard (list / steps / sum / bars), then shows it with 2-3
+# example people. All drawn in code — no pictures to make.
+LESSON_TYPES = ("hook", "whiteboard", "example", "remember", "cta")
+BOARD_KINDS = ("list", "flow", "sum", "bars")
+SUM_OPS = ("+", "-", "×", "÷")
+LESSON_PROMPT = (
+    "You are the best teacher on Khmer TikTok. You plan a REMOTION VIDEO (Reels / TikTok, "
+    "40-80 s): a friendly cartoon teacher with a pointer stick explains ONE idea on a "
+    "whiteboard — money, business, health, study, tech, the brand's field — then makes it "
+    "real with 2-3 example people who do it differently. Simple, concrete, a little funny.\n"
+    "\n"
+    "THE STORY (6-9 scenes):\n"
+    "1. hook — the question (\"Selling a lot [but no profit]?\").\n"
+    "2-4. whiteboard — the idea, one board per step of the explanation; use DIFFERENT kinds: a sum "
+    "(the maths), bars (where the money / time goes), flow (steps in order), list (things to do).\n"
+    "then example — 2-3 people (Cambodian first names) who do it differently and what happens to "
+    "each, the same idea, the same numbers as the board.\n"
+    "optional. remember — the one line to remember, written on the board.\n"
+    "last. cta — a question for the comments.\n"
+    "\n"
+    "SCENE TYPES and their fields:\n"
+    "- hook: text (max 8 words), icon.\n"
+    "- whiteboard: title (max 7 words), kind (list | flow | sum | bars), parts: 2-4 x {icon, label (max "
+    "4 words), value (optional, max 8 characters, e.g. \"$300\", \"30%\", \"2h\")}.\n"
+    "  sum: 3-4 parts, the LAST is the result; a part may have op (+ | - | × | ÷, the sign before "
+    "it, default +) — the maths MUST be right ($1000 - $700 = $300).\n"
+    "  bars: 2-4 parts, each value a number — the bars are drawn to scale.\n"
+    "  flow: 2-4 steps in order. list: 2-4 short points.\n"
+    "- example: title (max 6 words), people: 2-3 x {name, look (cap | apron | tie | glasses | bun "
+    "| ponytail), color (green | blue | red | orange | purple | grey | teal | yellow), mood (happy "
+    "| excited | sad | worried | thinking | shocked | angry), icon, text (max 5 words — what they "
+    "do), value (optional, max 8 characters — their result), tone (good | bad)}. Different looks "
+    "and colours.\n"
+    "- remember: title (max 4 words), text (max 12 words), icon.\n"
+    "- cta: text (max 12 words), button (1-3 words).\n"
+    "Example numbers may be made up when they are clearly an example — small round numbers, and "
+    "the same numbers through the video. The teacher speaks every `say`, to the viewer.\n"
+    + _COMMON_RULES
+    + '{"scenes": [{"type": "hook", "text": "...", "icon": "CircleDollarSign", "say": "..."}, '
+    '{"type": "whiteboard", "title": "...", "kind": "sum", "parts": [...], "say": "..."}, ...]}'
+)
+
+# "Rise · Mindset" (motion/src/rise.jsx) — a motivational video told as one climb: a person
+# climbs a staircase a step per habit while the sky turns from night to sunrise; old me vs
+# new me, a seed growing, the lesson at the summit. All drawn in code.
+RISE_TYPES = ("hook", "climb", "mirror", "grow", "summit", "cta")
+RISE_PROMPT = (
+    "You are the most uplifting mindset creator on Khmer TikTok. You plan a REMOTION VIDEO "
+    "(Reels / TikTok, 35-60 s) that encourages people to live the best version of their life: "
+    "warm, honest, never preachy — like an older sibling who believes in them. The video is ONE "
+    "climb: a person climbs a staircase, one step per habit or mindset shift, while the night "
+    "sky turns into sunrise; at the top, the lesson.\n"
+    "\n"
+    "THE STORY (6-8 scenes):\n"
+    "1. hook — the feeling they know (\"Tired of [waiting] for Monday?\").\n"
+    "2-5. climb — one small, doable habit or mindset per step, in an order that builds; "
+    "somewhere in the middle a mirror (old me vs new me) or a grow (small habits take time).\n"
+    "then summit — the one line to remember.\n"
+    "last. cta — a gentle question or \"start today\".\n"
+    "\n"
+    "SCENE TYPES and their fields:\n"
+    "- hook: text (max 9 words).\n"
+    "- climb: title (max 7 words — the habit / mindset), text (optional, max 12 words — why it "
+    "matters), word (max 3 words — written on the step, e.g. \"Wake at 5\", \"Read 10 pages\").\n"
+    "- mirror: title (max 6 words), before (max 6 words — the old me), after (max 6 words — the "
+    "new me).\n"
+    "- grow: title (max 6 words), text (optional, max 12 words).\n"
+    "- summit: text (max 14 words — the lesson), author (optional — only a real person who said it).\n"
+    "- cta: text (max 10 words), button (1-3 words).\n"
+    "Concrete beats abstract: \"walk 10 minutes after dinner\" not \"be healthy\". No guilt, no "
+    "hustle-culture pressure, no promises of money.\n"
+    + _COMMON_RULES
+    + '{"scenes": [{"type": "hook", "text": "...", "say": "..."}, {"type": "climb", "title": "...", "word": "...", "say": "..."}, ...]}'
+)
+
 CANVAS_TYPES = ("canvas",)
 CANVAS_LAYERS = ("text", "card", "icon", "shape", "device", "logo", "image", "chart", "metric", "pill", "list", "alert", "stream")
 CANVAS_BGS = ("solid", "gradient", "grid", "dots", "city", "network", "streams", "particles", "rings", "spotlight", "aurora", "trails", "hex", "waves", "warp")
@@ -1840,6 +2001,10 @@ STYLES = {
     "canvas": (CANVAS_PROMPT, CANVAS_TYPES, 12, "canvas"),
     "neural": (NEURAL_PROMPT, NEURAL_TYPES, 8, None),
     "paper": (PAPER_PROMPT, PAPER_TYPES, 8, None),
+    "doodle": (DOODLE_PROMPT, DOODLE_TYPES, 7, "doodle"),
+    "cartoon": (CARTOON_PROMPT, CARTOON_TYPES, 10, "talk"),
+    "lesson": (LESSON_PROMPT, LESSON_TYPES, 8, "whiteboard"),
+    "rise": (RISE_PROMPT, RISE_TYPES, 8, "climb"),
     "clarity": (CLARITY_PROMPT, CLARITY_TYPES, 8, None),
     "countdown": (COUNTDOWN_PROMPT, COUNTDOWN_TYPES, 7, "rank"),
     "thisorthat": (THISORTHAT_PROMPT, THISORTHAT_TYPES, 6, "choice"),
@@ -1857,7 +2022,7 @@ LONG_STYLES = {"training"}
 # The templates laid out for 16:9 too (motion/src/training.jsx, saas.jsx wide scenes);
 # every other template is always vertical. Scenes drawn only for a tall frame are
 # left out of a wide video.
-WIDE_STYLES = {"neural", "paper", "training", "custom", "demo", "offer", "trend", "pov", "showcase", "launch", "unveil", "gridcards", "techflow", "canvas", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
+WIDE_STYLES = {"neural", "paper", "doodle", "cartoon", "lesson", "rise", "training", "custom", "demo", "offer", "trend", "pov", "showcase", "launch", "unveil", "gridcards", "techflow", "canvas", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
 TALL_ONLY_TYPES = {"problem", "chat", "product", "point"}
 
 
@@ -2039,15 +2204,15 @@ def estimate_seconds(script: dict) -> int:
 # random per video, so a week's plan doesn't repeat the same look.
 GOAL_STYLES = {
     "sell": ("tech",),
-    "solution": ("tech", "demo", "custom", "showcase", "clarity", "gridcards"),
+    "solution": ("tech", "demo", "custom", "showcase", "clarity", "gridcards", "cartoon"),
     "conversion": ("offer", "tech", "launch", "reviews", "casestudy", "unveil"),
     "teach": ("explainer",),
-    "education": ("explainer", "training", "custom", "clarity", "tips", "gridcards", "techflow", "neural", "paper"),
-    "reach": ("pov", "explainer", "countdown", "thisorthat", "hottake"),
+    "education": ("explainer", "training", "custom", "clarity", "tips", "gridcards", "techflow", "neural", "paper", "doodle", "cartoon", "lesson"),
+    "reach": ("pov", "explainer", "countdown", "thisorthat", "hottake", "doodle", "cartoon", "lesson", "rise"),
     "awareness": ("trend", "custom", "clarity", "showcase", "report", "unveil", "canvas"),
     "authority": ("versus", "report", "casestudy", "hottake", "clarity", "techflow"),
     "engagement": ("poll", "thisorthat", "faq", "countdown", "hottake"),
-    "followers": ("quote", "explainer", "tips", "countdown", "hottake"),
+    "followers": ("quote", "explainer", "tips", "countdown", "hottake", "doodle", "lesson", "rise"),
     "trust": ("testimonial", "reviews", "casestudy", "faq", "report"),
 }
 
@@ -2089,7 +2254,7 @@ def _number(value) -> float:
 
 
 # The templates told by a narrator to everyone (not a shop talking to its customer, បង).
-NARRATOR_STYLES = {"explainer", "training", "quote", "countdown", "tips", "hottake", "report"}
+NARRATOR_STYLES = {"explainer", "training", "quote", "doodle", "lesson", "rise", "countdown", "tips", "hottake", "report"}
 
 
 def story_language(idea: str, picked: str) -> str:
@@ -2140,6 +2305,28 @@ def _apps(value) -> list[dict]:
     return [{"name": _line(a.get("name"), 24)} for a in (value or []) if isinstance(a, dict) and _line(a.get("name"), 24)][:8]
 
 
+def _who(value) -> int:
+    """Story · Characters: which of the two speaks (1 or 2)."""
+    return 2 if str(value).strip() == "2" else 1
+
+
+def clean_cast(raw) -> list[dict]:
+    """Story · Characters: the two people — a name, a look, a colour each."""
+    people = [p for p in (raw if isinstance(raw, list) else []) if isinstance(p, dict)][:2]
+    while len(people) < 2:
+        people.append({})
+    out = []
+    for n, p in enumerate(people):
+        look = p.get("look") if p.get("look") in CAST_LOOKS else ("apron", "cap")[n]
+        color = p.get("color") if p.get("color") in CAST_COLORS else ("teal", "green")[n]
+        if out and look == out[0]["look"]:
+            look = "cap" if look != "cap" else "apron"
+        if out and color == out[0]["color"]:
+            color = "green" if color != "green" else "blue"
+        out.append({"name": _line(p.get("name"), 30), "look": look, "color": color})
+    return out
+
+
 def _clean_scene(raw: dict, names: dict[str, str]) -> dict | None:
     """One scene from the AI, checked and trimmed — None when it's unusable.
     A scene whose fields have the wrong shape (a number where a list goes…)
@@ -2164,7 +2351,81 @@ def _clean_one(raw: dict, names: dict[str, str]) -> dict | None:
             hook["apps"] = apps  # Showcase: the bubbles floating round the line
         if raw.get("device") in TECH_DEVICES:
             hook["device"] = raw["device"]  # Tech explainer: the device in the viewer's hand
+        if _line(raw.get("draw"), 300):
+            hook["draw"] = _line(raw.get("draw"), 300)  # Doodle notes: the sketch under the line (app/doodle.py)
+        if raw.get("mood") in CARTOON_MOODS:  # Story · Characters: who wonders, and how
+            hook["who"], hook["mood"] = _who(raw.get("who")), raw["mood"]
         return hook if text else None
+    if kind == "talk":
+        text = _line(raw.get("text"), 120)
+        scene = {"type": kind, "who": _who(raw.get("who")), "mood": raw.get("mood") if raw.get("mood") in CARTOON_MOODS else "happy", "text": text, "say": say}
+        if raw.get("think") is True:
+            scene["think"] = True
+        if raw.get("icon") and (scene.get("think") or not text):
+            scene["icon"] = _icon(raw.get("icon"), "Lightbulb")
+        item = raw.get("item") if isinstance(raw.get("item"), dict) else None
+        if item and (item.get("icon") or item.get("label")):
+            scene["item"] = {"icon": _icon(item.get("icon"), "Package"), "label": _line(item.get("label"), 24)}
+        return scene if text or scene.get("icon") else None
+    if kind == "climb":
+        title = _line(raw.get("title"), 70)
+        return {"type": kind, "title": title, "text": _line(raw.get("text"), 120), "word": _line(raw.get("word"), 24), "say": say} if title else None
+    if kind == "mirror":
+        before, after = _line(raw.get("before"), 60), _line(raw.get("after"), 60)
+        return {"type": kind, "title": _line(raw.get("title"), 60), "before": before, "after": after, "say": say} if before and after else None
+    if kind == "grow":
+        title = _line(raw.get("title"), 60)
+        return {"type": kind, "title": title, "text": _line(raw.get("text"), 120), "say": say} if title else None
+    if kind == "summit":
+        text = _line(raw.get("text"), 140)
+        return {"type": kind, "text": text, "author": _line(raw.get("author"), 40), "say": say} if text else None
+    if kind == "whiteboard":
+        board_kind = raw.get("kind") if raw.get("kind") in BOARD_KINDS else "list"
+        parts = []
+        for x in (raw.get("parts") if isinstance(raw.get("parts"), list) else [])[:4]:
+            if not isinstance(x, dict) or not _line(x.get("label"), 30):
+                continue
+            part = {"icon": _icon(x.get("icon"), "Sparkles"), "label": _line(x.get("label"), 30), "value": _line(x.get("value"), 12)}
+            if board_kind == "sum" and x.get("op") in SUM_OPS:
+                part["op"] = x["op"]
+            parts.append(part)
+        if board_kind == "bars" and any(_number(p["value"]) <= 0 for p in parts):
+            board_kind = "list"  # bars need a number each — else it's a list
+        if board_kind == "sum" and len(parts) < 3:
+            board_kind = "flow"
+        return {"type": kind, "title": _line(raw.get("title"), 70), "kind": board_kind, "parts": parts, "say": say} if len(parts) >= 2 else None
+    if kind == "example":
+        people = []
+        for x in (raw.get("people") if isinstance(raw.get("people"), list) else [])[:3]:
+            if not isinstance(x, dict) or not _line(x.get("text"), 50):
+                continue
+            people.append({
+                "name": _line(x.get("name"), 20),
+                "look": x.get("look") if x.get("look") in CAST_LOOKS else CAST_LOOKS[len(people) % len(CAST_LOOKS)],
+                "color": x.get("color") if x.get("color") in CAST_COLORS else ("teal", "orange", "purple")[len(people)],
+                "mood": x.get("mood") if x.get("mood") in CARTOON_MOODS else "happy",
+                "icon": _icon(x.get("icon"), "User"),
+                "text": _line(x.get("text"), 50),
+                "value": _line(x.get("value"), 12),
+                "tone": "bad" if x.get("tone") == "bad" else "good",
+            })
+        return {"type": kind, "title": _line(raw.get("title"), 60), "people": people, "say": say} if len(people) >= 2 else None
+    if kind == "remember":
+        text = _line(raw.get("text"), 120)
+        return {"type": kind, "title": _line(raw.get("title"), 40), "text": text, "icon": _icon(raw.get("icon"), "Star"), "say": say} if text else None
+    if kind == "note":
+        checks = [c for c in (_line(c, 40) for c in (raw.get("checks") if isinstance(raw.get("checks"), list) else []) if isinstance(c, str)) if c][:5]
+        return (
+            {"type": kind, "who": _who(raw.get("who")), "mood": raw.get("mood") if raw.get("mood") in CARTOON_MOODS else "happy", "title": _line(raw.get("title"), 40), "checks": checks, "say": say}
+            if len(checks) >= 2
+            else None
+        )
+    if kind == "doodle":
+        title = _line(raw.get("title") or raw.get("text"), 100)
+        scene = {"type": kind, "title": title, "text": _line(raw.get("text"), 120) if raw.get("title") else "", "icon": _icon(raw.get("icon"), "Brain"), "say": say}
+        if _line(raw.get("draw"), 300):
+            scene["draw"] = _line(raw.get("draw"), 300)
+        return scene if title else None
     if kind == "meme":
         top, bottom = _line(raw.get("top"), 90), _line(raw.get("bottom"), 90)
         mood = raw.get("mood") if raw.get("mood") in MEME_FACES else "laughing"
@@ -2443,7 +2704,10 @@ def _clean_one(raw: dict, names: dict[str, str]) -> dict | None:
         return {"type": kind, "product": product, "title": title, "chips": chips, "say": say} if title else None
     if kind == "cta":
         text = _line(raw.get("text"), 140)
-        return {"type": kind, "text": text, "button": _line(raw.get("button"), 40), "say": say} if text else None
+        cta = {"type": kind, "text": text, "button": _line(raw.get("button"), 40), "say": say}
+        if _line(raw.get("draw"), 300):
+            cta["draw"] = _line(raw.get("draw"), 300)  # Doodle notes
+        return cta if text else None
     if kind == "character":
         title = _line(raw.get("title"), 80)
         icon = str(raw.get("icon") or "").strip()
@@ -2717,6 +2981,16 @@ _TEXT_FIELDS = {
     "bars": (("title", 70), ("say", 300)),
     "donut": (("label", 80), ("say", 300)),
     "tip": (("title", 70), ("text", 120), ("say", 300)),
+    "doodle": (("title", 100), ("text", 120), ("say", 300)),
+    "talk": (("text", 120), ("say", 300)),
+    "whiteboard": (("title", 70), ("say", 300)),
+    "climb": (("title", 70), ("text", 120), ("word", 24), ("say", 300)),
+    "mirror": (("title", 60), ("before", 60), ("after", 60), ("say", 300)),
+    "grow": (("title", 60), ("text", 120), ("say", 300)),
+    "summit": (("text", 140), ("say", 300)),
+    "example": (("title", 60), ("say", 300)),
+    "remember": (("title", 40), ("text", 120), ("say", 300)),
+    "note": (("title", 40), ("say", 300)),
     "choice": (("question", 80), ("prompt", 30), ("say", 300)),
     "reviews": (("title", 30), ("say", 300)),
     "logos": (("title", 60), ("say", 300)),
@@ -3013,6 +3287,8 @@ def write_script(
     if story:  # a chart / number the story never gave becomes a plain statement of that line
         script["scenes"] = [_only_story_numbers(s, idea, allowed) for s in script["scenes"]]
         _keep_own_voice(script, idea)
+    if style == "cartoon":
+        script["cast"], script["place"] = clean_cast(raw.get("cast")), _line(raw.get("place"), 400)
     if style == "custom":
         r, g, b = accent_for(brand.slug)
         script["look"] = clean_look(raw.get("look"), f"#{r:02x}{g:02x}{b:02x}")
@@ -3258,6 +3534,28 @@ def script_lines(script: dict) -> list[tuple[str, str]]:
             screen = (s.get("title") or "Table") + " — " + " | ".join(s["columns"]) + f" ({len(s['rows'])} rows)"
         elif s["type"] == "board":
             screen = (s.get("title") or "Board") + " — " + " → ".join(c["name"] for c in s["columns"])
+        elif s["type"] == "climb":
+            screen = s["title"] + (f" — {s['text']}" if s.get("text") else "") + (f" [step: {s['word']}]" if s.get("word") else "")
+        elif s["type"] == "grow":
+            screen = s["title"] + (f" — {s['text']}" if s.get("text") else "")
+        elif s["type"] == "mirror":
+            screen = (f"{s['title']} — " if s.get("title") else "") + f"Old me: {s['before']} → New me: {s['after']}"
+        elif s["type"] == "summit":
+            screen = f"⛰ {s['text']}" + (f" — {s['author']}" if s.get("author") else "")
+        elif s["type"] == "whiteboard":
+            last = len(s["parts"]) - 1
+            sign = lambda i, x: (" = " if i == last else f" {x.get('op', '+')} ") if s["kind"] == "sum" else " / "  # noqa: E731
+            body = "".join((sign(i, x) if i else "") + x["label"] + (f" {x['value']}" if x.get("value") else "") for i, x in enumerate(s["parts"]))
+            screen = f"{s.get('title', '')} — {s['kind']}: {body}"
+        elif s["type"] == "example":
+            screen = (s.get("title") or "Example") + " — " + " | ".join(f"{x['name']}: {x['text']}" + (f" ({x['value']})" if x.get("value") else "") for x in s["people"])
+        elif s["type"] in ("talk", "note"):
+            who = f"#{s.get('who', 1)} ({s.get('mood', '')})"
+            body = (f"{s.get('title', '')}: " + " / ".join(s["checks"])) if s["type"] == "note" else ("💭 " if s.get("think") else "") + s.get("text", "")
+            item = f" [{s['item'].get('label') or s['item'].get('icon')}]" if s.get("item") else ""
+            screen = f"{who} {body}{item}"
+        elif s["type"] == "doodle":
+            screen = s["title"] + (f" — {s['text']}" if s.get("text") else "") + (f" ✎ {s['draw']}" if s.get("draw") else "")
         elif s["type"] == "offer":
             price = f" {s['price']}{s.get('period', '')}" if s.get("price") else ""
             screen = f"{s.get('plan', '')}{price} — " + ", ".join(s["features"])
@@ -3567,6 +3865,8 @@ def pick_pictures(
                     L["src"] = by_product.get(ids.get(src[8:].strip())) or main or ""
                 elif src:
                     L.pop("src", None)
+        elif script.get("style") in ("doodle", "cartoon", "lesson", "rise"):
+            continue  # drawn templates: no product photos (doodle / cartoon draw their own, app/doodle.py)
         elif s["type"] in ("hook", "cta", "offer") or script.get("style") == "quote":
             s["image"] = main
 
@@ -3587,7 +3887,7 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
     r, g, b = accent_for(brand.slug)
     scenes = []
     for s in script["scenes"]:
-        scene = {k: v for k, v in s.items() if k not in ("say", "product", "target", "shot")}
+        scene = {k: v for k, v in s.items() if k not in ("say", "product", "target", "shot", "draw")}
         for key in ("text", "title", "label", "button", "myth", "fact", "question", "author", "name", "business", "before", "after", "headline", "tag", "result", "badge", "plan", "period", "sub", "word", "action", "sticker", "top", "bottom"):
             if scene.get(key):
                 scene[key] = t(scene[key])
@@ -3649,6 +3949,14 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
             scene["checks"] = [t(c) for c in scene.get("checks") or []]
         if s["type"] == "word" and scene.get("rows"):  # Unveil's card: its people / items
             scene["rows"] = [{"name": t(x["name"]), "sub": t(x["sub"]) if x.get("sub") else ""} for x in scene["rows"]]
+        if script.get("style") == "rise":  # Rise: the climb and the sky move on scene by scene
+            scene["n"], scene["of"] = len(scenes), len(script["scenes"])
+        if s["type"] == "whiteboard":
+            scene["parts"] = [{**x, "label": t(x["label"]), "value": t(x["value"]) if x.get("value") else ""} for x in scene["parts"]]
+        if s["type"] == "example":
+            scene["people"] = [{**x, "name": t(x["name"]) if x.get("name") else "", "text": t(x["text"]), "value": t(x["value"]) if x.get("value") else ""} for x in scene["people"]]
+        if s["type"] == "talk" and scene.get("item"):
+            scene["item"] = {**scene["item"], "label": t(scene["item"]["label"]) if scene["item"].get("label") else ""}
         if s["type"] == "step":
             scene["n"] = sum(1 for x in scenes if x["type"] == "step") + 1  # STEP 1, 2, 3
         if s["type"] in ("rank", "tip", "qa"):  # Top 5 counts down (#5 … #1); tips / questions count up (01 / 05)
@@ -3665,6 +3973,9 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
     }
     if script.get("look"):
         props["look"] = script["look"]
+    if script.get("style") == "cartoon":  # Story · Characters: the two people and their place
+        props["cast"] = [{**c, "name": t(c["name"]) if c.get("name") else ""} for c in script.get("cast") or clean_cast(None)]
+        props["place"] = {"image": script["place_image"]} if script.get("place_image") else {}
     if script.get("ratio") == "16:9" and props["style"] in WIDE_STYLES:
         props["ratio"] = "16:9"
     library = music_tracks()
@@ -3703,6 +4014,24 @@ def default_seconds(scene: dict) -> float:
         return 5.2 if scene.get("before") else 4.2
     if kind == "meme":
         return 4.6
+    if kind == "doodle":  # MotionPost/shared.jsx defaultSeconds says the same
+        return 4.8 if scene.get("text") else 4.2
+    if kind == "climb":  # MotionPost/shared.jsx defaultSeconds says the same
+        return 4.6 if scene.get("text") else 4.0
+    if kind in ("mirror", "grow"):
+        return 4.8
+    if kind == "summit":
+        return 5.2
+    if kind == "whiteboard":
+        return 2.4 + 1.1 * min(4, len(scene.get("parts") or []))
+    if kind == "example":
+        return 2.6 + 1.3 * min(3, len(scene.get("people") or []))
+    if kind == "remember":
+        return 4.4
+    if kind == "talk":
+        return 2.8 + min(2.4, len(scene.get("text") or "") / 30) + (0.6 if scene.get("item") else 0)
+    if kind == "note":
+        return 2.6 + 0.6 * min(5, len(scene.get("checks") or []))
     if kind == "metrics":
         return 3.6 + 0.8 * min(3, len(scene.get("rows") or []))
     if kind == "timeline":
@@ -4110,7 +4439,7 @@ def _scene_summary(s: dict) -> str:
         text = s.get("title") or " · ".join(a.get("name", "") for a in s.get("apps") or [])
     elif t == "roll":
         text = f"{s.get('lead', '')} " + " / ".join(s.get("words") or [])
-    elif t in ("table", "board"):
+    elif t in ("table", "board", "doodle", "whiteboard", "example", "climb", "grow", "mirror"):
         text = s.get("title") or ""
     else:
         text = s.get("text") or s.get("title") or s.get("label") or ""
@@ -4542,6 +4871,10 @@ TEMPLATE_GUIDE = {
     "unveil": "unveiling a product or a new feature in a light, elegant way — one big word, the app card coming into focus, a field typing itself, a check with confetti",
     "gridcards": "how a product or service solves an everyday problem — the repetitive work today, then one input becoming several results (a post, a price poster, a caption), clear and friendly",
     "techflow": "explaining HOW a technology works step by step (the internet, email, payments, AI, apps) — devices, data packets travelling, addresses, lookups, the path, a recap",
+    "rise": "mindset / motivation — encouraging people to live their best life: small habits, a fresh start, believing in yourself; a person climbing stairs as night turns to sunrise",
+    "lesson": "teaching one idea step by step with a cartoon teacher and a pointer stick at a whiteboard — the maths (a sum, bars), steps, a list — then 2-3 example people who do it differently; money, business, health, study",
+    "cartoon": "a little story with two cartoon characters talking in one everyday place (a shop, a market, an office, home) — speech bubbles, thought clouds, a business or life problem and its fix, part 1 / part 2 series",
+    "doodle": "a self-improvement / mindset / life lesson told calmly (overthinking, habits, money, stress, work, relationships) — grid paper, a bold Khmer headline with orange key words, a hand-drawn sketch of the feeling in every scene",
     "paper": "an AI / tech concept explained simply on graph paper (what is machine learning, deep learning, an API…) — editorial, navy and orange, icons and maths floating around",
     "neural": "a tech or AI explainer / lesson / history with a motivating message — a big question, before vs after with AI, a timeline, two people who chose differently, a quote to remember",
     "canvas": "a brief that asks for its OWN look or scenes — an event / LED-screen film, a cinematic launch with acts and colours of its own, or anything no template fits: the AI designs every scene",
@@ -4900,6 +5233,8 @@ def checked_script(raw: dict, products: list[Product]) -> dict:
         script["ratio"] = raw["ratio"]
     if style == "custom":
         script["look"] = clean_look(raw.get("look"), "#6366F1")
+    if style == "cartoon":
+        script["cast"], script["place"] = clean_cast(raw.get("cast")), _line(raw.get("place"), 400)
     if style == "canvas":
         script["asks"] = _clean_asks(raw.get("asks"))
         script["theme"] = clean_theme(raw.get("theme"))
@@ -5065,6 +5400,18 @@ def _make(
             more_now = attached_shots(ref_url, ref_urls) if ref_shot else []  # screenshots 2, 3… as planned
             shots_now = ([ref_shot] if ref_shot else []) + more_now + (brand_screens(db, brand.id) if script.get("style") in SCREEN_STYLES else [])
             pick_pictures(script, all_products, by_product, order, product_id, shots_now)
+            if script.get("style") == "doodle":  # Doodle notes: a hand-drawn sketch per scene
+                from app import doodle
+
+                _report(job_id, stage="pictures")
+                doodle.draw_scenes(script["scenes"], job.workspace_id, job.user_id)
+                _check(job_id)
+            if script.get("style") == "cartoon" and script.get("place"):  # Story · Characters: its one place
+                from app import doodle
+
+                _report(job_id, stage="pictures")
+                script["place_image"] = doodle.draw_place(script["place"], job.workspace_id, job.user_id)
+                _check(job_id)
             # AI design: a quick preview, the AI looks at it and fixes what looks off
             script = review_design(brand, script, logo, "khmer" in language.lower(), job_id)
             props = build_props(brand, script, logo, "khmer" in language.lower())
