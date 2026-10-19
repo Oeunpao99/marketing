@@ -132,6 +132,71 @@ def draw_place(prompt: str, ws: int | None, user_id: int | None) -> str | None:
         return None
 
 
+PICTURE_STYLE = (
+    "A modern flat 2D vector illustration for a premium explainer video: clean simple shapes, "
+    "smooth flat colour fills (no gradients, no photo realism, no 3D), friendly people with simple "
+    "faces, a calm uncluttered composition with one clear subject. Colour palette: {a} and {b} as "
+    "the accents, with soft neutrals; the background is a plain flat {bg}. Everyday Cambodian life "
+    "when it fits. ABSOLUTELY NO text, letters, numbers, words, signs with writing, logos or "
+    "watermarks anywhere in the image.\n\nThe picture: "
+)
+MAX_PICTURES = 4
+
+
+def draw_pictures(scenes: list[dict], theme: dict, ws: int | None, user_id: int | None) -> int:
+    """AI design (style "canvas"): every image layer that asks for a drawing
+    (``draw``) gets one, in the film's look — its accents and the scene's
+    background tone — at most MAX_PICTURES a film, two at a time. A picture
+    that can't be drawn (or one over the limit) becomes its icon on a tile.
+    Returns how many were drawn."""
+    from app import video as video_gen
+
+    todo = [(sc, L) for sc in scenes for L in sc.get("layers") or [] if L.get("kind") == "image" and L.get("draw") and not L.get("src")]
+
+    def one(item):
+        sc, L = item
+        light = (sc.get("tone") or (sc.get("pal") or {}).get("mode")) == "light"
+        bg = theme.get("light" if light else "dark") or ("#F4F6FB" if light else "#0B1020")
+        prompt = PICTURE_STYLE.format(a=theme.get("a", "#4F8CFF"), b=theme.get("b", "#22D3EE"), bg=bg) + L["draw"]
+        if ws:
+            try:
+                billing.require(ws, billing.IMAGE_HOLD)
+            except billing.OutOfCredit:
+                return None
+        try:
+            with video_gen.image_slot():
+                _provider, blob, usage = video_gen.generate_image(prompt, "1:1")
+        except Exception as exc:  # noqa: BLE001 — the scene shows its icon instead
+            log.warning("ai design: picture failed (%s)", str(exc)[:200])
+            return None
+        billing.charge(ws, "image", billing.image_cost(usage.get("input", 0), usage.get("output", 0)), user_id=user_id, model=get_settings().azure_openai_image_deployment, tokens=usage.get("total", 0), note=f"AI design picture: {L['draw'][:150]}")
+        try:
+            im = Image.open(io.BytesIO(blob)).convert("RGB")
+            im.thumbnail((1024, 1024))
+            buf = io.BytesIO()
+            im.save(buf, "JPEG", quality=88, optimize=True)
+            return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
+        except Exception:  # noqa: BLE001
+            log.exception("ai design: could not read a picture")
+            return None
+
+    got = []
+    if todo[:MAX_PICTURES]:
+        with ThreadPoolExecutor(max_workers=min(2, len(todo[:MAX_PICTURES]))) as pool:
+            got = list(pool.map(one, todo[:MAX_PICTURES]))
+    for k, (sc, L) in enumerate(todo):
+        uri = got[k] if k < len(got) else None
+        if uri:
+            L["src"] = uri
+            L.pop("draw", None)
+        else:  # no picture: its icon on the accent tile, in the same place
+            icon = L.get("icon") or "Sparkles"
+            for key in ("draw", "src", "radius", "w", "icon"):
+                L.pop(key, None)
+            L.update(kind="icon", name=icon, size=300, tile="a")
+    return sum(1 for u in got if u)
+
+
 def draw_scenes(scenes: list[dict], ws: int | None, user_id: int | None) -> int:
     """Draw every scene that asks for a drawing (``draw``) and has none yet,
     two at a time (the image service rate-limits hard); the picture goes into ``scene["image"]``. Returns how

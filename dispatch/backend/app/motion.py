@@ -1321,11 +1321,15 @@ CANVAS_PROMPT = (
     "({\"kind\": device, \"device\": phone | laptop | tablet, \"src\": \"shot:N\" or \"product:<name>\", "
     "\"lines\": up to 4 short rows shown on it} | {\"kind\": image, \"src\": \"product:<name>\" or "
     "\"shot:N\"} | {\"kind\": icon, \"icon\": …} | {\"kind\": chart, \"chart\": line | bars | donut, "
-    "\"values\": 3-6 small SAMPLE numbers}), cards (2-3 x {icon, title (max 4 words), line (max 8 "
+    "\"values\": 3-6 small SAMPLE numbers} | {\"kind\": picture, \"draw\": IN ENGLISH, 10-30 words — "
+    "what the picture shows: the people, the place, the moment, e.g. \"a young Cambodian woman "
+    "smiling at her phone behind the counter of a small coffee shop\", \"icon\": a fallback icon}), cards (2-3 x {icon, title (max 4 words), line (max 8 "
     "words)}), items (2-5 x {icon, text (2-6 words)}), value + prefix + suffix + label (metric — "
     "ONLY a true number), quote + author, steps (3 x {icon, label (max 3 words)}), before / after "
     "({title, lines: 1-3 short rows, icon}), alert ({text (max 6 words), level: info | warn | danger "
-    "| ok}), cta (1-3 words — the end's button). hit: true on the scene's big reveal (2-3 a film); "
+    "| ok}), cta (1-3 words — the end's button). PICTURES: at most 4 in the film, only where "
+    "seeing the moment beats an icon (people, a place, a feeling); never draw the brand's product "
+    "(use product:<name>) or a screen (use shot:N); never ask for words in a picture. hit: true on the scene's big reveal (2-3 a film); "
     "pause: 0.5-1.5 = a quiet near-black breath BEFORE the scene (the brief's \"pause before the "
     "reveal\").\n"
     "\n"
@@ -1591,9 +1595,13 @@ def _clean_canvas(raw: dict, say: str) -> dict | None:
                 out["src"] = L["src"]
         elif kind in ("logo", "image"):
             if kind == "image":
-                if not _src_ok(L.get("src")):
+                if _line(L.get("draw"), 300) and not L.get("src"):
+                    # a picture still to be drawn (app/doodle.py draw_pictures) — its icon if that fails
+                    out["draw"], out["icon"] = _line(L["draw"], 300), _icon(L.get("icon"), "Sparkles")
+                elif not _src_ok(L.get("src")):
                     continue
-                out["src"] = L["src"]
+                else:
+                    out["src"] = L["src"]
             if _num(L.get("size"), 30, 200) is not None:
                 out["size"] = _num(L.get("size"), 30, 200)
         elif kind == "chart":
@@ -5414,6 +5422,13 @@ def _make(
                 _report(job_id, stage="pictures")
                 doodle.draw_scenes(script["scenes"], job.workspace_id, job.user_id)
                 _check(job_id)
+            if script.get("style") == "canvas":  # AI design: the pictures its scenes asked for
+                from app import doodle
+
+                if any(L.get("draw") and not L.get("src") for sc in script["scenes"] for L in sc.get("layers") or []):
+                    _report(job_id, stage="pictures")
+                    doodle.draw_pictures(script["scenes"], script.get("theme") or {}, job.workspace_id, job.user_id)
+                    _check(job_id)
             if script.get("style") == "cartoon" and script.get("place"):  # Story · Characters: its one place
                 from app import doodle
 

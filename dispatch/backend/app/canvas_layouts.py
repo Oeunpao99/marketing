@@ -31,7 +31,8 @@ LOOK_BACKGROUNDS = ("grid", "dots", "network", "city", "hex", "waves", "rings", 
 # ── the layouts ────────────────────────────────────────────────────────────
 LAYOUTS = {
     "hero": "one big headline in the middle (kicker pill above, a short line under, an icon tile on top) — the opening, a big statement",
-    "split": "text on one side, a visual on the other (a phone / laptop with the brand's screenshot, a product photo, a big icon or a small chart) — explaining a feature",
+    "split": "text on one side, a visual on the other (a drawn picture of the moment, a phone / laptop with the brand's screenshot, a product photo, a big icon or a small chart) — explaining an idea or a feature",
+    "picture": "a big drawn picture of the moment with the headline beside it (16:9) or above it (9:16) — when SEEING the situation tells the story (people, a place, a feeling)",
     "cards": "a title and 2-3 cards, each an icon + a short title + one line — features, reasons, options",
     "metric": "one big number counting up with its label (a kicker above, a line under) — ONLY a true number",
     "list": "a title and 2-5 short points with icons — steps, benefits, what's included",
@@ -98,6 +99,9 @@ def _visual(v: dict, x, y, at, wide: bool, *, big=False) -> list[dict]:
         if v.get("src"):
             L["src"] = v["src"]
         return [L]
+    if kind == "picture" and _s(v.get("draw"), 300):
+        # drawn by the image model in the film's look (app/doodle.py draw_pictures); its icon if that fails
+        return [{"kind": "image", "draw": _s(v.get("draw"), 300), "icon": v.get("icon") or "Sparkles", "x": x, "y": y, "w": (560 if wide else 640) if not big else (600 if wide else 800), "radius": 32, "at": at, "in": "scale", "loop": "float"}]
     if kind == "image" and v.get("src"):
         return [{"kind": "image", "src": v["src"], "x": x, "y": y, "w": 560 if wide else 640, "radius": 28, "at": at, "in": "scale", "loop": "float"}]
     if kind == "chart":
@@ -150,6 +154,21 @@ def layout_layers(raw: dict, wide: bool) -> list[dict]:
             if sub:
                 out.append(_text(sub, 50, 36, 48, 0.8, maxw=84, weight=500, tin="fade", color="sub"))
             out += _visual(v, 50, 58 if v.get("kind") != "device" or v.get("device") != "phone" else 59, 0.5, wide)
+    elif lay == "picture":
+        v = raw.get("visual") if isinstance(raw.get("visual"), dict) else {}
+        v = {"kind": "picture", "draw": v.get("draw") or raw.get("draw"), "icon": v.get("icon") or icon}
+        if wide:
+            out += _visual(v, 31, 48, 0.2, wide, big=True)
+            if kicker:
+                out.append(_pill(kicker, 60, 30, 0.4))
+            out.append(_text(title, 72, 45, min(96, _head(title)), 0.5, maxw=40, align="left"))
+            if sub:
+                out.append(_text(sub, 72, 62, 46, 1.0, maxw=40, align="left", weight=500, tin="fade", color="sub"))
+        else:
+            out.append(_text(title, 50, 19, _head(title), 0.2, maxw=88))
+            out += _visual(v, 50, 47, 0.4, wide, big=True)
+            if sub:
+                out.append(_text(sub, 50, 71, 46, 1.0, maxw=84, weight=500, tin="fade", color="sub"))
     elif lay == "cards":
         cards = [c for c in (raw.get("cards") or []) if isinstance(c, dict) and _s(c.get("title"), 40)][:3]
         out.append(_text(title, 50, 20 if wide else 21, min(92, _head(title)), 0.1, maxw=80 if wide else 88))
