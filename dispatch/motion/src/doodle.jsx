@@ -103,10 +103,10 @@ function Sketch({ scene, box, delay = 0.35 }) {
       </div>
     )
   }
-  const icon = box * 0.46
+  const icon = box * 0.26 // a small ink icon — the drawing is the star, this only stands in for it
   return (
-    <div style={{ position: 'relative', width: box, height: box * 0.8, display: 'grid', placeItems: 'center', transform: boil(frame, 'sk', u) }}>
-      <Scribbles size={box} progress={p} />
+    <div style={{ position: 'relative', width: box * 0.6, height: box * 0.48, display: 'grid', placeItems: 'center', transform: boil(frame, 'sk', u) }}>
+      <Scribbles size={box * 0.6} progress={p} />
       {/* stroke-dash props inherit into the icon's paths: they draw themselves */}
       <div style={{ strokeDasharray: 140, strokeDashoffset: 140 * (1 - p) }}>
         <Icon name={scene.icon || 'Brain'} size={icon} color={C.ink} stroke={0.9} />

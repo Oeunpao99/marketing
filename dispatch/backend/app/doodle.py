@@ -71,18 +71,33 @@ def readable(accent: tuple, bg: tuple, ink: tuple) -> tuple:
 RATE_WAITS = (20, 40, 60)  # seconds between tries when the image service says "too many"
 
 
+SOFTER = (
+    "Keep the picture wholesome and family-friendly: show the idea with harmless everyday "
+    "objects (a glass bottle and a glass instead of alcohol, no weapons, no medicine, nothing "
+    "sensitive). "
+)
+
+
 def _draw(prompt: str, ratio: str):
     """One drawing from the image service. The image quota (Azure S0) allows only
     a few a minute: a "rate limit" refusal is waited out and tried again —
     up to three more times — instead of the scene losing its picture."""
     from app import video as video_gen
 
+    softened = False
     for wait in (*RATE_WAITS, None):
         try:
             with video_gen.image_slot():
                 return video_gen.generate_image(prompt, ratio)
         except video_gen.VideoGenError as exc:
-            if wait is None or "rate limit" not in str(exc).lower():
+            why = str(exc).lower()
+            if "safety" in why and not softened:
+                # the safety filter said no (a wine bottle, …): one more try, asked gently
+                softened = True
+                log.info("image refused by the safety filter — asking once more, gently")
+                prompt = SOFTER + prompt
+                continue
+            if wait is None or "rate limit" not in why:
                 raise
             log.info("image service busy — trying again in %ss", wait)
             time.sleep(wait)
