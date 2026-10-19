@@ -3,7 +3,9 @@
 from datetime import date, datetime, time
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer
+import re
+
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_serializer
 
 SECRET_CONFIG_KEYS = {
     "bot_token", "token", "secret", "password", "api_key", "access_token", "client_secret",
@@ -40,6 +42,20 @@ class Pronunciation(BaseModel):
     say: str = Field(min_length=1, max_length=120)  # as the voice should say it
 
 
+def _hex_colors(v: list[str]) -> list[str]:
+    """Brand colours as "#RRGGBB" (upper case), at most three, no repeats — anything else left out."""
+    out = []
+    for c in v or []:
+        c = str(c).strip().upper()
+        c = c if c.startswith("#") else f"#{c}"
+        if re.fullmatch(r"#[0-9A-F]{6}", c) and c not in out:
+            out.append(c)
+    return out[:3]
+
+
+HexColors = Annotated[list[str], AfterValidator(_hex_colors)]
+
+
 class BrandBase(BaseModel):
     # Limits match the brands columns (models.Brand), so a too-long value is a
     # clear 422 instead of a database error.
@@ -53,6 +69,8 @@ class BrandBase(BaseModel):
     chat_telegram: str = Field(default="", max_length=64)
     chat_messenger: str = Field(default="", max_length=100)
     chat_label: str = Field(default="", max_length=80)
+    # The brand's own colours, main first (Brand kit; read from the logo)
+    colors: HexColors = Field(default_factory=list, max_length=6)
     # How the voice-over says words (app/khmer_speech.py): [{word, say}]
     pronunciations: list[Pronunciation] = Field(default_factory=list, max_length=200)
 
@@ -71,6 +89,7 @@ class BrandUpdate(BaseModel):
     chat_messenger: str | None = Field(default=None, max_length=100)
     chat_label: str | None = Field(default=None, max_length=80)
     pronunciations: list[Pronunciation] | None = Field(default=None, max_length=200)
+    colors: HexColors | None = Field(default=None, max_length=6)
 
 
 class BrandOut(TimestampsOut, BrandBase):

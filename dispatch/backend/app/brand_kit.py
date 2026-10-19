@@ -22,6 +22,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.colors import detect_colors
 from app.database import get_db
 from app.media import IMAGE_EXTS, delete_media, read_media, store_blob
 from app.models import Brand, BrandAsset, Product
@@ -64,6 +65,46 @@ def list_assets(
     if brand_id is not None:
         q = q.where(BrandAsset.brand_id == brand_id)
     return [_out(a) for a in db.scalars(q.order_by(BrandAsset.kind, BrandAsset.id)).all()]
+
+
+# ── the brand's colours (Brand kit → Colours; videos and posters use them) ──
+class ColorsIn(BaseModel):
+    colors: list[str] = []
+
+
+def _colors_out(db: Session, brand: Brand) -> dict:
+    has_logo = db.scalar(select(BrandAsset.id).where(BrandAsset.brand_id == brand.id, BrandAsset.kind == "logo")) is not None
+    return {"colors": list(brand.colors or []), "has_logo": has_logo}
+
+
+@router.get("/colors/{brand_id}")
+def get_colors(brand_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    return _colors_out(db, owned(db, Brand, brand_id, ws))
+
+
+@router.put("/colors/{brand_id}")
+def set_colors(brand_id: int, body: ColorsIn, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    from app.schemas import _hex_colors
+
+    brand = owned(db, Brand, brand_id, ws)
+    brand.colors = _hex_colors(body.colors)
+    db.commit()
+    return _colors_out(db, brand)
+
+
+@router.post("/colors/{brand_id}/detect")
+def detect_from_logo(brand_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    """Read the colours from the brand's logo again (replacing what's set)."""
+    brand = owned(db, Brand, brand_id, ws)
+    logo = db.scalar(select(BrandAsset).where(BrandAsset.brand_id == brand.id, BrandAsset.kind == "logo"))
+    if logo is None:
+        raise HTTPException(400, "Upload the logo first.")
+    found = detect_colors(read_media(logo.url) or b"")
+    if not found:
+        raise HTTPException(400, "Your logo has no clear colour (black, white or grey) — pick your colours instead.")
+    brand.colors = found
+    db.commit()
+    return _colors_out(db, brand)
 
 
 @router.post("", response_model=AssetOut, status_code=201)
@@ -114,6 +155,10 @@ def add_asset(
         for old in existing:
             delete_media(db, old.url)
             db.delete(old)
+        # its colours become the brand's, unless the person already set them
+        brand = db.get(Brand, brand_id)
+        if brand is not None and not brand.colors:
+            brand.colors = detect_colors(bytes(data))
     # One photo per product: likewise.
     if kind == "product":
         for old in existing:

@@ -167,6 +167,10 @@ class Brand(Base, TimestampMixin):
     # "female" (which reader's voice it's converted from), "seconds",
     # "pitch", "error", "by": user id, "at"}. {} = none.
     voice_clone: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}", nullable=False)
+    # The brand's own colours, main first: ["#1F4E8C", "#F2C230"] — read from its
+    # logo when one is uploaded (brand_kit.detect_colors), editable in the Brand
+    # kit. Videos and posters use them (poster.brand_rgb); [] = none known yet.
+    colors: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]", nullable=False)
 
     @property
     def voice_ready(self) -> bool:

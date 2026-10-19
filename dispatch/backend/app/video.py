@@ -37,7 +37,7 @@ from app.database import SessionLocal, get_db
 from app.media import read_media, store_blob
 from app.meme import _has_khmer
 from app.models import Brand, GenerationJob, TeamMember, Video
-from app.poster import accent_for
+from app.poster import brand_rgb
 from app.tenancy import current_workspace_id, get_current_user, owned
 
 log = logging.getLogger("app.video")
@@ -837,7 +837,7 @@ def _render_image(job_id: int, reference: bytes | list[bytes] | None, guide: str
         if overlay:
             brand = db.get(Brand, job.brand_id) if job.brand_id else None
             try:
-                blob = text_overlay.render(blob, overlay, accent_for(brand.slug if brand else ""))
+                blob = text_overlay.render(blob, overlay, brand_rgb(brand))
             except Exception:  # noqa: BLE001 — the clean picture beats losing the image
                 log.exception("Khmer text overlay failed for job %s — keeping the picture alone", job_id)
 

@@ -57,6 +57,16 @@ def accent_for(slug: str) -> tuple[int, int, int]:
     return _ACCENTS[sum(map(ord, slug or "x")) % len(_ACCENTS)]
 
 
+def brand_rgb(brand, n: int = 0) -> tuple[int, int, int]:
+    """The brand's own colour (its Brand kit colours, main first; ``n`` = 1 for
+    the second) — a preset one from its name when it has none (accent_for)."""
+    colors = [c for c in (getattr(brand, "colors", None) or []) if isinstance(c, str) and len(c) == 7]
+    if len(colors) > n:
+        c = colors[n].lstrip("#")
+        return tuple(int(c[i : i + 2], 16) for i in (0, 2, 4))
+    return accent_for(getattr(brand, "slug", "") or "")
+
+
 def _tint(c: tuple[int, int, int], amount: float) -> tuple[int, int, int]:
     """``c`` mixed with white — amount 0 = c, 1 = white."""
     return tuple(round(v + (255 - v) * amount) for v in c)
@@ -412,7 +422,7 @@ def _community_poster(canvas, photo, p: dict, accent, brand: str) -> None:
 
 
 def render_poster(
-    photo: bytes, pillar: str, poster: dict, brand: str = "", slug: str = "", logo: bytes | None = None
+    photo: bytes, pillar: str, poster: dict, brand: str = "", slug: str = "", logo: bytes | None = None, accent: tuple | None = None
 ) -> bytes:
     """The topic poster for ``pillar`` with the idea's ``poster`` text over
     ``photo``; ``logo`` (the brand-kit file) replaces the name tag at the
@@ -428,7 +438,7 @@ def render_poster(
         # Without raqm, Pillow can't shape Khmer (subscripts and vowels fall
         # apart) — never draw that; the caller posts the picture alone.
         raise RuntimeError("Khmer text needs libraqm (text shaping) — not installed on this server")
-    accent = accent_for(slug or brand)
+    accent = accent or accent_for(slug or brand)  # the brand's own colour when it has one
     chip = logo_chip(logo, 72) if logo else None
     if chip is not None:
         brand = ""  # the logo takes the name tag's place

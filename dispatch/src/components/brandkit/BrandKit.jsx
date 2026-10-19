@@ -2,7 +2,7 @@
 // builds on, the app screenshots the Remotion videos show (backend app/brand_kit.py),
 // and the brand's own voice for its videos (BrandVoice). Managed on the Products page; picked
 // from in the AI Agent's image composer and Auto-generate's image settings.
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { FiCamera, FiCheck, FiImage, FiPlus, FiTrash2, FiUploadCloud } from 'react-icons/fi'
 import { api } from '../../api/client'
 import AutoTextarea from '../ui/AutoTextarea'
@@ -66,6 +66,116 @@ function FilePick({ multiple = false, onFiles, children }) {
       <input ref={ref} type="file" accept={IMAGE_TYPES} multiple={multiple} className="hidden" onChange={pick} />
       {children(() => ref.current?.click(), busy, drop)}
     </>
+  )
+}
+
+const HEX = /^#?[0-9a-f]{6}$/i
+
+/** The brand's colours (main first, up to 3) — read from the logo when it's
+ *  uploaded (backend app/colors.py), changed here; videos and posters use them. */
+function BrandColors({ brand, logoId, showToast }) {
+  const [data, setData] = useState(null) // { colors, has_logo }
+  const [busy, setBusy] = useState(false)
+  const [editing, setEditing] = useState(null) // index whose hex is being typed
+  const [draft, setDraft] = useState('')
+  const pickers = useRef([])
+
+  // again when the logo changes: a new logo may have just set the colours
+  useEffect(() => {
+    let live = true
+    api
+      .get(`/brand-kit/colors/${brand.id}`)
+      .then((d) => live && setData(d))
+      .catch(() => live && setData({ colors: [], has_logo: !!logoId }))
+    return () => {
+      live = false
+    }
+  }, [brand.id, logoId])
+
+  const colors = data?.colors || []
+  const save = async (next) => {
+    setData((d) => ({ ...d, colors: next }))
+    try {
+      setData(await api.put(`/brand-kit/colors/${brand.id}`, { colors: next }))
+    } catch (e) {
+      showToast(`Couldn’t save the colours — ${e.message}`)
+    }
+  }
+  const setAt = (i, hex) => save(colors.map((c, j) => (j === i ? hex.toUpperCase() : c)))
+  const fromLogo = async () => {
+    setBusy(true)
+    try {
+      setData(await api.post(`/brand-kit/colors/${brand.id}/detect`))
+      showToast('Colours read from your logo')
+    } catch (e) {
+      showToast(e.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!data) return null
+  return (
+    <div className="mt-5 border-t border-ink-100 pt-4">
+      <h3 className="text-[13px] font-semibold text-ink-900">Brand colours</h3>
+      <p className="mt-0.5 text-[11.5px] leading-relaxed text-ink-500">
+        {colors.length ? 'Your videos and posters are drawn in these — the first is the main one.' : data.has_logo ? 'Your logo has no clear colour — pick yours.' : 'Read from your logo when you upload it, or pick them here.'}
+      </p>
+      <div className="mt-3 flex flex-wrap items-center gap-2.5">
+        {colors.map((c, i) => (
+          <div key={i} className="group relative flex flex-col items-center gap-1">
+            <button
+              type="button"
+              onClick={() => pickers.current[i]?.click()}
+              title="Change this colour"
+              className="h-10 w-10 rounded-xl border border-ink-200 shadow-sm transition-transform hover:scale-105"
+              style={{ background: c }}
+            />
+            <input ref={(el) => (pickers.current[i] = el)} type="color" value={c} onChange={(e) => setAt(i, e.target.value)} className="sr-only" tabIndex={-1} aria-hidden="true" />
+            {editing === i ? (
+              <input
+                autoFocus
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onBlur={() => {
+                  if (HEX.test(draft.trim())) setAt(i, draft.trim().startsWith('#') ? draft.trim() : `#${draft.trim()}`)
+                  setEditing(null)
+                }}
+                onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+                className="w-[68px] rounded-md border border-ink-200 bg-white px-1 py-0.5 text-center font-mono text-[10.5px] text-ink-700 outline-none focus:border-brand"
+              />
+            ) : (
+              <button type="button" onClick={() => (setEditing(i), setDraft(c))} className="font-mono text-[10.5px] text-ink-500 hover:text-ink-900" title="Type a colour code">
+                {c}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => save(colors.filter((_, j) => j !== i))}
+              title="Remove"
+              className="absolute -right-1.5 -top-1.5 hidden h-5 w-5 place-items-center rounded-full border border-ink-200 bg-white text-ink-500 shadow-sm hover:text-red-600 group-hover:grid"
+            >
+              <FiTrash2 size={10} />
+            </button>
+          </div>
+        ))}
+        {colors.length < 3 && (
+          <button
+            type="button"
+            onClick={() => save([...colors, colors.length ? '#F2C230' : '#1F4E8C'])}
+            title="Add a colour"
+            className="mb-5 grid h-10 w-10 place-items-center rounded-xl border-2 border-dashed border-ink-200 text-ink-400 hover:border-brand-line hover:text-brand"
+          >
+            <FiPlus size={16} />
+          </button>
+        )}
+      </div>
+      {data.has_logo && (
+        <button type="button" onClick={fromLogo} disabled={busy} className="mt-1 text-[11.5px] font-semibold text-brand hover:underline disabled:opacity-60">
+          {busy ? 'Reading…' : 'Read from my logo again'}
+        </button>
+      )}
+    </div>
   )
 }
 
@@ -152,6 +262,7 @@ export function BrandKitPanel({ brand, assets, setAssets, showToast }) {
             Remove logo
           </button>
         )}
+        <BrandColors brand={brand} logoId={logo?.id} showToast={showToast} />
       </section>
 
       {/* poster templates */}

@@ -45,7 +45,7 @@ from app.database import SessionLocal, get_db
 from app.khmer_words import ZWSP, breaks
 from app.media import read_media, store_blob
 from app.models import Brand, BrandAsset, GenerationJob, Product, TeamMember, Video
-from app.poster import accent_for
+from app.poster import brand_rgb
 from app.tenancy import current_workspace_id, get_current_user, owned
 
 log = logging.getLogger("app.motion")
@@ -3257,7 +3257,7 @@ def write_script(
         if len(scenes) < 2:
             log.warning("AI design unusable: %d scenes back, %d kept", len(raw.get("scenes") or []), len(scenes))
             raise ContentAIError("The AI didn't return a usable storyboard — try again.")
-        r, g, b = accent_for(brand.slug)
+        r, g, b = brand_rgb(brand)
         theme_raw = raw.get("theme") if isinstance(raw.get("theme"), dict) else {}
         theme = canvas_look(theme_raw, f"#{r:02x}{g:02x}{b:02x}") if "look" in theme_raw else clean_theme(theme_raw, f"#{r:02x}{g:02x}{b:02x}")
         if story:
@@ -3323,7 +3323,7 @@ def write_script(
     if style == "cartoon":
         script["cast"], script["place"] = clean_cast(raw.get("cast")), _line(raw.get("place"), 400)
     if style == "custom":
-        r, g, b = accent_for(brand.slug)
+        r, g, b = brand_rgb(brand)
         script["look"] = clean_look(raw.get("look"), f"#{r:02x}{g:02x}{b:02x}")
         if design:  # their own app's design wins over the AI's guess
             script["look"] = {**script["look"], **design["look"]}
@@ -3917,7 +3917,7 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
         text = _brackets(text)
         return _km_words(text) if khmer else text
 
-    r, g, b = accent_for(brand.slug)
+    r, g, b = brand_rgb(brand)
     scenes = []
     for s in script["scenes"]:
         scene = {k: v for k, v in s.items() if k not in ("say", "product", "target", "shot", "draw")}
@@ -5110,7 +5110,7 @@ def _build_plan(payload: "PlanIn", ws: int, user_id: int, on_style=None) -> dict
             on_style(style, why)
         shape = final_ratio(payload.ratio, style, suggested)
         seconds = story_seconds(payload.idea, payload.length, 600 if style in LONG_STYLES else 120)
-        r, g, b = accent_for(brand.slug)
+        r, g, b = brand_rgb(brand)
         ref, design = reference_shot(db, payload.ref_url, f"#{r:02x}{g:02x}{b:02x}")
         more = attached_shots(payload.ref_url, payload.ref_urls) if ref else []
         for shot in more:  # what each one shows, so the storyboard knows where it belongs
@@ -5422,7 +5422,7 @@ def _make(
                     style, why, suggested = _style_of(goal, product_id), "", None
                 shape = final_ratio(ratio, style, suggested)
                 _report(job_id, stage="story", style=style, why=why)
-                r, g, b = accent_for(brand.slug)
+                r, g, b = brand_rgb(brand)
                 ref, design = reference_shot(db, ref_url, f"#{r:02x}{g:02x}{b:02x}")
                 more = attached_shots(ref_url, ref_urls) if ref else []
                 for shot in more:  # what each one shows, so the storyboard knows where it belongs

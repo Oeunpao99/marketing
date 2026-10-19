@@ -301,10 +301,10 @@ def _generate_media_for(
             resolution = "1024x1024"
     elif poster:
         from app.meme import image_size
-        from app.poster import render_poster
+        from app.poster import brand_rgb, render_poster
 
         try:
-            blob = render_poster(blob, idea.get("pillar") or "", poster, brand.name, brand.slug, logo)
+            blob = render_poster(blob, idea.get("pillar") or "", poster, brand.name, brand.slug, logo, accent=brand_rgb(brand))
             ext, mime, tag = ".jpg", "image/jpeg", "ai-auto-poster"
             resolution = "x".join(map(str, image_size(blob)))
         except Exception:  # noqa: BLE001 — a plain photo beats losing the post
