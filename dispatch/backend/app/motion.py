@@ -2147,10 +2147,14 @@ def _keep_own_voice(script: dict, idea: str) -> None:
         return
     theirs = _plain(" ".join(lines))
     words = set(theirs.split())
-    # one storyboard scene per Voice line: a scene whose line isn't theirs gets
-    # its own line from the script back, instead of going silent
-    one_each = len(lines) == len(script["scenes"])
-    for n, sc in enumerate(script["scenes"]):
+    # one storyboard scene per Voice line: each scene says exactly the person's
+    # line — the AI's light rewrites ("ចាំ" → "រង់ចាំ", an added opening) and its
+    # translations never replace words they wrote themselves
+    if len(lines) == len(script["scenes"]):
+        for sc, line in zip(script["scenes"], lines):
+            sc["say"] = _line(line, 300)
+        return
+    for sc in script["scenes"]:
         said = _plain(sc.get("say"))
         if said and said in theirs:
             continue
@@ -2158,7 +2162,7 @@ def _keep_own_voice(script: dict, idea: str) -> None:
         if not said or sum(1 for w in mine if w in words) / max(1, len(mine)) < 0.75:
             if said:
                 log.info("storyboard: a voice line the script doesn't have taken out: %s", _line(sc["say"], 80))
-            sc["say"] = _line(lines[n], 300) if one_each else ""
+            sc["say"] = ""
 
 
 def own_design(text: str) -> bool:
