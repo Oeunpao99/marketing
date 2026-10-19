@@ -18,6 +18,7 @@ import JoinPage from "./pages/JoinPage";
 import LegalPage from "./pages/LegalPage";
 import LibraryPage from "./pages/LibraryPage";
 import LoginPage from "./pages/LoginPage";
+import LandingPage from "./pages/LandingPage";
 import NewPostPage from "./pages/NewPostPage";
 import PostDetailPage from "./pages/PostDetailPage";
 import ProductsPage from "./pages/ProductsPage";
@@ -106,6 +107,9 @@ function Gate() {
   const { user, loading } = useAuth();
   // An invite link (/join/<token>) — shown until they join or leave it.
   const [joinToken, setJoinToken] = useState(() => window.location.pathname.match(JOIN_RE)?.[1] || null);
+  // Signed out at "/": the public landing page; "Log in" / "Start free" open the
+  // sign-in screen (any other address — a link into the app — goes straight there).
+  const [signIn, setSignIn] = useState(() => (window.location.pathname === "/" ? null : "signin"));
 
   // Launch splash (index.html) fades out once we know who's signed in.
   useEffect(() => {
@@ -119,7 +123,9 @@ function Gate() {
     );
   }
   if (joinToken) return <JoinPage token={joinToken} onDone={() => setJoinToken(null)} />;
-  return user ? <Portal /> : <LoginPage />;
+  if (user) return <Portal />;
+  if (!signIn) return <LandingPage onLogin={() => setSignIn("signin")} onStart={() => setSignIn("register")} />;
+  return <LoginPage key={signIn} initial={signIn} onBack={window.location.pathname === "/" ? () => setSignIn(null) : undefined} />;
 }
 
 // Public pages anyone can open without signing in (reviewers, search engines).

@@ -13,9 +13,9 @@ const PLATFORMS = [
   [SiTelegram, 'Telegram'],
 ]
 
-export default function LoginPage() {
+export default function LoginPage({ initial = 'signin', onBack }) {
   const { login, register } = useAuth()
-  const [mode, setMode] = useState('signin') // signin | register
+  const [mode, setMode] = useState(initial) // signin | register
   const [form, setForm] = useState({ name: '', company: '', email: '', password: '' })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
@@ -43,6 +43,11 @@ export default function LoginPage() {
       {/* ── form panel ── */}
       <main className="flex items-center justify-center p-6 sm:p-10">
         <div className="w-full max-w-[380px]">
+          {onBack && (
+            <button type="button" onClick={onBack} className="mb-6 text-[13px] font-medium text-ink-500 hover:text-brand">
+              ← Back to the home page
+            </button>
+          )}
           <BrandLockup />
 
           <div className="text-center">
