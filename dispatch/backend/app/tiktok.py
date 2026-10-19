@@ -70,7 +70,27 @@ _REFRESH_SKEW_SECONDS = 60
 
 
 class TikTokError(RuntimeError):
-    pass
+    def __init__(self, message: str, code: str = ""):
+        super().__init__(message)
+        self.code = code  # TikTok's error code, when it gave one
+
+
+# Direct Post refused because the app hasn't passed TikTok's audit and the
+# account is public — TikTok's message is only "Please review our integration
+# guidelines". The post can still go to the account's inbox as a draft.
+UNAUDITED_PUBLIC_CODES = {"unaudited_client_can_only_post_to_private_accounts"}
+
+
+def unaudited_public(exc: TikTokError) -> bool:
+    return exc.code in UNAUDITED_PUBLIC_CODES or "content-sharing-guidelines" in str(exc)
+
+
+def _code(resp: httpx.Response) -> str:
+    try:
+        err = resp.json().get("error") or {}
+        return str(err.get("code") or "") if isinstance(err, dict) else ""
+    except ValueError:
+        return ""
 
 
 def _conf() -> tuple[str, str, str]:
@@ -188,7 +208,7 @@ def _init_and_upload(access_token: str, url: str, body: dict, video: bytes) -> s
     except httpx.HTTPError as exc:
         raise TikTokError(f"Could not reach TikTok: {exc}") from exc
     if resp.status_code >= 400:
-        raise TikTokError(f"TikTok rejected the request: {_explain(resp)}")
+        raise TikTokError(f"TikTok rejected the request: {_explain(resp)}", _code(resp))
     data = resp.json().get("data") or {}
     publish_id, upload_url = data.get("publish_id"), data.get("upload_url")
     if not publish_id or not upload_url:

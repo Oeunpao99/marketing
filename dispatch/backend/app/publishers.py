@@ -9,12 +9,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import logging
 import re
 
 import httpx
 
 from app.config import get_settings
 from app.models import Channel, PostTarget, Video
+
+log = logging.getLogger(__name__)
 
 TELEGRAM_API = "https://api.telegram.org"
 TELEGRAM_TEXT_LIMIT = 4096
@@ -350,7 +353,24 @@ def _publish_tiktok_direct(target: PostTarget, access_token: str, data: bytes) -
             brand_organic_toggle=bool(opts.get("brand_organic_toggle", False)),
         )
     except tiktok.TikTokError as exc:
-        raise PublishError(str(exc)) from exc
+        if not tiktok.unaudited_public(exc):
+            raise PublishError(str(exc)) from exc
+        # Until the app passes TikTok's audit, Direct Post only works on
+        # private accounts — send it to the account's inbox as a draft instead
+        log.warning("TikTok Direct Post refused (%s, %s) — sending as an inbox draft", exc.code, exc)
+        try:
+            publish_id = tiktok.upload_video_draft(access_token, data)
+        except tiktok.TikTokError as exc2:
+            raise PublishError(str(exc2)) from exc2
+        return PublishResult(
+            external_id=publish_id,
+            detail={
+                "platform": "tiktok",
+                "publish_id": publish_id,
+                "note": "Sent to your TikTok inbox as a draft — TikTok only lets apps post straight to private accounts for now. "
+                "Open TikTok, add the caption and tap Post.",
+            },
+        )
     return PublishResult(
         external_id=publish_id,
         detail={"platform": "tiktok", "publish_id": publish_id, "mode": "direct_post"},
