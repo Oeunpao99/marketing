@@ -406,12 +406,18 @@ def _gemini(text: str, voice: str, style: str = "", plain: bool = False, key: st
 
     s = get_settings()
     said = text.replace(ZWSP, "").strip()
+    if _lang(text) == "en":
+        # an English line (in a Khmer video: a product name, a SaaS line) reads
+        # naturally as it is — with English notes in front, Gemini most often
+        # mistakes the notes for the line and says them aloud
+        plain = True
+    notes = f"{GEMINI_HOW[_lang(text)]} {GEMINI_ACT.get(style, '')}".rstrip()
     body = {
         # Gemini reads Khmer as written — the zero-width spaces between words are
         # for Azure's word timings, and make Gemini read word by word
         "contents": [{"parts": [{"text": said if plain else (
             "### DIRECTOR'S NOTES — how to read it. Never say these notes aloud.\n"
-            f"{GEMINI_HOW[_lang(text)]} {GEMINI_ACT.get(style, '')}".rstrip()
+            + notes
             + f"\n\n#### TRANSCRIPT — say exactly this, and nothing else:\n{said}"
         )}]}],
         "generationConfig": {
@@ -464,8 +470,10 @@ def _gemini(text: str, voice: str, style: str = "", plain: bool = False, key: st
         pcm = base64.b64decode(resp.json()["candidates"][0]["content"]["parts"][0]["inlineData"]["data"])
     except (KeyError, IndexError, ValueError) as exc:
         raise SpeechError("Gemini returned no audio.") from exc
-    if not plain and len(pcm) / 48000 > 3.0 + len(said) * 0.14:
-        # ~0.07 s a character is normal speech: twice that and more = it read the notes too
+    # ~0.07 s a character is normal speech; reading the notes too adds ~0.06 s
+    # for each of their characters. Longer than a slow read of the line plus
+    # under half the notes = it said (some of) the notes: ask again, line only.
+    if not plain and len(pcm) / 48000 > 2.0 + len(said) * 0.085 + len(notes) * 0.025:
         log.warning("Gemini TTS read the notes aloud (%.1fs for %s chars) — asking again with the text only", len(pcm) / 48000, len(said))
         return _gemini(text, voice, style, plain=True, key=key)
     pcm = _trim_tail(pcm)
@@ -572,6 +580,11 @@ GEMINI_ACT = {
     "pov": "Relaxed and funny, like telling a friend a moment they know too well.",
     "trend": "Like a sharp news presenter — clear, upbeat, informative.",
     "versus": "Confident and fair, like an expert comparing two options.",
+    "canvas": "Confident and clear, like the narrator of a polished brand film — a small pause before each big moment.",
+    "doodle": "Calm and warm, like an older sibling sharing a life lesson — gentle pauses, never rushed.",
+    "cartoon": "Lively and natural, like telling a funny everyday story to a friend.",
+    "lesson": "Friendly and clear, like a favourite teacher explaining at the board — slow down on each number.",
+    "rise": "Warm and encouraging, building gently towards the end — like someone who believes in the listener.",
 }
 
 
