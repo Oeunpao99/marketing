@@ -72,6 +72,9 @@ export const SCENE_LABELS = {
   meme: 'Meme',
   react: 'Reaction',
   punch: 'Punchline',
+  collage: 'Collage',
+  statement: 'Statement',
+  pedestal: 'On the pedestal',
   client: 'The customer',
   metrics: 'Before → after',
   timeline: 'Timeline',
@@ -80,7 +83,7 @@ export const SCENE_LABELS = {
   donut: 'Percent',
 }
 
-export const STYLE_LABELS = { tech: 'Sell', explainer: 'Teach', versus: 'Compare', poll: 'Poll', quote: 'Quote', testimonial: 'Testimonial', trend: 'AI News', pov: 'POV', demo: 'Product demo', offer: 'Offer', showcase: 'Showcase', launch: 'Product launch', unveil: 'Unveil', gridcards: 'How it works · Grid', techflow: 'Tech explainer', canvas: 'AI design', neural: 'AI explainer · Neural', paper: 'AI notes · Paper', doodle: 'Doodle notes', cartoon: 'Story · Characters', lesson: 'Lesson · Teacher', rise: 'Rise · Mindset', reaction: 'Reaction meme', clarity: 'SaaS explainer', countdown: 'Top 5', thisorthat: 'This or that', reviews: 'Review wall', tips: 'Tip cards', hottake: 'Hot take', casestudy: 'Case study', faq: 'FAQ', report: 'Data report', custom: 'Designed for you', training: 'Training' }
+export const STYLE_LABELS = { tech: 'Sell', explainer: 'Teach', versus: 'Compare', poll: 'Poll', quote: 'Quote', testimonial: 'Testimonial', trend: 'AI News', pov: 'POV', demo: 'Product demo', offer: 'Offer', showcase: 'Showcase', launch: 'Product launch', unveil: 'Unveil', gridcards: 'How it works · Grid', techflow: 'Tech explainer', canvas: 'AI design', neural: 'AI explainer · Neural', paper: 'AI notes · Paper', doodle: 'Doodle notes', cartoon: 'Story · Characters', lesson: 'Lesson · Teacher', rise: 'Rise · Mindset', reaction: 'Reaction meme', studio: 'Collage · Studio', clarity: 'SaaS explainer', countdown: 'Top 5', thisorthat: 'This or that', reviews: 'Review wall', tips: 'Tip cards', hottake: 'Hot take', casestudy: 'Case study', faq: 'FAQ', report: 'Data report', custom: 'Designed for you', training: 'Training' }
 
 /** 0-99 from the real steps: the story is the only part without a count, so
  * it creeps up with time; the voice counts lines, the render counts frames. */
@@ -373,7 +376,7 @@ export function MotionMaking({ progress, pct, stage, elapsed, onStop, request = 
           </span>
         </div>
         {/* the four steps */}
-        <ol className="mt-3 flex items-center gap-1.5 text-[11.5px]">
+        <ol className="mt-3 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11.5px]">
           {STEPS.map((s, i) => {
             const done = i < step
             const now = i === step

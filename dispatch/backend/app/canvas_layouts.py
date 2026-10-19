@@ -17,7 +17,7 @@ import re
 # Backgrounds are flat colour with line patterns only — never a glow or a
 # gradient (the user's rule for every template).
 LOOKS = {
-    "midnight": {"dark": "#0B1020", "light": "#F4F6FB", "a": "#4F8CFF", "b": "#22D3EE", "backgrounds": ["grid", "network"], "card": "glass", "radius": 18, "say": "navy and electric blue — tech, SaaS, AI, security"},
+    "midnight": {"dark": "#0B1020", "light": "#F4F6FB", "a": "#4F8CFF", "b": "#22D3EE", "backgrounds": ["grid"], "card": "glass", "radius": 18, "say": "navy and electric blue — tech, SaaS, AI, security"},
     "ember": {"dark": "#170D08", "light": "#FFF6EE", "a": "#FF6B2C", "b": "#FFC24B", "backgrounds": ["dots", "rings"], "card": "solid", "radius": 22, "say": "warm black, orange and amber — food, coffee, energy, events"},
     "forest": {"dark": "#0B1A14", "light": "#F1F8F3", "a": "#2FBF71", "b": "#B5E655", "backgrounds": ["grid", "waves"], "card": "solid", "radius": 20, "say": "deep green and lime — health, nature, farming, growth, money saved"},
     "royal": {"dark": "#120B24", "light": "#F6F3FF", "a": "#8B5CF6", "b": "#F472B6", "backgrounds": ["hex", "rings"], "card": "glass", "radius": 24, "say": "violet and pink — beauty, fashion, creative, premium"},
@@ -26,7 +26,8 @@ LOOKS = {
     "coral": {"dark": "#1A0E12", "light": "#FFF3F1", "a": "#F43F5E", "b": "#FB923C", "backgrounds": ["dots", "grid"], "card": "solid", "radius": 26, "say": "coral and orange — retail, promotions, sale, youth"},
     "mono": {"dark": "#111111", "light": "#F5F5F4", "a": "#FACC15", "b": "#A3A3A3", "backgrounds": ["grid", "solid"], "card": "solid", "radius": 10, "say": "black, white and one yellow — bold, editorial, news"},
 }
-LOOK_BACKGROUNDS = ("grid", "dots", "network", "city", "hex", "waves", "rings", "solid")
+# no "network" (dots joined by lines): too busy behind the words
+LOOK_BACKGROUNDS = ("grid", "dots", "city", "hex", "waves", "rings", "solid")
 
 # ── the layouts ────────────────────────────────────────────────────────────
 LAYOUTS = {

@@ -63,6 +63,7 @@ import { NEURAL } from './neural'
 import { PAPER } from './paper'
 import { DOODLE } from './doodle'
 import { REACTION } from './reaction'
+import { STUDIO } from './studio'
 import { CARTOON } from './cartoon'
 import { LESSON } from './lesson'
 import { RISE } from './rise'
@@ -754,6 +755,7 @@ const TEMPLATES = {
   lesson: { ...LESSON, scenes: { ...SCENES, ...LESSON.scenes } },
   rise: { ...RISE, scenes: { ...SCENES, ...RISE.scenes } },
   reaction: { ...REACTION, scenes: { ...SCENES, ...REACTION.scenes } },
+  studio: { ...STUDIO, scenes: { ...SCENES, ...STUDIO.scenes } },
   gridcards: { ...GRIDCARDS, scenes: { ...SCENES, ...GRIDCARDS.scenes } },
   techflow: { ...TECHFLOW, scenes: { ...SCENES, ...TECHFLOW.scenes } },
   canvas: { ...CANVAS, scenes: { ...SCENES, ...CANVAS.scenes } }, // AI design — the AI designs every scene

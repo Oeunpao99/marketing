@@ -25,6 +25,14 @@ import { AbsoluteFill, Img, interpolate, random, spring, useCurrentFrame, useVid
 import { FONT, Icon, KHMER_RE, Words, clean, srcOf, tint } from './shared'
 
 const clamp = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
+/** `c` mixed towards `into` by `t` (0 = c) — both #hex; anything else comes back as `c`. */
+const blend = (c, into, t) => {
+  const rgb = (h) => (/^#[0-9a-f]{6}$/i.test(h || '') ? [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)) : null)
+  const x = rgb(c)
+  const y = rgb(into)
+  if (!x || !y) return c
+  return `rgb(${x.map((v, i) => Math.round(v + (y[i] - v) * t)).join(', ')})`
+}
 const ease = (t) => 1 - (1 - t) ** 3
 const MONO = "'JetBrains Mono', ui-monospace, Consolas, monospace"
 
@@ -44,31 +52,29 @@ function Background({ bg = {}, pal }) {
   const a = col(pal, bg.accent, pal.a)
   const b = col(pal, bg.color2, pal.b)
   const dark = pal.mode !== 'light'
-  const line = dark ? 'rgba(255,255,255,0.07)' : 'rgba(15,23,42,0.07)'
+  // strong enough to survive the video's compression (at 0.07 it vanished on a dark scene)
+  const line = dark ? 'rgba(255,255,255,0.1)' : 'rgba(15,23,42,0.085)'
   const kind = bg.kind || 'solid'
   return (
     <AbsoluteFill style={{ background: kind === 'gradient' ? `linear-gradient(${bg.angle ?? 160}deg, ${base}, ${b})` : base, overflow: 'hidden' }}>
-      {(kind === 'grid' || kind === 'dots') && (
-        <AbsoluteFill
-          style={{
-            backgroundImage:
-              kind === 'grid'
-                ? `linear-gradient(${line} 2px, transparent 2px), linear-gradient(90deg, ${line} 2px, transparent 2px)`
-                : `radial-gradient(${line} 3px, transparent 3px)`,
-            backgroundSize: '64px 64px',
-            backgroundPosition: `center ${-((frame * 0.4) % 64)}px`,
-            maskImage: 'radial-gradient(ellipse 85% 70% at 50% 45%, black 30%, transparent 100%)',
-            WebkitMaskImage: 'radial-gradient(ellipse 85% 70% at 50% 45%, black 30%, transparent 100%)',
-          }}
-        />
-      )}
+      {/* every AI design scene keeps the grid underneath — the look's own
+          pattern (network, waves, rings…) is drawn over it */}
+      <AbsoluteFill
+        style={{
+          backgroundImage: `linear-gradient(${line} 2px, transparent 2px), linear-gradient(90deg, ${line} 2px, transparent 2px)`,
+          backgroundSize: '64px 64px',
+          backgroundPosition: `center ${-((frame * 0.4) % 64)}px`,
+          maskImage: 'radial-gradient(ellipse 95% 80% at 50% 45%, black 45%, transparent 100%)',
+          WebkitMaskImage: 'radial-gradient(ellipse 95% 80% at 50% 45%, black 45%, transparent 100%)',
+        }}
+      />
       {kind === 'spotlight' && <AbsoluteFill style={{ background: `radial-gradient(ellipse 55% 45% at 50% ${40 + Math.sin(frame / 60) * 4}%, ${tint(a, 0.28)}, transparent 70%)` }} />}
       {kind === 'rings' &&
         [0.3, 0.5, 0.72].map((r, i) => (
           <div key={i} style={{ position: 'absolute', left: width / 2 - (Math.max(width, height) * r) / 2, top: height * 0.45 - (Math.max(width, height) * r) / 2, width: Math.max(width, height) * r, height: Math.max(width, height) * r, borderRadius: '50%', border: `2px solid ${tint(a, 0.18 - i * 0.04)}`, transform: `scale(${1 + Math.sin((frame + i * 30) / 50) * 0.02})` }} />
         ))}
       {kind === 'city' && <City width={width} height={height} a={a} dark={dark} frame={frame} />}
-      {kind === 'network' && <Network width={width} height={height} a={a} b={b} frame={frame} />}
+      {/* "network" (dots joined by lines) is no longer drawn — too busy; older designs keep just the grid */}
       {kind === 'streams' && <Streams width={width} height={height} a={a} b={b} frame={frame} />}
       {kind === 'aurora' && <Aurora a={a} b={b} frame={frame} dark={dark} />}
       {kind === 'trails' && <Trails width={width} height={height} a={a} b={b} frame={frame} />}
@@ -114,28 +120,6 @@ function City({ width, height, a, dark, frame }) {
         const y = ground - bl.h + (nx.h - bl.h) * -t - Math.sin(t * Math.PI) * 60
         return i % 2 ? null : <circle key={`d${i}`} cx={x} cy={y} r="5" fill={a} opacity="0.9" />
       })}
-    </svg>
-  )
-}
-
-/** Nodes joined by lines, pulses travelling along them. */
-function Network({ width, height, a, b, frame }) {
-  const nodes = Array.from({ length: 14 }, (_, i) => ({ x: (0.08 + random(`nx${i}`) * 0.84) * width, y: (0.1 + random(`ny${i}`) * 0.8) * height }))
-  const links = nodes.flatMap((n, i) => [nodes[(i + 3) % nodes.length], nodes[(i + 5) % nodes.length]].map((m) => [n, m]))
-  return (
-    <svg width={width} height={height} style={{ position: 'absolute', inset: 0 }}>
-      {links.map(([p, q], i) => {
-        const t = ((frame + i * 7) % 90) / 90
-        return (
-          <g key={i}>
-            <line x1={p.x} y1={p.y} x2={q.x} y2={q.y} stroke={tint(a, 0.16)} strokeWidth="2" />
-            {i % 3 === 0 && <circle cx={p.x + (q.x - p.x) * t} cy={p.y + (q.y - p.y) * t} r="4" fill={i % 2 ? a : b} />}
-          </g>
-        )
-      })}
-      {nodes.map((n, i) => (
-        <circle key={i} cx={n.x} cy={n.y} r={6 + (i % 3) * 3} fill={tint(a, 0.5)} />
-      ))}
     </svg>
   )
 }
@@ -341,7 +325,12 @@ function Layer({ L, pal, brand, u, delay }) {
                 lineHeight: khmer ? 1.38 : 1.2,
                 rowGap: 0.16 * size,
                 letterSpacing: L.weight && L.weight <= 400 ? '-0.03em' : undefined,
-                ...(L.highlight ? { '--hl-bg': fill(L.highlight), '--hl-text': fill(L.highlightText, pal.bg), '--hl-shadow': `0 ${10 * u}px ${34 * u}px ${tint(fill(L.highlight), 0.35)}` } : null),
+                // a highlighter stroke, not a box: the lower part of the words, in the accent
+                // blended into the scene (solid — see-through strips overlapped where words
+                // meet) so the words keep their own colour and stay readable
+                ...(L.highlight
+                  ? { '--hl-bg': blend(fill(L.highlight), pal.bg, pal.mode === 'light' ? 0.45 : 0.3), '--hl-text': color, '--hl-top': khmer ? '0.62em' : '0.52em', '--hl-r': '0.14em' }
+                  : null),
               }}
             />
           )}

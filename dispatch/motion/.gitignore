@@ -3,3 +3,4 @@ out/
 public/sample/
 public/run-*/
 build/
+public/decor/**/*.raw.png

@@ -200,6 +200,7 @@ const MOTION_STORIES = [
   { value: 'report', label: 'Data report', hint: 'Bars, a percent ring, numbers with their source' },
   { value: 'clarity', label: 'SaaS explainer', hint: 'Calm white and blue — the mess of tools today, your app in a frame, how it works' },
   { value: 'launch', label: 'Product launch', hint: 'A cinematic launch film — the one click that does the job, your screens stacking up, “Now live”' },
+  { value: 'studio', label: 'Collage · Studio', hint: 'Elegant and editorial — big thin words, your photos as a collage of cards, green vines and a stone column; for academies, studios, premium shops' },
   { value: 'reaction', label: 'Reaction meme', hint: 'A funny meme — your screenshot or a photo behind, a meme caption on top, cut-out cats popping their mouths or freezing in shock' },
   { value: 'rise', label: 'Rise · Mindset', hint: 'Motivation — a person climbs a step per habit as night turns to sunrise; old me vs new me, a seed growing, the lesson at the summit' },
   { value: 'lesson', label: 'Lesson · Teacher', hint: 'A cartoon teacher with a pointer stick at a whiteboard — sums, bars, steps — then 2-3 example people who do it differently' },
@@ -2044,7 +2045,9 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary, onPlanChange, onMake,
         {(t.status === 'working' || finishing) && motion && (
           // a finished video doesn't just replace the card: the card completes
           // (100 %, every step ticked, "ready"), fades, then the video comes in
-          <div className={finishing ? 'transition-all duration-500 ease-out' : ''} style={finishing === 'out' ? { opacity: 0, transform: 'scale(0.98)' } : undefined}>
+          // w-full min-w-0: the column sizes its children to their content — on a
+          // phone the card grew to its widest row and pushed past the screen
+          <div className={`w-full min-w-0 max-w-[760px] ${finishing ? 'transition-all duration-500 ease-out' : ''}`} style={finishing === 'out' ? { opacity: 0, transform: 'scale(0.98)' } : undefined}>
           <MotionMaking
             progress={finishing ? { ...t.progress, stage: 'done' } : t.progress}
             pct={finishing ? 100 : pct}

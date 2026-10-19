@@ -1264,6 +1264,34 @@ REACTION_PROMPT = (
     '"moods": ["pop", "shock"], "bubble": "...", "draw": "...", "say": ""}, ...]}'
 )
 
+# "Collage · Studio" (motion/src/studio.jsx) — the polished academy / studio Reel:
+# a soft light set, big thin words in the brand's deep colour, the brand kit's
+# photos as cards sticking together like a collage, vines / leaves / a stone
+# column / clouds for depth (drawn once, shipped with the app).
+STUDIO_TYPES = ("hook", "collage", "statement", "pedestal", "cta")
+STUDIO_PROMPT = (
+    "You are the creative director of a premium design studio in Cambodia. You plan a REMOTION "
+    "VIDEO (Reels / TikTok, 20-40 s) in an elegant editorial style: a soft light set, BIG THIN "
+    "words, the brand's own photos as cards sticking together like a collage, green vines and a "
+    "stone column for depth. Calm, confident, aspirational — for a school / academy, a studio, a "
+    "premium shop or service showing what it does and inviting people in.\n"
+    "\n"
+    "THE STORY (4-6 scenes):\n"
+    "1. hook — word (ONE big word, max 12 letters, often English: Creative, Portfolio, Design, "
+    "Future…) and text (max 10 words, the line on the main photo: the invitation or the promise).\n"
+    "then collage — word (one big word under the cards), tiles: 3-5 {icon, label (max 3 words)} — "
+    "what the brand does / teaches / sells (shown as the brand's photos when it has them).\n"
+    "then statement — text (max 12 words, an elegant line, [key words] marked), sub (optional, max "
+    "8 words).\n"
+    "then pedestal — title (max 3 words, the course / product / service name, often English, "
+    "UPPERCASE reads best), left and right (max 6 words each — two short facts either side), icon.\n"
+    "last. cta — text (max 10 words), button (1-3 words).\n"
+    "`say` — the voice: warm, calm, inviting; one short sentence per scene.\n"
+    + _COMMON_RULES
+    + '{"scenes": [{"type": "hook", "word": "Creative", "text": "...", "say": "..."}, '
+    '{"type": "collage", "word": "Portfolio", "tiles": [{"icon": "Palette", "label": "..."}], "say": "..."}, ...]}'
+)
+
 # "Lesson · Teacher" (motion/src/lesson.jsx) — a cartoon teacher with a pointer stick
 # explains one idea on a whiteboard (list / steps / sum / bars), then shows it with 2-3
 # example people. All drawn in code — no pictures to make.
@@ -1345,7 +1373,7 @@ from app.canvas_layouts import LAYOUTS, LOOK_BACKGROUNDS, LOOKS  # noqa: E402
 from app.canvas_layouts import layout_layers  # noqa: E402
 from app.canvas_layouts import look as canvas_look  # noqa: E402
 CANVAS_LAYERS = ("text", "card", "icon", "shape", "device", "logo", "image", "chart", "metric", "pill", "list", "alert", "stream")
-CANVAS_BGS = ("solid", "gradient", "grid", "dots", "city", "network", "streams", "particles", "rings", "spotlight", "aurora", "trails", "hex", "waves", "warp")
+CANVAS_BGS = ("solid", "gradient", "grid", "dots", "city", "streams", "particles", "rings", "spotlight", "aurora", "trails", "hex", "waves", "warp")
 CANVAS_IN = ("fade", "rise", "drop", "scale", "pop", "slide-left", "slide-right", "blur", "zoom", "type")
 CANVAS_LOOP = ("float", "pulse", "spin", "glow")
 CANVAS_PROMPT = (
@@ -1404,7 +1432,7 @@ CANVAS_PROMPT = (
     "\n"
     + _COMMON_RULES
     + '{"asks": [{"id": "R1", "kind": "text", "need": "...", "text": "..."}, ...], "theme": {"look": "midnight", '
-    '"backgrounds": ["grid", "network"]}, "scenes": [{"type": "canvas", "layout": "hero", "req": ["R1"], "seconds": 5, '
+    '"backgrounds": ["grid", "rings"]}, "scenes": [{"type": "canvas", "layout": "hero", "req": ["R1"], "seconds": 5, '
     '"tone": "dark", "bg": "grid", "kicker": "...", "title": "...", "sub": "...", "icon": "Sparkles", "say": "..."}, ...]}'
 )
 
@@ -2082,6 +2110,7 @@ STYLES = {
     "lesson": (LESSON_PROMPT, LESSON_TYPES, 8, "whiteboard"),
     "rise": (RISE_PROMPT, RISE_TYPES, 8, "climb"),
     "reaction": (REACTION_PROMPT, REACTION_TYPES, 3, None),
+    "studio": (STUDIO_PROMPT, STUDIO_TYPES, 4, None),
     "clarity": (CLARITY_PROMPT, CLARITY_TYPES, 8, None),
     "countdown": (COUNTDOWN_PROMPT, COUNTDOWN_TYPES, 7, "rank"),
     "thisorthat": (THISORTHAT_PROMPT, THISORTHAT_TYPES, 6, "choice"),
@@ -2295,11 +2324,11 @@ def estimate_seconds(script: dict) -> int:
 GOAL_STYLES = {
     "sell": ("tech",),
     "solution": ("tech", "demo", "custom", "showcase", "clarity", "gridcards", "cartoon"),
-    "conversion": ("offer", "tech", "launch", "reviews", "casestudy", "unveil"),
+    "conversion": ("offer", "tech", "launch", "reviews", "casestudy", "unveil", "studio"),
     "teach": ("explainer",),
     "education": ("explainer", "training", "custom", "clarity", "tips", "gridcards", "techflow", "neural", "paper", "doodle", "cartoon", "lesson"),
     "reach": ("pov", "explainer", "countdown", "thisorthat", "hottake", "doodle", "cartoon", "lesson", "rise", "reaction"),
-    "awareness": ("trend", "custom", "clarity", "showcase", "report", "unveil", "canvas"),
+    "awareness": ("trend", "custom", "clarity", "showcase", "report", "unveil", "canvas", "studio"),
     "authority": ("versus", "report", "casestudy", "hottake", "clarity", "techflow"),
     "engagement": ("poll", "thisorthat", "faq", "countdown", "hottake", "reaction"),
     "followers": ("quote", "explainer", "tips", "countdown", "hottake", "doodle", "lesson", "rise"),
@@ -2495,10 +2524,23 @@ def _clean_one(raw: dict, names: dict[str, str]) -> dict | None:
             hook["who"], hook["mood"] = _who(raw.get("who")), raw["mood"]
         if isinstance(raw.get("moods"), list):  # Reaction meme: the first meme moment
             hook.update(_react_fields(raw))
+        if _line(raw.get("word"), 14):  # Collage · Studio: the big thin word over the main photo
+            hook["word"] = _line(raw["word"], 14)
         return hook if text else None
     if kind == "react":
         text = _line(raw.get("text"), 120)
         return {"type": kind, "text": text, "icon": _icon(raw.get("icon"), "Smartphone"), **_react_fields(raw), "say": say} if text else None
+    if kind == "collage":
+        given = raw.get("tiles") if isinstance(raw.get("tiles"), list) else raw.get("items") if isinstance(raw.get("items"), list) else []
+        tiles = [{"icon": _icon(x.get("icon"), "Sparkles"), "label": _line(x.get("label"), 30)} for x in given if isinstance(x, dict) and _line(x.get("label"), 30)][:5]
+        word = _line(raw.get("word"), 14)
+        return {"type": kind, "word": word, "tiles": tiles, "say": say} if word or tiles else None
+    if kind == "statement":
+        text = _line(raw.get("text"), 120)
+        return {"type": kind, "text": text, "sub": _line(raw.get("sub"), 60), "say": say} if text else None
+    if kind == "pedestal":
+        title = _line(raw.get("title"), 40)
+        return {"type": kind, "title": title, "left": _line(raw.get("left"), 50), "right": _line(raw.get("right"), 50), "icon": _icon(raw.get("icon"), "Sparkles"), "say": say} if title else None
     if kind == "punch":
         text = _line(raw.get("text"), 120)
         return {"type": kind, "text": text, **_react_fields(raw, one=True), "say": say} if text else None
@@ -3130,6 +3172,9 @@ _TEXT_FIELDS = {
     "doodle": (("title", 100), ("text", 120), ("say", 300)),
     "talk": (("text", 120), ("say", 300)),
     "react": (("text", 120), ("bubble", 30), ("say", 300)),
+    "collage": (("word", 14), ("say", 300)),
+    "statement": (("text", 120), ("sub", 60), ("say", 300)),
+    "pedestal": (("title", 40), ("left", 50), ("right", 50), ("say", 300)),
     "punch": (("text", 120), ("say", 300)),
     "whiteboard": (("title", 70), ("say", 300)),
     "climb": (("title", 70), ("text", 120), ("word", 24), ("say", 300)),
@@ -3477,6 +3522,7 @@ def write_script(
             slots += [(s, key, n) for key, n in _TEXT_FIELDS[s["type"]] if key in s]  # optional ones (a meme's bubble) may be missing
             slots += [(m, "text", 140) for m in s.get("messages", [])]
             slots += [(i, "text", 80) for i in s.get("items", [])]
+            slots += [(x, "label", 30) for x in s.get("tiles", [])]  # Collage · Studio's cards
             slots += [(p, "name", 40) for p in (s.get("left"), s.get("right")) if isinstance(p, dict) and "name" in p]
             if s["type"] == "split":
                 for p in (s["left"], s["right"]):
@@ -3722,6 +3768,10 @@ def script_lines(script: dict) -> list[tuple[str, str]]:
             body = (f"{s.get('title', '')}: " + " / ".join(s["checks"])) if s["type"] == "note" else ("💭 " if s.get("think") else "") + s.get("text", "")
             item = f" [{s['item'].get('label') or s['item'].get('icon')}]" if s.get("item") else ""
             screen = f"{who} {body}{item}"
+        elif s["type"] == "collage":
+            screen = (s.get("word") or "Collage") + " — " + " / ".join(x["label"] for x in s.get("tiles") or []) + (f" [{len(s['images'])} photos]" if s.get("images") else "")
+        elif s["type"] == "pedestal":
+            screen = s["title"] + " — " + " | ".join(x for x in (s.get("left"), s.get("right")) if x)
         elif s["type"] in ("react", "punch") or (s["type"] == "hook" and "moods" in s):
             pic = f" ✎ {s['draw']}" if s.get("draw") else f" [screenshot {s['shot']}]" if s.get("shot") else f" [{s['product']}]" if s.get("product") else ""
             screen = s["text"] + f" — {', '.join(s.get('moods') or [])}" + (f" 💬 {s['bubble']}" if s.get("bubble") else "") + pic
@@ -4036,6 +4086,14 @@ def pick_pictures(
                     L["src"] = by_product.get(ids.get(src[8:].strip())) or main or ""
                 elif src:
                     L.pop("src", None)
+        elif script.get("style") == "studio":  # Collage · Studio: the brand kit's photos on its cards
+            if s["type"] == "hook":
+                s["image"] = main
+            elif s["type"] == "collage":
+                rest = [u for u in order if u != main] or order
+                s["images"] = rest[:5]
+            elif s["type"] == "pedestal" and product_id is not None:
+                s["image"] = main
         elif script.get("style") == "reaction":  # the picture behind a meme moment (else drawn, app/doodle.py)
             if 1 <= s.get("shot", 0) <= len(shots):
                 shot = shots[s["shot"] - 1]
@@ -4084,6 +4142,8 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
             scene["messages"] = [{**m, "text": t(m["text"])} for m in scene["messages"]]
         if "items" in scene:
             scene["items"] = [{**i, "text": t(i["text"])} for i in scene["items"]]
+        if "tiles" in scene:
+            scene["tiles"] = [{**x, "label": t(x["label"])} for x in scene["tiles"]]
         if "options" in scene:
             scene["options"] = [t(o) for o in scene["options"]]
         if "chips" in scene:
@@ -4192,6 +4252,12 @@ def default_seconds(scene: dict) -> float:
     if kind == "take":
         return 5.2 if scene.get("before") else 4.2
     if kind == "meme":
+        return 4.6
+    if kind == "collage":  # MotionPost/shared.jsx defaultSeconds says the same
+        return 2.8 + 0.4 * min(5, max(len(scene.get("tiles") or []), len(scene.get("images") or [])))
+    if kind == "statement":
+        return 4.4
+    if kind == "pedestal":
         return 4.6
     if kind == "react":  # MotionPost/shared.jsx defaultSeconds says the same
         return 4.2
@@ -5063,6 +5129,7 @@ TEMPLATE_GUIDE = {
     "rise": "mindset / motivation — encouraging people to live their best life: small habits, a fresh start, believing in yourself; a person climbing stairs as night turns to sunrise",
     "lesson": "teaching one idea step by step with a cartoon teacher and a pointer stick at a whiteboard — the maths (a sum, bars), steps, a list — then 2-3 example people who do it differently; money, business, health, study",
     "cartoon": "a little story with two cartoon characters talking in one everyday place (a shop, a market, an office, home) — speech bubbles, thought clouds, a business or life problem and its fix, part 1 / part 2 series",
+    "studio": "an elegant editorial showcase — big thin words on a soft light set, the brand's photos as a collage of cards, green vines and a stone column; for an academy / school, a design studio, a premium shop or service showing its work and inviting people in",
     "reaction": "a short funny reaction meme (8-20 s) — a relatable situation on screen (a screenshot, few followers, a customer asking 'price?'), a meme caption on top, cut-out cats / dogs popping their mouths or freezing in shock; for reach and shares",
     "doodle": "a self-improvement / mindset / life lesson told calmly (overthinking, habits, money, stress, work, relationships) — grid paper, a bold Khmer headline with orange key words, a hand-drawn sketch of the feeling in every scene",
     "paper": "an AI / tech concept explained simply on graph paper (what is machine learning, deep learning, an API…) — editorial, navy and orange, icons and maths floating around",

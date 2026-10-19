@@ -184,6 +184,15 @@ export const MOTION_TEMPLATES = [
     goals: ['education', 'solution'],
   },
   {
+    id: 'studio',
+    story: 'studio',
+    name: 'Collage · Studio',
+    look: 'A soft light set with slow light streaks, big thin words in your brand’s deep colour, your photos as cards sticking together like a collage, green vines, drifting leaves and a stone column for depth',
+    steps: ['Big word + main photo', 'The collage', 'The statement', 'On the pedestal', 'Call to action'],
+    note: 'Add your photos (work, classes, products) in Products → Brand kit — they become the cards. The decorations are included, nothing extra to pay for',
+    goals: ['awareness', 'conversion'],
+  },
+  {
     id: 'reaction',
     story: 'reaction',
     name: 'Reaction meme',

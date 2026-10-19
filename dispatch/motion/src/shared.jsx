@@ -66,6 +66,12 @@ export function defaultSeconds(s) {
       return 2.8 + Math.min(2.4, String(s.text || '').length / 30) + (s.item ? 0.6 : 0)
     case 'note':
       return 2.6 + 0.6 * Math.min(5, (s.checks || []).length)
+    case 'collage': // app/motion.py default_seconds says the same
+      return 2.8 + 0.4 * Math.min(5, Math.max((s.tiles || []).length, (s.images || []).length))
+    case 'statement':
+      return 4.4
+    case 'pedestal':
+      return 4.6
     case 'react': // app/motion.py default_seconds says the same
       return 4.2
     case 'punch':
@@ -336,10 +342,10 @@ export function Words({ text, delay = 0, stagger = 1, style, align = 'left', col
                   // consonants below (្ល) — the marker covers all of it, not a cut-off middle band
                   // a template can lower the marker into a highlighter stroke (--hl-top, e.g. How it works · Grid)
                   ...(KHMER_RE.test(p) ? { top: 'var(--hl-top, -0.02em)', bottom: '-0.06em' } : { top: 'var(--hl-top, 0.12em)', bottom: '0.08em' }),
-                  borderRadius: `${joinL ? 0 : '0.18em'} ${joinR ? 0 : '0.18em'} ${joinR ? 0 : '0.18em'} ${joinL ? 0 : '0.18em'}`,
+                  borderRadius: `${joinL ? 0 : 'var(--hl-r, 0.18em)'} ${joinR ? 0 : 'var(--hl-r, 0.18em)'} ${joinR ? 0 : 'var(--hl-r, 0.18em)'} ${joinL ? 0 : 'var(--hl-r, 0.18em)'}`,
                   background: 'var(--hl-bg, var(--brand))',
                   boxShadow: 'var(--hl-shadow, none)',
-                  transform: `scaleX(${sweep})`,
+                  transform: `scaleX(${sweep}) rotate(var(--hl-tilt, 0deg))`,
                   transformOrigin: 'left center',
                   zIndex: -1,
                 }}

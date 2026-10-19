@@ -585,6 +585,7 @@ GEMINI_ACT = {
     "cartoon": "Lively and natural, like telling a funny everyday story to a friend.",
     "lesson": "Friendly and clear, like a favourite teacher explaining at the board — slow down on each number.",
     "rise": "Warm and encouraging, building gently towards the end — like someone who believes in the listener.",
+    "studio": "Calm, warm and elegant, like a premium brand film — unhurried, confident, inviting.",
     "reaction": "Deadpan and playful, like a meme page admin — short, dry, a little dramatic on the punchline.",
 }
 
