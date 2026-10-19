@@ -3,9 +3,10 @@
 # so `docker compose up` alone brings the schema up to date, no separate step.
 FROM python:3.12-slim
 
-# uv's own image ships just the binary — copying it in is the documented,
-# fast way to get uv without a separate install step.
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+# uv from PyPI, like every other Python package here — copying it from
+# ghcr.io/astral-sh/uv failed on the VM (its route to GitHub's registry
+# breaks mid-download, 2026-10-19).
+RUN pip install --no-cache-dir uv
 
 # libraqm (+ harfbuzz / fribidi): complex-script text shaping for Pillow, so
 # the Khmer text on meme posters (app/meme.py) renders correctly.
@@ -37,6 +38,9 @@ COPY --from=motion public/fonts ./public/fonts
 # Background music by mood (public/music/<mood>/*.mp3 — app/motion.py music_tracks).
 COPY --from=motion public/music ./public/music
 COPY --from=motion public/sfx ./public/sfx
+# Collage · Studio's vines / leaves / column / clouds (motion/src/studio.jsx) —
+# before the bundle below, which packs public/ with the template.
+COPY --from=motion public/decor ./public/decor
 COPY --from=motion sample.json ./
 # Pack the template once now, not before every video (app/motion.py _entry).
 RUN npx remotion bundle src/index.jsx --out-dir build --log=error
