@@ -2147,14 +2147,18 @@ def _keep_own_voice(script: dict, idea: str) -> None:
         return
     theirs = _plain(" ".join(lines))
     words = set(theirs.split())
-    for sc in script["scenes"]:
+    # one storyboard scene per Voice line: a scene whose line isn't theirs gets
+    # its own line from the script back, instead of going silent
+    one_each = len(lines) == len(script["scenes"])
+    for n, sc in enumerate(script["scenes"]):
         said = _plain(sc.get("say"))
-        if not said or said in theirs:
+        if said and said in theirs:
             continue
         mine = [w.strip(".,!?;:") for w in said.split()]
-        if sum(1 for w in mine if w in words) / max(1, len(mine)) < 0.75:
-            log.info("storyboard: a voice line the script doesn't have taken out: %s", _line(sc["say"], 80))
-            sc["say"] = ""
+        if not said or sum(1 for w in mine if w in words) / max(1, len(mine)) < 0.75:
+            if said:
+                log.info("storyboard: a voice line the script doesn't have taken out: %s", _line(sc["say"], 80))
+            sc["say"] = _line(lines[n], 300) if one_each else ""
 
 
 def own_design(text: str) -> bool:
@@ -2262,7 +2266,13 @@ NARRATOR_STYLES = {"explainer", "training", "quote", "doodle", "lesson", "rise",
 
 def story_language(idea: str, picked: str) -> str:
     """The language of the person's own story — Khmer when most of its letters
-    are Khmer, English when they're Latin, else what they picked."""
+    are Khmer, English when they're Latin, else what they picked. A script
+    with its own Voice / Narration lines speaks the language of those lines:
+    its visual prompts are often English, and longer, but the voice is what
+    the video says and shows."""
+    voice = " ".join(own_voice(idea))
+    if voice.strip():
+        idea = voice
     km = sum(1 for ch in idea if "\u1780" <= ch <= "\u17ff")
     latin = sum(1 for ch in idea if ch.isascii() and ch.isalpha())
     if km > latin * 2:
@@ -3239,7 +3249,7 @@ def write_script(
         theme = canvas_look(theme_raw, f"#{r:02x}{g:02x}{b:02x}") if "look" in theme_raw else clean_theme(theme_raw, f"#{r:02x}{g:02x}{b:02x}")
         if story:
             _keep_own_voice({"scenes": scenes}, idea)
-        script = {"scenes": [apply_theme(sc, theme) for sc in scenes[: (count if story else most)]], "style": style, "asks": _clean_asks(raw.get("asks")), "theme": theme}
+        script = {"scenes": [apply_theme(sc, theme) for sc in scenes[: (count if story else most)]], "style": style, "asks": _clean_asks(raw.get("asks")), "theme": theme, "language": language}
         if moods:
             script["mood"] = raw.get("mood") if raw.get("mood") in moods else moods[0]
         if khmer:  # the native editor polishes what the AI wrote — never the brief's quoted words
@@ -3291,7 +3301,9 @@ def write_script(
             style, len(raw.get("scenes") or []), ", ".join(str(x.get("type")) for x in (raw.get("scenes") or []) if isinstance(x, dict))[:300], bool(hooks), bool(ctas),
         )
         raise ContentAIError("The AI didn't return a usable storyboard — try again.")
-    script = {"scenes": [hooks[0], *middle, ctas[0]], "style": style}
+    # the language it's made in — a pasted script's own (story_language), which
+    # can differ from the picker: the voice and the Khmer word breaks follow it
+    script = {"scenes": [hooks[0], *middle, ctas[0]], "style": style, "language": language}
     if story:  # a chart / number the story never gave becomes a plain statement of that line
         script["scenes"] = [_only_story_numbers(s, idea, allowed) for s in script["scenes"]]
         _keep_own_voice(script, idea)
@@ -5243,6 +5255,8 @@ def checked_script(raw: dict, products: list[Product]) -> dict:
     if len(scenes) < 2:
         raise ContentAIError("The storyboard needs at least 2 scenes.")
     script = {"scenes": scenes, "style": style}
+    if raw.get("language") in ("Khmer", "English"):
+        script["language"] = raw["language"]
     if raw.get("ratio") in ("16:9", "9:16"):
         script["ratio"] = raw["ratio"]
     if style == "custom":
@@ -5436,6 +5450,7 @@ def _make(
                 script["place_image"] = doodle.draw_place(script["place"], job.workspace_id, job.user_id)
                 _check(job_id)
             # AI design: a quick preview, the AI looks at it and fixes what looks off
+            language = script.get("language") or language  # a pasted script speaks its own language
             script = review_design(brand, script, logo, "khmer" in language.lower(), job_id)
             props = build_props(brand, script, logo, "khmer" in language.lower())
             db.rollback()  # no transaction held open through the voice and render

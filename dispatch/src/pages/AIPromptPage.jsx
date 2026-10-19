@@ -2089,12 +2089,12 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary, onPlanChange, onMake,
             // one voice line, read exactly as the video will — same voice, same acting
             // (the template's style); the server keeps it, so Make reuses it
             fetchLine={(text) =>
-              api.blob('/ai/motion/say', { brand_id: t.brandId, text, language: t.language || 'Khmer', voice: t.voice || 'female', style: t.plan?.style || '' })
+              api.blob('/ai/motion/say', { brand_id: t.brandId, text, language: t.plan?.language || t.language || 'Khmer', voice: t.voice || 'female', style: t.plan?.style || '' })
             }
             onError={(e) => showToast(`Couldn’t play the voice — ${e.message}`)}
             onHear={async (text) => {
               try {
-                const audio = await api.blob('/ai/motion/say', { brand_id: t.brandId, text, language: t.language || 'Khmer', voice: t.voice || 'female', style: t.plan?.style || '' })
+                const audio = await api.blob('/ai/motion/say', { brand_id: t.brandId, text, language: t.plan?.language || t.language || 'Khmer', voice: t.voice || 'female', style: t.plan?.style || '' })
                 const url = URL.createObjectURL(audio)
                 const el = new Audio(url)
                 await new Promise((resolve) => {
