@@ -8,6 +8,7 @@ import {
   FiCpu,
   FiGlobe,
   FiImage,
+  FiKey,
   FiMessageCircle,
   FiMic,
   FiMoon,
@@ -122,6 +123,58 @@ function Laptop() {
             {w.name}
           </button>
         ))}
+      </div>
+    </div>
+  )
+}
+
+/** The templates past the 10 that play: dimmed and locked, a key on each — signing
+ * up unlocks them (every one opens the sign-up). */
+function LockedTemplates({ onStart }) {
+  const locked = MOTION_TEMPLATES.filter((t) => !SHOWCASE.includes(t.id))
+  const shown = locked.slice(0, 12)
+  return (
+    <div className="mx-auto mt-16 max-w-6xl px-4 sm:px-6">
+      <div className="relative">
+        <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 sm:gap-4 lg:grid-cols-6">
+          {shown.map((t, i) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={onStart}
+              title={`${t.name} — sign up to unlock`}
+              className={`group relative overflow-hidden rounded-2xl border border-ink-200 bg-white text-left shadow-card transition-transform hover:-translate-y-0.5 ${i >= 6 ? 'hidden sm:block' : ''}`}
+            >
+              <div className="relative aspect-[9/16] overflow-hidden">
+                <img src={previewSrc(t.id)} alt="" loading="lazy" className="h-full w-full scale-105 object-cover opacity-70 blur-[3px] transition-all duration-300 group-hover:opacity-90 group-hover:blur-[1px]" />
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5 px-2">
+                  <span className="grid h-8 w-8 place-items-center rounded-full bg-night-950/75 text-white shadow-pop ring-1 ring-white/20">
+                    <FiKey size={13} />
+                  </span>
+                  {/* the button on the card itself — the whole card opens the sign-up */}
+                  <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-brand px-2.5 py-1 text-[10.5px] font-semibold text-white shadow-glow transition-transform group-hover:-translate-y-0.5">
+                    <span className="hidden lg:inline">Get started to unlock</span>
+                    <span className="lg:hidden">Unlock</span>
+                  </span>
+                </div>
+              </div>
+              <div className="truncate px-2.5 py-2 text-[12px] font-semibold text-ink-700">{t.name}</div>
+            </button>
+          ))}
+        </div>
+        {/* what unlocks them — under the cards, so every card and its button stays clear */}
+        <div className="mt-8 flex justify-center">
+          <div className="flex max-w-xl flex-col items-center gap-3 rounded-2xl border border-ink-200 bg-white px-6 py-5 text-center shadow-pop">
+            <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand-soft text-brand">
+              <FiKey size={18} />
+            </span>
+            <div className="text-[16px] font-bold text-ink-900">Get started to unlock {locked.length} more templates</div>
+            <p className="text-[13.5px] text-ink-500">Sign up free — every template, the AI design, your logo and colours, Khmer voices.</p>
+            <button type="button" onClick={onStart} className="inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-2.5 text-[14px] font-semibold text-white shadow-glow-lg transition-transform hover:-translate-y-0.5">
+              Get started free <FiArrowRight />
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -635,12 +688,7 @@ export default function LandingPage({ onLogin, onStart }) {
             )}
           </div>
         </div>
-        <div className="mt-10 text-center">
-          {/* the brand button reads on the light and the dark section alike */}
-          <button type="button" onClick={onStart} className="inline-flex items-center gap-2 rounded-xl bg-brand px-6 py-3 text-[15px] font-semibold text-white shadow-glow-lg transition-transform hover:-translate-y-0.5">
-            Make your first video <FiArrowRight />
-          </button>
-        </div>
+        <LockedTemplates onStart={onStart} />
       </section>
 
       {/* ── everything else ── */}

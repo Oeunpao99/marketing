@@ -298,6 +298,92 @@
         animation: sp-run 1.6s ease-in-out 3.6s infinite;
       }
 
+      /* behind it all: a soft, blurred feed of posts drifting past (left up, right down) —
+         the blur is on each column, not each card, so it stays light on phones */
+      .sp-head,
+      .sp-flow {
+        z-index: 1;
+      }
+      .sp-head {
+        position: relative;
+      }
+      .sp-feed {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+        pointer-events: none;
+        -webkit-mask-image: linear-gradient(180deg, transparent, #000 18%, #000 82%, transparent);
+        mask-image: linear-gradient(180deg, transparent, #000 18%, #000 82%, transparent);
+        opacity: 0;
+        animation: sp-feed-in 1s ease 0.2s forwards;
+      }
+      .sp-col {
+        position: absolute;
+        top: 0;
+        width: 168px;
+        filter: blur(2px);
+        opacity: 0.55;
+      }
+      .sp-col-l { left: max(2%, calc(50% - 560px)); }
+      .sp-col-r { right: max(2%, calc(50% - 560px)); }
+      .sp-track {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        animation: sp-up 26s linear infinite;
+      }
+      .sp-col-r .sp-track {
+        animation-name: sp-down;
+        animation-duration: 32s;
+      }
+      .sp-post {
+        border-radius: 14px;
+        padding: 10px;
+        background: var(--sp-node);
+        border: 1px solid var(--sp-line);
+        box-shadow: 0 8px 20px rgba(16, 24, 40, 0.06);
+      }
+      .sp-ph {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .sp-ph b {
+        flex: none;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+      }
+      .sp-ph i,
+      .sp-pf i {
+        display: block;
+        height: 6px;
+        border-radius: 6px;
+        background: var(--sp-line);
+      }
+      .sp-ph i:nth-of-type(1) { width: 60px; }
+      .sp-ph i:nth-of-type(2) { width: 34px; }
+      .sp-img {
+        height: 92px;
+        margin: 9px 0;
+        border-radius: 9px;
+      }
+      .sp-img0 { background: linear-gradient(135deg, var(--sp-accent), #29a9eb); }
+      .sp-img1 { background: linear-gradient(135deg, #f59e0b, #e1306c); height: 120px; }
+      .sp-img2 { background: linear-gradient(135deg, #16a34a, #a3e635); }
+      .sp-img3 { background: linear-gradient(135deg, #7c3aed, #ec4899); height: 72px; }
+      .sp-img4 { background: linear-gradient(135deg, #0ea5e9, var(--sp-accent)); height: 110px; }
+      .sp-img5 { background: linear-gradient(135deg, #f97316, #facc15); }
+      .sp-pf {
+        display: flex;
+        gap: 6px;
+      }
+      .sp-pf i { width: 22px; }
+      .sp-pf i:first-child { background: color-mix(in srgb, #e1306c 55%, var(--sp-line)); }
+      @keyframes sp-up { to { transform: translateY(-50%); } }
+      @keyframes sp-down { from { transform: translateY(-50%); } to { transform: translateY(0); } }
+      @keyframes sp-feed-in { to { opacity: 1; } }
+
       @keyframes sp-pop {
         0% { opacity: 0; transform: scale(0.5) rotate(-10deg); }
         70% { opacity: 1; transform: scale(1.08) rotate(2deg); }
@@ -366,7 +452,62 @@
         .sp-shine {
           display: none;
         }
+        .sp-flow {
+          gap: 10px;
+          margin-top: 26px;
+        }
+        /* phones: no room at the sides — the feed runs as a strip across the top
+           (sliding left) and one across the bottom (sliding right); the middle stays clear */
+        .sp-feed {
+          -webkit-mask-image: none;
+          mask-image: none;
+        }
+        .sp-col {
+          left: 0;
+          right: 0;
+          width: auto;
+          opacity: 0.5;
+          filter: blur(1.5px);
+          -webkit-mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+          mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+        }
+        .sp-col-l { top: 14px; }
+        .sp-col-r { top: auto; bottom: 14px; }
+        .sp-track,
+        .sp-col-r .sp-track {
+          flex-direction: row;
+          width: max-content;
+          gap: 10px;
+          animation: sp-left 30s linear infinite;
+        }
+        .sp-col-r .sp-track {
+          animation-name: sp-right;
+          animation-duration: 36s;
+        }
+        .sp-post {
+          width: 84px;
+          padding: 6px;
+          border-radius: 11px;
+        }
+        .sp-ph b { width: 12px; height: 12px; }
+        .sp-ph i:nth-of-type(1) { width: 34px; }
+        .sp-ph i:nth-of-type(2) { display: none; }
+        .sp-img,
+        .sp-img1,
+        .sp-img3,
+        .sp-img4 {
+          height: 54px;
+          margin: 6px 0;
+          border-radius: 7px;
+        }
+        .sp-pf i { width: 14px; height: 5px; }
       }
+      /* short phones: the steps need the whole height — no strips */
+      @media (max-width: 560px) and (max-height: 740px) {
+        .sp-feed { display: none; }
+      }
+      @keyframes sp-left { to { transform: translateX(-50%); } }
+      @keyframes sp-right { from { transform: translateX(-50%); } to { transform: translateX(0); } }
       @media (prefers-reduced-motion: reduce) {
         #splash *,
         #splash *::before,
@@ -381,6 +522,26 @@
   <body>
     <div id="splash" role="status" aria-label="Loading Marketing ឆ្លាតវៃ">
       <script>window.__splashAt = performance.now()</script>
+      <div class="sp-feed" aria-hidden="true">
+        <div class="sp-col sp-col-l"><div class="sp-track"></div></div>
+        <div class="sp-col sp-col-r"><div class="sp-track"></div></div>
+      </div>
+      <script>
+        // six posts per column, twice over — the track moves by half, so the loop is seamless
+        (function () {
+          var c = ["#1877f2", "#e1306c", "#16191e", "#29a9eb", "#0a66c2", "#f59e0b"];
+          var tracks = document.querySelectorAll("#splash .sp-track");
+          for (var k = 0; k < tracks.length; k++) {
+            var h = "";
+            for (var r = 0; r < 2; r++)
+              for (var i = 0; i < 6; i++) {
+                var x = (i + k * 3) % 6;
+                h += '<div class="sp-post"><div class="sp-ph"><b style="background:' + c[x] + '"></b><i></i><i></i></div><div class="sp-img sp-img' + x + '"></div><div class="sp-pf"><i></i><i></i><i></i></div></div>';
+              }
+            tracks[k].innerHTML = h;
+          }
+        })();
+      </script>
       <div class="sp-head">
         <div class="sp-mark"><img src="/brand/logo-mark.png" alt="" /></div>
         <div class="sp-name">Marketing <span>ឆ្លាតវៃ</span></div>
