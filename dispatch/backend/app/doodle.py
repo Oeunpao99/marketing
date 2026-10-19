@@ -12,6 +12,7 @@ template draws the scene's icon in ink instead.
 import base64
 import io
 import logging
+import time
 from concurrent.futures import ThreadPoolExecutor
 
 from PIL import Image, ImageOps
@@ -30,20 +31,41 @@ STYLE = (
     "One centred subject with lots of white space around it. ABSOLUTELY NO text, letters, numbers, "
     "words, captions or speech bubbles with writing anywhere in the image.\n\nDraw: "
 )
+RATE_WAITS = (20, 40, 60)  # seconds between tries when the image service says "too many"
+
+
+def _draw(prompt: str, ratio: str):
+    """One drawing from the image service. The image quota (Azure S0) allows only
+    a few a minute: a "rate limit" refusal is waited out and tried again —
+    up to three more times — instead of the scene losing its picture."""
+    from app import video as video_gen
+
+    for wait in (*RATE_WAITS, None):
+        try:
+            with video_gen.image_slot():
+                return video_gen.generate_image(prompt, ratio)
+        except video_gen.VideoGenError as exc:
+            if wait is None or "rate limit" not in str(exc).lower():
+                raise
+            log.info("image service busy — trying again in %ss", wait)
+            time.sleep(wait)
+
+
 INK = (24, 27, 26)  # the template's ink (doodle.jsx C.ink)
 MAX_DRAWINGS = 10
 MAX_SIDE = 900
 
 
-def ink_only(blob: bytes) -> bytes:
+def ink_only(blob: bytes, ink: tuple = INK) -> bytes:
     """A black-on-white sketch → ink lines on a transparent PNG, cropped to the
-    drawing: dark = opaque, white = clear, so it sits on the grid paper."""
+    drawing: dark = opaque, white = clear, so it sits on the grid paper (or on
+    an AI-design scene, in ``ink`` — light lines on a dark scene)."""
     im = Image.open(io.BytesIO(blob)).convert("L")
     im = ImageOps.autocontrast(im, cutoff=1)
     # paper (≥ ~225) clears completely; the rest gets darker → more opaque
     alpha = im.point(lambda v: 0 if v >= 225 else min(255, int((225 - v) * 255 / 150)))
     box = alpha.point(lambda v: 255 if v > 40 else 0).getbbox()
-    out = Image.new("RGBA", im.size, (*INK, 0))
+    out = Image.new("RGBA", im.size, (*ink, 0))
     out.putalpha(alpha)
     if box:
         pad = 24
@@ -55,7 +77,6 @@ def ink_only(blob: bytes) -> bytes:
 
 
 def _one(prompt: str, ws: int | None, user_id: int | None) -> str | None:
-    from app import video as video_gen
 
     if ws:
         try:
@@ -63,8 +84,7 @@ def _one(prompt: str, ws: int | None, user_id: int | None) -> str | None:
         except billing.OutOfCredit:
             return None
     try:
-        with video_gen.image_slot():
-            _provider, blob, usage = video_gen.generate_image(STYLE + prompt, "1:1")
+        _provider, blob, usage = _draw(STYLE + prompt, "1:1")
     except Exception as exc:  # noqa: BLE001 — the scene shows its icon instead
         log.warning("doodle: drawing failed (%s)", str(exc)[:200])
         return None
@@ -99,16 +119,13 @@ def draw_place(prompt: str, ws: int | None, user_id: int | None) -> str | None:
     """Story · Characters (motion/src/cartoon.jsx): the one place the story
     happens in, as a wide JPEG data URI — or None (the template draws a plain
     room)."""
-    from app import video as video_gen
-
     if ws:
         try:
             billing.require(ws, billing.IMAGE_HOLD)
         except billing.OutOfCredit:
             return None
     try:
-        with video_gen.image_slot():
-            _provider, blob, usage = video_gen.generate_image(PLACE_STYLE + prompt, "16:9")
+        _provider, blob, usage = _draw(PLACE_STYLE + prompt, "16:9")
     except Exception as exc:  # noqa: BLE001 — a plain room instead
         log.warning("cartoon: place drawing failed (%s)", str(exc)[:200])
         return None
@@ -145,32 +162,40 @@ MAX_PICTURES = 4
 
 def draw_pictures(scenes: list[dict], theme: dict, ws: int | None, user_id: int | None) -> int:
     """AI design (style "canvas"): every image layer that asks for a drawing
-    (``draw``) gets one, in the film's look — its accents and the scene's
-    background tone — at most MAX_PICTURES a film, two at a time. A picture
-    that can't be drawn (or one over the limit) becomes its icon on a tile.
-    Returns how many were drawn."""
-    from app import video as video_gen
-
+    (``draw``) gets one, at most MAX_PICTURES a film, one at a time. The look
+    says how (theme["pictures"]): "sketch" (the default) = Doodle notes' ink
+    sketch, made transparent and inked in the scene's text colour — light
+    lines on a dark scene — so it draws itself onto the scene; "flat" = a
+    colour illustration in the look's accents on the scene's background. A
+    picture that can't be drawn (or one over the limit) becomes its icon on a
+    tile. Returns how many were drawn."""
+    sketch = (theme.get("pictures") or "sketch") != "flat"
     todo = [(sc, L) for sc in scenes for L in sc.get("layers") or [] if L.get("kind") == "image" and L.get("draw") and not L.get("src")]
 
     def one(item):
         sc, L = item
         light = (sc.get("tone") or (sc.get("pal") or {}).get("mode")) == "light"
         bg = theme.get("light" if light else "dark") or ("#F4F6FB" if light else "#0B1020")
-        prompt = PICTURE_STYLE.format(a=theme.get("a", "#4F8CFF"), b=theme.get("b", "#22D3EE"), bg=bg) + L["draw"]
+        if sketch:
+            prompt = STYLE + L["draw"]
+        else:
+            prompt = PICTURE_STYLE.format(a=theme.get("a", "#4F8CFF"), b=theme.get("b", "#22D3EE"), bg=bg) + L["draw"]
         if ws:
             try:
                 billing.require(ws, billing.IMAGE_HOLD)
             except billing.OutOfCredit:
                 return None
         try:
-            with video_gen.image_slot():
-                _provider, blob, usage = video_gen.generate_image(prompt, "1:1")
+            _provider, blob, usage = _draw(prompt, "1:1")
         except Exception as exc:  # noqa: BLE001 — the scene shows its icon instead
             log.warning("ai design: picture failed (%s)", str(exc)[:200])
             return None
         billing.charge(ws, "image", billing.image_cost(usage.get("input", 0), usage.get("output", 0)), user_id=user_id, model=get_settings().azure_openai_image_deployment, tokens=usage.get("total", 0), note=f"AI design picture: {L['draw'][:150]}")
         try:
+            if sketch:  # ink in the scene's text colour: the other tone's background
+                hex_ = (theme.get("dark") if light else theme.get("light")) or ("#181B1A" if light else "#F4F6FB")
+                ink = tuple(int(hex_.lstrip("#")[i : i + 2], 16) for i in (0, 2, 4))
+                return "data:image/png;base64," + base64.b64encode(ink_only(blob, ink)).decode()
             im = Image.open(io.BytesIO(blob)).convert("RGB")
             im.thumbnail((1024, 1024))
             buf = io.BytesIO()
@@ -182,13 +207,18 @@ def draw_pictures(scenes: list[dict], theme: dict, ws: int | None, user_id: int 
 
     got = []
     if todo[:MAX_PICTURES]:
-        with ThreadPoolExecutor(max_workers=min(2, len(todo[:MAX_PICTURES]))) as pool:
+        with ThreadPoolExecutor(max_workers=1) as pool:  # one at a time — the image quota is small
             got = list(pool.map(one, todo[:MAX_PICTURES]))
     for k, (sc, L) in enumerate(todo):
         uri = got[k] if k < len(got) else None
         if uri:
             L["src"] = uri
             L.pop("draw", None)
+            if sketch:
+                L["sketch"] = True  # canvas.jsx: drawn in with a sweep, then a pen wobble
+                L["in"] = "fade"  # the sweep is its entrance — no zoom on top
+                L.pop("radius", None)
+                L.pop("loop", None)
         else:  # no picture: its icon on the accent tile, in the same place
             icon = L.get("icon") or "Sparkles"
             for key in ("draw", "src", "radius", "w", "icon"):
@@ -204,7 +234,7 @@ def draw_scenes(scenes: list[dict], ws: int | None, user_id: int | None) -> int:
     todo = [s for s in scenes if s.get("draw") and not s.get("image")][:MAX_DRAWINGS]
     if not todo:
         return 0
-    with ThreadPoolExecutor(max_workers=min(2, len(todo))) as pool:
+    with ThreadPoolExecutor(max_workers=1) as pool:  # one at a time — the image quota is small
         got = list(pool.map(lambda s: _one(s["draw"], ws, user_id), todo))
     for s, uri in zip(todo, got):
         if uri:

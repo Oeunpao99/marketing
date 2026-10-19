@@ -286,4 +286,5 @@ def look(raw, brand_hex: str) -> dict:
     if re.fullmatch(r"#[0-9a-fA-F]{6}", accent):
         base["a"] = accent
     bgs = [b for b in (t.get("backgrounds") or []) if b in LOOK_BACKGROUNDS][:2] if isinstance(t.get("backgrounds"), list) else []
-    return {"name": name, "dark": base["dark"], "light": base["light"], "a": base["a"], "b": base["b"], "backgrounds": bgs or base["backgrounds"], "card": base["card"], "radius": base["radius"]}
+    pictures = "flat" if t.get("pictures") == "flat" else "sketch"  # sketch: Doodle notes' ink drawing
+    return {"name": name, "dark": base["dark"], "light": base["light"], "a": base["a"], "b": base["b"], "backgrounds": bgs or base["backgrounds"], "card": base["card"], "radius": base["radius"], "pictures": pictures}

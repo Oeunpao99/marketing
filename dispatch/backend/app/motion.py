@@ -1309,7 +1309,9 @@ CANVAS_PROMPT = (
     "THE LOOK — return \"theme\": {\"look\": one of: "
     + "; ".join(f"{k} ({v['say']})" for k, v in LOOKS.items())
     + "; brand (the brand's own colour), \"accent\": \"#RRGGBB\" ONLY if the brief names its "
-    "colours, \"backgrounds\": 1-2 of: " + ", ".join(LOOK_BACKGROUNDS) + "}. Each scene picks "
+    "colours, \"backgrounds\": 1-2 of: " + ", ".join(LOOK_BACKGROUNDS) + ", \"pictures\": sketch (the "
+    "default — hand-drawn ink sketches that draw themselves onto the scene) | flat (colour "
+    "illustrations — ONLY when the brief asks for colourful / colour pictures)}. Each scene picks "
     "\"tone\": dark | light (keep runs of the same tone — switch only at a change of act) and "
     "\"bg\": one of the theme's backgrounds.\n"
     "\n"
@@ -1595,6 +1597,8 @@ def _clean_canvas(raw: dict, say: str) -> dict | None:
                 out["src"] = L["src"]
         elif kind in ("logo", "image"):
             if kind == "image":
+                if L.get("sketch") is True:
+                    out["sketch"] = True
                 if _line(L.get("draw"), 300) and not L.get("src"):
                     # a picture still to be drawn (app/doodle.py draw_pictures) — its icon if that fails
                     out["draw"], out["icon"] = _line(L["draw"], 300), _icon(L.get("icon"), "Sparkles")
@@ -2069,7 +2073,12 @@ STORY_RULES = (
 
 
 _SCENE_HEAD = re.compile(r"(?im)^\W*(?:scene|act|shot|ឈុត(?:ទី)?)\s*(\d{1,2})\b")
-_VOICE_LINE = re.compile(r"(?im)^\W*(?:voice(?:[- ]?over)?|vo|narrat(?:or|ion)|សំឡេង)\s*[:：]\s*(.+)$")
+# "Voice:", "Narration:", "VO:", "សំឡេង:" — also with the language around it: "Khmer
+# narration:", "Narration (Khmer):", "English voice-over:", "VO (KH):"
+_VOICE_LINE = re.compile(
+    r"(?im)^\W*(?:(?:khmer|english|kh|en|ខ្មែរ)\s+)?(?:voice(?:[- ]?over)?|vo|narrat(?:or|ion)|សំឡេង)"
+    r"(?:\s*\([^)]{1,20}\))?\s*[:：]\s*(.+)$"
+)
 _LOOK_WORDS = re.compile(r"(?i)\b(?:look|visual|background|colou?r|palette|lighting|transition|pause|reveal|impact|split screen|led screen)\b")
 
 
@@ -5271,7 +5280,7 @@ def checked_script(raw: dict, products: list[Product]) -> dict:
         script["asks"] = _clean_asks(raw.get("asks"))
         t = raw.get("theme") if isinstance(raw.get("theme"), dict) else {}
         # a look from LOOKS keeps its name and its accent (the brand's colour, or the brief's)
-        script["theme"] = canvas_look({"look": t["name"], "accent": t.get("a"), "backgrounds": t.get("backgrounds")}, "#3B82F6") if t.get("name") else clean_theme(t)
+        script["theme"] = canvas_look({"look": t["name"], "accent": t.get("a"), "backgrounds": t.get("backgrounds"), "pictures": t.get("pictures")}, "#3B82F6") if t.get("name") else clean_theme(t)
         script["scenes"] = [apply_theme(sc, script["theme"]) for sc in script["scenes"]]
     if raw.get("mood") in music_tracks():
         script["mood"] = raw["mood"]

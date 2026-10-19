@@ -420,6 +420,15 @@ function Layer({ L, pal, brand, u, delay }) {
       if (!src) {
         // no logo uploaded: the brand's name, set as a wordmark
         body = L.kind === 'logo' ? <div style={{ fontFamily: FONT, fontWeight: 800, fontSize: (L.size || 90) * u, color: col(pal, L.color, pal.ink), letterSpacing: '0.04em', whiteSpace: 'nowrap', textAlign: 'center' }}>{clean(brand?.name || '')}</div> : null
+      } else if (L.kind === 'image' && L.sketch) {
+        // an ink sketch (app/doodle.py, as Doodle notes draws them): a soft edge
+        // sweeps across it top-left to bottom-right, then a little pen wobble
+        const p = interpolate(f, [0, 1.3 * fps], [0, 1], clamp)
+        const at = -30 + p * 160
+        const mask = `linear-gradient(135deg, black ${at - 25}%, transparent ${at}%)`
+        const k = Math.floor(frame / 5)
+        const boil = `translate(${(random(`bx${k}`) - 0.5) * 3 * u}px, ${(random(`by${k}`) - 0.5) * 3 * u}px) rotate(${(random(`br${k}`) - 0.5) * 0.7}deg)`
+        body = <Img src={srcOf(src)} style={{ width: w || 360 * u, height: h, objectFit: 'contain', maskImage: mask, WebkitMaskImage: mask, transform: boil }} />
       } else {
         body = <Img src={srcOf(src)} style={{ width: w || 360 * u, height: h, objectFit: 'contain', borderRadius: L.kind === 'image' ? (L.radius ?? 24) * u : 0 }} />
       }
@@ -548,7 +557,8 @@ function Layer({ L, pal, brand, u, delay }) {
 function imageOf(src, brand) {
   if (!src) return null
   if (src === 'logo') return brand?.logo || null
-  return /^(data:|\/media\/|https?:)/.test(src) ? src : null
+  // run-…/N.jpg: the render wrote the picture to a file (app/motion.py _to_files)
+  return /^(data:|\/media\/|https?:|run-[\w-]+\/)/.test(src) ? src : null
 }
 
 /** The frames (in the scene) the big reveals land on — sfx.jsx puts the impacts there. */
