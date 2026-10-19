@@ -1451,7 +1451,7 @@ def _scene_words(sc: dict) -> str:
     """Every word a canvas scene shows, as one plain string."""
     out = []
     for L in sc.get("layers") or []:
-        out += [L.get(k) for k in ("text", "title", "label") if L.get(k)]
+        out += [L.get(k) for k in ("kicker", "text", "title", "label", "sub") if L.get(k)]
         out += list(L.get("lines") or [])
         out += [x.get("text") for x in L.get("items") or [] if isinstance(x, dict)]
     return _plain(" ".join(str(x) for x in out))
@@ -1577,6 +1577,13 @@ def _clean_canvas(raw: dict, say: str) -> dict | None:
                 out["align"] = L["align"]
             if L.get("mono"):
                 out["mono"] = True
+            # a headline block (the hero layout): its kicker, accent rule and sub
+            if _line(L.get("kicker"), 40):
+                out["kicker"] = _line(L["kicker"], 40)
+            if _line(L.get("sub"), 120):
+                out.update(sub=_line(L["sub"], 120), subSize=_num(L.get("subSize"), 36, 64, 50))
+            if L.get("rule") is True:
+                out["rule"] = True
         elif kind == "card":
             out.update(title=_line(L.get("title"), 50), lines=[_line(x, 60) for x in (L.get("lines") or []) if _line(x, 60)][:5])
             if L.get("icon"):
@@ -3974,7 +3981,7 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
             layers = []
             for L in scene.get("layers") or []:
                 L = dict(L)
-                for k in ("text", "title"):
+                for k in ("text", "title", "sub"):
                     if L.get(k):
                         L[k] = t(L[k])
                 if L.get("lines"):

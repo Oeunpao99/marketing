@@ -128,16 +128,20 @@ def layout_layers(raw: dict, wide: bool) -> list[dict]:
     out: list[dict] = []
 
     if lay == "hero":
-        y = 30 if wide else 30
+        # one block — kicker, title, accent rule, sub — so the gaps follow the
+        # title's real height; a soft glow of the accent behind it
+        y = 54 if wide else 52 if icon else 44
         if icon:
-            out.append({"kind": "icon", "name": icon, "x": 50, "y": 24 if wide else 26, "size": 170 if wide else 190, "tile": "a", "at": 0, "in": "pop", "loop": "float"})
-            y = 40 if wide else 37
+            out.append({"kind": "icon", "name": icon, "x": 50, "y": 17 if wide else 21, "size": 150 if wide else 180, "tile": "a", "at": 0, "in": "pop", "loop": "float"})
+        out.append({"kind": "shape", "shape": "circle", "x": 50, "y": y, "w": 820 if wide else 900, "color": "a", "opacity": 0.14, "blur": 110, "at": 0, "in": "fade", "loop": "pulse", "z": 0})
+        L = _text(title, 50, y, _head(title, big=True), 0.15, maxw=78 if wide else 88, hit=hit, tin="blur" if hit else "rise")
         if kicker:
-            out.append(_pill(kicker, 50, y, 0.15, caps=True))
-            y += 9 if wide else 6
-        out.append(_text(title, 50, y + (8 if wide else 6), _head(title, big=True), 0.35, maxw=78 if wide else 88, hit=hit, tin="blur" if hit else "rise"))
+            L["kicker"] = kicker
+        L["rule"] = True
         if sub:
-            out.append(_text(sub, 50, y + (24 if wide else 17), 52 if wide else 54, 0.9, maxw=62 if wide else 84, weight=500, tin="fade", color="sub"))
+            L["sub"] = sub
+            L["subSize"] = 50 if wide else 52
+        out.append(L)
     elif lay == "split":
         v = raw.get("visual") if isinstance(raw.get("visual"), dict) else {"kind": "icon", "icon": icon}
         if wide:

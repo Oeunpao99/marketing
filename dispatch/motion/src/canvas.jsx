@@ -22,7 +22,7 @@
  * flash and a short shake (sfx.jsx cues the sounds on the same frames).
  */
 import { AbsoluteFill, Img, interpolate, random, spring, useCurrentFrame, useVideoConfig } from 'remotion'
-import { FONT, Icon, Words, clean, srcOf, tint } from './shared'
+import { FONT, Icon, KHMER_RE, Words, clean, srcOf, tint } from './shared'
 
 const clamp = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
 const ease = (t) => 1 - (1 - t) ** 3
@@ -310,14 +310,46 @@ function Layer({ L, pal, brand, u, delay }) {
   switch (L.kind) {
     case 'text': {
       const size = (L.size || 64) * u
+      const left = L.align === 'left'
+      // a headline block (hero): its kicker, a short accent rule and its sub
+      // stack with the title, so the spacing follows the title's real height
+      const late = (s) => interpolate(f - Math.round(s * fps), [0, 12], [0, 1], { ...clamp, easing: ease })
+      const khmer = KHMER_RE.test(L.text || '')
       body = (
-        <div style={{ width: L.maxw ? (L.maxw / 100) * width : undefined, maxWidth: width * 0.92, textAlign: L.align || 'center' }}>
+        <div style={{ width: L.maxw ? (L.maxw / 100) * width : undefined, maxWidth: width * 0.92, textAlign: L.align || 'center', display: 'flex', flexDirection: 'column', alignItems: left ? 'flex-start' : 'center' }}>
+          {L.kicker && (
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 14 * u, marginBottom: 34 * u, padding: `${12 * u}px ${30 * u}px ${12 * u}px ${22 * u}px`, borderRadius: 999, background: tint(pal.a, 0.12), border: `2px solid ${tint(pal.a, 0.45)}`, fontFamily: FONT, fontWeight: 700, fontSize: 36 * u, color: pal.a, whiteSpace: 'nowrap', letterSpacing: KHMER_RE.test(L.kicker) ? undefined : '0.1em', textTransform: KHMER_RE.test(L.kicker) ? undefined : 'uppercase', opacity: late(0), transform: `translateY(${(1 - late(0)) * -16}px)` }}>
+              <span style={{ width: 14 * u, height: 14 * u, borderRadius: '50%', background: pal.a, boxShadow: `0 0 ${16 * u}px ${pal.a}` }} />
+              {clean(L.kicker)}
+            </div>
+          )}
           {L.in === 'type' ? (
             <span style={{ fontFamily: L.mono ? MONO : FONT, fontWeight: L.weight || 700, fontSize: size, color, lineHeight: 1.2, letterSpacing: L.weight && L.weight <= 400 ? '-0.03em' : '-0.015em' }}>
               {clean(L.text).slice(0, Math.max(0, Math.floor(f / 1.5)))}
             </span>
           ) : (
-            <Words text={L.text} delay={0} align={L.align === 'left' ? 'left' : 'center'} color={color} style={{ fontSize: size, fontWeight: L.weight || 700, justifyContent: L.align === 'left' ? 'flex-start' : 'center', letterSpacing: L.weight && L.weight <= 400 ? '-0.03em' : undefined, ...(L.highlight ? { '--hl-bg': fill(L.highlight), '--hl-text': fill(L.highlightText, pal.bg) } : null) }} />
+            <Words
+              text={L.text}
+              delay={L.kicker ? Math.round(0.2 * fps) : 0}
+              align={left ? 'left' : 'center'}
+              color={color}
+              style={{
+                fontSize: size,
+                fontWeight: L.weight || 700,
+                justifyContent: left ? 'flex-start' : 'center',
+                // highlighted lines need air between them (the marker fills the line box, so the gap — not the line height — makes it)
+                lineHeight: khmer ? 1.38 : 1.2,
+                rowGap: 0.16 * size,
+                letterSpacing: L.weight && L.weight <= 400 ? '-0.03em' : undefined,
+                ...(L.highlight ? { '--hl-bg': fill(L.highlight), '--hl-text': fill(L.highlightText, pal.bg), '--hl-shadow': `0 ${10 * u}px ${34 * u}px ${tint(fill(L.highlight), 0.35)}` } : null),
+              }}
+            />
+          )}
+          {L.rule && <div style={{ width: 130 * u * late(0.6), height: 8 * u, marginTop: 30 * u, borderRadius: 8 * u, background: pal.a, boxShadow: `0 0 ${18 * u}px ${tint(pal.a, 0.6)}` }} />}
+          {L.sub && (
+            <div style={{ marginTop: (L.rule ? 30 : 26) * u, maxWidth: width * 0.84 }}>
+              <Words text={L.sub} delay={Math.round(0.8 * fps)} align={left ? 'left' : 'center'} color={pal.sub} style={{ fontSize: (L.subSize || 50) * u, fontWeight: 500, lineHeight: 1.5, justifyContent: left ? 'flex-start' : 'center' }} />
+            </div>
           )}
         </div>
       )
@@ -488,7 +520,7 @@ function Layer({ L, pal, brand, u, delay }) {
     }
     case 'pill':
       body = (
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 12 * u, padding: `${14 * u}px ${30 * u}px`, borderRadius: 999, background: L.fill ? fill(L.fill) : tint(pal.a, 0.14), border: `2px solid ${tint(col(pal, L.color, pal.a), 0.5)}`, fontFamily: FONT, fontWeight: 700, fontSize: Math.max(30, L.size || 34) * u, color: col(pal, L.color, pal.a), whiteSpace: 'nowrap', letterSpacing: L.caps ? '0.12em' : undefined, textTransform: L.caps ? 'uppercase' : undefined }}>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 12 * u, padding: `${14 * u}px ${30 * u}px`, borderRadius: 999, background: L.fill ? fill(L.fill) : tint(pal.a, 0.14), border: `2px solid ${tint(col(pal, L.color, pal.a), 0.5)}`, fontFamily: FONT, fontWeight: 700, fontSize: Math.max(30, L.size || 34) * u, color: col(pal, L.color, pal.a), whiteSpace: 'nowrap', letterSpacing: L.caps && !KHMER_RE.test(L.text || '') ? '0.12em' : undefined, textTransform: L.caps ? 'uppercase' : undefined }}>
           {L.icon && <Icon name={L.icon} size={(L.size || 34) * 1.05 * u} color={col(pal, L.color, pal.a)} stroke={2.4} />}
           {clean(L.text)}
         </div>

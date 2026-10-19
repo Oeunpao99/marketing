@@ -257,7 +257,7 @@ export function tint(hex, a) {
 /** Text that appears word by word, each word rising in. Lines wrap only
  * between words; ⟦highlighted⟧ words get a brand-colour marker swept under
  * them. */
-const KHMER_RE = /[ក-៿]/
+export const KHMER_RE = /[ក-៿]/
 
 export function Words({ text, delay = 0, stagger = 1, style, align = 'left', color }) {
   const frame = useCurrentFrame()
@@ -328,6 +328,7 @@ export function Words({ text, delay = 0, stagger = 1, style, align = 'left', col
                   ...(KHMER_RE.test(p) ? { top: 'var(--hl-top, -0.02em)', bottom: '-0.06em' } : { top: 'var(--hl-top, 0.12em)', bottom: '0.08em' }),
                   borderRadius: `${joinL ? 0 : '0.18em'} ${joinR ? 0 : '0.18em'} ${joinR ? 0 : '0.18em'} ${joinL ? 0 : '0.18em'}`,
                   background: 'var(--hl-bg, var(--brand))',
+                  boxShadow: 'var(--hl-shadow, none)',
                   transform: `scaleX(${sweep})`,
                   transformOrigin: 'left center',
                   zIndex: -1,
