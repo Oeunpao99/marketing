@@ -17,7 +17,7 @@
  *   { type: "cta",         text, button? }                   closing
  */
 import { AbsoluteFill, Img, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion'
-import { FONT, Icon, Words, chipOpacity, clean, fitSize, srcOf } from './shared'
+import { FONT, Icon, Words, chipOpacity, chipTop, clean, fitSize, srcOf } from './shared'
 
 const T = { bg: '#F6F7FB', card: '#FFFFFF', ink: '#0F172A', sub: '#526077', line: '#E3E7EF', soft: '#EEF1F7' }
 
@@ -326,7 +326,7 @@ function TrainingChrome({ scenes, brand }) {
   const wide = width > height
   return (
     <AbsoluteFill style={{ pointerEvents: 'none', opacity: chipOpacity(scenes, frame) }}>
-      <div style={{ position: 'absolute', top: wide ? 52 : 70, left: wide ? 120 : 72, display: 'flex', alignItems: 'center', gap: 14 }}>
+      <div style={{ position: 'absolute', top: wide ? 52 : chipTop(width, height), left: wide ? 120 : 72, display: 'flex', alignItems: 'center', gap: 14 }}>
         {brand.logo ? (
           <Img src={srcOf(brand.logo)} style={{ height: wide ? 54 : 62, maxWidth: 280, objectFit: 'contain' }} />
         ) : (

@@ -66,6 +66,10 @@ export function defaultSeconds(s) {
       return 2.8 + Math.min(2.4, String(s.text || '').length / 30) + (s.item ? 0.6 : 0)
     case 'note':
       return 2.6 + 0.6 * Math.min(5, (s.checks || []).length)
+    case 'react': // app/motion.py default_seconds says the same
+      return 4.2
+    case 'punch':
+      return 3.2
     case 'doodle': // app/motion.py default_seconds says the same
       return s.text ? 4.8 : 4.2
     case 'tip':
@@ -174,6 +178,12 @@ export const sceneFrames = (s) => Math.round((s.seconds || defaultSeconds(s)) * 
 // (one logo on screen, never two).
 const LOGO_SCENES = new Set(['cta', 'launch', 'platform', 'apps'])
 export const showsLogo = (s) => LOGO_SCENES.has(s.type) || (s.type === 'canvas' && (s.layers || []).some((L) => L.kind === 'logo'))
+
+/** Where the corner logo chip sits: on a tall video below the phone's status bar and
+ * TikTok / Reels' own top bar (LIVE · Following | For You), which cover the top
+ * ~150 px of 1920; a wide video keeps it in the corner. */
+export const chipTop = (width, height) => (height > width ? 150 : 64)
+export const chipLogo = (width, height) => (height > width ? 62 : 84)
 
 /** The corner logo chip's opacity at ``frame``: it fades out over a scene that shows the logo itself. */
 export function chipOpacity(scenes, frame) {

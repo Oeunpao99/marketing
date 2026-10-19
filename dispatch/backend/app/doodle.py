@@ -303,3 +303,115 @@ def draw_scenes(scenes: list[dict], ws: int | None, user_id: int | None) -> int:
         if uri:
             s["image"] = uri
     return sum(1 for u in got if u)
+
+
+# Reaction meme (motion/src/reaction.jsx): each animal is ONE picture — the same
+# animal twice, mouth closed | mouth open, on chroma green — keyed and split here,
+# so its mouth can flap on the beat. Our own animals: no one's viral clip.
+SHEET_STYLE = (
+    "A two-panel reaction meme sprite sheet, photorealistic. The SAME animal shown twice side by "
+    "side, identical in size, pose, position, lighting and camera angle in both halves — only the "
+    "mouth changes: LEFT half mouth closed, RIGHT half mouth wide open (mid-scream / mid-'pop'). "
+    "Head and shoulders only, facing the camera, centred in each half with space around it. "
+    "Background: one flat pure chroma-key green (#00FF00) everywhere, no shadow, no floor, no "
+    "gradient. No text, no letters, no logos, no border, no divider line.\n\nThe animal: "
+)
+MEME_PHOTO_STYLE = (
+    "A candid, realistic smartphone photo for a funny social media meme: natural light, a real "
+    "everyday moment, one clear subject, simple background. Where people or places appear, set it "
+    "in Cambodia. Absolutely no text, letters, numbers, captions, signs with words, logos or "
+    "watermarks anywhere in the image.\n\nThe photo: "
+)
+MAX_MEME_PHOTOS = 2
+
+
+def key_green(im: Image.Image) -> Image.Image:
+    """Chroma-key green → transparent, with the green fringe taken out of the fur."""
+    r, g, b = im.convert("RGB").split()
+    rest = ImageChops.lighter(r, b)
+    green = ImageChops.subtract(g, rest)  # how much greener than red / blue (0 = not green)
+    alpha = green.point(lambda d: 255 if d < 30 else 0 if d > 90 else int(255 * (90 - d) / 60))
+    alpha = alpha.filter(ImageFilter.MinFilter(3)).filter(ImageFilter.GaussianBlur(0.8))
+    out = Image.merge("RGB", (r, ImageChops.darker(g, rest), b)).convert("RGBA")
+    out.putalpha(alpha)
+    return out
+
+
+def split_sheet(blob: bytes) -> tuple[bytes, bytes] | None:
+    """A two-panel sheet → (mouth closed, mouth open) PNGs of the same size,
+    each cut to the animal and standing on the bottom edge, so swapping them
+    moves only the mouth. None when a half is empty."""
+    sheet = key_green(Image.open(io.BytesIO(blob)))
+    w, h = sheet.size
+    halves = []
+    for i in (0, 1):
+        half = sheet.crop((i * w // 2, 0, (i + 1) * w // 2, h))
+        box = half.getchannel("A").point(lambda v: 255 if v > 40 else 0).getbbox()
+        if not box or (box[2] - box[0]) * (box[3] - box[1]) < half.width * half.height * 0.08:
+            return None
+        halves.append(half.crop(box))
+    cw, ch = max(x.width for x in halves), max(x.height for x in halves)
+    out = []
+    for x in halves:
+        canvas = Image.new("RGBA", (cw, ch), (0, 0, 0, 0))
+        canvas.paste(x, ((cw - x.width) // 2, ch - x.height))
+        canvas.thumbnail((MAX_SIDE, MAX_SIDE))
+        buf = io.BytesIO()
+        canvas.save(buf, "PNG", optimize=True)
+        out.append(buf.getvalue())
+    return out[0], out[1]
+
+
+def _paid_draw(prompt: str, ratio: str, ws: int | None, user_id: int | None, note: str):
+    """One image, held and charged like every other drawing — None when it can't be had."""
+    if ws:
+        try:
+            billing.require(ws, billing.IMAGE_HOLD)
+        except billing.OutOfCredit:
+            return None
+    try:
+        _provider, blob, usage = _draw(prompt, ratio)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("reaction meme: drawing failed (%s)", str(exc)[:200])
+        return None
+    billing.charge(ws, "image", billing.image_cost(usage.get("input", 0), usage.get("output", 0)), user_id=user_id, model=get_settings().azure_openai_image_deployment, tokens=usage.get("total", 0), note=note[:200])
+    return blob
+
+
+def draw_reaction(script: dict, ws: int | None, user_id: int | None) -> list[dict]:
+    """Reaction meme: its 1-2 animals (one sheet each → mouth closed / open
+    PNGs) and the photo behind each meme moment that asked for one
+    (``draw``, at most MAX_MEME_PHOTOS, into ``scene["image"]``). One at a
+    time — the image quota is small. Returns props.cast: [{who, closed, open}];
+    an animal that can't be drawn is {who} (the template shows an emoji face)."""
+    from app.motion import REACTION_ANIMALS
+
+    cast = []
+    for name in script.get("cast") or []:
+        blob = _paid_draw(SHEET_STYLE + REACTION_ANIMALS.get(name, name), "16:9", ws, user_id, f"Reaction meme animal: {name}")
+        pair = None
+        if blob:
+            try:
+                pair = split_sheet(blob)
+            except Exception:  # noqa: BLE001
+                log.exception("reaction meme: could not cut out %s", name)
+        if pair:
+            closed, opened = ("data:image/png;base64," + base64.b64encode(x).decode() for x in pair)
+            cast.append({"who": name, "closed": closed, "open": opened})
+        else:
+            cast.append({"who": name})
+    todo = [s for s in script.get("scenes") or [] if s.get("draw") and not s.get("image")][:MAX_MEME_PHOTOS]
+    for s in todo:
+        blob = _paid_draw(MEME_PHOTO_STYLE + s["draw"], "1:1", ws, user_id, f"Reaction meme photo: {s['draw']}")
+        if not blob:
+            continue
+        try:
+            im = Image.open(io.BytesIO(blob)).convert("RGB")
+            im.thumbnail((1024, 1024))
+            buf = io.BytesIO()
+            im.save(buf, "JPEG", quality=86, optimize=True)
+            s["image"] = "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
+            s["imgW"], s["imgH"] = im.size
+        except Exception:  # noqa: BLE001
+            log.exception("reaction meme: could not read a photo")
+    return cast

@@ -184,6 +184,15 @@ export const MOTION_TEMPLATES = [
     goals: ['education', 'solution'],
   },
   {
+    id: 'reaction',
+    story: 'reaction',
+    name: 'Reaction meme',
+    look: 'The TikTok reaction-cat meme — your screenshot or a photo behind, a white meme caption on top, the funny bit circled in red, cut-out cats popping their mouths on the beat or freezing in shock',
+    steps: ['The setup', 'It gets worse', 'The punchline', 'Follow / try it'],
+    note: 'Attach a screenshot (few likes, a chat, your page) for the cats to react to — or the AI takes a photo of the moment. The cats are drawn new for every video',
+    goals: ['reach', 'engagement'],
+  },
+  {
     id: 'rise',
     story: 'rise',
     name: 'Rise · Mindset',

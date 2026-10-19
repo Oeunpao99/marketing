@@ -1211,6 +1211,59 @@ CARTOON_PROMPT = (
     '"scenes": [{"type": "hook", "text": "...", "who": 1, "mood": "thinking", "icon": "Wallet", "say": "..."}, ...]}'
 )
 
+# "Reaction meme" (motion/src/reaction.jsx) — the TikTok reaction-animal meme: the
+# situation behind (the brand's screenshot / photo, or a drawn photo), a white meme
+# caption on top, the funny bit circled in red, and 1-2 cut-out animals in front
+# popping their mouths on the beat or freezing in shock. The animals are our own,
+# drawn once per film (app/doodle.py draw_reaction).
+REACTION_TYPES = ("hook", "react", "punch", "cta")
+REACTION_MOODS = ("pop", "shock", "laugh", "side", "cry", "cool")
+REACTION_ANIMALS = {
+    "black-kitten": "a small fluffy black kitten with a white chest and big round amber eyes",
+    "cream-cat": "a cream-and-white short-haired cat with a round face",
+    "orange-cat": "a chubby orange tabby cat with a big round face",
+    "grey-cat": "a fluffy grey British shorthair cat with copper eyes",
+    "shiba": "a shiba inu dog with a cheeky face",
+    "pug": "a fawn pug dog with big round eyes",
+    "hamster": "a chubby golden hamster with full cheeks",
+    "capybara": "a calm capybara",
+}
+REACTION_PROMPT = (
+    "You are the funniest meme-page admin in Cambodia. You plan a REMOTION VIDEO (TikTok / Reels, "
+    "8-20 s) in the reaction-meme format everyone shares: a relatable situation on screen, a short "
+    "meme caption on top, and 1-2 animals in front REACTING — popping their mouths on the beat, "
+    "freezing in shock, laughing. The joke is about the viewer's everyday life around the brief "
+    "(a shop owner, a seller, an office worker, a customer) — the brand is the happy ending, never "
+    "an advert read out.\n"
+    "\n"
+    "THE CAST — return \"cast\": 1 or 2 animals, each one of: " + ", ".join(REACTION_ANIMALS) + ". "
+    "Two different ones when two react.\n"
+    "\n"
+    "THE MEME (3-5 scenes):\n"
+    "1. hook — the setup everyone knows (\"Me after posting for 3 months: [47 followers]\").\n"
+    "then react scenes — the situation getting worse or funnier, one beat each.\n"
+    "then punch — the twist / punchline, one animal close up.\n"
+    "last. cta — a short line + button (follow, comment, try it).\n"
+    "\n"
+    "SCENE TYPES and their fields (who = list of cast numbers 1-2 in front, moods = one per animal, "
+    "each one of: " + ", ".join(REACTION_MOODS) + " — pop flaps on the beat, shock freezes screaming, "
+    "laugh cackles, side gives side-eye, cry sobs, cool stays smug):\n"
+    "- hook / react: text (max 12 words, the meme caption, [key words] marked), who, moods, "
+    "bubble (optional, max 4 words — what an animal whispers / says, \"psst psst\"), and THE PICTURE "
+    "behind: shot (the number of one of the brand's screenshots, when one shows the situation) OR "
+    "product (a product's exact name) OR draw (in ENGLISH, 10-30 words: a realistic phone photo of "
+    "the situation — an empty shop, a phone showing a chat, a pile of boxes; no text in it), and "
+    "circle (optional, with shot only, in ENGLISH, a few words — the funny bit on that screenshot to "
+    "circle in red: \"the follower count\", \"the 2 likes\").\n"
+    "- punch: text (max 12 words, [key words]), who (one cast number), moods (one).\n"
+    "- cta: text (max 10 words), button (1-3 words).\n"
+    "`say` — optional: a short line in a deadpan meme voice; leave it empty when the caption says it "
+    "all (memes often have no voice).\n"
+    + _COMMON_RULES
+    + '{"cast": ["black-kitten", "cream-cat"], "scenes": [{"type": "hook", "text": "...", "who": [1, 2], '
+    '"moods": ["pop", "shock"], "bubble": "...", "draw": "...", "say": ""}, ...]}'
+)
+
 # "Lesson · Teacher" (motion/src/lesson.jsx) — a cartoon teacher with a pointer stick
 # explains one idea on a whiteboard (list / steps / sum / bars), then shows it with 2-3
 # example people. All drawn in code — no pictures to make.
@@ -1956,15 +2009,18 @@ def _box(value) -> list[float] | None:
 
 def locate_targets(scenes: list[dict], shots: list[dict]) -> None:
     """Find each `screen` scene's target on its screenshot (one vision call)
-    and set scene["focus"]; a target that isn't found shows the whole screen."""
+    and set scene["focus"]; a target that isn't found shows the whole screen.
+    A Reaction meme moment's ``circle`` the same way → scene["mark"] (the red
+    circle, % of the screenshot); not found = no circle."""
     from app.content_ai import ContentAIError, _chat
 
     asks = [(i, s) for i, s in enumerate(scenes) if s["type"] == "screen" and s.get("target") and 1 <= s.get("shot", 0) <= len(shots) and not s.get("focus")]
+    asks += [(i, s) for i, s in enumerate(scenes) if s.get("circle") and 1 <= s.get("shot", 0) <= len(shots) and not s.get("mark")]
     if not asks:
         return
     used = sorted({s["shot"] for _, s in asks})
     content: list[dict] = [
-        {"type": "text", "text": "Find these elements:\n" + "\n".join(f"{i}. In screenshot {s['shot']}: {s['target']}" for i, s in asks)}
+        {"type": "text", "text": "Find these elements:\n" + "\n".join(f"{i}. In screenshot {s['shot']}: {s.get('target') or s.get('circle')}" for i, s in asks)}
     ]
     for n in used:
         content += [{"type": "text", "text": f"Screenshot {n}:"}, {"type": "image_url", "image_url": {"url": shots[n - 1]["uri"], "detail": "high"}}]
@@ -1987,6 +2043,12 @@ def locate_targets(scenes: list[dict], shots: list[dict]) -> None:
         out = {}
     found = {b.get("id"): _box(b.get("box")) for b in (out.get("boxes") or []) if isinstance(b, dict)}
     for i, s in asks:
+        if s.get("circle"):  # a loose circle round it, a little bigger than the box
+            box = found.get(i)
+            if box:
+                x, y, w, h = box
+                s["mark"] = {"x": round((x + w / 2) * 100, 1), "y": round((y + h / 2) * 100, 1), "w": round(min(95, w * 100 * 1.35 + 6), 1), "h": round(min(60, h * 100 * 1.5 + 3), 1)}
+            continue
         if found.get(i):
             s["focus"] = found[i]
         else:
@@ -2019,6 +2081,7 @@ STYLES = {
     "cartoon": (CARTOON_PROMPT, CARTOON_TYPES, 10, "talk"),
     "lesson": (LESSON_PROMPT, LESSON_TYPES, 8, "whiteboard"),
     "rise": (RISE_PROMPT, RISE_TYPES, 8, "climb"),
+    "reaction": (REACTION_PROMPT, REACTION_TYPES, 3, None),
     "clarity": (CLARITY_PROMPT, CLARITY_TYPES, 8, None),
     "countdown": (COUNTDOWN_PROMPT, COUNTDOWN_TYPES, 7, "rank"),
     "thisorthat": (THISORTHAT_PROMPT, THISORTHAT_TYPES, 6, "choice"),
@@ -2050,7 +2113,7 @@ def final_ratio(asked: str, style: str, suggested: str | None = None) -> str:
     if asked == "auto":
         return suggested if suggested in ("16:9", "9:16") else ("16:9" if style == "training" else "9:16")
     return "9:16"
-SCREEN_STYLES = {"custom", "demo", "showcase", "launch", "unveil", "clarity", "canvas"}  # the stories that can show the brand's screenshots
+SCREEN_STYLES = {"custom", "demo", "showcase", "launch", "unveil", "clarity", "canvas", "reaction"}  # the stories that can show the brand's screenshots
 # The templates that sell (the auto topic picks a product, not a teaching topic).
 SELLING_STYLES = {"tech", "demo", "offer", "showcase", "launch", "unveil", "gridcards"}
 
@@ -2235,10 +2298,10 @@ GOAL_STYLES = {
     "conversion": ("offer", "tech", "launch", "reviews", "casestudy", "unveil"),
     "teach": ("explainer",),
     "education": ("explainer", "training", "custom", "clarity", "tips", "gridcards", "techflow", "neural", "paper", "doodle", "cartoon", "lesson"),
-    "reach": ("pov", "explainer", "countdown", "thisorthat", "hottake", "doodle", "cartoon", "lesson", "rise"),
+    "reach": ("pov", "explainer", "countdown", "thisorthat", "hottake", "doodle", "cartoon", "lesson", "rise", "reaction"),
     "awareness": ("trend", "custom", "clarity", "showcase", "report", "unveil", "canvas"),
     "authority": ("versus", "report", "casestudy", "hottake", "clarity", "techflow"),
-    "engagement": ("poll", "thisorthat", "faq", "countdown", "hottake"),
+    "engagement": ("poll", "thisorthat", "faq", "countdown", "hottake", "reaction"),
     "followers": ("quote", "explainer", "tips", "countdown", "hottake", "doodle", "lesson", "rise"),
     "trust": ("testimonial", "reviews", "casestudy", "faq", "report"),
 }
@@ -2360,6 +2423,48 @@ def clean_cast(raw) -> list[dict]:
     return out
 
 
+def clean_animals(raw) -> list[str]:
+    """Reaction meme: the 1-2 animals in front (REACTION_ANIMALS names)."""
+    out = [a for a in (raw if isinstance(raw, list) else []) if a in REACTION_ANIMALS]
+    out = list(dict.fromkeys(out))[:2]
+    return out or ["black-kitten", "cream-cat"]
+
+
+def _react_fields(raw: dict, one: bool = False) -> dict:
+    """Reaction meme: who reacts (0-based cast indices), how, what they say,
+    and the picture behind (a screenshot, a product, or a photo to draw)."""
+    who = raw.get("who") if isinstance(raw.get("who"), list) else [raw.get("who")]
+    idx = list(dict.fromkeys(1 if str(w).strip() == "2" else 0 for w in who if str(w).strip() in ("1", "2"))) or [0]
+    idx = idx[:1] if one else idx[:2]
+    moods = [m if m in REACTION_MOODS else ("shock" if one else "pop") for m in (raw.get("moods") if isinstance(raw.get("moods"), list) else [])][: len(idx)]
+    while len(moods) < len(idx):
+        moods.append("shock" if one or moods else "pop")
+    out = {"who": idx, "moods": moods}
+    if one:
+        return out
+    if _line(raw.get("bubble"), 30):
+        out["bubble"] = _line(raw["bubble"], 30)
+    try:
+        shot = int(raw.get("shot") or 0)
+    except (TypeError, ValueError):
+        shot = 0
+    if shot > 0:
+        out["shot"] = shot
+    elif _line(raw.get("product"), 80):
+        out["product"] = _line(raw["product"], 80)
+    elif _line(raw.get("draw"), 300):
+        out["draw"] = _line(raw["draw"], 300)
+    if "shot" in out and _line(raw.get("circle"), 80):
+        out["circle"] = _line(raw["circle"], 80)  # found on the screenshot by locate_targets → mark
+    mark = raw.get("mark") if isinstance(raw.get("mark"), dict) else None
+    if mark and "shot" in out:  # a reviewed storyboard keeps the circle it found
+        try:
+            out["mark"] = {k: max(lo, min(hi, float(mark.get(k)))) for k, lo, hi in (("x", 3, 97), ("y", 3, 97), ("w", 6, 95), ("h", 4, 60))}
+        except (TypeError, ValueError):
+            pass
+    return out
+
+
 def _clean_scene(raw: dict, names: dict[str, str]) -> dict | None:
     """One scene from the AI, checked and trimmed — None when it's unusable.
     A scene whose fields have the wrong shape (a number where a list goes…)
@@ -2388,7 +2493,15 @@ def _clean_one(raw: dict, names: dict[str, str]) -> dict | None:
             hook["draw"] = _line(raw.get("draw"), 300)  # Doodle notes: the sketch under the line (app/doodle.py)
         if raw.get("mood") in CARTOON_MOODS:  # Story · Characters: who wonders, and how
             hook["who"], hook["mood"] = _who(raw.get("who")), raw["mood"]
+        if isinstance(raw.get("moods"), list):  # Reaction meme: the first meme moment
+            hook.update(_react_fields(raw))
         return hook if text else None
+    if kind == "react":
+        text = _line(raw.get("text"), 120)
+        return {"type": kind, "text": text, "icon": _icon(raw.get("icon"), "Smartphone"), **_react_fields(raw), "say": say} if text else None
+    if kind == "punch":
+        text = _line(raw.get("text"), 120)
+        return {"type": kind, "text": text, **_react_fields(raw, one=True), "say": say} if text else None
     if kind == "talk":
         text = _line(raw.get("text"), 120)
         scene = {"type": kind, "who": _who(raw.get("who")), "mood": raw.get("mood") if raw.get("mood") in CARTOON_MOODS else "happy", "text": text, "say": say}
@@ -3016,6 +3129,8 @@ _TEXT_FIELDS = {
     "tip": (("title", 70), ("text", 120), ("say", 300)),
     "doodle": (("title", 100), ("text", 120), ("say", 300)),
     "talk": (("text", 120), ("say", 300)),
+    "react": (("text", 120), ("bubble", 30), ("say", 300)),
+    "punch": (("text", 120), ("say", 300)),
     "whiteboard": (("title", 70), ("say", 300)),
     "climb": (("title", 70), ("text", 120), ("word", 24), ("say", 300)),
     "mirror": (("title", 60), ("before", 60), ("after", 60), ("say", 300)),
@@ -3340,6 +3455,8 @@ def write_script(
         _keep_own_voice(script, idea)
     if style == "cartoon":
         script["cast"], script["place"] = clean_cast(raw.get("cast")), _line(raw.get("place"), 400)
+    if style == "reaction":
+        script["cast"] = clean_animals(raw.get("cast"))
     if style == "custom":
         r, g, b = brand_rgb(brand)
         script["look"] = clean_look(raw.get("look"), f"#{r:02x}{g:02x}{b:02x}")
@@ -3357,7 +3474,7 @@ def write_script(
         # (correct words, natural phrasing, names untouched), put back in place.
         slots: list[tuple[dict, str, int]] = []
         for s in script["scenes"]:
-            slots += [(s, key, n) for key, n in _TEXT_FIELDS[s["type"]]]
+            slots += [(s, key, n) for key, n in _TEXT_FIELDS[s["type"]] if key in s]  # optional ones (a meme's bubble) may be missing
             slots += [(m, "text", 140) for m in s.get("messages", [])]
             slots += [(i, "text", 80) for i in s.get("items", [])]
             slots += [(p, "name", 40) for p in (s.get("left"), s.get("right")) if isinstance(p, dict) and "name" in p]
@@ -3605,6 +3722,9 @@ def script_lines(script: dict) -> list[tuple[str, str]]:
             body = (f"{s.get('title', '')}: " + " / ".join(s["checks"])) if s["type"] == "note" else ("💭 " if s.get("think") else "") + s.get("text", "")
             item = f" [{s['item'].get('label') or s['item'].get('icon')}]" if s.get("item") else ""
             screen = f"{who} {body}{item}"
+        elif s["type"] in ("react", "punch") or (s["type"] == "hook" and "moods" in s):
+            pic = f" ✎ {s['draw']}" if s.get("draw") else f" [screenshot {s['shot']}]" if s.get("shot") else f" [{s['product']}]" if s.get("product") else ""
+            screen = s["text"] + f" — {', '.join(s.get('moods') or [])}" + (f" 💬 {s['bubble']}" if s.get("bubble") else "") + pic
         elif s["type"] == "doodle":
             screen = s["title"] + (f" — {s['text']}" if s.get("text") else "") + (f" ✎ {s['draw']}" if s.get("draw") else "")
         elif s["type"] == "offer":
@@ -3916,6 +4036,12 @@ def pick_pictures(
                     L["src"] = by_product.get(ids.get(src[8:].strip())) or main or ""
                 elif src:
                     L.pop("src", None)
+        elif script.get("style") == "reaction":  # the picture behind a meme moment (else drawn, app/doodle.py)
+            if 1 <= s.get("shot", 0) <= len(shots):
+                shot = shots[s["shot"] - 1]
+                s["image"], s["imgW"], s["imgH"] = shot["uri"], shot["w"], shot["h"]
+            elif s.get("product"):
+                s["image"] = by_product.get(ids.get(s["product"])) or main
         elif script.get("style") in ("doodle", "cartoon", "lesson", "rise"):
             continue  # drawn templates: no product photos (doodle / cartoon draw their own, app/doodle.py)
         elif s["type"] in ("hook", "cta", "offer") or script.get("style") == "quote":
@@ -3939,7 +4065,7 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
     scenes = []
     for s in script["scenes"]:
         scene = {k: v for k, v in s.items() if k not in ("say", "product", "target", "shot", "draw")}
-        for key in ("text", "title", "label", "button", "myth", "fact", "question", "author", "name", "business", "before", "after", "headline", "tag", "result", "badge", "plan", "period", "sub", "word", "action", "sticker", "top", "bottom"):
+        for key in ("text", "title", "label", "button", "myth", "fact", "question", "author", "name", "business", "before", "after", "headline", "tag", "result", "badge", "plan", "period", "sub", "word", "action", "sticker", "top", "bottom", "bubble"):
             if scene.get(key):
                 scene[key] = t(scene[key])
         if s.get("say"):
@@ -4027,6 +4153,8 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
     if script.get("style") == "cartoon":  # Story · Characters: the two people and their place
         props["cast"] = [{**c, "name": t(c["name"]) if c.get("name") else ""} for c in script.get("cast") or clean_cast(None)]
         props["place"] = {"image": script["place_image"]} if script.get("place_image") else {}
+    if script.get("style") == "reaction":  # the animals in front, mouth closed / open (app/doodle.py draw_reaction)
+        props["cast"] = script.get("cast_images") or []
     if script.get("ratio") == "16:9" and props["style"] in WIDE_STYLES:
         props["ratio"] = "16:9"
     library = music_tracks()
@@ -4065,6 +4193,10 @@ def default_seconds(scene: dict) -> float:
         return 5.2 if scene.get("before") else 4.2
     if kind == "meme":
         return 4.6
+    if kind == "react":  # MotionPost/shared.jsx defaultSeconds says the same
+        return 4.2
+    if kind == "punch":
+        return 3.2
     if kind == "doodle":  # MotionPost/shared.jsx defaultSeconds says the same
         return 4.8 if scene.get("text") else 4.2
     if kind == "climb":  # MotionPost/shared.jsx defaultSeconds says the same
@@ -4931,6 +5063,7 @@ TEMPLATE_GUIDE = {
     "rise": "mindset / motivation — encouraging people to live their best life: small habits, a fresh start, believing in yourself; a person climbing stairs as night turns to sunrise",
     "lesson": "teaching one idea step by step with a cartoon teacher and a pointer stick at a whiteboard — the maths (a sum, bars), steps, a list — then 2-3 example people who do it differently; money, business, health, study",
     "cartoon": "a little story with two cartoon characters talking in one everyday place (a shop, a market, an office, home) — speech bubbles, thought clouds, a business or life problem and its fix, part 1 / part 2 series",
+    "reaction": "a short funny reaction meme (8-20 s) — a relatable situation on screen (a screenshot, few followers, a customer asking 'price?'), a meme caption on top, cut-out cats / dogs popping their mouths or freezing in shock; for reach and shares",
     "doodle": "a self-improvement / mindset / life lesson told calmly (overthinking, habits, money, stress, work, relationships) — grid paper, a bold Khmer headline with orange key words, a hand-drawn sketch of the feeling in every scene",
     "paper": "an AI / tech concept explained simply on graph paper (what is machine learning, deep learning, an API…) — editorial, navy and orange, icons and maths floating around",
     "neural": "a tech or AI explainer / lesson / history with a motivating message — a big question, before vs after with AI, a timeline, two people who chose differently, a quote to remember",
@@ -5294,6 +5427,8 @@ def checked_script(raw: dict, products: list[Product]) -> dict:
         script["look"] = clean_look(raw.get("look"), "#6366F1")
     if style == "cartoon":
         script["cast"], script["place"] = clean_cast(raw.get("cast")), _line(raw.get("place"), 400)
+    if style == "reaction":
+        script["cast"] = clean_animals(raw.get("cast"))
     if style == "canvas":
         script["asks"] = _clean_asks(raw.get("asks"))
         t = raw.get("theme") if isinstance(raw.get("theme"), dict) else {}
@@ -5478,6 +5613,12 @@ def _make(
                     _report(job_id, stage="pictures")
                     doodle.draw_pictures(script["scenes"], script.get("theme") or {}, job.workspace_id, job.user_id)
                     _check(job_id)
+            if script.get("style") == "reaction":  # Reaction meme: its animals, and the pictures behind
+                from app import doodle
+
+                _report(job_id, stage="pictures")
+                script["cast_images"] = doodle.draw_reaction(script, job.workspace_id, job.user_id)
+                _check(job_id)
             if script.get("style") == "cartoon" and script.get("place"):  # Story · Characters: its one place
                 from app import doodle
 

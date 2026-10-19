@@ -272,7 +272,7 @@ function PollOptions({ scene }) {
     <AbsoluteFill>
       <Stage />
       {scene.question && (
-        <div style={{ position: 'absolute', top: 180, left: 60, right: 60 }}>
+        <div style={{ position: 'absolute', top: 250, left: 60, right: 60 }}>
           <Words text={scene.question} align="center" color={P.ink} style={{ fontSize: 56, fontWeight: 700, textAlign: 'center' }} />
         </div>
       )}

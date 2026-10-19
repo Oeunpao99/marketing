@@ -43,7 +43,9 @@ import {
   Icon,
   NeatGrid,
   Words,
+  chipLogo,
   chipOpacity,
+  chipTop,
   clean,
   defaultSeconds,
   fitSize,
@@ -60,6 +62,7 @@ import { SceneSfx } from './sfx'
 import { NEURAL } from './neural'
 import { PAPER } from './paper'
 import { DOODLE } from './doodle'
+import { REACTION } from './reaction'
 import { CARTOON } from './cartoon'
 import { LESSON } from './lesson'
 import { RISE } from './rise'
@@ -223,7 +226,7 @@ function ChatScene({ scene, brand }) {
   return (
     <AbsoluteFill>
       <Backdrop color={brand.color} />
-      <AbsoluteFill style={{ alignItems: 'center', paddingTop: 210 }}>
+      <AbsoluteFill style={{ alignItems: 'center', paddingTop: 250 }}>
         {scene.title && (
           <Words
             text={scene.title}
@@ -618,8 +621,9 @@ function CtaScene({ scene, brand }) {
 /** The brand chip, top-left (no progress bars — they cluttered the top). */
 function Chrome({ scenes, brand }) {
   const frame = useCurrentFrame()
+  const { width, height } = useVideoConfig()
   return (
-    <AbsoluteFill style={{ padding: '64px 48px 0', pointerEvents: 'none', opacity: chipOpacity(scenes, frame) }}>
+    <AbsoluteFill style={{ padding: `${chipTop(width, height)}px 48px 0`, pointerEvents: 'none', opacity: chipOpacity(scenes, frame) }}>
       <div
         style={{
           alignSelf: 'flex-start',
@@ -635,7 +639,7 @@ function Chrome({ scenes, brand }) {
       >
         {/* The logo alone — it already says who we are; the name only when there's no logo. */}
         {brand.logo ? (
-          <Img src={srcOf(brand.logo)} style={{ height: 84, maxWidth: 300, objectFit: 'contain' }} />
+          <Img src={srcOf(brand.logo)} style={{ height: chipLogo(width, height), maxWidth: 260, objectFit: 'contain' }} />
         ) : (
           <>
             <div style={{ width: 22, height: 22, borderRadius: 11, background: brand.color }} />
@@ -749,6 +753,7 @@ const TEMPLATES = {
   cartoon: { ...CARTOON, scenes: { ...SCENES, ...CARTOON.scenes } },
   lesson: { ...LESSON, scenes: { ...SCENES, ...LESSON.scenes } },
   rise: { ...RISE, scenes: { ...SCENES, ...RISE.scenes } },
+  reaction: { ...REACTION, scenes: { ...SCENES, ...REACTION.scenes } },
   gridcards: { ...GRIDCARDS, scenes: { ...SCENES, ...GRIDCARDS.scenes } },
   techflow: { ...TECHFLOW, scenes: { ...SCENES, ...TECHFLOW.scenes } },
   canvas: { ...CANVAS, scenes: { ...SCENES, ...CANVAS.scenes } }, // AI design — the AI designs every scene

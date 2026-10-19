@@ -9,6 +9,7 @@
 import { Html5Audio, Sequence, staticFile } from 'remotion'
 import { FPS } from './shared'
 import { hitFrames } from './canvas'
+import { mouthBeats } from './reaction'
 
 const VOLUME = { whoosh: 0.22, pop: 0.3, blop: 0.32, click: 0.35, ding: 0.28, tick: 0.18, impact: 0.55, riser: 0.3 }
 const SAAS = new Set(['trend', 'pov', 'demo', 'offer', 'custom', 'showcase', 'launch', 'clarity', 'countdown', 'thisorthat', 'reviews', 'tips', 'hottake', 'casestudy', 'faq', 'report'])
@@ -19,7 +20,9 @@ export function cuesFor(scene, style, frames, first) {
   const add = (at, s) => at < frames - 4 && cues.push({ at: Math.max(0, Math.round(at)), s })
   const n = (list, max = 4) => Math.min(max, (list || []).length)
   const saas = SAAS.has(style)
-  switch (scene.type) {
+  // Reaction meme (reaction.jsx): its hook is a meme moment and its close has the animals
+  const type = style === 'reaction' && scene.type === 'hook' ? 'react' : style === 'reaction' && scene.type === 'cta' ? 'memecta' : scene.type
+  switch (type) {
     case 'chat':
       for (let i = 0; i < n(scene.messages); i++) add(24 + i * 45, 'blop')
       break
@@ -40,6 +43,23 @@ export function cuesFor(scene, style, frames, first) {
       for (let i = 0; i < k; i++) add(start + i * step, 'pop')
       break
     }
+    case 'react': // reaction.jsx: a pop on every mouth flap, a bang when one is shocked
+    case 'punch': {
+      const moods = scene.moods || []
+      const who = scene.type === 'punch' ? [0] : (scene.who || [0]).slice(0, 2)
+      const beats = []
+      who.forEach((_, i) => {
+        const mood = moods[i] || (scene.type === 'punch' ? 'shock' : 'pop')
+        if (mood === 'pop' || mood === 'laugh') beats.push(...mouthBeats(mood, frames, FPS, scene.type === 'punch' ? 0.25 : 0.55 + i * 0.2))
+      })
+      beats.sort((a, b) => a - b).slice(0, 8).forEach((f) => add(f, 'pop'))
+      if (scene.type === 'punch' || moods.includes('shock')) add((scene.type === 'punch' ? 0.6 : 0.85) * FPS, 'impact')
+      if (scene.bubble) add(0.9 * FPS, 'blop')
+      break
+    }
+    case 'memecta':
+      add(0.9 * FPS, 'pop')
+      break
     case 'talk': // cartoon.jsx: the bubble pops, the item lands
       add(6, 'pop')
       if (scene.item) add(18, 'blop')

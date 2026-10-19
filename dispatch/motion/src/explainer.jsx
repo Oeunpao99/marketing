@@ -16,7 +16,7 @@
  * Any scene may carry `caption` (its spoken line) — shown as subtitles.
  */
 import { AbsoluteFill, Img, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion'
-import { FONT, FPS, Icon, NeatGrid, Words, ZWSP, chipOpacity, clean, fitSize, srcOf } from './shared'
+import { FONT, FPS, Icon, NeatGrid, Words, ZWSP, chipLogo, chipOpacity, chipTop, clean, fitSize, srcOf } from './shared'
 
 export const EX = {
   bg: '#FBF6EC',
@@ -416,7 +416,7 @@ function ExChart({ scene }) {
   return (
     <AbsoluteFill>
       <Paper />
-      <Title text={scene.title} top={200} size={96} />
+      <Title text={scene.title} top={250} size={96} />
       {/* legend */}
       <div style={{ position: 'absolute', top: 420, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 50 }}>
         {series.map((s, i) => (
@@ -492,7 +492,7 @@ function ExList({ scene }) {
   return (
     <AbsoluteFill>
       <Paper />
-      <Title text={scene.title} top={230} size={96} />
+      <Title text={scene.title} top={262} size={96} />
       <div style={{ position: 'absolute', top: 520, left: 80, right: 80 }}>
         {(scene.items || []).slice(0, 4).map((it, i) => {
           const s = spring({ frame: frame - 18 - i * 22, fps, config: { damping: 14 } })
@@ -629,12 +629,13 @@ export const EXPLAINER_SCENES = {
 /** The brand chip, top-left (no progress bars — they cluttered the top). */
 export function ExplainerChrome({ scenes, brand }) {
   const frame = useCurrentFrame()
+  const { width, height } = useVideoConfig()
   return (
-    <AbsoluteFill style={{ padding: '64px 48px 0', pointerEvents: 'none', opacity: chipOpacity(scenes, frame) }}>
+    <AbsoluteFill style={{ padding: `${chipTop(width, height)}px 48px 0`, pointerEvents: 'none', opacity: chipOpacity(scenes, frame) }}>
       <div style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 14, background: 'white', border: 0, borderRadius: 10, padding: brand.logo ? '8px 12px' : '12px 26px' }}>
         {/* The logo alone; the name only when there's no logo. */}
         {brand.logo ? (
-          <Img src={srcOf(brand.logo)} style={{ height: 82, maxWidth: 300, objectFit: 'contain' }} />
+          <Img src={srcOf(brand.logo)} style={{ height: chipLogo(width, height), maxWidth: 260, objectFit: 'contain' }} />
         ) : (
           <>
             <div style={{ width: 22, height: 22, borderRadius: 11, background: EX.yellow, border: `3px solid ${EX.ink}` }} />

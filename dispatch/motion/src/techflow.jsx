@@ -226,7 +226,7 @@ function makeSend() {
     return (
       <AbsoluteFill>
         <TechGrid />
-        <Title text={scene.text} wide={wide} top={wide ? 120 : 230} delay={4} />
+        <Title text={scene.text} wide={wide} top={wide ? 120 : 262} delay={4} />
         {/* the dashed wire */}
         <svg width={width} height={height} style={{ position: 'absolute', inset: 0 }}>
           <line
@@ -282,7 +282,7 @@ function makeAddress() {
     return (
       <AbsoluteFill>
         <TechGrid />
-        <Title text={scene.text} wide={wide} top={wide ? 120 : 230} delay={4} />
+        <Title text={scene.text} wide={wide} top={wide ? 120 : 262} delay={4} />
         <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 50, paddingTop: wide ? 120 : 160 }}>
           <div style={{ transform: `scale(${pop})` }}>
             <NetworkNode device={scene.device || 'router'} size={wide ? 240 : 360} active={0.4 + 0.3 * Math.sin(frame / 8)} done={done} />
@@ -345,7 +345,7 @@ function makeLookup() {
     return (
       <AbsoluteFill>
         <TechGrid />
-        {scene.text && <Title text={scene.text} wide={wide} top={wide ? 90 : 200} delay={4} />}
+        {scene.text && <Title text={scene.text} wide={wide} top={wide ? 90 : 250} delay={4} />}
         <AbsoluteFill style={{ justifyContent: 'center', padding: wide ? '120px 220px 160px' : '250px 70px 380px', display: 'flex', flexDirection: 'column', gap: wide ? 40 : 60 }}>
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 26 }}>
             <div style={{ position: 'relative', width: 90, height: 90, flex: 'none' }}>
@@ -397,7 +397,7 @@ function makeHops() {
     return (
       <AbsoluteFill>
         <TechGrid />
-        <Title text={scene.text} wide={wide} top={wide ? 90 : 200} delay={4} />
+        <Title text={scene.text} wide={wide} top={wide ? 90 : 250} delay={4} />
         <svg width={width} height={height} style={{ position: 'absolute', inset: 0 }}>
           {pts.slice(1).map((p, i) => {
             const draw = interpolate(frame, [4 + i * 4, 16 + i * 4], [0, 1], clamp)
@@ -456,7 +456,7 @@ function makeAssemble() {
     return (
       <AbsoluteFill>
         <TechGrid />
-        <Title text={scene.text} wide={wide} top={wide ? 90 : 210} delay={4} />
+        <Title text={scene.text} wide={wide} top={wide ? 90 : 255} delay={4} />
         {/* the phone */}
         <div style={{ position: 'absolute', left: cx - W / 2, top, width: W, height: H, borderRadius: W * 0.14, border: `6px solid ${LINE}`, background: PANEL, transform: `scale(${pop})`, overflow: 'hidden' }}>
           {blocks.map((b, i) => {
