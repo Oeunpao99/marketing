@@ -15,7 +15,7 @@ import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
 
-from PIL import Image, ImageOps
+from PIL import Image, ImageChops, ImageFilter, ImageOps
 
 from app import billing
 from app.config import get_settings
@@ -31,6 +31,43 @@ STYLE = (
     "One centred subject with lots of white space around it. ABSOLUTELY NO text, letters, numbers, "
     "words, captions or speech bubbles with writing anywhere in the image.\n\nDraw: "
 )
+def sketch_prompt(accent_hex: str) -> str:
+    """Doodle notes' ink sketch with ONE colour on the scene's key details — the
+    brand's colour (AI design's sketches). The server sets that colour exact."""
+    return STYLE.replace(
+        "NO colour, NO grey fill,",
+        f"black ink only EXCEPT 2-3 key details (the most important object of the moment — a shirt, "
+        f"a screen, a cup, a chart going up) filled with ONE flat colour, {accent_hex}; no other "
+        "colour anywhere, NO grey fill,",
+    )
+
+
+def _rgb(hex_: str) -> tuple:
+    h = hex_.lstrip("#")
+    return tuple(int(h[i : i + 2], 16) for i in (0, 2, 4))
+
+
+def _lum(c: tuple) -> float:
+    def ch(v):
+        v /= 255
+        return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+
+    r, g, b = (ch(v) for v in c)
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def readable(accent: tuple, bg: tuple, ink: tuple) -> tuple:
+    """The accent nudged towards the ink colour until it stands out on the
+    scene's background (a navy brand on a dark scene → a lighter navy)."""
+    c = accent
+    for _ in range(6):
+        hi, lo = sorted((_lum(c), _lum(bg)), reverse=True)
+        if (hi + 0.05) / (lo + 0.05) >= 1.6:  # fills have ink outlines: they need less than text
+            break
+        c = tuple(round(v + (t - v) * 0.15) for v, t in zip(c, ink))
+    return c
+
+
 RATE_WAITS = (20, 40, 60)  # seconds between tries when the image service says "too many"
 
 
@@ -56,17 +93,27 @@ MAX_DRAWINGS = 10
 MAX_SIDE = 900
 
 
-def ink_only(blob: bytes, ink: tuple = INK) -> bytes:
+def ink_only(blob: bytes, ink: tuple = INK, accent: tuple | None = None) -> bytes:
     """A black-on-white sketch → ink lines on a transparent PNG, cropped to the
     drawing: dark = opaque, white = clear, so it sits on the grid paper (or on
-    an AI-design scene, in ``ink`` — light lines on a dark scene)."""
-    im = Image.open(io.BytesIO(blob)).convert("L")
-    im = ImageOps.autocontrast(im, cutoff=1)
+    an AI-design scene, in ``ink`` — light lines on a dark scene). With
+    ``accent``, the sketch's coloured details are kept, in exactly that colour."""
+    src = Image.open(io.BytesIO(blob)).convert("RGB")
+    im = ImageOps.autocontrast(src.convert("L"), cutoff=1)
     # paper (≥ ~225) clears completely; the rest gets darker → more opaque
     alpha = im.point(lambda v: 0 if v >= 225 else min(255, int((225 - v) * 255 / 150)))
-    box = alpha.point(lambda v: 255 if v > 40 else 0).getbbox()
     out = Image.new("RGBA", im.size, (*ink, 0))
     out.putalpha(alpha)
+    if accent:
+        # the coloured fill: saturated, not too dark — painted in the exact accent over the ink
+        _h, sat, val = src.convert("HSV").split()
+        mask = Image.eval(sat, lambda v: 255 if v > 80 else 0)
+        mask = ImageChops.multiply(mask, Image.eval(val, lambda v: 255 if v > 60 else 0)).filter(ImageFilter.GaussianBlur(0.7))
+        fill = Image.new("RGBA", im.size, (*accent, 0))
+        fill.putalpha(mask)
+        out = Image.alpha_composite(out, fill)
+        alpha = out.getchannel("A")
+    box = alpha.point(lambda v: 255 if v > 40 else 0).getbbox()
     if box:
         pad = 24
         out = out.crop((max(0, box[0] - pad), max(0, box[1] - pad), min(im.width, box[2] + pad), min(im.height, box[3] + pad)))
@@ -176,8 +223,8 @@ def draw_pictures(scenes: list[dict], theme: dict, ws: int | None, user_id: int 
         sc, L = item
         light = (sc.get("tone") or (sc.get("pal") or {}).get("mode")) == "light"
         bg = theme.get("light" if light else "dark") or ("#F4F6FB" if light else "#0B1020")
-        if sketch:
-            prompt = STYLE + L["draw"]
+        if sketch:  # with the look's accent (the brand's colour on a brand look) on its key details
+            prompt = sketch_prompt(theme.get("a") or "#4F8CFF") + L["draw"]
         else:
             prompt = PICTURE_STYLE.format(a=theme.get("a", "#4F8CFF"), b=theme.get("b", "#22D3EE"), bg=bg) + L["draw"]
         if ws:
@@ -194,8 +241,9 @@ def draw_pictures(scenes: list[dict], theme: dict, ws: int | None, user_id: int 
         try:
             if sketch:  # ink in the scene's text colour: the other tone's background
                 hex_ = (theme.get("dark") if light else theme.get("light")) or ("#181B1A" if light else "#F4F6FB")
-                ink = tuple(int(hex_.lstrip("#")[i : i + 2], 16) for i in (0, 2, 4))
-                return "data:image/png;base64," + base64.b64encode(ink_only(blob, ink)).decode()
+                ink = _rgb(hex_)
+                accent = readable(_rgb(theme.get("a") or "#4F8CFF"), _rgb(bg), ink)
+                return "data:image/png;base64," + base64.b64encode(ink_only(blob, ink, accent)).decode()
             im = Image.open(io.BytesIO(blob)).convert("RGB")
             im.thumbnail((1024, 1024))
             buf = io.BytesIO()
