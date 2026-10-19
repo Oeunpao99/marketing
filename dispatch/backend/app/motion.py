@@ -1380,7 +1380,7 @@ def apply_theme(scene: dict, theme: dict) -> dict:
     text on the type scale, the logo's corner left empty."""
     if scene.get("type") != "canvas" or not theme:
         return scene
-    tone = scene.get("tone")
+    tone = theme.get("tones") or scene.get("tone")  # a look whose accent reads on one tone only keeps every scene there
     if tone not in ("dark", "light"):  # older designs: the tone their own palette had
         tone = (scene.get("pal") or {}).get("mode") if (scene.get("pal") or {}).get("mode") in ("dark", "light") else "dark"
     light = tone == "light"
@@ -3158,6 +3158,12 @@ def write_script(
     if wide:
         allowed = tuple(t for t in allowed if t not in TALL_ONLY_TYPES)
         extra += "\n\nTHIS VIDEO IS WIDE 16:9 — don't use " + ", ".join(f"`{t}`" for t in sorted(TALL_ONLY_TYPES)) + " scenes."
+    own_colors = [c for c in (getattr(brand, "colors", None) or []) if isinstance(c, str)]
+    if style == "canvas" and own_colors:
+        extra += (
+            "\n\nTHIS BRAND'S OWN COLOURS: " + ", ".join(own_colors) + " — use \"look\": \"brand\" (the film in "
+            "these colours) unless the brief asks for a different mood or names other colours."
+        )
     if style in SCREEN_STYLES:
         extra += _shots_prompt(shots or [])
         if design:
@@ -3259,7 +3265,12 @@ def write_script(
             raise ContentAIError("The AI didn't return a usable storyboard — try again.")
         r, g, b = brand_rgb(brand)
         theme_raw = raw.get("theme") if isinstance(raw.get("theme"), dict) else {}
-        theme = canvas_look(theme_raw, f"#{r:02x}{g:02x}{b:02x}") if "look" in theme_raw else clean_theme(theme_raw, f"#{r:02x}{g:02x}{b:02x}")
+        own = [c for c in (getattr(brand, "colors", None) or []) if isinstance(c, str)]
+        theme = (
+            canvas_look(theme_raw, own[0] if own else f"#{r:02x}{g:02x}{b:02x}", own[1] if len(own) > 1 else None, brand_default=bool(own))
+            if "look" in theme_raw or own
+            else clean_theme(theme_raw, f"#{r:02x}{g:02x}{b:02x}")
+        )
         if story:
             _keep_own_voice({"scenes": scenes}, idea)
         script = {"scenes": [apply_theme(sc, theme) for sc in scenes[: (count if story else most)]], "style": style, "asks": _clean_asks(raw.get("asks")), "theme": theme, "language": language}
@@ -5280,7 +5291,11 @@ def checked_script(raw: dict, products: list[Product]) -> dict:
         script["asks"] = _clean_asks(raw.get("asks"))
         t = raw.get("theme") if isinstance(raw.get("theme"), dict) else {}
         # a look from LOOKS keeps its name and its accent (the brand's colour, or the brief's)
-        script["theme"] = canvas_look({"look": t["name"], "accent": t.get("a"), "backgrounds": t.get("backgrounds"), "pictures": t.get("pictures")}, "#3B82F6") if t.get("name") else clean_theme(t)
+        script["theme"] = (
+            canvas_look({"look": t["name"], "accent": t.get("a"), "accent2": t.get("b") if t["name"] == "brand" else None, "backgrounds": t.get("backgrounds"), "pictures": t.get("pictures")}, "#3B82F6")
+            if t.get("name")
+            else clean_theme(t)
+        )
         script["scenes"] = [apply_theme(sc, script["theme"]) for sc in script["scenes"]]
     if raw.get("mood") in music_tracks():
         script["mood"] = raw["mood"]

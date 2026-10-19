@@ -274,17 +274,54 @@ def layout_layers(raw: dict, wide: bool) -> list[dict]:
     return [L for L in out if L.get("kind") != "text" or L.get("text")]
 
 
-def look(raw, brand_hex: str) -> dict:
-    """The film's look from a LOOKS name ("brand" = the brand's own colour on
-    midnight). An "accent" hex is kept only when the brief named its colours."""
+def _contrast(x: str, y: str) -> float:
+    def lum(h):
+        def ch(v):
+            v /= 255
+            return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+
+        r, g, b = (ch(int(h.lstrip("#")[i : i + 2], 16)) for i in (0, 2, 4))
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+    hi, lo = sorted((lum(x), lum(y)), reverse=True)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+def _mix(hex_: str, to: str, amount: float) -> str:
+    a, b = (tuple(int(h.lstrip("#")[i : i + 2], 16) for i in (0, 2, 4)) for h in (hex_, to))
+    return "#%02X%02X%02X" % tuple(round(x + (y - x) * amount) for x, y in zip(a, b))
+
+
+def look(raw, brand_hex: str, brand_hex2: str | None = None, brand_default: bool = False) -> dict:
+    """The film's look from a LOOKS name, or "brand": the brand's own colours —
+    its main colour the accent, its second (else a lighter shade) the other,
+    and the backgrounds a very dark / very light tint of the main one. A brand
+    with its own colours (``brand_default``) gets "brand" unless the AI picked
+    another look for the brief's mood. An "accent" hex is kept only when the
+    brief named its colours."""
     t = raw if isinstance(raw, dict) else {}
-    name = t.get("look") if t.get("look") in LOOKS else ("brand" if t.get("look") == "brand" else "midnight")
+    want = t.get("look") or ("brand" if brand_default else "midnight")
+    name = want if want in LOOKS else ("brand" if want == "brand" else "midnight")
     base = dict(LOOKS["midnight" if name == "brand" else name])
-    if name == "brand":
-        base["a"] = brand_hex
     accent = str(t.get("accent") or "")
     if re.fullmatch(r"#[0-9a-fA-F]{6}", accent):
         base["a"] = accent
+    elif name == "brand":
+        base["a"] = brand_hex
+    if name == "brand":
+        second = str(t.get("accent2") or brand_hex2 or "")
+        base["b"] = second if re.fullmatch(r"#[0-9a-fA-F]{6}", second) else _mix(base["a"], "#FFFFFF", 0.45)
+        base["dark"] = _mix(base["a"], "#06080D", 0.88)
+        base["light"] = _mix(base["a"], "#FFFFFF", 0.94)
+    # an accent that can't be read on one of the backgrounds (a navy brand on
+    # near-black, a yellow one on white): every scene takes the other tone
+    on_dark, on_light = _contrast(base["a"], base["dark"]), _contrast(base["a"], base["light"])
+    tones = "light" if on_dark < 2.6 and on_light > on_dark else "dark" if on_light < 2.6 and on_dark > on_light else ""
+    if name != "brand" and not re.fullmatch(r"#[0-9a-fA-F]{6}", accent):
+        tones = ""  # the designed looks keep both tones, as they were made
     bgs = [b for b in (t.get("backgrounds") or []) if b in LOOK_BACKGROUNDS][:2] if isinstance(t.get("backgrounds"), list) else []
     pictures = "flat" if t.get("pictures") == "flat" else "sketch"  # sketch: Doodle notes' ink drawing
-    return {"name": name, "dark": base["dark"], "light": base["light"], "a": base["a"], "b": base["b"], "backgrounds": bgs or base["backgrounds"], "card": base["card"], "radius": base["radius"], "pictures": pictures}
+    out = {"name": name, "dark": base["dark"], "light": base["light"], "a": base["a"], "b": base["b"], "backgrounds": bgs or base["backgrounds"], "card": base["card"], "radius": base["radius"], "pictures": pictures}
+    if tones:
+        out["tones"] = tones  # apply_theme: every scene in this tone
+    return out
