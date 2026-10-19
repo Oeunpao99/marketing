@@ -1,58 +1,59 @@
 {
- "brand": {
-  "name": "Marketing ឆ្លាតវៃ",
-  "color": "#1F4E8C",
-  "logo": null
- },
- "style": "launch",
- "frame": 95,
- "scenes": [
-  {
-   "type": "button",
-   "title": "Leave request",
-   "text": "3 days · 21–23 Oct · Family trip",
-   "button": "Send for approval",
-   "result": "Approved in 2 minutes"
-  }
- ],
- "clip": [
-  {
-   "type": "hook",
-   "text": "Still chasing approvals by ⟦email⟧?",
-   "icon": "Mail"
+  "brand": {
+    "name": "Smart Marketing",
+    "color": "#1F4E8C",
+    "logo": "ours/smart-marketing.png",
+    "slug": "smart-marketing"
   },
-  {
-   "type": "launch",
-   "name": "Marketing ឆ្លាតវៃ",
-   "text": "Approvals in one click, right where you work",
-   "badge": "Now live"
-  },
-  {
-   "type": "form",
-   "title": "New expense",
-   "fields": [
+  "style": "launch",
+  "frame": 95,
+  "scenes": [
     {
-     "label": "Amount",
-     "value": "$120.00"
+      "type": "button",
+      "title": "Leave request",
+      "text": "3 days · 21–23 Oct · Family trip",
+      "button": "Send for approval",
+      "result": "Approved in 2 minutes"
+    }
+  ],
+  "clip": [
+    {
+      "type": "hook",
+      "text": "Still chasing approvals by ⟦email⟧?",
+      "icon": "Mail"
     },
     {
-     "label": "Category",
-     "value": "Client lunch"
+      "type": "launch",
+      "name": "Smart Marketing",
+      "text": "Approvals in one click, right where you work",
+      "badge": "Now live"
+    },
+    {
+      "type": "form",
+      "title": "New expense",
+      "fields": [
+        {
+          "label": "Amount",
+          "value": "$120.00"
+        },
+        {
+          "label": "Category",
+          "value": "Client lunch"
+        }
+      ],
+      "toggle": "Auto-approve under $200"
+    },
+    {
+      "type": "button",
+      "title": "Leave request",
+      "text": "3 days · 21–23 Oct · Family trip",
+      "button": "Send for approval",
+      "result": "Approved in 2 minutes"
+    },
+    {
+      "type": "cta",
+      "text": "It's live — ⟦try it today⟧",
+      "button": "Book a demo"
     }
-   ],
-   "toggle": "Auto-approve under $200"
-  },
-  {
-   "type": "button",
-   "title": "Leave request",
-   "text": "3 days · 21–23 Oct · Family trip",
-   "button": "Send for approval",
-   "result": "Approved in 2 minutes"
-  },
-  {
-   "type": "cta",
-   "text": "It's live — ⟦try it today⟧",
-   "button": "Book a demo"
-  }
- ]
+  ]
 }

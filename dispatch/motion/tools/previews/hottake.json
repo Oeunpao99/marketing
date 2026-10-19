@@ -1,47 +1,48 @@
 {
- "brand": {
-  "name": "Marketing ឆ្លាតវៃ",
-  "color": "#1F4E8C",
-  "logo": null
- },
- "style": "hottake",
- "frame": 100,
- "scenes": [
-  {
-   "type": "take",
-   "before": "Posting every day is enough",
-   "text": "Posting every day ⟦without replying⟧ loses customers."
-  }
- ],
- "clip": [
-  {
-   "type": "hook",
-   "text": "Unpopular opinion about ⟦posting⟧",
-   "icon": "Flame"
+  "brand": {
+    "name": "Smart Marketing",
+    "color": "#1F4E8C",
+    "logo": "ours/smart-marketing.png",
+    "slug": "smart-marketing"
   },
-  {
-   "type": "take",
-   "before": "Posting every day is enough",
-   "text": "Posting every day ⟦without replying⟧ loses customers."
-  },
-  {
-   "type": "choice",
-   "question": "⟦Agree⟧ or disagree?",
-   "left": {
-    "name": "Agree",
-    "icon": "ThumbsUp"
-   },
-   "right": {
-    "name": "Disagree",
-    "icon": "ThumbsDown"
-   },
-   "percent": 0,
-   "prompt": "Comment your side"
-  },
-  {
-   "type": "cta",
-   "text": "More takes ⟦every week⟧",
-   "button": "Follow"
-  }
- ]
+  "style": "hottake",
+  "frame": 100,
+  "scenes": [
+    {
+      "type": "take",
+      "before": "Posting every day is enough",
+      "text": "Posting every day ⟦without replying⟧ loses customers."
+    }
+  ],
+  "clip": [
+    {
+      "type": "hook",
+      "text": "Unpopular opinion about ⟦posting⟧",
+      "icon": "Flame"
+    },
+    {
+      "type": "take",
+      "before": "Posting every day is enough",
+      "text": "Posting every day ⟦without replying⟧ loses customers."
+    },
+    {
+      "type": "choice",
+      "question": "⟦Agree⟧ or disagree?",
+      "left": {
+        "name": "Agree",
+        "icon": "ThumbsUp"
+      },
+      "right": {
+        "name": "Disagree",
+        "icon": "ThumbsDown"
+      },
+      "percent": 0,
+      "prompt": "Comment your side"
+    },
+    {
+      "type": "cta",
+      "text": "More takes ⟦every week⟧",
+      "button": "Follow"
+    }
+  ]
 }

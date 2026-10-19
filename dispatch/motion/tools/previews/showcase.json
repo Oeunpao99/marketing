@@ -1,138 +1,139 @@
 {
- "brand": {
-  "name": "Marketing ឆ្លាតវៃ",
-  "color": "#1F4E8C",
-  "logo": null
- },
- "style": "showcase",
- "frame": 40,
- "scenes": [
-  {
-   "type": "apps",
-   "title": "Works with the tools you ⟦already use⟧",
-   "apps": [
+  "brand": {
+    "name": "Smart Marketing",
+    "color": "#1F4E8C",
+    "logo": "ours/smart-marketing.png",
+    "slug": "smart-marketing"
+  },
+  "style": "showcase",
+  "frame": 40,
+  "scenes": [
     {
-     "name": "Excel"
-    },
-    {
-     "name": "Telegram"
-    },
-    {
-     "name": "Facebook"
-    },
-    {
-     "name": "Google Drive"
-    },
-    {
-     "name": "Outlook"
-    },
-    {
-     "name": "ABA Pay"
+      "type": "apps",
+      "title": "Works with the tools you ⟦already use⟧",
+      "apps": [
+        {
+          "name": "Excel"
+        },
+        {
+          "name": "Telegram"
+        },
+        {
+          "name": "Facebook"
+        },
+        {
+          "name": "Google Drive"
+        },
+        {
+          "name": "Outlook"
+        },
+        {
+          "name": "ABA Pay"
+        }
+      ]
     }
-   ]
-  }
- ],
- "clip": [
-  {
-   "type": "hook",
-   "text": "All your orders, ⟦one place⟧",
-   "apps": [
+  ],
+  "clip": [
     {
-     "name": "Excel"
+      "type": "hook",
+      "text": "All your orders, ⟦one place⟧",
+      "apps": [
+        {
+          "name": "Excel"
+        },
+        {
+          "name": "Google Calendar"
+        },
+        {
+          "name": "Drive"
+        },
+        {
+          "name": "Word"
+        },
+        {
+          "name": "Telegram"
+        },
+        {
+          "name": "Dropbox"
+        },
+        {
+          "name": "Messenger"
+        },
+        {
+          "name": "Trello"
+        }
+      ]
     },
     {
-     "name": "Google Calendar"
+      "type": "roll",
+      "lead": "For your",
+      "words": [
+        "Shop",
+        "Team",
+        "Agency"
+      ],
+      "icon": "Check"
     },
     {
-     "name": "Drive"
+      "type": "table",
+      "title": "Customer list",
+      "columns": [
+        "Name",
+        "Product",
+        "Status"
+      ],
+      "rows": [
+        [
+          "Sokha Chan",
+          "Pro plan",
+          "New"
+        ],
+        [
+          "Dara Keo",
+          "Starter",
+          "Paid"
+        ],
+        [
+          "Bopha Lim",
+          "Pro plan",
+          "Follow up"
+        ],
+        [
+          "Vanna Sok",
+          "Team",
+          "Paid"
+        ]
+      ]
     },
     {
-     "name": "Word"
+      "type": "board",
+      "title": "Every order, ⟦tracked⟧",
+      "columns": [
+        {
+          "name": "New",
+          "cards": [
+            "Order #1042 — 3 shirts",
+            "Order #1043 — bag"
+          ]
+        },
+        {
+          "name": "Packing",
+          "cards": [
+            "Order #1039 — shoes"
+          ]
+        },
+        {
+          "name": "Delivered",
+          "cards": [
+            "Order #1031 — hat"
+          ]
+        }
+      ]
     },
     {
-     "name": "Telegram"
-    },
-    {
-     "name": "Dropbox"
-    },
-    {
-     "name": "Messenger"
-    },
-    {
-     "name": "Trello"
+      "type": "cta",
+      "text": "Run your shop from ⟦one screen⟧",
+      "button": "Try it free"
     }
-   ]
-  },
-  {
-   "type": "roll",
-   "lead": "For your",
-   "words": [
-    "Shop",
-    "Team",
-    "Agency"
-   ],
-   "icon": "Check"
-  },
-  {
-   "type": "table",
-   "title": "Customer list",
-   "columns": [
-    "Name",
-    "Product",
-    "Status"
-   ],
-   "rows": [
-    [
-     "Sokha Chan",
-     "Pro plan",
-     "New"
-    ],
-    [
-     "Dara Keo",
-     "Starter",
-     "Paid"
-    ],
-    [
-     "Bopha Lim",
-     "Pro plan",
-     "Follow up"
-    ],
-    [
-     "Vanna Sok",
-     "Team",
-     "Paid"
-    ]
-   ]
-  },
-  {
-   "type": "board",
-   "title": "Every order, ⟦tracked⟧",
-   "columns": [
-    {
-     "name": "New",
-     "cards": [
-      "Order #1042 — 3 shirts",
-      "Order #1043 — bag"
-     ]
-    },
-    {
-     "name": "Packing",
-     "cards": [
-      "Order #1039 — shoes"
-     ]
-    },
-    {
-     "name": "Delivered",
-     "cards": [
-      "Order #1031 — hat"
-     ]
-    }
-   ]
-  },
-  {
-   "type": "cta",
-   "text": "Run your shop from ⟦one screen⟧",
-   "button": "Try it free"
-  }
- ]
+  ]
 }

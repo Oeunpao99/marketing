@@ -1,0 +1,106 @@
+{
+  "brand": {
+    "color": "#1F4E8C",
+    "name": "Smart Marketing",
+    "slug": "smart-marketing",
+    "logo": "ours/smart-marketing.png"
+  },
+  "style": "reaction",
+  "cast": [
+    {
+      "who": "black-kitten",
+      "closed": "previews/reaction-kitten_closed.png",
+      "open": "previews/reaction-kitten_open.png"
+    },
+    {
+      "who": "cream-cat",
+      "closed": "previews/reaction-creamcat_closed.png",
+      "open": "previews/reaction-creamcat_open.png"
+    }
+  ],
+  "frame": 40,
+  "scenes": [
+    {
+      "type": "hook",
+      "text": "Post អស់ ៣ ខែ ហើយ Followers នៅតែ ⟦៤៧⟧ 😭",
+      "image": "previews/reaction-screen.jpg",
+      "imgW": 1000,
+      "imgH": 1000,
+      "mark": {
+        "x": 50,
+        "y": 45,
+        "w": 34,
+        "h": 16
+      },
+      "who": [
+        0,
+        1
+      ],
+      "moods": [
+        "pop",
+        "shock"
+      ],
+      "bubble": "ខ្សឹប ខ្សឹប…",
+      "seconds": 4.2
+    },
+    {
+      "type": "punch",
+      "text": "តែពេលប្រើ Smart Marketing ⟦Post រាល់ថ្ងៃ⟧ 😳",
+      "who": [
+        1
+      ],
+      "moods": [
+        "shock"
+      ],
+      "seconds": 3.2
+    },
+    {
+      "type": "cta",
+      "text": "សាក ⟦ឥតគិតថ្លៃ⟧ ថ្ងៃនេះ",
+      "button": "ចុចតំណខាងក្រោម",
+      "seconds": 3.0
+    }
+  ],
+  "clip": [
+    {
+      "type": "hook",
+      "text": "Post អស់ ៣ ខែ ហើយ Followers នៅតែ ⟦៤៧⟧ 😭",
+      "image": "previews/reaction-screen.jpg",
+      "imgW": 1000,
+      "imgH": 1000,
+      "mark": {
+        "x": 50,
+        "y": 45,
+        "w": 34,
+        "h": 16
+      },
+      "who": [
+        0,
+        1
+      ],
+      "moods": [
+        "pop",
+        "shock"
+      ],
+      "bubble": "ខ្សឹប ខ្សឹប…",
+      "seconds": 4.2
+    },
+    {
+      "type": "punch",
+      "text": "តែពេលប្រើ Smart Marketing ⟦Post រាល់ថ្ងៃ⟧ 😳",
+      "who": [
+        1
+      ],
+      "moods": [
+        "shock"
+      ],
+      "seconds": 3.2
+    },
+    {
+      "type": "cta",
+      "text": "សាក ⟦ឥតគិតថ្លៃ⟧ ថ្ងៃនេះ",
+      "button": "ចុចតំណខាងក្រោម",
+      "seconds": 3.0
+    }
+  ]
+}

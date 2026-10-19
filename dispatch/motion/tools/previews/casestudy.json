@@ -1,70 +1,71 @@
 {
- "brand": {
-  "name": "Marketing ឆ្លាតវៃ",
-  "color": "#1F4E8C",
-  "logo": null
- },
- "style": "casestudy",
- "frame": 70,
- "scenes": [
-  {
-   "type": "metrics",
-   "title": "After ⟦3 months⟧",
-   "rows": [
+  "brand": {
+    "name": "Smart Marketing",
+    "color": "#1F4E8C",
+    "logo": "ours/smart-marketing.png",
+    "slug": "smart-marketing"
+  },
+  "style": "casestudy",
+  "frame": 70,
+  "scenes": [
     {
-     "label": "Reply time",
-     "before": 120,
-     "after": 2,
-     "suffix": " min"
+      "type": "metrics",
+      "title": "After ⟦3 months⟧",
+      "rows": [
+        {
+          "label": "Reply time",
+          "before": 120,
+          "after": 2,
+          "suffix": " min"
+        },
+        {
+          "label": "Orders a week",
+          "before": 40,
+          "after": 95
+        }
+      ]
+    }
+  ],
+  "clip": [
+    {
+      "type": "hook",
+      "text": "How a grocery shop ⟦doubled⟧ night orders",
+      "icon": "Building2"
     },
     {
-     "label": "Orders a week",
-     "before": 40,
-     "after": 95
-    }
-   ]
-  }
- ],
- "clip": [
-  {
-   "type": "hook",
-   "text": "How a grocery shop ⟦doubled⟧ night orders",
-   "icon": "Building2"
-  },
-  {
-   "type": "client",
-   "name": "Sokha Mart",
-   "field": "Grocery · Phnom Penh",
-   "text": "200 messages a day and only two staff to answer them.",
-   "example": true
-  },
-  {
-   "type": "metrics",
-   "title": "After ⟦3 months⟧",
-   "rows": [
-    {
-     "label": "Reply time",
-     "before": 120,
-     "after": 2,
-     "suffix": " min"
+      "type": "client",
+      "name": "Sokha Mart",
+      "field": "Grocery · Phnom Penh",
+      "text": "200 messages a day and only two staff to answer them.",
+      "example": true
     },
     {
-     "label": "Orders a week",
-     "before": 40,
-     "after": 95
+      "type": "metrics",
+      "title": "After ⟦3 months⟧",
+      "rows": [
+        {
+          "label": "Reply time",
+          "before": 120,
+          "after": 2,
+          "suffix": " min"
+        },
+        {
+          "label": "Orders a week",
+          "before": 40,
+          "after": 95
+        }
+      ]
+    },
+    {
+      "type": "quote",
+      "text": "Now we answer customers even when the shop is closed.",
+      "author": "Sokha",
+      "role": "Owner, Sokha Mart"
+    },
+    {
+      "type": "cta",
+      "text": "Get the same ⟦result⟧",
+      "button": "Book a demo"
     }
-   ]
-  },
-  {
-   "type": "quote",
-   "text": "Now we answer customers even when the shop is closed.",
-   "author": "Sokha",
-   "role": "Owner, Sokha Mart"
-  },
-  {
-   "type": "cta",
-   "text": "Get the same ⟦result⟧",
-   "button": "Book a demo"
-  }
- ]
+  ]
 }

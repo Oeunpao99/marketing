@@ -1,43 +1,44 @@
 {
- "brand": {
-  "name": "Marketing ឆ្លាតវៃ",
-  "color": "#1F4E8C",
-  "logo": null
- },
- "style": "testimonial",
- "frame": 120,
- "scenes": [
-  {
-   "type": "beforeafter",
-   "title": "What changed",
-   "before": "Customers waited until morning for a price",
-   "after": "Every question answered in seconds, day and night"
-  }
- ],
- "clip": [
-  {
-   "type": "hook",
-   "text": "How one shop stopped losing ⟦night orders⟧",
-   "icon": "Heart"
+  "brand": {
+    "name": "Smart Marketing",
+    "color": "#1F4E8C",
+    "logo": "ours/smart-marketing.png",
+    "slug": "smart-marketing"
   },
-  {
-   "type": "customer",
-   "name": "Sokha",
-   "business": "Mini-mart owner · Siem Reap",
-   "text": "Messages piled up every night",
-   "mood": "worried"
-  },
-  {
-   "type": "beforeafter",
-   "title": "What changed",
-   "before": "Customers waited until morning for a price",
-   "after": "Every question answered in seconds, day and night"
-  },
-  {
-   "type": "result",
-   "value": 3,
-   "suffix": "x",
-   "label": "More orders answered"
-  }
- ]
+  "style": "testimonial",
+  "frame": 120,
+  "scenes": [
+    {
+      "type": "beforeafter",
+      "title": "What changed",
+      "before": "Customers waited until morning for a price",
+      "after": "Every question answered in seconds, day and night"
+    }
+  ],
+  "clip": [
+    {
+      "type": "hook",
+      "text": "How one shop stopped losing ⟦night orders⟧",
+      "icon": "Heart"
+    },
+    {
+      "type": "customer",
+      "name": "Sokha",
+      "business": "Mini-mart owner · Siem Reap",
+      "text": "Messages piled up every night",
+      "mood": "worried"
+    },
+    {
+      "type": "beforeafter",
+      "title": "What changed",
+      "before": "Customers waited until morning for a price",
+      "after": "Every question answered in seconds, day and night"
+    },
+    {
+      "type": "result",
+      "value": 3,
+      "suffix": "x",
+      "label": "More orders answered"
+    }
+  ]
 }

@@ -1,61 +1,62 @@
 {
- "brand": {
-  "name": "Marketing ឆ្លាតវៃ",
-  "color": "#2F7A68",
-  "logo": null
- },
- "style": "unveil",
- "frame": 58,
- "scenes": [
-  {
-   "type": "word",
-   "word": "Collaborate",
-   "title": "Collaborators (2)",
-   "action": "Manage",
-   "text": "Collaborators are notified when this is sent for approval.",
-   "rows": [
+  "brand": {
+    "name": "Smart Marketing",
+    "color": "#2F7A68",
+    "logo": "ours/smart-marketing.png",
+    "slug": "smart-marketing"
+  },
+  "style": "unveil",
+  "frame": 58,
+  "scenes": [
     {
-     "name": "Sokha Chan",
-     "sub": "Marketing lead"
+      "type": "word",
+      "word": "Collaborate",
+      "title": "Collaborators (2)",
+      "action": "Manage",
+      "text": "Collaborators are notified when this is sent for approval.",
+      "rows": [
+        {
+          "name": "Sokha Chan",
+          "sub": "Marketing lead"
+        },
+        {
+          "name": "Dara Kim",
+          "sub": "Sales manager"
+        }
+      ]
+    }
+  ],
+  "clip": [
+    {
+      "type": "hook",
+      "text": "Approvals, ⟦together⟧",
+      "icon": "Users"
     },
     {
-     "name": "Dara Kim",
-     "sub": "Sales manager"
-    }
-   ]
-  }
- ],
- "clip": [
-  {
-   "type": "hook",
-   "text": "Approvals, ⟦together⟧",
-   "icon": "Users"
-  },
-  {
-   "type": "word",
-   "word": "Collaborate",
-   "title": "Collaborators (2)",
-   "action": "Manage",
-   "rows": [
-    {
-     "name": "Sokha Chan",
-     "sub": "Marketing lead"
+      "type": "word",
+      "word": "Collaborate",
+      "title": "Collaborators (2)",
+      "action": "Manage",
+      "rows": [
+        {
+          "name": "Sokha Chan",
+          "sub": "Marketing lead"
+        },
+        {
+          "name": "Dara Kim",
+          "sub": "Sales manager"
+        }
+      ]
     },
     {
-     "name": "Dara Kim",
-     "sub": "Sales manager"
+      "type": "field",
+      "label": "Invite by email",
+      "value": "jane@company.com",
+      "button": "Invite"
+    },
+    {
+      "type": "done",
+      "text": "User invited"
     }
-   ]
-  },
-  {
-   "type": "field",
-   "label": "Invite by email",
-   "value": "jane@company.com",
-   "button": "Invite"
-  },
-  {
-   "type": "done",
-   "text": "User invited"
-  }
- ]
+  ]
 }

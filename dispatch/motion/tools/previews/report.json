@@ -1,77 +1,78 @@
 {
- "brand": {
-  "name": "Marketing ឆ្លាតវៃ",
-  "color": "#1F4E8C",
-  "logo": null
- },
- "style": "report",
- "frame": 60,
- "scenes": [
-  {
-   "type": "bars",
-   "title": "Where shoppers ⟦message⟧ us",
-   "data": [
+  "brand": {
+    "name": "Smart Marketing",
+    "color": "#1F4E8C",
+    "logo": "ours/smart-marketing.png",
+    "slug": "smart-marketing"
+  },
+  "style": "report",
+  "frame": 60,
+  "scenes": [
     {
-     "label": "Messenger",
-     "value": 62
-    },
-    {
-     "label": "Telegram",
-     "value": 21
-    },
-    {
-     "label": "Website",
-     "value": 11
-    },
-    {
-     "label": "Phone",
-     "value": 6
+      "type": "bars",
+      "title": "Where shoppers ⟦message⟧ us",
+      "data": [
+        {
+          "label": "Messenger",
+          "value": 62
+        },
+        {
+          "label": "Telegram",
+          "value": 21
+        },
+        {
+          "label": "Website",
+          "value": 11
+        },
+        {
+          "label": "Phone",
+          "value": 6
+        }
+      ],
+      "suffix": "%",
+      "source": "Example data"
     }
-   ],
-   "suffix": "%",
-   "source": "Example data"
-  }
- ],
- "clip": [
-  {
-   "type": "hook",
-   "text": "Where do shoppers ⟦message⟧ you?",
-   "icon": "ChartBar"
-  },
-  {
-   "type": "bars",
-   "title": "Where shoppers ⟦message⟧ us",
-   "data": [
+  ],
+  "clip": [
     {
-     "label": "Messenger",
-     "value": 62
+      "type": "hook",
+      "text": "Where do shoppers ⟦message⟧ you?",
+      "icon": "ChartBar"
     },
     {
-     "label": "Telegram",
-     "value": 21
+      "type": "bars",
+      "title": "Where shoppers ⟦message⟧ us",
+      "data": [
+        {
+          "label": "Messenger",
+          "value": 62
+        },
+        {
+          "label": "Telegram",
+          "value": 21
+        },
+        {
+          "label": "Website",
+          "value": 11
+        },
+        {
+          "label": "Phone",
+          "value": 6
+        }
+      ],
+      "suffix": "%",
+      "source": "Example data"
     },
     {
-     "label": "Website",
-     "value": 11
+      "type": "donut",
+      "value": 68,
+      "label": "of messages arrive ⟦after 6 PM⟧",
+      "source": "Example data"
     },
     {
-     "label": "Phone",
-     "value": 6
+      "type": "cta",
+      "text": "Save it for ⟦later⟧",
+      "button": "Follow"
     }
-   ],
-   "suffix": "%",
-   "source": "Example data"
-  },
-  {
-   "type": "donut",
-   "value": 68,
-   "label": "of messages arrive ⟦after 6 PM⟧",
-   "source": "Example data"
-  },
-  {
-   "type": "cta",
-   "text": "Save it for ⟦later⟧",
-   "button": "Follow"
-  }
- ]
+  ]
 }

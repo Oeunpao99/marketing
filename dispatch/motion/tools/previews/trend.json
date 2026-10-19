@@ -1,53 +1,54 @@
 {
- "brand": {
-  "name": "Marketing ឆ្លាតវៃ",
-  "color": "#1F4E8C",
-  "logo": null
- },
- "style": "trend",
- "frame": 110,
- "scenes": [
-  {
-   "type": "news",
-   "tag": "AI · Customer service",
-   "headline": "Shops now answer messages with ⟦AI chat⟧ — day and night",
-   "text": "Customers who wait for a price buy somewhere else. Fast replies win the sale."
-  }
- ],
- "clip": [
-  {
-   "type": "hook",
-   "text": "Your customers now expect a reply in ⟦minutes⟧",
-   "icon": "Newspaper"
+  "brand": {
+    "name": "Smart Marketing",
+    "color": "#1F4E8C",
+    "logo": "ours/smart-marketing.png",
+    "slug": "smart-marketing"
   },
-  {
-   "type": "news",
-   "tag": "AI · Customer service",
-   "headline": "Shops now answer messages with ⟦AI chat⟧ — day and night",
-   "text": "Customers who wait for a price buy somewhere else. Fast replies win the sale."
-  },
-  {
-   "type": "list",
-   "title": "What to do ⟦now⟧",
-   "items": [
+  "style": "trend",
+  "frame": 110,
+  "scenes": [
     {
-     "icon": "Zap",
-     "text": "Reply in minutes"
-    },
-    {
-     "icon": "Bot",
-     "text": "Let AI take the night"
-    },
-    {
-     "icon": "ChartLine",
-     "text": "Track every lead"
+      "type": "news",
+      "tag": "AI · Customer service",
+      "headline": "Shops now answer messages with ⟦AI chat⟧ — day and night",
+      "text": "Customers who wait for a price buy somewhere else. Fast replies win the sale."
     }
-   ]
-  },
-  {
-   "type": "cta",
-   "text": "AI news every week",
-   "button": "Follow"
-  }
- ]
+  ],
+  "clip": [
+    {
+      "type": "hook",
+      "text": "Your customers now expect a reply in ⟦minutes⟧",
+      "icon": "Newspaper"
+    },
+    {
+      "type": "news",
+      "tag": "AI · Customer service",
+      "headline": "Shops now answer messages with ⟦AI chat⟧ — day and night",
+      "text": "Customers who wait for a price buy somewhere else. Fast replies win the sale."
+    },
+    {
+      "type": "list",
+      "title": "What to do ⟦now⟧",
+      "items": [
+        {
+          "icon": "Zap",
+          "text": "Reply in minutes"
+        },
+        {
+          "icon": "Bot",
+          "text": "Let AI take the night"
+        },
+        {
+          "icon": "ChartLine",
+          "text": "Track every lead"
+        }
+      ]
+    },
+    {
+      "type": "cta",
+      "text": "AI news every week",
+      "button": "Follow"
+    }
+  ]
 }

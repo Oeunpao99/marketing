@@ -10,12 +10,15 @@ import {
   FiImage,
   FiMessageCircle,
   FiMic,
+  FiMoon,
   FiPenTool,
   FiPlay,
   FiShield,
+  FiSun,
   FiUsers,
   FiZap,
 } from 'react-icons/fi'
+import { applyTheme, isDark } from '../lib/theme'
 import { FaLinkedin } from 'react-icons/fa'
 import { SiFacebook, SiInstagram, SiTelegram, SiTiktok, SiYoutube } from 'react-icons/si'
 import { MOTION_TEMPLATES, previewSrc } from '../lib/motionTemplates'
@@ -41,23 +44,86 @@ const SHOWCASE = ['studio', 'reaction', 'doodle', 'cartoon', 'lesson', 'rise', '
 
 /** A phone playing one of our template preview clips (public/templates/<id>.mp4). */
 function Phone({ id, className = '', tilt = 0, label }) {
+  // plays only while on screen — the page has 20+ of these
+  const video = useRef(null)
+  useEffect(() => {
+    const v = video.current
+    if (!v) return undefined
+    const io = new IntersectionObserver(([e]) => (e.isIntersecting ? v.play().catch(() => {}) : v.pause()), { threshold: 0.2 })
+    io.observe(v)
+    return () => io.disconnect()
+  }, [])
   return (
     // the tilt goes on the inner frame: on the figure it overrode the position classes (-translate-x-1/2)
     <figure className={className || 'relative'}>
-      <div className="relative aspect-[9/19] overflow-hidden rounded-[2.2rem] border-[6px] border-night-950 bg-night-950 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.55)]" style={{ transform: `rotate(${tilt}deg)` }}>
-        <video
-          src={previewSrc(id, 'mp4')}
-          poster={previewSrc(id)}
-          autoPlay
-          muted
-          loop
-          playsInline
-          className="absolute inset-0 h-full w-full object-cover"
-        />
-        <div className="absolute left-1/2 top-2 h-4 w-16 -translate-x-1/2 rounded-full bg-night-950" />
+      {/* the screen is exactly 9:16 — the clips' own shape, so nothing is cropped — with
+          the notch on its own black strip above it, not over the video */}
+      <div className="relative overflow-hidden rounded-[2.2rem] border-[6px] border-night-950 bg-night-950 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.55)]" style={{ transform: `rotate(${tilt}deg)` }}>
+        <div className="flex h-6 items-center justify-center">
+          <div className="h-3.5 w-14 rounded-full bg-black" />
+        </div>
+        <div className="relative aspect-[9/16] overflow-hidden rounded-b-[1.6rem] bg-night-900">
+          <video
+            ref={video}
+            src={previewSrc(id, 'mp4')}
+            poster={previewSrc(id)}
+            preload="metadata"
+            muted
+            loop
+            playsInline
+            className="absolute inset-0 h-full w-full object-contain"
+          />
+        </div>
       </div>
       {label && <figcaption className="mt-3 text-center text-[12.5px] font-semibold text-ink-700">{label}</figcaption>}
     </figure>
+  )
+}
+
+// The templates that also come wide (16:9) — public/templates/<id>-wide.mp4
+const WIDE = [
+  { id: 'cartoon', name: 'Story · Characters' },
+  { id: 'lesson', name: 'Lesson · Teacher' },
+  { id: 'neural', name: 'AI explainer · Neural' },
+]
+
+/** A laptop playing the wide versions in turn — or the one picked below it. */
+function Laptop() {
+  const [n, setN] = useState(0)
+  const clip = WIDE[n]
+  return (
+    <div className="mx-auto w-full max-w-4xl">
+      <div className="relative mx-auto w-[92%] rounded-t-[1.4rem] border-[10px] border-b-[14px] border-night-800 bg-night-950 shadow-[0_40px_90px_-30px_rgba(0,0,0,0.7)]">
+        <div className="absolute left-1/2 top-[-7px] h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-night-950" />
+        <div className="relative aspect-video overflow-hidden rounded-md bg-night-950">
+          <video
+            key={clip.id}
+            src={previewSrc(`${clip.id}-wide`, 'mp4')}
+            autoPlay
+            muted
+            playsInline
+            onEnded={() => setN((n + 1) % WIDE.length)}
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        </div>
+      </div>
+      {/* the base */}
+      <div className="relative mx-auto h-3.5 w-full rounded-b-2xl bg-gradient-to-b from-night-800 to-night-950">
+        <div className="absolute left-1/2 top-0 h-1.5 w-24 -translate-x-1/2 rounded-b-lg bg-night-950/80" />
+      </div>
+      <div className="mt-6 flex flex-wrap justify-center gap-2">
+        {WIDE.map((w, i) => (
+          <button
+            key={w.id}
+            type="button"
+            onClick={() => setN(i)}
+            className={`rounded-full px-3.5 py-1.5 text-[12.5px] font-semibold transition-colors ${i === n ? 'bg-brand text-white' : 'border border-ink-200 bg-white text-ink-600 hover:bg-ink-50'}`}
+          >
+            {w.name}
+          </button>
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -287,8 +353,46 @@ function Faq() {
   )
 }
 
+const NAV = [
+  ['how', 'How it works'],
+  ['features', 'Features'],
+  ['videos', 'Videos'],
+  ['faq', 'FAQ'],
+]
+
 export default function LandingPage({ onLogin, onStart }) {
   const [scrolled, setScrolled] = useState(false)
+  // the menu item for the section in view gets the soft "selected" highlight
+  const [section, setSection] = useState('')
+  useEffect(() => {
+    const seen = new Map()
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => seen.set(e.target.id, e.isIntersecting ? e.intersectionRatio : 0))
+        const best = [...seen.entries()].sort((a, b) => b[1] - a[1])[0]
+        setSection(best && best[1] > 0 ? best[0] : '')
+      },
+      { threshold: [0, 0.15, 0.35, 0.6], rootMargin: '-80px 0px -35% 0px' },
+    )
+    NAV.forEach(([id]) => {
+      const el = document.getElementById(id)
+      if (el) io.observe(el)
+    })
+    return () => io.disconnect()
+  }, [])
+  // light / dark — the app's own setting (lib/theme.js), remembered on this device
+  const [dark, setDark] = useState(isDark)
+  const toggleTheme = () => {
+    const next = isDark() ? 'light' : 'dark'
+    applyTheme(next)
+    setDark(next === 'dark')
+    try {
+      const saved = JSON.parse(localStorage.getItem('contentflow.appearance') || '{}')
+      localStorage.setItem('contentflow.appearance', JSON.stringify({ ...saved, theme: next }))
+    } catch {
+      // private window: it just isn't remembered
+    }
+  }
   useEffect(() => {
     if (!document.querySelector(`link[href="${KHMER_FONT}"]`)) {
       const l = document.createElement('link')
@@ -296,7 +400,7 @@ export default function LandingPage({ onLogin, onStart }) {
       l.href = KHMER_FONT
       document.head.appendChild(l)
     }
-    const on = () => setScrolled(window.scrollY > 12)
+    const on = () => setScrolled(window.scrollY > 40)
     on()
     window.addEventListener('scroll', on, { passive: true })
     return () => window.removeEventListener('scroll', on)
@@ -307,31 +411,47 @@ export default function LandingPage({ onLogin, onStart }) {
   return (
     <div className="min-h-screen overflow-x-hidden bg-canvas text-ink-900">
       {/* ── nav ── */}
-      <header className={`fixed inset-x-0 top-0 z-30 transition-all duration-300 ${scrolled ? 'bg-white/95 shadow-card' : 'bg-transparent'}`}>
-        <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
+      {/* a floating bar, inset from the edges — light or dark with the theme */}
+      <header className="fixed inset-x-0 top-0 z-30 px-3 pt-3 sm:px-5 sm:pt-4">
+        {/* wide at the top; as the page scrolls it narrows into a compact pill (and back) */}
+        <nav
+          className={`mx-auto flex items-center justify-between gap-2 border border-ink-200 px-3 transition-all duration-500 ease-out sm:px-5 ${
+            scrolled
+              ? 'h-14 max-w-[940px] rounded-[1.25rem] bg-white/95 shadow-pop'
+              : 'h-14 max-w-6xl rounded-2xl bg-white/90 shadow-card sm:h-16'
+          }`}
+        >
           <a href="/" className="flex min-w-0 items-center gap-2.5">
             <img src="/brand/logo-mark.png" alt="" className="h-8 w-8 flex-none rounded-lg" />
-            <span className={`truncate text-[16px] font-bold ${scrolled ? 'text-ink-900' : 'text-white'}`}>
-              Smart Marketing
-            </span>
+            {/* narrow phones: the mark alone — the name was cut off next to the buttons */}
+            <span className="truncate text-[16px] font-bold text-ink-900 max-[420px]:hidden">Smart Marketing</span>
           </a>
-          <div className={`hidden items-center gap-7 text-[14px] font-medium md:flex ${scrolled ? 'text-ink-600' : 'text-white/80'}`}>
-            {[
-              ['how', 'How it works'],
-              ['features', 'Features'],
-              ['videos', 'Videos'],
-              ['faq', 'FAQ'],
-            ].map(([id, label]) => (
-              <button key={id} type="button" onClick={() => go(id)} className="transition-colors hover:text-brand">
+          <div className="hidden items-center gap-1 text-[14px] font-medium md:flex">
+            {NAV.map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => go(id)}
+                className={`rounded-lg px-3 py-1.5 transition-colors ${section === id ? 'bg-ink-100 text-ink-900' : 'text-ink-600 hover:bg-ink-50 hover:text-ink-900'}`}
+              >
                 {label}
               </button>
             ))}
           </div>
-          <div className="flex flex-none items-center gap-2">
-            <button type="button" onClick={onLogin} className={`rounded-xl px-3.5 py-2 text-[14px] font-semibold transition-colors ${scrolled ? 'text-ink-700 hover:bg-ink-50' : 'text-white hover:bg-white/10'}`}>
+          <div className="flex flex-none items-center gap-1.5 sm:gap-2">
+            <button
+              type="button"
+              onClick={toggleTheme}
+              title={dark ? 'Light mode' : 'Dark mode'}
+              aria-label={dark ? 'Light mode' : 'Dark mode'}
+              className="grid h-9 w-9 place-items-center rounded-full border border-ink-200 text-ink-600 transition-colors hover:bg-ink-50 hover:text-ink-900"
+            >
+              {dark ? <FiSun size={16} /> : <FiMoon size={16} />}
+            </button>
+            <button type="button" onClick={onLogin} className="rounded-xl border border-ink-200 px-2.5 py-2 text-[13.5px] font-semibold text-ink-800 transition-colors hover:bg-ink-50 sm:px-3.5 sm:text-[14px]">
               Log in
             </button>
-            <button type="button" onClick={onStart} className="rounded-xl bg-brand px-4 py-2 text-[14px] font-semibold text-white shadow-glow-lg transition-transform hover:-translate-y-px">
+            <button type="button" onClick={onStart} className="rounded-xl bg-brand px-3.5 py-2 text-[14px] font-semibold text-white shadow-glow-lg transition-transform hover:-translate-y-px sm:px-4">
               Start free
             </button>
           </div>
@@ -339,49 +459,51 @@ export default function LandingPage({ onLogin, onStart }) {
       </header>
 
       {/* ── hero ── */}
-      <section className="relative overflow-hidden bg-night-950 pb-20 pt-32 sm:pb-28 sm:pt-40">
+      {/* light or dark with the theme: the page's own surface, a soft brand glow and a faint grid */}
+      <section className="relative overflow-hidden bg-white pb-20 pt-32 sm:pb-28 sm:pt-40">
         <div className="pointer-events-none absolute inset-0">
-          <div className="absolute -left-40 top-10 h-[520px] w-[520px] rounded-full bg-brand/25 blur-[120px]" />
-          <div className="absolute -right-32 bottom-0 h-[460px] w-[460px] rounded-full bg-violet-500/20 blur-[120px]" />
+          <div className="absolute -left-40 top-10 h-[520px] w-[520px] rounded-full bg-brand/15 blur-[120px] dark:bg-brand/25" />
+          <div className="absolute -right-32 bottom-0 h-[460px] w-[460px] rounded-full bg-violet-500/10 blur-[120px] dark:bg-violet-500/20" />
           <div
-            className="absolute inset-0 opacity-[0.07]"
-            style={{ backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)', backgroundSize: '56px 56px' }}
+            className="absolute inset-0"
+            style={{
+              backgroundImage: 'linear-gradient(rgb(var(--ink-900) / 0.05) 1px, transparent 1px), linear-gradient(90deg, rgb(var(--ink-900) / 0.05) 1px, transparent 1px)',
+              backgroundSize: '56px 56px',
+              maskImage: 'radial-gradient(ellipse 90% 80% at 50% 40%, black 40%, transparent 100%)',
+              WebkitMaskImage: 'radial-gradient(ellipse 90% 80% at 50% 40%, black 40%, transparent 100%)',
+            }}
           />
         </div>
         <div className="relative mx-auto grid max-w-6xl items-center gap-14 px-4 sm:px-6 lg:grid-cols-[1.05fr_1fr]">
           <div className="text-center lg:text-left">
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3.5 py-1.5 text-[12.5px] font-medium text-white/80">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
-              Your AI marketing team — made for Khmer businesses
-            </div>
-            <h1 className="mt-6 text-[38px] font-bold leading-[1.25] text-white sm:text-[54px]" style={km}>
-              ទីផ្សារ​ឆ្លាតវៃ <span className="text-brand-light">ធ្វើការជំនួសបង</span> រាល់ថ្ងៃ
+            <h1 className="text-[38px] font-bold leading-[1.25] text-ink-900 sm:text-[54px]" style={km}>
+              ទីផ្សារ​ឆ្លាតវៃ <span className="text-brand dark:text-brand-light">ធ្វើការជំនួសបង</span> រាល់ថ្ងៃ
             </h1>
-            <p className="mx-auto mt-5 max-w-xl text-[17px] leading-relaxed text-white/70 lg:mx-0">
+            <p className="mx-auto mt-5 max-w-xl text-[17px] leading-relaxed text-ink-500 lg:mx-0">
               Connect your pages once. The AI plans your week, designs the videos and pictures, writes the captions in Khmer — and posts at your best time. You just approve.
             </p>
             <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center lg:justify-start">
               <button type="button" onClick={onStart} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand px-6 py-3.5 text-[15px] font-semibold text-white shadow-glow-lg transition-transform hover:-translate-y-0.5 sm:w-auto">
                 Start free <FiArrowRight />
               </button>
-              <button type="button" onClick={() => go('videos')} className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/20 px-6 py-3.5 text-[15px] font-semibold text-white transition-colors hover:bg-white/10 sm:w-auto">
+              <button type="button" onClick={() => go('videos')} className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-ink-200 bg-white px-6 py-3.5 text-[15px] font-semibold text-ink-800 transition-colors hover:bg-ink-50 sm:w-auto">
                 <FiPlay /> See the videos
               </button>
             </div>
             <div className="mt-9 flex flex-wrap items-center justify-center gap-x-5 gap-y-3 lg:justify-start">
-              <span className="text-[12.5px] text-white/50">Posts to</span>
+              <span className="text-[12.5px] text-ink-400">Posts to</span>
               {CHANNELS.map(({ Icon, name }) => (
-                <Icon key={name} size={20} className="text-white/70" title={name} />
+                <Icon key={name} size={20} className="text-ink-500" title={name} />
               ))}
             </div>
           </div>
 
           {/* three phones, each playing a real template */}
-          <div className="relative mx-auto h-[460px] w-full max-w-[460px] sm:h-[540px]">
+          <div className="relative mx-auto h-[400px] w-full max-w-[460px] sm:h-[470px]">
             <Phone id="reaction" className="absolute left-0 top-12 w-[38%]" tilt={-8} />
             <Phone id="studio" className="absolute left-1/2 top-0 z-10 w-[44%] -translate-x-1/2" />
             <Phone id="doodle" className="absolute right-0 top-12 w-[38%]" tilt={8} />
-            <div className="absolute -left-2 bottom-6 z-20 flex items-center gap-2.5 rounded-2xl bg-white px-3.5 py-2.5 shadow-pop sm:-left-6">
+            <div className="absolute -left-2 bottom-2 z-20 flex items-center gap-2.5 rounded-2xl bg-white px-3.5 py-2.5 shadow-pop sm:-left-6">
               <span className="grid h-8 w-8 place-items-center rounded-full bg-emerald-500 text-white">
                 <FiCheck strokeWidth={3} />
               </span>
@@ -390,7 +512,7 @@ export default function LandingPage({ onLogin, onStart }) {
                 <div className="text-[11px] text-ink-500">Today · 08:00</div>
               </div>
             </div>
-            <div className="absolute -right-1 bottom-24 z-20 flex items-center gap-2 rounded-2xl bg-white px-3.5 py-2.5 shadow-pop sm:-right-4">
+            <div className="absolute -right-1 bottom-20 z-20 flex items-center gap-2 rounded-2xl bg-white px-3.5 py-2.5 shadow-pop sm:-right-4">
               <FiCalendar className="text-brand" />
               <div className="text-[12.5px] font-bold text-ink-900">Next week: planned</div>
             </div>
@@ -472,29 +594,50 @@ export default function LandingPage({ onLogin, onStart }) {
       </section>
 
       {/* ── videos ── */}
-      <section id="videos" className="scroll-mt-20 overflow-hidden bg-night-950 py-20 sm:py-28">
+      <section id="videos" className="scroll-mt-20 overflow-hidden bg-canvas py-20 sm:py-28">
         <div className="px-4 sm:px-6">
           <div className="mx-auto max-w-2xl text-center">
-            <div className="text-[12px] font-bold uppercase tracking-[0.14em] text-brand-light">Video studio</div>
-            <h2 className="mt-3 text-[28px] font-bold leading-tight tracking-tight text-white sm:text-[38px]">Videos people stop scrolling for</h2>
-            <p className="mt-2 text-[17px] font-medium text-white/70" style={km}>
+            <div className="text-[12px] font-bold uppercase tracking-[0.14em] text-brand">Video studio</div>
+            <h2 className="mt-3 text-[28px] font-bold leading-tight tracking-tight text-ink-900 sm:text-[38px]">Videos people stop scrolling for</h2>
+            <p className="mt-2 text-[17px] font-medium text-ink-600" style={km}>
               វីដេអូខ្មែរ ដែលមនុស្សឈប់មើល
             </p>
-            <p className="mt-4 text-[15.5px] leading-relaxed text-white/55">
+            <p className="mt-4 text-[15.5px] leading-relaxed text-ink-500">
               {MOTION_TEMPLATES.length}+ animated templates — memes, stories, lessons, product launches — or let the AI design every scene for your brief. Your colours, your logo, a Khmer voice and subtitles.
             </p>
           </div>
         </div>
-        <div className="mt-14 flex gap-5 overflow-x-auto px-4 pb-4 sm:gap-7 sm:px-10 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {SHOWCASE.filter((id) => byId[id]).map((id) => (
-            <div key={id} className="w-[170px] flex-none sm:w-[210px]">
-              <Phone id={id} />
-              <div className="mt-3 text-center text-[13px] font-semibold text-white">{byId[id].name}</div>
-            </div>
-          ))}
+        <div className="mt-14 px-4 sm:px-6">
+          <Laptop />
+          <p className="mt-5 text-center text-[13px] text-ink-400">Wide 16:9 for YouTube, Facebook and your website — tall 9:16 for Reels and TikTok</p>
+        </div>
+        {/* the phones drift past in a loop (the list twice, moved by half), faded at both
+            edges — a strip cut off at the screen's edge looked like a mistake; still on hover
+            and for people who turn motion off */}
+        <style>{`
+          @keyframes lp-drift { from { transform: translateX(0) } to { transform: translateX(-50%) } }
+          .lp-drift { animation: lp-drift 60s linear infinite }
+          .lp-strip:hover .lp-drift { animation-play-state: paused }
+          @media (prefers-reduced-motion: reduce) { .lp-drift { animation: none } }
+        `}</style>
+        <div
+          className="lp-strip mt-14 overflow-hidden pb-4"
+          style={{ maskImage: 'linear-gradient(90deg, transparent, black 8%, black 92%, transparent)', WebkitMaskImage: 'linear-gradient(90deg, transparent, black 8%, black 92%, transparent)' }}
+        >
+          <div className="lp-drift flex w-max">
+            {[0, 1].map((copy) =>
+              SHOWCASE.filter((id) => byId[id]).map((id) => (
+                <div key={`${copy}-${id}`} className="mr-5 w-[170px] flex-none sm:mr-7 sm:w-[210px]" aria-hidden={copy === 1 || undefined}>
+                  <Phone id={id} />
+                  <div className="mt-3 text-center text-[13px] font-semibold text-ink-700">{byId[id].name}</div>
+                </div>
+              )),
+            )}
+          </div>
         </div>
         <div className="mt-10 text-center">
-          <button type="button" onClick={onStart} className="inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3 text-[15px] font-semibold text-night-950 transition-transform hover:-translate-y-0.5">
+          {/* the brand button reads on the light and the dark section alike */}
+          <button type="button" onClick={onStart} className="inline-flex items-center gap-2 rounded-xl bg-brand px-6 py-3 text-[15px] font-semibold text-white shadow-glow-lg transition-transform hover:-translate-y-0.5">
             Make your first video <FiArrowRight />
           </button>
         </div>
@@ -572,7 +715,12 @@ export default function LandingPage({ onLogin, onStart }) {
               Log in
             </button>
           </div>
-          <div className="text-[12.5px] text-ink-400">© {new Date().getFullYear()} Smart Marketing</div>
+          <div className="text-center text-[12.5px] text-ink-400 sm:text-right">
+            <div>© {new Date().getFullYear()} Smart Marketing</div>
+            <div className="mt-0.5">
+              Powered by <span className="font-semibold text-ink-600">Proseth Solutions</span>
+            </div>
+          </div>
         </div>
       </footer>
     </div>

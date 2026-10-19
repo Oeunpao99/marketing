@@ -1,0 +1,92 @@
+{
+  "brand": {
+    "color": "#7A1F2B",
+    "name": "Smart Marketing",
+    "slug": "smart-marketing",
+    "logo": "ours/smart-marketing.png"
+  },
+  "style": "studio",
+  "frame": 440,
+  "scenes": [
+    {
+      "type": "hook",
+      "word": "Creative",
+      "text": "វីដេអូស្អាតៗ ⟦រាល់សប្តាហ៍⟧",
+      "image": "previews/cartoon-shop.jpg",
+      "seconds": 4.2
+    },
+    {
+      "type": "collage",
+      "word": "Studio",
+      "images": [
+        "previews/studio-1.jpg",
+        "previews/studio-2.jpg",
+        "previews/studio-3.jpg",
+        "previews/studio-4.jpg"
+      ],
+      "tiles": [],
+      "seconds": 4.4
+    },
+    {
+      "type": "statement",
+      "text": "ទាំងអស់នេះ! ធ្វើដោយ ⟦AI⟧",
+      "sub": "ជាភាសាខ្មែរ ក្នុងពណ៌ម៉ាករបស់បង",
+      "seconds": 4.4
+    },
+    {
+      "type": "pedestal",
+      "title": "SMART MARKETING",
+      "left": "AI រៀបចំផែនការ",
+      "right": "AI រចនា និងសរសេរ",
+      "icon": "Sparkles",
+      "seconds": 4.6
+    },
+    {
+      "type": "cta",
+      "text": "ចាប់ផ្តើម ⟦ថ្ងៃនេះ⟧",
+      "button": "Start free",
+      "seconds": 3.6
+    }
+  ],
+  "clip": [
+    {
+      "type": "hook",
+      "word": "Creative",
+      "text": "វីដេអូស្អាតៗ ⟦រាល់សប្តាហ៍⟧",
+      "image": "previews/cartoon-shop.jpg",
+      "seconds": 4.2
+    },
+    {
+      "type": "collage",
+      "word": "Studio",
+      "images": [
+        "previews/studio-1.jpg",
+        "previews/studio-2.jpg",
+        "previews/studio-3.jpg",
+        "previews/studio-4.jpg"
+      ],
+      "tiles": [],
+      "seconds": 4.4
+    },
+    {
+      "type": "statement",
+      "text": "ទាំងអស់នេះ! ធ្វើដោយ ⟦AI⟧",
+      "sub": "ជាភាសាខ្មែរ ក្នុងពណ៌ម៉ាករបស់បង",
+      "seconds": 4.4
+    },
+    {
+      "type": "pedestal",
+      "title": "SMART MARKETING",
+      "left": "AI រៀបចំផែនការ",
+      "right": "AI រចនា និងសរសេរ",
+      "icon": "Sparkles",
+      "seconds": 4.6
+    },
+    {
+      "type": "cta",
+      "text": "ចាប់ផ្តើម ⟦ថ្ងៃនេះ⟧",
+      "button": "Start free",
+      "seconds": 3.6
+    }
+  ]
+}

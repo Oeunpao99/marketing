@@ -1,55 +1,56 @@
 {
- "brand": {
-  "name": "Marketing ឆ្លាតវៃ",
-  "color": "#1F4E8C",
-  "logo": null
- },
- "style": "countdown",
- "frame": 60,
- "scenes": [
-  {
-   "type": "rank",
-   "n": 3,
-   "of": 5,
-   "title": "Reply in ⟦5 minutes⟧",
-   "text": "Customers buy from the shop that answers first.",
-   "icon": "Clock"
-  }
- ],
- "clip": [
-  {
-   "type": "hook",
-   "text": "5 things customers notice ⟦first⟧",
-   "icon": "Eye"
+  "brand": {
+    "name": "Smart Marketing",
+    "color": "#1F4E8C",
+    "logo": "ours/smart-marketing.png",
+    "slug": "smart-marketing"
   },
-  {
-   "type": "rank",
-   "n": 5,
-   "of": 5,
-   "title": "Your profile photo",
-   "text": "A clear logo builds trust in one second.",
-   "icon": "Image"
-  },
-  {
-   "type": "rank",
-   "n": 3,
-   "of": 5,
-   "title": "Reply in ⟦5 minutes⟧",
-   "text": "Customers buy from the shop that answers first.",
-   "icon": "Clock"
-  },
-  {
-   "type": "rank",
-   "n": 1,
-   "of": 5,
-   "title": "Real ⟦prices⟧",
-   "text": "Hidden prices lose the sale.",
-   "icon": "Tag"
-  },
-  {
-   "type": "cta",
-   "text": "Save it for ⟦later⟧",
-   "button": "Follow"
-  }
- ]
+  "style": "countdown",
+  "frame": 60,
+  "scenes": [
+    {
+      "type": "rank",
+      "n": 3,
+      "of": 5,
+      "title": "Reply in ⟦5 minutes⟧",
+      "text": "Customers buy from the shop that answers first.",
+      "icon": "Clock"
+    }
+  ],
+  "clip": [
+    {
+      "type": "hook",
+      "text": "5 things customers notice ⟦first⟧",
+      "icon": "Eye"
+    },
+    {
+      "type": "rank",
+      "n": 5,
+      "of": 5,
+      "title": "Your profile photo",
+      "text": "A clear logo builds trust in one second.",
+      "icon": "Image"
+    },
+    {
+      "type": "rank",
+      "n": 3,
+      "of": 5,
+      "title": "Reply in ⟦5 minutes⟧",
+      "text": "Customers buy from the shop that answers first.",
+      "icon": "Clock"
+    },
+    {
+      "type": "rank",
+      "n": 1,
+      "of": 5,
+      "title": "Real ⟦prices⟧",
+      "text": "Hidden prices lose the sale.",
+      "icon": "Tag"
+    },
+    {
+      "type": "cta",
+      "text": "Save it for ⟦later⟧",
+      "button": "Follow"
+    }
+  ]
 }

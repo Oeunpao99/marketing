@@ -1,67 +1,68 @@
 {
- "brand": {
-  "name": "Marketing ឆ្លាតវៃ",
-  "color": "#1F4E8C",
-  "logo": null
- },
- "style": "versus",
- "scenes": [
-  {
-   "type": "split",
-   "title": "Old way vs new way",
-   "left": {
-    "label": "By hand",
-    "icon": "Hourglass",
-    "points": [
-     "Replies take hours",
-     "Missed at night",
-     "Staff burn out"
-    ]
-   },
-   "right": {
-    "label": "AI chatbot",
-    "icon": "Bot",
-    "points": [
-     "Replies in 5 seconds",
-     "Open 24/7",
-     "Staff focus on sales"
-    ]
-   }
-  }
- ],
- "frame": 225,
- "clip": [
-  {
-   "type": "hook",
-   "text": "Paper notebook or an ⟦app⟧?",
-   "icon": "Scale"
+  "brand": {
+    "name": "Smart Marketing",
+    "color": "#1F4E8C",
+    "logo": "ours/smart-marketing.png",
+    "slug": "smart-marketing"
   },
-  {
-   "type": "split",
-   "title": "Old way vs new way",
-   "left": {
-    "label": "By hand",
-    "icon": "Hourglass",
-    "points": [
-     "Replies take hours",
-     "Missed at night",
-     "Staff burn out"
-    ]
-   },
-   "right": {
-    "label": "AI chatbot",
-    "icon": "Bot",
-    "points": [
-     "Replies in 5 seconds",
-     "Open 24/7",
-     "Staff focus on sales"
-    ]
-   }
-  },
-  {
-   "type": "verdict",
-   "text": "Fast replies ⟦win⟧ the sale",
-   "icon": "Award"
-  }
- ]
+  "style": "versus",
+  "scenes": [
+    {
+      "type": "split",
+      "title": "Old way vs new way",
+      "left": {
+        "label": "By hand",
+        "icon": "Hourglass",
+        "points": [
+          "Replies take hours",
+          "Missed at night",
+          "Staff burn out"
+        ]
+      },
+      "right": {
+        "label": "AI chatbot",
+        "icon": "Bot",
+        "points": [
+          "Replies in 5 seconds",
+          "Open 24/7",
+          "Staff focus on sales"
+        ]
+      }
+    }
+  ],
+  "frame": 225,
+  "clip": [
+    {
+      "type": "hook",
+      "text": "Paper notebook or an ⟦app⟧?",
+      "icon": "Scale"
+    },
+    {
+      "type": "split",
+      "title": "Old way vs new way",
+      "left": {
+        "label": "By hand",
+        "icon": "Hourglass",
+        "points": [
+          "Replies take hours",
+          "Missed at night",
+          "Staff burn out"
+        ]
+      },
+      "right": {
+        "label": "AI chatbot",
+        "icon": "Bot",
+        "points": [
+          "Replies in 5 seconds",
+          "Open 24/7",
+          "Staff focus on sales"
+        ]
+      }
+    },
+    {
+      "type": "verdict",
+      "text": "Fast replies ⟦win⟧ the sale",
+      "icon": "Award"
+    }
+  ]
 }

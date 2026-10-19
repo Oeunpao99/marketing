@@ -1,104 +1,105 @@
 {
- "brand": {
-  "name": "Marketing ឆ្លាតវៃ",
-  "color": "#1F4E8C",
-  "logo": null
- },
- "style": "explainer",
- "scenes": [
-  {
-   "type": "chart",
-   "title": "Save ⟦$80⟧ a month",
-   "prefix": "$",
-   "suffix": "",
-   "labels": [
-    "0",
-    "1",
-    "2",
-    "3",
-    "5"
-   ],
-   "series": [
+  "brand": {
+    "name": "Smart Marketing",
+    "color": "#1F4E8C",
+    "logo": "ours/smart-marketing.png",
+    "slug": "smart-marketing"
+  },
+  "style": "explainer",
+  "scenes": [
     {
-     "name": "Sokha saves",
-     "tone": "good",
-     "values": [
-      0,
-      960,
-      1920,
-      2880,
-      4800
-     ]
+      "type": "chart",
+      "title": "Save ⟦$80⟧ a month",
+      "prefix": "$",
+      "suffix": "",
+      "labels": [
+        "0",
+        "1",
+        "2",
+        "3",
+        "5"
+      ],
+      "series": [
+        {
+          "name": "Sokha saves",
+          "tone": "good",
+          "values": [
+            0,
+            960,
+            1920,
+            2880,
+            4800
+          ]
+        },
+        {
+          "name": "Dara spends",
+          "tone": "bad",
+          "values": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      ]
+    }
+  ],
+  "frame": 140,
+  "clip": [
+    {
+      "type": "hook",
+      "text": "Save ⟦$80⟧ a month — what happens?",
+      "icon": "Wallet"
     },
     {
-     "name": "Dara spends",
-     "tone": "bad",
-     "values": [
-      0,
-      0,
-      0,
-      0,
-      0
-     ]
-    }
-   ]
-  }
- ],
- "frame": 140,
- "clip": [
-  {
-   "type": "hook",
-   "text": "Save ⟦$80⟧ a month — what happens?",
-   "icon": "Wallet"
-  },
-  {
-   "type": "character",
-   "title": "Meet ⟦Sokha⟧",
-   "mood": "thinking",
-   "icon": "Wallet",
-   "tag": "$80"
-  },
-  {
-   "type": "chart",
-   "title": "Save ⟦$80⟧ a month",
-   "prefix": "$",
-   "suffix": "",
-   "labels": [
-    "0",
-    "1",
-    "2",
-    "3",
-    "5"
-   ],
-   "series": [
-    {
-     "name": "Sokha saves",
-     "tone": "good",
-     "values": [
-      0,
-      960,
-      1920,
-      2880,
-      4800
-     ]
+      "type": "character",
+      "title": "Meet ⟦Sokha⟧",
+      "mood": "thinking",
+      "icon": "Wallet",
+      "tag": "$80"
     },
     {
-     "name": "Dara spends",
-     "tone": "bad",
-     "values": [
-      0,
-      0,
-      0,
-      0,
-      0
-     ]
+      "type": "chart",
+      "title": "Save ⟦$80⟧ a month",
+      "prefix": "$",
+      "suffix": "",
+      "labels": [
+        "0",
+        "1",
+        "2",
+        "3",
+        "5"
+      ],
+      "series": [
+        {
+          "name": "Sokha saves",
+          "tone": "good",
+          "values": [
+            0,
+            960,
+            1920,
+            2880,
+            4800
+          ]
+        },
+        {
+          "name": "Dara spends",
+          "tone": "bad",
+          "values": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "type": "cta",
+      "text": "Save this for later",
+      "button": "Save"
     }
-   ]
-  },
-  {
-   "type": "cta",
-   "text": "Save this for later",
-   "button": "Save"
-  }
- ]
+  ]
 }

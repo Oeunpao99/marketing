@@ -1,81 +1,82 @@
 {
- "brand": {
-  "name": "Marketing ឆ្លាតវៃ",
-  "color": "#1F4E8C",
-  "logo": null
- },
- "style": "reviews",
- "frame": 60,
- "scenes": [
-  {
-   "type": "reviews",
-   "title": "Customers say",
-   "rating": 4.9,
-   "count": "1,240 reviews",
-   "cards": [
+  "brand": {
+    "name": "Smart Marketing",
+    "color": "#1F4E8C",
+    "logo": "ours/smart-marketing.png",
+    "slug": "smart-marketing"
+  },
+  "style": "reviews",
+  "frame": 60,
+  "scenes": [
     {
-     "name": "Sokha",
-     "text": "Replies came in seconds, even at midnight.",
-     "stars": 5
-    },
-    {
-     "name": "Dara",
-     "text": "Setup took 10 minutes.",
-     "stars": 5
-    },
-    {
-     "name": "Bopha",
-     "text": "Our customers love it.",
-     "stars": 5
+      "type": "reviews",
+      "title": "Customers say",
+      "rating": 4.9,
+      "count": "1,240 reviews",
+      "cards": [
+        {
+          "name": "Sokha",
+          "text": "Replies came in seconds, even at midnight.",
+          "stars": 5
+        },
+        {
+          "name": "Dara",
+          "text": "Setup took 10 minutes.",
+          "stars": 5
+        },
+        {
+          "name": "Bopha",
+          "text": "Our customers love it.",
+          "stars": 5
+        }
+      ]
     }
-   ]
-  }
- ],
- "clip": [
-  {
-   "type": "hook",
-   "text": "Don't take ⟦our⟧ word for it",
-   "icon": "Star"
-  },
-  {
-   "type": "reviews",
-   "title": "Customers say",
-   "rating": 4.9,
-   "count": "1,240 reviews",
-   "cards": [
+  ],
+  "clip": [
     {
-     "name": "Sokha",
-     "text": "Replies came in seconds, even at midnight.",
-     "stars": 5
+      "type": "hook",
+      "text": "Don't take ⟦our⟧ word for it",
+      "icon": "Star"
     },
     {
-     "name": "Dara",
-     "text": "Setup took 10 minutes.",
-     "stars": 5
+      "type": "reviews",
+      "title": "Customers say",
+      "rating": 4.9,
+      "count": "1,240 reviews",
+      "cards": [
+        {
+          "name": "Sokha",
+          "text": "Replies came in seconds, even at midnight.",
+          "stars": 5
+        },
+        {
+          "name": "Dara",
+          "text": "Setup took 10 minutes.",
+          "stars": 5
+        },
+        {
+          "name": "Bopha",
+          "text": "Our customers love it.",
+          "stars": 5
+        }
+      ]
     },
     {
-     "name": "Bopha",
-     "text": "Our customers love it.",
-     "stars": 5
+      "type": "logos",
+      "title": "Trusted by ⟦200+⟧ shops",
+      "names": [
+        "Chumnouykar",
+        "ABA Mart",
+        "Lucky Mall",
+        "Brown Coffee",
+        "Khmer Tea",
+        "Angkor Shop"
+      ]
+    },
+    {
+      "type": "cta",
+      "text": "Join them ⟦today⟧",
+      "button": "Start free"
     }
-   ]
-  },
-  {
-   "type": "logos",
-   "title": "Trusted by ⟦200+⟧ shops",
-   "names": [
-    "Chumnouykar",
-    "ABA Mart",
-    "Lucky Mall",
-    "Brown Coffee",
-    "Khmer Tea",
-    "Angkor Shop"
-   ]
-  },
-  {
-   "type": "cta",
-   "text": "Join them ⟦today⟧",
-   "button": "Start free"
-  }
- ]
+  ]
 }

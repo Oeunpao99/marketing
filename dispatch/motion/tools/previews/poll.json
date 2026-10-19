@@ -1,40 +1,41 @@
 {
- "brand": {
-  "name": "Marketing ឆ្លាតវៃ",
-  "color": "#1F4E8C",
-  "logo": null
- },
- "style": "poll",
- "scenes": [
-  {
-   "type": "options",
-   "question": "How fast should a shop reply?",
-   "options": [
-    "Within 5 minutes",
-    "Within 1 hour",
-    "Same day",
-    "Next day"
-   ],
-   "answer": 0
-  }
- ],
- "frame": 285,
- "clip": [
-  {
-   "type": "hook",
-   "text": "3 questions — can you get ⟦all 3⟧?",
-   "icon": "CircleHelp"
+  "brand": {
+    "name": "Smart Marketing",
+    "color": "#1F4E8C",
+    "logo": "ours/smart-marketing.png",
+    "slug": "smart-marketing"
   },
-  {
-   "type": "options",
-   "question": "How fast should a shop reply?",
-   "options": [
-    "Within 5 minutes",
-    "Within 1 hour",
-    "Same day",
-    "Next day"
-   ],
-   "answer": 0
-  }
- ]
+  "style": "poll",
+  "scenes": [
+    {
+      "type": "options",
+      "question": "How fast should a shop reply?",
+      "options": [
+        "Within 5 minutes",
+        "Within 1 hour",
+        "Same day",
+        "Next day"
+      ],
+      "answer": 0
+    }
+  ],
+  "frame": 285,
+  "clip": [
+    {
+      "type": "hook",
+      "text": "3 questions — can you get ⟦all 3⟧?",
+      "icon": "CircleHelp"
+    },
+    {
+      "type": "options",
+      "question": "How fast should a shop reply?",
+      "options": [
+        "Within 5 minutes",
+        "Within 1 hour",
+        "Same day",
+        "Next day"
+      ],
+      "answer": 0
+    }
+  ]
 }

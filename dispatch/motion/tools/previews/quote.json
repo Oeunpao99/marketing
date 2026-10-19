@@ -1,37 +1,38 @@
 {
- "brand": {
-  "name": "Marketing ឆ្លាតវៃ",
-  "color": "#1F4E8C",
-  "logo": null
- },
- "style": "quote",
- "scenes": [
-  {
-   "type": "quote",
-   "image": "sample/soap.png",
-   "text": "Customers don't remember the price. They remember ⟦how fast you cared⟧.",
-   "author": "Marketing ឆ្លាតវៃ"
-  }
- ],
- "frame": 150,
- "clip": [
-  {
-   "type": "hook",
-   "text": "3 things 10 years of selling ⟦taught us⟧",
-   "icon": "Quote",
-   "image": "sample/soap.png"
+  "brand": {
+    "name": "Smart Marketing",
+    "color": "#1F4E8C",
+    "logo": "ours/smart-marketing.png",
+    "slug": "smart-marketing"
   },
-  {
-   "type": "quote",
-   "image": "sample/soap.png",
-   "text": "Customers don't remember the price. They remember ⟦how fast you cared⟧.",
-   "author": "Marketing ឆ្លាតវៃ"
-  },
-  {
-   "type": "cta",
-   "text": "One lesson a day",
-   "button": "Follow",
-   "image": "sample/soap.png"
-  }
- ]
+  "style": "quote",
+  "scenes": [
+    {
+      "type": "quote",
+      "image": "sample/soap.png",
+      "text": "Customers don't remember the price. They remember ⟦how fast you cared⟧.",
+      "author": "Smart Marketing"
+    }
+  ],
+  "frame": 150,
+  "clip": [
+    {
+      "type": "hook",
+      "text": "3 things 10 years of selling ⟦taught us⟧",
+      "icon": "Quote",
+      "image": "sample/soap.png"
+    },
+    {
+      "type": "quote",
+      "image": "sample/soap.png",
+      "text": "Customers don't remember the price. They remember ⟦how fast you cared⟧.",
+      "author": "Smart Marketing"
+    },
+    {
+      "type": "cta",
+      "text": "One lesson a day",
+      "button": "Follow",
+      "image": "sample/soap.png"
+    }
+  ]
 }
