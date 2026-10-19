@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FiCheck, FiEdit3, FiRefreshCw, FiSend, FiUsers } from "react-icons/fi";
 import { api } from "../api/client";
-import CaptionComps from "../components/newpost/CaptionComps";
+import CaptionComps, { tiktokMissing } from "../components/newpost/CaptionComps";
 import ChannelPicker from "../components/newpost/ChannelPicker";
 import VideoStep from "../components/newpost/VideoStep";
 import CircularProgress from "../components/ui/CircularProgress";
@@ -246,8 +246,13 @@ export default function NewPostPage() {
     setPreviewing(true);
   };
 
+  // TikTok Direct Post: the person picks who can see it (TikTok's guidelines)
+  const tiktokTodo = selected
+    .filter((c) => c.p === "tiktok" && c.tiktokDirectPost)
+    .map((c) => tiktokMissing(comps[c.id]?.tiktokOptions))
+    .find(Boolean);
   const canSchedule =
-    video && ids.length > 0 && emptyCount === 0 && overCount === 0;
+    video && ids.length > 0 && emptyCount === 0 && overCount === 0 && !tiktokTodo;
 
   const summary = !video
     ? "Still needed: add a video or image first."
@@ -257,7 +262,9 @@ export default function NewPostPage() {
         ? `Still needed: ${emptyCount} caption${emptyCount === 1 ? " is empty" : "s are empty"}.`
         : overCount > 0
           ? `Still needed: ${overCount} over the character limit.`
-          : (() => {
+          : tiktokTodo
+            ? `Still needed: ${tiktokTodo}.`
+            : (() => {
               const ts = ids.map((i) => comps[i]?.time).sort();
               const d = ids.map((i) => comps[i]?.date).find(Boolean);
               const { rest: when } = fullDayLabel(d || phnomPenhDate());

@@ -303,7 +303,11 @@ def _publish_tiktok(target: PostTarget, channel: Channel, video: Video | None) -
     # stays private pre-audit; toggle Channel.config["prefer_upload"] to
     # switch back without reconnecting (which would drop the video.publish
     # grant entirely).
-    if "video.publish" in granted_scope.split(",") and not cfg.get("prefer_upload"):
+    # Direct Post only with the settings the person picked in the composer
+    # (TikTok's guidelines: who can see it is always their choice) — a post
+    # without them (the weekly plan, a re-post) goes to the inbox as a draft
+    opts = (target.platform_options or {}).get("tiktok") or {}
+    if "video.publish" in granted_scope.split(",") and not cfg.get("prefer_upload") and opts.get("privacy_level"):
         return _publish_tiktok_direct(target, access_token, data)
 
     try:
@@ -349,8 +353,9 @@ def _publish_tiktok_direct(target: PostTarget, access_token: str, data: bytes) -
             disable_duet=bool(opts.get("disable_duet", False)),
             disable_comment=bool(opts.get("disable_comment", False)),
             disable_stitch=bool(opts.get("disable_stitch", False)),
-            brand_content_toggle=bool(opts.get("brand_content_toggle", False)),
-            brand_organic_toggle=bool(opts.get("brand_organic_toggle", False)),
+            # a disclosure counts only while its switch is on (the composer's "disclose")
+            brand_content_toggle=bool(opts.get("brand_content_toggle", False)) and opts.get("disclose", True) is not False,
+            brand_organic_toggle=bool(opts.get("brand_organic_toggle", False)) and opts.get("disclose", True) is not False,
         )
     except tiktok.TikTokError as exc:
         if not tiktok.unaudited_public(exc):

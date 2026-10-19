@@ -11,10 +11,24 @@ const PRIVACY_LABELS = {
   SELF_ONLY: 'Private — only me',
 }
 
-/** TikTok Direct Post's required privacy/interaction/disclosure picker —
- * only rendered for a channel whose token actually carries video.publish
- * (app/views.py's `tiktok_direct_post` flag). Fetches the account's allowed
- * options once, then reports the chosen settings up via onChange. */
+const MUSIC_URL = 'https://www.tiktok.com/legal/page/global/music-usage-confirmation/en'
+const BRANDED_URL = 'https://www.tiktok.com/legal/page/global/bc-policy/en'
+
+/** What still has to be chosen before a TikTok Direct Post may go — TikTok's
+ * content-sharing guidelines: who can see it is picked by the person (no
+ * default), and a disclosure that's switched on names what it is. "" = ready. */
+export function tiktokMissing(value) {
+  if (!value?.privacy_level) return 'choose who can see the TikTok post'
+  if (value.disclose && !value.brand_organic_toggle && !value.brand_content_toggle) return 'say what the TikTok post promotes, or switch the disclosure off'
+  return ''
+}
+
+/** TikTok Direct Post's required picker (TikTok's content-sharing guidelines,
+ * which its audit checks) — only for a channel whose token carries
+ * video.publish (app/views.py `tiktok_direct_post`). The account it posts to
+ * (avatar, name), who can see it (no default — the person picks), comments /
+ * duet / stitch (off until turned on; greyed when the account has them off),
+ * the commercial-content disclosure, and TikTok's consent line. */
 function TikTokDirectPostOptions({ channelId, value, onChange }) {
   const [info, setInfo] = useState(null) // creator_info response
   const [error, setError] = useState(null)
@@ -26,10 +40,11 @@ function TikTokDirectPostOptions({ channelId, value, onChange }) {
         setInfo(data)
         if (!value) {
           onChange({
-            privacy_level: (data.privacy_level_options || ['SELF_ONLY'])[0],
-            disable_duet: !!data.duet_disabled,
-            disable_comment: !!data.comment_disabled,
-            disable_stitch: !!data.stitch_disabled,
+            privacy_level: null, // the person picks — never a default
+            disable_duet: true,
+            disable_comment: true,
+            disable_stitch: true,
+            disclose: false,
             brand_content_toggle: false,
             brand_organic_toggle: false,
           })
@@ -53,74 +68,113 @@ function TikTokDirectPostOptions({ channelId, value, onChange }) {
   }
 
   const privacyOptions = info.privacy_level_options?.length ? info.privacy_level_options : ['SELF_ONLY']
+  const branded = value.disclose && value.brand_content_toggle
+  const maxMin = info.max_video_post_duration_sec ? Math.floor(info.max_video_post_duration_sec / 60) : null
+  const label = value.disclose && (value.brand_content_toggle ? '“Paid partnership”' : value.brand_organic_toggle ? '“Promotional content”' : null)
 
   return (
     <div className="bg-ink-50/60 border border-ink-200 rounded-xl p-3.5 space-y-3">
-      <div className="text-[10px] font-bold uppercase tracking-wide text-ink-500">
-        TikTok — publishes for real (Direct Post)
+      <div className="text-[10px] font-bold uppercase tracking-wide text-ink-500">TikTok — publishes for real (Direct Post)</div>
+
+      {/* the account this posts to */}
+      <div className="flex items-center gap-2.5">
+        {info.creator_avatar_url ? (
+          <img src={info.creator_avatar_url} alt="" className="w-8 h-8 rounded-full object-cover border border-ink-200" />
+        ) : (
+          <div className="w-8 h-8 rounded-full bg-ink-200" />
+        )}
+        <div className="min-w-0">
+          <div className="text-[12.5px] font-semibold text-ink-900 truncate">{info.creator_nickname || 'TikTok account'}</div>
+          {info.creator_username && <div className="text-[11px] text-ink-500 truncate">@{info.creator_username}</div>}
+        </div>
+        {maxMin ? <div className="ml-auto text-[10.5px] text-ink-400">Videos up to {maxMin} min</div> : null}
       </div>
 
-      <Field label="Who can see it">
+      <Field label="Who can see it" hint={value.privacy_level ? null : 'Choose one — TikTok needs you to pick it for every post.'}>
         <div className="flex flex-wrap gap-1.5">
-          {privacyOptions.map((opt) => (
-            <button
-              key={opt}
-              type="button"
-              onClick={() => set({ privacy_level: opt })}
-              className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition-all duration-150 ${
-                value.privacy_level === opt
-                  ? 'border-brand bg-brand/5 text-ink-900'
-                  : 'border-ink-200 text-ink-600 hover:border-ink-300'
-              }`}
-            >
-              {PRIVACY_LABELS[opt] || opt}
-            </button>
-          ))}
+          {privacyOptions.map((opt) => {
+            const off = opt === 'SELF_ONLY' && branded
+            return (
+              <button
+                key={opt}
+                type="button"
+                disabled={off}
+                title={off ? 'Branded content can’t be private' : undefined}
+                onClick={() => set({ privacy_level: opt })}
+                className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed ${
+                  value.privacy_level === opt ? 'border-brand bg-brand/5 text-ink-900' : 'border-ink-200 text-ink-600 hover:border-ink-300'
+                }`}
+              >
+                {PRIVACY_LABELS[opt] || opt}
+              </button>
+            )
+          })}
         </div>
       </Field>
 
-      <Field label="Interactions">
+      <Field label="Let people">
         <div className="flex flex-wrap gap-3">
-          <Checkbox
-            checked={!value.disable_comment}
-            onChange={(v) => set({ disable_comment: !v })}
-            label="Allow comments"
-          />
-          <Checkbox
-            checked={!value.disable_duet}
-            onChange={(v) => set({ disable_duet: !v })}
-            label="Allow Duet"
-          />
-          <Checkbox
-            checked={!value.disable_stitch}
-            onChange={(v) => set({ disable_stitch: !v })}
-            label="Allow Stitch"
-          />
+          <Checkbox checked={!value.disable_comment} disabled={!!info.comment_disabled} onChange={(v) => set({ disable_comment: !v })} label="Comment" />
+          <Checkbox checked={!value.disable_duet} disabled={!!info.duet_disabled} onChange={(v) => set({ disable_duet: !v })} label="Duet" />
+          <Checkbox checked={!value.disable_stitch} disabled={!!info.stitch_disabled} onChange={(v) => set({ disable_stitch: !v })} label="Stitch" />
         </div>
+        {(info.comment_disabled || info.duet_disabled || info.stitch_disabled) && (
+          <div className="mt-1 text-[10.5px] text-ink-400">Greyed out: turned off in this account’s TikTok settings.</div>
+        )}
       </Field>
 
-      <Field label="Content disclosure" hint="Only turn these on if they're actually true for this post.">
-        <div className="flex flex-wrap gap-3">
-          <Checkbox
-            checked={value.brand_organic_toggle}
-            onChange={(v) => set({ brand_organic_toggle: v })}
-            label="Promotes my own business"
-          />
-          <Checkbox
-            checked={value.brand_content_toggle}
-            onChange={(v) => set({ brand_content_toggle: v })}
-            label="Paid partnership"
-          />
-        </div>
+      <Field label="Disclose post content" hint="Turn on if this video promotes a brand, product or service.">
+        <Checkbox
+          checked={!!value.disclose}
+          onChange={(v) => set({ disclose: v, ...(v ? {} : { brand_organic_toggle: false, brand_content_toggle: false }) })}
+          label="This post promotes something"
+        />
+        {value.disclose && (
+          <div className="mt-2 space-y-1.5 pl-1">
+            <Checkbox
+              checked={!!value.brand_organic_toggle}
+              onChange={(v) => set({ brand_organic_toggle: v })}
+              label="Your brand — you’re promoting yourself or your own business"
+            />
+            <Checkbox
+              checked={!!value.brand_content_toggle}
+              disabled={value.privacy_level === 'SELF_ONLY'}
+              onChange={(v) => set({ brand_content_toggle: v })}
+              label="Branded content — you’re promoting another brand or a third party"
+            />
+            {value.privacy_level === 'SELF_ONLY' && <div className="text-[10.5px] text-ink-400">Branded content can’t be private — pick another “Who can see it” to choose it.</div>}
+            {label ? (
+              <div className="text-[11px] text-ink-600">Your video will be labelled {label} on TikTok.</div>
+            ) : (
+              <div className="text-[11px] text-amber-700">Choose at least one.</div>
+            )}
+          </div>
+        )}
       </Field>
+
+      <div className="text-[11px] text-ink-500 leading-relaxed">
+        By posting, you agree to TikTok’s{' '}
+        {branded && (
+          <>
+            <a href={BRANDED_URL} target="_blank" rel="noreferrer" className="underline text-ink-700">
+              Branded Content Policy
+            </a>{' '}
+            and{' '}
+          </>
+        )}
+        <a href={MUSIC_URL} target="_blank" rel="noreferrer" className="underline text-ink-700">
+          Music Usage Confirmation
+        </a>
+        . It can take a few minutes for the video to show on your profile.
+      </div>
     </div>
   )
 }
 
-function Checkbox({ checked, onChange, label }) {
+function Checkbox({ checked, onChange, label, disabled = false }) {
   return (
-    <label className="flex items-center gap-1.5 text-[11.5px] text-ink-700">
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+    <label className={`flex items-center gap-1.5 text-[11.5px] ${disabled ? 'text-ink-400 cursor-not-allowed' : 'text-ink-700'}`}>
+      <input type="checkbox" checked={checked && !disabled} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
       {label}
     </label>
   )
