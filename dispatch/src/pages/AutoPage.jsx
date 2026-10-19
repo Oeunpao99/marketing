@@ -11,6 +11,8 @@ import AutoTextarea from '../components/ui/AutoTextarea'
 import Select from '../components/ui/Select'
 import { fullDayLabel, phnomPenhClock, phnomPenhDay } from '../lib/tz'
 import { kitSrc, TemplatePicker } from '../components/brandkit/BrandKit'
+import ModelLogo from '../components/ui/ModelLogo'
+import { forgetWriterModels, writerHint } from '../components/studio/WriterModelSelect'
 
 // `value` is what's stored (Automation.topic_source) — only the wording shown changed.
 const TOPIC_SOURCES = [
@@ -465,6 +467,9 @@ function SettingsDrawer({ a, channels, onUpdate, onBrandUpdate, onOpenPlan, onCl
           )}
 
           <Section n={1} title="How your posts sound" sub="The language and style the AI writes in">
+            <Field label="Which AI writes your posts?">
+              <AutopilotWriter />
+            </Field>
             <Field label="Which language should posts be in?">
               <div className="grid grid-cols-2 rounded-xl border border-ink-200 p-0.5">
                 {LANGUAGES.map((l) => (
@@ -882,6 +887,46 @@ function Section({ n, title, sub, children }) {
       </div>
       {children}
     </section>
+  )
+}
+
+/** The AI that writes the autopilot's posts and weekly plans — the workspace's
+ * default writing model (the same setting as Settings → AI model; the
+ * autopilot runs in the background, so it always uses this one). */
+function AutopilotWriter() {
+  const [data, setData] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  useEffect(() => {
+    api.get('/ai-models').then(setData).catch(() => setData(null))
+  }, [])
+  if (!data) return <div className="h-9 animate-pulse rounded-xl bg-ink-100" />
+  const models = data.models || []
+  const platform = models.find((m) => m.key === data.platform_default)
+  const options = [
+    { value: '', label: `Platform default${platform ? ` · ${platform.label}` : ''}`, hint: 'Chosen by Marketing ឆ្លាតវៃ', icon: platform && <ModelLogo model={platform.key} vendor={platform.vendor} size={14} /> },
+    ...models.map((m) => ({ value: m.key, label: `${m.label}  ${m.tier}`, hint: m.blurb, icon: <ModelLogo model={m.key} vendor={m.vendor} size={14} /> })),
+  ]
+  const pick = async (key) => {
+    setSaving(true)
+    setError('')
+    try {
+      const r = await api.put('/ai-models/default', { model: key })
+      setData({ ...data, default: r.default })
+      forgetWriterModels() // Content studio shows the new default too
+    } catch (e) {
+      setError(/403|manager|owner/i.test(e.message) ? 'Only an owner or manager can change this.' : 'Couldn’t save — try again.')
+    } finally {
+      setSaving(false)
+    }
+  }
+  return (
+    <div>
+      <Select className="w-full" value={data.default || ''} onChange={pick} options={options} disabled={saving} />
+      <p className="mt-1 text-[11px] text-ink-400">
+        {error || `${writerHint(data, data.default)}. Writes the weekly plans and daily posts — the same setting as Settings → AI model.`}
+      </p>
+    </div>
   )
 }
 

@@ -495,12 +495,21 @@ function Layer({ L, pal, brand, u, delay }) {
       const n = Number(L.value) || 0
       const k = interpolate(f, [4, 34], [0, 1], { ...clamp, easing: ease })
       const v = Number.isInteger(n) ? Math.round(n * k).toLocaleString('en-US') : (n * k).toFixed(1)
+      // fits inside its ring: a unit longer than 2 letters ("h/day", "min") is set small
+      // beside the number, and the whole shrinks to the ring's inside (it spilt over before)
+      const full = Number.isInteger(n) ? n.toLocaleString('en-US') : n.toFixed(1)
+      const pre = clean(L.prefix)
+      const suf = clean(L.suffix)
+      const smallSuf = suf.length > 2
+      const ems = (pre.length + full.length + (smallSuf ? 0 : suf.length)) * 0.6 + (smallSuf ? suf.length * 0.6 * 0.42 + 0.08 : 0)
+      const room = (L.fit || (width > height ? 440 : 500)) * u
+      const size = Math.min((L.size || 150) * u, room / Math.max(1, ems))
       body = (
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontFamily: FONT, fontWeight: 800, fontSize: (L.size || 150) * u, color: col(pal, L.color, pal.a), letterSpacing: '-0.04em', lineHeight: 1 }}>
-            {clean(L.prefix)}
+          <div style={{ fontFamily: FONT, fontWeight: 800, fontSize: size, color: col(pal, L.color, pal.a), letterSpacing: '-0.04em', lineHeight: 1, whiteSpace: 'nowrap' }}>
+            {pre}
             {v}
-            {clean(L.suffix)}
+            {smallSuf ? <span style={{ fontSize: '0.42em', fontWeight: 700, letterSpacing: '-0.01em', marginLeft: '0.08em' }}>{suf}</span> : suf}
           </div>
           {L.label && <div style={{ marginTop: 14 * u, fontFamily: FONT, fontWeight: 600, fontSize: (L.size || 150) * 0.28 * u, color: pal.sub }}>{clean(L.label)}</div>}
         </div>

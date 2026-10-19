@@ -11,6 +11,11 @@ import Select from '../ui/Select'
 
 let cached = null // one fetch per page load
 
+/** The workspace default changed (the Autopilot page): fetch the list again next time. */
+export function forgetWriterModels() {
+  cached = null
+}
+
 export function useWriterModels() {
   const [data, setData] = useState(cached)
   useEffect(() => {
