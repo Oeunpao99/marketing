@@ -99,8 +99,9 @@ export const TUTORIALS = [
     km: 'ស្វ័យប្រវត្តិ',
     text: 'Let daily posts go out on their own — choose what it posts, when, and who approves.',
     to: '/auto',
-    src: '',
-    minutes: null,
+    src: '/tutorials/autopilot.mp4',
+    length: '1:24',
+    minutes: 1,
   },
   {
     id: 'insights',
