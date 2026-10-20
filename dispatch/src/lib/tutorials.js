@@ -73,8 +73,9 @@ export const TUTORIALS = [
     km: 'បង្កើតប្រកាសដោយខ្លួនឯង',
     text: 'Write or let the AI write a caption, add a picture or video, pick pages and a time.',
     to: '/new',
-    src: '',
-    minutes: null,
+    src: '/tutorials/new-post.mp4',
+    length: '1:28',
+    minutes: 1,
   },
   {
     id: 'studio-video',
