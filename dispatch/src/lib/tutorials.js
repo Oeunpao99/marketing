@@ -138,8 +138,9 @@ export const TUTORIALS = [
     km: 'ពិនិត្យគេហទំព័រ',
     text: 'Health, SEO and speed for your site — with fixes the AI suggests.',
     to: '/website',
-    src: '',
-    minutes: null,
+    src: '/tutorials/website.mp4',
+    length: '1:23',
+    minutes: 1,
   },
   {
     id: 'team',
