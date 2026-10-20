@@ -134,13 +134,16 @@ function Bubble({ who, text, think, icon, delay = 0.2 }) {
   const headTop = ground - charH * 0.97
   const view = useContext(View)
   const cx = inView(view, x(who) + (who === 1 ? 1 : -1) * (wide ? 120 : 90) * u, w, 30 * u)
-  const bottom = headTop - (think ? 70 : 34) * u
+  // wide frames are short: a thought with words sits lower and leaves its icon
+  // out, or it runs into the story's title across the top
+  const roomy = !(wide && think && text)
+  const bottom = headTop - (think ? (roomy ? 70 : 44) : 34) * u
   const tail = x(who) + (who === 1 ? 30 : -30) * u
   return (
     <div style={{ position: 'absolute', left: cx - w / 2, width: w, top: bottom, transform: `translateY(-100%) scale(${p})`, transformOrigin: `${tail - (cx - w / 2)}px 100%`, opacity: Math.min(1, p * 2) }}>
       {think ? (
         <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 * u, padding: `${34 * u}px ${44 * u}px`, background: 'white', border: `${5 * u}px solid ${C.ink}`, borderRadius: '48% 52% 46% 54% / 56% 50% 50% 44%' }}>
-          {icon && <Icon name={icon} size={(text ? 92 : 140) * u} color={C.red} stroke={2.2} />}
+          {icon && roomy && <Icon name={icon} size={(text ? 92 : 140) * u} color={C.red} stroke={2.2} />}
           {text && <Pop text={text} size={50 * u} width={w * 0.82} delay={delay + 0.2} />}
         </div>
       ) : (
