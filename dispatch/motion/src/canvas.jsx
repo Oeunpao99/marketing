@@ -325,11 +325,13 @@ function Layer({ L, pal, brand, u, delay }) {
                 lineHeight: khmer ? 1.38 : 1.2,
                 rowGap: 0.16 * size,
                 letterSpacing: L.weight && L.weight <= 400 ? '-0.03em' : undefined,
-                // a highlighter stroke, not a box: the lower part of the words, in the accent
-                // blended into the scene (solid — see-through strips overlapped where words
-                // meet) so the words keep their own colour and stay readable
+                // the accent blended into the scene (solid — see-through strips overlapped
+                // where words meet) so the words keep their own colour and stay readable.
+                // English: a highlighter stroke over the lower part of the words. Khmer:
+                // the box fits the words top to bottom (Words' default) — a lower stroke
+                // under Khmer looked like a box dropped below the text
                 ...(L.highlight
-                  ? { '--hl-bg': blend(fill(L.highlight), pal.bg, pal.mode === 'light' ? 0.45 : 0.3), '--hl-text': color, '--hl-top': khmer ? '0.62em' : '0.52em', '--hl-r': '0.14em' }
+                  ? { '--hl-bg': blend(fill(L.highlight), pal.bg, pal.mode === 'light' ? 0.45 : 0.3), '--hl-text': color, ...(khmer ? null : { '--hl-top': '0.52em' }), '--hl-r': '0.14em' }
                   : null),
               }}
             />

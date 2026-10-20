@@ -292,6 +292,8 @@ export function Words({ text, delay = 0, stagger = 1, style, align = 'left', col
       if (i === parts.length - 1 && pieces.length) pieces[pieces.length - 1].gap = true
     })
   }
+  // the empty band above and below Khmer letters in this line height (em)
+  const khInset = Math.max(0, ((Number(style?.lineHeight) || 1.45) - 1.04) / 2)
   return (
     <div
       style={{
@@ -341,7 +343,12 @@ export function Words({ text, delay = 0, stagger = 1, style, align = 'left', col
                   // Khmer is taller: vowels sit above the letters (ើ ំ) and stacked
                   // consonants below (្ល) — the marker covers all of it, not a cut-off middle band
                   // a template can lower the marker into a highlighter stroke (--hl-top, e.g. How it works · Grid)
-                  ...(KHMER_RE.test(p) ? { top: 'var(--hl-top, -0.02em)', bottom: '-0.06em' } : { top: 'var(--hl-top, 0.12em)', bottom: '0.08em' }),
+                  // Khmer: fitted to the letters — Kantumruy's ink is ~1.04em tall and sits
+                  // centred in the line box, so the box is the line minus that gap, with a
+                  // little air (measured; a box taller than the words looked dropped below them)
+                  ...(KHMER_RE.test(p)
+                    ? { top: `var(--hl-top, ${(khInset - 0.06).toFixed(3)}em)`, bottom: `${(khInset - 0.14).toFixed(3)}em` }
+                    : { top: 'var(--hl-top, 0.12em)', bottom: '0.08em' }),
                   borderRadius: `${joinL ? 0 : 'var(--hl-r, 0.18em)'} ${joinR ? 0 : 'var(--hl-r, 0.18em)'} ${joinR ? 0 : 'var(--hl-r, 0.18em)'} ${joinL ? 0 : 'var(--hl-r, 0.18em)'}`,
                   background: 'var(--hl-bg, var(--brand))',
                   boxShadow: 'var(--hl-shadow, none)',
