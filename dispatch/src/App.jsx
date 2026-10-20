@@ -29,7 +29,7 @@ import LeadsPage from "./pages/LeadsPage";
 import VideoStoryPage from "./pages/VideoStoryPage";
 import WeeklyPage from "./pages/WeeklyPage";
 import WebsitePage from "./pages/WebsitePage";
-import TutorialsPage, { PublicTutorialsPage } from "./pages/TutorialsPage";
+import TutorialsPage from "./pages/TutorialsPage";
 import ActivityPage from "./pages/ActivityPage";
 import AdminApp from "./pages/admin/AdminApp";
 import { StoreProvider, useStore } from "./store";
@@ -111,7 +111,12 @@ function Gate() {
   const [joinToken, setJoinToken] = useState(() => window.location.pathname.match(JOIN_RE)?.[1] || null);
   // Signed out at "/": the public landing page; "Log in" / "Start free" open the
   // sign-in screen (any other address — a link into the app — goes straight there).
-  const [signIn, setSignIn] = useState(() => (window.location.pathname === "/" ? null : "signin"));
+  // (?auth=signin / register: sent here by the tutorials page's buttons)
+  const [signIn, setSignIn] = useState(() => {
+    const asked = new URLSearchParams(window.location.search).get("auth");
+    if (asked === "signin" || asked === "register") return asked;
+    return window.location.pathname === "/" ? null : "signin";
+  });
 
   // Launch splash (index.html) fades out once we know who's signed in.
   useEffect(() => {
@@ -130,6 +135,14 @@ function Gate() {
   return <LoginPage key={signIn} initial={signIn} onBack={window.location.pathname === "/" ? () => setSignIn(null) : undefined} />;
 }
 
+// A page shown without the sign-in check: nothing waits for the account, so
+// the launch screen (index.html #splash) is told to go here — it stayed up
+// over /mkt-tutorial otherwise.
+function Public({ children }) {
+  useEffect(() => hideSplash(), []);
+  return children;
+}
+
 // Public pages anyone can open without signing in (reviewers, search engines).
 const PUBLIC_PAGES = { "/privacy": "privacy", "/terms": "terms" };
 
@@ -138,9 +151,15 @@ export default function App() {
   if (/^\/admin-mkt(\/|$)/.test(window.location.pathname)) return <AdminApp />;
   const path = window.location.pathname.replace(/\/+$/, "");
   const publicPage = PUBLIC_PAGES[path];
-  if (publicPage) return <LegalPage kind={publicPage} />;
-  // the how-to videos for training sessions — anyone can watch, no sign-in
-  if (path === "/mkt-tutorial") return <PublicTutorialsPage />;
+  if (publicPage) return <Public><LegalPage kind={publicPage} /></Public>;
+  // the how-to videos for training sessions — anyone can watch, no sign-in;
+  // the landing page's header and footer, "Log in" / "Start free" go to the sign-in
+  if (path === "/mkt-tutorial")
+    return (
+      <Public>
+        <LandingPage page="tutorials" onLogin={() => window.location.assign("/?auth=signin")} onStart={() => window.location.assign("/?auth=register")} />
+      </Public>
+    );
   return (
     <AuthProvider>
       <Gate />

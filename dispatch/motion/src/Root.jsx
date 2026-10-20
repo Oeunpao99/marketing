@@ -1,6 +1,6 @@
 import { Composition } from 'remotion'
 import { MotionPost, FPS, TRANSITION, sceneFrames } from './MotionPost'
-import { Tutorial, tutorialLength } from './tutorial'
+import { Tutorial, TutorialThumb, tutorialLength } from './tutorial'
 import sample from '../sample.json'
 
 /** The motion post (vertical, or wide for some templates), and the app's own
@@ -17,6 +17,15 @@ export const Root = () => (
     durationInFrames={300}
     defaultProps={{ title: '', sub: '', lesson: '', intro: { seconds: 3 }, steps: [], outro: { title: '', seconds: 3 } }}
     calculateMetadata={({ props }) => ({ durationInFrames: tutorialLength(props, FPS) })}
+  />
+  <Composition
+    id="TutorialThumb"
+    component={TutorialThumb}
+    width={1280}
+    height={720}
+    fps={FPS}
+    durationInFrames={1}
+    defaultProps={{ lesson: 'មេរៀនទី ១', title: 'ភ្ជាប់ទំព័ររបស់បង', sub: 'Connect your pages', n: 1, art: null }}
   />
   <Composition
     id="MotionPost"

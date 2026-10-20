@@ -17,32 +17,41 @@ import {
 // To add a video, set its `src`:
 //   - a file: put it in dispatch/public/tutorials/ and use '/tutorials/<name>.mp4'
 //   - YouTube: paste the link ('https://youtu.be/…' or 'https://www.youtube.com/watch?v=…')
-// A lesson with no `src` shows as "coming soon". `poster` (optional) is the
-// picture shown before it plays; `minutes` is the length shown on the card.
+// A lesson with no `src` shows as "coming soon". `thumb` = its cover
+// (motion/tools/make_thumbs.py). `poster` (optional) is the
+// picture shown before it plays (and the thumbnail in the list); `length` ("1:16")
+// or `minutes` is the length shown on the card.
 // `to` is the page the lesson is about — "Open this page" goes there.
 export const TUTORIALS = [
   {
     id: 'connect',
+    thumb: '/tutorials/connect-thumb.jpg',
     icon: FiSliders,
     title: 'Connect your pages',
     km: 'ភ្ជាប់ទំព័ររបស់បង',
     text: 'Link Facebook, Instagram, TikTok, Telegram and LinkedIn so Smart Marketing can post for you.',
     to: '/channels',
     src: '/tutorials/connect.mp4',
+    poster: '/tutorials/connect.jpg',
+    length: '1:16',
     minutes: 1,
   },
   {
     id: 'brand-kit',
+    thumb: '/tutorials/brand-kit-thumb.jpg',
     icon: FiPackage,
     title: 'Set up your brand kit',
     km: 'រៀបចំកញ្ចប់ម៉ាក',
     text: 'Add your logo, colours, products and screenshots — every design uses them.',
     to: '/products',
-    src: '',
-    minutes: null,
+    src: '/tutorials/brand-kit.mp4',
+    poster: '/tutorials/brand-kit.jpg',
+    length: '1:21',
+    minutes: 1,
   },
   {
     id: 'weekly-plan',
+    thumb: '/tutorials/weekly-plan-thumb.jpg',
     icon: FiClipboard,
     title: 'Your weekly plan',
     km: 'ផែនការប្រចាំសប្តាហ៍',
@@ -53,6 +62,7 @@ export const TUTORIALS = [
   },
   {
     id: 'new-post',
+    thumb: '/tutorials/new-post-thumb.jpg',
     icon: FiEdit3,
     title: 'Make a post yourself',
     km: 'បង្កើតប្រកាសដោយខ្លួនឯង',
@@ -63,6 +73,7 @@ export const TUTORIALS = [
   },
   {
     id: 'studio-video',
+    thumb: '/tutorials/studio-video-thumb.jpg',
     icon: FiFilm,
     title: 'Make a video in the Content studio',
     km: 'បង្កើតវីដេអូក្នុងស្ទូឌីយោ',
@@ -73,6 +84,7 @@ export const TUTORIALS = [
   },
   {
     id: 'autopilot',
+    thumb: '/tutorials/autopilot-thumb.jpg',
     icon: FiRepeat,
     title: 'Autopilot',
     km: 'ស្វ័យប្រវត្តិ',
@@ -83,6 +95,7 @@ export const TUTORIALS = [
   },
   {
     id: 'insights',
+    thumb: '/tutorials/insights-thumb.jpg',
     icon: FiBarChart2,
     title: 'Read your results',
     km: 'អានលទ្ធផលរបស់បង',
@@ -93,6 +106,7 @@ export const TUTORIALS = [
   },
   {
     id: 'leads',
+    thumb: '/tutorials/leads-thumb.jpg',
     icon: FiUserCheck,
     title: 'Leads & hand-off',
     km: 'អតិថិជនសក្តានុពល',
@@ -103,6 +117,7 @@ export const TUTORIALS = [
   },
   {
     id: 'website',
+    thumb: '/tutorials/website-thumb.jpg',
     icon: FiGlobe,
     title: 'Check your website',
     km: 'ពិនិត្យគេហទំព័រ',
@@ -113,6 +128,7 @@ export const TUTORIALS = [
   },
   {
     id: 'team',
+    thumb: '/tutorials/team-thumb.jpg',
     icon: FiUsers,
     title: 'Invite your team',
     km: 'អញ្ជើញក្រុមការងារ',

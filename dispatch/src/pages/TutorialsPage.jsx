@@ -7,7 +7,7 @@ import { TUTORIALS, youtubeId } from '../lib/tutorials'
 // for the lesson picked, and the whole course beside it. Lessons without a video
 // yet say "coming soon". Which ones you've watched is remembered on this device.
 // Two ways in: /tutorials inside the app (TutorialsPage), and the public
-// /mkt-tutorial for training sessions — no sign-in (PublicTutorialsPage).
+// /mkt-tutorial for training sessions — no sign-in (LandingPage page="tutorials").
 
 const WATCHED_KEY = 'smartmkt.tutorials.watched'
 const readWatched = () => {
@@ -38,7 +38,7 @@ function Player({ lesson, onEnded }) {
       <video
         key={lesson.src}
         src={lesson.src}
-        poster={lesson.poster || undefined}
+        poster={lesson.thumb || lesson.poster || undefined}
         controls
         playsInline
         preload="metadata"
@@ -50,7 +50,8 @@ function Player({ lesson, onEnded }) {
   const Icon = lesson.icon
   return (
     <div className="absolute inset-0 grid place-items-center bg-night-900 text-center">
-      <div className="px-6">
+      {lesson.thumb && <img src={lesson.thumb} alt="" className="absolute inset-0 h-full w-full object-cover opacity-30" />}
+      <div className="relative px-6">
         <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-white/10 text-white">
           <Icon size={24} />
         </span>
@@ -68,37 +69,9 @@ export default function TutorialsPage() {
   return <Course openLabel="Open this page" onOpen={(to) => navigate(to)} />
 }
 
-/** /mkt-tutorial — the same course for anyone (trainers, new customers before
- * they sign up): its own small header, and "Open this page" becomes sign-in. */
-export function PublicTutorialsPage() {
-  useEffect(() => {
-    document.title = 'Video tutorials · Smart Marketing'
-  }, [])
-  const home = () => window.location.assign('/')
-  return (
-    <div className="min-h-screen bg-canvas text-ink-900">
-      <header className="sticky top-0 z-20 border-b border-ink-200/70 bg-white/80 backdrop-blur-xl">
-        <div className="flex h-14 w-full items-center justify-between gap-3 px-5 lg:px-8">
-          <a href="/" className="flex min-w-0 items-center gap-2.5">
-            <img src="/brand/logo-mark.png" alt="" className="h-7 w-7 flex-none rounded-lg" />
-            <span className="truncate text-[15px] font-bold text-ink-900">Smart Marketing</span>
-          </a>
-          <div className="flex flex-none items-center gap-2">
-            <button type="button" onClick={home} className="btn-outline px-3.5 py-1.5 text-[13px]">
-              Log in
-            </button>
-            <button type="button" onClick={home} className="btn-primary px-3.5 py-1.5 text-[13px]">
-              Start free
-            </button>
-          </div>
-        </div>
-      </header>
-      <Course openLabel="Log in to try it" onOpen={home} />
-    </div>
-  )
-}
-
-function Course({ openLabel, onOpen }) {
+/** The course: the player and the lesson list. Also the body of the public
+ * /mkt-tutorial page (LandingPage page="tutorials", with the site's header and footer). */
+export function Course({ openLabel, onOpen }) {
   const firstReady = TUTORIALS.find((l) => l.src) || TUTORIALS[0]
   const [pick, setPick] = useState(firstReady.id)
   const [watched, setWatched] = useState(readWatched)
@@ -129,7 +102,7 @@ function Course({ openLabel, onOpen }) {
   }
 
   return (
-    <div className="w-full px-5 py-7 animate-fadein lg:px-8">
+    <div className="mx-auto w-full max-w-[1500px] px-5 py-7 animate-fadein lg:px-8">
       <div className="mb-6">
         <h1 className="text-[24px] font-bold leading-tight tracking-tight text-ink-900">Video tutorials</h1>
         <p className="mt-1 text-[13px] text-ink-600">
@@ -144,7 +117,8 @@ function Course({ openLabel, onOpen }) {
         </p>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+      {/* like a video site: the player on the left, the course as thumbnails on the right */}
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_380px] 2xl:grid-cols-[minmax(0,1fr)_420px]">
         {/* the lesson picked */}
         <div className="min-w-0">
           <div className="relative aspect-video overflow-hidden rounded-2xl border border-ink-200/60 bg-night-950 shadow-card">
@@ -154,7 +128,7 @@ function Course({ openLabel, onOpen }) {
             <div className="min-w-0">
               <div className="text-[12px] font-semibold text-brand">
                 Lesson {index + 1} of {TUTORIALS.length}
-                {lesson.minutes ? ` · ${lesson.minutes} min` : ''}
+                {lesson.length ? ` · ${lesson.length}` : lesson.minutes ? ` · ${lesson.minutes} min` : ''}
               </div>
               <h2 className="mt-1 text-[20px] font-bold leading-tight text-ink-900">{lesson.title}</h2>
               <div className="mt-0.5 text-[14px] text-ink-500" style={km}>
@@ -177,45 +151,74 @@ function Course({ openLabel, onOpen }) {
           </div>
         </div>
 
-        {/* the whole course */}
-        <div className="h-fit rounded-2xl border border-ink-200/60 bg-white p-2 shadow-card">
-          <div className="px-3 pb-2 pt-2 text-[12px] font-semibold text-ink-500">
+        {/* the whole course: thumbnail, title, details */}
+        <div className="min-w-0">
+          <div className="mb-3 text-[13px] font-semibold text-ink-700">
             {TUTORIALS.length} lessons{ready < TUTORIALS.length ? ` · ${ready} ready` : ''}
           </div>
-          <ol className="space-y-0.5">
+          <ol className="space-y-1">
             {TUTORIALS.map((l, i) => {
               const on = l.id === lesson.id
               const seen = watched.has(l.id)
+              const Icon = l.icon
               return (
                 <li key={l.id}>
                   <button
                     type="button"
                     onClick={() => choose(l.id)}
                     aria-current={on ? 'true' : undefined}
-                    className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors ${on ? 'bg-brand-soft' : 'hover:bg-ink-50'}`}
+                    className={`flex w-full items-start gap-3 rounded-xl p-1.5 text-left transition-colors ${on ? 'bg-brand-soft' : 'hover:bg-ink-100/70'}`}
                   >
-                    <span
-                      className={`grid h-8 w-8 flex-none place-items-center rounded-full text-[12px] font-bold ${
-                        seen ? 'bg-emerald-500 text-white' : on ? 'bg-brand text-white' : 'bg-ink-100 text-ink-600'
-                      }`}
-                    >
-                      {seen ? <FiCheck size={14} strokeWidth={3} /> : on && l.src ? <FiPlay size={13} /> : i + 1}
+                    <span className="relative aspect-video w-[152px] flex-none overflow-hidden rounded-lg border border-ink-200/60 bg-night-900">
+                      {l.thumb || l.poster ? (
+                        <img src={l.thumb || l.poster} alt="" loading="lazy" className="h-full w-full object-cover" />
+                      ) : (
+                        <span className="grid h-full w-full place-items-center text-white/70">
+                          <Icon size={22} />
+                        </span>
+                      )}
+                      {on && l.src && (
+                        <span className="absolute inset-0 grid place-items-center bg-black/35 text-white">
+                          <FiPlay size={20} className="fill-white" />
+                        </span>
+                      )}
+                      {l.src ? (
+                        (l.length || l.minutes) && (
+                          <span className="absolute bottom-1 right-1 rounded bg-black/75 px-1.5 py-px text-[10.5px] font-semibold text-white">
+                            {l.length || `${l.minutes} min`}
+                          </span>
+                        )
+                      ) : (
+                        <span className="absolute bottom-1 right-1 rounded bg-black/60 px-1.5 py-px text-[10px] font-semibold text-white/85">Soon</span>
+                      )}
+                      {seen && (
+                        <span className="absolute left-1 top-1 grid h-5 w-5 place-items-center rounded-full bg-emerald-500 text-white">
+                          <FiCheck size={12} strokeWidth={3} />
+                        </span>
+                      )}
                     </span>
-                    <span className="min-w-0 flex-1">
-                      <span className={`block truncate text-[13px] font-semibold ${on ? 'text-brand' : 'text-ink-900'}`}>{l.title}</span>
-                      <span className="block truncate text-[11.5px] text-ink-500" style={km}>
+                    <span className="min-w-0 flex-1 pt-0.5">
+                      <span className={`line-clamp-2 text-[13.5px] font-semibold leading-snug ${on ? 'text-brand' : 'text-ink-900'}`}>{l.title}</span>
+                      <span className="mt-0.5 block truncate text-[12px] text-ink-500" style={km}>
                         {l.km}
                       </span>
+                      <span className="mt-1 flex items-center gap-1.5 text-[11.5px] text-ink-400">
+                        Lesson {i + 1}
+                        {l.src ? (
+                          <>
+                            {(l.length || l.minutes) && (
+                              <>
+                                {' · '}
+                                <FiClock size={11} /> {l.length || `${l.minutes} min`}
+                              </>
+                            )}
+                            {seen && <span className="text-emerald-600">· Watched</span>}
+                          </>
+                        ) : (
+                          ' · Coming soon'
+                        )}
+                      </span>
                     </span>
-                    {l.src ? (
-                      l.minutes ? (
-                        <span className="inline-flex flex-none items-center gap-1 text-[11px] text-ink-400">
-                          <FiClock size={11} /> {l.minutes}m
-                        </span>
-                      ) : null
-                    ) : (
-                      <span className="flex-none rounded-full bg-ink-100 px-2 py-0.5 text-[10.5px] font-semibold text-ink-500">Soon</span>
-                    )}
                   </button>
                 </li>
               )

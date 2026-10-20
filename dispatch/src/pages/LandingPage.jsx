@@ -13,7 +13,9 @@ import {
   FiMic,
   FiMoon,
   FiPenTool,
+  FiMousePointer,
   FiPlay,
+  FiPlayCircle,
   FiShield,
   FiSun,
   FiUsers,
@@ -23,6 +25,7 @@ import { applyTheme, isDark } from '../lib/theme'
 import { FaLinkedin } from 'react-icons/fa'
 import { SiFacebook, SiInstagram, SiTelegram, SiTiktok, SiYoutube } from 'react-icons/si'
 import { MOTION_TEMPLATES, previewSrc } from '../lib/motionTemplates'
+import { Course } from './TutorialsPage'
 
 // The public page at "/" for people who aren't signed in (search engines,
 // visitors from ads): what Smart Marketing does, shown with the product's
@@ -86,28 +89,71 @@ function FlagGB({ className = '' }) {
   )
 }
 
-/** The two-flag switch in the header. */
+const LANGS = [
+  ['km', FlagKH, 'ខ្មែរ', 'Khmer'],
+  ['en', FlagGB, 'English', 'អង់គ្លេស'],
+]
+
+/** The language menu in the header: the current flag, and a dropdown with both. */
 function LangSwitch({ lang, setLang }) {
+  const [open, setOpen] = useState(false)
+  const box = useRef(null)
+  useEffect(() => {
+    if (!open) return undefined
+    const away = (e) => !box.current?.contains(e.target) && setOpen(false)
+    const esc = (e) => e.key === 'Escape' && setOpen(false)
+    document.addEventListener('mousedown', away)
+    window.addEventListener('keydown', esc)
+    return () => {
+      document.removeEventListener('mousedown', away)
+      window.removeEventListener('keydown', esc)
+    }
+  }, [open])
+  const [, Flag, label] = LANGS.find(([id]) => id === lang) || LANGS[1]
   return (
-    <div className="flex items-center rounded-full border border-ink-200 p-0.5" role="group" aria-label="Language">
-      {[
-        ['km', FlagKH, 'ខ្មែរ'],
-        ['en', FlagGB, 'EN'],
-      ].map(([id, Flag, label]) => (
-        <button
-          key={id}
-          type="button"
-          onClick={() => setLang(id)}
-          aria-pressed={lang === id}
-          title={id === 'km' ? 'ភាសាខ្មែរ' : 'English'}
-          className={`inline-flex h-7 items-center gap-1.5 rounded-full px-2 text-[12px] font-semibold transition-colors ${lang === id ? 'bg-ink-100 text-ink-900' : 'text-ink-500 hover:text-ink-900'}`}
-        >
-          <Flag className="h-3.5 w-5 flex-none overflow-hidden rounded-[3px] shadow-[0_0_0_1px_rgb(0_0_0/0.08)]" />
-          <span className="hidden lg:inline" style={id === 'km' ? km : undefined}>
-            {label}
-          </span>
-        </button>
-      ))}
+    <div ref={box} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Language"
+        className={`inline-flex h-8 items-center gap-1.5 rounded-full border border-ink-200 px-2.5 text-[12.5px] font-semibold text-ink-700 transition-colors hover:bg-ink-50 ${open ? 'bg-ink-50' : ''}`}
+      >
+        <Flag className="h-3.5 w-5 flex-none overflow-hidden rounded-[3px] shadow-[0_0_0_1px_rgb(0_0_0/0.08)]" />
+        <span className="hidden xl:inline" style={lang === 'km' ? km : undefined}>
+          {label}
+        </span>
+        <FiChevronDown size={13} className={`text-ink-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div role="menu" className="absolute right-0 top-[calc(100%+8px)] z-40 w-48 rounded-xl border border-ink-200 bg-white p-1.5 shadow-pop animate-fadein">
+          {LANGS.map(([id, F, name, other]) => (
+            <button
+              key={id}
+              type="button"
+              role="menuitemradio"
+              aria-checked={lang === id}
+              onClick={() => {
+                setLang(id)
+                setOpen(false)
+              }}
+              className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${lang === id ? 'bg-brand-soft' : 'hover:bg-ink-50'}`}
+            >
+              <F className="h-4 w-6 flex-none overflow-hidden rounded-[3px] shadow-[0_0_0_1px_rgb(0_0_0/0.08)]" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-[13px] font-semibold text-ink-900" style={id === 'km' ? km : undefined}>
+                  {name}
+                </span>
+                <span className="block text-[11px] text-ink-500" style={id === 'en' ? km : undefined}>
+                  {other}
+                </span>
+              </span>
+              {lang === id && <FiCheck size={15} className="flex-none text-brand" />}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -173,7 +219,7 @@ function Laptop() {
   const [n, setN] = useState(0)
   const clip = WIDE[n]
   return (
-    <div className="mx-auto w-full max-w-4xl">
+    <div className="mx-auto w-full max-w-5xl">
       <div className="relative mx-auto w-[92%] rounded-t-[1.4rem] border-[10px] border-b-[14px] border-night-800 bg-night-950 shadow-[0_40px_90px_-30px_rgba(0,0,0,0.7)]">
         <div className="absolute left-1/2 top-[-7px] h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-night-950" />
         <div className="relative aspect-video overflow-hidden rounded-md bg-night-950">
@@ -215,7 +261,8 @@ function LockedTemplates({ onStart }) {
   const locked = MOTION_TEMPLATES.filter((t) => !SHOWCASE.includes(t.id))
   const shown = locked.slice(0, 12)
   return (
-    <div className="mx-auto mt-16 max-w-6xl px-4 sm:px-6">
+    <div className="mt-16 px-4 sm:px-6">
+      <div className="mx-auto max-w-6xl">
       <div className="relative">
         <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 sm:gap-4 lg:grid-cols-6">
           {shown.map((tp, i) => (
@@ -263,6 +310,7 @@ function LockedTemplates({ onStart }) {
             </button>
           </div>
         </div>
+      </div>
       </div>
     </div>
   )
@@ -457,6 +505,82 @@ function Feature({ eyebrow, title, khmer, text, points, visual, flip = false }) 
       </Reveal>
       <Reveal delay={150}>{visual}</Reveal>
     </div>
+  )
+}
+
+/** The how-to videos, shown off: a plain card (no glow — the user asked), a
+ * badge, the lesson video behind a big play button (it plays here, with
+ * controls) and three short points — a link goes to all of them (/mkt-tutorial). */
+function TutorialShowcase() {
+  const t = useT()
+  const [playing, setPlaying] = useState(false)
+  const video = useRef(null)
+  const play = () => {
+    setPlaying(true)
+    video.current?.play().catch(() => {})
+  }
+  return (
+    <section id="tutorials" className="scroll-mt-20 px-4 py-20 sm:px-6 sm:py-28">
+      <Reveal>
+        <div className="relative mx-auto max-w-6xl overflow-hidden rounded-[28px] border border-ink-200 bg-white px-5 pb-10 pt-12 shadow-card sm:px-10 sm:pb-12">
+
+          <div className="relative mx-auto max-w-2xl text-center">
+            <span className="inline-flex items-center gap-2 rounded-xl border border-violet-300/60 bg-white/70 px-3.5 py-1.5 text-[13px] font-semibold text-ink-800 shadow-[0_0_24px_-6px_rgb(139_92_246/0.6)] dark:border-violet-400/40 dark:bg-white/5">
+              <FiPlayCircle className="text-violet-500" size={16} />
+              {t('Video tutorials', 'មេរៀនជាវីដេអូ')}
+            </span>
+            <h2 className="mt-5 text-[28px] font-bold leading-tight tracking-tight text-ink-900 sm:text-[38px]">
+              {t('Learn it in a few minutes', 'រៀនប្រើបាន ក្នុងប៉ុន្មាននាទី')}
+            </h2>
+            <p className="mt-3 text-[15.5px] font-medium leading-relaxed text-ink-600">
+              {t(
+                'Short videos in Khmer walk through every step on the real screens — connect your pages, plan your week, make your first video.',
+                'វីដេអូខ្លីៗជាភាសាខ្មែរ បង្ហាញគ្រប់ជំហាន លើអេក្រង់ពិត — ភ្ជាប់ទំព័រ រៀបចំផែនការសប្តាហ៍ បង្កើតវីដេអូដំបូងរបស់បង។',
+              )}
+            </p>
+            <a href="/mkt-tutorial" className="mt-5 inline-flex items-center gap-1 text-[14px] font-semibold text-ink-900 hover:text-brand">
+              {t('See all tutorials', 'មើលមេរៀនទាំងអស់')} <FiArrowRight size={14} />
+            </a>
+          </div>
+
+          {/* the lesson itself */}
+          <div className="relative mx-auto mt-9 aspect-video w-full max-w-5xl overflow-hidden rounded-2xl border border-ink-200 bg-night-950 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.6)]">
+            <video
+              ref={video}
+              src="/tutorials/connect.mp4"
+              poster="/tutorials/connect-thumb.jpg"
+              preload="none"
+              playsInline
+              controls={playing}
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+            {!playing && (
+              <button type="button" onClick={play} aria-label={t('Play the lesson', 'ចាក់មេរៀន')} className="group absolute inset-0 grid place-items-center bg-black/10">
+                <span className="grid h-[72px] w-[92px] place-items-center rounded-2xl border border-white/30 bg-white/20 text-white shadow-2xl backdrop-blur-md transition-transform group-hover:scale-105">
+                  <FiPlay size={34} className="ml-1 fill-white" />
+                </span>
+              </button>
+            )}
+          </div>
+
+          <div className="relative mx-auto mt-10 grid max-w-5xl gap-7 sm:grid-cols-3">
+            {[
+              [FiMic, t('Narrated in Khmer', 'និយាយជាភាសាខ្មែរ'), t('Every step explained out loud, with subtitles you can follow.', 'គ្រប់ជំហានពន្យល់ជាសំឡេង មានអក្សររត់ងាយតាម។')],
+              [FiMousePointer, t('Click by click', 'ចុចម្តងមួយៗ'), t('The screen zooms in and a box shows exactly where to click.', 'អេក្រង់ពង្រីក ហើយប្រអប់បង្ហាញច្បាស់ថាត្រូវចុចកន្លែងណា។')],
+              [FiUsers, t('Ready to train your team', 'ងាយបង្ហាត់ក្រុមការងារ'), t('Send one link to new staff — no account needed to watch.', 'ផ្ញើតំណភ្ជាប់មួយទៅបុគ្គលិកថ្មី — មើលបានដោយមិនចាំបាច់មានគណនី។')],
+            ].map(([Icon, title, text]) => (
+              <div key={title}>
+                <div className="flex items-center gap-2.5 text-[15px] font-bold text-ink-900">
+                  <Icon className="flex-none text-violet-500" size={18} />
+                  {title}
+                </div>
+                <p className="mt-1.5 text-[13.5px] leading-relaxed text-ink-500">{text}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Reveal>
+    </section>
   )
 }
 
@@ -665,7 +789,9 @@ function HeroTitle() {
   )
 }
 
-export default function LandingPage({ onLogin, onStart }) {
+// page "tutorials" = /mkt-tutorial: the same header and footer around the course
+// (TutorialsPage.jsx Course) instead of the landing sections.
+export default function LandingPage({ onLogin, onStart, page = 'home' }) {
   const [lang, setLangState] = useState(startLang)
   const setLang = (l) => {
     setLangState(l)
@@ -727,8 +853,15 @@ export default function LandingPage({ onLogin, onStart }) {
   const byId = Object.fromEntries(MOTION_TEMPLATES.map((tp) => [tp.id, tp]))
   const go = (id) => {
     setMenu(false)
+    // from the tutorials page, the sections are on the landing page
+    if (page !== 'home') return window.location.assign(`/#${id}`)
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
+  // arriving from the tutorials page's menu (/#features): open at that section
+  useEffect(() => {
+    const id = page === 'home' && window.location.hash.slice(1)
+    if (id) setTimeout(() => document.getElementById(id)?.scrollIntoView({ block: 'start' }), 300)
+  }, [page])
   // the "Product" panel: opens on hover or tap, closes on leave / Escape / a pick
   const [menu, setMenu] = useState(false)
   useEffect(() => {
@@ -745,19 +878,19 @@ export default function LandingPage({ onLogin, onStart }) {
       {/* ── nav ── */}
       {/* a floating bar, inset from the edges — light or dark with the theme */}
       <header className="fixed inset-x-0 top-0 z-30 px-3 pt-3 sm:px-5 sm:pt-4">
-        {/* wide at the top; as the page scrolls it narrows into a compact pill (and back) */}
+        {/* always the page content's width (max-w-6xl, like every section) — scrolling only lowers it a little and deepens the shadow */}
         {/* frosted glass: the page shows through, softly blurred. The Product panel opens inside it */}
         <nav
           onMouseLeave={() => setMenu(false)}
           className={`mx-auto border border-ink-200/60 px-3 backdrop-blur-xl backdrop-saturate-150 transition-all duration-500 ease-out sm:px-4 ${
             menu ? 'bg-white/90' : 'bg-white/55'
-          } ${scrolled && !menu ? 'max-w-[940px] rounded-[1.1rem] shadow-pop' : `max-w-6xl rounded-2xl ${menu ? 'shadow-pop' : 'shadow-card'}`}`}
+          } ${scrolled && !menu ? 'max-w-6xl rounded-2xl shadow-pop' : `max-w-6xl rounded-2xl ${menu ? 'shadow-pop' : 'shadow-card'}`}`}
         >
           <div className={`flex items-center justify-between gap-2 ${scrolled ? 'h-12' : 'h-12 sm:h-[52px]'}`}>
-          <a href="/" className="flex min-w-0 items-center gap-2.5">
+          <a href="/" className="mr-3 flex min-w-0 flex-none items-center gap-2.5">
             <img src="/brand/logo-mark.png" alt="" className="h-7 w-7 flex-none rounded-lg" />
             {/* narrow phones: the mark alone — the name was cut off next to the buttons */}
-            <span className="truncate text-[16px] font-bold text-ink-900 max-[420px]:hidden">Smart Marketing</span>
+            <span className="whitespace-nowrap text-[16px] font-bold text-ink-900 max-[420px]:hidden">Smart Marketing</span>
           </a>
           <div className="hidden items-center gap-1 text-[14px] font-medium md:flex">
             {NAV.map(([id, label]) =>
@@ -768,7 +901,7 @@ export default function LandingPage({ onLogin, onStart }) {
                   onClick={() => setMenu((m) => !m)}
                   onMouseEnter={() => setMenu(true)}
                   aria-expanded={menu}
-                  className={`inline-flex items-center gap-1 rounded-lg px-3 py-1.5 transition-colors ${menu || section === id ? 'bg-ink-100 text-ink-900' : 'text-ink-600 hover:bg-ink-50 hover:text-ink-900'}`}
+                  className={`inline-flex items-center gap-1 whitespace-nowrap rounded-lg px-3 py-1.5 transition-colors ${menu || section === id ? 'bg-ink-100 text-ink-900' : 'text-ink-600 hover:bg-ink-50 hover:text-ink-900'}`}
                 >
                   {t(label)}
                   <FiChevronDown size={14} className={`transition-transform duration-200 ${menu ? 'rotate-180' : ''}`} />
@@ -779,7 +912,7 @@ export default function LandingPage({ onLogin, onStart }) {
                   type="button"
                   onClick={() => go(id)}
                   onMouseEnter={() => setMenu(false)}
-                  className={`rounded-lg px-3 py-1.5 transition-colors ${section === id ? 'bg-ink-100 text-ink-900' : 'text-ink-600 hover:bg-ink-50 hover:text-ink-900'}`}
+                  className={`whitespace-nowrap rounded-lg px-3 py-1.5 transition-colors ${section === id ? 'bg-ink-100 text-ink-900' : 'text-ink-600 hover:bg-ink-50 hover:text-ink-900'}`}
                 >
                   {t(label)}
                 </button>
@@ -789,7 +922,7 @@ export default function LandingPage({ onLogin, onStart }) {
             <a
               href="/mkt-tutorial"
               onMouseEnter={() => setMenu(false)}
-              className="rounded-lg px-3 py-1.5 text-ink-600 transition-colors hover:bg-ink-50 hover:text-ink-900"
+              className={`whitespace-nowrap rounded-lg px-3 py-1.5 transition-colors ${page === 'tutorials' ? 'bg-ink-100 text-ink-900' : 'text-ink-600 hover:bg-ink-50 hover:text-ink-900'}`}
             >
               {t('Tutorials', 'មេរៀន')}
             </a>
@@ -858,6 +991,12 @@ export default function LandingPage({ onLogin, onStart }) {
         </nav>
       </header>
 
+      {page === 'tutorials' ? (
+        <div className="pt-20 sm:pt-24">
+          <Course openLabel={t('Log in to try it', 'ចូលដើម្បីសាកល្បង')} onOpen={onLogin} />
+        </div>
+      ) : (
+      <>
       {/* ── hero ── */}
       {/* light or dark with the theme: the page's own surface, a soft brand glow and a faint grid */}
       <section className="relative overflow-hidden bg-white pb-20 pt-32 sm:pb-28 sm:pt-40">
@@ -983,15 +1122,15 @@ export default function LandingPage({ onLogin, onStart }) {
       <section id="how" className="scroll-mt-20 px-4 py-20 sm:px-6 sm:py-28">
         <SectionTitle
           eyebrow={t('How it works', 'របៀបដំណើរការ')}
-          title={t('From empty page to a full week — on autopilot', 'ពីទំព័រទទេ ដល់ប្រកាសពេញមួយសប្តាហ៍ — ដោយស្វ័យប្រវត្តិ')}
-          khmer="ភ្ជាប់ម្តង ហើយ AI ធ្វើការងារនៅសល់"
+          title={t('Sunday night, your whole week is ready', 'ល្ងាចថ្ងៃអាទិត្យ ប្រកាសពេញមួយសប្តាហ៍ត្រៀមរួច')}
+          khmer="ភ្ជាប់ម្តង — បន្ទាប់មក AI ចាប់ផ្តើមធ្វើការជំនួសបង"
         />
         <div className="mx-auto mt-14 grid max-w-6xl gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            [FiGlobe, t('Connect your pages', 'ភ្ជាប់ទំព័ររបស់បង'), t('Facebook, Instagram, TikTok, Telegram, LinkedIn — several pages per brand.', 'Facebook, Instagram, TikTok, Telegram, LinkedIn — ច្រើនទំព័រក្នុងមួយម៉ាក។')],
-            [FiCalendar, t('AI plans your week', 'AI រៀបចំផែនការសប្តាហ៍'), t('A mix of tips, stories and offers, from what your audience likes.', 'លាយគន្លឹះ រឿង និងការផ្តល់ជូន តាមអ្វីដែលអ្នកមើលចូលចិត្ត។')],
-            [FiPenTool, t('AI designs & writes', 'AI រចនា និងសរសេរ'), t('Videos, pictures and Khmer captions in your brand’s colours.', 'វីដេអូ រូបភាព និងចំណងជើងខ្មែរ តាមពណ៌ម៉ាករបស់បង។')],
-            [FiCheck, t('You approve — it posts', 'បងយល់ព្រម — វាបង្ហោះ'), t('One tap to approve. It goes out at your best time.', 'ចុចម្តងដើម្បីយល់ព្រម។ វាបង្ហោះនៅម៉ោងល្អបំផុតរបស់បង។')],
+            [FiGlobe, t('Plug in your pages', 'ភ្ជាប់ទំព័ររបស់បង'), t('Facebook, Instagram, TikTok, Telegram, LinkedIn — one brand, as many pages as you run.', 'Facebook, Instagram, TikTok, Telegram, LinkedIn — ម៉ាកមួយ ភ្ជាប់ទំព័របានច្រើនតាមចិត្ត។')],
+            [FiCalendar, t('The AI drafts your week', 'AI រៀបចំសប្តាហ៍ជូនបង'), t('Tips, stories, offers — mixed the way your followers actually react.', 'គន្លឹះ រឿង ការផ្តល់ជូន — លាយគ្នាតាមអ្វីដែលអ្នកតាមដានចូលចិត្តពិតៗ។')],
+            [FiPenTool, t('It designs and writes', 'វារចនា និងសរសេរ'), t('Scroll-stopping videos, pictures and Khmer captions — in your colours, with your logo.', 'វីដេអូ រូបភាព និងចំណងជើងខ្មែរ ដែលធ្វើឲ្យគេឈប់អូស — ពណ៌ និងឡូហ្គោរបស់បង។')],
+            [FiCheck, t('You tap Approve. Done.', 'បងចុចយល់ព្រម។ រួចរាល់។'), t('It posts itself at the hour your audience is online.', 'វាបង្ហោះដោយខ្លួនឯង នៅម៉ោងដែលអ្នកមើលកំពុងអនឡាញ។')],
           ].map(([Icon, title, d], i) => (
             <Reveal key={i} delay={i * 100}>
               <div className="relative h-full rounded-2xl border border-ink-200 bg-white p-6 shadow-card transition-shadow hover:shadow-card-hover">
@@ -1014,16 +1153,16 @@ export default function LandingPage({ onLogin, onStart }) {
         <div className="mx-auto max-w-6xl">
           <Feature
             eyebrow={t('Autopilot', 'ស្វ័យប្រវត្តិ')}
-            title={t('A whole week of posts, planned for you', 'ប្រកាសពេញមួយសប្តាហ៍ រៀបចំជូនបង')}
+            title={t('Wake up Monday with the week already planned', 'ព្រឹកថ្ងៃច័ន្ទ ផែនការសប្តាហ៍ត្រៀមរួចជាស្រេច')}
             khmer="ផែនការប្រកាសមួយសប្តាហ៍ ដោយ AI"
             text={t(
-              'Every Sunday the AI writes next week’s posts — the topics your audience likes, the formats that work, at the times they’re online. Check them on one page, or let daily posts go out on their own.',
-              'រៀងរាល់ថ្ងៃអាទិត្យ AI សរសេរប្រកាសសម្រាប់សប្តាហ៍ក្រោយ — ប្រធានបទដែលអ្នកមើលចូលចិត្ត ទម្រង់ដែលដំណើរការ នៅម៉ោងដែលពួកគេអនឡាញ។ ពិនិត្យនៅទំព័រតែមួយ ឬទុកឲ្យប្រកាសប្រចាំថ្ងៃបង្ហោះដោយខ្លួនឯង។',
+              'Every Sunday evening the AI lines up next week — topics your audience loves, formats that win, each at its best hour. Skim it on one page and approve, or let the daily posts run themselves.',
+              'រៀងរាល់ល្ងាចថ្ងៃអាទិត្យ AI រៀបចំសប្តាហ៍ក្រោយរួចជាស្រេច — ប្រធានបទដែលអ្នកមើលស្រឡាញ់ ទម្រង់ដែលឈ្នះ ហើយនីមួយៗនៅម៉ោងល្អបំផុត។ មើលលើទំព័រតែមួយ ហើយចុចយល់ព្រម ឬទុកឲ្យប្រកាសប្រចាំថ្ងៃដំណើរការដោយខ្លួនឯង។',
             )}
             points={[
-              t('Your topics, taking turns — not just promotions', 'ប្រធានបទរបស់បង ផ្លាស់វេនគ្នា — មិនមែនតែការផ្សព្វផ្សាយលក់'),
-              t('Approve first, or let it post by itself', 'យល់ព្រមមុន ឬទុកឲ្យវាបង្ហោះដោយខ្លួនឯង'),
-              t('Best posting time learned from your own results', 'ម៉ោងបង្ហោះល្អបំផុត រៀនពីលទ្ធផលផ្ទាល់របស់បង'),
+              t('A real mix — tips, stories, fun, offers — never just selling', 'លាយគ្នាពិតៗ — គន្លឹះ រឿង ភាពសប្បាយ ការផ្តល់ជូន — មិនមែនតែលក់'),
+              t('Approve each one, or put it fully on autopilot', 'យល់ព្រមម្តងមួយៗ ឬទុកឲ្យវាដំណើរការស្វ័យប្រវត្តិទាំងស្រុង'),
+              t('Post times learned from your own audience — not a guess', 'ម៉ោងបង្ហោះ រៀនពីអ្នកមើលផ្ទាល់របស់បង — មិនមែនទាយ'),
             ]}
             visual={<WeekMock />}
           />
@@ -1032,16 +1171,16 @@ export default function LandingPage({ onLogin, onStart }) {
           <Feature
             flip
             eyebrow={t('Khmer first', 'ខ្មែរជាមុន')}
-            title={t('Captions and voices that sound like you', 'ចំណងជើង និងសំឡេង ដូចបងផ្ទាល់')}
+            title={t('Sounds like you — real Khmer, not a translation', 'និយាយដូចបង — ភាសាខ្មែរពិតៗ មិនមែនបកប្រែ')}
             khmer="សរសេរ និងនិយាយភាសាខ្មែរ ដូចបងផ្ទាល់"
             text={t(
-              'The AI learns your style from captions you liked, writes in Khmer, English, or both, and reads your videos with a natural Khmer voice — or your brand’s own voice.',
-              'AI រៀនរចនាប័ទ្មរបស់បង ពីចំណងជើងដែលបងចូលចិត្ត សរសេរជាខ្មែរ អង់គ្លេស ឬទាំងពីរ ហើយអានវីដេអូដោយសំឡេងខ្មែរធម្មជាតិ — ឬសំឡេងផ្ទាល់របស់ម៉ាកបង។',
+              'It picks up your tone from the captions you love, writes in Khmer, English or both, and gives your videos a natural Khmer voice — even your brand’s very own.',
+              'វារៀនរបៀបនិយាយរបស់បង ពីចំណងជើងដែលបងចូលចិត្ត សរសេរជាខ្មែរ អង់គ្លេស ឬទាំងពីរ ហើយផ្តល់សំឡេងខ្មែរធម្មជាតិដល់វីដេអូ — សូម្បីតែសំឡេងផ្ទាល់របស់ម៉ាកបង។',
             )}
             points={[
-              t('Khmer, English, or Khmer then English', 'ខ្មែរ អង់គ្លេស ឬខ្មែររួចអង់គ្លេស'),
-              t('Natural Khmer voices with word-by-word subtitles', 'សំឡេងខ្មែរធម្មជាតិ មានអក្សររត់តាមពាក្យនីមួយៗ'),
-              t('Brand names said the way you say them', 'ឈ្មោះម៉ាក អានតាមរបៀបដែលបងនិយាយ'),
+              t('Khmer, English, or Khmer first then English', 'ខ្មែរ អង់គ្លេស ឬខ្មែរមុន រួចអង់គ្លេស'),
+              t('A natural Khmer voice, subtitles in sync word by word', 'សំឡេងខ្មែរធម្មជាតិ អក្សររត់ត្រូវគ្នាគ្រប់ពាក្យ'),
+              t('Your brand and product names, said your way', 'ឈ្មោះម៉ាក និងផលិតផល អានតាមរបៀបរបស់បង'),
             ]}
             visual={<CaptionMock />}
           />
@@ -1049,16 +1188,16 @@ export default function LandingPage({ onLogin, onStart }) {
         <div className="mx-auto max-w-6xl">
           <Feature
             eyebrow={t('Learns from results', 'រៀនពីលទ្ធផល')}
-            title={t('Gets better every week', 'កាន់តែប្រសើររៀងរាល់សប្តាហ៍')}
+            title={t('Smarter every single week', 'ឆ្លាតជាងមុន រៀងរាល់សប្តាហ៍')}
             khmer="រៀនពីលទ្ធផលរបស់បង"
             text={t(
-              'Every post reports its numbers — even the ones you posted yourself. The AI reads what your audience likes and does more of it: the best time, the best format, the best topics.',
-              'គ្រប់ប្រកាសរាយការណ៍លេខរបស់វា — សូម្បីតែប្រកាសដែលបងបង្ហោះដោយខ្លួនឯង។ AI អានអ្វីដែលអ្នកមើលចូលចិត្ត ហើយធ្វើវាឲ្យកាន់តែច្រើន៖ ម៉ោងល្អបំផុត ទម្រង់ល្អបំផុត ប្រធានបទល្អបំផុត។',
+              'Every post reports back — even the ones you posted by hand. The AI spots what your audience loves and leans into it: the hour, the format, the topic.',
+              'គ្រប់ប្រកាសរាយការណ៍លទ្ធផលមកវិញ — សូម្បីតែប្រកាសដែលបងបង្ហោះដោយដៃ។ AI មើលឃើញអ្វីដែលអ្នកមើលស្រឡាញ់ ហើយធ្វើវាកាន់តែច្រើន៖ ម៉ោង ទម្រង់ និងប្រធានបទ។',
             )}
             points={[
               t('Numbers for every post, on every page', 'លេខសម្រាប់គ្រប់ប្រកាស លើគ្រប់ទំព័រ'),
-              t('Plain-language lessons, not dashboards to decode', 'មេរៀនជាភាសាងាយយល់ មិនមែនផ្ទាំងទិន្នន័យពិបាកអាន'),
-              t('The next plan follows what worked', 'ផែនការបន្ទាប់ធ្វើតាមអ្វីដែលដំណើរការ'),
+              t('Lessons in plain words — no dashboards to decode', 'មេរៀនជាពាក្យងាយៗ — មិនចាំបាច់អានផ្ទាំងទិន្នន័យស្មុគស្មាញ'),
+              t('Next week’s plan doubles down on what worked', 'ផែនការសប្តាហ៍ក្រោយ បង្កើនអ្វីដែលបានផល'),
             ]}
             visual={<InsightMock />}
           />
@@ -1105,7 +1244,7 @@ export default function LandingPage({ onLogin, onStart }) {
           @media (prefers-reduced-motion: reduce) { .lp-drift { animation: none } }
         `}</style>
         <div
-          className="lp-strip mt-14 overflow-hidden pb-4"
+          className="lp-strip mx-auto mt-14 max-w-6xl overflow-hidden pb-4"
           style={{ maskImage: 'linear-gradient(90deg, transparent, black 8%, black 92%, transparent)', WebkitMaskImage: 'linear-gradient(90deg, transparent, black 8%, black 92%, transparent)' }}
         >
           <div className="lp-drift flex w-max">
@@ -1121,6 +1260,9 @@ export default function LandingPage({ onLogin, onStart }) {
         </div>
         <LockedTemplates onStart={onStart} />
       </section>
+
+      {/* ── tutorials ── */}
+      <TutorialShowcase />
 
       {/* ── everything else ── */}
       <section id="more" className="scroll-mt-20 px-4 py-20 sm:px-6 sm:py-28">
@@ -1165,7 +1307,7 @@ export default function LandingPage({ onLogin, onStart }) {
 
       {/* ── final call ── */}
       <section className="px-4 py-20 sm:px-6">
-        <div className="relative mx-auto max-w-5xl overflow-hidden rounded-3xl bg-brand px-6 py-14 text-center sm:px-12 sm:py-16">
+        <div className="relative mx-auto max-w-6xl overflow-hidden rounded-3xl bg-brand px-6 py-14 text-center sm:px-12 sm:py-16">
           <div className="pointer-events-none absolute -right-20 -top-20 h-72 w-72 rounded-full bg-white/10" />
           <div className="pointer-events-none absolute -bottom-24 -left-16 h-72 w-72 rounded-full bg-white/10" />
           <h2 className="relative text-[30px] font-bold leading-snug text-white sm:text-[40px]" style={km}>
@@ -1179,6 +1321,8 @@ export default function LandingPage({ onLogin, onStart }) {
           </button>
         </div>
       </section>
+      </>
+      )}
 
       {/* ── footer ── */}
       <footer className="border-t border-ink-200 bg-white px-4 py-10 sm:px-6">

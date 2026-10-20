@@ -254,6 +254,41 @@ function Card({ kicker, title, sub, say, words, audio, done }) {
   )
 }
 
+/** A lesson's cover / thumbnail (1280×720 still): the lesson badge, the Khmer
+ * title and the English one on the left, an AI illustration (no text in it —
+ * image AI garbles Khmer) on the right. Made by motion/tools/make_thumbs.py. */
+export function TutorialThumb({ lesson, title, sub, art, n }) {
+  return (
+    <AbsoluteFill style={{ background: '#f6f8fc', fontFamily: FONT, overflow: 'hidden' }}>
+      <NeatGrid color="rgba(31,78,140,0.08)" size={56} />
+      <div style={{ position: 'absolute', right: -120, top: -160, width: 760, height: 760, borderRadius: '50%', background: 'rgba(249,115,22,0.10)' }} />
+      {art && (
+        <div style={{ position: 'absolute', right: 48, top: 70, width: 580, height: 580, borderRadius: 40, overflow: 'hidden', boxShadow: '0 30px 70px rgba(11,16,32,0.22)', border: '8px solid white' }}>
+          <Img src={srcOf(art)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        </div>
+      )}
+      <div style={{ position: 'absolute', left: 64, top: 64, display: 'flex', alignItems: 'center', gap: 14 }}>
+        <Img src={staticFile('ours/smart-marketing.png')} style={{ height: 46 }} />
+      </div>
+      <div style={{ position: 'absolute', left: 64, top: 0, bottom: 0, width: 560, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+        <div style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 12, padding: '10px 22px 10px 10px', borderRadius: 999, background: BRAND, color: 'white', fontWeight: 700, fontSize: 30 }}>
+          <span style={{ display: 'grid', placeItems: 'center', width: 46, height: 46, borderRadius: '50%', background: HOT, fontWeight: 800, fontSize: 26 }}>{n}</span>
+          {lesson}
+        </div>
+        <div style={{ marginTop: 26, fontWeight: 800, fontSize: title.length > 14 ? 74 : 88, lineHeight: 1.32, color: INK }}>{title}</div>
+        {sub && <div style={{ marginTop: 14, fontWeight: 600, fontSize: 36, color: '#475569' }}>{sub}</div>}
+      </div>
+      <div style={{ position: 'absolute', left: 64, bottom: 56, display: 'flex', alignItems: 'center', gap: 12, color: '#64748b', fontWeight: 600, fontSize: 26 }}>
+        <svg width="34" height="34" viewBox="0 0 24 24" fill={HOT}>
+          <circle cx="12" cy="12" r="11" />
+          <path d="M10 8l6 4-6 4z" fill="white" />
+        </svg>
+        មេរៀនជាវីដេអូ · Video tutorial
+      </div>
+    </AbsoluteFill>
+  )
+}
+
 export function tutorialLength(props, fps = 30) {
   const scenes = [props.intro, ...props.steps, props.outro]
   return scenes.reduce((n, s) => n + tutorialFrames(s, fps), 0) - XFADE * (scenes.length - 1)
