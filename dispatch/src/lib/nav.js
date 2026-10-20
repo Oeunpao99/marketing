@@ -8,12 +8,13 @@ import {
   FiImage,
   FiMessageSquare,
   FiPackage,
+  FiPlayCircle,
   FiRepeat,
   FiSliders,
   FiUserCheck,
 } from 'react-icons/fi'
 
-// The boss's six places, in his order — the sidebar is just these six lines.
+// The boss's six places, in his order, then the video tutorials — the sidebar is just these lines.
 // Pages that belong to one of them (`sub`) are tabs at the top of the page
 // (SectionTabs.jsx). The first sub-page is the section's own page.
 // `tour` is the anchor the first-run spotlight points at (lib/tour.js); a step
@@ -56,6 +57,8 @@ export const BOSS = [
       { to: '/products', icon: FiPackage, label: 'Products & brand kit' },
     ],
   },
+  // how-to videos for customers (pages/TutorialsPage.jsx, lib/tutorials.js)
+  { to: '/tutorials', icon: FiPlayCircle, label: 'Video tutorials' },
 ];
 
 export const onPath = (pathname, to) => pathname === to || pathname.startsWith(`${to}/`);

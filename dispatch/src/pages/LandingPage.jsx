@@ -785,6 +785,14 @@ export default function LandingPage({ onLogin, onStart }) {
                 </button>
               ),
             )}
+            {/* the how-to videos — their own public page (/mkt-tutorial, TutorialsPage.jsx) */}
+            <a
+              href="/mkt-tutorial"
+              onMouseEnter={() => setMenu(false)}
+              className="rounded-lg px-3 py-1.5 text-ink-600 transition-colors hover:bg-ink-50 hover:text-ink-900"
+            >
+              {t('Tutorials', 'មេរៀន')}
+            </a>
           </div>
           <div className="flex flex-none items-center gap-1.5 sm:gap-2">
             <LangSwitch lang={lang} setLang={setLang} />
@@ -1182,6 +1190,9 @@ export default function LandingPage({ onLogin, onStart }) {
             </span>
           </div>
           <div className="flex items-center gap-6 text-[13.5px] text-ink-500">
+            <a href="/mkt-tutorial" className="hover:text-brand">
+              {t('Tutorials', 'មេរៀន')}
+            </a>
             <a href="/privacy" className="hover:text-brand">
               {t('Privacy', 'ឯកជនភាព')}
             </a>

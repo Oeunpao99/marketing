@@ -29,6 +29,7 @@ import LeadsPage from "./pages/LeadsPage";
 import VideoStoryPage from "./pages/VideoStoryPage";
 import WeeklyPage from "./pages/WeeklyPage";
 import WebsitePage from "./pages/WebsitePage";
+import TutorialsPage, { PublicTutorialsPage } from "./pages/TutorialsPage";
 import ActivityPage from "./pages/ActivityPage";
 import AdminApp from "./pages/admin/AdminApp";
 import { StoreProvider, useStore } from "./store";
@@ -84,6 +85,7 @@ function Portal() {
             <Route path="/weekly" element={<WeeklyPage />} />
             <Route path="/activity" element={<ActivityPage />} />
             <Route path="/website" element={<WebsitePage />} />
+            <Route path="/tutorials" element={<TutorialsPage />} />
             <Route path="/products" element={<ProductsPage />} />
             <Route path="/story" element={<VideoStoryPage />} />
             <Route path="/calendar" element={<CalendarPage />} />
@@ -134,8 +136,11 @@ const PUBLIC_PAGES = { "/privacy": "privacy", "/terms": "terms" };
 export default function App() {
   // The platform admin portal — its own login (backend .env), not a customer's.
   if (/^\/admin-mkt(\/|$)/.test(window.location.pathname)) return <AdminApp />;
-  const publicPage = PUBLIC_PAGES[window.location.pathname.replace(/\/+$/, "")];
+  const path = window.location.pathname.replace(/\/+$/, "");
+  const publicPage = PUBLIC_PAGES[path];
   if (publicPage) return <LegalPage kind={publicPage} />;
+  // the how-to videos for training sessions — anyone can watch, no sign-in
+  if (path === "/mkt-tutorial") return <PublicTutorialsPage />;
   return (
     <AuthProvider>
       <Gate />

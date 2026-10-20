@@ -1,10 +1,23 @@
 import { Composition } from 'remotion'
 import { MotionPost, FPS, TRANSITION, sceneFrames } from './MotionPost'
+import { Tutorial, tutorialLength } from './tutorial'
 import sample from '../sample.json'
 
-/** One composition: a vertical motion post. Its length comes from the
- * script (each scene's seconds, minus the overlap of the transitions). */
+/** The motion post (vertical, or wide for some templates), and the app's own
+ * how-to videos (tutorial.jsx). A length comes from the script (each scene's
+ * seconds, minus the overlap of the transitions). */
 export const Root = () => (
+  <>
+  <Composition
+    id="Tutorial"
+    component={Tutorial}
+    width={1920}
+    height={1080}
+    fps={FPS}
+    durationInFrames={300}
+    defaultProps={{ title: '', sub: '', lesson: '', intro: { seconds: 3 }, steps: [], outro: { title: '', seconds: 3 } }}
+    calculateMetadata={({ props }) => ({ durationInFrames: tutorialLength(props, FPS) })}
+  />
   <Composition
     id="MotionPost"
     component={MotionPost}
@@ -20,4 +33,5 @@ export const Root = () => (
       return { durationInFrames: total - TRANSITION * (props.scenes.length - 1), width: wide ? 1920 : 1080, height: wide ? 1080 : 1920 }
     }}
   />
+  </>
 )
