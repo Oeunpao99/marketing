@@ -1355,18 +1355,23 @@ PRESENTER_PROMPT = (
     "\n"
     "THE STORY (5-8 scenes):\n"
     "1. hook — text (max 9 words: today's topic as a title or a question, [key words] marked), "
-    "icon. Its `say` IS her introduction: it starts with THE GREETING given below, word for "
+    "icon, draw. Its `say` IS her introduction: it starts with THE GREETING given below, word for "
     "word, then brings today's new topic in one sentence (Khmer: \"ថ្ងៃនេះ មានប្រធានបទថ្មីមួយ…\").\n"
     "then 3-6 scenes that explain it, one idea each, building to the most useful:\n"
     "- speak: text (max 12 words — the idea on the panel, [key words] marked), icon, gesture "
     "(one of: " + ", ".join(PRESENTER_GESTURES) + "), product (optional — a product's exact "
-    "name when the line is about it: its photo goes on the panel).\n"
+    "name when the line is about it: its photo goes on the panel), draw.\n"
     "- list: title (max 7 words), items: 2-4 x {icon, text (max 6 words)} — steps, tips, reasons.\n"
     "- stat: value (a number), prefix, suffix, label (max 8 words), icon — only a TRUE number "
     "from the brief or common knowledge.\n"
     "- qa: q (max 10 words — what people often ask), a (max 18 words — her answer).\n"
     "last. cta — text (max 10 words: follow for tomorrow's topic, comment, message us), button "
     "(1-3 words). Its `say` ends warmly, like a host signing off.\n"
+    "draw — the PICTURE on the panel above the words, in ENGLISH, 10-30 words: one clear scene "
+    "that shows the idea (a shop owner smiling at a phone full of messages, a robot helping at a "
+    "desk…) — a colour illustration is made from it. No text in it, no logos, no brand or product "
+    "packaging (a product's own photo is used for that). Give `draw` to the hook and to the 2 most "
+    "important speak scenes only; leave it out elsewhere.\n"
     "`say` is HER talking to the viewer — first person, lively, natural, as a presenter speaks "
     "(\"let me show you…\", \"here is the trick…\"), each line leading into the next.\n"
     + _COMMON_RULES
@@ -2667,6 +2672,8 @@ def _clean_one(raw: dict, names: dict[str, str]) -> dict | None:
         product = names.get(_line(raw.get("product"), 120).lower(), "")
         if product:
             scene["product"] = product
+        if _line(raw.get("draw"), 300):
+            scene["draw"] = _line(raw["draw"], 300)  # the picture over the words (app/doodle.py HOST_PICTURE_STYLE)
         return scene if text else None
     if kind == "pedestal":
         title = _line(raw.get("title"), 40)
@@ -4787,7 +4794,7 @@ _progress: dict[int, dict] = {}
 DOODLE_DRAWINGS = 3
 
 
-def _start_doodles(script: dict, job, job_id: int) -> tuple[threading.Thread, dict]:
+def _start_doodles(script: dict, job, job_id: int, style: str | None = None) -> tuple[threading.Thread, dict]:
     """Start drawing the Doodle sketches in a background thread — on copies of
     the prompts, so nothing shared changes under the rest of the job.
     Returns (thread, {scene index: picture}) for _finish_doodles."""
@@ -4801,7 +4808,7 @@ def _start_doodles(script: dict, job, job_id: int) -> tuple[threading.Thread, di
     got: dict[int, str] = {}
 
     def work():
-        doodle.draw_scenes(todo, job.workspace_id, job.user_id, report=lambda done, total: _report(job_id, drawn=done, drawings=total))
+        doodle.draw_scenes(todo, job.workspace_id, job.user_id, report=lambda done, total: _report(job_id, drawn=done, drawings=total), style=style)
         got.update({t["n"]: t["image"] for t in todo if t.get("image")})
 
     _report(job_id, drawn=0, drawings=len(todo))
@@ -5914,6 +5921,11 @@ def _make(
             # the rest of the video is prepared and the voice records — joined just
             # before the render (each drawing ~20 s, and the image quota is small)
             doodling = _start_doodles(script, job, job_id) if script.get("style") == "doodle" else None
+            if script.get("style") == "presenter":  # Presenter: colour pictures over the panel's words
+                from app import doodle
+
+                r, g, b = brand_rgb(brand)
+                doodling = _start_doodles(script, job, job_id, style=doodle.host_picture_style(f"#{r:02x}{g:02x}{b:02x}"))
             if script.get("style") == "canvas":  # AI design: the pictures its scenes asked for
                 from app import doodle
 

@@ -77,7 +77,7 @@ function useSet() {
   const wide = W > H
   return wide
     ? { W, H, fps, wide, ground: 885, x: 560, s: 1.55, panel: { x: 1040, y: 120, w: 810, h: 690 }, bubble: { x: 790, y: 190, w: 230 } }
-    : { W, H, fps, wide, ground: 1500, x: 560, s: 1.35, panel: { x: 60, y: 290, w: 960, h: 620 }, bubble: { x: 56, y: 990, w: 300 } }
+    : { W, H, fps, wide, ground: 1500, x: 560, s: 1.35, panel: { x: 60, y: 255, w: 960, h: 690 }, bubble: { x: 56, y: 990, w: 300 } }
 }
 
 // ── the voice: how open the mouth is at this frame (0 shut … 1 wide) ───────
@@ -341,12 +341,51 @@ function Panel({ children, delay = 4, pad = 56 }) {
   )
 }
 
+/** The icon drawn by hand, like Doodle notes: a white pen circle sketched
+ * twice, a little off, the icon's own lines drawing themselves in, an accent
+ * swash under it and two sparkle ticks. */
 function IconTile({ name, size, pal, delay = 8 }) {
   const frame = useCurrentFrame()
-  const k = spring({ frame: frame - delay, fps: 30, config: { damping: 10 } })
+  const p = interpolate(frame, [delay, delay + 34], [0, 1], clamp)
+  const r = size / 2
+  const w = size * 0.022
+  const draw = (from, to) => 1 - interpolate(p, [from, to], [0, 1], clamp)
+  const ring = (rx, ry, rot, k, from, to) => (
+    <ellipse cx={r} cy={r} rx={rx} ry={ry} transform={`rotate(${rot} ${r} ${r})`} fill="none" stroke="#FFFFFF" strokeWidth={w * k} strokeLinecap="round" pathLength={1} strokeDasharray={1} strokeDashoffset={draw(from, to)} />
+  )
+  const tick = (x1, y1, x2, y2, at) => <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={pal.accent} strokeWidth={w * 1.3} strokeLinecap="round" pathLength={1} strokeDasharray={1} strokeDashoffset={draw(at, at + 0.15)} />
+  const wobble = Math.sin(frame / 5) * 0.8 // a hand-drawn line never sits quite still
   return (
-    <div style={{ flex: 'none', width: size, height: size, borderRadius: size * 0.28, background: pal.accent, display: 'grid', placeItems: 'center', transform: `scale(${k}) rotate(${(1 - k) * -12}deg)` }}>
-      <Icon name={name || 'Sparkles'} size={size * 0.54} color={pal.onAccent} stroke={2.2} />
+    <div style={{ flex: 'none', position: 'relative', width: size, height: size, display: 'grid', placeItems: 'center', transform: `rotate(${wobble}deg)` }}>
+      <svg width={size} height={size} style={{ position: 'absolute', inset: 0, overflow: 'visible' }}>
+        <circle cx={r} cy={r} r={r * 0.84} fill={pal.accent} opacity={interpolate(p, [0, 0.3], [0, 0.22], clamp)} />
+        {ring(r * 0.88, r * 0.84, -8, 1, 0, 0.6)}
+        {ring(r * 0.84, r * 0.9, 14, 0.55, 0.25, 0.85)}
+        <path d={`M ${r * 0.5} ${size * 0.98} Q ${r} ${size * 1.05} ${r * 1.5} ${size * 0.96}`} fill="none" stroke={pal.accent} strokeWidth={w * 1.7} strokeLinecap="round" pathLength={1} strokeDasharray={1} strokeDashoffset={draw(0.6, 0.85)} />
+        {tick(size * 0.92, size * 0.12, size * 1.02, size * 0.02, 0.75)}
+        {tick(size * 0.98, size * 0.25, size * 1.1, size * 0.2, 0.82)}
+      </svg>
+      {/* stroke-dash props inherit into the icon's paths: they draw themselves */}
+      <div style={{ position: 'relative', strokeDasharray: 140, strokeDashoffset: 140 * (1 - interpolate(p, [0.15, 1], [0, 1], clamp)) }}>
+        <Icon name={name || 'Sparkles'} size={size * 0.44} color="#FFFFFF" stroke={1.8} />
+      </div>
+    </div>
+  )
+}
+
+/** The scene's picture (an illustration drawn for it, or the product's photo)
+ * in a white frame like a printed card, a strip of tape on top, tilted a touch
+ * — it drops in, then sways slowly. */
+function PictureCard({ src, pal, width, delay = 6 }) {
+  const frame = useCurrentFrame()
+  const k = spring({ frame: frame - delay, fps: 30, config: { damping: 12 } })
+  const h = Math.round(width / 1.5)
+  return (
+    <div style={{ flex: 'none', alignSelf: 'center', position: 'relative', width, height: h, padding: 12, boxSizing: 'border-box', background: '#FFFFFF', borderRadius: 26, boxShadow: '0 22px 50px rgba(0,0,0,0.35)', opacity: Math.min(1, k * 1.6), transform: `translateY(${(1 - k) * -50}px) rotate(${-1.6 + (1 - k) * -5 + Math.sin(frame / 40) * 0.5}deg) scale(${0.9 + 0.1 * k})` }}>
+      <div style={{ width: '100%', height: '100%', borderRadius: 16, overflow: 'hidden', background: '#EEF1F6' }}>
+        <Img src={srcOf(src)} style={{ width: '100%', height: '100%', objectFit: 'cover', transform: `scale(${1.03 + frame * 0.0007})` }} />
+      </div>
+      <div style={{ position: 'absolute', left: '50%', top: -16, width: 130, height: 34, marginLeft: -65, background: pal.accent, opacity: 0.85, transform: 'rotate(-3deg)', borderRadius: 4 }} />
     </div>
   )
 }
@@ -377,9 +416,10 @@ function Hook({ scene, brand, host, voiceAt }) {
   )
   return (
     <Stage brand={brand} host={host} scene={scene} voiceAt={voiceAt} pose="wave" smile={frame < 40} enter={e} bubble={hello}>
-      <Panel delay={14}>
+      <Panel delay={14} pad={scene.image ? 44 : 56}>
+        {scene.image && <PictureCard src={scene.image} pal={pal} width={wide ? 500 : 540} delay={18} />}
         <div style={{ display: 'flex', alignItems: 'center', gap: 22 }}>
-          <IconTile name={scene.icon} size={wide ? 104 : 116} pal={pal} delay={20} />
+          {!scene.image && <IconTile name={scene.icon} size={wide ? 120 : 136} pal={pal} delay={20} />}
           <div style={{ padding: '8px 24px', borderRadius: 999, background: pal.accent, color: pal.onAccent, fontFamily: FONT, fontWeight: 700, fontSize: 36, lineHeight: 1.5 }}>{clean(host?.kicker || 'New topic')}</div>
         </div>
         <Words text={scene.text} delay={22} color="#FFFFFF" style={{ fontSize: fitSize(scene.text, wide ? 70 : 78), fontWeight: 800, lineHeight: 1.4 }} />
@@ -400,20 +440,12 @@ function Hook({ scene, brand, host, voiceAt }) {
 
 /** She explains one point: the line on the panel with an icon, or a photo of the product. */
 function Speak({ scene, brand, host, voiceAt }) {
-  const frame = useCurrentFrame()
   const { wide } = useSet()
   const pal = palette(brand.color)
-  const k = spring({ frame: frame - 8, fps: 30, config: { damping: 14 } })
   return (
     <Stage brand={brand} host={host} scene={scene} voiceAt={voiceAt} pose={POSES[scene.gesture] ? scene.gesture : 'present'}>
-      <Panel>
-        {scene.image ? (
-          <div style={{ flex: 1, minHeight: 0, borderRadius: 26, overflow: 'hidden', transform: `scale(${0.9 + 0.1 * k})`, opacity: k, background: '#FFFFFF' }}>
-            <Img src={srcOf(scene.image)} style={{ width: '100%', height: '100%', objectFit: 'cover', transform: `scale(${1.04 + frame * 0.0008})` }} />
-          </div>
-        ) : (
-          <IconTile name={scene.icon} size={wide ? 130 : 150} pal={pal} />
-        )}
+      <Panel pad={scene.image ? 44 : 56}>
+        {scene.image ? <PictureCard src={scene.image} pal={pal} width={wide ? 560 : 580} /> : <IconTile name={scene.icon} size={wide ? 210 : 240} pal={pal} />}
         <Words text={scene.text} delay={12} color="#FFFFFF" style={{ fontSize: fitSize(scene.text, scene.image ? (wide ? 50 : 56) : wide ? 62 : 70), fontWeight: 800, lineHeight: 1.4 }} />
       </Panel>
     </Stage>

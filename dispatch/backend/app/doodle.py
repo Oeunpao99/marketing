@@ -138,6 +138,49 @@ def ink_only(blob: bytes, ink: tuple = INK, accent: tuple | None = None) -> byte
     return buf.getvalue()
 
 
+# Presenter · Brand host (motion/src/presenter.jsx): the picture on the panel, in a
+# white card frame — a colour illustration in the brand's colour, wide (3:2).
+HOST_PICTURE_STYLE = (
+    "A bright modern flat 2D illustration for an explainer video: clean simple shapes, smooth flat "
+    "colour fills (no photo realism, no 3D), friendly cartoon people with simple faces when people "
+    "fit, one clear subject in the middle with room around it, a soft plain light background. "
+    "Colours: {a} as the main colour, with warm yellow, soft teal and gentle neutrals. Everyday "
+    "Cambodian life when it fits. ABSOLUTELY NO text, letters, numbers, words, signs with writing, "
+    "logos or watermarks anywhere in the image.\n\nThe picture: "
+)
+
+
+def host_picture_style(accent_hex: str) -> str:
+    return HOST_PICTURE_STYLE.format(a=accent_hex)
+
+
+def _flat(prompt: str, style: str, ws: int | None, user_id: int | None) -> str | None:
+    """One colour illustration (``style`` + ``prompt``), wide, as a JPEG data URI — or None."""
+    if ws:
+        try:
+            billing.require(ws, billing.IMAGE_HOLD)
+        except billing.OutOfCredit:
+            return None
+    try:
+        _provider, blob, usage = _draw(style + prompt, "16:9")
+    except Exception as exc:  # noqa: BLE001 — the scene shows its drawn icon instead
+        log.warning("presenter: picture failed (%s)", str(exc)[:200])
+        return None
+    billing.charge(
+        ws, "image", billing.image_cost(usage.get("input", 0), usage.get("output", 0)), user_id=user_id,
+        model=get_settings().azure_openai_image_deployment, tokens=usage.get("total", 0), note=f"Presenter picture: {prompt[:150]}",
+    )
+    try:
+        im = Image.open(io.BytesIO(blob)).convert("RGB")
+        im.thumbnail((1200, 1200))
+        buf = io.BytesIO()
+        im.save(buf, "JPEG", quality=86, optimize=True)
+        return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
+    except Exception:  # noqa: BLE001
+        log.exception("presenter: could not read a picture")
+        return None
+
+
 def _one(prompt: str, ws: int | None, user_id: int | None) -> str | None:
 
     if ws:
@@ -302,11 +345,12 @@ def draw_pictures(scenes: list[dict], theme: dict, ws: int | None, user_id: int 
     return sum(1 for u in got if u)
 
 
-def draw_scenes(scenes: list[dict], ws: int | None, user_id: int | None, report=None) -> int:
+def draw_scenes(scenes: list[dict], ws: int | None, user_id: int | None, report=None, style: str | None = None) -> int:
     """Draw every scene that asks for a drawing (``draw``) and has none yet,
     one at a time (the image service rate-limits hard); the picture goes into
     ``scene["image"]``. ``report(drawn, total)`` after each, for the progress
-    line. Returns how many were drawn."""
+    line. ``style`` = a colour illustration in that style (Presenter) instead
+    of Doodle's ink sketch. Returns how many were drawn."""
     todo = [s for s in scenes if s.get("draw") and not s.get("image")][:MAX_DRAWINGS]
     if not todo:
         return 0
@@ -314,7 +358,7 @@ def draw_scenes(scenes: list[dict], ws: int | None, user_id: int | None, report=
     for n, s in enumerate(todo):  # one at a time — the image quota is small
         if report:
             report(n, len(todo))
-        got.append(_one(s["draw"], ws, user_id))
+        got.append(_flat(s["draw"], style, ws, user_id) if style else _one(s["draw"], ws, user_id))
     for s, uri in zip(todo, got):
         if uri:
             s["image"] = uri
