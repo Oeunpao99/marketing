@@ -90,13 +90,13 @@ def wanted() -> bool:
 def extract_text(prompt: str) -> dict | None:
     """The on-image text in ``prompt`` — None when there is none, or none of
     it is Khmer (the model spells Latin text fine). Raises ContentAIError."""
-    from app.config import get_settings
-    from app.content_ai import _chat
+    from app.content_ai import _chat, writer_model
 
-    cfg = get_settings()
+    # the same writer as captions and scripts: the model the person / workspace
+    # picked (Claude, GPT, Gemini …), else the platform's Khmer writer
     raw = _chat(
         [{"role": "system", "content": EXTRACT_PROMPT}, {"role": "user", "content": prompt[:6000]}],
-        cfg.azure_openai_deployment,
+        writer_model(khmer=True),
         max_tokens=1500,
         effort="low",
     )
