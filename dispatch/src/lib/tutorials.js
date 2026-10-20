@@ -112,8 +112,9 @@ export const TUTORIALS = [
     km: 'អានលទ្ធផលរបស់បង',
     text: 'The numbers for every post, what your audience likes, and what the AI learned.',
     to: '/insights',
-    src: '',
-    minutes: null,
+    src: '/tutorials/insights.mp4',
+    length: '1:09',
+    minutes: 1,
   },
   {
     id: 'leads',
