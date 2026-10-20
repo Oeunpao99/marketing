@@ -226,8 +226,11 @@ def _user_brief(r: PromptRequest, products: list[Product]) -> str:
             "attached to the image request separately, with their own instructions — the "
             "design, colours, layout and logo come from them. Write ONLY the content of "
             "the new poster, 80-160 words, as short labelled lines: HEADLINE (exact text, "
-            "short), SUBHEADING / DETAILS (exact text, optional), SUBJECT & SCENE (what is "
-            "shown), KEY MESSAGE. No style, colour, lighting, camera or layout sections."
+            "at most 8 words, in ONE language — the poster's language — and the brand name "
+            "at most once), SUBHEADING (exact text, one short sentence, same language, "
+            "optional), BUTTON (2-4 words of action, never a URL, optional), LINK (the "
+            "website or phone to print small, optional), SUBJECT & SCENE (what is shown), "
+            "KEY MESSAGE. No style, colour, lighting, camera or layout sections."
         )
     elif r.has_reference:
         lines.append(

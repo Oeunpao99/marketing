@@ -17,8 +17,12 @@ libraqm) — the same split app/meme.py and app/poster.py use for Autopilot.
     │  subheading  │
     │ (chip)(chip) │
     │   picture    │
-    │  ( button )  │
+    │  ( button )  │  ← 2-4 words, wraps rather than being cut
+    │   site.com   │  ← the link, small
     └──────────────┘
+
+The words are made poster-ready when they're read out of the prompt: one
+language, the brand named once, a short headline, never a URL on the button.
 
 Only used when the extracted text has Khmer in it — English text the model
 spells fine, so those images are made exactly as before.
@@ -28,6 +32,7 @@ from __future__ import annotations
 
 import io
 import logging
+import re
 
 from PIL import Image, ImageDraw, ImageStat, features
 
@@ -37,15 +42,24 @@ from app.poster import INK, WHITE, _line_h, _tint
 log = logging.getLogger("app.text_overlay")
 
 EXTRACT_PROMPT = (
-    "You read an image-generation prompt for a social media poster and return ONLY the "
-    "words that must be printed on the poster, copied exactly as written (same language, "
-    "same spelling — never translate, fix or shorten). Return a JSON object:\n"
-    '{"headline": "...", "subheading": "...", "points": ["...", ...], "cta": "..."}\n'
-    "- headline: the main title (the biggest text). When the prompt stacks it on two "
-    "lines (e.g. a brand name, then a Khmer line), keep both, joined with \\n.\n"
-    "- subheading: the supporting line(s) under it, or \"\".\n"
-    "- points: short feature / benefit labels or chips, at most 4, or [].\n"
-    "- cta: the button or call-to-action text, or \"\".\n"
+    "You read an image-generation prompt for a social media poster and return the words "
+    "to PRINT on it — poster-ready: short enough to read at a glance. Use the prompt's own "
+    "words and spelling (never translate or reword), but choose and trim:\n"
+    "- ONE language: when a line is given in two languages (Khmer / English, or the same "
+    "idea twice), keep only the Khmer version; English-only text stays English.\n"
+    "- Say the brand or product name at most once on the whole poster.\n"
+    "- Never print web addresses, step lists (\"Connect → Configure → …\") or long paragraphs "
+    "in the headline, subheading or button.\n"
+    "Return a JSON object:\n"
+    '{"headline": "...", "subheading": "...", "points": ["...", ...], "cta": "...", "link": "..."}\n'
+    "- headline: the main title, at most 8 words (if the prompt's is longer, keep its "
+    "strongest part, e.g. the words before a dash). Two stacked lines (a brand name, then a "
+    "Khmer line) may be joined with \\n.\n"
+    "- subheading: ONE short sentence under it (at most ~18 words), or \"\".\n"
+    "- points: short benefit chips of 1-3 words each, at most 4, or [].\n"
+    "- cta: the button, 2-4 words of action (e.g. \"ចុះឈ្មោះឥឡូវ\", \"Order now\") — never a URL; "
+    "\"\" when the prompt asks for none.\n"
+    "- link: the website (without https://) or phone number to show small under the button, or \"\".\n"
     "Leave out the brand logo, tiny text inside device screens or chat bubbles, and "
     "anything describing style, colour or layout. If the prompt asks for no text at all, "
     'return {"headline": ""}.'
@@ -63,6 +77,9 @@ NO_TEXT_RULE = (
     "clear space at the bottom centre for a button. If a brand logo image is given, place "
     "it unchanged in a bottom corner."
 )
+
+
+_URL = re.compile(r"(?:https?://|www\.)\S+|\b[\w-]+(?:\.[\w-]+)*\.(?:com|org|net|kh|io|app|co)(?:/\S*)?", re.I)
 
 
 def wanted() -> bool:
@@ -85,16 +102,43 @@ def extract_text(prompt: str) -> dict | None:
     )
 
     def s(v, n: int, lines: int = 1) -> str:
-        """Whitespace tidied; up to ``lines`` stacked lines kept as \\n."""
+        """Whitespace tidied; up to ``lines`` stacked lines kept as \\n; at
+        most ``n`` characters, cut between words — never inside one."""
         kept = [t for t in (" ".join(ln.split()) for ln in str(v or "").split("\n")) if t]
-        return ("\n".join(kept[:lines]) if lines > 1 else " ".join(kept))[:n]
+        out = "\n".join(kept[:lines]) if lines > 1 else " ".join(kept)
+        if len(out) > n:
+            cut = out[: n + 1].rsplit(" ", 1)[0].rstrip(" ,;:—-/")
+            out = (cut if len(cut) > n // 2 else out[:n]) + "…"
+        return out
+
+    # Even when the model copies too much, the poster gets one language and no
+    # web address in its big text: the address moves to the small link line.
+    found: list[str] = []
+
+    def tidy(v) -> str:
+        t = str(v or "")
+
+        def keep_url(m):
+            found.append(m.group(0))
+            return ""
+
+        t = _URL.sub(keep_url, t)
+        t = t.split("→")[0] if "→" in t else t  # "Connect → Configure → …" steps
+        parts = [p.strip() for p in t.split(" / ")]
+        if len(parts) > 1 and any(_has_khmer(p) for p in parts):
+            t = " ".join(p for p in parts if _has_khmer(p))  # the Khmer side of "Khmer / English"
+        return t.strip(" :–—-")
 
     points = raw.get("points") if isinstance(raw.get("points"), list) else []
+    head, sub, cta = tidy(raw.get("headline")), tidy(raw.get("subheading")), tidy(raw.get("cta"))
+    link = s(raw.get("link") or (found[0] if found else ""), 48)
+    link = link.removeprefix("https://").removeprefix("http://").removeprefix("www.").rstrip("/.")
     text = {
-        "headline": s(raw.get("headline"), 140, lines=2),
-        "subheading": s(raw.get("subheading"), 220, lines=2),
-        "points": [p for p in (s(v, 60) for v in points[:4]) if p],
-        "cta": s(raw.get("cta"), 40),
+        "headline": s(head, 90, lines=2),
+        "subheading": s(sub, 160, lines=2),
+        "points": [p for p in (s(v, 28) for v in points[:4]) if p],
+        "cta": s(cta, 32),
+        "link": link,
     }
     if not text["headline"]:
         return None
@@ -197,15 +241,28 @@ def render(picture: bytes, text: dict, accent: tuple[int, int, int]) -> bytes:
                 x += cw + cgap
             y += ch + cgap
 
+    # The button and the link sit bottom-centre, no wider than the middle ~56%
+    # — the logo the model was asked to put in a bottom corner stays clear.
+    link = drawable(text.get("link", ""))
+    base = h - round(h * 0.055)
+    if link:
+        lf, ll, llh = _fit(link, round(w * 0.56), 1, round(w * 0.026), round(w * 0.019), "Medium")
+        lw = round(max(lf.getlength(ln) for ln in ll)) + round(w * 0.04)
+        lh = llh * len(ll) + round(llh * 0.4)
+        lx = round((w - lw) / 2)
+        draw.rounded_rectangle((lx, base - lh, lx + lw, base), radius=lh // 2, fill=(8, 12, 20) if not light or busy else (255, 255, 255))
+        _centred(draw, w, base - lh + round(llh * 0.2), ll, lf, WHITE if not light or busy else INK, llh)
+        base -= lh + round(h * 0.018)
     if cta:
-        cf, cl, clh = _fit(cta, round(w * 0.6), 1, round(w * 0.036), round(w * 0.026), "SemiBold")
-        tw = cf.getlength(cl[0]) if cl else 0
+        # wraps onto a second line rather than being cut
+        cf, cl, clh = _fit(cta, round(w * 0.48), 2, round(w * 0.036), round(w * 0.024), "SemiBold")
+        tw = max(cf.getlength(ln) for ln in cl) if cl else 0
         px, py = round(w * 0.045), round(clh * 0.32)
-        bw, bh = round(tw + 2 * px), round(clh + 2 * py)
-        x0, y0 = round((w - bw) / 2), h - round(h * 0.06) - bh
-        draw.rounded_rectangle((x0, y0 + 4, x0 + bw, y0 + bh + 4), radius=bh // 2, fill=tuple(c // 2 for c in accent))  # shadow
-        draw.rounded_rectangle((x0, y0, x0 + bw, y0 + bh), radius=bh // 2, fill=accent)
-        draw.text((x0 + px, y0 + py), cl[0], font=cf, fill=WHITE)
+        bw, bh = round(tw + 2 * px), round(clh * len(cl) + 2 * py)
+        x0, y0 = round((w - bw) / 2), base - bh
+        draw.rounded_rectangle((x0, y0 + 4, x0 + bw, y0 + bh + 4), radius=min(bh // 2, round(clh * 0.9)), fill=tuple(c // 2 for c in accent))  # shadow
+        draw.rounded_rectangle((x0, y0, x0 + bw, y0 + bh), radius=min(bh // 2, round(clh * 0.9)), fill=accent)
+        _centred(draw, w, y0 + py, cl, cf, WHITE, clh)
 
     out = io.BytesIO()
     img.save(out, "PNG", optimize=True)
