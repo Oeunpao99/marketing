@@ -60,8 +60,9 @@ export const TUTORIALS = [
     km: 'ផែនការប្រចាំសប្តាហ៍',
     text: 'See the posts the AI planned for next week, change what you want, and approve them.',
     to: '/weekly',
-    src: '',
-    minutes: null,
+    src: '/tutorials/weekly-plan.mp4',
+    length: '1:38',
+    minutes: 2,
   },
   {
     id: 'new-post',
