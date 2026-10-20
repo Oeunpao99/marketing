@@ -37,6 +37,7 @@ import { isKhmer } from '../lib/format'
 import { platformHue, platformIconClass } from '../components/insights/Overview'
 import { GrowthCard, MembersCard, MoreFromChannel, PostingTimeCard, PostsTrendCard } from '../components/insights/PostDetail'
 import ImproveCard from '../components/insights/ImproveCard'
+import LogoLoader from '../components/ui/LogoLoader'
 import RepostDialog from '../components/insights/RepostDialog'
 import DeletePostDialog from '../components/insights/DeletePostDialog'
 import { OriginBadge, PLATFORM_ICONS, SERIES_COLORS, engagementOf, mediaSrc } from './InsightsPage'
@@ -313,10 +314,8 @@ export default function InsightsPostPage() {
 
   if (items === null) {
     return (
-      <div className="w-full px-5 lg:px-8 py-7 animate-fadein space-y-6">
-        <div className="h-4 w-32 rounded skeleton" />
-        <div className={`${card} h-32 skeleton`} />
-        <div className={`${card} h-56 skeleton`} />
+      <div className="w-full px-5 lg:px-8 py-7">
+        <LogoLoader label="Loading this post’s numbers" />
       </div>
     )
   }
