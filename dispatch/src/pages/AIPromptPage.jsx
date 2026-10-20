@@ -200,6 +200,7 @@ const MOTION_STORIES = [
   { value: 'report', label: 'Data report', hint: 'Bars, a percent ring, numbers with their source' },
   { value: 'clarity', label: 'SaaS explainer', hint: 'Calm white and blue — the mess of tools today, your app in a frame, how it works' },
   { value: 'launch', label: 'Product launch', hint: 'A cinematic launch film — the one click that does the job, your screens stacking up, “Now live”' },
+  { value: 'podcast', label: 'Podcast · Story talk', hint: 'A podcast episode — your host at the mic in a cosy studio, then out in painted places where the story happens' },
   { value: 'presenter', label: 'Presenter · Brand host', hint: 'Your own host in a T-shirt with your logo presents any topic — “Hi, I’m Kalyan, your personal assistant… today’s new topic is…”' },
   { value: 'studio', label: 'Collage · Studio', hint: 'Elegant and editorial — big thin words, your photos as a collage of cards, green vines and a stone column; for academies, studios, premium shops' },
   { value: 'reaction', label: 'Reaction meme', hint: 'A funny meme — your screenshot or a photo behind, a meme caption on top, cut-out cats popping their mouths or freezing in shock' },

@@ -1,0 +1,77 @@
+{
+  "brand": {
+    "name": "Smart Marketing",
+    "color": "#2F6FD6",
+    "logo": "ours/smart-marketing.png",
+    "slug": "smart-marketing"
+  },
+  "style": "podcast",
+  "frame": 70,
+  "host": {
+    "kicker": "PODCAST · EP 01",
+    "female": false,
+    "print": true
+  },
+  "places": [
+    "decor/podcast/sample-park.jpg",
+    "decor/podcast/sample-office.jpg"
+  ],
+  "scenes": [
+    {
+      "type": "hook",
+      "text": "ធ្វើការ​ខ្លួនឯង ⟦ឬ​ធ្វើការ​ឲ្យ​គេ?⟧",
+      "icon": "Mic"
+    }
+  ],
+  "clip": [
+    {
+      "type": "hook",
+      "text": "ធ្វើការ​ខ្លួនឯង ⟦ឬ​ធ្វើការ​ឲ្យ​គេ?⟧",
+      "icon": "Mic"
+    },
+    {
+      "type": "visit",
+      "place": 1,
+      "pose": "hips",
+      "mood": "thinking",
+      "text": "ផ្លូវ​ពីរ — ⟦ជ្រើស​មួយ⟧",
+      "icon": "Signpost"
+    },
+    {
+      "type": "visit",
+      "place": 2,
+      "pose": "laptop",
+      "mood": "happy",
+      "text": "ចាប់ផ្ដើម​ពី​ ⟦ផ្ទះ⟧ សិន"
+    },
+    {
+      "type": "onair",
+      "text": "កុំ​ ⟦លាឈប់​ភ្លាម⟧ — សាក​ពេល​ទំនេរ​សិន",
+      "icon": "Lightbulb",
+      "gesture": "talk"
+    },
+    {
+      "type": "list",
+      "title": "៣ ⟦ជំហាន⟧",
+      "items": [
+        {
+          "icon": "PiggyBank",
+          "text": "សន្សំ​ ៦ ខែ"
+        },
+        {
+          "icon": "Users",
+          "text": "រក​អតិថិជន​ដំបូង"
+        },
+        {
+          "icon": "Rocket",
+          "text": "ទើប​ចេញ​ពេញ​ម៉ោង"
+        }
+      ]
+    },
+    {
+      "type": "cta",
+      "text": "តាមដាន​ ⟦វគ្គ​ក្រោយ⟧",
+      "button": "Follow"
+    }
+  ]
+}

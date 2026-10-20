@@ -1292,6 +1292,54 @@ STUDIO_PROMPT = (
     '{"type": "collage", "word": "Portfolio", "tiles": [{"icon": "Palette", "label": "..."}], "say": "..."}, ...]}'
 )
 
+# "Podcast · Story Talk" (motion/src/podcast.jsx) — the brand's podcaster tells a
+# story / insight: at the desk in a cosy studio (shipped with the app), then out in
+# 1-2 places the story goes, painted by the image model (doodle.BACKDROP_STYLE) behind
+# our coded host — the same person in every scene.
+PODCAST_TYPES = ("hook", "onair", "visit", "list", "cta")
+PODCAST_POSES = ("stand", "hips", "wave", "idea", "point", "shrug", "laptop")
+PODCAST_MOODS = ("happy", "excited", "thinking", "worried", "sad", "surprised")
+MAX_PODCAST_PLACES = 2
+PODCAST_PROMPT = (
+    "You are the host of a popular Khmer storytelling podcast on YouTube / Facebook (45-90 s "
+    "episodes). The host talks to the viewer from a cosy studio desk with a mic, then the video "
+    "cuts away to where the story happens — the host stands in that place (a park, a home office, a "
+    "market, a café, a classroom…), acting it out — and comes back to the desk for the lesson. A "
+    "personal, honest, curious voice: a real situation, a choice, what happened, what we learn. "
+    "Any topic the brief gives (money, work, business, life, tech, the brand's field); the brand "
+    "may appear as part of the story, never as an advert read out.\n"
+    "\n"
+    "THE PLACES — return \"places\": 1-" + str(MAX_PODCAST_PLACES) + " places the story visits, in "
+    "ENGLISH, 15-35 words each — what is there (trees, a path, a desk by a window, stalls…), the "
+    "light and time of day, everyday Cambodia when it fits. No people, no text.\n"
+    "\n"
+    "THE EPISODE (6-10 scenes):\n"
+    "1. hook — text (max 9 words: the episode's question or title, [key words] marked), icon. "
+    "`say`: a hook that makes them stay (\"Have you ever…?\").\n"
+    "then the story, cutting between the studio and the places:\n"
+    "- onair: (at the studio desk) text (max 12 words — the point, [key words] marked), icon, "
+    "gesture (talk or shrug), mood.\n"
+    "- visit: (in a place) place (1 or 2 — which of THE PLACES), pose (one of: "
+    + ", ".join(PODCAST_POSES) + " — laptop = sitting at a laptop at a table), mood, text (max 10 "
+    "words — a caption for the moment, [key words] marked), icon (optional — what is on the host's "
+    "mind, in a thought cloud).\n"
+    "- list: (at the desk) title (max 6 words), items: 2-4 x {icon, text (max 6 words)} — steps / tips.\n"
+    "last. cta — text (max 10 words: follow for the next episode, comment your story), button (1-3 words).\n"
+    "mood one of: " + ", ".join(PODCAST_MOODS) + ".\n"
+    "`say` is the HOST speaking, first person (\"I\", \"me\") — at the desk to the viewer, in a "
+    "place telling what was happening (\"That morning I stood there thinking…\"); natural and "
+    "warm, each line leading into the next.\n"
+    + _COMMON_RULES
+    + '{"places": ["...", "..."], "scenes": [{"type": "hook", "text": "...", "icon": "Mic", "say": "..."}, '
+    '{"type": "visit", "place": 1, "pose": "hips", "mood": "thinking", "text": "...", "icon": "Signpost", "say": "..."}, ...]}'
+)
+
+
+def clean_places(raw) -> list[str]:
+    """Podcast: the 1-2 places its story visits (English, for the image model)."""
+    return [p for p in (_line(x, 400) for x in (raw if isinstance(raw, list) else [])) if p][:MAX_PODCAST_PLACES]
+
+
 # "Presenter · Brand host" (motion/src/presenter.jsx) — the brand's own presenter: a
 # friendly robot host in a T-shirt with the brand's logo, at a desk, who greets ("Hi! I'm
 # Kalyan, BCIE's personal assistant"), brings today's topic and talks it through, a panel
@@ -2177,6 +2225,7 @@ STYLES = {
     "reaction": (REACTION_PROMPT, REACTION_TYPES, 3, None),
     "studio": (STUDIO_PROMPT, STUDIO_TYPES, 4, None),
     "presenter": (PRESENTER_PROMPT, PRESENTER_TYPES, 7, None),
+    "podcast": (PODCAST_PROMPT, PODCAST_TYPES, 10, "visit"),
     "clarity": (CLARITY_PROMPT, CLARITY_TYPES, 8, None),
     "countdown": (COUNTDOWN_PROMPT, COUNTDOWN_TYPES, 7, "rank"),
     "thisorthat": (THISORTHAT_PROMPT, THISORTHAT_TYPES, 6, "choice"),
@@ -2194,7 +2243,7 @@ LONG_STYLES = {"training"}
 # The templates laid out for 16:9 too (motion/src/training.jsx, saas.jsx wide scenes);
 # every other template is always vertical. Scenes drawn only for a tall frame are
 # left out of a wide video.
-WIDE_STYLES = {"presenter", "neural", "paper", "doodle", "cartoon", "lesson", "rise", "training", "custom", "demo", "offer", "trend", "pov", "showcase", "launch", "unveil", "gridcards", "techflow", "canvas", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
+WIDE_STYLES = {"podcast", "presenter", "neural", "paper", "doodle", "cartoon", "lesson", "rise", "training", "custom", "demo", "offer", "trend", "pov", "showcase", "launch", "unveil", "gridcards", "techflow", "canvas", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
 TALL_ONLY_TYPES = {"problem", "chat", "product", "point"}
 
 
@@ -2392,12 +2441,12 @@ GOAL_STYLES = {
     "solution": ("tech", "demo", "custom", "showcase", "clarity", "gridcards", "cartoon"),
     "conversion": ("offer", "tech", "launch", "reviews", "casestudy", "unveil", "studio"),
     "teach": ("explainer",),
-    "education": ("explainer", "training", "custom", "clarity", "tips", "gridcards", "techflow", "neural", "paper", "doodle", "cartoon", "lesson", "presenter"),
-    "reach": ("pov", "explainer", "countdown", "thisorthat", "hottake", "doodle", "cartoon", "lesson", "rise", "reaction"),
+    "education": ("explainer", "training", "custom", "clarity", "tips", "gridcards", "techflow", "neural", "paper", "doodle", "cartoon", "lesson", "presenter", "podcast"),
+    "reach": ("pov", "explainer", "countdown", "thisorthat", "hottake", "doodle", "cartoon", "lesson", "rise", "reaction", "podcast"),
     "awareness": ("trend", "custom", "clarity", "showcase", "report", "unveil", "canvas", "studio", "presenter"),
     "authority": ("versus", "report", "casestudy", "hottake", "clarity", "techflow"),
     "engagement": ("poll", "thisorthat", "faq", "countdown", "hottake", "reaction"),
-    "followers": ("quote", "explainer", "tips", "countdown", "hottake", "doodle", "lesson", "rise", "presenter"),
+    "followers": ("quote", "explainer", "tips", "countdown", "hottake", "doodle", "lesson", "rise", "presenter", "podcast"),
     "trust": ("testimonial", "reviews", "casestudy", "faq", "report"),
 }
 
@@ -2604,6 +2653,14 @@ def _clean_one(raw: dict, names: dict[str, str]) -> dict | None:
     if kind == "statement":
         text = _line(raw.get("text"), 120)
         return {"type": kind, "text": text, "sub": _line(raw.get("sub"), 60), "say": say} if text else None
+    if kind == "onair":  # Podcast: at the studio desk
+        text = _line(raw.get("text"), 120)
+        return {"type": kind, "text": text, "icon": _icon(raw.get("icon"), "MessageCircle"), "gesture": "shrug" if raw.get("gesture") == "shrug" else "talk", "mood": raw.get("mood") if raw.get("mood") in PODCAST_MOODS else "happy", "say": say} if text else None
+    if kind == "visit":  # Podcast: out in a place the story goes
+        scene = {"type": kind, "place": 2 if str(raw.get("place")).strip() == "2" else 1, "pose": raw.get("pose") if raw.get("pose") in PODCAST_POSES else "stand", "mood": raw.get("mood") if raw.get("mood") in PODCAST_MOODS else "happy", "text": _line(raw.get("text"), 100), "say": say}
+        if raw.get("icon"):
+            scene["icon"] = _icon(raw.get("icon"), "Lightbulb")
+        return scene if scene["text"] or say else None
     if kind == "speak":  # Presenter · Brand host: one idea on the panel beside her
         text = _line(raw.get("text"), 120)
         scene = {"type": kind, "text": text, "icon": _icon(raw.get("icon"), "Lightbulb"), "gesture": raw.get("gesture") if raw.get("gesture") in PRESENTER_GESTURES else "present", "say": say}
@@ -3250,6 +3307,8 @@ _TEXT_FIELDS = {
     "pedestal": (("title", 40), ("left", 50), ("right", 50), ("say", 300)),
     "punch": (("text", 120), ("say", 300)),
     "speak": (("text", 120), ("say", 300)),
+    "onair": (("text", 120), ("say", 300)),
+    "visit": (("text", 100), ("say", 300)),
     "whiteboard": (("title", 70), ("say", 300)),
     "climb": (("title", 70), ("text", 120), ("word", 24), ("say", 300)),
     "mirror": (("title", 60), ("before", 60), ("after", 60), ("say", 300)),
@@ -3587,6 +3646,13 @@ def write_script(
         script["cast"] = clean_animals(raw.get("cast"))
     if style == "presenter":
         script["host"] = clean_host(raw.get("host"), khmer, voice)
+    if style == "podcast":
+        script["host"] = clean_host(None, khmer, voice)
+        script["places"] = clean_places(raw.get("places"))
+        n = len(script["places"])  # a visit to a place that wasn't given: the first one (or none — a plain backdrop)
+        for sc in script["scenes"]:
+            if sc["type"] == "visit" and sc["place"] > max(1, n):
+                sc["place"] = 1
     if style == "custom":
         r, g, b = brand_rgb(brand)
         script["look"] = clean_look(raw.get("look"), f"#{r:02x}{g:02x}{b:02x}")
@@ -3857,6 +3923,8 @@ def script_lines(script: dict) -> list[tuple[str, str]]:
             screen = f"{who} {body}{item}"
         elif s["type"] == "collage":
             screen = (s.get("word") or "Collage") + " — " + " / ".join(x["label"] for x in s.get("tiles") or []) + (f" [{len(s['images'])} photos]" if s.get("images") else "")
+        elif s["type"] == "visit":
+            screen = f"(in place {s.get('place', 1)}, {s.get('pose', 'stand')}, {s.get('mood', 'happy')}) " + (s.get("text") or "") + (f" 💭 {s['icon']}" if s.get("icon") else "")
         elif s["type"] == "pedestal":
             screen = s["title"] + " — " + " | ".join(x for x in (s.get("left"), s.get("right")) if x)
         elif s["type"] in ("react", "punch") or (s["type"] == "hook" and "moods" in s):
@@ -4190,7 +4258,7 @@ def pick_pictures(
                 s["image"], s["imgW"], s["imgH"] = shot["uri"], shot["w"], shot["h"]
             elif s.get("product"):
                 s["image"] = by_product.get(ids.get(s["product"])) or main
-        elif script.get("style") in ("doodle", "cartoon", "lesson", "rise"):
+        elif script.get("style") in ("doodle", "cartoon", "lesson", "rise", "podcast"):
             continue  # drawn templates: no product photos (doodle / cartoon draw their own, app/doodle.py)
         elif s["type"] in ("hook", "cta", "offer") or script.get("style") == "quote":
             s["image"] = main
@@ -4322,6 +4390,10 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
     if script.get("style") == "cartoon":  # Story · Characters: the two people and their place
         props["cast"] = [{**c, "name": t(c["name"]) if c.get("name") else ""} for c in script.get("cast") or clean_cast(None)]
         props["place"] = {"image": script["place_image"]} if script.get("place_image") else {}
+    if script.get("style") == "podcast":  # the places, painted (app/doodle.py); the host's look
+        host = script.get("host") or clean_host(None, khmer)
+        props["places"] = list(script.get("place_images") or [])
+        props["host"] = {"kicker": t("ផតខាស្ត៍" if khmer else "PODCAST"), "female": host.get("gender") != "male", "print": logo_prints(logo)}
     if script.get("style") == "presenter":  # the host: her name strap, her greeting bubble, the print on her shirt
         host = script.get("host") or clean_host(None, khmer)
         props["host"] = {
@@ -4378,8 +4450,10 @@ def default_seconds(scene: dict) -> float:
         return 4.4
     if kind == "pedestal":
         return 4.6
-    if kind == "speak":  # MotionPost/shared.jsx defaultSeconds says the same
+    if kind in ("speak", "onair"):  # MotionPost/shared.jsx defaultSeconds says the same
         return 4.2
+    if kind == "visit":
+        return 4.4
     if kind == "react":  # MotionPost/shared.jsx defaultSeconds says the same
         return 4.2
     if kind == "punch":
@@ -5292,6 +5366,7 @@ TEMPLATE_GUIDE = {
     "rise": "mindset / motivation — encouraging people to live their best life: small habits, a fresh start, believing in yourself; a person climbing stairs as night turns to sunrise",
     "lesson": "teaching one idea step by step with a cartoon teacher and a pointer stick at a whiteboard — the maths (a sum, bars), steps, a list — then 2-3 example people who do it differently; money, business, health, study",
     "cartoon": "a little story with two cartoon characters talking in one everyday place (a shop, a market, an office, home) — speech bubbles, thought clouds, a business or life problem and its fix, part 1 / part 2 series",
+    "podcast": "a storytelling podcast episode — the host talks from a cosy studio desk with a mic, then the video cuts to the places the story happens (a park, a home office, a market) where the host acts it out; a personal story, a choice, a life / work / money lesson, told first person",
     "presenter": "the brand's own host presents a topic to camera — a friendly robot assistant in the brand's T-shirt at a desk greets ('Hi, I'm Kalyan, the brand's personal assistant'), brings today's topic and explains it point by point; daily tips, news, how-tos, explainers in a personal, talk-show way",
     "studio": "an elegant editorial showcase — big thin words on a soft light set, the brand's photos as a collage of cards, green vines and a stone column; for an academy / school, a design studio, a premium shop or service showing its work and inviting people in",
     "reaction": "a short funny reaction meme (8-20 s) — a relatable situation on screen (a screenshot, few followers, a customer asking 'price?'), a meme caption on top, cut-out cats / dogs popping their mouths or freezing in shock; for reach and shares",
@@ -5660,8 +5735,10 @@ def checked_script(raw: dict, products: list[Product]) -> dict:
         script["cast"], script["place"] = clean_cast(raw.get("cast")), _line(raw.get("place"), 400)
     if style == "reaction":
         script["cast"] = clean_animals(raw.get("cast"))
-    if style == "presenter":
+    if style in ("presenter", "podcast"):
         script["host"] = clean_host(raw.get("host"), script.get("language", "Khmer") == "Khmer")
+    if style == "podcast":
+        script["places"] = clean_places(raw.get("places"))
     if style == "canvas":
         script["asks"] = _clean_asks(raw.get("asks"))
         t = raw.get("theme") if isinstance(raw.get("theme"), dict) else {}
@@ -5850,6 +5927,12 @@ def _make(
                 _report(job_id, stage="pictures")
                 script["cast_images"] = doodle.draw_reaction(script, job.workspace_id, job.user_id)
                 _check(job_id)
+            if script.get("style") == "podcast" and script.get("places"):  # Podcast: the places its story visits
+                from app import doodle
+
+                _report(job_id, stage="pictures")
+                script["place_images"] = [doodle.draw_place(p, job.workspace_id, job.user_id, style=doodle.BACKDROP_STYLE) for p in script["places"]]
+                _check(job_id)
             if script.get("style") == "cartoon" and script.get("place"):  # Story · Characters: its one place
                 from app import doodle
 
@@ -5872,7 +5955,7 @@ def _make(
             from app import gemini_keys, speech
 
             speech.use_workspace_key(gemini_keys.workspace_key(db, job.workspace_id))  # Khmer: ours, then theirs, then Azure
-            if script.get("style") == "presenter" and voice in ("female", "male") and script.get("host"):
+            if script.get("style") == "presenter" and voice in ("female", "male") and script.get("host"):  # (Podcast: the host follows the voice)
                 voice = script["host"]["gender"]  # the host speaks in her own voice (a male host: a male one)
             narrator, clone = voice_clone.narrator_for(brand, language, voice, script.get("style"))
             if narrator:

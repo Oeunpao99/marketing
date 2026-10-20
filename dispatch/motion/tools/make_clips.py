@@ -25,7 +25,7 @@ subprocess.run([npx, "remotion", "bundle", "src/index.jsx", f"--out-dir={bundle}
 for id in ids:
     d = json.load(open(here / "previews" / f"{id}.json", encoding="utf-8"))
     props = motion / "out" / f"clip-{id}.json"
-    json.dump({"brand": d["brand"], "style": d["style"], "look": d.get("look"), "cast": d.get("cast"), "place": d.get("place"), "host": d.get("host"), "scenes": d["clip"]}, open(props, "w", encoding="utf-8"), ensure_ascii=False)
+    json.dump({"brand": d["brand"], "style": d["style"], "look": d.get("look"), "cast": d.get("cast"), "place": d.get("place"), "host": d.get("host"), "places": d.get("places"), "ratio": d.get("ratio"), "scenes": d["clip"]}, open(props, "w", encoding="utf-8"), ensure_ascii=False)
     mp4 = motion / "out" / f"clip-{id}.mp4"
     subprocess.run(
         [npx, "remotion", "render", str(bundle), "MotionPost", str(mp4), f"--props={props}", "--scale=0.4", "--muted", "--crf=30", "--timeout=120000", "--concurrency=2", "--log=error"],  # 2 workers: the computer stays usable

@@ -184,6 +184,15 @@ export const MOTION_TEMPLATES = [
     goals: ['education', 'solution'],
   },
   {
+    id: 'podcast',
+    story: 'podcast',
+    name: 'Podcast · Story talk',
+    look: 'A podcast episode: your host at a desk with a mic and headphones in a cosy warm studio, then out in the places the story happens — a park, a home office, a market — painted like an animated film, the host standing there thinking, waving, typing at a laptop',
+    steps: ['The episode question', 'At the mic', 'Out in the story', 'Back at the desk: the lesson', 'Follow for the next episode'],
+    note: 'Our own cartoon host wears your brand colour and logo; a female voice gives a female host. The studio is included; 1-2 story places are painted for each video',
+    goals: ['reach', 'followers', 'education'],
+  },
+  {
     id: 'presenter',
     story: 'presenter',
     name: 'Presenter · Brand host',

@@ -177,17 +177,29 @@ PLACE_STYLE = (
 )
 
 
-def draw_place(prompt: str, ws: int | None, user_id: int | None) -> str | None:
+# Podcast · Story Talk (motion/src/podcast.jsx): the places its story visits —
+# painted film backdrops, our coded host stands in front of them.
+BACKDROP_STYLE = (
+    "A hand-painted anime film background: warm natural light, soft painterly detail, rich "
+    "colour, real depth (a near, a middle and a far layer), cinematic wide shot at eye level. "
+    "EMPTY of people and animals. The lower middle of the picture is open ground / floor in "
+    "front with nothing standing on it, where one character will stand. Everyday life in "
+    "Cambodia when it fits. ABSOLUTELY NO text, letters, numbers, words or logos anywhere — "
+    "signs, screens and papers are left blank.\n\nThe place: "
+)
+
+
+def draw_place(prompt: str, ws: int | None, user_id: int | None, style: str = PLACE_STYLE) -> str | None:
     """Story · Characters (motion/src/cartoon.jsx): the one place the story
     happens in, as a wide JPEG data URI — or None (the template draws a plain
-    room)."""
+    room). Podcast passes its own ``style`` (BACKDROP_STYLE)."""
     if ws:
         try:
             billing.require(ws, billing.IMAGE_HOLD)
         except billing.OutOfCredit:
             return None
     try:
-        _provider, blob, usage = _draw(PLACE_STYLE + prompt, "16:9")
+        _provider, blob, usage = _draw(style + prompt, "16:9")
     except Exception as exc:  # noqa: BLE001 — a plain room instead
         log.warning("cartoon: place drawing failed (%s)", str(exc)[:200])
         return None
