@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FiArrowRight, FiCheck, FiClock, FiPlay } from 'react-icons/fi'
 import { TUTORIALS, youtubeId } from '../lib/tutorials'
+import { km, useKhmerFont } from '../lib/khmerFont'
 
 // "How to use Smart Marketing" — the lesson videos (lib/tutorials.js): a player
 // for the lesson picked, and the whole course beside it. Lessons without a video
@@ -17,7 +18,6 @@ const readWatched = () => {
     return new Set()
   }
 }
-const km = { fontFamily: '"Kantumruy Pro", "Khmer OS Siemreap", sans-serif' }
 
 function Player({ lesson, onEnded }) {
   // the cover (the lesson's thumbnail) with one big play button; the video and
@@ -86,6 +86,7 @@ export default function TutorialsPage() {
 /** The course: the player and the lesson list. Also the body of the public
  * /mkt-tutorial page (LandingPage page="tutorials", with the site's header and footer). */
 export function Course({ openLabel, onOpen }) {
+  useKhmerFont()
   const firstReady = TUTORIALS.find((l) => l.src) || TUTORIALS[0]
   const [pick, setPick] = useState(firstReady.id)
   const [watched, setWatched] = useState(readWatched)

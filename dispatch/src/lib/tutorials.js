@@ -86,8 +86,9 @@ export const TUTORIALS = [
     km: 'បង្កើតវីដេអូក្នុងស្ទូឌីយោ',
     text: 'Pick a template or let the AI design every scene, with a Khmer voice and subtitles.',
     to: '/ai',
-    src: '',
-    minutes: null,
+    src: '/tutorials/studio-video.mp4',
+    length: '1:27',
+    minutes: 1,
   },
   {
     id: 'autopilot',
