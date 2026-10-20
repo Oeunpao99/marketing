@@ -125,8 +125,9 @@ export const TUTORIALS = [
     km: 'អតិថិជនសក្តានុពល',
     text: 'Messages from your pages and chatbot in one list, passed to the right person.',
     to: '/leads',
-    src: '',
-    minutes: null,
+    src: '/tutorials/leads.mp4',
+    length: '1:21',
+    minutes: 1,
   },
   {
     id: 'website',
