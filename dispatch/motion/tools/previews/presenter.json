@@ -1,0 +1,57 @@
+{
+  "brand": {
+    "name": "Smart Marketing",
+    "color": "#1E3A8A",
+    "logo": "ours/smart-marketing.png",
+    "slug": "smart-marketing"
+  },
+  "style": "presenter",
+  "frame": 60,
+  "host": {
+    "name": "កល្យាណ",
+    "role": "ជំនួយការផ្ទាល់របស់ Smart Marketing",
+    "hello": "សួស្តី!",
+    "kicker": "ប្រធានបទថ្មី",
+    "female": true,
+    "print": true
+  },
+  "scenes": [
+    {
+      "type": "hook",
+      "text": "AI ជួយ​អាជីវកម្ម​តូច ⟦យ៉ាងម៉េច?⟧",
+      "icon": "Bot"
+    }
+  ],
+  "clip": [
+    {
+      "type": "hook",
+      "text": "AI ជួយ​អាជីវកម្ម​តូច ⟦យ៉ាងម៉េច?⟧",
+      "icon": "Bot"
+    },
+    {
+      "type": "speak",
+      "text": "AI ឆ្លើយ​សារ​អតិថិជន​ ⟦២៤ ម៉ោង⟧",
+      "icon": "MessageCircle",
+      "gesture": "present"
+    },
+    {
+      "type": "list",
+      "title": "៣ ⟦ការងារ⟧ ដែល AI ធ្វើបាន",
+      "items": [
+        { "icon": "PenLine", "text": "សរសេរ​ការ​ផុស" },
+        { "icon": "MessageCircle", "text": "ឆ្លើយ​សារ" },
+        { "icon": "ChartColumn", "text": "មើល​លទ្ធផល" }
+      ]
+    },
+    {
+      "type": "qa",
+      "q": "AI ថ្លៃ​ទេ?",
+      "a": "ចាប់ផ្ដើម​ពី​ឥតគិតថ្លៃ​ក៏​បាន"
+    },
+    {
+      "type": "cta",
+      "text": "តាមដាន​ដើម្បី​ដឹង​បន្ថែម",
+      "button": "Follow"
+    }
+  ]
+}

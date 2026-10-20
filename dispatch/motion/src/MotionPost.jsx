@@ -64,6 +64,7 @@ import { PAPER } from './paper'
 import { DOODLE } from './doodle'
 import { REACTION } from './reaction'
 import { STUDIO } from './studio'
+import { PRESENTER } from './presenter'
 import { CARTOON } from './cartoon'
 import { LESSON } from './lesson'
 import { RISE } from './rise'
@@ -756,6 +757,7 @@ const TEMPLATES = {
   rise: { ...RISE, scenes: { ...SCENES, ...RISE.scenes } },
   reaction: { ...REACTION, scenes: { ...SCENES, ...REACTION.scenes } },
   studio: { ...STUDIO, scenes: { ...SCENES, ...STUDIO.scenes } },
+  presenter: { ...PRESENTER, scenes: { ...SCENES, ...PRESENTER.scenes } },
   gridcards: { ...GRIDCARDS, scenes: { ...SCENES, ...GRIDCARDS.scenes } },
   techflow: { ...TECHFLOW, scenes: { ...SCENES, ...TECHFLOW.scenes } },
   canvas: { ...CANVAS, scenes: { ...SCENES, ...CANVAS.scenes } }, // AI design — the AI designs every scene
@@ -771,7 +773,7 @@ const TEMPLATES = {
   training: { ...TRAINING, scenes: { ...SCENES, ...TRAINING.scenes } },
 }
 
-export const MotionPost = ({ brand, scenes, music, musicList, style, look, cast, place, sfx = true }) => {
+export const MotionPost = ({ brand, scenes, music, musicList, style, look, cast, place, host, sfx = true }) => {
   let point = 0
   // "custom": its scenes are drawn in the look the AI picked for this video
   const custom = useMemo(() => (style === 'custom' ? customTemplate(look) : null), [style, look])
@@ -787,7 +789,9 @@ export const MotionPost = ({ brand, scenes, music, musicList, style, look, cast,
       <TransitionSeries>
         {scenes.flatMap((scene, i) => {
           const Scene = t.scenes[scene.type]
-          const body = Scene ? <Scene scene={scene} brand={brand} cast={cast} place={place} story={story} /> : <PointScene scene={scene} brand={brand} n={++point} />
+          // the frame its voice starts on (the Sequence below) — Presenter's host moves her mouth with it
+          const voiceAt = (i ? TRANSITION : 0) + 6 + Math.round((Number(scene.pause) || 0) * FPS)
+          const body = Scene ? <Scene scene={scene} brand={brand} cast={cast} place={place} story={story} host={host} voiceAt={voiceAt} /> : <PointScene scene={scene} brand={brand} n={++point} />
           const out = [
             <TransitionSeries.Sequence key={`s${i}`} durationInFrames={sceneFrames(scene)}>
               {body}
@@ -796,7 +800,7 @@ export const MotionPost = ({ brand, scenes, music, musicList, style, look, cast,
               {/* The voice-over line (app/motion.py add_voice) and its subtitles start together, once
                   the scene has slid in + 6 frames breathing room so the visual title is registered right as or slightly before the voice speaks.
                   An AI design scene's pause (canvas.jsx) comes first: the voice waits for the reveal. */}
-              <Sequence from={(i ? TRANSITION : 0) + 6 + Math.round((Number(scene.pause) || 0) * FPS)} layout="none">
+              <Sequence from={voiceAt} layout="none">
                 {/* Subtitles — not where the screen says it already (the chat's bubbles, a quote). */}
                 {scene.caption && !noCaption.includes(scene.type) && (
                   <Caption text={scene.caption} words={scene.voiceWords} pauses={scene.pauses} seconds={scene.voiceSeconds || sceneFrames(scene) / FPS - 0.6} top={captionTop} look={t.caption} />

@@ -586,6 +586,7 @@ GEMINI_ACT = {
     "lesson": "Friendly and clear, like a favourite teacher explaining at the board — slow down on each number.",
     "rise": "Warm and encouraging, building gently towards the end — like someone who believes in the listener.",
     "studio": "Calm, warm and elegant, like a premium brand film — unhurried, confident, inviting.",
+    "presenter": "Bright, warm and confident, like a favourite content creator talking to camera — friendly, lively, clear.",
     "reaction": "Deadpan and playful, like a meme page admin — short, dry, a little dramatic on the punchline.",
 }
 

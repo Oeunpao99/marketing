@@ -72,6 +72,8 @@ export function defaultSeconds(s) {
       return 4.4
     case 'pedestal':
       return 4.6
+    case 'speak': // app/motion.py default_seconds says the same
+      return 4.2
     case 'react': // app/motion.py default_seconds says the same
       return 4.2
     case 'punch':

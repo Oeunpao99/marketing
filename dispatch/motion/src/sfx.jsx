@@ -10,6 +10,7 @@ import { Html5Audio, Sequence, staticFile } from 'remotion'
 import { FPS } from './shared'
 import { hitFrames } from './canvas'
 import { mouthBeats } from './reaction'
+import { presenterCues } from './presenter'
 
 const VOLUME = { whoosh: 0.22, pop: 0.3, blop: 0.32, click: 0.35, ding: 0.28, tick: 0.18, impact: 0.55, riser: 0.3 }
 const SAAS = new Set(['trend', 'pov', 'demo', 'offer', 'custom', 'showcase', 'launch', 'clarity', 'countdown', 'thisorthat', 'reviews', 'tips', 'hottake', 'casestudy', 'faq', 'report'])
@@ -20,6 +21,11 @@ export function cuesFor(scene, style, frames, first) {
   const add = (at, s) => at < frames - 4 && cues.push({ at: Math.max(0, Math.round(at)), s })
   const n = (list, max = 4) => Math.min(max, (list || []).length)
   const saas = SAAS.has(style)
+  if (style === 'presenter') {
+    // Presenter · Brand host keeps its cue frames beside its animations (presenter.jsx)
+    presenterCues(scene).forEach(([at, s]) => add(at, s))
+    return cues
+  }
   // Reaction meme (reaction.jsx): its hook is a meme moment and its close has the animals
   const type = style === 'reaction' && scene.type === 'hook' ? 'react' : style === 'reaction' && scene.type === 'cta' ? 'memecta' : scene.type
   switch (type) {

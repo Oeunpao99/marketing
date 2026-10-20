@@ -184,6 +184,15 @@ export const MOTION_TEMPLATES = [
     goals: ['education', 'solution'],
   },
   {
+    id: 'presenter',
+    story: 'presenter',
+    name: 'Presenter · Brand host',
+    look: 'Your own host — a friendly robot assistant in a T-shirt with your logo, at a desk in a studio in your brand colour. She greets (“Hi, I’m Kalyan, your brand’s personal assistant”), brings today’s topic and explains it, her mouth moving with the voice, a panel beside her showing the key words',
+    steps: ['Hello + today’s topic', 'She explains, point by point', 'Tips / steps / a number / a question', 'Sign-off + call to action'],
+    note: 'Write any topic — she talks about it. Upload your logo (ideally a PNG with a transparent background) in Products → Brand kit — it is printed on her T-shirt. Name her in the brief (“host named Sreyneang”) or she is Kalyan; a male voice makes a male host',
+    goals: ['education', 'awareness', 'followers'],
+  },
+  {
     id: 'studio',
     story: 'studio',
     name: 'Collage · Studio',

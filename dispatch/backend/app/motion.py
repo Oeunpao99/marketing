@@ -1292,6 +1292,71 @@ STUDIO_PROMPT = (
     '{"type": "collage", "word": "Portfolio", "tiles": [{"icon": "Palette", "label": "..."}], "say": "..."}, ...]}'
 )
 
+# "Presenter · Brand host" (motion/src/presenter.jsx) — the brand's own presenter: a
+# friendly robot host in a T-shirt with the brand's logo, at a desk, who greets ("Hi! I'm
+# Kalyan, BCIE's personal assistant"), brings today's topic and talks it through, a panel
+# beside her showing the words. Drawn in code, the same host in every video.
+PRESENTER_TYPES = ("hook", "speak", "list", "stat", "qa", "cta")
+PRESENTER_GESTURES = ("present", "point", "thumb", "wave")
+PRESENTER_PROMPT = (
+    "You write for the brand's own video host — its personal assistant who presents a topic "
+    "every day on Reels / TikTok (30-60 s), like a friendly professional content creator "
+    "talking to camera. She sits at a desk in the brand's T-shirt, a panel beside her shows "
+    "the key words. She explains ANY topic the brief gives — news, tips, how-to, an idea, the "
+    "brand's product — clearly, warmly and with energy, never like an advert read out.\n"
+    "\n"
+    "THE STORY (5-8 scenes):\n"
+    "1. hook — text (max 9 words: today's topic as a title or a question, [key words] marked), "
+    "icon. Its `say` IS her introduction: it starts with THE GREETING given below, word for "
+    "word, then brings today's new topic in one sentence (Khmer: \"ថ្ងៃនេះ មានប្រធានបទថ្មីមួយ…\").\n"
+    "then 3-6 scenes that explain it, one idea each, building to the most useful:\n"
+    "- speak: text (max 12 words — the idea on the panel, [key words] marked), icon, gesture "
+    "(one of: " + ", ".join(PRESENTER_GESTURES) + "), product (optional — a product's exact "
+    "name when the line is about it: its photo goes on the panel).\n"
+    "- list: title (max 7 words), items: 2-4 x {icon, text (max 6 words)} — steps, tips, reasons.\n"
+    "- stat: value (a number), prefix, suffix, label (max 8 words), icon — only a TRUE number "
+    "from the brief or common knowledge.\n"
+    "- qa: q (max 10 words — what people often ask), a (max 18 words — her answer).\n"
+    "last. cta — text (max 10 words: follow for tomorrow's topic, comment, message us), button "
+    "(1-3 words). Its `say` ends warmly, like a host signing off.\n"
+    "`say` is HER talking to the viewer — first person, lively, natural, as a presenter speaks "
+    "(\"let me show you…\", \"here is the trick…\"), each line leading into the next.\n"
+    + _COMMON_RULES
+    + '{"host": {"name": "...", "gender": "female"}, "scenes": [{"type": "hook", "text": "...", '
+    '"icon": "Lightbulb", "say": "..."}, {"type": "speak", "text": "...", "icon": "MessageCircle", '
+    '"gesture": "present", "say": "..."}, ...]}'
+)
+HOST_NAMES = {("female", True): "កល្យាណ", ("female", False): "Kalyan", ("male", True): "ដារ៉ា", ("male", False): "Dara"}
+
+
+def host_greeting(host: dict, brand_name: str, khmer: bool) -> str:
+    """Her first words, always the same shape: hello, who she is, whose assistant."""
+    if khmer:
+        me = "នាងខ្ញុំ" if host.get("gender") != "male" else "ខ្ញុំបាទ"
+        return f"សួស្តី! {me} {host['name']} ជំនួយការផ្ទាល់របស់ {brand_name}។"
+    return f"Hi! I'm {host['name']}, {possessive(brand_name)} personal assistant."
+
+
+def possessive(name: str) -> str:
+    return f"{name}'" if name.endswith("s") else f"{name}'s"
+
+
+def clean_host(raw, khmer: bool, voice: str = "") -> dict:
+    """Presenter · Brand host: her name and whether she's a he. The brief may name
+    the host; else the default name — a male voice makes a male host."""
+    raw = raw if isinstance(raw, dict) else {}
+    gender = raw.get("gender") if raw.get("gender") in ("female", "male") else ("male" if voice == "male" else "female")
+    return {"name": _line(raw.get("name"), 30) or HOST_NAMES[(gender, khmer)], "gender": gender}
+
+
+def _host_intro(script: dict, brand_name: str, khmer: bool) -> None:
+    """The hook's voice opens with her greeting — put back if the editors dropped it."""
+    hook = next((s for s in script["scenes"] if s["type"] == "hook"), None)
+    host = script.get("host") or {}
+    if hook is not None and host.get("name") and host["name"] not in (hook.get("say") or ""):
+        hook["say"] = _line(f"{host_greeting(host, brand_name, khmer)} {hook.get('say') or ''}".strip(), 300)
+
+
 # "Lesson · Teacher" (motion/src/lesson.jsx) — a cartoon teacher with a pointer stick
 # explains one idea on a whiteboard (list / steps / sum / bars), then shows it with 2-3
 # example people. All drawn in code — no pictures to make.
@@ -2111,6 +2176,7 @@ STYLES = {
     "rise": (RISE_PROMPT, RISE_TYPES, 8, "climb"),
     "reaction": (REACTION_PROMPT, REACTION_TYPES, 3, None),
     "studio": (STUDIO_PROMPT, STUDIO_TYPES, 4, None),
+    "presenter": (PRESENTER_PROMPT, PRESENTER_TYPES, 7, None),
     "clarity": (CLARITY_PROMPT, CLARITY_TYPES, 8, None),
     "countdown": (COUNTDOWN_PROMPT, COUNTDOWN_TYPES, 7, "rank"),
     "thisorthat": (THISORTHAT_PROMPT, THISORTHAT_TYPES, 6, "choice"),
@@ -2128,7 +2194,7 @@ LONG_STYLES = {"training"}
 # The templates laid out for 16:9 too (motion/src/training.jsx, saas.jsx wide scenes);
 # every other template is always vertical. Scenes drawn only for a tall frame are
 # left out of a wide video.
-WIDE_STYLES = {"neural", "paper", "doodle", "cartoon", "lesson", "rise", "training", "custom", "demo", "offer", "trend", "pov", "showcase", "launch", "unveil", "gridcards", "techflow", "canvas", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
+WIDE_STYLES = {"presenter", "neural", "paper", "doodle", "cartoon", "lesson", "rise", "training", "custom", "demo", "offer", "trend", "pov", "showcase", "launch", "unveil", "gridcards", "techflow", "canvas", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
 TALL_ONLY_TYPES = {"problem", "chat", "product", "point"}
 
 
@@ -2326,12 +2392,12 @@ GOAL_STYLES = {
     "solution": ("tech", "demo", "custom", "showcase", "clarity", "gridcards", "cartoon"),
     "conversion": ("offer", "tech", "launch", "reviews", "casestudy", "unveil", "studio"),
     "teach": ("explainer",),
-    "education": ("explainer", "training", "custom", "clarity", "tips", "gridcards", "techflow", "neural", "paper", "doodle", "cartoon", "lesson"),
+    "education": ("explainer", "training", "custom", "clarity", "tips", "gridcards", "techflow", "neural", "paper", "doodle", "cartoon", "lesson", "presenter"),
     "reach": ("pov", "explainer", "countdown", "thisorthat", "hottake", "doodle", "cartoon", "lesson", "rise", "reaction"),
-    "awareness": ("trend", "custom", "clarity", "showcase", "report", "unveil", "canvas", "studio"),
+    "awareness": ("trend", "custom", "clarity", "showcase", "report", "unveil", "canvas", "studio", "presenter"),
     "authority": ("versus", "report", "casestudy", "hottake", "clarity", "techflow"),
     "engagement": ("poll", "thisorthat", "faq", "countdown", "hottake", "reaction"),
-    "followers": ("quote", "explainer", "tips", "countdown", "hottake", "doodle", "lesson", "rise"),
+    "followers": ("quote", "explainer", "tips", "countdown", "hottake", "doodle", "lesson", "rise", "presenter"),
     "trust": ("testimonial", "reviews", "casestudy", "faq", "report"),
 }
 
@@ -2538,6 +2604,13 @@ def _clean_one(raw: dict, names: dict[str, str]) -> dict | None:
     if kind == "statement":
         text = _line(raw.get("text"), 120)
         return {"type": kind, "text": text, "sub": _line(raw.get("sub"), 60), "say": say} if text else None
+    if kind == "speak":  # Presenter · Brand host: one idea on the panel beside her
+        text = _line(raw.get("text"), 120)
+        scene = {"type": kind, "text": text, "icon": _icon(raw.get("icon"), "Lightbulb"), "gesture": raw.get("gesture") if raw.get("gesture") in PRESENTER_GESTURES else "present", "say": say}
+        product = names.get(_line(raw.get("product"), 120).lower(), "")
+        if product:
+            scene["product"] = product
+        return scene if text else None
     if kind == "pedestal":
         title = _line(raw.get("title"), 40)
         return {"type": kind, "title": title, "left": _line(raw.get("left"), 50), "right": _line(raw.get("right"), 50), "icon": _icon(raw.get("icon"), "Sparkles"), "say": say} if title else None
@@ -3176,6 +3249,7 @@ _TEXT_FIELDS = {
     "statement": (("text", 120), ("sub", 60), ("say", 300)),
     "pedestal": (("title", 40), ("left", 50), ("right", 50), ("say", 300)),
     "punch": (("text", 120), ("say", 300)),
+    "speak": (("text", 120), ("say", 300)),
     "whiteboard": (("title", 70), ("say", 300)),
     "climb": (("title", 70), ("text", 120), ("word", 24), ("say", 300)),
     "mirror": (("title", 60), ("before", 60), ("after", 60), ("say", 300)),
@@ -3291,6 +3365,7 @@ def write_script(
     shots: list[dict] | None = None,
     design: dict | None = None,
     wide: bool = False,
+    voice: str = "",
 ) -> dict:
     """The video's storyboard: one AI call, then for Khmer the same
     native-editor pass the captions get. {"scenes": [...]} — always starting
@@ -3339,6 +3414,14 @@ def write_script(
             allowed = tuple(t for t in allowed if t != "screen")
         if len(shots or []) < 2:
             allowed = tuple(t for t in allowed if t != "stack")
+    if style == "presenter":
+        host = clean_host(None, khmer, voice)
+        extra += (
+            f"\n\nTHE HOST — return \"host\": {{name, gender}}. If the brief names the host (or asks for a "
+            f"male / female one), use that; otherwise name \"{host['name']}\", gender \"{host['gender']}\". "
+            f"THE GREETING (the hook's `say` starts with it, with her name and the brand): "
+            f"\"{host_greeting(host, brand.name, khmer)}\""
+        )
     story = bool(seconds and idea.strip())
     extra += SCRIPT_CRAFT + (SCRIPT_CRAFT_STORY if story else "")
     if story:  # their own story: the video speaks its language, whatever the picker says
@@ -3502,6 +3585,8 @@ def write_script(
         script["cast"], script["place"] = clean_cast(raw.get("cast")), _line(raw.get("place"), 400)
     if style == "reaction":
         script["cast"] = clean_animals(raw.get("cast"))
+    if style == "presenter":
+        script["host"] = clean_host(raw.get("host"), khmer, voice)
     if style == "custom":
         r, g, b = brand_rgb(brand)
         script["look"] = clean_look(raw.get("look"), f"#{r:02x}{g:02x}{b:02x}")
@@ -3555,7 +3640,7 @@ def write_script(
             model,
             voice_examples=brand.voice_examples or "",
             khmer_only="english" not in (brand.lang or "").lower(),
-            keep=[brand.name, *(p.name for p in products)],
+            keep=[brand.name, *(p.name for p in products), *([script["host"]["name"]] if script.get("host") else [])],
             # Story mode: only the short on-screen words are left to edit (the
             # voice lines are the person's own) — the quick pass; at high effort
             # it took a minute and more, while the person waited on the plan.
@@ -3569,7 +3654,7 @@ def write_script(
         for s, line in zip(
             spoken,
             voice_script_khmer(
-                [s["say"] for s in spoken], model, [brand.name, *(p.name for p in products)], brand.voice_examples or "",
+                [s["say"] for s in spoken], model, [brand.name, *(p.name for p in products), *([script["host"]["name"]] if script.get("host") else [])], brand.voice_examples or "",
                 own=story, shows=shows, narrator=story or style in NARRATOR_STYLES,
             ),
         ):
@@ -3579,6 +3664,8 @@ def write_script(
         # English: the same storyteller pass — the lines linked into one spoken story
         _narrate(script, brand, products, model, False, own=story, narrator=story)
         _report(job_id, stage="pictures", scenes=_board(script))
+    if style == "presenter" and not (story and own_voice(idea)):
+        _host_intro(script, brand.name, khmer)
     return script
 
 
@@ -4094,6 +4181,9 @@ def pick_pictures(
                 s["images"] = rest[:5]
             elif s["type"] == "pedestal" and product_id is not None:
                 s["image"] = main
+        elif script.get("style") == "presenter":  # Presenter · Brand host: a product's photo on the panel
+            if s["type"] == "speak" and s.get("product"):
+                s["image"] = by_product.get(ids.get(s["product"])) or main
         elif script.get("style") == "reaction":  # the picture behind a meme moment (else drawn, app/doodle.py)
             if 1 <= s.get("shot", 0) <= len(shots):
                 shot = shots[s["shot"] - 1]
@@ -4110,6 +4200,25 @@ def _brackets(text: str) -> str:
     """[highlight] → ⟦highlight⟧, the template's marker (square brackets may
     be real text elsewhere)."""
     return re.sub(r"\[([^\[\]]{1,60})\]", "⟦\\1⟧", text or "")
+
+
+def logo_prints(logo: str | None) -> bool:
+    """Presenter: a logo on a transparent ground can be printed on the T-shirt in
+    white; a logo on a solid ground (a JPEG, a white box) goes on a white patch."""
+    if not logo or not logo.startswith("data:"):
+        return False
+    try:
+        from PIL import Image
+
+        im = Image.open(io.BytesIO(base64.b64decode(logo.split(",", 1)[1])))
+        if "A" not in im.getbands():
+            return False
+        alpha = im.getchannel("A")
+        w, h = im.size
+        corners = [alpha.getpixel((x, y)) for x, y in ((0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1))]
+        return sum(1 for a in corners if a < 40) >= 3
+    except Exception:  # noqa: BLE001 — a patch always works
+        return False
 
 
 def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> dict:
@@ -4213,6 +4322,16 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
     if script.get("style") == "cartoon":  # Story · Characters: the two people and their place
         props["cast"] = [{**c, "name": t(c["name"]) if c.get("name") else ""} for c in script.get("cast") or clean_cast(None)]
         props["place"] = {"image": script["place_image"]} if script.get("place_image") else {}
+    if script.get("style") == "presenter":  # the host: her name strap, her greeting bubble, the print on her shirt
+        host = script.get("host") or clean_host(None, khmer)
+        props["host"] = {
+            "name": t(host["name"]),
+            "role": t(f"ជំនួយការផ្ទាល់របស់ {brand.name}" if khmer else f"{possessive(brand.name)} personal assistant"),
+            "hello": "សួស្តី!" if khmer else "Hi!",
+            "kicker": t("ប្រធានបទថ្មី" if khmer else "Today's topic"),
+            "female": host.get("gender") != "male",
+            "print": logo_prints(logo),
+        }
     if script.get("style") == "reaction":  # the animals in front, mouth closed / open (app/doodle.py draw_reaction)
         props["cast"] = script.get("cast_images") or []
     if script.get("ratio") == "16:9" and props["style"] in WIDE_STYLES:
@@ -4259,6 +4378,8 @@ def default_seconds(scene: dict) -> float:
         return 4.4
     if kind == "pedestal":
         return 4.6
+    if kind == "speak":  # MotionPost/shared.jsx defaultSeconds says the same
+        return 4.2
     if kind == "react":  # MotionPost/shared.jsx defaultSeconds says the same
         return 4.2
     if kind == "punch":
@@ -5171,6 +5292,7 @@ TEMPLATE_GUIDE = {
     "rise": "mindset / motivation — encouraging people to live their best life: small habits, a fresh start, believing in yourself; a person climbing stairs as night turns to sunrise",
     "lesson": "teaching one idea step by step with a cartoon teacher and a pointer stick at a whiteboard — the maths (a sum, bars), steps, a list — then 2-3 example people who do it differently; money, business, health, study",
     "cartoon": "a little story with two cartoon characters talking in one everyday place (a shop, a market, an office, home) — speech bubbles, thought clouds, a business or life problem and its fix, part 1 / part 2 series",
+    "presenter": "the brand's own host presents a topic to camera — a friendly robot assistant in the brand's T-shirt at a desk greets ('Hi, I'm Kalyan, the brand's personal assistant'), brings today's topic and explains it point by point; daily tips, news, how-tos, explainers in a personal, talk-show way",
     "studio": "an elegant editorial showcase — big thin words on a soft light set, the brand's photos as a collage of cards, green vines and a stone column; for an academy / school, a design studio, a premium shop or service showing its work and inviting people in",
     "reaction": "a short funny reaction meme (8-20 s) — a relatable situation on screen (a screenshot, few followers, a customer asking 'price?'), a meme caption on top, cut-out cats / dogs popping their mouths or freezing in shock; for reach and shares",
     "doodle": "a self-improvement / mindset / life lesson told calmly (overthinking, habits, money, stress, work, relationships) — grid paper, a bold Khmer headline with orange key words, a hand-drawn sketch of the feeling in every scene",
@@ -5538,6 +5660,8 @@ def checked_script(raw: dict, products: list[Product]) -> dict:
         script["cast"], script["place"] = clean_cast(raw.get("cast")), _line(raw.get("place"), 400)
     if style == "reaction":
         script["cast"] = clean_animals(raw.get("cast"))
+    if style == "presenter":
+        script["host"] = clean_host(raw.get("host"), script.get("language", "Khmer") == "Khmer")
     if style == "canvas":
         script["asks"] = _clean_asks(raw.get("asks"))
         t = raw.get("theme") if isinstance(raw.get("theme"), dict) else {}
@@ -5695,7 +5819,7 @@ def _make(
                     shot["note"] = describe_screen(base64.b64decode(shot["uri"].split(",", 1)[1]))
                 shots = ([ref] if ref else []) + more + (brand_screens(db, brand.id) if style in SCREEN_STYLES else [])
                 script = write_script(
-                    brand, products, job.prompt, language, learned, moods, style, job_id=job_id, shots=shots, design=design, wide=shape == "16:9"
+                    brand, products, job.prompt, language, learned, moods, style, job_id=job_id, shots=shots, design=design, wide=shape == "16:9", voice=voice
                 )
                 script["ratio"] = shape
             _check(job_id)
@@ -5748,6 +5872,8 @@ def _make(
             from app import gemini_keys, speech
 
             speech.use_workspace_key(gemini_keys.workspace_key(db, job.workspace_id))  # Khmer: ours, then theirs, then Azure
+            if script.get("style") == "presenter" and voice in ("female", "male") and script.get("host"):
+                voice = script["host"]["gender"]  # the host speaks in her own voice (a male host: a male one)
             narrator, clone = voice_clone.narrator_for(brand, language, voice, script.get("style"))
             if narrator:
                 add_voice(props, script, narrator, job.workspace_id, job.user_id, job_id, brand.pronunciations or [], clone)
