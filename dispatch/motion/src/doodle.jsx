@@ -96,42 +96,50 @@ function Sketch({ scene, box, delay = 0.35 }) {
   const p = interpolate(frame, [delay * fps, delay * fps + 1.3 * fps], [0, 1], clamp)
   const at = -30 + p * 160 // the wipe's edge, % along the diagonal
   const mask = `linear-gradient(135deg, black ${at - 25}%, transparent ${at}%)`
+  // The box may shrink to leave room for the words (flex), and the drawing
+  // shrinks with it — a fixed-size picture spilled under the line below it.
+  const fit = { flex: '0 1 auto', minHeight: 0, maxHeight: '100%', position: 'relative' }
   if (scene.image) {
     return (
-      <div style={{ width: box, height: box, display: 'grid', placeItems: 'center', transform: boil(frame, 'sk', u) }}>
-        <Img src={srcOf(scene.image)} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', maskImage: mask, WebkitMaskImage: mask }} />
+      <div style={{ ...fit, width: box, height: box, transform: boil(frame, 'sk', u) }}>
+        <Img src={srcOf(scene.image)} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', maskImage: mask, WebkitMaskImage: mask }} />
       </div>
     )
   }
-  const icon = box * 0.26 // a small ink icon — the drawing is the star, this only stands in for it
+  // No drawing: the icon, inked bold inside a hand-drawn circle with an orange
+  // swash — clean and on purpose (random strokes round a thin icon looked broken)
+  const d = box * 0.62
   return (
-    <div style={{ position: 'relative', width: box * 0.6, height: box * 0.48, display: 'grid', placeItems: 'center', transform: boil(frame, 'sk', u) }}>
-      <Scribbles size={box * 0.6} progress={p} />
+    <div style={{ ...fit, width: d, height: d, display: 'grid', placeItems: 'center', transform: boil(frame, 'sk', u) }}>
+      <InkRing size={d} progress={p} />
       {/* stroke-dash props inherit into the icon's paths: they draw themselves */}
-      <div style={{ strokeDasharray: 140, strokeDashoffset: 140 * (1 - p) }}>
-        <Icon name={scene.icon || 'Brain'} size={icon} color={C.ink} stroke={0.9} />
+      <div style={{ position: 'relative', strokeDasharray: 140, strokeDashoffset: 140 * (1 - interpolate(p, [0.15, 1], [0, 1], clamp)) }}>
+        <Icon name={scene.icon || 'Lightbulb'} size={d * 0.42} color={C.ink} stroke={1.7} />
       </div>
     </div>
   )
 }
 
-/** Short pen strokes round a drawing — stress lines, the Reel's hatching. */
-function Scribbles({ size, progress }) {
+/** A pen circle drawn twice, a little off (like a real doodle), plus an orange
+ * swash under it and two small sparkle ticks. */
+function InkRing({ size, progress }) {
   const r = size / 2
-  const marks = Array.from({ length: 14 }, (_, i) => {
-    const a = (i / 14) * Math.PI * 2 + random(`a${i}`) * 0.3
-    const d = r * (0.62 + random(`d${i}`) * 0.22)
-    const len = size * (0.05 + random(`l${i}`) * 0.05)
-    const tilt = a + (random(`t${i}`) - 0.5) * 0.9
-    const x = r + Math.cos(a) * d
-    const y = r * 0.8 + Math.sin(a) * d * 0.72
-    return { x1: x, y1: y, x2: x + Math.cos(tilt) * len, y2: y + Math.sin(tilt) * len, at: i / 14 }
-  })
+  const draw = (from, to) => 1 - interpolate(progress, [from, to], [0, 1], clamp)
+  const w = size * 0.016
+  const ring = (rx, ry, rot, k) => (
+    <ellipse cx={r} cy={r} rx={rx} ry={ry} transform={`rotate(${rot} ${r} ${r})`} fill="none" stroke={C.ink} strokeWidth={w * k} strokeLinecap="round" pathLength={1} strokeDasharray={1} strokeDashoffset={draw(k === 1 ? 0 : 0.25, k === 1 ? 0.6 : 0.85)} />
+  )
+  const tick = (x1, y1, x2, y2, at) => (
+    <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={C.orange} strokeWidth={w * 1.2} strokeLinecap="round" pathLength={1} strokeDasharray={1} strokeDashoffset={draw(at, at + 0.15)} />
+  )
   return (
-    <svg width={size} height={size * 0.8} style={{ position: 'absolute', inset: 0 }}>
-      {marks.map((m, i) => (
-        <line key={i} x1={m.x1} y1={m.y1} x2={m.x2} y2={m.y2} stroke={i % 5 === 2 ? C.orange : C.ink} strokeWidth={size * 0.006} strokeLinecap="round" pathLength={1} strokeDasharray={1} strokeDashoffset={1 - interpolate(progress, [m.at * 0.7, m.at * 0.7 + 0.3], [0, 1], clamp)} />
-      ))}
+    <svg width={size} height={size} style={{ position: 'absolute', inset: 0, overflow: 'visible' }}>
+      <circle cx={r} cy={r} r={r * 0.86} fill="white" opacity={interpolate(progress, [0, 0.3], [0, 0.85], clamp)} />
+      {ring(r * 0.88, r * 0.84, -8, 1)}
+      {ring(r * 0.84, r * 0.9, 14, 0.55)}
+      <path d={`M ${r * 0.5} ${size * 0.97} Q ${r} ${size * 1.03} ${r * 1.5} ${size * 0.95}`} fill="none" stroke={C.orange} strokeWidth={w * 1.6} strokeLinecap="round" pathLength={1} strokeDasharray={1} strokeDashoffset={draw(0.6, 0.85)} />
+      {tick(size * 0.92, size * 0.12, size * 1.02, size * 0.02, 0.75)}
+      {tick(size * 0.98, size * 0.24, size * 1.1, size * 0.2, 0.82)}
     </svg>
   )
 }
