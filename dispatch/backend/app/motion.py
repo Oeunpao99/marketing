@@ -4587,6 +4587,48 @@ _stopped: set[int] = set()
 _progress: dict[int, dict] = {}
 
 
+# Doodle notes: at most this many scenes get an AI sketch (the hook first, the
+# rest spread over the film); the others draw their icon by hand on screen.
+DOODLE_DRAWINGS = 3
+
+
+def _start_doodles(script: dict, job, job_id: int) -> tuple[threading.Thread, dict]:
+    """Start drawing the Doodle sketches in a background thread — on copies of
+    the prompts, so nothing shared changes under the rest of the job.
+    Returns (thread, {scene index: picture}) for _finish_doodles."""
+    from app import doodle
+
+    asks = [n for n, sc in enumerate(script["scenes"]) if sc.get("draw") and not sc.get("image")]
+    if len(asks) > DOODLE_DRAWINGS:  # the first, then evenly spread
+        step = (len(asks) - 1) / (DOODLE_DRAWINGS - 1)
+        asks = [asks[round(i * step)] for i in range(DOODLE_DRAWINGS)]
+    todo = [{"draw": script["scenes"][n]["draw"], "n": n} for n in asks]
+    got: dict[int, str] = {}
+
+    def work():
+        doodle.draw_scenes(todo, job.workspace_id, job.user_id, report=lambda done, total: _report(job_id, drawn=done, drawings=total))
+        got.update({t["n"]: t["image"] for t in todo if t.get("image")})
+
+    _report(job_id, drawn=0, drawings=len(todo))
+    thread = threading.Thread(target=contextvars.copy_context().run, args=(work,), daemon=True, name=f"doodle-{job_id}")
+    thread.start()
+    return thread, got
+
+
+def _finish_doodles(doodling: tuple[threading.Thread, dict], props: dict, job_id: int) -> None:
+    """Wait for the sketches still being drawn, then put each into its scene
+    (build_props keeps the scenes one to one with the script's)."""
+    thread, got = doodling
+    if thread.is_alive():
+        _report(job_id, stage="pictures")
+        while thread.is_alive():
+            thread.join(2)
+            _check(job_id)  # Stop pressed: stop waiting (the drawing in hand finishes on its own)
+    for n, uri in got.items():
+        if n < len(props["scenes"]):
+            props["scenes"][n]["image"] = uri
+
+
 def _report(job_id: int | None, **fields) -> None:
     if job_id is not None:
         _progress[job_id] = {**_progress.get(job_id, {}), **fields}
@@ -5667,12 +5709,10 @@ def _make(
             more_now = attached_shots(ref_url, ref_urls) if ref_shot else []  # screenshots 2, 3… as planned
             shots_now = ([ref_shot] if ref_shot else []) + more_now + (brand_screens(db, brand.id) if script.get("style") in SCREEN_STYLES else [])
             pick_pictures(script, all_products, by_product, order, product_id, shots_now)
-            if script.get("style") == "doodle":  # Doodle notes: a hand-drawn sketch per scene
-                from app import doodle
-
-                _report(job_id, stage="pictures")
-                doodle.draw_scenes(script["scenes"], job.workspace_id, job.user_id)
-                _check(job_id)
+            # Doodle notes: its hand-drawn sketches are drawn in the background while
+            # the rest of the video is prepared and the voice records — joined just
+            # before the render (each drawing ~20 s, and the image quota is small)
+            doodling = _start_doodles(script, job, job_id) if script.get("style") == "doodle" else None
             if script.get("style") == "canvas":  # AI design: the pictures its scenes asked for
                 from app import doodle
 
@@ -5711,6 +5751,8 @@ def _make(
             narrator, clone = voice_clone.narrator_for(brand, language, voice, script.get("style"))
             if narrator:
                 add_voice(props, script, narrator, job.workspace_id, job.user_id, job_id, brand.pronunciations or [], clone)
+            if doodling:
+                _finish_doodles(doodling, props, job_id)
             _report(job_id, stage="render", render=0.0)
             blob = render(props, job_id)
         except Stopped:

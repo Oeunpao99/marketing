@@ -118,7 +118,10 @@ export function motionStage(progress) {
     case 'polish':
       return 'Polishing the script — one story, scene to scene…'
     case 'pictures':
-      return 'Picking your brand photos…'
+      // templates whose pictures the image AI draws (Doodle, AI design, Reaction, Story) count them
+      return progress.drawings
+        ? `Drawing the pictures · ${Math.min((progress.drawn || 0) + 1, progress.drawings)} of ${progress.drawings} — about 20 s each`
+        : 'Picking your brand photos…'
     case 'check':
       return 'Checking its design — fixing anything that looks off…'
     case 'voice':

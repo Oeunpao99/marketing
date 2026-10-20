@@ -290,15 +290,19 @@ def draw_pictures(scenes: list[dict], theme: dict, ws: int | None, user_id: int 
     return sum(1 for u in got if u)
 
 
-def draw_scenes(scenes: list[dict], ws: int | None, user_id: int | None) -> int:
+def draw_scenes(scenes: list[dict], ws: int | None, user_id: int | None, report=None) -> int:
     """Draw every scene that asks for a drawing (``draw``) and has none yet,
-    two at a time (the image service rate-limits hard); the picture goes into ``scene["image"]``. Returns how
-    many were drawn."""
+    one at a time (the image service rate-limits hard); the picture goes into
+    ``scene["image"]``. ``report(drawn, total)`` after each, for the progress
+    line. Returns how many were drawn."""
     todo = [s for s in scenes if s.get("draw") and not s.get("image")][:MAX_DRAWINGS]
     if not todo:
         return 0
-    with ThreadPoolExecutor(max_workers=1) as pool:  # one at a time — the image quota is small
-        got = list(pool.map(lambda s: _one(s["draw"], ws, user_id), todo))
+    got = []
+    for n, s in enumerate(todo):  # one at a time — the image quota is small
+        if report:
+            report(n, len(todo))
+        got.append(_one(s["draw"], ws, user_id))
     for s, uri in zip(todo, got):
         if uri:
             s["image"] = uri
