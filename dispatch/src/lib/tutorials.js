@@ -151,8 +151,9 @@ export const TUTORIALS = [
     km: 'អញ្ជើញក្រុមការងារ',
     text: 'Add people to your workspace and choose what each of them can use (Settings → Team).',
     to: null,
-    src: '',
-    minutes: null,
+    src: '/tutorials/team.mp4',
+    length: '0:57',
+    minutes: 1,
   },
 ]
 
