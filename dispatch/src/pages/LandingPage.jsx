@@ -707,72 +707,79 @@ function Faq() {
 
 // ── pricing ──────────────────────────────────────────────────────────────
 // The plans (the owner's decision, 2026-10-21). usd / khr = a month; a year =
-// 10 months (2 free). Credits: what an AI task uses — CREDIT_USES.
+// 10 months (2 free). Free is the wide card on top; the paid plans under it,
+// the popular one dark; then the full comparison. Credits: CREDIT_USES.
 const PLANS = [
   {
     id: 'free',
     name: ['Free', 'ឥតគិតថ្លៃ'],
-    for: ['Try it out', 'សាកល្បងប្រើ'],
+    for: ['Perfect to get started', 'ល្អសម្រាប់ចាប់ផ្តើម'],
     usd: 0,
     khr: 0,
-    cta: ['Start free', 'ចាប់ផ្តើមឥតគិតថ្លៃ'],
-    limits: [['1', 'brand', 'ម៉ាក'], ['2', 'pages', 'ទំព័រ'], ['1', 'seat', 'អ្នកប្រើ'], ['100', 'AI credits / month', 'ក្រេឌីត AI / ខែ']],
+    cta: ['Get started free', 'ចាប់ផ្តើមឥតគិតថ្លៃ'],
     points: [
+      ['100 AI credits / month (~10 posts or 1 video)', 'ក្រេឌីត AI ១០០ / ខែ (~១០ ប្រកាស ឬវីដេអូ ១)'],
+      ['1 brand · 2 connected pages', 'ម៉ាក ១ · ទំព័រ ២'],
       ['Scheduling & auto-posting', 'កំណត់ពេល និងបង្ហោះស្វ័យប្រវត្តិ'],
       ['3 motion video templates', 'គំរូវីដេអូចលនា ៣'],
       ['7 days of analytics', 'ស្ថិតិ ៧ ថ្ងៃ'],
-      ['“Made with Smart Marketing” on videos', 'មានស្លាក “Made with Smart Marketing” លើវីដេអូ'],
+      ['No credit card required', 'មិនចាំបាច់កាតឥណទាន'],
     ],
   },
   {
     id: 'starter',
-    name: ['Starter', 'ចាប់ផ្តើម'],
-    for: ['One shop, one owner', 'ហាងមួយ ម្ចាស់ម្នាក់'],
+    name: ['Starter', 'Starter'],
+    for: ['For one shop and its owner', 'សម្រាប់ហាងមួយ និងម្ចាស់ហាង'],
     usd: 19,
     khr: 79000,
-    cta: ['Choose Starter', 'ជ្រើស Starter'],
-    limits: [['1', 'brand', 'ម៉ាក'], ['5', 'pages', 'ទំព័រ'], ['1', 'seat', 'អ្នកប្រើ'], ['1,000', 'AI credits / month', 'ក្រេឌីត AI / ខែ']],
+    cta: ['Get started', 'ចាប់ផ្តើម'],
     points: [
-      ['Everything in Free, plus:', 'គ្រប់យ៉ាងក្នុង Free បូកនឹង៖'],
+      ['1,000 AI credits / month (~30 posts + 15 images + 8 videos)', 'ក្រេឌីត AI ១.០០០ / ខែ (~៣០ ប្រកាស + ១៥ រូបភាព + ៨ វីដេអូ)'],
+      ['1 brand · 5 connected pages', 'ម៉ាក ១ · ទំព័រ ៥'],
+      ['Everything in Free', 'គ្រប់យ៉ាងក្នុង Free'],
       ['Weekly AI plan, posted for you', 'ផែនការ AI ប្រចាំសប្តាហ៍ បង្ហោះជូនបង'],
       ['All motion video templates', 'គំរូវីដេអូចលនាទាំងអស់'],
       ['Your logo on every video', 'ឡូហ្គោរបស់បង លើគ្រប់វីដេអូ'],
       ['30 days of analytics', 'ស្ថិតិ ៣០ ថ្ងៃ'],
       ['Monthly website check', 'ពិនិត្យគេហទំព័រ ប្រចាំខែ'],
+      ['Chat support', 'ជំនួយតាមឆាត'],
     ],
   },
   {
     id: 'pro',
     name: ['Pro', 'Pro'],
-    for: ['Growing business, small agency', 'អាជីវកម្មកំពុងរីក ភ្នាក់ងារតូច'],
+    for: ['For growing businesses and small agencies', 'សម្រាប់អាជីវកម្មកំពុងរីក និងភ្នាក់ងារតូច'],
     usd: 49,
     khr: 199000,
     popular: true,
-    cta: ['Choose Pro', 'ជ្រើស Pro'],
-    limits: [['3', 'brands', 'ម៉ាក'], ['15', 'pages', 'ទំព័រ'], ['3', 'seats', 'អ្នកប្រើ'], ['3,000', 'AI credits / month', 'ក្រេឌីត AI / ខែ']],
+    cta: ['Get started', 'ចាប់ផ្តើម'],
     points: [
-      ['Everything in Starter, plus:', 'គ្រប់យ៉ាងក្នុង Starter បូកនឹង៖'],
+      ['3,000 AI credits / month (~90 posts + 45 images + 25 videos)', 'ក្រេឌីត AI ៣.០០០ / ខែ (~៩០ ប្រកាស + ៤៥ រូបភាព + ២៥ វីដេអូ)'],
+      ['3 brands · 15 pages · 3 team seats', 'ម៉ាក ៣ · ទំព័រ ១៥ · អ្នកប្រើ ៣'],
+      ['Everything in Starter', 'គ្រប់យ៉ាងក្នុង Starter'],
       ['Your own voice for videos', 'សំឡេងផ្ទាល់របស់បង សម្រាប់វីដេអូ'],
       ['Leads & hand-off to your team', 'អតិថិជនសក្តានុពល និងបញ្ជូនទៅក្រុម'],
       ['12 months of analytics', 'ស្ថិតិ ១២ ខែ'],
       ['Weekly website check', 'ពិនិត្យគេហទំព័រ ប្រចាំសប្តាហ៍'],
       ['API (read-only)', 'API (អានប៉ុណ្ណោះ)'],
+      ['Priority chat support', 'ជំនួយតាមឆាត អាទិភាព'],
     ],
   },
   {
     id: 'business',
     name: ['Business', 'Business'],
-    for: ['Agencies, many branches', 'ភ្នាក់ងារ សាខាច្រើន'],
+    for: ['For agencies and businesses with many branches', 'សម្រាប់ភ្នាក់ងារ និងអាជីវកម្មមានសាខាច្រើន'],
     usd: 129,
     khr: 529000,
-    cta: ['Choose Business', 'ជ្រើស Business'],
-    limits: [['10', 'brands', 'ម៉ាក'], ['∞', 'pages', 'ទំព័រ'], ['10', 'seats', 'អ្នកប្រើ'], ['9,000', 'AI credits / month', 'ក្រេឌីត AI / ខែ']],
+    cta: ['Get started', 'ចាប់ផ្តើម'],
     points: [
-      ['Everything in Pro, plus:', 'គ្រប់យ៉ាងក្នុង Pro បូកនឹង៖'],
+      ['9,000 AI credits / month (~270 posts + 135 images + 75 videos)', 'ក្រេឌីត AI ៩.០០០ / ខែ (~២៧០ ប្រកាស + ១៣៥ រូបភាព + ៧៥ វីដេអូ)'],
+      ['10 brands · unlimited pages · 10 seats', 'ម៉ាក ១០ · ទំព័រគ្មានដែនកំណត់ · អ្នកប្រើ ១០'],
+      ['Everything in Pro', 'គ្រប់យ៉ាងក្នុង Pro'],
       ['Full API & webhooks', 'API ពេញលេញ និង webhooks'],
       ['MCP — use it from Claude or ChatGPT', 'MCP — ប្រើពី Claude ឬ ChatGPT'],
-      ['Telegram support group', 'ក្រុមជំនួយលើ Telegram'],
       ['Onboarding with our team', 'ណែនាំការប្រើប្រាស់ជាមួយក្រុមយើង'],
+      ['Telegram support group', 'ក្រុមជំនួយលើ Telegram'],
     ],
   },
 ]
@@ -786,22 +793,26 @@ const CREDIT_USES = [
   [FiPlayCircle, ['AI film clip, 8 s', 'ឈុតវីដេអូ AI ៨ វិនាទី'], 150],
 ]
 
-// The full comparison (opened under the cards). A value per plan: true ✓, false —, or text.
+// The full comparison. A value per plan (Free, Starter, Pro, Business): true ✓, false —, or text.
 const COMPARE = [
+  [['Monthly AI credits', 'ក្រេឌីត AI ប្រចាំខែ'], ['100', '1,000', '3,000', '9,000']],
   [['Brands', 'ម៉ាក'], ['1', '1', '3', '10']],
-  [['Connected pages', 'ទំព័រដែលភ្ជាប់'], ['2', '5', '15', ['Unlimited', 'គ្មានដែនកំណត់']]],
+  [['Connected pages', 'ទំព័រដែលភ្ជាប់'], ['2', '5', '15', ['No limit', 'គ្មានដែនកំណត់']]],
   [['Team seats', 'អ្នកប្រើក្នុងក្រុម'], ['1', '1', '3', '10']],
-  [['AI credits / month', 'ក្រេឌីត AI / ខែ'], ['100', '1,000', '3,000', '9,000']],
   [['Scheduling & auto-posting', 'កំណត់ពេល និងបង្ហោះស្វ័យប្រវត្តិ'], [true, true, true, true]],
-  [['Weekly AI plan', 'ផែនការ AI ប្រចាំសប្តាហ៍'], [false, true, true, true]],
+  [['Khmer captions & voice', 'ចំណងជើង និងសំឡេងខ្មែរ'], [true, true, true, true]],
+  [['Posters with real Khmer text', 'ប៉ូស្ទ័រមានអក្សរខ្មែរត្រឹមត្រូវ'], [true, true, true, true]],
   [['Motion video templates', 'គំរូវីដេអូចលនា'], [['3 basic', '៣ មូលដ្ឋាន'], ['All', 'ទាំងអស់'], ['All', 'ទាំងអស់'], ['All', 'ទាំងអស់']]],
+  [['Weekly AI plan', 'ផែនការ AI ប្រចាំសប្តាហ៍'], [false, true, true, true]],
   [['Your logo on videos', 'ឡូហ្គោរបស់បងលើវីដេអូ'], [false, true, true, true]],
-  [['Your own voice (clone)', 'សំឡេងផ្ទាល់ខ្លួន'], [false, false, true, true]],
   [['Analytics history', 'ប្រវត្តិស្ថិតិ'], [['7 days', '៧ ថ្ងៃ'], ['30 days', '៣០ ថ្ងៃ'], ['12 months', '១២ ខែ'], ['12 months', '១២ ខែ']]],
   [['Website check', 'ពិនិត្យគេហទំព័រ'], [false, ['Monthly', 'ប្រចាំខែ'], ['Weekly', 'ប្រចាំសប្តាហ៍'], ['Weekly', 'ប្រចាំសប្តាហ៍']]],
+  [['Your own voice (clone)', 'សំឡេងផ្ទាល់ខ្លួន'], [false, false, true, true]],
   [['Leads & hand-off', 'អតិថិជនសក្តានុពល'], [false, false, true, true]],
-  [['API', 'API'], [false, false, ['Read-only', 'អានប៉ុណ្ណោះ'], ['Full', 'ពេញលេញ']]],
-  [['Webhooks & MCP', 'Webhooks និង MCP'], [false, false, false, true]],
+  [['API access', 'API'], [false, false, ['Read-only', 'អានប៉ុណ្ណោះ'], ['Full', 'ពេញលេញ']]],
+  [['Webhooks', 'Webhooks'], [false, false, false, true]],
+  [['MCP (Claude, ChatGPT)', 'MCP (Claude, ChatGPT)'], [false, false, false, true]],
+  [['Onboarding with our team', 'ណែនាំការប្រើប្រាស់'], [false, false, false, true]],
   [['Support', 'ជំនួយ'], [['Help center', 'មជ្ឈមណ្ឌលជំនួយ'], ['Chat', 'ឆាត'], ['Priority chat', 'ឆាតអាទិភាព'], ['Telegram group', 'ក្រុម Telegram']]],
 ]
 
@@ -825,20 +836,44 @@ function priceOf(plan, yearly, riel) {
 
 function Toggle({ value, onChange, options }) {
   return (
-    <div className="inline-flex rounded-xl border border-ink-200 bg-white p-1">
+    <div className="inline-flex rounded-full border border-ink-200 bg-white p-1">
       {options.map(([v, label, tag]) => (
         <button
           key={String(v)}
           type="button"
           onClick={() => onChange(v)}
           aria-pressed={value === v}
-          className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${value === v ? 'bg-brand text-white' : 'text-ink-600 hover:text-ink-900'}`}
+          className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-[13px] font-semibold transition-colors ${value === v ? 'bg-ink-900 text-ink-50' : 'text-ink-600 hover:text-ink-900'}`}
         >
           {label}
-          {tag && <span className={`rounded-full px-1.5 py-px text-[10.5px] font-bold ${value === v ? 'bg-white/20 text-white' : 'bg-brand-soft text-brand'}`}>{tag}</span>}
+          {tag && <span className={`rounded-full px-1.5 py-px text-[10.5px] font-bold ${value === v ? 'bg-white/20 text-ink-50' : 'bg-brand-soft text-brand'}`}>{tag}</span>}
         </button>
       ))}
     </div>
+  )
+}
+
+/** The small round tick of the lists and the table — filled dark on the popular plan. */
+function Tick({ dark = false, filled = false }) {
+  return (
+    <span className={`grid h-[18px] w-[18px] flex-none place-items-center rounded-full ${dark ? 'bg-white/15 text-white' : filled ? 'bg-ink-900 text-ink-50' : 'bg-ink-100 text-ink-600'}`}>
+      <FiCheck size={11} strokeWidth={3} />
+    </span>
+  )
+}
+
+/** "$49 /mo" and, on yearly, the year's bill under it. */
+function Price({ plan, yearly, riel, dark = false }) {
+  const t = useT()
+  const price = priceOf(plan, yearly, riel)
+  return (
+    <>
+      <div className="mt-6 flex items-baseline gap-1.5">
+        <span className={`text-[44px] font-bold leading-none tracking-tight ${dark ? 'text-white' : 'text-ink-900'}`}>{plan.usd ? price.main : riel ? '0៛' : '$0'}</span>
+        <span className={`text-[16px] ${dark ? 'text-white/70' : 'text-ink-500'}`}>/{t('mo', 'ខែ')}</span>
+      </div>
+      <div className={`mt-2 h-4 text-[12px] ${dark ? 'text-white/60' : 'text-ink-400'}`}>{plan.usd > 0 && yearly ? t(`${price.year} billed yearly`, `${price.year} បង់ម្តងក្នុងមួយឆ្នាំ`) : ''}</div>
+    </>
   )
 }
 
@@ -846,17 +881,26 @@ function Pricing({ onStart }) {
   const t = useT()
   const [yearly, setYearly] = useState(false)
   const [riel, setRiel] = useState(t.lang === 'km')
-  const [compare, setCompare] = useState(false)
   const n = (s) => (t.lang === 'km' ? khDigits(s) : s)
-  const cell = (v) =>
-    v === true ? <FiCheck className="mx-auto text-brand" size={17} aria-label={t('Included', 'មាន')} /> : v === false ? <span className="text-ink-300" aria-label={t('Not included', 'គ្មាន')}>—</span> : <span>{Array.isArray(v) ? t(v) : n(v)}</span>
+  const [free, ...paid] = PLANS
+  const cell = (v, popular) =>
+    v === true ? (
+      <span className="inline-flex" aria-label={t('Included', 'មាន')}>
+        <Tick filled={popular} />
+      </span>
+    ) : v === false ? (
+      <span className="text-ink-300" aria-label={t('Not included', 'គ្មាន')}>—</span>
+    ) : (
+      <span className={popular ? 'font-semibold text-ink-900' : 'text-ink-800'}>{Array.isArray(v) ? t(v) : n(v)}</span>
+    )
+  const pill = 'inline-flex w-full items-center justify-center rounded-full px-5 py-3 text-[14.5px] font-semibold transition-colors'
   return (
-    <section id="pricing" className="scroll-mt-20 px-4 py-20 sm:px-6 sm:py-28">
+    <section id="pricing" className="scroll-mt-20 bg-canvas px-4 py-20 sm:px-6 sm:py-28">
       <SectionTitle
         eyebrow={t('Pricing', 'តម្លៃ')}
         title={t('Simple plans that grow with you', 'គម្រោងសាមញ្ញ រីកចម្រើនជាមួយបង')}
         khmer="ចាប់ផ្តើមឥតគិតថ្លៃ ដំឡើងពេលបងត្រៀមរួច"
-        sub={t('Start free. Every plan includes AI credits each month — upgrade when you need more.', 'ចាប់ផ្តើមឥតគិតថ្លៃ។ គ្រប់គម្រោងមានក្រេឌីត AI រៀងរាល់ខែ — ដំឡើងពេលបងត្រូវការបន្ថែម។')}
+        sub={t('Start free. Every plan includes AI credits each month — posting and scheduling never use them.', 'ចាប់ផ្តើមឥតគិតថ្លៃ។ គ្រប់គម្រោងមានក្រេឌីត AI រៀងរាល់ខែ — ការបង្ហោះ និងកំណត់ពេល មិនប្រើក្រេឌីតទេ។')}
       />
 
       <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
@@ -864,49 +908,59 @@ function Pricing({ onStart }) {
         <Toggle value={riel} onChange={setRiel} options={[[false, 'USD $'], [true, 'KHR ៛']]} />
       </div>
 
-      {/* the plans */}
-      <div className="mx-auto mt-10 grid max-w-6xl gap-5 sm:grid-cols-2 lg:grid-cols-4">
-        {PLANS.map((p, i) => {
-          const price = priceOf(p, yearly, riel)
+      {/* Free: one wide card — the plan on the left, what's in it on the right */}
+      <Reveal className="mx-auto mt-12 max-w-6xl">
+        <div className="grid gap-8 rounded-3xl bg-white p-7 shadow-card sm:p-8 md:grid-cols-[minmax(0,300px)_1fr] md:gap-10">
+          <div className="md:border-r md:border-ink-200 md:pr-10">
+            <div className="text-[24px] font-bold text-ink-900">{t(free.name)}</div>
+            <div className="mt-1.5 text-[14.5px] text-ink-500">{t(free.for)}</div>
+            <Price plan={free} yearly={yearly} riel={riel} />
+            <button type="button" onClick={onStart} className={`${pill} mt-4 bg-ink-100 text-ink-900 hover:bg-ink-200`}>
+              {t(free.cta)}
+            </button>
+          </div>
+          <div>
+            <div className="text-[13px] text-ink-500">{t('Includes', 'រួមមាន')}</div>
+            <ul className="mt-4 grid gap-x-8 gap-y-3.5 sm:grid-cols-2">
+              {free.points.map((pt) => (
+                <li key={pt[0]} className="flex items-start gap-3 text-[14.5px] text-ink-700">
+                  <span className="mt-0.5">
+                    <Tick />
+                  </span>
+                  {t(pt)}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </Reveal>
+
+      {/* the paid plans — the popular one dark and a little taller */}
+      <div className="mx-auto mt-14 grid max-w-6xl items-start gap-5 md:grid-cols-3">
+        {paid.map((p, i) => {
+          const dark = !!p.popular
           return (
-            <Reveal key={p.id} delay={i * 90} className="h-full">
-              <div className={`relative flex h-full flex-col rounded-2xl border bg-white p-6 transition-all hover:-translate-y-0.5 ${p.popular ? 'border-brand shadow-card-hover ring-2 ring-brand/15' : 'border-ink-200 shadow-card hover:shadow-card-hover'}`}>
-                {p.popular && (
-                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-brand px-3 py-1 text-[11.5px] font-bold text-white">
-                    ★ {t('Most popular', 'ពេញនិយមបំផុត')}
+            <Reveal key={p.id} delay={i * 90} className={dark ? 'md:-mt-4' : ''}>
+              <div className={`relative flex flex-col rounded-3xl p-7 sm:p-8 ${dark ? 'bg-night-900 text-white shadow-[0_24px_60px_rgba(15,23,42,0.28)] ring-1 ring-white/10' : 'bg-white shadow-card'}`}>
+                {dark && (
+                  <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-white px-3.5 py-1 text-[12px] font-semibold text-night-900 shadow-sm ring-1 ring-black/5">
+                    {t('Most popular', 'ពេញនិយមបំផុត')}
                   </span>
                 )}
-                <div className="text-[17px] font-bold text-ink-900">{t(p.name)}</div>
-                <div className="mt-0.5 text-[13px] text-ink-500">{t(p.for)}</div>
-                <div className="mt-5 flex items-baseline gap-1">
-                  <span className="text-[34px] font-bold leading-none tracking-tight text-ink-900">{p.usd ? price.main : t('Free', 'ឥតគិតថ្លៃ')}</span>
-                  {p.usd > 0 && <span className="text-[13px] text-ink-500">/ {t('month', 'ខែ')}</span>}
-                </div>
-                <div className="mt-1.5 h-4 text-[12px] text-ink-400">
-                  {p.usd > 0 && yearly && t(`${price.year} billed yearly`, `${price.year} បង់ម្តងក្នុងមួយឆ្នាំ`)}
-                  {p.usd === 0 && t('No card needed', 'មិនចាំបាច់កាត')}
-                </div>
-                <button
-                  type="button"
-                  onClick={onStart}
-                  className={`mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-[14px] font-semibold transition-colors ${p.popular ? 'bg-brand text-white hover:bg-brand/90' : 'border border-ink-200 text-ink-900 hover:border-brand hover:text-brand'}`}
-                >
-                  {t(p.cta)} <FiArrowRight size={15} />
+                <div className={`text-[24px] font-bold ${dark ? 'text-white' : 'text-ink-900'}`}>{t(p.name)}</div>
+                <div className={`mt-1.5 min-h-[42px] text-[14.5px] leading-snug ${dark ? 'text-white/70' : 'text-ink-500'}`}>{t(p.for)}</div>
+                <Price plan={p} yearly={yearly} riel={riel} dark={dark} />
+                <button type="button" onClick={onStart} className={`${pill} mt-4 ${dark ? 'bg-white text-night-900 hover:bg-white/90' : 'bg-ink-100 text-ink-900 hover:bg-ink-200'}`}>
+                  {t(p.cta)}
                 </button>
-                {/* the four numbers people compare */}
-                <div className="mt-6 grid grid-cols-2 gap-2">
-                  {p.limits.map(([num, en, kh]) => (
-                    <div key={en} className="rounded-xl bg-canvas px-3 py-2">
-                      <div className="text-[16px] font-bold text-ink-900">{n(num)}</div>
-                      <div className="text-[11.5px] leading-snug text-ink-500">{t(en, kh)}</div>
-                    </div>
-                  ))}
-                </div>
-                <ul className="mt-5 space-y-2.5 text-[13.5px] text-ink-600">
-                  {p.points.map((pt, k) => (
-                    <li key={pt[0]} className={`flex gap-2 ${k === 0 && i > 0 ? 'font-semibold text-ink-900' : ''}`}>
-                      {!(k === 0 && i > 0) && <FiCheck className="mt-0.5 flex-none text-brand" size={15} />}
-                      <span>{t(pt)}</span>
+                <div className={`mt-8 text-[13px] ${dark ? 'text-white/60' : 'text-ink-500'}`}>{t('Includes', 'រួមមាន')}</div>
+                <ul className="mt-4 space-y-3.5">
+                  {p.points.map((pt) => (
+                    <li key={pt[0]} className={`flex items-start gap-3 text-[14.5px] leading-snug ${dark ? 'text-white/90' : 'text-ink-700'}`}>
+                      <span className="mt-0.5">
+                        <Tick dark={dark} />
+                      </span>
+                      {t(pt)}
                     </li>
                   ))}
                 </ul>
@@ -917,40 +971,74 @@ function Pricing({ onStart }) {
       </div>
 
       {/* Enterprise: no public price */}
-      <Reveal className="mx-auto mt-5 max-w-6xl">
-        <div className="flex flex-col items-start justify-between gap-4 rounded-2xl border border-ink-200 bg-white p-6 sm:flex-row sm:items-center">
-          <div className="flex items-start gap-4">
-            <span className="grid h-11 w-11 flex-none place-items-center rounded-xl bg-brand-soft text-brand">
-              <FiShield size={20} />
-            </span>
-            <div>
-              <div className="text-[16px] font-bold text-ink-900">
-                Enterprise <span className="ml-1 text-[13px] font-medium text-ink-500">· {t('big brands, resellers, partners', 'ម៉ាកធំ អ្នកលក់បន្ត ដៃគូ')}</span>
-              </div>
-              <p className="mt-1 text-[13.5px] leading-relaxed text-ink-500">
-                {t(
-                  'Unlimited brands, pages and seats, the credits you need, your own branded template, CRM connection, an account manager and a service agreement.',
-                  'ម៉ាក ទំព័រ និងអ្នកប្រើ គ្មានដែនកំណត់ ក្រេឌីតតាមតម្រូវការ គំរូវីដេអូតាមម៉ាករបស់បង ភ្ជាប់ CRM អ្នកគ្រប់គ្រងគណនី និងកិច្ចព្រមព្រៀងសេវាកម្ម។',
-                )}
-              </p>
+      <Reveal className="mx-auto mt-8 max-w-6xl">
+        <div className="flex flex-col items-start justify-between gap-4 rounded-3xl bg-white p-7 shadow-card sm:flex-row sm:items-center">
+          <div className="min-w-0 flex-1">
+            <div className="text-[18px] font-bold text-ink-900">
+              Enterprise <span className="ml-1 text-[14px] font-medium text-ink-500">· {t('big brands, resellers and partners', 'ម៉ាកធំ អ្នកលក់បន្ត និងដៃគូ')}</span>
             </div>
+            <p className="mt-1 max-w-3xl text-[14px] leading-relaxed text-ink-500">
+              {t(
+                'Unlimited brands, pages and seats, the credits you need, a video template made for your brand, CRM connection, an account manager and a service agreement.',
+                'ម៉ាក ទំព័រ និងអ្នកប្រើ គ្មានដែនកំណត់ ក្រេឌីតតាមតម្រូវការ គំរូវីដេអូធ្វើសម្រាប់ម៉ាកបង ភ្ជាប់ CRM អ្នកគ្រប់គ្រងគណនី និងកិច្ចព្រមព្រៀងសេវាកម្ម។',
+              )}
+            </p>
           </div>
-          <button type="button" onClick={onStart} className="inline-flex flex-none items-center gap-2 rounded-xl border border-ink-200 px-5 py-2.5 text-[14px] font-semibold text-ink-900 transition-colors hover:border-brand hover:text-brand">
-            {t('Contact us', 'ទាក់ទងយើង')} <FiArrowRight size={15} />
+          <button type="button" onClick={onStart} className="inline-flex flex-none items-center justify-center rounded-full bg-ink-900 px-6 py-3 text-[14.5px] font-semibold text-ink-50 transition-colors hover:bg-ink-800">
+            {t('Contact us', 'ទាក់ទងយើង')}
           </button>
         </div>
       </Reveal>
 
+      {/* Compare plans */}
+      <div className="mx-auto mt-20 max-w-6xl">
+        <h3 className="text-center text-[24px] font-bold text-ink-900 sm:text-[28px]">{t('Compare plans', 'ប្រៀបធៀបគម្រោង')}</h3>
+        <div className="mt-8 overflow-x-auto rounded-3xl bg-white shadow-card">
+          <table className="w-full min-w-[680px] text-[14px]">
+            <thead>
+              <tr className="border-b border-ink-200">
+                <th className="px-6 py-4 text-left text-[13px] font-medium text-ink-500">{t('Feature', 'មុខងារ')}</th>
+                {PLANS.map((p) => (
+                  <th key={p.id} className="px-3 py-4 text-center font-semibold text-ink-900">
+                    {t(p.name)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-ink-100">
+              {COMPARE.map(([label, vals]) => (
+                <tr key={label[0]}>
+                  <td className="px-6 py-3.5 text-ink-600">{t(label)}</td>
+                  {vals.map((v, k) => (
+                    <td key={k} className="px-3 py-3.5 text-center">
+                      {cell(v, PLANS[k].popular)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+              <tr>
+                <td className="px-6 py-4 text-ink-600">{t('Price / month', 'តម្លៃ / ខែ')}</td>
+                {PLANS.map((p) => (
+                  <td key={p.id} className="px-3 py-4 text-center font-semibold text-ink-900">
+                    {p.usd ? priceOf(p, yearly, riel).main : riel ? '0៛' : '$0'}
+                  </td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       {/* what credits buy */}
-      <Reveal className="mx-auto mt-14 max-w-6xl">
+      <div className="mx-auto mt-16 max-w-6xl">
         <div className="text-center">
           <div className="text-[18px] font-bold text-ink-900">{t('What do AI credits make?', 'ក្រេឌីត AI បង្កើតបានអ្វីខ្លះ?')}</div>
-          <p className="mt-1 text-[13.5px] text-ink-500">{t('Posting and scheduling never use credits — only the AI that makes your content.', 'ការបង្ហោះ និងកំណត់ពេល មិនប្រើក្រេឌីតទេ — មានតែ AI ដែលបង្កើតមាតិកាប៉ុណ្ណោះ។')}</p>
+          <p className="mt-1 text-[13.5px] text-ink-500">{t('The same on every plan.', 'ដូចគ្នាគ្រប់គម្រោង។')}</p>
         </div>
         <div className="mt-6 grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {CREDIT_USES.map(([Icon, label, credits]) => (
-            <div key={label[0]} className="flex items-center gap-3 rounded-xl border border-ink-200 bg-white px-4 py-3">
-              <span className="grid h-9 w-9 flex-none place-items-center rounded-lg bg-brand-soft text-brand">
+            <div key={label[0]} className="flex items-center gap-3 rounded-2xl bg-white px-4 py-3 shadow-card">
+              <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-ink-100 text-ink-700">
                 <Icon size={16} />
               </span>
               <div className="min-w-0">
@@ -962,56 +1050,14 @@ function Pricing({ onStart }) {
             </div>
           ))}
         </div>
-        <p className="mt-4 text-center text-[13px] text-ink-500">
-          {t(
-            'Starter’s 1,000 credits ≈ 30 posts + 15 images + 8 motion videos a month.',
-            'ក្រេឌីត ១.០០០ របស់ Starter ≈ ៣០ ប្រកាស + ១៥ រូបភាព + ៨ វីដេអូចលនា ក្នុងមួយខែ។',
-          )}
-        </p>
-      </Reveal>
-
-      {/* the full comparison, folded */}
-      <div className="mx-auto mt-12 max-w-6xl text-center">
-        <button type="button" onClick={() => setCompare(!compare)} aria-expanded={compare} className="inline-flex items-center gap-2 text-[14px] font-semibold text-brand hover:underline">
-          {compare ? t('Hide the comparison', 'លាក់ការប្រៀបធៀប') : t('Compare all features', 'ប្រៀបធៀបមុខងារទាំងអស់')}
-          <FiChevronDown className={`transition-transform duration-200 ${compare ? 'rotate-180' : ''}`} />
-        </button>
       </div>
-      {compare && (
-        <div className="mx-auto mt-6 max-w-6xl overflow-x-auto rounded-2xl border border-ink-200 bg-white animate-fadein">
-          <table className="w-full min-w-[640px] text-[13.5px]">
-            <thead>
-              <tr className="border-b border-ink-200 text-ink-900">
-                <th className="px-5 py-3.5 text-left font-semibold" />
-                {PLANS.map((p) => (
-                  <th key={p.id} className={`px-3 py-3.5 text-center font-bold ${p.popular ? 'text-brand' : ''}`}>
-                    {t(p.name)}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {COMPARE.map(([label, vals], r) => (
-                <tr key={label[0]} className={r % 2 ? 'bg-canvas' : ''}>
-                  <td className="px-5 py-3 text-ink-700">{t(label)}</td>
-                  {vals.map((v, k) => (
-                    <td key={k} className={`px-3 py-3 text-center text-ink-700 ${PLANS[k].popular ? 'bg-brand-soft/40' : ''}`}>
-                      {cell(v)}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
 
       {/* add-ons */}
       <div className="mx-auto mt-12 max-w-6xl">
         <div className="text-center text-[15px] font-bold text-ink-900">{t('Add-ons for any paid plan', 'បន្ថែមសម្រាប់គ្រប់គម្រោងបង់ប្រាក់')}</div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {ADDONS.map(([name, text]) => (
-            <div key={name[0]} className="rounded-xl border border-ink-200 bg-white px-4 py-3">
+            <div key={name[0]} className="rounded-2xl bg-white px-4 py-3 shadow-card">
               <div className="text-[13.5px] font-semibold text-ink-900">{t(name)}</div>
               <div className="mt-0.5 text-[12.5px] leading-snug text-ink-500">{t(text)}</div>
             </div>
