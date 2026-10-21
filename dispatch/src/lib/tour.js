@@ -18,58 +18,60 @@ const NEW_ACCOUNT_DAYS = 30
 // one step works on both the desktop sidebar and the phone's bottom bar
 // (a hidden element measures 0×0 and is skipped). A step with no visible
 // target falls back to a centred card.
+// The steps follow the sidebar from the top (lib/nav.js BOSS — each anchor is
+// that item's `tour`). Keep these in step with the sidebar when it changes.
 export const TOUR_STEPS = [
   {
     id: 'welcome',
     route: '/',
     title: 'Welcome to Marketing ឆ្លាតវៃ',
-    body: 'It writes posts for your brand, schedules them, and publishes them to your social accounts. Here are the five things you will use most — it takes about thirty seconds.',
+    body: 'It plans your posts, makes the pictures and videos, and publishes them to your social accounts. Here are the places you will use most — it takes about thirty seconds.',
   },
   {
-    id: 'platforms',
+    id: 'command',
+    route: '/command',
+    title: 'Your day at a glance',
+    body: 'Command center is home: what needs you today, what is going out, new leads, and how your posts are doing.',
+    targets: ['[data-tour="command"]'],
+    place: 'right',
+  },
+  {
+    id: 'setup',
     route: '/channels',
     title: 'First, connect your accounts',
-    body: 'Marketing ឆ្លាតវៃ can only post where it is connected. Open Platforms and link Facebook, TikTok, YouTube, Instagram, Telegram or LinkedIn. Nothing can be published until you do.',
+    body: 'Open Setup, then Channels, and link Facebook, Instagram, TikTok, YouTube, LinkedIn or Telegram. Nothing can be published until you do. Your products, brand kit and Autopilot live here too.',
     targets: ['[data-tour="channels"]'],
     place: 'right',
   },
   {
-    id: 'content',
-    route: '/review',
-    title: 'Approve what gets written',
-    body: 'Every draft waits for you here first. Read it, change the wording if you want, then approve it and Marketing ឆ្លាតវៃ schedules it for you. The number beside Content is how many are waiting.',
-    targets: ['[data-tour="review"]', '[data-tour="m-review"]'],
+    id: 'plan',
+    route: '/weekly',
+    title: 'Approve your plan',
+    body: 'Plan & best time holds your weekly plan — read each post, change it if you want, and approve it. The number beside it is how many are waiting. Its Calendar tab shows everything scheduled and published.',
+    targets: ['[data-tour="plan"]', '[data-tour="m-review"]', '[data-tour="m-calendar"]'],
+    place: 'right',
+  },
+  {
+    id: 'studio',
+    route: '/ai',
+    title: 'Make pictures and videos',
+    body: 'Content studio creates images, videos and Remotion clips for your brand — describe what you want, or pick a template. Everything you make is kept in its Media Library.',
+    targets: ['[data-tour="ai"]', '[data-tour="m-ai"]', '[data-tour="topbar-ai"]'],
     place: 'right',
   },
   {
     id: 'compose',
     route: '/new',
     title: 'Or write a post yourself',
-    body: 'Do not want to wait for a draft? Write one here. Add a photo or video, choose the brand and the platforms it goes to, and pick the day and time.',
-    targets: ['[data-tour="new"]', '[data-tour="topbar-compose"]'],
-    place: 'right',
-  },
-  {
-    id: 'calendar',
-    route: '/calendar',
-    title: 'Check what is going out',
-    body: 'The Calendar shows the whole month: everything scheduled, everything posting, and everything already published. Drag a post to move it, or click one to edit it.',
-    targets: ['[data-tour="calendar"]', '[data-tour="m-calendar"]'],
-    place: 'right',
-  },
-  {
-    id: 'ai',
-    route: '/ai',
-    title: 'Ask the AI Agent anything',
-    body: 'Chat with it to research a topic, plan a campaign, or create a post in one go. It already knows your brands, your channels and what you have published.',
-    targets: ['[data-tour="ai"]', '[data-tour="m-ai"]', '[data-tour="topbar-ai"]'],
-    place: 'right',
+    body: 'Compose writes one post now: add a photo or video, choose the brand and the channels, and pick the day and time.',
+    targets: ['[data-tour="topbar-compose"]'],
+    place: 'bottom',
   },
   {
     id: 'done',
     route: '/',
     title: 'That is everything — you are set up',
-    body: 'Your next step is connecting a platform. After that, switch on Auto-generate and it will write for you every morning. Invite the rest of your team under Settings, then Team.',
+    body: 'Your next step is connecting a channel under Setup. Then switch on Autopilot and it will plan for you every week. Invite your team under Settings, then Team.',
   },
 ]
 

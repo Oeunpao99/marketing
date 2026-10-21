@@ -20,12 +20,13 @@ import {
 // `tour` is the anchor the first-run spotlight points at (lib/tour.js); a step
 // whose anchor isn't on screen is simply skipped.
 export const BOSS = [
-  { to: '/command', icon: FiHome, label: 'Command center' },
+  { to: '/command', icon: FiHome, label: 'Command center', tour: 'command' },
   {
     to: '/weekly',
     icon: FiClipboard,
     label: 'Plan & best time',
     badge: 'plan',
+    tour: 'plan',
     sub: [
       { to: '/weekly', icon: FiClipboard, label: 'Weekly plan', badge: 'plan' },
       { to: '/calendar', icon: FiCalendar, label: 'Calendar', tour: 'calendar' },
