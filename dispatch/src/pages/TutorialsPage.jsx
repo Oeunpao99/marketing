@@ -121,7 +121,7 @@ export function Course({ openLabel, onOpen }) {
   const soonList = TUTORIALS.filter((l) => !l.src)
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-5 py-7 animate-fadein lg:px-8 xl:px-0">
+    <div className="w-full px-5 py-7 animate-fadein lg:px-8">
       {/* title + a slim progress bar */}
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
@@ -147,7 +147,7 @@ export function Course({ openLabel, onOpen }) {
         )}
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_380px]">
         {/* the lesson picked */}
         <div className="min-w-0">
           <div className="relative aspect-video overflow-hidden rounded-2xl border border-ink-200/60 bg-night-950 shadow-card">
