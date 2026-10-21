@@ -4,7 +4,7 @@
 // (AIPromptPage MOTION_STORIES); the preview pictures are made by
 // motion/tools/make_previews.sh into public/templates/.
 //
-// `added: 'YYYY-MM-DD'` on a template makes it a NEW template: everyone who has
+// `added: 'YYYY-MM-DDTHH:MM:00+07:00'` (a date alone works for an older one) on a template makes it a NEW template: everyone who has
 // not seen it gets a "New template — try it out" pop-up once (lib/announce.js,
 // components/layout/NewTemplates.jsx). Add it when you add a template; the pop-up
 // stops by itself after NEW_DAYS.
@@ -335,7 +335,7 @@ export const MOTION_TEMPLATES = [
   {
     id: 'spotlight',
     story: 'spotlight',
-    added: '2026-10-21',
+    added: '2026-10-21T17:07:00+07:00',
     name: '3D · Spotlight',
     look: 'A real 3D stage — your product photo on a box turning under a spotlight, then its price card',
     steps: ['Product flies in', 'Why it is special', 'The price card', 'Call to action'],
@@ -346,7 +346,7 @@ export const MOTION_TEMPLATES = [
     id: 'appdemo',
     story: 'appdemo',
     name: '3D · App demo',
-    added: '2026-10-21',
+    added: '2026-10-21T18:15:00+07:00',
     look: 'Your mobile app in soft glassy 3D — a tilted phone floating with your own screenshot on it, the app’s features as glass cards fanned in space, a big warm headline',
     steps: ['Phone flies in', 'Features as cards', 'The app, turning', 'Download now'],
     note: 'Add your app screenshots in Products → Brand kit — they appear on the phone. Without one, a drawn app screen is shown',

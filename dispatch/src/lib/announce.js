@@ -17,7 +17,11 @@ import { shouldAutoStart } from './tour'
 const SEEN_KEY = 'templates_seen_at'
 export const NEW_DAYS = 14
 
-const day = (iso) => Date.parse(`${iso}T00:00:00+07:00`) // Phnom Penh midnight
+// A template's `added`: a date ("2026-10-21" = Phnom Penh midnight) or, better, a full
+// time ("2026-10-21T18:15:00+07:00"). Use the time for a template added today — someone
+// who closed the pop-up this morning has a "seen" time later than today's midnight, so
+// a date alone would never show them a template added this afternoon.
+const day = (iso) => Date.parse(String(iso).includes('T') ? iso : `${iso}T00:00:00+07:00`)
 
 export const templatesSeenAt = (user) => user?.preferences?.[SEEN_KEY] || null
 
