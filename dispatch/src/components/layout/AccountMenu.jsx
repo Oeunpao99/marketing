@@ -110,7 +110,7 @@ export default function AccountMenu() {
         title="AI credits left this month"
       >
         <span className="relative">
-          <CreditCoin size={22} />
+          <CreditCoin size={22} sparkle />
           {b?.claim_available && <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" aria-hidden="true" />}
         </span>
         <span className={`text-[13px] font-bold tabular-nums ${numTone}`}>{left != null ? fmt(left) : "—"}</span>

@@ -1217,7 +1217,6 @@ function BillingTab() {
   const { user } = useAuth()
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
-  const [loadedAt, setLoadedAt] = useState(null)
 
   const load = () =>
     api
@@ -1227,7 +1226,6 @@ function BillingTab() {
         setRange(null) // a fresh load is page 1, unfiltered
         setFlow('')
         setError('')
-        setLoadedAt(new Date())
       })
       .catch((e) => setError(e.message))
   useEffect(() => {
@@ -1324,8 +1322,8 @@ function BillingTab() {
           <span className="rounded-full px-2.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wide" style={ON_CARD(0.2)}>{data.plan_label} plan</span>
         </div>
         <div className="relative mt-1 flex items-center gap-2">
-          <span className="rounded-full p-0.5" style={ON_CARD(1)}>
-            <CreditCoin size={26} />
+          <span className="grid place-items-center rounded-full p-0.5" style={ON_CARD(1)}>
+            <CreditCoin size={26} sparkle sparkleClass="text-white" />
           </span>
           <span className="text-[34px] font-bold leading-none tabular-nums tracking-tight">{fmtCredits(left, false)}</span>
           {tone !== 'brand' && (
@@ -1382,7 +1380,12 @@ function BillingTab() {
       {/* recent spends */}
       <section>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-[15px] font-bold text-ink-900">Recent activity</h3>
+          <h3 className="flex items-center gap-1 text-[15px] font-bold text-ink-900">
+            Recent activity
+            <button type="button" onClick={load} className="rounded p-1 text-ink-400 hover:text-ink-900" title="Refresh" aria-label="Refresh">
+              <FiRefreshCw size={13} />
+            </button>
+          </h3>
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex rounded-xl bg-ink-100 p-0.5 text-[12px] font-semibold">
               {[
@@ -1521,18 +1524,6 @@ function BillingTab() {
         )}
       </section>
 
-      <div className="space-y-2 text-[12px] text-ink-500">
-        <div className="flex items-center gap-2">
-          Last updated: {loadedAt ? loadedAt.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : '—'}
-          <button type="button" onClick={load} className="rounded p-1 text-ink-500 hover:text-ink-900" title="Refresh" aria-label="Refresh">
-            <FiRefreshCw size={13} />
-          </button>
-        </div>
-        <p>
-          Credits follow what each AI task really uses (words for writing, size for images, seconds for video), so the same
-          kind of task can use a little more or less. Unused credits don’t roll over.
-        </p>
-      </div>
     </div>
   )
 }
