@@ -300,21 +300,50 @@ def _publish_youtube(target: PostTarget, channel: Channel, video: Video | None) 
         tall = int(height) > int(width)
     except ValueError:
         tall = True  # our motion videos are vertical unless told otherwise
-    short = tall and 0 < (video.duration_seconds or 0) <= youtube.SHORT_MAX_SECONDS
+    fits_short = tall and 0 < (video.duration_seconds or 0) <= youtube.SHORT_MAX_SECONDS
+    # The composer's choice (platform_options["youtube"]): "short" / "video" / "auto".
+    # YouTube itself files any vertical clip up to 3 minutes under Shorts, so
+    # "video" only drops our #Shorts tag, and "short" needs a clip that fits.
+    opts = (target.platform_options or {}).get("youtube") or {}
+    fmt = opts.get("format") or "auto"
+    short = fits_short if fmt == "auto" else (fmt == "short" and fits_short)
     try:
         video_id = youtube.upload_video(
             access_token, data, youtube.title_for(target.title, target.caption), target.caption or "", short=short
         )
     except youtube.YouTubeError as exc:
         raise PublishError(str(exc)) from exc
+
+    # Until Google audits the project, YouTube locks every upload to Private.
+    notes = ["Uploaded to YouTube. Until Google approves the app, it stays Private — make it Public in YouTube Studio."]
+    if fmt == "short" and not fits_short:
+        notes.append("It went up as a normal video — a Short has to be vertical and 3 minutes or less.")
+    thumb_url = opts.get("thumbnail_url") or ""
+    thumb_set = False
+    if thumb_url:
+        # the video is up — a thumbnail that can't be set is a note, not a failed post
+        if short:
+            notes.append("YouTube doesn't take custom thumbnails for Shorts — pick its cover in the YouTube app.")
+        else:
+            image = read_media(thumb_url)
+            try:
+                if image is None:
+                    raise youtube.YouTubeError("The thumbnail picture couldn't be found.")
+                youtube.set_thumbnail(access_token, video_id, image)
+                thumb_set = True
+            except youtube.YouTubeError as exc:
+                notes.append(f"The thumbnail wasn't set: {exc}")
+            except Exception as exc:  # noqa: BLE001 — a picture PIL can't read
+                log.warning("youtube thumbnail for %s failed: %s", video_id, exc)
+                notes.append("The thumbnail wasn't set — that picture couldn't be read.")
     return PublishResult(
         external_id=video_id,
         detail={
             "platform": "youtube",
             "url": youtube.video_url(video_id, short),
             "short": short,
-            # Until Google audits the project, YouTube locks every upload to Private.
-            "note": "Uploaded to YouTube. Until Google approves the app, it stays Private — make it Public in YouTube Studio.",
+            "thumbnail": thumb_set,
+            "note": " ".join(notes),
         },
     )
 

@@ -3,6 +3,8 @@ import AutoTextarea from '../ui/AutoTextarea'
 import { api } from '../../api/client'
 import { PLAT } from '../../data/brands'
 import { phnomPenhDate } from '../../lib/tz'
+import { useStore } from '../../store'
+import YouTubeOptions from './YouTubeOptions'
 
 const PRIVACY_LABELS = {
   PUBLIC_TO_EVERYONE: 'Public — everyone',
@@ -321,6 +323,7 @@ function SchedulePicker({ date, time, onUpdate }) {
 }
 
 export default function CaptionComps({ comps, selectedChannels, onUpdate }) {
+  const { brands } = useStore()
   const ids = selectedChannels.map((c) => c.id)
 
   const copyAll = () => {
@@ -425,6 +428,15 @@ export default function CaptionComps({ comps, selectedChannels, onUpdate }) {
                     channelId={id}
                     value={d.tiktokOptions}
                     onChange={(value) => onUpdate({ updateField: { id, field: 'tiktokOptions', value } })}
+                  />
+                )}
+                {c.p === 'youtube' && (
+                  <YouTubeOptions
+                    value={d.youtubeOptions}
+                    onChange={(value) => onUpdate({ updateField: { id, field: 'youtubeOptions', value } })}
+                    brandId={brands.find((b) => b.slug === c.b)?.id}
+                    title={d.ttl}
+                    caption={d.cap}
                   />
                 )}
                 {c.s === 'soon' && (

@@ -316,7 +316,10 @@ export default function NewPostPage() {
           scheduled_for: publishNow
             ? new Date().toISOString()
             : phnomPenhToISO(d.date, d.time),
-          platform_options: d.tiktokOptions ? { tiktok: d.tiktokOptions } : {},
+          platform_options: {
+            ...(d.tiktokOptions ? { tiktok: d.tiktokOptions } : {}),
+            ...(d.youtubeOptions ? { youtube: d.youtubeOptions } : {}),
+          },
         };
         if (!byBrand.has(g.id)) byBrand.set(g.id, []);
         byBrand.get(g.id).push(target);

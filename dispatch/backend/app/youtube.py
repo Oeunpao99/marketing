@@ -235,6 +235,50 @@ def upload_video(access_token: str, data: bytes, title: str, description: str, s
     return video_id
 
 
+THUMB_URL = "https://www.googleapis.com/upload/youtube/v3/thumbnails/set"
+THUMB_MAX_BYTES = 2 * 1024 * 1024  # YouTube's limit
+
+
+def thumbnail_jpeg(data: bytes) -> bytes:
+    """Any picture → a 1280×720 JPEG under 2 MB, as YouTube wants (centre-cropped
+    to 16:9, so a square or tall picture still fills the frame)."""
+    import io
+
+    from PIL import Image, ImageOps
+
+    img = Image.open(io.BytesIO(data))
+    img = ImageOps.exif_transpose(img).convert("RGB")
+    img = ImageOps.fit(img, (1280, 720), method=Image.LANCZOS, centering=(0.5, 0.45))
+    for quality in (90, 82, 74, 66):
+        out = io.BytesIO()
+        img.save(out, "JPEG", quality=quality, optimize=True, progressive=True)
+        if out.tell() <= THUMB_MAX_BYTES:
+            return out.getvalue()
+    return out.getvalue()
+
+
+def set_thumbnail(access_token: str, video_id: str, image: bytes) -> None:
+    """Put a custom thumbnail on an uploaded video. YouTube allows it only on
+    channels with a verified phone number (youtube.com/verify)."""
+    try:
+        resp = httpx.post(
+            THUMB_URL,
+            params={"videoId": video_id},
+            headers={"Authorization": f"Bearer {access_token}", "Content-Type": "image/jpeg"},
+            content=thumbnail_jpeg(image),
+            timeout=60.0,
+        )
+    except httpx.HTTPError as exc:
+        raise YouTubeError(f"Could not reach YouTube: {exc}") from exc
+    if resp.status_code >= 400:
+        text = _explain(resp)
+        if resp.status_code == 403 or "permission" in text.lower():
+            raise YouTubeError(
+                "YouTube allows custom thumbnails only on verified channels — verify the channel's phone number at youtube.com/verify, then set it in YouTube Studio."
+            )
+        raise YouTubeError(text)
+
+
 def video_url(video_id: str, short: bool = False) -> str:
     return f"https://www.youtube.com/shorts/{video_id}" if short else f"https://youtu.be/{video_id}"
 
