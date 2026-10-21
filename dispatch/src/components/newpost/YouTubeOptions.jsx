@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { FiImage, FiRefreshCw, FiUpload, FiX, FiZap } from 'react-icons/fi'
+import { FiImage, FiUpload, FiX, FiZap } from 'react-icons/fi'
 import { api } from '../../api/client'
+import GeneratingCanvas from '../ui/GeneratingCanvas'
 
 // The composer's YouTube choices, saved as platform_options.youtube and used by
 // app/publishers.py _publish_youtube:
@@ -103,19 +104,15 @@ export default function YouTubeOptions({ value, onChange, brandId, title, captio
             <div className="overflow-hidden rounded-xl border border-ink-200 bg-white">
               <img src={v.thumbnail_url} alt="Thumbnail" className="aspect-video w-full object-cover" />
             </div>
+          ) : busy === 'ai' ? (
+            // the Studio's "making it" look: smoke, the floating logo, a shimmer
+            <div className="h-28 w-full">
+              <GeneratingCanvas small icon="✨" stage="Making your thumbnail… about 30 s" />
+            </div>
           ) : (
-            <div className="grid aspect-video w-full place-items-center rounded-xl border border-dashed border-ink-300 bg-white text-center text-[11.5px] text-ink-400">
-              {busy === 'ai' ? (
-                <span className="flex flex-col items-center gap-2 text-ink-600">
-                  <FiRefreshCw size={18} className="animate-spin text-brand" />
-                  Making your thumbnail… about 30 seconds
-                </span>
-              ) : (
-                <span className="flex flex-col items-center gap-1.5">
-                  <FiImage size={18} />
-                  No thumbnail — YouTube picks a frame
-                </span>
-              )}
+            <div className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-ink-300 bg-white text-[11.5px] text-ink-400">
+              <FiImage size={15} />
+              No thumbnail — YouTube picks a frame
             </div>
           )}
 
