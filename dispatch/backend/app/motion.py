@@ -1714,6 +1714,14 @@ DIALOGUE_STYLES = {"dialogue"}
 # people walk to it, a board on its front counts, customers' messages float up. Words on
 # the page over the 3D; rendered with --gl=swangle.
 STREET_TYPES = ("hook", "shops", "crowd", "chatter", "cta")
+# the 3D things drawn in code (motion/src/props3d.jsx THINGS — keep the same) and the
+# kinds of people (street3d.jsx KINDS)
+STREET_PROPS = (
+    "coffee", "iced", "book", "books", "pen", "phone", "laptop", "bag", "box", "noodles", "rice", "cake",
+    "bread", "fruit", "flower", "plant", "shirt", "shoe", "money", "coins", "gift", "bottle", "medicine",
+    "house", "car", "scooter", "bicycle", "camera", "clock", "headphones", "cart", "ball", "key",
+)
+STREET_PEOPLE = ("student", "worker", "monk", "vendor", "chef", "doctor", "kid", "elder", "tourist")
 STREET_PROMPT = (
     "You are a top short-video creative in Cambodia. You plan a REMOTION VIDEO in 3D (Reels / "
     "TikTok, 20-40 s) set on one street at dusk: two shophouses side by side — a rival shop that "
@@ -1735,13 +1743,30 @@ STREET_PROMPT = (
     "4. chatter — title (max 6 words), messages: 2-3 x {text (max 8 words — what customers send "
     "the shop: a question, an order, a thank-you)}.\n"
     "last. cta — text (max 9 words), button (1-3 words).\n"
+    "\n"
+    "THE THINGS IN 3D — only these exist, drawn in 3D: " + ", ".join(STREET_PROPS) + ".\n"
+    "- return \"goods\": 1-3 of them — what the shop sells or the story is about (they stand on "
+    "its counter and customers carry them away). Pick the closest (a bookshop: books, book, pen; "
+    "a café: coffee, iced, cake; a phone shop: phone, headphones; a motorbike shop: scooter).\n"
+    "- return \"people\": 1-3 kinds of customers who come — " + ", ".join(STREET_PEOPLE) + " (or [] "
+    "for everyday people).\n"
+    "- any scene may have \"hero\": one thing from the list floating big in front of the shop, "
+    "where it helps the story (2-3 scenes) — or \"product\" with \"product\": the exact name of "
+    "one of the PRODUCTS, to show the brand's own product photo in 3D.\n"
     + _COMMON_RULES
-    + '{"scenes": [{"type": "hook", "text": "...", "say": "..."}, {"type": "shops", "title": "...", '
+    + '{"goods": ["coffee", "iced"], "people": ["student", "worker"], "scenes": [{"type": "hook", "text": "...", "hero": "coffee", "say": "..."}, {"type": "shops", "title": "...", '
     '"sides": [{"label": "...", "tone": "bad"}, {"label": "...", "tone": "good"}], "say": "..."}, '
     '{"type": "crowd", "title": "...", "label": "...", "value": 120, "say": "..."}, {"type": '
     '"chatter", "title": "...", "messages": [{"text": "..."}], "say": "..."}, {"type": "cta", '
     '"text": "...", "button": "...", "say": "..."}]}'
 )
+
+
+def clean_street(raw: dict) -> dict:
+    """3D · Street: what the shop sells (on its counter, in customers' hands) and who comes."""
+    goods = [g for g in (raw.get("goods") if isinstance(raw.get("goods"), list) else []) if g in STREET_PROPS]
+    people = [k for k in (raw.get("people") if isinstance(raw.get("people"), list) else []) if k in STREET_PEOPLE]
+    return {"goods": list(dict.fromkeys(goods))[:3], "people": list(dict.fromkeys(people))[:3]}
 
 
 def dialogue_voices(script: dict, language: str, narrator: str, setting: str) -> list[str]:
@@ -2976,6 +3001,12 @@ def _clean_scene(raw: dict, names: dict[str, str]) -> dict | None:
         scene = _clean_one(raw, names)
         if scene and str(raw.get("speaker")).strip() in ("1", "2"):  # Dialogue · Two voices: whose voice
             scene["speaker"] = int(str(raw["speaker"]).strip())
+        if scene and (raw.get("hero") in STREET_PROPS or raw.get("hero") == "product"):  # 3D · Street: the thing in front
+            scene["hero"] = raw["hero"]
+            if raw["hero"] == "product":
+                product = names.get(_line(raw.get("product"), 120).lower(), "")
+                if product:
+                    scene["product"] = product
         return scene
     except (TypeError, ValueError, AttributeError, KeyError, IndexError) as exc:
         log.warning("storyboard: a %s scene left out — malformed (%s)", str(raw.get("type"))[:20], exc)
@@ -4085,6 +4116,8 @@ def write_script(
         script["cast"], script["place"] = clean_cast(raw.get("cast")), _line(raw.get("place"), 400)
     if style in ("parable", "dialogue"):
         script["cast"] = clean_duo(raw.get("cast"))
+    if style == "street3d":
+        script["street"] = clean_street(raw)
     if style == "reaction":
         script["cast"] = clean_animals(raw.get("cast"))
     if style == "presenter":
@@ -4406,6 +4439,8 @@ def script_lines(script: dict) -> list[tuple[str, str]]:
             screen = f"{s.get('plan', '')}{price} — " + ", ".join(s["features"])
         else:
             screen = s.get("text", "")
+        if s.get("hero"):  # 3D · Street: the thing floating in front of the shop
+            screen += f" [3D: {s.get('product') or 'product photo' if s['hero'] == 'product' else s['hero']}]"
         out.append((f"[{s['type']}] {screen}", s.get("say", "")))
     return out
 
@@ -4727,7 +4762,14 @@ def pick_pictures(
                 s["image"], s["imgW"], s["imgH"] = shot["uri"], shot["w"], shot["h"]
             elif s.get("product"):
                 s["image"] = by_product.get(ids.get(s["product"])) or main
-        elif script.get("style") in ("doodle", "cartoon", "lesson", "rise", "podcast", "parable", "dialogue", "street3d"):
+        elif script.get("style") == "street3d":  # 3D · Street: the product's photo as the hero, else no hero
+            if s.get("hero") == "product":
+                photo = by_product.get(ids.get(s.get("product") or "")) or main
+                if photo:
+                    s["image"] = photo
+                else:
+                    s.pop("hero")
+        elif script.get("style") in ("doodle", "cartoon", "lesson", "rise", "podcast", "parable", "dialogue"):
             continue  # drawn templates: no product photos (doodle / cartoon draw their own, app/doodle.py)
         elif script.get("style") == "appdemo":  # 3D · App demo: the app's own screenshot on the phone
             if s["type"] in ("hook", "cta") and shots:
@@ -4871,6 +4913,8 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
     if script.get("style") == "cartoon":  # Story · Characters: the two people and their place
         props["cast"] = [{**c, "name": t(c["name"]) if c.get("name") else ""} for c in script.get("cast") or clean_cast(None)]
         props["place"] = {"image": script["place_image"]} if script.get("place_image") else {}
+    if script.get("style") == "street3d":  # 3D · Street: what the shop sells, who comes
+        props["street"] = script.get("street") or {"goods": [], "people": []}
     if script.get("style") in ("parable", "dialogue"):  # Parable · Two paths / Dialogue: the two people
         props["cast"] = [{**c, "name": t(c["name"]) if c.get("name") else ""} for c in script.get("cast") or clean_duo(None)]
     if script.get("style") == "podcast":  # the places, painted (app/doodle.py); the host's look
@@ -6268,6 +6312,8 @@ def checked_script(raw: dict, products: list[Product]) -> dict:
         script["cast"], script["place"] = clean_cast(raw.get("cast")), _line(raw.get("place"), 400)
     if style in ("parable", "dialogue"):
         script["cast"] = clean_duo(raw.get("cast"))
+    if style == "street3d":
+        script["street"] = clean_street(raw.get("street") if isinstance(raw.get("street"), dict) else raw)
     if style == "reaction":
         script["cast"] = clean_animals(raw.get("cast"))
     if style in ("presenter", "podcast"):

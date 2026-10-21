@@ -13,16 +13,21 @@
  * fonts are in, and titles / captions as page text over the canvas.
  *
  * Scenes (app/motion.py STREET_TYPES): hook · shops (sides: the two shops) ·
- * crowd (a number counting on the board) · chatter (messages) · cta.
+ * crowd (a number counting on the board) · chatter (messages) · cta. Any scene
+ * may float a `hero` in front of the shop: a thing (props3d.jsx — a coffee, a
+ * book, a scooter…) or "product", the brand kit's photo (scene.image) on a 3D
+ * box. props.street = {goods: what the shop sells — on its counter and in
+ * customers' hands, people: what kind of people come — students, monks…}.
  * 9:16 and 16:9. Rendered with --gl=swangle on the server (no graphics card).
  */
-import { useEffect, useMemo, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { ThreeCanvas } from '@remotion/three'
 import { useThree } from '@react-three/fiber'
 import { AbsoluteFill, Easing, continueRender, delayRender, interpolate, random, spring, useCurrentFrame, useVideoConfig } from 'remotion'
 import * as THREE from 'three'
-import { FONT, clean, fitSize, fontsReady } from './shared'
+import { FONT, clean, fitSize, fontsReady, srcOf } from './shared'
 import { Pop } from './cartoon'
+import { PhotoThing, Thing } from './props3d'
 
 const clamp = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
 const ease = Easing.inOut(Easing.cubic)
@@ -227,7 +232,7 @@ function Box({ size, position, color, emissive, glow = 0, rotation, map }) {
 }
 
 /** A two-storey shophouse; its front faces +z at z = 0. */
-function Shophouse({ x, color, lit, shutter = 0, sign, stripes, glow = 1 }) {
+function Shophouse({ x, color, lit, shutter = 0, sign, stripes, glow = 1, goods = [], brandColor }) {
   const warm = '#FFC277'
   return (
     <group position={[x, 0, 0]}>
@@ -237,7 +242,14 @@ function Shophouse({ x, color, lit, shutter = 0, sign, stripes, glow = 1 }) {
       <Box size={[3.1, 2.2, 0.2]} position={[0, 1.15, 0.02]} color={lit ? warm : '#1C1A26'} emissive={lit ? warm : '#000000'} glow={lit ? 0.9 * glow : 0} />
       {shutter > 0 && <Box size={[3.15, 2.2 * shutter, 0.08]} position={[0, 2.25 - 1.1 * shutter, 0.14]} color="#9AA3AD" />}
       {lit &&
-        [-0.9, 0, 0.9].map((dx, i) => <Box key={i} size={[0.6, 0.45, 0.4]} position={[dx, 0.32, 0.4]} color={['#F2B830', '#E0533D', '#3FA36B'][i]} />)}
+        (goods.length ? (
+          <>
+            <Box size={[3.0, 0.55, 0.5]} position={[0, 0.28, 0.42]} color="#8A5A3B" />
+            {[-0.9, 0, 0.9].map((dx, i) => <Thing key={i} name={goods[i % goods.length]} color={brandColor} position={[dx, 0.56, 0.42]} size={0.42} rotation={[0, (i - 1) * 0.35, 0]} />)}
+          </>
+        ) : (
+          [-0.9, 0, 0.9].map((dx, i) => <Box key={i} size={[0.6, 0.45, 0.4]} position={[dx, 0.32, 0.4]} color={['#F2B830', '#E0533D', '#3FA36B'][i]} />)
+        ))}
       {stripes && (
         <mesh position={[0, 2.38, 0.5]} rotation={[0.42, 0, 0]}>
           <boxGeometry args={[3.5, 0.06, 1.0]} />
@@ -292,12 +304,30 @@ function Lamp({ x, z, on }) {
   )
 }
 
-/** A low-poly person: feet on the ground at (x, z), walking while ``phase`` is a number. */
-function Walker({ x, z, phase, turn = 0, seed }) {
-  const shirt = CLOTHES[Math.floor(random(`shirt-${seed}`) * CLOTHES.length)]
+// kinds of people: clothes, hair and what they wear (app/motion.py STREET_PEOPLE says the same)
+const KINDS = {
+  student: { shirt: '#F4F4F2', pants: '#2E3F73', extra: 'backpack' },
+  worker: { shirt: '#A9C8EC', pants: '#2F3A44', extra: 'tie' },
+  monk: { shirt: '#E8862A', pants: '#E8862A', hair: null, extra: 'robe' },
+  vendor: { pants: '#5B4A3A', extra: 'apron', hair: '#D8423A' },
+  chef: { shirt: '#F4F4F2', pants: '#2F3A44', extra: 'chefhat' },
+  doctor: { shirt: '#F4F4F2', pants: '#3E5A7A', extra: 'coat' },
+  kid: { scale: 0.68 },
+  elder: { hair: '#D9D6CF', pants: '#5B4A3A' },
+  tourist: { shirt: '#F2B830', pants: '#C8A574', extra: 'cap' },
+}
+const PeopleCtx = createContext({ goods: [], people: [] })
+const CARRY = new Set(['coffee', 'iced', 'bag', 'book', 'books', 'flower', 'bread', 'gift', 'phone', 'bottle', 'box', 'fruit', 'cake', 'noodles', 'rice', 'medicine', 'shirt', 'shoe'])
+
+/** A low-poly person: feet on the ground at (x, z), walking while ``phase`` is a number;
+ * ``kind`` dresses them, ``holding`` is a thing in the right hand. */
+function Walker({ x, z, phase, turn = 0, seed, kind, holding, color }) {
+  const k = KINDS[kind] || {}
+  const shirt = k.shirt || CLOTHES[Math.floor(random(`shirt-${seed}`) * CLOTHES.length)]
   const skin = SKINS[Math.floor(random(`skin-${seed}`) * SKINS.length)]
-  const pants = random(`pants-${seed}`) > 0.5 ? '#2F3A52' : '#5B4A3A'
-  const tall = 0.92 + random(`tall-${seed}`) * 0.16
+  const pants = k.pants || (random(`pants-${seed}`) > 0.5 ? '#2F3A52' : '#5B4A3A')
+  const hair = k.hair === undefined ? '#231C18' : k.hair
+  const tall = (k.scale || 1) * (0.92 + random(`tall-${seed}`) * 0.16)
   const swing = phase == null ? 0 : Math.sin(phase) * 0.55
   const bob = phase == null ? 0 : Math.abs(Math.sin(phase)) * 0.04
   return (
@@ -308,13 +338,21 @@ function Walker({ x, z, phase, turn = 0, seed }) {
         </group>
       ))}
       <Box size={[0.5, 0.62, 0.3]} position={[0, 1.04, 0]} color={shirt} />
+      {k.extra === 'robe' && <Box size={[0.56, 0.9, 0.34]} position={[0, 0.85, 0]} rotation={[0, 0, 0.08]} color="#D9741F" />}
+      {k.extra === 'coat' && <Box size={[0.56, 0.95, 0.34]} position={[0, 0.85, 0]} color="#FFFFFF" />}
+      {k.extra === 'apron' && <Box size={[0.42, 0.6, 0.02]} position={[0, 0.95, 0.16]} color="#F4EEDF" />}
+      {k.extra === 'tie' && <Box size={[0.07, 0.36, 0.02]} position={[0, 1.12, 0.16]} color="#D8423A" />}
+      {k.extra === 'backpack' && <Box size={[0.42, 0.5, 0.2]} position={[0, 1.08, -0.25]} color="#3B7DD8" />}
       {[-0.32, 0.32].map((dx, i) => (
         <group key={dx} position={[dx, 1.3, 0]} rotation={[i ? swing : -swing, 0, 0]}>
-          <Box size={[0.13, 0.55, 0.14]} position={[0, -0.27, 0]} color={shirt} />
+          <Box size={[0.13, 0.55, 0.14]} position={[0, -0.27, 0]} color={k.extra === 'robe' ? skin : shirt} />
+          {i === 1 && holding && <Thing name={holding} color={color} position={[0, -0.62, 0.08]} size={0.28} />}
         </group>
       ))}
       <Box size={[0.32, 0.34, 0.32]} position={[0, 1.55, 0]} color={skin} />
-      <Box size={[0.34, 0.12, 0.34]} position={[0, 1.76, -0.01]} color="#231C18" />
+      {hair && <Box size={[0.34, 0.12, 0.34]} position={[0, 1.76, -0.01]} color={hair} />}
+      {k.extra === 'chefhat' && <Box size={[0.3, 0.3, 0.3]} position={[0, 1.95, 0]} color="#FFFFFF" />}
+      {k.extra === 'cap' && <Box size={[0.36, 0.08, 0.5]} position={[0, 1.8, 0.06]} color="#E0533D" />}
     </group>
   )
 }
@@ -331,7 +369,9 @@ function Strollers({ frame, n = 4 }) {
 }
 
 /** Customers walking up to the brand's shop and waiting in front of it. */
-function Customers({ frame, n = 6, delay = 0 }) {
+function Customers({ frame, n = 6, delay = 0, bought = false, color }) {
+  const { goods, people } = useContext(PeopleCtx)
+  const carry = goods.filter((g) => CARRY.has(g))
   return Array.from({ length: n }, (_, i) => {
     const start = delay + i * 9
     const walk = 1.6 * 30
@@ -342,7 +382,7 @@ function Customers({ frame, n = 6, delay = 0 }) {
     const moving = t < 1
     const arrived = spring({ frame: frame - start - walk, fps: 30, config: { damping: 14 } })
     return (
-      <Walker key={i} x={fromX + (toX - fromX) * t} z={2.6 + (toZ - 2.6) * t} phase={moving ? frame * 0.35 + i : null} turn={(1 - arrived) * (Math.PI / 2) + arrived * Math.PI} seed={`c${i}`} />
+      <Walker key={i} x={fromX + (toX - fromX) * t} z={2.6 + (toZ - 2.6) * t} phase={moving ? frame * 0.35 + i : null} turn={(1 - arrived) * (Math.PI / 2) + arrived * Math.PI} seed={`c${i}`} kind={people.length ? people[i % people.length] : undefined} holding={bought && carry.length && i % 2 === 0 ? carry[i % carry.length] : undefined} color={color} />
     )
   })
 }
@@ -364,7 +404,7 @@ function Street({ brand, frame, rivalOff = false, glow = 1, children }) {
         <Box key={x} size={[3.2, 4 + (i % 3) * 1.6, 2]} position={[x, (4 + (i % 3) * 1.6) / 2, -4.5]} color="#4A3E6B" />
       ))}
       <Shophouse x={-SHOP_X} color={RIVAL} lit={!rivalOff} shutter={rivalOff ? 0.6 : 0} sign={textures.rival} glow={0.35} />
-      <Shophouse x={SHOP_X} color="#F2D9B5" lit sign={textures.sign} stripes={textures.stripes} glow={glow} />
+      <Shophouse x={SHOP_X} color="#F2D9B5" lit sign={textures.sign} stripes={textures.stripes} glow={glow} goods={useContext(PeopleCtx).goods} brandColor={brand?.color} />
       {/* the pavement and the road */}
       <Box size={[40, 0.18, 2.4]} position={[0, 0.09, 1.2]} color="#C9BBA6" />
       <Box size={[40, 0.06, 14]} position={[0, 0.0, 9.4]} color="#3E3B4C" />
@@ -380,21 +420,42 @@ function Street({ brand, frame, rivalOff = false, glow = 1, children }) {
   )
 }
 
-/** The 3D layer: made once the fonts are in (its signs are drawn with them). */
-function World({ cam, children }) {
+const PhotoCtx = createContext(null)
+
+/** The 3D layer: made once the fonts are in (its signs are drawn with them) and the
+ * scene's product photo is loaded. */
+function World({ cam, image, street, children }) {
   const { W, H, fov } = useStage()
   const [ready, setReady] = useState(false)
-  const [hold] = useState(() => delayRender('3D · Street: fonts for the signs'))
+  const [tex, setTex] = useState(null)
+  const [hold] = useState(() => delayRender('3D · Street: fonts for the signs, the product photo'))
   useEffect(() => {
-    fontsReady.then(() => setReady(true))
-  }, [])
+    const photo = image
+      ? new Promise((done) => {
+          new THREE.TextureLoader().load(
+            srcOf(image),
+            (t) => {
+              t.colorSpace = THREE.SRGBColorSpace
+              setTex(t)
+              done()
+            },
+            undefined,
+            () => done(), // a photo that won't load: the hero is left out
+          )
+        })
+      : Promise.resolve()
+    Promise.all([fontsReady, photo]).then(() => setReady(true))
+  }, [image])
   const shown = () => requestAnimationFrame(() => requestAnimationFrame(() => continueRender(hold)))
   if (!ready) return null
   return (
     <AbsoluteFill>
       <ThreeCanvas linear width={W} height={H} camera={{ fov, near: 0.1, far: 120, position: cam.pos }} gl={{ antialias: true, alpha: true, toneMapping: THREE.ACESFilmicToneMapping }} onCreated={shown}>
         <CameraRig pos={cam.pos} look={cam.look} fov={fov} />
-        {children}
+        {/* given inside the canvas: its own renderer doesn't see the page's context */}
+        <PeopleCtx.Provider value={{ goods: street?.goods || [], people: street?.people || [] }}>
+          <PhotoCtx.Provider value={tex}>{children}</PhotoCtx.Provider>
+        </PeopleCtx.Provider>
       </ThreeCanvas>
     </AbsoluteFill>
   )
@@ -434,6 +495,25 @@ function shadeUp(hex) {
   return `#${c.setHSL(hsl.h, Math.max(0.6, hsl.s), Math.max(0.62, hsl.l)).getHexString()}`
 }
 
+/** The scene's hero, floating big in front of the shop: a thing, or the product photo. */
+function Hero({ scene, brand, frame, at }) {
+  const tex = useContext(PhotoCtx)
+  if (!scene.hero) return null
+  const s = Math.max(0.001, spring({ frame: frame - 10, fps: 30, config: { damping: 11 } }))
+  const pos = [at[0], at[1] + Math.sin(frame / 14) * 0.08, at[2]]
+  const turn = Math.sin(frame / 40) * 0.6
+  return (
+    <group position={pos} scale={s}>
+      <mesh position={[0, -0.05, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.7, 0.03, 8, 40]} />
+        <meshBasicMaterial color={brand?.color || '#E0533D'} toneMapped={false} />
+      </mesh>
+      <pointLight position={[0.6, 1.2, 1.2]} intensity={4} distance={4} decay={2} color="#FFFFFF" />
+      {scene.hero === 'product' ? (tex ? <PhotoThing tex={tex} color={brand?.color} rotation={[0, turn, 0]} size={1.3} /> : null) : <Thing name={scene.hero} color={brand?.color} rotation={[0, turn, 0]} size={1.1} />}
+    </group>
+  )
+}
+
 // ── the scenes ─────────────────────────────────────────────────────────────
 function useCam(keys) {
   const frame = useCurrentFrame()
@@ -444,7 +524,7 @@ function useCam(keys) {
   return { pos: [c.pos[0], c.pos[1], c.pos[2] * far], look: c.look }
 }
 
-function Hook({ scene, brand }) {
+function Hook({ scene, brand, street }) {
   const frame = useCurrentFrame()
   const cam = useCam([
     { at: 0, pos: [SHOP_X * 0.8, 3.2, 6.5], look: [SHOP_X, 3, 0] },
@@ -453,15 +533,16 @@ function Hook({ scene, brand }) {
   ])
   return (
     <Sky>
-      <World cam={cam}>
+      <World cam={cam} image={scene.hero === 'product' ? scene.image : null} street={street}>
         <Street brand={brand} frame={frame} />
+        <Hero scene={scene} brand={brand} frame={frame} at={[SHOP_X, 1.1, 3.6]} />
       </World>
       <Title text={scene.text} brand={brand} big />
     </Sky>
   )
 }
 
-function Shops({ scene, brand }) {
+function Shops({ scene, brand, street }) {
   const frame = useCurrentFrame()
   const { W, H, u, fov, fps, wide } = useStage()
   const cam = useCam([
@@ -471,8 +552,9 @@ function Shops({ scene, brand }) {
   const sides = (scene.sides || []).slice(0, 2)
   return (
     <Sky>
-      <World cam={cam}>
+      <World cam={cam} image={scene.hero === 'product' ? scene.image : null} street={street}>
         <Street brand={brand} frame={frame} rivalOff glow={1.2} />
+        <Hero scene={scene} brand={brand} frame={frame} at={[SHOP_X, 1.0, 3.0]} />
       </World>
       {/* each shop's label, pinned over it */}
       {sides.map((side, i) => {
@@ -509,7 +591,7 @@ function Board({ scene, frame }) {
   )
 }
 
-function Crowd({ scene, brand }) {
+function Crowd({ scene, brand, street }) {
   const frame = useCurrentFrame()
   const cam = useCam([
     { at: 0, pos: [-3, 3.6, 14], look: [0.6, 2.4, 0] },
@@ -517,11 +599,12 @@ function Crowd({ scene, brand }) {
   ])
   return (
     <Sky>
-      <World cam={cam}>
+      <World cam={cam} image={scene.hero === 'product' ? scene.image : null} street={street}>
         <Street brand={brand} frame={frame} rivalOff glow={1.3}>
           <Customers frame={frame} n={6} delay={4} />
           {scene.value ? <Board scene={scene} frame={frame} /> : null}
         </Street>
+        <Hero scene={scene} brand={brand} frame={frame} at={[SHOP_X + 2.4, 0.9, 2.6]} />
       </World>
       <Title text={scene.title} brand={brand} />
     </Sky>
@@ -541,7 +624,7 @@ function Message({ text, i, frame }) {
   )
 }
 
-function Chatter({ scene, brand }) {
+function Chatter({ scene, brand, street }) {
   const frame = useCurrentFrame()
   const { wide } = useStage()
   const up = wide ? 0.9 : 0
@@ -552,18 +635,19 @@ function Chatter({ scene, brand }) {
   const msgs = (scene.messages || []).slice(0, 3)
   return (
     <Sky>
-      <World cam={cam}>
+      <World cam={cam} image={scene.hero === 'product' ? scene.image : null} street={street}>
         <Street brand={brand} frame={frame} rivalOff glow={1.2}>
-          <Customers frame={frame + 200} n={6} />
+          <Customers frame={frame + 200} n={6} bought color={brand?.color} />
           {msgs.map((m, i) => <Message key={i} text={m.text} i={i} frame={frame} />)}
         </Street>
+        <Hero scene={scene} brand={brand} frame={frame} at={[SHOP_X + 1.55, 1.2, 2.4]} />
       </World>
       <Title text={scene.title} brand={brand} />
     </Sky>
   )
 }
 
-function Cta({ scene, brand }) {
+function Cta({ scene, brand, street }) {
   const frame = useCurrentFrame()
   const { W, u, wide, fps } = useStage()
   const cam = useCam([
@@ -574,10 +658,11 @@ function Cta({ scene, brand }) {
   const b = spring({ frame: frame - BUTTON_AT, fps, config: { damping: 10 } })
   return (
     <Sky>
-      <World cam={cam}>
+      <World cam={cam} image={scene.hero === 'product' ? scene.image : null} street={street}>
         <Street brand={brand} frame={frame} rivalOff glow={1.4}>
-          <Customers frame={frame + 200} n={6} />
+          <Customers frame={frame + 200} n={6} bought color={brand?.color} />
         </Street>
+        <Hero scene={scene} brand={brand} frame={frame} at={[SHOP_X, 0.85, 3.4]} />
       </World>
       <div style={{ position: 'absolute', left: 0, right: 0, top: (wide ? 70 : 250) * u, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 40 * u, textShadow: '0 4px 24px rgba(0,0,0,0.85)' }}>
         <Pop text={scene.text} size={(wide ? 80 : 92) * u} width={W * (wide ? 0.7 : 0.86)} delay={0.25} color="#FFFFFF" accent={shadeUp(brand?.color)} />

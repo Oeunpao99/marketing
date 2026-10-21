@@ -785,7 +785,7 @@ const TEMPLATES = {
   training: { ...TRAINING, scenes: { ...SCENES, ...TRAINING.scenes } },
 }
 
-export const MotionPost = ({ brand, scenes, music, musicList, style, look, cast, place, places, host, sfx = true }) => {
+export const MotionPost = ({ brand, scenes, music, musicList, style, look, cast, place, places, host, street, sfx = true }) => {
   let point = 0
   // "custom": its scenes are drawn in the look the AI picked for this video
   const custom = useMemo(() => (style === 'custom' ? customTemplate(look) : null), [style, look])
@@ -803,7 +803,7 @@ export const MotionPost = ({ brand, scenes, music, musicList, style, look, cast,
           const Scene = t.scenes[scene.type]
           // the frame its voice starts on (the Sequence below) — Presenter's host moves her mouth with it
           const voiceAt = (i ? TRANSITION : 0) + 6 + Math.round((Number(scene.pause) || 0) * FPS)
-          const body = Scene ? <Scene scene={scene} brand={brand} cast={cast} place={place} story={story} host={host} places={places} voiceAt={voiceAt} /> : <PointScene scene={scene} brand={brand} n={++point} />
+          const body = Scene ? <Scene scene={scene} brand={brand} cast={cast} place={place} story={story} host={host} places={places} street={street} voiceAt={voiceAt} /> : <PointScene scene={scene} brand={brand} n={++point} />
           const out = [
             <TransitionSeries.Sequence key={`s${i}`} durationInFrames={sceneFrames(scene)}>
               {body}
