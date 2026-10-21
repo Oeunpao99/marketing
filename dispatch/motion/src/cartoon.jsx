@@ -30,7 +30,8 @@ function useWorld() {
   return {
     W, H, fps, wide, u, worldW,
     ground: wide ? H * 0.8 : 1420 * u,
-    charH: (wide ? 520 : 640) * u,
+    // a wide frame is short: smaller people leave room for bubbles under the title
+    charH: (wide ? 470 : 640) * u,
     x: (who) => worldW * xs[who === 2 ? 1 : 0],
   }
 }
@@ -130,25 +131,31 @@ function Bubble({ who, text, think, icon, delay = 0.2 }) {
   const { fps } = useVideoConfig()
   const { x, ground, charH, u, wide } = useWorld()
   const p = spring({ frame: frame - Math.round(delay * fps), fps, config: { damping: 11, mass: 0.6 } })
-  const w = (think && !text ? 300 : wide ? 620 : 660) * u // a cloud with just its icon stays small
+  const iconOnly = think && !text
+  const w = (iconOnly ? (wide ? 230 : 300) : wide ? (think ? 620 : 780) : 660) * u // a cloud with just its icon stays small
   const headTop = ground - charH * 0.97
   const view = useContext(View)
-  const cx = inView(view, x(who) + (who === 1 ? 1 : -1) * (wide ? 120 : 90) * u, w, 30 * u)
-  // wide frames are short: a thought with words sits lower and leaves its icon
-  // out, or it runs into the story's title across the top
+  const dir = who === 1 ? 1 : -1 // towards the other person
+  // wide frames are short: a cloud with just its icon floats BESIDE the head
+  // (above it, it would run into the title); a thought with words sits lower
+  // and leaves its icon out
+  const beside = wide && iconOnly
   const roomy = !(wide && think && text)
-  const bottom = headTop - (think ? (roomy ? 70 : 44) : 34) * u
-  const tail = x(who) + (who === 1 ? 30 : -30) * u
+  const cx = beside
+    ? inView(view, x(who) + dir * (charH * 0.24 + w / 2), w, 30 * u)
+    : inView(view, x(who) + dir * (wide ? 120 : 90) * u, w, 30 * u)
+  const bottom = beside ? headTop + charH * 0.22 : headTop - (think ? (roomy ? 70 : 44) : 34) * u
+  const tail = beside ? x(who) + dir * charH * 0.17 : x(who) + dir * 30 * u
   return (
     <div style={{ position: 'absolute', left: cx - w / 2, width: w, top: bottom, transform: `translateY(-100%) scale(${p})`, transformOrigin: `${tail - (cx - w / 2)}px 100%`, opacity: Math.min(1, p * 2) }}>
       {think ? (
         <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 * u, padding: `${34 * u}px ${44 * u}px`, background: 'white', border: `${5 * u}px solid ${C.ink}`, borderRadius: '48% 52% 46% 54% / 56% 50% 50% 44%' }}>
-          {icon && roomy && <Icon name={icon} size={(text ? 92 : 140) * u} color={C.red} stroke={2.2} />}
+          {icon && roomy && <Icon name={icon} size={(text ? 92 : beside ? 104 : 140) * u} color={C.red} stroke={2.2} />}
           {text && <Pop text={text} size={50 * u} width={w * 0.82} delay={delay + 0.2} />}
         </div>
       ) : (
         <div style={{ padding: `${26 * u}px ${34 * u}px`, background: 'white', border: `${5 * u}px solid ${C.ink}`, borderRadius: 40 * u, boxShadow: `${6 * u}px ${7 * u}px 0 rgba(0,0,0,0.12)` }}>
-          <Pop text={text} size={54 * u} width={w - 78 * u} delay={delay + 0.15} />
+          <Pop text={text} size={(wide ? 48 : 54) * u} width={w - 78 * u} delay={delay + 0.15} />
         </div>
       )}
       {/* the tail: a triangle to the mouth, or two small puffs to the head */}
@@ -301,17 +308,21 @@ function Note({ scene, cast, place, story }) {
 function Cta({ scene, cast, place, brand }) {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
-  const { u, worldW, x, wide } = useWorld()
+  const { W, u, worldW, x, wide } = useWorld()
   const b = spring({ frame: frame - Math.round(1.0 * fps), fps, config: { damping: 11 } })
   return (
     <Stage scene={scene} cast={cast} place={place} title={false} mood="excited">
-      <HookTitle text={scene.text} />
-      {scene.button && (
-        <div style={{ position: 'absolute', left: (x(1) + x(2)) / 2 - worldW / 2, width: worldW, top: (wide ? 210 : 560) * u, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24 * u }}>
-          {brand?.logo && <Img src={srcOf(brand.logo)} style={{ height: 110 * u, maxWidth: 420 * u, objectFit: 'contain', background: 'white', borderRadius: 18 * u, padding: 12 * u, opacity: Math.min(1, b * 1.5) }} />}
-          <div style={{ padding: `${20 * u}px ${54 * u}px`, borderRadius: 999, background: C.red, color: 'white', fontFamily: FONT, fontWeight: 800, fontSize: 48 * u, border: `${5 * u}px solid ${C.ink}`, boxShadow: `${6 * u}px ${7 * u}px 0 ${C.ink}`, transform: `scale(${b * (1 + Math.sin(frame / 8) * 0.02)}) rotate(-2deg)` }}>{clean(scene.button)}</div>
-        </div>
-      )}
+      {/* the title, then the logo and button UNDER it in one column — so a
+          title that wraps to two lines pushes the button down, never under it */}
+      <div style={{ position: 'absolute', left: (x(1) + x(2)) / 2 - worldW / 2, width: worldW, top: (wide ? 40 : 230) * u, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: (wide ? 18 : 28) * u }}>
+        <Pop text={scene.text} size={(wide ? 84 : 104) * u} width={W * (wide ? 0.7 : 0.9)} outline />
+        {scene.button && (
+          <>
+            {brand?.logo && <Img src={srcOf(brand.logo)} style={{ height: (wide ? 84 : 110) * u, maxWidth: 420 * u, objectFit: 'contain', background: 'white', borderRadius: 18 * u, padding: 12 * u, opacity: Math.min(1, b * 1.5) }} />}
+            <div style={{ padding: `${(wide ? 16 : 20) * u}px ${54 * u}px`, borderRadius: 999, background: C.red, color: 'white', fontFamily: FONT, fontWeight: 800, fontSize: (wide ? 42 : 48) * u, lineHeight: 1.45, border: `${5 * u}px solid ${C.ink}`, boxShadow: `${6 * u}px ${7 * u}px 0 ${C.ink}`, transform: `scale(${b * (1 + Math.sin(frame / 8) * 0.02)}) rotate(-2deg)` }}>{clean(scene.button)}</div>
+          </>
+        )}
+      </div>
     </Stage>
   )
 }
