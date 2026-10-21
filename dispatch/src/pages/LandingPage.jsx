@@ -471,8 +471,78 @@ function Feature({ eyebrow, title, khmer, text, points, visual, flip = false }) 
 // The same post as each platform shows it — the app's own previews
 // (components/preview/SocialPreview.jsx: PhoneFrame + RENDER, as in Compose),
 // scaled down, side by side — and the one button that sends it to all of them.
-const LIVE_APPS = ['TikTok', 'Instagram', 'Facebook', 'LinkedIn', 'Telegram']
-const LIVE_SCALE = 0.56 // the previews are drawn at a real phone's size (360 × 702)
+const LIVE_ROW = ['TikTok', 'Instagram', 'Facebook', 'LinkedIn', 'Telegram'] // Facebook: the laptop
+const LIVE_SCALE = 0.47 // the previews are drawn at a real phone's size (360 × 702)
+const LAPTOP_W = 760 // the laptop's screen is drawn at a real desktop width…
+const LAPTOP_SCALE = 0.6 // …and shown at this size
+
+/** The post on Facebook on a computer: the page's desktop feed (the top bar, the
+ * shortcuts and contacts beside it, the post with its wide video) in a laptop. */
+function LaptopPost({ brand, caption }) {
+  const t = useT()
+  const line = (w) => <span className="block h-2.5 rounded-full bg-ink-100" style={{ width: w }} />
+  return (
+    <div style={{ width: (LAPTOP_W + 20) * LAPTOP_SCALE }}>
+      <div className="rounded-t-[14px] border-[7px] border-b-[9px] border-night-800 bg-night-950 shadow-[0_30px_70px_-28px_rgba(0,0,0,0.6)] dark:ring-1 dark:ring-white/15">
+        <div className="relative overflow-hidden rounded-[4px] bg-canvas" style={{ height: 475 * LAPTOP_SCALE }}>
+          <div className="absolute left-0 top-0 origin-top-left" style={{ width: LAPTOP_W, transform: `scale(${LAPTOP_SCALE})` }} aria-hidden="true">
+            {/* the top bar */}
+            <div className="flex h-12 items-center gap-3 border-b border-ink-200 bg-white px-4">
+              <span className={`text-[24px] font-extrabold tracking-tight ${PLAT_BRAND_CLASS.Facebook}`}>facebook</span>
+              <span className="flex h-8 w-56 items-center rounded-full bg-ink-100 px-3 text-[12px] text-ink-400">{t('Search Facebook', 'ស្វែងរក')}</span>
+              <span className="ml-auto flex gap-2">
+                {[0, 1, 2].map((k) => (
+                  <span key={k} className="h-8 w-8 rounded-full bg-ink-100" />
+                ))}
+              </span>
+            </div>
+            <div className="grid grid-cols-[150px_1fr_150px] gap-5 px-4 pt-4">
+              {/* shortcuts */}
+              <div className="space-y-3 pt-1">
+                {[110, 90, 120, 80, 100].map((w, k) => (
+                  <div key={k} className="flex items-center gap-2">
+                    <span className="h-6 w-6 flex-none rounded-full bg-ink-200" />
+                    {line(w - 40)}
+                  </div>
+                ))}
+              </div>
+              {/* the post */}
+              <div className="overflow-hidden rounded-xl bg-white shadow-card">
+                <div className="flex items-center gap-2.5 px-4 pt-3">
+                  <img src={brand.logo} alt="" className="h-10 w-10 rounded-full border border-ink-100 bg-white object-contain" />
+                  <div>
+                    <div className="text-[14px] font-semibold text-ink-900">{brand.name}</div>
+                    <div className="text-[12px] text-ink-500">{t('Just now · Public', 'ទើបតែឥឡូវ · សាធារណៈ')}</div>
+                  </div>
+                </div>
+                <div className="line-clamp-2 whitespace-pre-line px-4 py-2.5 font-khmer text-[13.5px] leading-snug text-ink-900">{caption}</div>
+                <video src={previewSrc('presenter-wide', 'mp4')} poster={previewSrc('presenter')} autoPlay muted loop playsInline className="block aspect-video w-full bg-night-950 object-cover" />
+                <div className="flex border-t border-ink-100 text-[12.5px] font-semibold text-ink-500">
+                  {['Like', 'Comment', 'Share'].map((a) => (
+                    <span key={a} className="flex-1 py-2 text-center">
+                      {a}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              {/* contacts */}
+              <div className="space-y-3 pt-1">
+                {[100, 80, 110, 90].map((w, k) => (
+                  <div key={k} className="flex items-center gap-2">
+                    <span className="h-6 w-6 flex-none rounded-full bg-ink-200" />
+                    {line(w - 40)}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {/* the base */}
+      <div className="mx-auto h-3 w-[112%] -translate-x-[5.4%] rounded-b-xl bg-night-800" />
+    </div>
+  )
+}
 const LIVE_CAPTION = 'AI ជួយអាជីវកម្មតូចបានយ៉ាងម៉េច? 🤖\nកល្យាណ ជំនួយការរបស់យើង ពន្យល់ជូនក្នុងមួយនាទី។\n✅ សរសេរការផុស ✅ ឆ្លើយសារ ✅ មើលលទ្ធផល\n#SmartMarketing #AI'
 
 function LiveEverywhere({ onStart }) {
@@ -506,12 +576,34 @@ function LiveEverywhere({ onStart }) {
         </button>
       </div>
 
-      {/* the five phones, in one straight row */}
-      <div className="mx-auto mt-12 flex max-w-6xl items-start justify-center gap-3 sm:gap-5">
-        {LIVE_APPS.map((app, i) => {
+      {/* one straight row, bottoms level: two phones, the laptop (Facebook on a
+          computer), two phones — the laptop alone on a phone, with two phones on a tablet */}
+      <div className="mx-auto mt-12 flex max-w-6xl items-end justify-center gap-3 sm:gap-5">
+        {LIVE_ROW.map((app, i) => {
+          const label = (
+            <div className="mt-4 flex items-center gap-2 rounded-full border border-ink-200 bg-white py-1 pl-1.5 pr-3 shadow-card">
+              <span className={`grid h-6 w-6 place-items-center rounded-full bg-canvas ${PLAT_BRAND_CLASS[app] || ''}`}>
+                <PlatformIcon name={app} />
+              </span>
+              <span className="text-[12.5px] font-semibold text-ink-800">{app}</span>
+              <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-500 px-1.5 py-px text-[10.5px] font-bold text-white">
+                <FiCheck size={10} strokeWidth={3.5} /> {t('Live', 'ចេញហើយ')}
+              </span>
+            </div>
+          )
+          if (app === 'Facebook') {
+            return (
+              <Reveal key={app} delay={i * 90}>
+                <div className="flex flex-col items-center">
+                  <LaptopPost brand={brand} caption={LIVE_CAPTION} />
+                  {label}
+                </div>
+              </Reveal>
+            )
+          }
           const Post = RENDER[app]
           return (
-            <Reveal key={app} delay={i * 90} className={i === 0 || i === 4 ? 'hidden lg:block' : i === 1 || i === 3 ? 'hidden sm:block' : ''}>
+            <Reveal key={app} delay={i * 90} className={i === 0 || i === 4 ? 'hidden lg:block' : 'hidden sm:block'}>
               <div className="flex flex-col items-center">
                 <div className="relative overflow-hidden" style={{ width: 360 * LIVE_SCALE, height: 702 * LIVE_SCALE }}>
                   <div className="absolute left-0 top-0 origin-top-left" style={{ width: 360, transform: `scale(${LIVE_SCALE})` }} aria-hidden="true">
@@ -520,15 +612,7 @@ function LiveEverywhere({ onStart }) {
                     </PhoneFrame>
                   </div>
                 </div>
-                <div className="mt-4 flex items-center gap-2 rounded-full border border-ink-200 bg-white py-1 pl-1.5 pr-3 shadow-card">
-                  <span className={`grid h-6 w-6 place-items-center rounded-full bg-canvas ${PLAT_BRAND_CLASS[app] || ''}`}>
-                    <PlatformIcon name={app} />
-                  </span>
-                  <span className="text-[12.5px] font-semibold text-ink-800">{app}</span>
-                  <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-500 px-1.5 py-px text-[10.5px] font-bold text-white">
-                    <FiCheck size={10} strokeWidth={3.5} /> {t('Live', 'ចេញហើយ')}
-                  </span>
-                </div>
+                {label}
               </div>
             </Reveal>
           )
