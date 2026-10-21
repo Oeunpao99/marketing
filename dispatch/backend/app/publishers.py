@@ -130,6 +130,8 @@ def publish(target: PostTarget, channel: Channel, video: Video | None) -> Publis
         return _publish_instagram(target, channel, video)
     if slug == "linkedin" and (channel.config or {}).get("access_token"):
         return _publish_linkedin(target, channel, video)
+    if slug == "youtube" and (channel.config or {}).get("refresh_token"):
+        return _publish_youtube(target, channel, video)
     if get_settings().simulate_unimplemented_platforms:
         return PublishResult(detail={"simulated": True, "platform": slug})
     raise PublishError(f"No delivery integration for platform '{slug}'.")
@@ -270,6 +272,51 @@ def _publish_linkedin(target: PostTarget, channel: Channel, video: Video | None)
     except linkedin.LinkedInError as exc:
         raise PublishError(str(exc)) from exc
     return PublishResult(external_id=post_urn, detail={"platform": "linkedin"})
+
+
+def _publish_youtube(target: PostTarget, channel: Channel, video: Video | None) -> PublishResult:
+    """Upload the post's video to the connected YouTube channel — a Short when
+    it's vertical and up to 3 minutes. The title: the post's own, else the
+    caption's first line; the caption is the description."""
+    if video is None or not video.url:
+        raise PublishError("This post has no video attached — YouTube needs one.")
+
+    from app import youtube
+    from app.media import kind_for, read_media
+
+    if kind_for(video.url, None) != "video":
+        raise PublishError("YouTube only takes videos — this post has an image attached, not a video.")
+    data = read_media(video.url)
+    if data is None:
+        raise PublishError("Could not read the video file to upload.")
+    try:
+        access_token, updated_config = youtube.ensure_access_token(channel.config or {})
+    except youtube.YouTubeError as exc:
+        raise PublishError(str(exc)) from exc
+    if updated_config is not None:
+        channel.config = updated_config  # rides the caller's commit
+    width, _, height = (video.resolution or "").partition("x")
+    try:
+        tall = int(height) > int(width)
+    except ValueError:
+        tall = True  # our motion videos are vertical unless told otherwise
+    short = tall and 0 < (video.duration_seconds or 0) <= youtube.SHORT_MAX_SECONDS
+    try:
+        video_id = youtube.upload_video(
+            access_token, data, youtube.title_for(target.title, target.caption), target.caption or "", short=short
+        )
+    except youtube.YouTubeError as exc:
+        raise PublishError(str(exc)) from exc
+    return PublishResult(
+        external_id=video_id,
+        detail={
+            "platform": "youtube",
+            "url": youtube.video_url(video_id, short),
+            "short": short,
+            # Until Google audits the project, YouTube locks every upload to Private.
+            "note": "Uploaded to YouTube. Until Google approves the app, it stays Private — make it Public in YouTube Studio.",
+        },
+    )
 
 
 def _publish_tiktok(target: PostTarget, channel: Channel, video: Video | None) -> PublishResult:

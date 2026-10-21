@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
-from app import content_ai, linkedin, meta, post_tags, tiktok
+from app import content_ai, linkedin, meta, post_tags, tiktok, youtube
 from app.config import get_settings
 from app.database import get_db
 from app.media import local_path_for
@@ -1064,6 +1064,11 @@ def _post_metrics(
             if not token:
                 return {"status": "unavailable", "note": "Channel not connected.", "metrics": {}}
             return {**tiktok.video_insights(token, external_id), "url": None}
+        if platform_slug == "youtube":
+            if not config.get("refresh_token"):
+                return {"status": "unavailable", "note": "Channel not connected.", "metrics": {}, "url": None}
+            token, _fresh = youtube.ensure_access_token(config)
+            return {**youtube.video_insights(token, external_id), "url": youtube.video_url(external_id)}
         if platform_slug == "telegram":
             from app.publishers import telegram_subscriber_count
 
@@ -2892,6 +2897,70 @@ def tiktok_oauth_callback(
         channel.handle = f"tiktok:{tokens['open_id'][:10]}"
     channel.token_note = "Connected via TikTok login"
     channel.config = {**(channel.config or {}), **tokens}
+    channel.last_post_at = None
+    db.commit()
+    return back(True)
+
+
+# ── YouTube OAuth connect ────────────────────────────────────────────────
+# Like TikTok's: /oauth/youtube/start hands the browser Google's sign-in;
+# Google sends it back to /oauth/youtube/callback with a code. The person picks
+# the Google account / Brand Account there, so each YouTube channel is its own
+# Channel row (several per brand — reconnecting one updates it).
+_YOUTUBE_STATE_TTL_SECONDS = 600
+
+
+@router.get("/oauth/youtube/start")
+def youtube_oauth_start(brand_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    owned(db, Brand, brand_id, ws)
+    state = sign_payload({"brand_id": brand_id}, _YOUTUBE_STATE_TTL_SECONDS)
+    try:
+        return {"url": youtube.authorize_url(state)}
+    except youtube.YouTubeError as exc:
+        raise HTTPException(503, str(exc)) from exc
+
+
+@public_router.get("/oauth/youtube/callback", include_in_schema=False)
+def youtube_oauth_callback(code: str = "", state: str = "", error: str = "", db: Session = Depends(get_db)):
+    frontend = get_settings().frontend_url.rstrip("/")
+
+    def back(ok: bool, message: str = "") -> RedirectResponse:
+        params = {"youtube": "connected" if ok else "error"}
+        if message:
+            params["message"] = message[:200]
+        return RedirectResponse(f"{frontend}/channels?{urlencode(params)}")
+
+    if error:
+        return back(False, "You cancelled the Google sign-in." if error == "access_denied" else error)
+    try:
+        payload = verify_payload(state)
+    except Exception:
+        return back(False, "That connect link expired — try again.")
+    brand = db.get(Brand, payload.get("brand_id"))
+    if brand is None:
+        return back(False, "Brand not found.")
+
+    try:
+        tokens = youtube.exchange_code(code)
+        info = youtube.my_channel(tokens["access_token"])
+    except youtube.YouTubeError as exc:
+        return back(False, str(exc))
+
+    plat = db.scalar(select(Platform).where(Platform.slug == "youtube"))
+    if plat is None:
+        return back(False, "YouTube platform is not set up on the server.")
+    rows = db.scalars(select(Channel).where(Channel.brand_id == brand.id, Channel.platform_id == plat.id)).all()
+    # this YouTube channel again (a reconnect), else an unconnected placeholder, else a new row
+    channel = next((c for c in rows if (c.config or {}).get("channel_id") == info["channel_id"]), None) or next(
+        (c for c in rows if not (c.config or {}).get("channel_id") and not (c.config or {}).get("access_token")), None
+    )
+    if channel is None:
+        channel = Channel(brand_id=brand.id, platform_id=plat.id)
+        db.add(channel)
+    channel.status = "live"
+    channel.handle = info["handle"] or info["title"]
+    channel.token_note = "Connected via Google sign-in"
+    channel.config = {**(channel.config or {}), **tokens, **info}
     channel.last_post_at = None
     db.commit()
     return back(True)

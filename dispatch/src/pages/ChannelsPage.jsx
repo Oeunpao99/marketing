@@ -157,6 +157,19 @@ export default function ChannelsPage() {
     setSearchParams({}, { replace: true });
   }, [searchParams, setSearchParams, showToast]);
 
+  // Lands here after Google's sign-in for YouTube.
+  useEffect(() => {
+    const yt = searchParams.get("youtube");
+    if (!yt) return;
+    if (yt === "connected") {
+      showToast("YouTube connected — until Google approves the app, uploads stay Private");
+      refreshChannels();
+    } else {
+      showToast(`YouTube connect failed — ${searchParams.get("message") || "try again"}`);
+    }
+    setSearchParams({}, { replace: true });
+  }, [searchParams, setSearchParams, showToast, refreshChannels]);
+
   // Lands here after the LinkedIn OAuth redirect (same direct-connect shape
   // as TikTok — no "pick a Page" step, since it's always the person's own feed).
   useEffect(() => {

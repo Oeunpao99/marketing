@@ -46,7 +46,10 @@ const PLATFORM_META = {
     color: "#FF0000",
     Icon: SiYoutube,
     label: "YouTube",
-    desc: "Connect a YouTube channel to post Shorts automatically.",
+    desc: "Sign in with Google and pick your channel — videos go up as Shorts, with their numbers back in Analytics.",
+    live: true,
+    oauth: "youtube",
+    multi: true,
   },
   instagram: {
     color: "#E4405F",
@@ -244,6 +247,24 @@ export default function AddChannelPage() {
     }
   };
 
+  /* ---- real connect (YouTube: Google sign-in → backend → google.com) ---- */
+  const connectYouTube = async (brandId) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const brand = brands.find((b) => b.slug === brandId);
+      if (!brand) throw new Error("Brand not found.");
+      const res = await api.get(`/views/oauth/youtube/start?brand_id=${brand.id}`);
+      if (!res?.url) throw new Error("Google did not return a sign-in link.");
+      // Full-page navigation to Google's sign-in — the person picks the account /
+      // Brand Account of the channel; the callback lands back on /channels.
+      window.location.href = res.url;
+    } catch (e) {
+      setError(e.message);
+      setBusy(false);
+    }
+  };
+
   /* ---- real connect (Facebook/Instagram OAuth → backend → facebook.com) ---- */
   const connectMeta = async (brandId, intent) => {
     setBusy(true);
@@ -273,6 +294,8 @@ export default function AddChannelPage() {
       connectMeta(brandId, selectedPlatform);
     } else if (meta?.oauth === "linkedin") {
       connectLinkedIn(brandId);
+    } else if (meta?.oauth === "youtube") {
+      connectYouTube(brandId);
     } else if (meta?.fields) {
       setError(null);
       setStep("credentials");
@@ -293,6 +316,7 @@ export default function AddChannelPage() {
     if (platformMeta.oauth === "tiktok") connectTikTok(brandSlug);
     else if (platformMeta.oauth === "meta") connectMeta(brandSlug, platformSlug);
     else if (platformMeta.oauth === "linkedin") connectLinkedIn(brandSlug);
+    else if (platformMeta.oauth === "youtube") connectYouTube(brandSlug);
     else if (platformMeta.fields) setStep("credentials");
     else connectMock(brandSlug, platformSlug);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -674,6 +698,7 @@ export default function AddChannelPage() {
     if (m.oauth === "tiktok") connectTikTok(selectedBrand);
     else if (m.oauth === "meta") connectMeta(selectedBrand, id);
     else if (m.oauth === "linkedin") connectLinkedIn(selectedBrand);
+    else if (m.oauth === "youtube") connectYouTube(selectedBrand);
     else if (m.fields) setStep("credentials");
     else connectMock(selectedBrand, id);
   };
