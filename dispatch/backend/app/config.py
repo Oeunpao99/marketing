@@ -138,6 +138,17 @@ class Settings(BaseSettings):
     # wait (job stays "queued") instead of hitting the provider at once.
     image_max_concurrency: int = 6
 
+    # YouTube (Shorts + videos) — "Connect" on the Channels page (app/youtube.py).
+    # A Google Cloud project with the YouTube Data API v3 + YouTube Analytics API on,
+    # an OAuth client (Web application) whose redirect URIs include
+    # youtube_redirect_uri — "<this backend>/api/views/oauth/youtube/callback"
+    # (http://localhost:8000/… works for local dev; Google allows localhost).
+    # Scopes: youtube.upload, youtube.readonly, yt-analytics.readonly. Until Google
+    # audits the app, uploads stay Private and only its test users can connect.
+    youtube_client_id: str = ""
+    youtube_client_secret: str = ""
+    youtube_redirect_uri: str = ""
+
     # TikTok Content Posting API — "Connect" on the Channels page (app/tiktok.py).
     # Register an app at https://developers.tiktok.com, add it, and request the
     # `video.upload` + `video.list` scopes. tiktok_redirect_uri must exactly
