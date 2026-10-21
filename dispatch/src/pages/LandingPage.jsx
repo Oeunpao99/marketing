@@ -362,120 +362,55 @@ function SectionTitle({ eyebrow, title, khmer, sub }) {
   )
 }
 
-// ── the product mocks (drawn here, not screenshots) ──────────────────────
-const KIND = { Video: ['Video', 'វីដេអូ'], Image: ['Image', 'រូបភាព'], Text: ['Text', 'អត្ថបទ'] }
-const WEEK = [
-  { d: ['Mon', 'ច័ន្ទ'], t: '08:00', kind: 'Video', title: 'ហេតុអ្វីអតិថិជនចាកចេញ?', ch: [SiFacebook, SiTiktok] },
-  { d: ['Tue', 'អង្គារ'], t: '12:00', kind: 'Image', title: 'ការផ្តល់ជូនពិសេស', ch: [SiFacebook, SiInstagram] },
-  { d: ['Wed', 'ពុធ'], t: '08:00', kind: 'Text', title: '៣ គន្លឹះឆ្លើយសារលឿន', ch: [SiFacebook, SiTelegram] },
-  { d: ['Thu', 'ព្រហ'], t: '19:00', kind: 'Video', title: 'ពីមុន និង ឥឡូវ', ch: [SiTiktok, SiInstagram] },
-  { d: ['Fri', 'សុក្រ'], t: '08:00', kind: 'Image', title: 'ផលិតផលថ្មី', ch: [SiFacebook] },
-]
+// ── the product, as it really looks ───────────────────────────────────────
+// Real screenshots of the app (public/landing/*.jpg — cut from the video
+// tutorials' captures of the demo brand), in a browser frame or as the phone
+// preview, with a few labels floating over them.
 
-function WeekMock() {
-  const t = useT()
+/** A label floating over a screenshot: an icon tile and one line. ``at`` places it. */
+function FloatTag({ icon: Icon, text, at, delay = 0 }) {
   return (
-    <div className="rounded-2xl border border-ink-200 bg-white p-4 shadow-pop sm:p-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="text-[13px] font-bold text-ink-900">{t('Next week’s plan', 'ផែនការសប្តាហ៍ក្រោយ')}</div>
-          <div className="text-[11.5px] text-ink-500">{t('Written by AI · Sunday 6 PM', 'សរសេរដោយ AI · ថ្ងៃអាទិត្យ ម៉ោង ៦ ល្ងាច')}</div>
-        </div>
-        <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">{t('5 of 7 approved', 'យល់ព្រម ៥ ក្នុង ៧')}</span>
-      </div>
-      <div className="mt-4 space-y-2">
-        {WEEK.map((w, i) => (
-          <div key={w.d[0]} className="flex items-center gap-3 rounded-xl border border-ink-100 bg-canvas-soft px-3 py-2.5">
-            <div className="w-10 flex-none text-center">
-              <div className="text-[11px] font-bold text-ink-900">{t(w.d)}</div>
-              <div className="font-mono text-[10px] text-ink-400">{w.t}</div>
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-[13px] font-semibold text-ink-800" style={km}>
-                {w.title}
-              </div>
-              <div className="mt-0.5 flex items-center gap-1.5 text-[10.5px] text-ink-500">
-                <span className="rounded bg-brand-soft px-1.5 py-px font-semibold text-brand">{t(KIND[w.kind])}</span>
-                {w.ch.map((C, k) => (
-                  <C key={k} size={11} className="text-ink-400" />
-                ))}
-              </div>
-            </div>
-            {i < 4 ? (
-              <span className="grid h-6 w-6 flex-none place-items-center rounded-full bg-emerald-500 text-white">
-                <FiCheck size={13} strokeWidth={3} />
-              </span>
-            ) : (
-              <span className="flex-none rounded-lg bg-brand px-2.5 py-1 text-[11px] font-semibold text-white">{t('Approve', 'យល់ព្រម')}</span>
-            )}
-          </div>
-        ))}
-      </div>
+    <div
+      className={`absolute z-10 hidden items-center gap-2.5 rounded-2xl border border-ink-200 bg-white px-3 py-2 shadow-[0_12px_32px_rgba(15,23,42,0.14)] sm:flex ${at}`}
+      style={{ animation: `lp-float 6s ease-in-out ${delay}s infinite` }}
+    >
+      <span className="grid h-8 w-8 flex-none place-items-center rounded-xl bg-brand-soft text-brand">
+        <Icon size={15} />
+      </span>
+      <span className="whitespace-nowrap text-[13px] font-semibold text-ink-900">{text}</span>
     </div>
   )
 }
 
-function CaptionMock() {
-  const t = useT()
+/** A screenshot of the app in a plain browser frame. */
+function AppShot({ src, alt, tags = [] }) {
   return (
-    <div className="rounded-2xl border border-ink-200 bg-white p-5 shadow-pop">
-      <div className="flex items-center gap-2.5">
-        <div className="grid h-9 w-9 place-items-center rounded-full bg-brand text-[13px] font-bold text-white">M</div>
-        <div>
-          <div className="text-[13px] font-bold text-ink-900">{t('Your shop', 'ហាងរបស់បង')}</div>
-          <div className="text-[11px] text-ink-400">{t('Scheduled', 'កំណត់ពេល')} · Facebook · 08:00</div>
-        </div>
-      </div>
-      <p className="mt-4 text-[15px] leading-[1.9] text-ink-800" style={km}>
-        ☕ ព្រឹកនេះ ញ៉ាំកាហ្វេជាមួយយើង!
-        <br />
-        ✅ កាហ្វេដុតថ្មីរាល់ថ្ងៃ
-        <br />
-        ✅ ទិញ ២ ថែម ១ ដល់ថ្ងៃសុក្រ
-        <br />
-        📍 ផ្ទះលេខ ១២ ផ្លូវ ២៧១
-      </p>
-      <div className="mt-4 flex items-center gap-3 rounded-xl bg-canvas-soft px-3 py-2.5">
-        <span className="grid h-8 w-8 flex-none place-items-center rounded-full bg-brand-soft text-brand">
-          <FiMic size={15} />
-        </span>
-        <div className="flex h-6 flex-1 items-center gap-[3px]">
-          {Array.from({ length: 34 }, (_, i) => (
-            <span key={i} className="w-[3px] rounded-full bg-brand/70" style={{ height: `${25 + Math.abs(Math.sin(i * 1.7)) * 75}%` }} />
+    <div className="relative px-2 py-6 sm:px-6">
+      <div className="overflow-hidden rounded-2xl border border-ink-200 bg-white shadow-[0_24px_64px_-24px_rgba(15,23,42,0.35)]">
+        <div className="flex items-center gap-1.5 border-b border-ink-100 bg-canvas px-4 py-2.5">
+          {['bg-red-400', 'bg-amber-400', 'bg-emerald-400'].map((c) => (
+            <span key={c} className={`h-2.5 w-2.5 rounded-full ${c}`} />
           ))}
+          <span className="ml-3 flex-1 truncate rounded-md bg-white px-3 py-1 text-[11px] text-ink-400">mkt.chlart.org</span>
         </div>
-        <span className="flex-none text-[11px] font-semibold text-ink-500">{t('Khmer voice', 'សំឡេងខ្មែរ')}</span>
+        <img src={src} alt={alt} loading="lazy" className="block w-full" />
       </div>
+      {tags.map((tag, i) => (
+        <FloatTag key={tag.text} {...tag} delay={i * 1.2} />
+      ))}
     </div>
   )
 }
 
-function InsightMock() {
-  const t = useT()
-  const bars = [32, 44, 38, 61, 55, 82, 74]
+/** The phone preview of a post (the app's own Preview), standing on a soft brand tile. */
+function PhoneShot({ src, alt, tags = [] }) {
   return (
-    <div className="rounded-2xl border border-ink-200 bg-white p-5 shadow-pop">
-      <div className="text-[13px] font-bold text-ink-900">{t('Engagement · last 7 weeks', 'អន្តរកម្ម · ៧ សប្តាហ៍ចុងក្រោយ')}</div>
-      <div className="mt-4 flex h-32 items-end gap-2">
-        {bars.map((h, i) => (
-          <div key={i} className="flex-1 rounded-t-lg bg-brand/80" style={{ height: `${h}%`, opacity: 0.45 + i * 0.08 }} />
-        ))}
-      </div>
-      <div className="mt-4 space-y-2">
-        {[
-          [t('Morning posts do best for you', 'ប្រកាសពេលព្រឹក ដំណើរការល្អបំផុតសម្រាប់បង'), t('Auto-posts now go out at 08:00', 'ប្រកាសស្វ័យប្រវត្តិ ឥឡូវបង្ហោះម៉ោង 08:00')],
-          [t('Short videos get the most shares', 'វីដេអូខ្លី ទទួលបានការចែករំលែកច្រើនជាងគេ'), t('More videos in next week’s plan', 'វីដេអូច្រើនជាងមុន ក្នុងផែនការសប្តាហ៍ក្រោយ')],
-        ].map(([a, b]) => (
-          <div key={a} className="flex items-start gap-2.5 rounded-xl bg-canvas-soft px-3 py-2.5">
-            <FiZap className="mt-0.5 flex-none text-brand" size={14} />
-            <div>
-              <div className="text-[12.5px] font-semibold text-ink-800">{a}</div>
-              <div className="text-[11.5px] text-ink-500">{b}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="mt-3 text-[10.5px] text-ink-400">{t('Example of what the AI learns from your own posts', 'ឧទាហរណ៍នៃអ្វីដែល AI រៀនពីប្រកាសផ្ទាល់របស់បង')}</div>
+    <div className="relative flex justify-center px-2 py-6">
+      <div className="absolute inset-x-8 inset-y-16 rounded-[40px] bg-brand-soft" />
+      <img src={src} alt={alt} loading="lazy" className="relative w-[min(300px,70vw)] drop-shadow-[0_30px_40px_rgba(15,23,42,0.25)]" />
+      {tags.map((tag, i) => (
+        <FloatTag key={tag.text} {...tag} delay={i * 1.2} />
+      ))}
     </div>
   )
 }
@@ -1402,6 +1337,8 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
                 animation: lp-galaxy 14s ease-in-out infinite alternate;
                 filter: drop-shadow(0 6px 22px rgb(124 58 237 / 0.25));
               }
+              @keyframes lp-float { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-8px) } }
+              @media (prefers-reduced-motion: reduce) { [style*='lp-float'] { animation: none !important } }
               @keyframes lp-galaxy {
                 0% { background-position: 0 0, 0 0, 0 0, 0 0, 0 0, 0% 40%, 100% 0%, 0% 50% }
                 100% { background-position: 140px 70px, -180px 90px, 160px -80px, -210px 100px, 120px 60px, 100% 60%, 0% 100%, 100% 50% }
@@ -1490,23 +1427,23 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
           title={t('Sunday night, your whole week is ready', 'ល្ងាចថ្ងៃអាទិត្យ ប្រកាសពេញមួយសប្តាហ៍ត្រៀមរួច')}
           khmer="ភ្ជាប់ម្តង — បន្ទាប់មក AI ចាប់ផ្តើមធ្វើការជំនួសបង"
         />
-        <div className="mx-auto mt-14 grid max-w-6xl gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mx-auto mt-14 grid max-w-6xl gap-10 sm:grid-cols-2 lg:grid-cols-4 lg:gap-4">
           {[
             [FiGlobe, t('Plug in your pages', 'ភ្ជាប់ទំព័ររបស់បង'), t('Facebook, Instagram, TikTok, Telegram, LinkedIn — one brand, as many pages as you run.', 'Facebook, Instagram, TikTok, Telegram, LinkedIn — ម៉ាកមួយ ភ្ជាប់ទំព័របានច្រើនតាមចិត្ត។')],
             [FiCalendar, t('The AI drafts your week', 'AI រៀបចំសប្តាហ៍ជូនបង'), t('Tips, stories, offers — mixed the way your followers actually react.', 'គន្លឹះ រឿង ការផ្តល់ជូន — លាយគ្នាតាមអ្វីដែលអ្នកតាមដានចូលចិត្តពិតៗ។')],
             [FiPenTool, t('It designs and writes', 'វារចនា និងសរសេរ'), t('Scroll-stopping videos, pictures and Khmer captions — in your colours, with your logo.', 'វីដេអូ រូបភាព និងចំណងជើងខ្មែរ ដែលធ្វើឲ្យគេឈប់អូស — ពណ៌ និងឡូហ្គោរបស់បង។')],
             [FiCheck, t('You tap Approve. Done.', 'បងចុចយល់ព្រម។ រួចរាល់។'), t('It posts itself at the hour your audience is online.', 'វាបង្ហោះដោយខ្លួនឯង នៅម៉ោងដែលអ្នកមើលកំពុងអនឡាញ។')],
           ].map(([Icon, title, d], i) => (
-            <Reveal key={i} delay={i * 100}>
-              <div className="relative h-full rounded-2xl border border-ink-200 bg-white p-6 shadow-card transition-shadow hover:shadow-card-hover">
-                <div className="flex items-center justify-between">
-                  <span className="grid h-11 w-11 place-items-center rounded-xl bg-brand-soft text-brand">
-                    <Icon size={20} />
-                  </span>
-                  <span className="font-mono text-[13px] font-bold text-ink-300">0{i + 1}</span>
-                </div>
+            <Reveal key={i} delay={i * 120}>
+              <div className="relative text-center lg:px-3">
+                {/* the line joining the steps */}
+                {i < 3 && <div className="absolute left-[calc(50%+36px)] right-[calc(-50%+36px)] top-7 hidden h-[2px] bg-gradient-to-r from-brand/40 to-brand/10 lg:block" />}
+                <span className="relative mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-brand text-white shadow-[0_10px_24px_-8px_rgb(var(--brand)/0.6)]">
+                  <Icon size={22} />
+                  <span className="absolute -right-2 -top-2 grid h-6 w-6 place-items-center rounded-full bg-white text-[11px] font-bold text-brand ring-2 ring-brand-soft">{i + 1}</span>
+                </span>
                 <div className="mt-5 text-[16px] font-bold text-ink-900">{title}</div>
-                <p className="mt-1.5 text-[14px] leading-relaxed text-ink-500">{d}</p>
+                <p className="mx-auto mt-1.5 max-w-[240px] text-[14px] leading-relaxed text-ink-500">{d}</p>
               </div>
             </Reveal>
           ))}
@@ -1529,7 +1466,16 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
               t('Approve each one, or put it fully on autopilot', 'យល់ព្រមម្តងមួយៗ ឬទុកឲ្យវាដំណើរការស្វ័យប្រវត្តិទាំងស្រុង'),
               t('Post times learned from your own audience — not a guess', 'ម៉ោងបង្ហោះ រៀនពីអ្នកមើលផ្ទាល់របស់បង — មិនមែនទាយ'),
             ]}
-            visual={<WeekMock />}
+            visual={
+              <AppShot
+                src="/landing/plan.jpg"
+                alt={t('The weekly plan in Smart Marketing — goals, and a post ready to approve', 'ផែនការប្រចាំសប្តាហ៍ក្នុង Smart Marketing')}
+                tags={[
+                  { icon: FiCalendar, text: t('7 posts ready for next week', '៧ ប្រកាសត្រៀមសម្រាប់សប្តាហ៍ក្រោយ'), at: '-left-2 top-0 lg:-left-8' },
+                  { icon: FiZap, text: t('Best time · 08:00', 'ម៉ោងល្អបំផុត · ០៨:០០'), at: '-right-2 bottom-0 lg:-right-6' },
+                ]}
+              />
+            }
           />
         </div>
         <div className="mx-auto max-w-6xl">
@@ -1547,7 +1493,16 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
               t('A natural Khmer voice, subtitles in sync word by word', 'សំឡេងខ្មែរធម្មជាតិ អក្សររត់ត្រូវគ្នាគ្រប់ពាក្យ'),
               t('Your brand and product names, said your way', 'ឈ្មោះម៉ាក និងផលិតផល អានតាមរបៀបរបស់បង'),
             ]}
-            visual={<CaptionMock />}
+            visual={
+              <PhoneShot
+                src="/landing/phone.jpg"
+                alt={t('A Khmer caption in the Facebook preview', 'ចំណងជើងខ្មែរ ក្នុងការមើលជាមុនលើ Facebook')}
+                tags={[
+                  { icon: FiMessageCircle, text: t('Written in Khmer', 'សរសេរជាភាសាខ្មែរ'), at: 'left-0 top-16 lg:-left-2' },
+                  { icon: FiMic, text: t('Natural Khmer voice', 'សំឡេងខ្មែរធម្មជាតិ'), at: 'right-0 bottom-20 lg:-right-2' },
+                ]}
+              />
+            }
           />
         </div>
         <div className="mx-auto max-w-6xl">
@@ -1564,7 +1519,16 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
               t('Lessons in plain words — no dashboards to decode', 'មេរៀនជាពាក្យងាយៗ — មិនចាំបាច់អានផ្ទាំងទិន្នន័យស្មុគស្មាញ'),
               t('Next week’s plan doubles down on what worked', 'ផែនការសប្តាហ៍ក្រោយ បង្កើនអ្វីដែលបានផល'),
             ]}
-            visual={<InsightMock />}
+            visual={
+              <AppShot
+                src="/landing/insights.jpg"
+                alt={t('The dashboard: posts per day and what stands out', 'ផ្ទាំងទិន្នន័យ៖ ប្រកាសប្រចាំថ្ងៃ និងអ្វីដែលលេចធ្លោ')}
+                tags={[
+                  { icon: FiBarChart2, text: t('Best day: Friday midday', 'ថ្ងៃល្អបំផុត៖ ថ្ងៃសុក្រ ថ្ងៃត្រង់'), at: '-left-2 top-0 lg:-left-8' },
+                  { icon: FiCheck, text: t('Next plan follows what worked', 'ផែនការបន្ទាប់ធ្វើតាមអ្វីដែលបានផល'), at: '-right-2 bottom-0 lg:-right-6' },
+                ]}
+              />
+            }
           />
         </div>
       </section>
@@ -1636,15 +1600,17 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
           title={t('Everything your marketing needs, in one place', 'អ្វីៗដែលទីផ្សាររបស់បងត្រូវការ នៅកន្លែងតែមួយ')}
           khmer="គ្រប់យ៉ាងនៅកន្លែងតែមួយ"
         />
-        <div className="mx-auto mt-14 grid max-w-6xl gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mx-auto mt-14 grid max-w-5xl gap-x-12 gap-y-9 sm:grid-cols-2 lg:grid-cols-3">
           {MORE.map(({ Icon, title, text }, i) => (
             <Reveal key={title[0]} delay={(i % 3) * 100}>
-              <div className="group h-full rounded-2xl border border-ink-200 bg-white p-6 shadow-card transition-all hover:-translate-y-0.5 hover:shadow-card-hover">
-                <span className="grid h-11 w-11 place-items-center rounded-xl bg-brand-soft text-brand transition-colors group-hover:bg-brand group-hover:text-white">
+              <div className="group flex items-start gap-4">
+                <span className="grid h-11 w-11 flex-none place-items-center rounded-xl bg-brand-soft text-brand transition-colors group-hover:bg-brand group-hover:text-white">
                   <Icon size={20} />
                 </span>
-                <div className="mt-5 text-[16px] font-bold text-ink-900">{t(title)}</div>
-                <p className="mt-1.5 text-[14px] leading-relaxed text-ink-500">{t(text)}</p>
+                <div>
+                  <div className="text-[15.5px] font-bold text-ink-900">{t(title)}</div>
+                  <p className="mt-1 text-[14px] leading-relaxed text-ink-500">{t(text)}</p>
+                </div>
               </div>
             </Reveal>
           ))}
