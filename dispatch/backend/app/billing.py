@@ -213,12 +213,13 @@ def _pending(db: Session, ws: int) -> float:
 def _counted(ws: int, since: datetime, claim_at: datetime | None):
     """This month's entries that count against the credits: every claim and
     grant, and spends from the month's first claim on — AI used before it
-    (the dollar system, before credits had to be claimed) isn't charged again."""
+    (the dollar system, before credits had to be claimed) isn't charged again.
+    Credits sent to another account always count."""
     spent_since = claim_at or datetime.max.replace(tzinfo=UTC)
     return (
         (CreditEntry.workspace_id == ws)
         & (CreditEntry.created_at >= since)
-        & ((CreditEntry.amount_usd > 0) | (CreditEntry.created_at >= spent_since))
+        & ((CreditEntry.amount_usd > 0) | (CreditEntry.kind == "transfer_out") | (CreditEntry.created_at >= spent_since))
     )
 
 
@@ -238,7 +239,7 @@ def balance(db: Session, ws: int) -> dict:
         ).all()
     }
     total = sum(by_kind.values())  # claims and grants in, spends (since the claim) out
-    spent = -sum(v for v in by_kind.values() if v < 0)
+    spent = -sum(v for k, v in by_kind.items() if v < 0 and k != "transfer_out")  # AI used — not credits sent
     claimed = claim_at is not None
     # what's still to claim this month: all of the plan's credits, or — after an
     # upgrade (Pro claimed, now Enterprise) — the difference
@@ -399,13 +400,22 @@ def charge_job(job: GenerationJob) -> None:
 
 
 # ── API ───────────────────────────────────────────────────────────────────
-_KIND_LABEL = {"text": "AI writing", "image": "Images", "video": "Videos", "grant": "Credit added", "monthly": "Monthly credits"}
+_KIND_LABEL = {
+    "text": "AI writing",
+    "image": "Images",
+    "video": "Videos",
+    "grant": "Credit added",
+    "monthly": "Monthly credits",
+    "transfer_in": "Credits received",
+    "transfer_out": "Credits sent",
+}
 
 
 @router.get("")
 def billing_overview(db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
     """Settings → Billing: plan, this month's credit, where it went, recent spends."""
     out = balance(db, ws)
+    out["account_no"] = account_no(db, ws)
     since = month_start()
     claim_at = db.scalar(
         select(func.min(CreditEntry.created_at)).where(CreditEntry.workspace_id == ws, CreditEntry.kind == "monthly", CreditEntry.created_at >= since)
@@ -600,6 +610,125 @@ def clear_old_activity(db: Session = Depends(get_db), user: TeamMember = Depends
         w.activity_hidden_before = cut
     db.commit()
     return _activity_page(db, w.id, 1, ACTIVITY_PAGE)
+
+
+# ── Transfer credits ──────────────────────────────────────────────────────
+# Like a bank transfer: each account has a 10-digit number (account_no); type
+# the other account's number, see whose it is, send. The sender gets a
+# "transfer_out" line, the receiver a "transfer_in" line, in one transaction.
+MIN_TRANSFER = 10  # credits
+_NO = re.compile(r"\D")
+
+
+def account_no(db: Session, ws: int) -> str:
+    """The workspace's account number — made the first time it's needed."""
+    import secrets
+
+    w = db.get(Workspace, ws)
+    if not w.account_no:
+        while True:
+            no = str(secrets.randbelow(9 * 10**9) + 10**9)
+            if not db.scalar(select(Workspace.id).where(Workspace.account_no == no)):
+                break
+        w.account_no = no
+        db.commit()
+    return w.account_no
+
+
+def _spaced(no: str) -> str:
+    """"1400307275" → "140 030 7275", as the app shows it."""
+    return f"{no[:3]} {no[3:6]} {no[6:]}"
+
+
+def _recipient(db: Session, ws: int, raw: str) -> Workspace:
+    no = _NO.sub("", raw or "")
+    if len(no) != 10:
+        raise HTTPException(422, "An account ID has 10 digits.")
+    w = db.scalar(select(Workspace).where(Workspace.account_no == no))
+    if w is None or w.suspended_at:
+        raise HTTPException(404, "No account has that ID — check the number.")
+    if w.id == ws:
+        raise HTTPException(422, "That's your own account.")
+    return w
+
+
+def _who(db: Session, w: Workspace) -> dict:
+    owner = db.scalar(
+        select(TeamMember).where(TeamMember.workspace_id == w.id).order_by((TeamMember.role != "owner"), TeamMember.id).limit(1)
+    )
+    return {
+        "account_no": w.account_no,
+        "name": w.name,
+        "owner": owner.name if owner else "",
+        "initials": (owner.initials if owner else "") or (w.name[:2].upper()),
+        "plan_label": PLAN_LABEL.get(w.plan, w.plan.title()),
+    }
+
+
+@router.get("/account/{number}")
+def lookup_account(number: str, db: Session = Depends(get_db), user: TeamMember = Depends(require_manager)):
+    """Billing → Transfer: whose account is this number? (name, owner, plan)"""
+    return _who(db, _recipient(db, user.workspace_id, number))
+
+
+@router.post("/transfer")
+def transfer_credits(
+    body: dict,
+    db: Session = Depends(get_db),
+    user: TeamMember = Depends(require_manager),
+):
+    """Send credits to another account: {"to": "4821773015", "credits": 500, "note": ""}."""
+    ws = user.workspace_id
+    try:
+        credits = int(body.get("credits") or 0)
+    except (TypeError, ValueError):
+        credits = 0
+    note = str(body.get("note") or "").strip()[:120]
+    if credits < MIN_TRANSFER:
+        raise HTTPException(422, f"Send at least {MIN_TRANSFER} credits.")
+    to = _recipient(db, ws, str(body.get("to") or ""))
+    # one transfer at a time per sender, so two clicks can't overspend
+    me = db.scalar(select(Workspace).where(Workspace.id == ws).with_for_update())
+    if me.suspended_at:
+        raise HTTPException(403, "This account is suspended.")
+    if PLAN_CREDITS.get(me.plan, 0) <= PLAN_CREDITS["free"]:
+        raise HTTPException(403, "Sending credits is for paid plans — choose a plan to send them.")
+    have = balance(db, ws)["available_credits"]
+    if credits > have:
+        raise HTTPException(409, f"You have {int(have):,} credits — that's not enough to send {credits:,}.")
+    usd = round(credits / CREDITS_PER_USD, 6)
+    mine = account_no(db, ws)
+    db.add(
+        CreditEntry(
+            workspace_id=ws,
+            user_id=user.id,
+            kind="transfer_out",
+            amount_usd=-usd,
+            cost_usd=0,
+            note=f"To {to.name} · {_spaced(to.account_no)}" + (f" — {note}" if note else ""),
+        )
+    )
+    db.add(
+        CreditEntry(
+            workspace_id=to.id,
+            user_id=None,
+            kind="transfer_in",
+            amount_usd=usd,
+            cost_usd=0,
+            note=f"From {me.name} · {_spaced(mine)}" + (f" — {note}" if note else ""),
+        )
+    )
+    db.commit()
+    log.info("credit transfer: ws %s → ws %s, %s credits (by user %s)", ws, to.id, credits, user.id)
+    try:
+        from app import push
+
+        push.notify_workspace(
+            to.id, "credits", f"You received {credits:,} credits", f"From {me.name}" + (f": {note}" if note else ""), url="/", tag="credits"
+        )
+    except Exception:  # noqa: BLE001 — the transfer is done; a missed push is fine
+        log.exception("credit transfer push failed")
+    return {"sent": credits, "to": _who(db, to), "at": datetime.now(UTC).isoformat(), **balance(db, ws)}
 
 
 @router.get("/summary")

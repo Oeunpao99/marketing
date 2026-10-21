@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   FiAlertTriangle,
+  FiSend,
   FiArchive,
   FiArrowUpRight,
   FiArrowDownLeft,
@@ -1159,6 +1160,7 @@ function activityTitle(e) {
 // A short hint of what an image / video showed: the prompt's first phrase
 // (up to its first comma, colon or full stop), at most ~60 characters.
 function activitySnippet(e) {
+  if (e.kind === 'transfer_in' || e.kind === 'transfer_out') return e.note || ''
   if (e.kind !== 'image' && e.kind !== 'video') return ''
   const text = (e.note || '')
     .replace(/^(Video|Image|Story scene):\s*/i, '')
@@ -1193,6 +1195,208 @@ const ACTIVITY_ICON = {
   video: { icon: FiVideo, tone: 'bg-brand-soft text-brand' },
   // credits in — a claim or credit added
   added: { icon: FiGift, tone: 'bg-emerald-50 text-emerald-600' },
+  transfer_in: { icon: FiUserPlus, tone: 'bg-emerald-50 text-emerald-600' },
+  transfer_out: { icon: FiSend, tone: 'bg-red-50 text-red-600' },
+}
+
+/** "1400307275" → "140 030 7275", the way an account number is read out. */
+const fmtAccount = (no) => (no || '').replace(/^(\d{3})(\d{3})(\d{4})$/, '$1 $2 $3')
+
+/**
+ * Billing → Transfer credits, like a bank transfer: the other account's ID →
+ * whose it is (name, owner, plan) → how many credits (+ a note) → review →
+ * receipt. Calls GET /billing/account/{id} and POST /billing/transfer.
+ */
+function TransferPanel({ available, onClose, onSent }) {
+  const [step, setStep] = useState('to') // to | amount | review | done
+  const [number, setNumber] = useState('')
+  const [who, setWho] = useState(null)
+  const [amount, setAmount] = useState('')
+  const [note, setNote] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const [receipt, setReceipt] = useState(null)
+  const digits = number.replace(/\D/g, '')
+  const credits = parseInt(amount.replace(/\D/g, '') || '0', 10)
+  const have = Math.floor(available)
+
+  // the 10th digit typed → look the account up
+  useEffect(() => {
+    setWho(null)
+    setErr('')
+    if (digits.length !== 10) return
+    let live = true
+    setBusy(true)
+    api
+      .get(`/billing/account/${digits}`)
+      .then((w) => live && setWho(w))
+      .catch((e) => live && setErr(e.message))
+      .finally(() => live && setBusy(false))
+    return () => {
+      live = false
+    }
+  }, [digits])
+
+  const send = () => {
+    setBusy(true)
+    setErr('')
+    api
+      .post('/billing/transfer', { to: digits, credits, note })
+      .then((r) => {
+        setReceipt(r)
+        setStep('done')
+        onSent()
+      })
+      .catch((e) => setErr(e.message))
+      .finally(() => setBusy(false))
+  }
+
+  const amountErr = credits > have ? `You have ${have.toLocaleString('en-US')} credits.` : credits > 0 && credits < 10 ? 'Send at least 10 credits.' : ''
+  const Recipient = () =>
+    who ? (
+      <div className="flex items-center gap-3 rounded-2xl border border-ink-200 bg-canvas p-3">
+        <span className="grid h-10 w-10 flex-none place-items-center rounded-full bg-brand text-[13px] font-bold text-white">{who.initials}</span>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[13.5px] font-semibold text-ink-900">{who.name}</div>
+          <div className="truncate text-[11.5px] text-ink-500">
+            {who.owner ? `${who.owner} · ` : ''}
+            {who.plan_label} plan · {fmtAccount(who.account_no)}
+          </div>
+        </div>
+        <FiCheck className="flex-none text-emerald-600" size={16} />
+      </div>
+    ) : null
+
+  return (
+    <section className="rounded-3xl border border-ink-200 bg-white p-5">
+      <div className="flex items-center justify-between">
+        <h3 className="flex items-center gap-2 text-[15px] font-bold text-ink-900">
+          <FiSend size={15} className="text-brand" /> Transfer credits
+        </h3>
+        <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-ink-400 hover:bg-ink-100 hover:text-ink-800" aria-label="Close">
+          <FiX size={15} />
+        </button>
+      </div>
+
+      {step === 'to' && (
+        <div className="mt-4 space-y-3">
+          <label className="block text-[12px] font-semibold text-ink-700">
+            Account ID
+            <input
+              autoFocus
+              inputMode="numeric"
+              value={fmtAccount(digits) || digits}
+              onChange={(e) => setNumber(e.target.value.replace(/\D/g, '').slice(0, 10))}
+              placeholder="000 000 0000"
+              className="input mt-1.5 text-[16px] font-semibold tabular-nums tracking-wider"
+            />
+          </label>
+          {busy && <div className="h-16 rounded-2xl skeleton" />}
+          <Recipient />
+          {err && <p className="text-[12px] text-red-600">{err}</p>}
+          <button type="button" disabled={!who} onClick={() => setStep('amount')} className="btn-primary h-10 w-full rounded-xl disabled:opacity-40">
+            Next
+          </button>
+        </div>
+      )}
+
+      {step === 'amount' && (
+        <div className="mt-4 space-y-3">
+          <Recipient />
+          <label className="block text-[12px] font-semibold text-ink-700">
+            Amount
+            <div className="relative mt-1.5">
+              <input
+                autoFocus
+                inputMode="numeric"
+                value={credits ? credits.toLocaleString('en-US') : ''}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0"
+                className="input pr-20 text-[22px] font-bold tabular-nums"
+              />
+              <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[12px] text-ink-400">credits</span>
+            </div>
+          </label>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {[100, 500, 1000].filter((n) => n <= have).map((n) => (
+              <button key={n} type="button" onClick={() => setAmount(String(n))} className="rounded-full border border-ink-200 px-3 py-1 text-[12px] font-semibold text-ink-700 hover:border-brand hover:text-brand">
+                {n.toLocaleString('en-US')}
+              </button>
+            ))}
+            <span className="ml-auto text-[11.5px] text-ink-500">Available {have.toLocaleString('en-US')}</span>
+          </div>
+          {amountErr && <p className="text-[12px] text-red-600">{amountErr}</p>}
+          <label className="block text-[12px] font-semibold text-ink-700">
+            Note <span className="font-normal text-ink-400">(optional)</span>
+            <input value={note} onChange={(e) => setNote(e.target.value.slice(0, 120))} placeholder="What it's for" className="input mt-1.5" />
+          </label>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setStep('to')} className="btn-outline h-10 flex-1 rounded-xl">
+              Back
+            </button>
+            <button type="button" disabled={credits < 10 || !!amountErr} onClick={() => setStep('review')} className="btn-primary h-10 flex-1 rounded-xl disabled:opacity-40">
+              Review
+            </button>
+          </div>
+        </div>
+      )}
+
+      {step === 'review' && (
+        <div className="mt-4 space-y-3">
+          <div className="rounded-2xl bg-canvas p-4 text-center">
+            <div className="text-[12px] text-ink-500">You're sending</div>
+            <div className="mt-1 text-[30px] font-bold tabular-nums text-red-600">−{credits.toLocaleString('en-US')}</div>
+            <div className="text-[11.5px] text-ink-500">credits</div>
+          </div>
+          <Recipient />
+          <dl className="space-y-1.5 text-[12.5px]">
+            {[
+              ['Balance after', `${(have - credits).toLocaleString('en-US')} credits`],
+              note && ['Note', note],
+            ]
+              .filter(Boolean)
+              .map(([k, v]) => (
+                <div key={k} className="flex justify-between gap-3">
+                  <dt className="text-ink-500">{k}</dt>
+                  <dd className="truncate font-semibold text-ink-900">{v}</dd>
+                </div>
+              ))}
+          </dl>
+          <p className="text-[11.5px] text-ink-500">Transfers can’t be undone. Credits received are used like your own and end with the month.</p>
+          {err && <p className="text-[12px] text-red-600">{err}</p>}
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setStep('amount')} className="btn-outline h-10 flex-1 rounded-xl">
+              Back
+            </button>
+            <button type="button" disabled={busy} onClick={send} className="btn-primary h-10 flex-1 rounded-xl disabled:opacity-50">
+              {busy ? 'Sending…' : `Send ${credits.toLocaleString('en-US')} credits`}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {step === 'done' && receipt && (
+        <div className="mt-4 space-y-3 text-center">
+          <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-emerald-50 text-emerald-600">
+            <FiCheck size={22} />
+          </span>
+          <div>
+            <div className="text-[15px] font-bold text-ink-900">Transfer complete</div>
+            <div className="text-[12px] text-ink-500">
+              {new Date(receipt.at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+            </div>
+          </div>
+          <div className="text-[26px] font-bold tabular-nums text-ink-900">{receipt.sent.toLocaleString('en-US')} credits</div>
+          <div className="text-left">
+            <Recipient />
+          </div>
+          <button type="button" onClick={onClose} className="btn-primary h-10 w-full rounded-xl">
+            Done
+          </button>
+        </div>
+      )}
+    </section>
+  )
 }
 
 // White on the accent-coloured balance card — fixed, not the theme's "white"
@@ -1215,6 +1419,8 @@ function groupByDay(rows) {
 
 function BillingTab() {
   const { user } = useAuth()
+  const [transferOpen, setTransferOpen] = useState(false)
+  const [copied, setCopied] = useState(false)
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
 
@@ -1347,9 +1553,41 @@ function BillingTab() {
             <div className="text-[14px] font-bold text-white">{reset}</div>
           </div>
         </div>
+        {/* the account's number (to receive credits) and Transfer */}
+        <div className="relative mt-4 flex items-center gap-2 border-t pt-3" style={{ borderColor: 'rgba(255, 255, 255, 0.2)' }}>
+          <div className="min-w-0 flex-1 text-[11px] text-white/75">
+            Account ID
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard?.writeText(data.account_no || '')
+                setCopied(true)
+                setTimeout(() => setCopied(false), 1500)
+              }}
+              className="flex items-center gap-1.5 text-[14px] font-bold tabular-nums tracking-wide text-white"
+              title="Copy"
+            >
+              {fmtAccount(data.account_no)}
+              {copied ? <FiCheck size={12} /> : <FiCopy size={12} className="opacity-70" />}
+            </button>
+          </div>
+          {canManage && (
+            <button
+              type="button"
+              onClick={() => setTransferOpen(true)}
+              className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[12.5px] font-bold text-white ring-1 ring-inset ring-white/40 hover:opacity-90"
+              style={ON_CARD(0.18)}
+            >
+              <FiSend size={13} /> Transfer
+            </button>
+          )}
+        </div>
       </section>
       {data.pending > 0 && (
         <p className="-mt-5 text-[12px] text-ink-500">{fmtCredits(data.pending)} are held for renders in progress.</p>
+      )}
+      {transferOpen && (
+        <TransferPanel available={data.available_credits ?? 0} onClose={() => setTransferOpen(false)} onSent={load} />
       )}
 
       {/* by type — three small cards */}
@@ -1462,7 +1700,11 @@ function BillingTab() {
                         .filter(Boolean)
                         .join(' · ')
                       const snippet = activitySnippet(e)
-                      const { icon: Icon, tone } = added ? ACTIVITY_ICON.added : ACTIVITY_ICON[e.kind] || ACTIVITY_ICON.text
+                      const { icon: Icon, tone } = e.kind?.startsWith('transfer')
+                        ? ACTIVITY_ICON[e.kind]
+                        : added
+                          ? ACTIVITY_ICON.added
+                          : ACTIVITY_ICON[e.kind] || ACTIVITY_ICON.text
                       return (
                         <div key={e.id} className="flex items-center gap-3 px-4 py-3">
                           <span className={`relative grid h-10 w-10 flex-none place-items-center rounded-full ${tone}`}>

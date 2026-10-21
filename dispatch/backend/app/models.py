@@ -65,6 +65,9 @@ class Workspace(Base, TimestampMixin):
     # Settings → Billing → "Clear older history": activity before this is hidden
     # from the workspace (the ledger rows stay, for the admin portal).
     activity_hidden_before: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Billing → Transfer credits: the account's number, like a bank account's —
+    # 10 random digits (not the id, so numbers can't be guessed in order).
+    account_no: Mapped[str | None] = mapped_column(String(10), nullable=True, unique=True)
     # Suspended by the platform admin (/admin-mkt, app/admin.py): nobody in it
     # can sign in or use the app, and no AI is charged to it. Null = active.
     suspended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -124,7 +127,7 @@ class CreditEntry(Base):
     user_id: Mapped[int | None] = mapped_column(
         ForeignKey("team_members.id", ondelete="SET NULL"), nullable=True
     )
-    # "text" | "image" | "video" | "grant"
+    # "text" | "image" | "video" | "grant" | "monthly" | "transfer_in" | "transfer_out"
     kind: Mapped[str] = mapped_column(String(12))
     amount_usd: Mapped[float] = mapped_column(Numeric(12, 6))
     model: Mapped[str] = mapped_column(String(80), default="", server_default="")
