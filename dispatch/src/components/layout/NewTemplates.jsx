@@ -42,17 +42,19 @@ function Sparkles() {
   ))
 }
 
+// The template's whole frame, tall like the videos themselves (9:16, as the
+// preview pictures are) — never a crop of it.
 function Preview({ t }) {
   const [broken, setBroken] = useState(false)
   return (
-    <div className="relative aspect-[16/10] overflow-hidden rounded-2xl bg-brand-soft">
-      {!broken && <img src={previewSrc(t.id)} alt="" onError={() => setBroken(true)} className="absolute inset-0 h-full w-full object-cover object-[50%_28%]" />}
+    <div className="relative aspect-[9/16] w-[148px] flex-none overflow-hidden rounded-2xl bg-night-950 shadow-lg ring-1 ring-ink-200 sm:w-[210px]">
+      {!broken && <img src={previewSrc(t.id)} alt="" onError={() => setBroken(true)} className="absolute inset-0 h-full w-full object-cover" />}
       {broken && (
-        <div className="absolute inset-0 grid place-items-center text-brand">
+        <div className="absolute inset-0 grid place-items-center bg-brand-soft text-brand">
           <FiFilm size={42} />
         </div>
       )}
-      <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-brand px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow-sm">
+      <span className="absolute left-2.5 top-2.5 inline-flex items-center gap-1 rounded-full bg-brand px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow-sm">
         <FiZap size={11} /> New
       </span>
     </div>
@@ -105,41 +107,46 @@ export default function NewTemplates() {
   return createPortal(
     <div className="fixed inset-0 z-[160] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-night-950/60" onClick={close} />
-      <div className="cf-pop-in relative w-full max-w-[440px]">
+      <div className="cf-pop-in relative w-full max-w-[640px]">
         <Sparkles />
-        <div className="relative overflow-hidden rounded-3xl bg-white p-5 shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="new-template-title">
-        <button type="button" onClick={close} className="absolute right-3 top-3 z-10 grid h-8 w-8 place-items-center rounded-full bg-white/90 text-ink-500 shadow-sm hover:text-ink-900" aria-label="Close">
-          <FiX size={16} />
-        </button>
-        <Preview key={t.id} t={t} />
-        <div className="mt-4 text-[12px] font-semibold uppercase tracking-wide text-brand">{many ? `${list.length} new templates` : 'New template'}</div>
-        <h2 id="new-template-title" className="mt-0.5 text-[22px] font-bold leading-tight tracking-tight text-ink-900">
-          {t.name}
-        </h2>
-        <p className="mt-2 text-[13.5px] leading-relaxed text-ink-600">{t.look}</p>
-        {t.steps?.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {t.steps.slice(0, 4).map((s) => (
-              <span key={s} className="rounded-full bg-ink-100 px-2.5 py-1 text-[11.5px] font-medium text-ink-600">
-                {s}
-              </span>
-            ))}
-          </div>
-        )}
-        <div className="mt-5 flex gap-2">
-          <button type="button" onClick={tryIt} className="btn-primary h-11 flex-1 rounded-xl text-[13.5px]">
-            Try it out <FiArrowRight size={15} />
+        <div className="relative max-h-[calc(100vh-2rem)] overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl sm:p-6" role="dialog" aria-modal="true" aria-labelledby="new-template-title">
+          <button type="button" onClick={close} className="absolute right-3 top-3 z-10 grid h-8 w-8 place-items-center rounded-full bg-ink-100 text-ink-500 hover:text-ink-900" aria-label="Close">
+            <FiX size={16} />
           </button>
-          {many && at < list.length - 1 ? (
-            <button type="button" onClick={() => setAt(at + 1)} className="btn-outline h-11 rounded-xl px-5 text-[13.5px]">
-              Next ({at + 1}/{list.length})
-            </button>
-          ) : (
-            <button type="button" onClick={close} className="btn-outline h-11 rounded-xl px-5 text-[13.5px]">
-              Later
-            </button>
-          )}
-        </div>
+          {/* the picture beside the words on a computer, above them on a phone */}
+          <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center sm:gap-6">
+            <Preview key={t.id} t={t} />
+            <div className="min-w-0 flex-1 self-stretch sm:self-center">
+              <div className="text-[12px] font-semibold uppercase tracking-wide text-brand">{many ? `${list.length} new templates` : 'New template'}</div>
+              <h2 id="new-template-title" className="mt-0.5 pr-8 text-[22px] font-bold leading-tight tracking-tight text-ink-900">
+                {t.name}
+              </h2>
+              <p className="mt-2 text-[13.5px] leading-relaxed text-ink-600">{t.look}</p>
+              {t.steps?.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {t.steps.slice(0, 4).map((s) => (
+                    <span key={s} className="rounded-full bg-ink-100 px-2.5 py-1 text-[11.5px] font-medium text-ink-600">
+                      {s}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div className="mt-5 flex gap-2">
+                <button type="button" onClick={tryIt} className="btn-primary h-11 flex-1 rounded-xl text-[13.5px]">
+                  Try it out <FiArrowRight size={15} />
+                </button>
+                {many && at < list.length - 1 ? (
+                  <button type="button" onClick={() => setAt(at + 1)} className="btn-outline h-11 rounded-xl px-5 text-[13.5px]">
+                    Next ({at + 1}/{list.length})
+                  </button>
+                ) : (
+                  <button type="button" onClick={close} className="btn-outline h-11 rounded-xl px-5 text-[13.5px]">
+                    Later
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>,

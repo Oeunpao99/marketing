@@ -1,0 +1,77 @@
+{
+ "brand": {
+  "name": "Sokha Coffee",
+  "color": "#E5452F",
+  "slug": "sokha-coffee"
+ },
+ "style": "spotlight",
+ "frame": 100,
+ "scenes": [
+  {
+   "type": "offer",
+   "plan": "Iced Latte",
+   "price": "$2.50",
+   "period": "",
+   "was": "$3.50",
+   "badge": "Launch offer",
+   "features": [
+    "Fresh beans",
+    "Free delivery",
+    "Any size"
+   ],
+   "image": "ours/spotlight-product.jpg",
+   "seconds": 4.4
+  }
+ ],
+ "clip": [
+  {
+   "type": "hook",
+   "text": "កាហ្វេទឹកកក ⟦ថ្មី⟧ ឆ្ងាញ់ជាងមុន!",
+   "icon": "Coffee",
+   "image": "ours/spotlight-product.jpg",
+   "seconds": 3.4
+  },
+  {
+   "type": "list",
+   "title": "ហេតុអ្វីពិសេស",
+   "items": [
+    {
+     "icon": "Coffee",
+     "text": "កាហ្វេស្រស់ពីចម្ការ"
+    },
+    {
+     "icon": "Snowflake",
+     "text": "ទឹកកកត្រជាក់"
+    },
+    {
+     "icon": "Truck",
+     "text": "ដឹកជញ្ជូនឥតគិតថ្លៃ"
+    }
+   ],
+   "image": "ours/spotlight-product.jpg",
+   "seconds": 4
+  },
+  {
+   "type": "offer",
+   "plan": "Iced Latte",
+   "price": "$2.50",
+   "period": "",
+   "was": "$3.50",
+   "badge": "Launch offer",
+   "features": [
+    "Fresh beans",
+    "Free delivery",
+    "Any size"
+   ],
+   "image": "ours/spotlight-product.jpg",
+   "seconds": 4.4
+  },
+  {
+   "type": "cta",
+   "text": "កុម្ម៉ង់ ⟦ថ្ងៃនេះ⟧",
+   "button": "កុម្ម៉ង់ឥឡូវ",
+   "image": "ours/spotlight-product.jpg",
+   "seconds": 3.4
+  }
+ ]
+}
