@@ -149,6 +149,14 @@ class Settings(BaseSettings):
     youtube_client_secret: str = ""
     youtube_redirect_uri: str = ""
 
+    # "Continue with Google" on the login page (app/google_login.py). Empty →
+    # the YouTube client above is used, and the redirect is
+    # "<this backend>/api/auth/google/callback" (worked out from
+    # youtube_redirect_uri) — add that to the client's Authorized redirect URIs.
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    google_login_redirect_uri: str = ""
+
     # TikTok Content Posting API — "Connect" on the Channels page (app/tiktok.py).
     # Register an app at https://developers.tiktok.com, add it, and request the
     # `video.upload` + `video.list` scopes. tiktok_redirect_uri must exactly

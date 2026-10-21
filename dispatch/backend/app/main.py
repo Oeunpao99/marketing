@@ -9,6 +9,7 @@ from app import content_scheduler, scheduler, video
 from app.advisor import router as advisor_router
 from app.ai import router as ai_router
 from app.auth import router as auth_router
+from app.google_login import router as google_login_router
 from app import billing, sessions
 from app.brand_kit import router as brand_kit_router
 from app.brand_voice import router as brand_voice_router
@@ -136,6 +137,7 @@ for resource in REGISTRY:
     api.include_router(build_router(resource), dependencies=authed)
 
 api.include_router(auth_router)
+api.include_router(google_login_router)  # public: "Continue with Google" on the login page
 api.include_router(billing.router, dependencies=authed)
 api.include_router(sessions.router, dependencies=authed)
 api.include_router(ai_router, dependencies=authed)

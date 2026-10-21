@@ -278,13 +278,15 @@ def update_me(payload: ProfileIn, user: TeamMember = Depends(get_current_user), 
 
 
 class PasswordIn(BaseModel):
-    current_password: str
+    current_password: str = ""  # empty only for a Google-made account's first password
     new_password: str = Field(min_length=8, max_length=128)
 
 
 @router.post("/password", status_code=204)
 def change_password(payload: PasswordIn, user: TeamMember = Depends(get_current_user), db: Session = Depends(get_db)):
-    if not user.password_hash or not verify_password(payload.current_password, user.password_hash):
+    # accounts made with "Continue with Google" have no password yet — their
+    # first one needs no current password (they're signed in already)
+    if user.password_hash and not verify_password(payload.current_password, user.password_hash):
         raise HTTPException(400, "Your current password is wrong.")
     user.password_hash = hash_password(payload.new_password)
     db.commit()

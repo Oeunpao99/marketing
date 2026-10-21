@@ -4,6 +4,15 @@ import { applyPreferences } from './lib/theme'
 
 const AuthContext = createContext(null)
 
+// "Continue with Google" comes back to /#google_token=… (app/google_login.py —
+// in the fragment, so it never reaches a server log): keep the token, clean the
+// address bar, and the normal /auth/me load below signs the person in.
+const fromGoogle = /[#&]google_token=([^&]+)/.exec(window.location.hash)
+if (fromGoogle) {
+  tokenStore.set(decodeURIComponent(fromGoogle[1]))
+  window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search)
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
