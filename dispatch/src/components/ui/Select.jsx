@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { FiCheck, FiChevronDown, FiSearch } from 'react-icons/fi'
 
 // A dropdown in the app's own menu style (same look as the sidebar's brand
@@ -8,7 +9,9 @@ import { FiCheck, FiChevronDown, FiSearch } from 'react-icons/fi'
 // hint is a smaller second line, color draws a dot (e.g. a brand's colour),
 // icon is a small element shown before the label (e.g. an AI model's logo),
 // thumb a preview picture's url (e.g. a video template) — then every row gets
-// a picture (a ✦ tile when it has none) and its hint runs to two lines.
+// a picture (a ✦ tile when it has none) and its hint runs to two lines;
+// preview a short clip's url — hovering the row (with a mouse) shows it big in
+// a card beside the menu (PreviewCard), the thumb as its still.
 // Values keep their type: pass numbers in, get numbers back from onChange.
 // size: "sm" (h-8, compact toolbars) | "md" (default) | "lg" (h-10 forms).
 // align: which edge the menu lines up with when it's wider than the button.
@@ -238,6 +241,66 @@ export default function Select({
           </div>
         </div>
       )}
+      {open && shown[hover]?.preview && <PreviewCard option={shown[hover]} menu={menu} row={list.current?.children[hover]} />}
     </div>
+  )
+}
+
+/**
+ * The hovered option, big: a card floating beside the open menu (left of it,
+ * or right when there's no room on the left) with a speech-bubble tail
+ * pointing at the row — its clip playing, its name and hint under it. Only
+ * with a mouse (a phone has no hover). In a portal, so a transformed drawer
+ * around the menu can't clip or shift it.
+ */
+function PreviewCard({ option, menu, row }) {
+  const [box, setBox] = useState(null)
+  const [still, setStill] = useState(false) // the clip couldn't play: its picture instead
+  useLayoutEffect(() => {
+    setStill(false)
+    if (!menu.current || !row || !window.matchMedia?.('(hover: hover) and (pointer: fine)').matches) return setBox(null)
+    const m = menu.current.getBoundingClientRect()
+    const r = row.getBoundingClientRect()
+    const W = 230
+    const H = Math.round((W * 16) / 9) + 74 // the 9:16 clip + its name and hint
+    const gap = 14
+    const left = m.left - gap - W >= 8 ? m.left - gap - W : m.right + gap + W <= window.innerWidth - 8 ? m.right + gap : null
+    if (left == null) return setBox(null)
+    const mid = r.top + r.height / 2
+    const top = Math.max(8, Math.min(mid - H / 2, window.innerHeight - 8 - H))
+    setBox({ left, top, W, H, tail: Math.max(22, Math.min(H - 22, mid - top)), side: left < m.left ? 'right' : 'left' })
+  }, [option.value, row, menu])
+  if (!box) return null
+  const tail = {
+    position: 'absolute',
+    top: box.tail - 9,
+    [box.side]: -8,
+    width: 18,
+    height: 18,
+    transform: 'rotate(45deg)',
+    borderRadius: 3,
+    // only the half outside the card (the diamond's point towards the menu)
+    clipPath: box.side === 'right' ? 'polygon(0 0, 100% 0, 100% 100%)' : 'polygon(0 0, 0 100%, 100% 100%)',
+  }
+  return createPortal(
+    <div
+      className="pointer-events-none fixed z-[1000] animate-fadein rounded-2xl bg-white p-2 shadow-[0_18px_50px_rgba(15,23,42,0.28)] ring-1 ring-ink-200"
+      style={{ left: box.left, top: box.top, width: box.W }}
+      aria-hidden="true"
+    >
+      <div style={tail} className="bg-white ring-1 ring-ink-200" />
+      <div className="relative overflow-hidden rounded-xl bg-ink-100" style={{ aspectRatio: '9 / 16' }}>
+        {still || !option.preview ? (
+          <img src={option.thumb} alt="" className="h-full w-full object-cover object-top" />
+        ) : (
+          <video key={option.preview} src={option.preview} poster={option.thumb} autoPlay muted loop playsInline onError={() => setStill(true)} className="h-full w-full object-cover object-top" />
+        )}
+      </div>
+      <div className="px-1 pb-0.5 pt-2">
+        <div className="truncate text-[12.5px] font-semibold text-ink-900">{option.label ?? option.value}</div>
+        {option.hint && <div className="mt-0.5 line-clamp-2 text-[10.5px] leading-snug text-ink-500">{option.hint}</div>}
+      </div>
+    </div>,
+    document.body,
   )
 }

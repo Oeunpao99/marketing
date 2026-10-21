@@ -223,7 +223,7 @@ const MOTION_STORIES = [
 // as in Content studio → Templates) so people see what it looks like.
 const STORY_OPTIONS = MOTION_STORIES.map((o) => {
   const t = MOTION_TEMPLATES.find((x) => x.story === o.value)
-  return t ? { ...o, thumb: previewSrc(t.id) } : o
+  return t ? { ...o, thumb: previewSrc(t.id), preview: previewSrc(t.id, 'mp4') } : o // hover: the clip, big (Select PreviewCard)
 })
 
 export default function AIPromptPage({ embedded = false, preset = null }) {
