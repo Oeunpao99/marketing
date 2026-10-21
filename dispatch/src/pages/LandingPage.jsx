@@ -261,59 +261,78 @@ function Laptop() {
  * up unlocks them (every one opens the sign-up). */
 function LockedTemplates({ onStart }) {
   const t = useT()
-  const locked = MOTION_TEMPLATES.filter((t) => !SHOWCASE.includes(t.id))
-  const shown = locked.slice(0, 12)
+  const locked = MOTION_TEMPLATES.filter((x) => !SHOWCASE.includes(x.id))
+  const deck = locked.slice(0, 5)
+  const names = locked.slice(0, 8)
+  // the fan: each card's turn and offset, closed and (on hover) spread open
+  const fan = [
+    { r: -16, x: -118, open: -170 },
+    { r: -8, x: -58, open: -86 },
+    { r: 0, x: 0, open: 0 },
+    { r: 8, x: 58, open: 86 },
+    { r: 16, x: 118, open: 170 },
+  ]
   return (
-    <div className="mt-16 px-4 sm:px-6">
-      <div className="mx-auto max-w-6xl">
-      <div className="relative">
-        <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 sm:gap-4 lg:grid-cols-6">
-          {shown.map((tp, i) => (
-            <button
-              key={tp.id}
-              type="button"
-              onClick={onStart}
-              title={`${tp.name} — ${t('sign up to unlock', 'ចុះឈ្មោះដើម្បីដោះសោ')}`}
-              className={`group relative overflow-hidden rounded-2xl border border-ink-200 bg-white text-left shadow-card transition-transform hover:-translate-y-0.5 ${i >= 6 ? 'hidden sm:block' : ''}`}
-            >
-              <div className="relative aspect-[9/16] overflow-hidden">
-                <img src={previewSrc(tp.id)} alt="" loading="lazy" className="h-full w-full scale-105 object-cover opacity-70 blur-[3px] transition-all duration-300 group-hover:opacity-90 group-hover:blur-[1px]" />
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5 px-2">
-                  <span className="grid h-8 w-8 place-items-center rounded-full bg-night-950/75 text-white shadow-pop ring-1 ring-white/20">
-                    <FiKey size={13} />
-                  </span>
-                  {/* the button on the card itself — the whole card opens the sign-up */}
-                  <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-brand px-2 py-[3px] text-[9.5px] font-semibold tracking-tight text-white shadow-glow transition-transform group-hover:-translate-y-0.5">
-                    <span className="hidden lg:inline">{t('Get started to unlock', 'ចាប់ផ្តើមដើម្បីដោះសោ')}</span>
-                    <span className="lg:hidden">{t('Unlock', 'ដោះសោ')}</span>
-                  </span>
+    <div className="mt-14 px-4 sm:px-6">
+      {/* one banner: what's locked and how to open it, the deck beside it */}
+      <div className="group mx-auto grid max-w-6xl items-center gap-8 overflow-hidden rounded-3xl border border-ink-200 bg-white p-7 shadow-card sm:p-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <div>
+          <span className="inline-flex items-center gap-2 rounded-full bg-brand-soft px-3 py-1 text-[12px] font-bold text-brand">
+            <FiKey size={13} /> {t('Members only', 'សម្រាប់សមាជិក')}
+          </span>
+          <h3 className="mt-4 text-[26px] font-bold leading-tight text-ink-900 sm:text-[30px]">
+            {t(`${locked.length} more templates inside`, `គំរូ ${locked.length} ទៀត នៅខាងក្នុង`)}
+          </h3>
+          <p className="mt-2 text-[14.5px] leading-relaxed text-ink-500">
+            {t(
+              'Sign up free to use every template, the AI design, your logo and colours, and the Khmer voices.',
+              'ចុះឈ្មោះឥតគិតថ្លៃ ដើម្បីប្រើគ្រប់គំរូ ការរចនាដោយ AI ឡូហ្គោ និងពណ៌របស់បង និងសំឡេងខ្មែរ។',
+            )}
+          </p>
+          <div className="mt-5 flex flex-wrap gap-1.5">
+            {names.map((x) => (
+              <span key={x.id} className="rounded-full border border-ink-200 px-2.5 py-1 text-[12px] font-medium text-ink-600">
+                {x.name}
+              </span>
+            ))}
+            <span className="rounded-full bg-ink-900 px-2.5 py-1 text-[12px] font-semibold text-ink-50">
+              +{locked.length - names.length} {t('more', 'ទៀត')}
+            </span>
+          </div>
+          <button type="button" onClick={onStart} className="mt-7 inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-3 text-[14px] font-semibold text-white shadow-glow-lg transition-all hover:gap-3">
+            {t('Get started free', 'ចាប់ផ្តើមឥតគិតថ្លៃ')} <FiArrowRight />
+          </button>
+        </div>
+        {/* the deck */}
+        <button type="button" onClick={onStart} className="relative mx-auto h-[280px] w-full max-w-[460px] sm:h-[320px]" aria-label={t('Sign up to unlock the templates', 'ចុះឈ្មោះដើម្បីដោះសោគំរូ')}>
+          {deck.map((tp, i) => {
+            const f = fan[i]
+            const front = i === 2
+            return (
+              <div
+                key={tp.id}
+                className="absolute left-1/2 top-1/2 w-[132px] overflow-hidden rounded-2xl border border-ink-200 bg-white shadow-[0_18px_40px_-14px_rgba(15,23,42,0.35)] transition-transform duration-500 ease-out sm:w-[150px] [--x:var(--closed)] group-hover:[--x:var(--open)]"
+                style={{
+                  '--closed': `${f.x}px`,
+                  '--open': `${f.open}px`,
+                  zIndex: front ? 5 : 4 - Math.abs(i - 2),
+                  transform: `translate(calc(-50% + var(--x)), calc(-50% + ${Math.abs(f.r) * 1.1}px)) rotate(${f.r}deg)`,
+                }}
+              >
+                <div className="relative aspect-[9/16]">
+                  <img src={previewSrc(tp.id)} alt="" loading="lazy" className={`h-full w-full object-cover ${front ? 'blur-[2px]' : 'blur-[3px] opacity-80'}`} />
+                  {front && (
+                    <span className="absolute inset-0 grid place-items-center">
+                      <span className="grid h-11 w-11 place-items-center rounded-full bg-night-950/80 text-white ring-1 ring-white/25">
+                        <FiKey size={17} />
+                      </span>
+                    </span>
+                  )}
                 </div>
               </div>
-              <div className="truncate px-2.5 py-2 text-[12px] font-semibold text-ink-700">{tp.name}</div>
-            </button>
-          ))}
-        </div>
-        {/* what unlocks them — under the cards, so every card and its button stays clear */}
-        <div className="mt-8 flex justify-center">
-          <div className="flex max-w-xl flex-col items-center gap-3 rounded-2xl border border-ink-200 bg-white px-6 py-5 text-center shadow-pop">
-            <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand-soft text-brand">
-              <FiKey size={18} />
-            </span>
-            <div className="text-[16px] font-bold text-ink-900">
-              {t(`Get started to unlock ${locked.length} more templates`, `ចាប់ផ្តើមដើម្បីដោះសោគំរូ ${locked.length} ទៀត`)}
-            </div>
-            <p className="text-[13.5px] text-ink-500">
-              {t(
-                'Sign up free — every template, the AI design, your logo and colours, Khmer voices.',
-                'ចុះឈ្មោះឥតគិតថ្លៃ — គ្រប់គំរូ ការរចនាដោយ AI ឡូហ្គោ និងពណ៌របស់បង សំឡេងខ្មែរ។',
-              )}
-            </p>
-            <button type="button" onClick={onStart} className="inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-2.5 text-[14px] font-semibold text-white shadow-glow-lg transition-transform hover:-translate-y-0.5">
-              {t('Get started free', 'ចាប់ផ្តើមឥតគិតថ្លៃ')} <FiArrowRight />
-            </button>
-          </div>
-        </div>
-      </div>
+            )
+          })}
+        </button>
       </div>
     </div>
   )
@@ -1704,19 +1723,16 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
             )}
           </p>
         </div>
-        {/* the phones drift past in a loop (the list twice, moved by half), faded at both
-            edges — a strip cut off at the screen's edge looked like a mistake; still on hover
-            and for people who turn motion off */}
+        {/* the phones drift past in a loop (the list twice, moved by half), the full width
+            of the screen, edge to edge (no fade — the owner's choice); still on hover and for
+            people who turn motion off */}
         <style>{`
           @keyframes lp-drift { from { transform: translateX(0) } to { transform: translateX(-50%) } }
           .lp-drift { animation: lp-drift 60s linear infinite }
           .lp-strip:hover .lp-drift { animation-play-state: paused }
           @media (prefers-reduced-motion: reduce) { .lp-drift { animation: none } }
         `}</style>
-        <div
-          className="lp-strip mx-auto mt-14 max-w-6xl overflow-hidden pb-4"
-          style={{ maskImage: 'linear-gradient(90deg, transparent, black 8%, black 92%, transparent)', WebkitMaskImage: 'linear-gradient(90deg, transparent, black 8%, black 92%, transparent)' }}
-        >
+        <div className="lp-strip mt-14 w-full overflow-hidden pb-4">
           <div className="lp-drift flex w-max">
             {[0, 1].map((copy) =>
               SHOWCASE.filter((id) => byId[id]).map((id) => (
