@@ -2928,6 +2928,8 @@ def youtube_oauth_callback(code: str = "", state: str = "", error: str = "", db:
         params = {"youtube": "connected" if ok else "error"}
         if message:
             params["message"] = message[:200]
+        if not ok:  # the reason in the server log too — the page only flashes it
+            log.warning("youtube connect failed: %s", message)
         return RedirectResponse(f"{frontend}/channels?{urlencode(params)}")
 
     if error:
