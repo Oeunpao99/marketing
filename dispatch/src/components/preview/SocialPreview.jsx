@@ -258,8 +258,13 @@ function Media({ media, note, square = false, className = '' }) {
   if (media?.url) {
     // a file picked on this computer (blob:) or a full URL is used as it is
     const src = /^(https?:|blob:|data:)/i.test(media.url) ? media.url : kitSrc(media.url)
+    // media.autoPlay (the landing page's phones): plays by itself, silent, looping — no controls
     return media.kind === 'video' ? (
-      <video src={src} controls playsInline className={`block w-full bg-night-950 ${className}`} />
+      media.autoPlay ? (
+        <video src={src} autoPlay muted loop playsInline className={`block w-full bg-night-950 ${className}`} />
+      ) : (
+        <video src={src} controls playsInline className={`block w-full bg-night-950 ${className}`} />
+      )
     ) : (
       <img src={src} alt="" className={`block w-full object-cover ${square ? 'aspect-square' : ''} ${className}`} />
     )

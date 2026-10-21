@@ -473,13 +473,14 @@ function Feature({ eyebrow, title, khmer, text, points, visual, flip = false }) 
 // scaled down, side by side — and the one button that sends it to all of them.
 const LIVE_APPS = ['TikTok', 'Instagram', 'Facebook', 'LinkedIn', 'Telegram']
 const LIVE_SCALE = 0.56 // the previews are drawn at a real phone's size (360 × 702)
-const LIVE_CAPTION = 'ថ្ងៃក្តៅៗ ត្រូវការអ្វីស្រស់ៗ!\nIced Latte ថ្មី ពី Sokha Coffee — ផ្អែមល្មម ត្រជាក់ស្រួល។\n☕ $2.50 · ទិញ ២ ថែម ១ ដល់ថ្ងៃសុក្រ\n#SokhaCoffee #IcedLatte'
+const LIVE_CAPTION = 'AI ជួយអាជីវកម្មតូចបានយ៉ាងម៉េច? 🤖\nកល្យាណ ជំនួយការរបស់យើង ពន្យល់ជូនក្នុងមួយនាទី។\n✅ សរសេរការផុស ✅ ឆ្លើយសារ ✅ មើលលទ្ធផល\n#SmartMarketing #AI'
 
 function LiveEverywhere({ onStart }) {
   const t = useT()
-  const brand = { name: 'Sokha Coffee', slug: 'sokha-coffee', logo: null }
-  // a full URL: the previews resolve other paths against the media server
-  const media = typeof window === 'undefined' ? null : { kind: 'image', url: `${window.location.origin}/landing/latte.jpg` }
+  const brand = { name: 'Smart Marketing', slug: 'smart-marketing', logo: '/brand/logo-mark.png' }
+  // a real template video (the Presenter), playing by itself, silent; a full URL — the
+  // previews resolve other paths against the media server
+  const media = typeof window === 'undefined' ? null : { kind: 'video', url: `${window.location.origin}${previewSrc('presenter', 'mp4')}`, autoPlay: true }
   return (
     <section id="everywhere" className="scroll-mt-20 overflow-hidden px-4 py-20 sm:px-6 sm:py-28">
       <SectionTitle
@@ -505,14 +506,13 @@ function LiveEverywhere({ onStart }) {
         </button>
       </div>
 
-      {/* the five phones — the middle one a little forward */}
-      <div className="mx-auto mt-12 flex max-w-6xl items-end justify-center gap-3 sm:gap-5">
+      {/* the five phones, in one straight row */}
+      <div className="mx-auto mt-12 flex max-w-6xl items-start justify-center gap-3 sm:gap-5">
         {LIVE_APPS.map((app, i) => {
           const Post = RENDER[app]
-          const middle = i === 2
           return (
             <Reveal key={app} delay={i * 90} className={i === 0 || i === 4 ? 'hidden lg:block' : i === 1 || i === 3 ? 'hidden sm:block' : ''}>
-              <div className={`flex flex-col items-center ${middle ? '' : 'lg:translate-y-6'}`}>
+              <div className="flex flex-col items-center">
                 <div className="relative overflow-hidden" style={{ width: 360 * LIVE_SCALE, height: 702 * LIVE_SCALE }}>
                   <div className="absolute left-0 top-0 origin-top-left" style={{ width: 360, transform: `scale(${LIVE_SCALE})` }} aria-hidden="true">
                     <PhoneFrame app={app} brand={brand}>
