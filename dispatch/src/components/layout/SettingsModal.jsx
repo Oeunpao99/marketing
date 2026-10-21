@@ -1289,6 +1289,33 @@ function QrScanner({ onFound, onClose }) {
  * It holds a link (…/?transfer=<account ID>) — any phone camera opens it, and
  * the app starts a transfer to this account with the number filled in.
  */
+/**
+ * A small pop-up for Billing's money moments (Transfer, Receive, PIN), like a
+ * bank app: a phone-width card in the middle of the screen (phones too).
+ * Plain dim backdrop, solid panel, above Settings.
+ */
+function Sheet({ id, onClose, children }) {
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+  return createPortal(
+    <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-night-950/55" onClick={onClose} />
+      <section
+        id={id}
+        role="dialog"
+        aria-modal="true"
+        className="cf-pop-in relative max-h-[90vh] w-full max-w-[420px] overflow-y-auto overscroll-contain rounded-3xl bg-white p-5 shadow-2xl"
+      >
+        {children}
+      </section>
+    </div>,
+    document.body,
+  )
+}
+
 function ReceivePanel({ accountNo, onClose }) {
   const { user } = useAuth()
   const [svg, setSvg] = useState('')
@@ -1313,7 +1340,7 @@ function ReceivePanel({ accountNo, onClose }) {
     }
   }
   return (
-    <section className="rounded-3xl border border-ink-200 bg-white p-5">
+    <Sheet onClose={onClose}>
       <div className="flex items-center justify-between">
         <h3 className="flex items-center gap-2 text-[15px] font-bold text-ink-900">
           <FiGrid size={15} className="text-brand" /> Receive credits
@@ -1339,7 +1366,7 @@ function ReceivePanel({ accountNo, onClose }) {
           {copied ? 'Link copied' : navigator.share ? 'Share' : 'Copy link'}
         </button>
       </div>
-    </section>
+    </Sheet>
   )
 }
 
@@ -1348,12 +1375,141 @@ function ReceivePanel({ accountNo, onClose }) {
  * whose it is (name, owner, plan) → how many credits (+ a note) → review →
  * receipt. Calls GET /billing/account/{id} and POST /billing/transfer.
  */
-function TransferPanel({ available, initialNumber = '', onClose, onSent }) {
-  const [step, setStep] = useState('to') // to | amount | review | done
+/**
+ * A 6-digit PIN entry: six boxes (dots as you type) over one hidden number
+ * input, so the phone shows its number pad and paste works.
+ */
+/** A "Credits sent" line → what to send again: { to, credits, note } (note: "To X · 630 772 4735 — thanks"). */
+function sentAgain(e) {
+  const m = /^To .* · (\d{3} \d{3} \d{4})(?: — ([\s\S]*))?$/.exec(e.note || '')
+  if (!m) return null
+  return { to: m[1].replace(/ /g, ''), credits: Math.round(Math.abs(e.credits || 0)), note: m[2] || '' }
+}
+
+function PinField({ value, onChange, autoFocus = false, onDone }) {
+  const ref = useRef(null)
+  return (
+    <div className="relative mx-auto w-fit" onClick={() => ref.current?.focus()}>
+      <input
+        ref={ref}
+        autoFocus={autoFocus}
+        type="password"
+        inputMode="numeric"
+        autoComplete="off"
+        maxLength={6}
+        value={value}
+        onChange={(e) => {
+          const v = e.target.value.replace(/\D/g, '').slice(0, 6)
+          onChange(v)
+          if (v.length === 6) onDone?.(v)
+        }}
+        className="absolute inset-0 h-full w-full opacity-0"
+        aria-label="6-digit PIN"
+      />
+      <div className="pointer-events-none flex gap-2">
+        {Array.from({ length: 6 }, (_, i) => (
+          <span
+            key={i}
+            className={`grid h-12 w-10 place-items-center rounded-xl border-2 text-[20px] ${
+              i === value.length ? 'border-brand' : value.length > i ? 'border-ink-300' : 'border-ink-200'
+            } bg-white`}
+          >
+            {value.length > i ? <span className="h-2.5 w-2.5 rounded-full bg-ink-900" /> : null}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Set or change the transfer PIN: new PIN twice, confirmed with the account
+ * password (accounts without one — Google sign-in — confirm with the old PIN).
+ */
+function PinSetup({ info, onDone, onCancel }) {
+  const [pin, setPin] = useState('')
+  const [again, setAgain] = useState('')
+  const [password, setPassword] = useState('')
+  const [current, setCurrent] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const mismatch = again.length === 6 && pin !== again
+  const save = () => {
+    setBusy(true)
+    setErr('')
+    api
+      .post('/billing/pin', { pin, password, current_pin: current })
+      .then(onDone)
+      .catch((e) => setErr(e.message))
+      .finally(() => setBusy(false))
+  }
+  return (
+    <div className="mt-4 space-y-4">
+      <div className="flex items-start gap-3 rounded-2xl bg-brand-soft p-3 text-[12.5px] text-ink-700">
+        <FiLock size={16} className="mt-0.5 flex-none text-brand" />
+        <span>
+          {info?.set ? 'Choose a new 6-digit PIN.' : 'To keep your credits safe, set a 6-digit PIN.'} You’ll enter it every time you send credits.
+        </span>
+      </div>
+      <div className="space-y-1.5 text-center">
+        <div className="text-[12px] font-semibold text-ink-700">New PIN</div>
+        <PinField value={pin} onChange={setPin} autoFocus />
+      </div>
+      <div className="space-y-1.5 text-center">
+        <div className="text-[12px] font-semibold text-ink-700">Type it again</div>
+        <PinField value={again} onChange={setAgain} />
+        {mismatch && <p className="text-[12px] text-red-600">The two PINs don’t match.</p>}
+      </div>
+      {info?.needs_password ? (
+        <label className="block text-[12px] font-semibold text-ink-700">
+          Your account password
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="input mt-1.5" autoComplete="current-password" />
+        </label>
+      ) : info?.set ? (
+        <div className="space-y-1.5 text-center">
+          <div className="text-[12px] font-semibold text-ink-700">Current PIN</div>
+          <PinField value={current} onChange={setCurrent} />
+        </div>
+      ) : null}
+      {err && <p className="text-[12px] text-red-600">{err}</p>}
+      <div className="flex gap-2">
+        {onCancel && (
+          <button type="button" onClick={onCancel} className="btn-outline h-10 flex-1 rounded-xl">
+            Cancel
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={save}
+          disabled={busy || pin.length !== 6 || pin !== again || (info?.needs_password ? !password : info?.set && current.length !== 6)}
+          className="btn-primary h-10 flex-1 rounded-xl disabled:opacity-40"
+        >
+          {busy ? 'Saving…' : 'Save PIN'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function TransferPanel({ available, initialNumber = '', initialCredits = 0, initialNote = '', onClose, onSent }) {
+  const [step, setStep] = useState('to') // setpin | to | amount | review | pin | sending | done
   const [number, setNumber] = useState(initialNumber)
   const [who, setWho] = useState(null)
-  const [amount, setAmount] = useState('')
-  const [note, setNote] = useState('')
+  const [amount, setAmount] = useState(initialCredits ? String(initialCredits) : '')
+  const [note, setNote] = useState(initialNote)
+  const [pinInfo, setPinInfo] = useState(null) // { set, needs_password }
+  const [pin, setPin] = useState('')
+  const [afterPin, setAfterPin] = useState('to') // where setting the PIN returns to
+  // no PIN yet → set it up first
+  useEffect(() => {
+    api
+      .get('/billing/pin')
+      .then((p) => {
+        setPinInfo(p)
+        if (!p.set) setStep('setpin')
+      })
+      .catch(() => {})
+  }, [])
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [receipt, setReceipt] = useState(null)
@@ -1385,12 +1541,12 @@ function TransferPanel({ available, initialNumber = '', onClose, onSent }) {
 
   // "Sending…" plays for at least a moment (a transfer that flashes by feels
   // unreal), then the receipt pops up over everything
-  const send = () => {
+  const send = (code = pin) => {
     setBusy(true)
     setErr('')
     setStep('sending')
     const minWait = new Promise((r) => setTimeout(r, 1400))
-    Promise.all([api.post('/billing/transfer', { to: digits, credits, note }), minWait])
+    Promise.all([api.post('/billing/transfer', { to: digits, credits, note, pin: code }), minWait])
       .then(([r]) => {
         setReceipt(r)
         setStep('done')
@@ -1398,7 +1554,12 @@ function TransferPanel({ available, initialNumber = '', onClose, onSent }) {
       })
       .catch((e) => {
         setErr(e.message)
-        setStep('review')
+        setPin('')
+        // wrong / locked PIN → ask again; no PIN → set one; anything else → review
+        if (e.status === 428) {
+          setAfterPin('review')
+          setStep('setpin')
+        } else setStep(e.status === 403 || e.status === 423 ? 'pin' : 'review')
       })
       .finally(() => setBusy(false))
   }
@@ -1420,15 +1581,58 @@ function TransferPanel({ available, initialNumber = '', onClose, onSent }) {
     ) : null
 
   return (
-    <section className="rounded-3xl border border-ink-200 bg-white p-5">
+    <Sheet id="cf-transfer" onClose={onClose}>
       <div className="flex items-center justify-between">
         <h3 className="flex items-center gap-2 text-[15px] font-bold text-ink-900">
-          <FiSend size={15} className="text-brand" /> Transfer credits
+          {step === 'setpin' ? <FiLock size={15} className="text-brand" /> : <FiSend size={15} className="text-brand" />}
+          {step === 'setpin' ? (pinInfo?.set ? 'Change transfer PIN' : 'Set up transfer PIN') : 'Transfer credits'}
         </h3>
-        <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-ink-400 hover:bg-ink-100 hover:text-ink-800" aria-label="Close">
-          <FiX size={15} />
-        </button>
+        <div className="flex items-center gap-1">
+          {pinInfo?.set && (step === 'to' || step === 'amount') && (
+            <button
+              type="button"
+              onClick={() => {
+                setAfterPin(step)
+                setStep('setpin')
+              }}
+              className="rounded-lg px-2 py-1 text-[11.5px] font-semibold text-ink-500 hover:bg-ink-100 hover:text-ink-800"
+            >
+              Change PIN
+            </button>
+          )}
+          <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-ink-400 hover:bg-ink-100 hover:text-ink-800" aria-label="Close">
+            <FiX size={15} />
+          </button>
+        </div>
       </div>
+
+      {step === 'setpin' && (
+        <PinSetup
+          info={pinInfo}
+          onDone={() => {
+            setPinInfo((p) => ({ ...p, set: true }))
+            setErr('')
+            setStep(afterPin)
+          }}
+          onCancel={pinInfo?.set ? () => setStep(afterPin) : onClose}
+        />
+      )}
+
+      {step === 'pin' && (
+        <div className="mt-4 space-y-4 text-center">
+          <div>
+            <div className="text-[14px] font-bold text-ink-900">Enter your transfer PIN</div>
+            <div className="text-[12px] text-ink-500">
+              to send {credits.toLocaleString('en-US')} credits to {who?.name}
+            </div>
+          </div>
+          <PinField value={pin} onChange={setPin} autoFocus onDone={(v) => send(v)} />
+          {err && <p className="text-[12px] text-red-600">{err}</p>}
+          <button type="button" onClick={() => setStep('review')} className="btn-outline h-10 w-full rounded-xl">
+            Back
+          </button>
+        </div>
+      )}
 
       {step === 'to' && scanning && (
         <div className="mt-4">
@@ -1536,8 +1740,17 @@ function TransferPanel({ available, initialNumber = '', onClose, onSent }) {
             <button type="button" onClick={() => setStep('amount')} className="btn-outline h-10 flex-1 rounded-xl">
               Back
             </button>
-            <button type="button" disabled={busy} onClick={send} className="btn-primary h-10 flex-1 rounded-xl disabled:opacity-50">
-              {busy ? 'Sending…' : `Send ${credits.toLocaleString('en-US')} credits`}
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setErr('')
+                setPin('')
+                setStep('pin')
+              }}
+              className="btn-primary h-10 flex-1 rounded-xl disabled:opacity-50"
+            >
+              <FiLock size={13} /> Send {credits.toLocaleString('en-US')} credits
             </button>
           </div>
         </div>
@@ -1558,7 +1771,7 @@ function TransferPanel({ available, initialNumber = '', onClose, onSent }) {
           onClose={onClose}
         />
       )}
-    </section>
+    </Sheet>
   )
 }
 
@@ -1594,6 +1807,13 @@ function BillingTab() {
   })
   const [transferOpen, setTransferOpen] = useState(!!scannedTo)
   const [receiveOpen, setReceiveOpen] = useState(false)
+  // "Send again" from a Credits sent line: { to, credits, note } fills Transfer in
+  const [repeat, setRepeat] = useState(null)
+  const repeatTransfer = (r) => {
+    setRepeat({ ...r, key: Date.now() })
+    setReceiveOpen(false)
+    setTransferOpen(true)
+  }
   const [copied, setCopied] = useState(false)
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
@@ -1779,7 +1999,18 @@ function BillingTab() {
         <p className="-mt-5 text-[12px] text-ink-500">{fmtCredits(data.pending)} are held for renders in progress.</p>
       )}
       {transferOpen && (
-        <TransferPanel available={data.available_credits ?? 0} initialNumber={scannedTo} onClose={() => setTransferOpen(false)} onSent={load} />
+        <TransferPanel
+          key={repeat?.key || 'new'}
+          available={data.available_credits ?? 0}
+          initialNumber={repeat?.to || scannedTo}
+          initialCredits={repeat?.credits || 0}
+          initialNote={repeat?.note || ''}
+          onClose={() => {
+            setTransferOpen(false)
+            setRepeat(null)
+          }}
+          onSent={load}
+        />
       )}
       {receiveOpen && <ReceivePanel accountNo={data.account_no} onClose={() => setReceiveOpen(false)} />}
 
@@ -1898,8 +2129,20 @@ function BillingTab() {
                         : added
                           ? ACTIVITY_ICON.added
                           : ACTIVITY_ICON[e.kind] || ACTIVITY_ICON.text
+                      // credits sent → tap the line to send the same again
+                      const again = canManage && e.kind === 'transfer_out' ? sentAgain(e) : null
                       return (
-                        <div key={e.id} className="flex items-center gap-3 px-4 py-3">
+                        <div
+                          key={e.id}
+                          className={`flex items-center gap-3 px-4 py-3 ${again ? 'cursor-pointer transition-colors hover:bg-canvas' : ''}`}
+                          {...(again && {
+                            role: 'button',
+                            tabIndex: 0,
+                            title: 'Send again',
+                            onClick: () => repeatTransfer(again),
+                            onKeyDown: (ev) => ev.key === 'Enter' && repeatTransfer(again),
+                          })}
+                        >
                           <span className={`relative grid h-10 w-10 flex-none place-items-center rounded-full ${tone}`}>
                             <Icon size={16} />
                             {/* the direction, like a bank app: in ↙ green, out ↗ red */}
@@ -1917,7 +2160,13 @@ function BillingTab() {
                               {added ? '+' : '−'}
                               {fmtCredits(Math.abs(e.amount), false)}
                             </div>
-                            <div className="text-[10.5px] text-ink-400">credits</div>
+                            {again ? (
+                              <div className="flex items-center justify-end gap-1 text-[10.5px] font-semibold text-brand">
+                                <FiRefreshCw size={10} /> Send again
+                              </div>
+                            ) : (
+                              <div className="text-[10.5px] text-ink-400">credits</div>
+                            )}
                           </div>
                         </div>
                       )

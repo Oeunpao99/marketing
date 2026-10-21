@@ -37,6 +37,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.database import SessionLocal, get_db
 from app.models import Brand, CreditEntry, GenerationJob, TeamMember, Workspace
+from app.security import hash_password, verify_password
 from app.tenancy import current_workspace_id, get_current_user, require_manager
 
 log = logging.getLogger("app.billing")
@@ -617,6 +618,72 @@ def clear_old_activity(db: Session = Depends(get_db), user: TeamMember = Depends
 # the other account's number, see whose it is, send. The sender gets a
 # "transfer_out" line, the receiver a "transfer_in" line, in one transaction.
 MIN_TRANSFER = 10  # credits
+PIN_TRIES = 5  # wrong PINs in a row before transfers lock…
+PIN_LOCK = timedelta(minutes=15)  # …for this long
+_PIN = re.compile(r"^\d{6}$")
+
+
+def _pin_ok_shape(pin: str) -> str:
+    """A new PIN: 6 digits, not 111111 / 123456 / 654321 — or the reason it isn't."""
+    if not _PIN.match(pin):
+        return "The PIN is 6 digits."
+    if len(set(pin)) == 1 or pin in "0123456789" or pin in "9876543210":
+        return "Pick a PIN that's harder to guess (not 111111 or 123456)."
+    return ""
+
+
+def _check_pin(db: Session, member_id: int, pin: str) -> None:
+    """Every transfer: the sender's PIN must match. Wrong ones count; the 5th
+    in a row locks transfers for 15 minutes. Raises the friendly reason."""
+    m = db.scalar(select(TeamMember).where(TeamMember.id == member_id).with_for_update())
+    if m is None or not m.transfer_pin_hash:
+        raise HTTPException(428, "Set up your transfer PIN first.")
+    now = datetime.now(UTC)
+    if m.transfer_pin_locked_until and m.transfer_pin_locked_until > now:
+        mins = max(1, int((m.transfer_pin_locked_until - now).total_seconds() // 60) + 1)
+        raise HTTPException(423, f"Too many wrong PINs — transfers are locked for {mins} more minute{'s' if mins != 1 else ''}.")
+    if not verify_password(pin, m.transfer_pin_hash):
+        m.transfer_pin_fails = (m.transfer_pin_fails or 0) + 1
+        left = PIN_TRIES - m.transfer_pin_fails
+        if left <= 0:
+            m.transfer_pin_fails = 0
+            m.transfer_pin_locked_until = now + PIN_LOCK
+            db.commit()
+            log.warning("transfer PIN locked for member %s", member_id)
+            raise HTTPException(423, "Too many wrong PINs — transfers are locked for 15 minutes.")
+        db.commit()
+        raise HTTPException(403, f"Wrong PIN — {left} tr{'ies' if left != 1 else 'y'} left.")
+    if m.transfer_pin_fails or m.transfer_pin_locked_until:
+        m.transfer_pin_fails, m.transfer_pin_locked_until = 0, None
+        db.commit()
+
+
+@router.get("/pin")
+def pin_status(db: Session = Depends(get_db), user: TeamMember = Depends(get_current_user)):
+    """Is my transfer PIN set? And does changing it need my password (accounts
+    that sign in with Google have none — they confirm with the current PIN)."""
+    m = db.get(TeamMember, user.id)
+    return {"set": bool(m.transfer_pin_hash), "needs_password": bool(m.password_hash)}
+
+
+@router.post("/pin")
+def set_pin(body: dict, db: Session = Depends(get_db), user: TeamMember = Depends(require_manager)):
+    """Set or change the transfer PIN: {"pin": "482913", "password": "…"} —
+    confirmed with the account password (or, without one, the current PIN)."""
+    m = db.scalar(select(TeamMember).where(TeamMember.id == user.id).with_for_update())
+    pin = str(body.get("pin") or "")
+    if why := _pin_ok_shape(pin):
+        raise HTTPException(422, why)
+    if m.password_hash:
+        if not verify_password(str(body.get("password") or ""), m.password_hash):
+            raise HTTPException(403, "That password isn't right.")
+    elif m.transfer_pin_hash:
+        _check_pin(db, m.id, str(body.get("current_pin") or ""))
+    m.transfer_pin_hash = hash_password(pin)
+    m.transfer_pin_fails, m.transfer_pin_locked_until = 0, None
+    db.commit()
+    log.info("transfer PIN set for member %s", m.id)
+    return {"set": True}
 _NO = re.compile(r"\D")
 
 
@@ -687,6 +754,7 @@ def transfer_credits(
     if credits < MIN_TRANSFER:
         raise HTTPException(422, f"Send at least {MIN_TRANSFER} credits.")
     to = _recipient(db, ws, str(body.get("to") or ""))
+    _check_pin(db, user.id, str(body.get("pin") or ""))
     # one transfer at a time per sender, so two clicks can't overspend
     me = db.scalar(select(Workspace).where(Workspace.id == ws).with_for_update())
     if me.suspended_at:

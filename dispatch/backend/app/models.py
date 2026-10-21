@@ -797,6 +797,11 @@ class TeamMember(Base, TimestampMixin):
     )
     # Auth: this table doubles as the login principal.
     password_hash: Mapped[str] = mapped_column(String(255), default="", server_default="")
+    # Billing → Transfer credits: the person's 6-digit security PIN (hashed like
+    # a password), asked for on every transfer; 5 wrong tries lock it a while.
+    transfer_pin_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    transfer_pin_fails: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    transfer_pin_locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     is_active: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default="true", nullable=False
     )
