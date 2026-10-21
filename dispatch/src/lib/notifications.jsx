@@ -2,13 +2,15 @@
 // Topbar / Sidebar counts, filtered by Settings → Notifications. (Phone and
 // desktop pop-ups are server-sent Web Push — see lib/push.js, app/push.py.)
 import { useEffect, useMemo } from 'react'
-import { FiAlertTriangle, FiCheckCircle, FiInbox } from 'react-icons/fi'
+import { FiAlertTriangle, FiCheckCircle, FiGift, FiInbox } from 'react-icons/fi'
 import { useAuth } from '../auth'
 import { PLAT } from '../data/brands'
 import { useStore } from '../store'
+import { useCredits } from './credits'
 import PlatformIcon from '../components/ui/PlatformIcon'
 
 export const NOTIFY_KINDS = [
+  { id: 'credits', label: 'Monthly AI credits are ready', desc: 'Once a month, when your new credits can be claimed.' },
   { id: 'review', label: 'Ideas waiting for review', desc: 'New AI-written ideas that need your approval.' },
   { id: 'failed', label: 'A post failed to publish', desc: 'So you can fix it and send it again.' },
   { id: 'channel', label: 'A channel needs reconnecting', desc: 'Its login is about to expire.' },
@@ -18,7 +20,7 @@ export const NOTIFY_KINDS = [
 ]
 
 export function notifyPrefs(user) {
-  return { review: true, failed: true, channel: true, published: true, generated: true, website: true, ...(user?.preferences?.notify || {}) }
+  return { credits: true, review: true, failed: true, channel: true, published: true, generated: true, website: true, ...(user?.preferences?.notify || {}) }
 }
 
 export function useNotifications() {
@@ -26,9 +28,25 @@ export function useNotifications() {
   const { user } = useAuth()
   const prefs = notifyPrefs(user)
   const key = JSON.stringify(prefs)
+  const { credits } = useCredits()
+  const claimable = credits?.claim_available ? credits.monthly_credits : 0
 
   return useMemo(() => {
     const out = []
+    // this month's credits wait to be claimed — first, with its own Claim button (Notifications.jsx)
+    if (claimable && prefs.credits) {
+      out.push({
+        id: 'credits-claim',
+        kind: 'credits',
+        icon: <FiGift size={14} className="text-brand" />,
+        tag: 'Monthly credits',
+        dot: 'bg-brand',
+        title: 'Your monthly AI credits are ready',
+        body: `${claimable.toLocaleString('en-US')} credits for this month — claim them to keep using AI`,
+        action: 'claim',
+        urgent: true,
+      })
+    }
     if (prefs.failed) {
       ;(queue || []).forEach((p, index) => {
         if (p.st !== 'failed') return
@@ -96,7 +114,7 @@ export function useNotifications() {
     const items = out.slice(0, 12)
     return { items, count: out.filter((i) => i.urgent).length }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [review, queue, channels, key])
+  }, [review, queue, channels, key, claimable])
 }
 
 /** Keeps the installed app's icon badge equal to the bell's count while the

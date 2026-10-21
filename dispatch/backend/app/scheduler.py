@@ -11,6 +11,7 @@ the worker as a separate process hitting ``POST /api/views/publish-due``).
 from __future__ import annotations
 
 import asyncio
+import time
 import logging
 
 from app.config import get_settings
@@ -29,9 +30,26 @@ def _tick() -> dict:
         db.close()
 
 
+CLAIM_CHECK_S = 600  # how often the monthly "claim your credits" reminder is checked
+
+
 async def _run(interval: int) -> None:
     log.info("delivery worker started (every %ss)", interval)
+    last_claim_check = 0.0
     while True:
+        try:
+            # once a month per workspace: "your monthly credits are ready" (app/billing.py)
+            if time.monotonic() - last_claim_check >= CLAIM_CHECK_S:
+                last_claim_check = time.monotonic()
+                from app import billing
+
+                reminded = await asyncio.to_thread(billing.remind_claims)
+                if reminded:
+                    log.info("monthly credits: reminded %d workspace(s) to claim", reminded)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001 - a reminder never stops delivery
+            log.exception("monthly credit reminder failed")
         try:
             result = await asyncio.to_thread(_tick)
             if result["due"]:

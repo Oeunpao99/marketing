@@ -4,6 +4,8 @@ import { useNavigate } from "react-router-dom";
 import { FiX } from "react-icons/fi";
 import { useStore } from "../../store";
 import { useNotifications } from "../../lib/notifications";
+import { claimCredits } from "../../lib/credits";
+import CreditCoin from "./CreditCoin";
 
 /**
  * Notifications — a bell dropdown for threads needing attention.
@@ -14,6 +16,20 @@ export default function Notifications({ open, onClose, anchor = "header" }) {
   const { review } = useStore();
   const navigate = useNavigate();
   const [seen, setSeen] = useState(false);
+  const [claiming, setClaiming] = useState(false);
+  const [claimed, setClaimed] = useState(0);
+  const [claimError, setClaimError] = useState("");
+  const claim = async () => {
+    setClaiming(true);
+    setClaimError("");
+    try {
+      setClaimed(await claimCredits());
+    } catch (e) {
+      setClaimError(e.message || "Couldn’t claim just now — try again.");
+    } finally {
+      setClaiming(false);
+    }
+  };
 
   const { items } = useNotifications();
 
@@ -67,6 +83,11 @@ export default function Notifications({ open, onClose, anchor = "header" }) {
             </button>
           </div>
 
+          {claimed > 0 && (
+            <div className="mx-1.5 mt-1.5 flex items-center gap-2 rounded-xl bg-brand-soft px-3 py-2.5 text-[12px] font-semibold text-brand">
+              <CreditCoin size={16} /> {claimed.toLocaleString("en-US")} credits added — enjoy this month!
+            </div>
+          )}
           {count === 0 ? (
             <div className="px-6 py-10 text-center">
               <div className="mx-auto mb-3 w-12 h-12 rounded-2xl grid place-items-center bg-brand-soft text-brand text-2xl">
@@ -79,7 +100,30 @@ export default function Notifications({ open, onClose, anchor = "header" }) {
             </div>
           ) : (
             <div className="max-h-[min(58vh,420px)] overflow-y-auto p-1.5">
-              {items.map((item) => (
+              {items.map((item) =>
+                item.action === "claim" ? (
+                  // the monthly credits: claimed right here, not a link
+                  <div key={item.id} className="m-1 rounded-xl border border-brand/30 bg-brand-soft p-3">
+                    <div className="flex items-start gap-3">
+                      <span className="grid h-8 w-8 flex-none place-items-center rounded-lg bg-white">
+                        <CreditCoin size={18} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[12.5px] font-semibold text-ink-900">{item.title}</span>
+                        <span className="mt-0.5 block text-[11px] text-ink-600">{item.body}</span>
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={claim}
+                      disabled={claiming}
+                      className="mt-2.5 w-full rounded-lg bg-brand py-2 text-[12.5px] font-bold text-white transition-colors hover:bg-brand-dark disabled:opacity-60"
+                    >
+                      {claiming ? "Claiming…" : "Claim credits"}
+                    </button>
+                    {claimError && <div className="mt-1.5 text-[11px] text-red-600">{claimError}</div>}
+                  </div>
+                ) : (
                 <button
                   key={item.id}
                   type="button"
@@ -104,7 +148,8 @@ export default function Notifications({ open, onClose, anchor = "header" }) {
                     </span>
                   </span>
                 </button>
-              ))}
+                ),
+              )}
             </div>
           )}
 

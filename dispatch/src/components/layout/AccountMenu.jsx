@@ -1,14 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { FiChevronRight, FiCreditCard, FiLogOut, FiSettings, FiUserPlus } from "react-icons/fi";
-import { api } from "../../api/client";
+import { useEffect, useRef, useState } from "react";
+import { FiChevronRight, FiCreditCard, FiGift, FiLogOut, FiSettings, FiUserPlus } from "react-icons/fi";
 import { useAuth } from "../../auth";
+import { useCredits, useCreditsRefresh } from "../../lib/credits";
 import CreditCoin from "./CreditCoin";
 
 // The top bar's right end: the credits chip and the account avatar. Either
 // opens one panel — who you are, the credits left this month (app/billing.py,
-// GET /billing/summary), the plan, Settings, inviting the team, signing out.
+// lib/credits.js), claiming this month's credits, the plan, Settings, inviting
+// the team, signing out.
 
-const REFRESH_MS = 60_000;
 const openSettings = (tab) => window.dispatchEvent(new CustomEvent("dispatch:open-settings", { detail: { tab } }));
 const fmt = (n) => Math.max(0, Math.round(Number(n) || 0)).toLocaleString("en-US");
 
@@ -41,27 +41,29 @@ function Ring({ pct, tone }) {
 export default function AccountMenu() {
   const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
-  const [b, setB] = useState(null);
+  useCreditsRefresh();
+  const { credits: b, reload, claim } = useCredits();
+  const [claiming, setClaiming] = useState(false);
+  const [claimError, setClaimError] = useState("");
   const box = useRef(null);
-
-  const load = useCallback(() => {
-    api
-      .get("/billing/summary")
-      .then(setB)
-      .catch(() => {});
+  useEffect(() => {
+    if (open) reload();
+  }, [open, reload]);
+  // a push "tap to claim" opens the app at /?claim=credits — open the panel
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("claim") === "credits") setOpen(true);
   }, []);
-  useEffect(() => {
-    load();
-    const timer = setInterval(load, REFRESH_MS);
-    window.addEventListener("focus", load);
-    return () => {
-      clearInterval(timer);
-      window.removeEventListener("focus", load);
-    };
-  }, [load]);
-  useEffect(() => {
-    if (open) load();
-  }, [open, load]);
+  const doClaim = async () => {
+    setClaiming(true);
+    setClaimError("");
+    try {
+      await claim();
+    } catch (e) {
+      setClaimError(e.message || "Couldn’t claim just now — try again.");
+    } finally {
+      setClaiming(false);
+    }
+  };
 
   // close on a click outside and on Esc
   useEffect(() => {
@@ -107,7 +109,10 @@ export default function AccountMenu() {
         aria-label={left != null ? `${fmt(left)} AI credits left` : "AI credits"}
         title="AI credits left this month"
       >
-        <CreditCoin size={22} />
+        <span className="relative">
+          <CreditCoin size={22} />
+          {b?.claim_available && <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" aria-hidden="true" />}
+        </span>
         <span className={`text-[13px] font-bold tabular-nums ${numTone}`}>{left != null ? fmt(left) : "—"}</span>
         {b?.plan_label && <span className="hidden rounded-full bg-ink-100 px-2 py-0.5 text-[10.5px] font-semibold text-ink-600 sm:inline">{b.plan_label}</span>}
       </button>
@@ -135,6 +140,32 @@ export default function AccountMenu() {
             </div>
             {user?.role && <span className="flex-none rounded-full bg-brand-soft px-2.5 py-0.5 text-[11px] font-semibold capitalize text-brand">{user.role}</span>}
           </div>
+
+          {/* this month's credits are waiting to be claimed */}
+          {b?.claim_available && (
+            <div className="mb-2 rounded-2xl border border-brand/30 bg-brand-soft p-3.5">
+              <div className="flex items-center gap-3">
+                <span className="grid h-10 w-10 flex-none place-items-center rounded-xl bg-white text-brand">
+                  <FiGift size={18} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[13px] font-bold text-ink-900">Your monthly credits are ready</div>
+                  <div className="flex items-center gap-1 text-[12px] text-ink-600">
+                    <CreditCoin size={14} /> {fmt(b.monthly_credits)} credits for this month
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={doClaim}
+                disabled={claiming}
+                className="mt-3 w-full rounded-xl bg-brand py-2.5 text-[13px] font-bold text-white transition-colors hover:bg-brand-dark disabled:opacity-60"
+              >
+                {claiming ? "Claiming…" : `Claim ${fmt(b.monthly_credits)} credits`}
+              </button>
+              {claimError && <div className="mt-2 text-[11.5px] text-red-600">{claimError}</div>}
+            </div>
+          )}
 
           {/* this month's credits */}
           <div className="rounded-2xl bg-canvas p-3.5">
@@ -164,7 +195,7 @@ export default function AccountMenu() {
                 </div>
               )}
             </dl>
-            {refill && <div className="mt-2 text-[11.5px] text-ink-400">Refills on {refill} · posting never uses credits</div>}
+            {refill && <div className="mt-2 text-[11.5px] text-ink-400">Next month’s credits to claim on {refill} · posting never uses credits</div>}
             <button
               type="button"
               onClick={go(() => openSettings("billing"))}

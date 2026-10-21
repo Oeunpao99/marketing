@@ -39,6 +39,7 @@ import Select from '../ui/Select'
 import HowItWorks from './HowItWorks'
 import { fmtCredits } from '../../lib/money'
 import CreditCoin from './CreditCoin'
+import { claimCredits } from '../../lib/credits'
 import ModelLogo from '../ui/ModelLogo'
 
 // Settings — every control here is real and saves to the backend
@@ -1258,6 +1259,24 @@ function BillingTab() {
 
   return (
     <div className="space-y-7">
+      {/* this month's credits wait to be claimed */}
+      {data.claim_available && (
+        <section className="flex flex-wrap items-center gap-3 rounded-2xl border border-brand/30 bg-brand-soft p-4">
+          <CreditCoin size={34} />
+          <div className="min-w-0 flex-1">
+            <div className="text-[14px] font-bold text-ink-900">Your monthly credits are ready</div>
+            <div className="text-[12.5px] text-ink-600">{(data.monthly_credits || 0).toLocaleString('en-US')} credits for this month — claim them to use AI.</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => claimCredits().then(load).catch((e) => setError(e.message))}
+            className="rounded-xl bg-brand px-4 py-2.5 text-[13px] font-bold text-white hover:bg-brand-dark"
+          >
+            Claim {(data.monthly_credits || 0).toLocaleString('en-US')} credits
+          </button>
+        </section>
+      )}
+
       {/* this month */}
       <section>
         <div className="flex flex-wrap items-center gap-2">
@@ -1277,7 +1296,7 @@ function BillingTab() {
           <span>used this month</span>
         </p>
         <p className="mt-0.5 text-[12px] text-ink-500">
-          Refills on {reset}. AI pauses at 0 credits — posting and scheduling keep working.
+          Next month’s credits can be claimed on {reset}. AI pauses at 0 credits — posting and scheduling keep working.
           {data.pending > 0 ? ` ${fmtCredits(data.pending)} are held for renders in progress.` : ''}
         </p>
         <div className="mt-2">

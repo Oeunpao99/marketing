@@ -59,6 +59,9 @@ class Workspace(Base, TimestampMixin):
     # Billing plan (app/billing.py): "pro" gets PLAN_CREDIT["pro"] of AI credit
     # a month. Not editable through any API yet — there's no payment system.
     plan: Mapped[str] = mapped_column(String(20), default="pro", server_default="pro")
+    # The month ("2026-11") the "your monthly credits are ready" push last went
+    # out (app/billing.py remind_claims) — once a month.
+    credit_notice_month: Mapped[str | None] = mapped_column(String(7), nullable=True)
     # Suspended by the platform admin (/admin-mkt, app/admin.py): nobody in it
     # can sign in or use the app, and no AI is charged to it. Null = active.
     suspended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

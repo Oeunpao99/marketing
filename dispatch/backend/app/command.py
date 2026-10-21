@@ -295,7 +295,19 @@ def command_center(brand_id: int | None = None, db: Session = Depends(get_db), w
             }
         )
 
-    if credit["monthly_credit"] and credit["available"] <= credit["monthly_credit"] * LOW_CREDIT_SHARE:
+    if credit.get("claim_available"):
+        needs.append(
+            {
+                "key": "credit",
+                "tone": "warning",
+                "count": None,
+                "title": "Your monthly AI credits are ready to claim",
+                "detail": f"{credit['monthly_credits']:,} credits — claim them from the bell or your account menu (top right)",
+                "to": None,
+                "brands": [],
+            }
+        )
+    elif credit["monthly_credit"] and credit["available"] <= credit["monthly_credit"] * LOW_CREDIT_SHARE:
         needs.append(
             {
                 "key": "credit",

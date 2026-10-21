@@ -1,11 +1,14 @@
 """AI credit — every workspace's monthly allowance for paid AI calls.
 
-Each plan comes with a monthly credit in USD (Pro: $50). Every paid AI call
-writes a ``CreditEntry`` with its *estimated* cost, worked out from what the
-provider reports (text/image tokens) or bills by (video seconds), using the
-price tables below. The balance is the plan's credit plus this month's
-entries (Phnom Penh time), so it refills on the 1st without a cron job and
-unused credit doesn't roll over.
+Each plan comes with monthly credits (PLAN_CREDITS; customers see credits, the
+ledger keeps dollars). They are NOT added by themselves: each month someone in
+the workspace CLAIMS them (POST /billing/claim — the bell, the account menu or
+Settings → Billing), which writes a "monthly" ``CreditEntry``; a push reminds
+them once a month (remind_claims). Every paid AI call writes a ``CreditEntry``
+with its *estimated* cost, worked out from what the provider reports
+(text/image tokens) or bills by (video seconds), using the price tables below.
+The balance is this month's entries (Phnom Penh time) — claims and grants in,
+spends out — so unused credit doesn't roll over.
 
 When the balance (minus renders still in flight) reaches $0, new AI calls are
 refused with ``OutOfCredit``; posting, scheduling and analytics keep working.
@@ -27,7 +30,7 @@ import re
 from contextvars import ContextVar
 from datetime import UTC, datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -211,31 +214,36 @@ def balance(db: Session, ws: int) -> dict:
     plan = db.scalar(select(Workspace.plan).where(Workspace.id == ws)) or "free"
     credit = PLAN_CREDIT.get(plan, 0.0)
     since = month_start()
-    spent = float(
-        db.scalar(
-            select(func.coalesce(func.sum(CreditEntry.amount_usd), 0)).where(
-                CreditEntry.workspace_id == ws, CreditEntry.created_at >= since
-            )
-        )
-        or 0
-    )
+    by_kind = {
+        kind: float(total or 0)
+        for kind, total in db.execute(
+            select(CreditEntry.kind, func.sum(CreditEntry.amount_usd))
+            .where(CreditEntry.workspace_id == ws, CreditEntry.created_at >= since)
+            .group_by(CreditEntry.kind)
+        ).all()
+    }
+    total = sum(by_kind.values())  # claims and grants in, spends out
+    spent = -sum(v for v in by_kind.values() if v < 0)
+    claimed = "monthly" in by_kind
     pending = _pending(db, ws)
     return {
         "plan": plan,
         "plan_label": PLAN_LABEL.get(plan, plan.title()),
         "monthly_credit": credit,
-        # spent is positive; grants (positive entries) count as extra credit.
-        "spent": round(-spent, 6),
+        "spent": round(spent, 6),
         "pending": round(pending, 6),
-        "balance": round(credit + spent, 6),
-        "available": round(credit + spent - pending, 6),
+        "balance": round(total, 6),
+        "available": round(total - pending, 6),
         "resets_at": next_reset().isoformat(),
+        # this month's credits: claimed yet? (they're added only when claimed)
+        "claimed": claimed,
+        "claim_available": credit > 0 and not claimed,
         # the same in credits — what the customer sees
         "credits_per_usd": CREDITS_PER_USD,
         "monthly_credits": PLAN_CREDITS.get(plan, 0),
-        "spent_credits": to_credits(-spent),
+        "spent_credits": to_credits(spent),
         "pending_credits": to_credits(pending),
-        "available_credits": to_credits(credit + spent - pending),
+        "available_credits": to_credits(total - pending),
     }
 
 
@@ -257,11 +265,16 @@ def require(ws: int | None, needed: float = 0.0, db: Session | None = None) -> N
     try:
         if db.scalar(select(Workspace.suspended_at).where(Workspace.id == ws)):
             raise OutOfCredit("This account is suspended — no AI can be used.")
-        left = balance(db, ws)["available"]
+        now = balance(db, ws)
     finally:
         if own:
             db.close()
-    if left - needed <= 0:
+    if now["available"] - needed <= 0:
+        if now["claim_available"]:
+            raise OutOfCredit(
+                f"This month's {now['monthly_credits']:,} AI credits are ready — claim them from the bell or your "
+                "account menu (top right), then try again."
+            )
         raise OutOfCredit(_out_of_credit_message())
 
 
@@ -367,7 +380,7 @@ def charge_job(job: GenerationJob) -> None:
 
 
 # ── API ───────────────────────────────────────────────────────────────────
-_KIND_LABEL = {"text": "AI writing", "image": "Images", "video": "Videos", "grant": "Credit added"}
+_KIND_LABEL = {"text": "AI writing", "image": "Images", "video": "Videos", "grant": "Credit added", "monthly": "Monthly credits"}
 
 
 @router.get("")
@@ -394,6 +407,80 @@ def billing_overview(db: Session = Depends(get_db), ws: int = Depends(current_wo
     ]
     out.update(_activity_page(db, ws, 1, ACTIVITY_PAGE))
     return out
+
+
+@router.post("/claim")
+def claim_month(
+    db: Session = Depends(get_db),
+    ws: int = Depends(current_workspace_id),
+    user: TeamMember = Depends(get_current_user),
+):
+    """Claim this month's credits for the workspace (anyone in it may). Once a
+    month: a second claim — a double click, two people — adds nothing."""
+    w = db.scalar(select(Workspace).where(Workspace.id == ws).with_for_update())  # one claim at a time
+    if w is None or w.suspended_at:
+        raise HTTPException(403, "This account is suspended — credits can't be claimed.")
+    credits = PLAN_CREDITS.get(w.plan, 0)
+    if credits <= 0:
+        raise HTTPException(409, "Your plan has no monthly credits — choose a plan to get them.")
+    since = month_start()
+    done = db.scalar(
+        select(func.count()).select_from(CreditEntry).where(
+            CreditEntry.workspace_id == ws, CreditEntry.kind == "monthly", CreditEntry.created_at >= since
+        )
+    )
+    added = 0
+    if not done:
+        db.add(
+            CreditEntry(
+                workspace_id=ws,
+                user_id=user.id,
+                kind="monthly",
+                amount_usd=round(PLAN_CREDIT[w.plan], 6),
+                cost_usd=0,
+                note=f"{credits:,} monthly credits — {PLAN_LABEL.get(w.plan, w.plan)} plan, {since:%B %Y}",
+            )
+        )
+        added = credits
+    db.commit()
+    return {**balance(db, ws), "claimed_now": added}
+
+
+def remind_claims() -> int:
+    """Once a month per workspace: push "your monthly credits are ready" to its
+    members (those who turned phone / desktop alerts on). Marked on the
+    workspace (credit_notice_month) so a restart doesn't send it twice.
+    Returns how many workspaces were reminded."""
+    from app import push
+
+    month = month_start().strftime("%Y-%m")
+    db = SessionLocal()
+    sent = 0
+    try:
+        due = db.scalars(
+            select(Workspace).where(
+                Workspace.suspended_at.is_(None),
+                Workspace.plan.in_([p for p, c in PLAN_CREDITS.items() if c > 0]),
+                (Workspace.credit_notice_month.is_(None)) | (Workspace.credit_notice_month != month),
+            )
+        ).all()
+        for w in due:
+            w.credit_notice_month = month
+            if balance(db, w.id)["claim_available"]:
+                credits = PLAN_CREDITS.get(w.plan, 0)
+                push.notify_workspace(
+                    w.id,
+                    "credits",
+                    "Your monthly AI credits are ready",
+                    f"{credits:,} credits for {month_start():%B} — open Smart Marketing and tap Claim.",
+                    url="/?claim=credits",
+                    tag="credits",
+                )
+                sent += 1
+        db.commit()
+    finally:
+        db.close()
+    return sent
 
 
 ACTIVITY_PAGE = 10  # rows per page of Settings → Billing → Recent activity
