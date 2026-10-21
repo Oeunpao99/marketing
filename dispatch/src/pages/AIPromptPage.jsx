@@ -68,6 +68,26 @@ const RATIOS = [
 const LENGTHS = [4, 8, 12]
 const STORY_LENGTHS = [16, 24, 32, 48, 64]
 const VOICES = ['English', 'Khmer', 'Khmer + English']
+// The Studio's settings as last left in this browser — the next image or
+// video starts from there. Browser storage can be
+// missing (a private window): then the defaults.
+const SETTINGS_KEY = 'cf_studio_settings'
+function loadSettings(key) {
+  try {
+    const v = JSON.parse(localStorage.getItem(key) || '{}')
+    return v && typeof v === 'object' ? v : {}
+  } catch {
+    return {}
+  }
+}
+function saveSettings(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value))
+  } catch {
+    // not remembered this time — the page works the same
+  }
+}
+
 const STYLES = ['Photorealistic', 'Illustration', '3D / CGI', 'Anime / Manga']
 const TEMPLATES = {
   image: ['Product hero shot', 'Promo / sale banner', 'Story / Reels cover', 'Tip / quote card'],
@@ -256,25 +276,34 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
   const location = useLocation()
   const { showToast, brands, refreshCounts } = useStore()
 
-  // settings (behind the ⚙ button)
-  const [type, setType] = useState('image')
-  const [ratio, setRatio] = useState('1:1')
-  const [seconds, setSeconds] = useState(8)
-  const [videoMode, setVideoMode] = useState('clip') // 'clip' = instant video | 'story' = storyboard | 'motion'
-  const [motionVoice, setMotionVoice] = useState('female')
-  const [motionMusic, setMotionMusic] = useState(true)
-  const [motionLogo, setMotionLogo] = useState(true) // false = "No logo": a video without the brand
+  // settings (behind the ⚙ button) — they start as last left in this browser
+  // (SETTINGS_KEY; read once, before anything else — keyed by the browser, not
+  // the account, which may still be loading on the first render); a template
+  // picked in Templates or the Quick content tab still wins (their effects run after)
+  const settingsKey = SETTINGS_KEY
+  const [saved] = useState(() => loadSettings(settingsKey))
+  const [type, setType] = useState(saved.type ?? 'image')
+  const [ratio, setRatio] = useState(saved.ratio ?? '1:1')
+  const [seconds, setSeconds] = useState(saved.seconds ?? 8)
+  const [videoMode, setVideoMode] = useState(saved.videoMode ?? 'clip') // 'clip' = instant video | 'story' = storyboard | 'motion'
+  const [motionVoice, setMotionVoice] = useState(saved.motionVoice ?? 'female')
+  const [motionMusic, setMotionMusic] = useState(saved.motionMusic ?? true)
+  const [motionLogo, setMotionLogo] = useState(saved.motionLogo ?? true) // false = "No logo": a video without the brand
   // Remotion story: teach (Explainer style) or sell (Tech style); auto = sell when a product is chosen
-  const [motionGoal, setMotionGoal] = useState('auto')
+  const [motionGoal, setMotionGoal] = useState(saved.motionGoal ?? 'auto')
   // Your own story: the AI plans a storyboard you check and edit before it's rendered.
-  const [motionReview, setMotionReview] = useState(true)
-  const [motionLength, setMotionLength] = useState('auto')
-  const [motionRatio, setMotionRatio] = useState('auto') // 'auto' (the AI picks from the brief) | '9:16' | '16:9'
-  const [storySeconds, setStorySeconds] = useState(32)
-  const [voice, setVoice] = useState(null) // null = the brand's language; '' = no voiceover
+  const [motionReview, setMotionReview] = useState(saved.motionReview ?? true)
+  const [motionLength, setMotionLength] = useState(saved.motionLength ?? 'auto')
+  const [motionRatio, setMotionRatio] = useState(saved.motionRatio ?? 'auto') // 'auto' (the AI picks from the brief) | '9:16' | '16:9'
+  const [storySeconds, setStorySeconds] = useState(saved.storySeconds ?? 32)
+  const [voice, setVoice] = useState(saved.voice !== undefined ? saved.voice : null) // null = the brand's language; '' = no voiceover
   const [brand, setBrand] = useState(null)
-  const [style, setStyle] = useState(STYLES[0])
-  const [template, setTemplate] = useState(TEMPLATES.image[0])
+  const [style, setStyle] = useState(STYLES.includes(saved.style) ? saved.style : STYLES[0])
+  const [template, setTemplate] = useState(saved.template ?? TEMPLATES.image[0])
+  // …and every change is remembered for next time
+  useEffect(() => {
+    saveSettings(settingsKey, { type, ratio, seconds, videoMode, motionVoice, motionMusic, motionLogo, motionGoal, motionReview, motionLength, motionRatio, storySeconds, voice, style, template, brand })
+  }, [settingsKey, type, ratio, seconds, videoMode, motionVoice, motionMusic, motionLogo, motionGoal, motionReview, motionLength, motionRatio, storySeconds, voice, style, template, brand])
   const [settingsOpen, setSettingsOpen] = useState(false)
   // Brand kit (Products → Brand kit): a poster template to follow, a product
   // photo to feature and the logo — sent along with image requests.
@@ -351,8 +380,9 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
   const videoFrame = isClip && !refImg && !!kitProduct
 
   useEffect(() => {
-    if (!brand && brands.length) setBrand(brands[0].slug)
-  }, [brands, brand])
+    // the brand used last time, while it still exists — else the first
+    if (!brand && brands.length) setBrand(brands.some((b) => b.slug === saved.brand) ? saved.brand : brands[0].slug)
+  }, [brands, brand, saved.brand])
 
   // An idea handed over from the Calendar ("Use this idea →").
   useEffect(() => {
