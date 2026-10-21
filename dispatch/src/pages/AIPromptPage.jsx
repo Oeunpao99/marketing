@@ -240,6 +240,7 @@ const MOTION_STORIES = [
   { value: 'demo', label: 'Product demo', hint: 'Your product in an app window, step by step — shows the solution' },
   { value: 'offer', label: 'Offer · Pricing', hint: 'A glowing pricing card and one clear action — conversion (prices only from your brief)' },
   { value: 'spotlight', label: '3D · Spotlight', hint: 'Your product photo on a real 3D box turning under a spotlight, then its price card — a little slower to make' },
+  { value: 'appdemo', label: '3D · App demo', hint: 'Your mobile app in soft glassy 3D — a tilted phone with your screenshot, features as glass cards fanned in space' },
 ]
 // The Story menu: each template with its preview picture (public/templates/,
 // as in Content studio → Templates) so people see what it looks like.

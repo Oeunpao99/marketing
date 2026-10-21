@@ -68,6 +68,7 @@ import { PRESENTER } from './presenter'
 import { PODCAST } from './podcast'
 import { CARTOON } from './cartoon'
 import { SPOTLIGHT } from './spotlight'
+import { APPDEMO } from './appdemo'
 import { LESSON } from './lesson'
 import { RISE } from './rise'
 import { TRAINING } from './training'
@@ -749,6 +750,7 @@ const TEMPLATES = {
   demo: { ...DEMO, scenes: { ...SCENES, ...DEMO.scenes } },
   offer: { ...OFFER, scenes: { ...SCENES, ...OFFER.scenes } },
   spotlight: { ...SPOTLIGHT, scenes: { ...SCENES, ...SPOTLIGHT.scenes } }, // 3D · Spotlight (three.js)
+  appdemo: { ...APPDEMO, scenes: { ...SCENES, ...APPDEMO.scenes } }, // 3D · App demo (CSS 3D)
   showcase: { ...SHOWCASE, scenes: { ...SCENES, ...SHOWCASE.scenes } },
   launch: { ...LAUNCH, scenes: { ...SCENES, ...LAUNCH.scenes } },
   unveil: { ...UNVEIL, scenes: { ...SCENES, ...UNVEIL.scenes } },

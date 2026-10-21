@@ -1,0 +1,66 @@
+{
+ "brand": {
+  "name": "Sokha Pay",
+  "color": "#1FA37A",
+  "slug": "sokha-pay"
+ },
+ "style": "appdemo",
+ "frame": 85,
+ "scenes": [
+  {
+   "type": "hook",
+   "text": "ប្រាក់ ⟦ងាយស្រួល⟧ ក្នុងដៃបង",
+   "icon": "Wallet",
+   "image": "ours/appdemo-screen.jpg",
+   "seconds": 3.6
+  }
+ ],
+ "clip": [
+  {
+   "type": "hook",
+   "text": "ប្រាក់ ⟦ងាយស្រួល⟧ ក្នុងដៃបង",
+   "icon": "Wallet",
+   "image": "ours/appdemo-screen.jpg",
+   "seconds": 3.6
+  },
+  {
+   "type": "list",
+   "title": "អ្វីៗទាំងអស់ក្នុងកម្មវិធីតែមួយ",
+   "items": [
+    {
+     "icon": "Landmark",
+     "text": "គណនី និងប្រាក់បញ្ញើ"
+    },
+    {
+     "icon": "Wallet",
+     "text": "កាបូបអេឡិចត្រូនិក"
+    },
+    {
+     "icon": "ArrowLeftRight",
+     "text": "ផ្ទេរប្រាក់ភ្លាមៗ"
+    },
+    {
+     "icon": "TrendingUp",
+     "text": "អត្រាប្តូរប្រាក់"
+    }
+   ],
+   "seconds": 4.6
+  },
+  {
+   "type": "platform",
+   "text": "ផ្ទេរប្រាក់ ក្នុងរយៈពេលតែ ⟦ពីរវិនាទី⟧",
+   "shot": 1,
+   "image": "ours/appdemo-screen.jpg",
+   "imgW": 780,
+   "imgH": 1688,
+   "seconds": 4
+  },
+  {
+   "type": "cta",
+   "text": "ទាញយក ⟦ឥឡូវនេះ⟧",
+   "button": "ទាញយកកម្មវិធី",
+   "image": "ours/appdemo-screen.jpg",
+   "seconds": 3.6
+  }
+ ]
+}

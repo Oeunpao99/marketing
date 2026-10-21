@@ -629,6 +629,39 @@ SPOTLIGHT_PROMPT = (
     + '{"scenes": [{"type": "hook", "text": "...", "icon": "Sparkles", "say": "..."}, ...]}'
 )
 
+# ── 3D · App demo (motion/src/appdemo.jsx) ─────────────────────────────────
+# A mobile-app promo in soft glassy 3D: the app's screens as cards fanned in
+# space, a tilted phone floating with the app's screenshot on it. Scene types
+# Clarity / Offer already use; vertical only.
+APPDEMO_TYPES = ("hook", "list", "platform", "stat", "cta")
+APPDEMO_PROMPT = (
+    "You are the best short-form app-promo storyteller in Cambodia. You plan a vertical REMOTION "
+    "VIDEO (TikTok / Facebook Reels, about 25-35 s) that SHOWS A MOBILE APP like a modern bank or "
+    "fintech launch film: soft glassy 3D, the app's screens as cards fanned in space, a tilted phone "
+    "floating with the app on it, a big warm headline. Calm, clear, premium — one app, one promise.\n"
+    "\n"
+    "THE STORY (4-5 scenes):\n"
+    "1. hook — the app's promise in a few words, while the phone floats in (\"Everything [your way]\").\n"
+    "2. list — 3-4 things the app does, as glass cards (account, wallet, transfer, rates …).\n"
+    "3. platform — the app itself, big, turning slowly; one line about what it makes easy.\n"
+    "4. stat — one TRUE number that proves it (optional).\n"
+    "last. cta — exactly what to do (\"Download the app\", \"Open an account\").\n"
+    "\n"
+    "SCENE TYPES and their fields:\n"
+    "- hook: text (max 8 words), icon.\n"
+    "- list: title (max 7 words), items: 3-4 x {\"icon\", \"text\": 2-5 words}.\n"
+    "- platform: text (max 10 words), shot (the number of the brand's screenshot to show, or 0).\n"
+    "- stat: value, prefix, suffix, label (max 6 words), icon — only a TRUE number.\n"
+    "- cta: text (max 7 words), button (2-4 words).\n"
+    "The phone shows the brand's own screenshot (a `platform` scene's `shot`; the hook and the close "
+    "use the first one) — never describe or ask for pictures. With no screenshot, a drawn app screen "
+    "is shown instead.\n"
+    "HONESTY: only features the product information supports — never invent a feature, a number, a "
+    "rate or a price.\n"
+    + _COMMON_RULES
+    + '{"scenes": [{"type": "hook", "text": "...", "icon": "Smartphone", "say": "..."}, ...]}'
+)
+
 # ── The clean goal templates (motion/src/clean.jsx) ────────────────────────
 COUNTDOWN_TYPES = ("hook", "rank", "reveal", "stat", "list", "cta")
 COUNTDOWN_PROMPT = (
@@ -2250,6 +2283,7 @@ STYLES = {
     "demo": (DEMO_PROMPT, DEMO_TYPES, 7, "step"),
     "offer": (OFFER_PROMPT, OFFER_TYPES, 5, "offer"),
     "spotlight": (SPOTLIGHT_PROMPT, SPOTLIGHT_TYPES, 5, "offer"),
+    "appdemo": (APPDEMO_PROMPT, APPDEMO_TYPES, 4, None),
     "showcase": (SHOWCASE_PROMPT, SHOWCASE_TYPES, 7, None),
     "launch": (LAUNCH_PROMPT, LAUNCH_TYPES, 7, None),
     "unveil": (UNVEIL_PROMPT, UNVEIL_TYPES, 6, None),
@@ -2297,9 +2331,9 @@ def final_ratio(asked: str, style: str, suggested: str | None = None) -> str:
     if asked == "auto":
         return suggested if suggested in ("16:9", "9:16") else ("16:9" if style == "training" else "9:16")
     return "9:16"
-SCREEN_STYLES = {"custom", "demo", "showcase", "launch", "unveil", "clarity", "canvas", "reaction"}  # the stories that can show the brand's screenshots
+SCREEN_STYLES = {"custom", "demo", "appdemo", "showcase", "launch", "unveil", "clarity", "canvas", "reaction"}  # the stories that can show the brand's screenshots
 # The templates that sell (the auto topic picks a product, not a teaching topic).
-SELLING_STYLES = {"tech", "demo", "offer", "spotlight", "showcase", "launch", "unveil", "gridcards"}
+SELLING_STYLES = {"tech", "demo", "offer", "spotlight", "appdemo", "showcase", "launch", "unveil", "gridcards"}
 
 # Story mode (write_script ``seconds``): the person pasted their own story.
 MAX_STORY_SCENES = 20  # ~2 minutes
@@ -2509,7 +2543,7 @@ def estimate_seconds(script: dict) -> int:
 # random per video, so a week's plan doesn't repeat the same look.
 GOAL_STYLES = {
     "sell": ("tech",),
-    "solution": ("tech", "demo", "custom", "showcase", "clarity", "gridcards", "cartoon"),
+    "solution": ("tech", "demo", "custom", "showcase", "clarity", "gridcards", "cartoon", "appdemo"),
     "conversion": ("offer", "spotlight", "tech", "launch", "reviews", "casestudy", "unveil", "studio"),
     "teach": ("explainer",),
     "education": ("explainer", "training", "custom", "clarity", "tips", "gridcards", "techflow", "neural", "paper", "doodle", "cartoon", "lesson", "presenter", "podcast"),
@@ -3546,6 +3580,8 @@ def write_script(
         )
     if style in SCREEN_STYLES:
         extra += _shots_prompt(shots or [])
+        if style == "appdemo":
+            extra += "\n(In this template a `platform` scene shows one by its number in `shot`; with none, `shot` is 0 and a drawn app screen is shown.)"
         if design:
             extra += _design_prompt(design)
         if not shots:
@@ -4339,6 +4375,11 @@ def pick_pictures(
                 s["image"] = by_product.get(ids.get(s["product"])) or main
         elif script.get("style") in ("doodle", "cartoon", "lesson", "rise", "podcast"):
             continue  # drawn templates: no product photos (doodle / cartoon draw their own, app/doodle.py)
+        elif script.get("style") == "appdemo":  # 3D · App demo: the app's own screenshot on the phone
+            if s["type"] in ("hook", "cta") and shots:
+                s["image"], s["imgW"], s["imgH"] = shots[0]["uri"], shots[0]["w"], shots[0]["h"]
+            elif s["type"] == "platform" and not s.get("image") and shots:
+                s["image"], s["imgW"], s["imgH"] = shots[0]["uri"], shots[0]["w"], shots[0]["h"]
         elif script.get("style") == "spotlight":  # 3D · Spotlight: the product's photo on the 3D box
             if s["type"] in ("hook", "list", "offer", "cta"):
                 s["image"] = by_product.get(ids.get(s.get("product") or "")) or main
@@ -5468,6 +5509,7 @@ TEMPLATE_GUIDE = {
     "testimonial": "a customer's story or case study — who they are, before → after, their result",
     "tech": "selling a product or service of a shop / business — the problem, the product working, proof, buy now",
     "offer": "a promotion, a price, a discount, a package — one clear offer and action",
+    "appdemo": "a mobile app shown like a bank / fintech launch film — soft glassy 3D, its screens as cards fanned in space, a tilted phone floating with the app's own screenshot on it, a big warm headline; for an app, a wallet, a booking or delivery app",
     "spotlight": "a physical product shown like a launch film — its photo on a real 3D box turning under a spotlight, 3 reasons to want it, its price card, one action; for a drink, snack, cosmetic, gadget or any product with a photo in the brand kit",
     "versus": "a comparison — old way vs new way, option A vs B, myths vs facts",
     "poll": "a quiz or questions for the audience to answer in the comments",

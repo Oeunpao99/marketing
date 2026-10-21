@@ -342,6 +342,16 @@ export const MOTION_TEMPLATES = [
     note: 'Uses your brand kit product photo (else your logo). Takes a little longer to make',
     goals: ['conversion'],
   },
+  {
+    id: 'appdemo',
+    story: 'appdemo',
+    name: '3D · App demo',
+    added: '2026-10-21',
+    look: 'Your mobile app in soft glassy 3D — a tilted phone floating with your own screenshot on it, the app’s features as glass cards fanned in space, a big warm headline',
+    steps: ['Phone flies in', 'Features as cards', 'The app, turning', 'Download now'],
+    note: 'Add your app screenshots in Products → Brand kit — they appear on the phone. Without one, a drawn app screen is shown',
+    goals: ['solution'],
+  },
 ]
 
 // Each goal's templates — the weekly plan takes one of them at random per
@@ -354,7 +364,7 @@ export const GOAL_TEMPLATES = {
   education: ['teach', 'training', 'custom', 'clarity', 'tips'],
   trust: ['testimonial', 'reviews', 'casestudy', 'faq', 'report'],
   authority: ['versus', 'report', 'casestudy', 'hottake', 'clarity'],
-  solution: ['sell', 'demo', 'custom', 'showcase', 'clarity'],
+  solution: ['sell', 'demo', 'custom', 'showcase', 'clarity', 'appdemo'],
   conversion: ['offer', 'spotlight', 'sell', 'launch', 'reviews', 'casestudy'],
 }
 
