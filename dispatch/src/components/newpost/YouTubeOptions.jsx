@@ -22,6 +22,7 @@ export default function YouTubeOptions({ value, onChange, brandId, title, captio
   const set = (patch) => onChange({ ...v, ...patch })
   const [busy, setBusy] = useState('') // '' | 'upload' | 'ai'
   const [err, setErr] = useState('')
+  const [dragging, setDragging] = useState(false) // a picture is being dragged over the thumbnail area
   const [headline, setHeadline] = useState(() => (title || caption || '').split('\n')[0].slice(0, 60))
   const fileRef = useRef(null)
   const live = useRef(true)
@@ -100,48 +101,85 @@ export default function YouTubeOptions({ value, onChange, brandId, title, captio
             )}
           </div>
 
-          {v.thumbnail_url ? (
-            <div className="overflow-hidden rounded-xl border border-ink-200 bg-white">
-              <img src={v.thumbnail_url} alt="Thumbnail" className="aspect-video w-full object-cover" />
-            </div>
-          ) : busy === 'ai' ? (
-            // the Studio's "making it" look: smoke, the floating logo, a shimmer
-            <div className="h-28 w-full">
-              <GeneratingCanvas small icon="✨" stage="Making your thumbnail… about 30 s" />
-            </div>
-          ) : (
-            <div className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-ink-300 bg-white text-[11.5px] text-ink-400">
-              <FiImage size={15} />
-              No thumbnail — YouTube picks a frame
-            </div>
-          )}
+          {/* the thumbnail area — drop a picture anywhere on it */}
+          <div
+            onDragOver={(e) => {
+              if (busy || ![...(e.dataTransfer?.types || [])].includes('Files')) return
+              e.preventDefault()
+              setDragging(true)
+            }}
+            onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget) && setDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault()
+              setDragging(false)
+              const file = [...(e.dataTransfer?.files || [])].find((f) => f.type.startsWith('image/'))
+              if (file) upload(file)
+              else setErr('Drop a picture (JPG, PNG or WebP).')
+            }}
+            className={`relative rounded-xl transition-shadow ${dragging ? 'ring-2 ring-brand ring-offset-2' : ''}`}
+          >
+            {v.thumbnail_url ? (
+              <div className="overflow-hidden rounded-xl border border-ink-200 bg-white">
+                <img src={v.thumbnail_url} alt="Thumbnail" className="aspect-video w-full object-cover" />
+              </div>
+            ) : busy === 'ai' || busy === 'upload' ? (
+              // the Studio's "making it" look: smoke, the floating logo, a shimmer
+              <div className="h-40 w-full">
+                <GeneratingCanvas
+                  small
+                  icon={busy === 'ai' ? '✨' : '⬆'}
+                  stage={busy === 'ai' ? 'Making your thumbnail… about 30 s' : 'Uploading your picture…'}
+                />
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                className={`flex h-40 w-full flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed text-[11.5px] transition-colors ${
+                  dragging ? 'border-brand bg-brand-soft text-brand' : 'border-ink-300 bg-white text-ink-400 hover:border-brand/60 hover:text-ink-600'
+                }`}
+              >
+                <FiImage size={20} />
+                <span className="font-semibold">{dragging ? 'Drop it here' : 'Drag a picture here, or click to choose'}</span>
+                <span>No thumbnail? YouTube picks a frame from the video.</span>
+              </button>
+            )}
+            {dragging && v.thumbnail_url && (
+              <div className="absolute inset-0 grid place-items-center rounded-xl bg-brand/70 text-[13px] font-bold text-white">Drop to replace</div>
+            )}
+          </div>
 
-          <label className="mt-2 block text-[11px] font-medium text-ink-600">
-            Text on the thumbnail
-            <input
-              value={headline}
-              onChange={(e) => setHeadline(e.target.value.slice(0, 60))}
-              placeholder="e.g. 3 ways to save $540"
-              className="input mt-1"
-            />
-          </label>
-          <div className="mt-2 flex gap-2">
-            <button
-              type="button"
-              disabled={!!busy}
-              onClick={makeWithAi}
-              className="btn-primary h-9 flex-1 rounded-lg text-[12px] disabled:opacity-50"
-            >
-              <FiZap size={13} /> {v.thumbnail_url ? 'Make another' : 'Make with AI'}
-            </button>
-            <button
-              type="button"
-              disabled={!!busy}
-              onClick={() => fileRef.current?.click()}
-              className="btn-outline h-9 flex-1 rounded-lg text-[12px] disabled:opacity-50"
-            >
-              <FiUpload size={13} /> {busy === 'upload' ? 'Uploading…' : 'Upload'}
-            </button>
+          {/* the words on the left half, the two ways to get one on the right */}
+          <div className="mt-2 grid grid-cols-2 items-end gap-2">
+            <label className="block min-w-0 text-[11px] font-medium text-ink-600">
+              Text on the thumbnail
+              <input
+                value={headline}
+                onChange={(e) => setHeadline(e.target.value.slice(0, 60))}
+                placeholder="e.g. 3 ways to save $540"
+                className="input mt-1 h-9 py-0"
+              />
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                disabled={!!busy}
+                onClick={makeWithAi}
+                className="btn-primary h-9 min-w-0 rounded-lg px-2 text-[12px] disabled:opacity-50"
+              >
+                <FiZap size={13} className="flex-none" />
+                <span className="truncate">{v.thumbnail_url ? 'Another' : 'Make with AI'}</span>
+              </button>
+              <button
+                type="button"
+                disabled={!!busy}
+                onClick={() => fileRef.current?.click()}
+                className="btn-outline h-9 min-w-0 rounded-lg px-2 text-[12px] disabled:opacity-50"
+              >
+                <FiUpload size={13} className="flex-none" />
+                <span className="truncate">Upload</span>
+              </button>
+            </div>
             <input
               ref={fileRef}
               type="file"
