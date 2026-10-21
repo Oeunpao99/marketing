@@ -81,6 +81,21 @@ export default function Sidebar({ collapsed = false }) {
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("dispatch:open-search", open);
     window.addEventListener("dispatch:open-settings", openSettings);
+    // A scanned "send me credits" QR (Settings → Billing → Receive) lands on
+    // /?transfer=<account ID>: open Billing with Transfer filled in (BillingTab
+    // picks the number up from sessionStorage).
+    const to = new URLSearchParams(window.location.search).get("transfer");
+    if (to) {
+      try {
+        sessionStorage.setItem("cf_transfer_to", to.replace(/\D/g, "").slice(0, 10));
+      } catch {
+        // no storage: Billing opens, the number is typed by hand
+      }
+      const url = new URL(window.location.href);
+      url.searchParams.delete("transfer");
+      window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+      openSettings({ detail: { tab: "billing" } });
+    }
     return () => {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("dispatch:open-search", open);

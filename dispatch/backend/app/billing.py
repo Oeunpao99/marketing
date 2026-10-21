@@ -698,26 +698,29 @@ def transfer_credits(
         raise HTTPException(409, f"You have {int(have):,} credits — that's not enough to send {credits:,}.")
     usd = round(credits / CREDITS_PER_USD, 6)
     mine = account_no(db, ws)
-    db.add(
-        CreditEntry(
-            workspace_id=ws,
-            user_id=user.id,
-            kind="transfer_out",
-            amount_usd=-usd,
-            cost_usd=0,
-            note=f"To {to.name} · {_spaced(to.account_no)}" + (f" — {note}" if note else ""),
-        )
+    out = CreditEntry(
+        workspace_id=ws,
+        user_id=user.id,
+        kind="transfer_out",
+        amount_usd=-usd,
+        cost_usd=0,
+        note=f"To {to.name} · {_spaced(to.account_no)}" + (f" — {note}" if note else ""),
     )
-    db.add(
-        CreditEntry(
-            workspace_id=to.id,
-            user_id=None,
-            kind="transfer_in",
-            amount_usd=usd,
-            cost_usd=0,
-            note=f"From {me.name} · {_spaced(mine)}" + (f" — {note}" if note else ""),
-        )
+    got = CreditEntry(
+        workspace_id=to.id,
+        user_id=None,
+        kind="transfer_in",
+        amount_usd=usd,
+        cost_usd=0,
+        note=f"From {me.name} · {_spaced(mine)}" + (f" — {note}" if note else ""),
     )
+    db.add(got)
+    db.flush()
+    # one reference number on both sides' receipts (kept in `model`, which a
+    # transfer has no use for — Recent activity shows it under the line)
+    ref = _ref(got.id)
+    got.model = out.model = ref
+    db.add(out)
     db.commit()
     log.info("credit transfer: ws %s → ws %s, %s credits (by user %s)", ws, to.id, credits, user.id)
     try:
@@ -728,7 +731,56 @@ def transfer_credits(
         )
     except Exception:  # noqa: BLE001 — the transfer is done; a missed push is fine
         log.exception("credit transfer push failed")
-    return {"sent": credits, "to": _who(db, to), "at": datetime.now(UTC).isoformat(), **balance(db, ws)}
+    return {
+        "sent": credits,
+        "to": _who(db, to),
+        "at": out.created_at.isoformat() if out.created_at else datetime.now(UTC).isoformat(),
+        "ref": ref,
+        "note": note,
+        **balance(db, ws),
+    }
+
+
+def _ref(entry_id: int) -> str:
+    """A transfer's reference number, as on a bank receipt: "TR-000123"."""
+    return f"TR-{entry_id:06d}"
+
+
+# "From PS-AI · 140 030 7275 — thanks" → name, account, note
+_FROM = re.compile(r"^From (?P<name>.*) · (?P<no>\d{3} \d{3} \d{4})(?: — (?P<note>.*))?$", re.S)
+
+
+@router.get("/incoming")
+def incoming_credits(after: int | None = None, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    """Credits received since entry ``after`` — the app checks every few
+    seconds and pops up "You received …". Without ``after``: only the newest
+    id, to start from (nothing old pops up)."""
+    newest = (
+        db.scalar(select(func.max(CreditEntry.id)).where(CreditEntry.workspace_id == ws, CreditEntry.kind == "transfer_in")) or 0
+    )
+    if after is None:
+        return {"latest_id": newest, "items": []}
+    rows = db.scalars(
+        select(CreditEntry)
+        .where(CreditEntry.workspace_id == ws, CreditEntry.kind == "transfer_in", CreditEntry.id > after)
+        .order_by(CreditEntry.id)
+        .limit(5)
+    ).all()
+    items = []
+    for e in rows:
+        m = _FROM.match(e.note or "")
+        items.append(
+            {
+                "id": e.id,
+                "ref": e.model or _ref(e.id),
+                "credits": round(to_credits(float(e.amount_usd))),
+                "from_name": m["name"] if m else "",
+                "from_account": (m["no"] if m else "").replace(" ", ""),
+                "note": (m["note"] or "") if m else (e.note or ""),
+                "at": e.created_at.isoformat() if e.created_at else "",
+            }
+        )
+    return {"latest_id": newest, "items": items}
 
 
 @router.get("/summary")

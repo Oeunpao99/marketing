@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   FiAlertTriangle,
+  FiCamera,
+  FiGrid,
   FiSend,
   FiArchive,
   FiArrowUpRight,
@@ -45,6 +47,7 @@ import DateRangePicker from '../ui/DateRangePicker'
 import HowItWorks from './HowItWorks'
 import { fmtCredits } from '../../lib/money'
 import CreditCoin from './CreditCoin'
+import { CreditReceipt, fmtAccount, SendingAnimation } from './CreditReceipt'
 import { claimCredits } from '../../lib/credits'
 import ModelLogo from '../ui/ModelLogo'
 
@@ -1199,23 +1202,166 @@ const ACTIVITY_ICON = {
   transfer_out: { icon: FiSend, tone: 'bg-red-50 text-red-600' },
 }
 
-/** "1400307275" → "140 030 7275", the way an account number is read out. */
-const fmtAccount = (no) => (no || '').replace(/^(\d{3})(\d{3})(\d{4})$/, '$1 $2 $3')
+
+/** A Receive QR's text → the account number in it ("…?transfer=1400307275" or the bare digits). */
+function accountFromQr(text) {
+  const t = String(text || '')
+  const m = t.match(/[?&]transfer=(\d{10})(?!\d)/) || t.replace(/[\s-]/g, '').match(/^(\d{10})$/)
+  return m ? m[1] : ''
+}
+
+/**
+ * Billing → Transfer → Scan: the phone's back camera reads a Receive QR
+ * (jsQR on video frames — works in iPhone Safari and Android Chrome; needs
+ * https and the camera permission). Calls onFound(accountNo) once.
+ */
+function QrScanner({ onFound, onClose }) {
+  const video = useRef(null)
+  const [err, setErr] = useState('')
+  useEffect(() => {
+    let stream = null
+    let timer = null
+    let done = false
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    Promise.all([
+      navigator.mediaDevices?.getUserMedia
+        ? navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false })
+        : Promise.reject(new Error('no camera')),
+      import('jsqr'),
+    ])
+      .then(([s, mod]) => {
+        stream = s
+        if (done) return s.getTracks().forEach((t) => t.stop())
+        const jsQR = mod.default
+        const v = video.current
+        v.srcObject = s
+        v.play().catch(() => {})
+        const tick = () => {
+          if (done) return
+          if (v.readyState >= 2 && v.videoWidth) {
+            // a centred square, scaled down — fast enough on any phone
+            const side = Math.min(v.videoWidth, v.videoHeight)
+            const size = Math.min(side, 640)
+            canvas.width = canvas.height = size
+            ctx.drawImage(v, (v.videoWidth - side) / 2, (v.videoHeight - side) / 2, side, side, 0, 0, size, size)
+            const code = jsQR(ctx.getImageData(0, 0, size, size).data, size, size, { inversionAttempts: 'dontInvert' })
+            const no = code && accountFromQr(code.data)
+            if (no) {
+              done = true
+              navigator.vibrate?.(60)
+              onFound(no)
+              return
+            }
+            if (code) setErr('That QR isn’t a Smart Marketing account.')
+          }
+          timer = setTimeout(tick, 200)
+        }
+        tick()
+      })
+      .catch(() => setErr('Can’t open the camera — allow camera access, or type the account ID.'))
+    return () => {
+      done = true
+      clearTimeout(timer)
+      stream?.getTracks().forEach((t) => t.stop())
+    }
+  }, [onFound])
+  return (
+    <div className="space-y-3">
+      <div className="relative mx-auto aspect-square w-full max-w-[300px] overflow-hidden rounded-2xl bg-night-900">
+        <video ref={video} playsInline muted className="h-full w-full object-cover" />
+        {/* the aiming frame */}
+        <div
+          className="pointer-events-none absolute inset-[14%] rounded-2xl"
+          style={{ border: '3px solid rgba(255, 255, 255, 0.95)', boxShadow: '0 0 0 999px rgba(0, 0, 0, 0.35)' }}
+        />
+      </div>
+      <p className={`text-center text-[12px] ${err ? 'text-red-600' : 'text-ink-500'}`}>{err || 'Point the camera at your friend’s Receive QR.'}</p>
+      <button type="button" onClick={onClose} className="btn-outline h-10 w-full rounded-xl">
+        Type the account ID instead
+      </button>
+    </div>
+  )
+}
+
+/**
+ * Billing → Receive: this account's QR code, like a bank's "receive money" QR.
+ * It holds a link (…/?transfer=<account ID>) — any phone camera opens it, and
+ * the app starts a transfer to this account with the number filled in.
+ */
+function ReceivePanel({ accountNo, onClose }) {
+  const { user } = useAuth()
+  const [svg, setSvg] = useState('')
+  const [copied, setCopied] = useState(false)
+  const link = `${window.location.origin}/?transfer=${accountNo}`
+  useEffect(() => {
+    let live = true
+    import('qrcode')
+      .then((QR) => QR.toString(link, { type: 'svg', margin: 1, errorCorrectionLevel: 'M', color: { dark: '#111827', light: '#ffffff' } }))
+      .then((s) => live && setSvg(s))
+      .catch(() => {})
+    return () => {
+      live = false
+    }
+  }, [link])
+  const share = () => {
+    if (navigator.share) navigator.share({ title: 'Send me credits', text: `My Smart Marketing account ID: ${fmtAccount(accountNo)}`, url: link }).catch(() => {})
+    else {
+      navigator.clipboard?.writeText(link)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    }
+  }
+  return (
+    <section className="rounded-3xl border border-ink-200 bg-white p-5">
+      <div className="flex items-center justify-between">
+        <h3 className="flex items-center gap-2 text-[15px] font-bold text-ink-900">
+          <FiGrid size={15} className="text-brand" /> Receive credits
+        </h3>
+        <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-ink-400 hover:bg-ink-100 hover:text-ink-800" aria-label="Close">
+          <FiX size={15} />
+        </button>
+      </div>
+      <div className="mt-4 flex flex-col items-center text-center">
+        {/* the code stays black on white in dark mode too, so every camera reads it */}
+        <div className="rounded-2xl p-3 shadow-sm ring-1 ring-ink-200" style={{ background: 'rgb(255, 255, 255)' }}>
+          {svg ? (
+            <div className="h-52 w-52 [&>svg]:h-full [&>svg]:w-full" dangerouslySetInnerHTML={{ __html: svg }} />
+          ) : (
+            <div className="h-52 w-52 rounded-xl skeleton" />
+          )}
+        </div>
+        <div className="mt-3 text-[13.5px] font-semibold text-ink-900">{user?.workspace_name || user?.name}</div>
+        <div className="text-[18px] font-bold tabular-nums tracking-wide text-ink-900">{fmtAccount(accountNo)}</div>
+        <p className="mt-1 max-w-xs text-[12px] text-ink-500">Scan with a phone camera to send credits to this account.</p>
+        <button type="button" onClick={share} className="btn-outline mt-3 h-10 rounded-xl px-5">
+          {copied ? <FiCheck size={14} /> : navigator.share ? <FiSend size={14} /> : <FiLink size={14} />}
+          {copied ? 'Link copied' : navigator.share ? 'Share' : 'Copy link'}
+        </button>
+      </div>
+    </section>
+  )
+}
 
 /**
  * Billing → Transfer credits, like a bank transfer: the other account's ID →
  * whose it is (name, owner, plan) → how many credits (+ a note) → review →
  * receipt. Calls GET /billing/account/{id} and POST /billing/transfer.
  */
-function TransferPanel({ available, onClose, onSent }) {
+function TransferPanel({ available, initialNumber = '', onClose, onSent }) {
   const [step, setStep] = useState('to') // to | amount | review | done
-  const [number, setNumber] = useState('')
+  const [number, setNumber] = useState(initialNumber)
   const [who, setWho] = useState(null)
   const [amount, setAmount] = useState('')
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [receipt, setReceipt] = useState(null)
+  const [scanning, setScanning] = useState(false)
+  const found = useCallback((no) => {
+    setNumber(no)
+    setScanning(false)
+  }, [])
   const digits = number.replace(/\D/g, '')
   const credits = parseInt(amount.replace(/\D/g, '') || '0', 10)
   const have = Math.floor(available)
@@ -1237,17 +1383,23 @@ function TransferPanel({ available, onClose, onSent }) {
     }
   }, [digits])
 
+  // "Sending…" plays for at least a moment (a transfer that flashes by feels
+  // unreal), then the receipt pops up over everything
   const send = () => {
     setBusy(true)
     setErr('')
-    api
-      .post('/billing/transfer', { to: digits, credits, note })
-      .then((r) => {
+    setStep('sending')
+    const minWait = new Promise((r) => setTimeout(r, 1400))
+    Promise.all([api.post('/billing/transfer', { to: digits, credits, note }), minWait])
+      .then(([r]) => {
         setReceipt(r)
         setStep('done')
         onSent()
       })
-      .catch((e) => setErr(e.message))
+      .catch((e) => {
+        setErr(e.message)
+        setStep('review')
+      })
       .finally(() => setBusy(false))
   }
 
@@ -1278,8 +1430,24 @@ function TransferPanel({ available, onClose, onSent }) {
         </button>
       </div>
 
-      {step === 'to' && (
+      {step === 'to' && scanning && (
+        <div className="mt-4">
+          <QrScanner onFound={found} onClose={() => setScanning(false)} />
+        </div>
+      )}
+
+      {step === 'to' && !scanning && (
         <div className="mt-4 space-y-3">
+          <button
+            type="button"
+            onClick={() => setScanning(true)}
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-brand/50 bg-brand-soft py-3 text-[13px] font-semibold text-brand hover:border-brand"
+          >
+            <FiCamera size={15} /> Scan QR code
+          </button>
+          <div className="flex items-center gap-2 text-[11px] text-ink-400">
+            <span className="h-px flex-1 bg-ink-200" /> or type it <span className="h-px flex-1 bg-ink-200" />
+          </div>
           <label className="block text-[12px] font-semibold text-ink-700">
             Account ID
             <input
@@ -1375,25 +1543,20 @@ function TransferPanel({ available, onClose, onSent }) {
         </div>
       )}
 
+      {step === 'sending' && <SendingAnimation credits={credits} />}
+
       {step === 'done' && receipt && (
-        <div className="mt-4 space-y-3 text-center">
-          <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-emerald-50 text-emerald-600">
-            <FiCheck size={22} />
-          </span>
-          <div>
-            <div className="text-[15px] font-bold text-ink-900">Transfer complete</div>
-            <div className="text-[12px] text-ink-500">
-              {new Date(receipt.at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
-            </div>
-          </div>
-          <div className="text-[26px] font-bold tabular-nums text-ink-900">{receipt.sent.toLocaleString('en-US')} credits</div>
-          <div className="text-left">
-            <Recipient />
-          </div>
-          <button type="button" onClick={onClose} className="btn-primary h-10 w-full rounded-xl">
-            Done
-          </button>
-        </div>
+        <CreditReceipt
+          kind="sent"
+          credits={receipt.sent}
+          name={receipt.to?.name}
+          owner={receipt.to?.owner}
+          account={receipt.to?.account_no}
+          note={receipt.note}
+          at={receipt.at}
+          refNo={receipt.ref}
+          onClose={onClose}
+        />
       )}
     </section>
   )
@@ -1419,7 +1582,18 @@ function groupByDay(rows) {
 
 function BillingTab() {
   const { user } = useAuth()
-  const [transferOpen, setTransferOpen] = useState(false)
+  // a scanned Receive QR (/?transfer=…, see Sidebar) opens Transfer filled in
+  const [scannedTo] = useState(() => {
+    try {
+      const to = sessionStorage.getItem('cf_transfer_to') || ''
+      sessionStorage.removeItem('cf_transfer_to')
+      return to
+    } catch {
+      return ''
+    }
+  })
+  const [transferOpen, setTransferOpen] = useState(!!scannedTo)
+  const [receiveOpen, setReceiveOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
@@ -1554,8 +1728,8 @@ function BillingTab() {
           </div>
         </div>
         {/* the account's number (to receive credits) and Transfer */}
-        <div className="relative mt-4 flex items-center gap-2 border-t pt-3" style={{ borderColor: 'rgba(255, 255, 255, 0.2)' }}>
-          <div className="min-w-0 flex-1 text-[11px] text-white/75">
+        <div className="relative mt-4 flex flex-wrap items-center gap-x-2 gap-y-3 border-t pt-3" style={{ borderColor: 'rgba(255, 255, 255, 0.2)' }}>
+          <div className="flex-none whitespace-nowrap text-[11px] text-white/75">
             Account ID
             <button
               type="button"
@@ -1571,24 +1745,43 @@ function BillingTab() {
               {copied ? <FiCheck size={12} /> : <FiCopy size={12} className="opacity-70" />}
             </button>
           </div>
+          <div className="ml-auto flex gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setReceiveOpen((v) => !v)
+              setTransferOpen(false)
+            }}
+            className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[12.5px] font-bold text-white ring-1 ring-inset ring-white/40 hover:opacity-90"
+            style={ON_CARD(0.18)}
+            title="Your QR code — scan it to send credits here"
+            aria-label="Receive credits — show your QR code"
+          >
+            <FiGrid size={13} /> Receive
+          </button>
           {canManage && (
             <button
               type="button"
-              onClick={() => setTransferOpen(true)}
+              onClick={() => {
+                setTransferOpen(true)
+                setReceiveOpen(false)
+              }}
               className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[12.5px] font-bold text-white ring-1 ring-inset ring-white/40 hover:opacity-90"
               style={ON_CARD(0.18)}
             >
               <FiSend size={13} /> Transfer
             </button>
           )}
+          </div>
         </div>
       </section>
       {data.pending > 0 && (
         <p className="-mt-5 text-[12px] text-ink-500">{fmtCredits(data.pending)} are held for renders in progress.</p>
       )}
       {transferOpen && (
-        <TransferPanel available={data.available_credits ?? 0} onClose={() => setTransferOpen(false)} onSent={load} />
+        <TransferPanel available={data.available_credits ?? 0} initialNumber={scannedTo} onClose={() => setTransferOpen(false)} onSent={load} />
       )}
+      {receiveOpen && <ReceivePanel accountNo={data.account_no} onClose={() => setReceiveOpen(false)} />}
 
       {/* by type — three small cards */}
       <section>

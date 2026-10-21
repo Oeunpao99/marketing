@@ -3,6 +3,7 @@ import { FiChevronRight, FiCreditCard, FiGift, FiLogOut, FiSettings, FiUserPlus 
 import { useAuth } from "../../auth";
 import { useCredits, useCreditsRefresh } from "../../lib/credits";
 import CreditCoin from "./CreditCoin";
+import { IncomingCredits } from "./CreditReceipt";
 
 // The top bar's right end: the credits chip and the account avatar. Either
 // opens one panel — who you are, the credits left this month (app/billing.py,
@@ -101,6 +102,8 @@ export default function AccountMenu() {
 
   return (
     <div ref={box} className="relative flex items-center gap-2">
+      {/* credits someone sent this account pop up here, wherever you are */}
+      <IncomingCredits />
       {/* the credits chip */}
       <button
         type="button"
