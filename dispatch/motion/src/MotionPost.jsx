@@ -662,7 +662,7 @@ function Chrome({ scenes, brand }) {
 /** The background track (props.music, a file under public/music/<mood>/):
  * ducked under the voice-over, louder between lines, faded in and out, looped
  * if the video is longer than the track. */
-function BackgroundMusic({ src, scenes }) {
+function BackgroundMusic({ src, scenes, gain = 1 }) {
   const { durationInFrames } = useVideoConfig()
   let start = 0
   const spans = scenes.map((s, i) => {
@@ -676,7 +676,7 @@ function BackgroundMusic({ src, scenes }) {
     const level = f < span?.hush ? 0.06 : span?.voiced ? 0.22 : 0.5 // tracks are levelled to -19 dB (tools/make_music.py); a scene's pause dips it
     const fadeIn = interpolate(f, [0, 30], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })
     const fadeOut = interpolate(f, [durationInFrames - 45, durationInFrames], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })
-    return level * fadeIn * fadeOut
+    return level * fadeIn * fadeOut * gain
   }
   return <Html5Audio src={srcOf(src)} loop volume={volume} />
 }
@@ -686,7 +686,7 @@ function BackgroundMusic({ src, scenes }) {
  * a 10-minute training doesn't repeat one 30-second loop. Same ducking under
  * the voice as BackgroundMusic. */
 const XFADE = 30 // frames
-function ChapterMusic({ list, scenes }) {
+function ChapterMusic({ list, scenes, gain = 1 }) {
   const { durationInFrames } = useVideoConfig()
   let start = 0
   const spans = scenes.map((s, i) => {
@@ -700,7 +700,7 @@ function ChapterMusic({ list, scenes }) {
   const level = (f) => {
     const span = spans.find((x) => f >= x.from && f < x.to)
     const fadeOut = interpolate(f, [durationInFrames - 45, durationInFrames], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })
-    return (span?.voiced ? 0.22 : 0.5) * fadeOut
+    return (span?.voiced ? 0.22 : 0.5) * fadeOut * gain
   }
   return cuts.map((from, k) => {
     const to = k < cuts.length - 1 ? cuts[k + 1] : durationInFrames
@@ -785,7 +785,7 @@ const TEMPLATES = {
   training: { ...TRAINING, scenes: { ...SCENES, ...TRAINING.scenes } },
 }
 
-export const MotionPost = ({ brand, scenes, music, musicList, style, look, cast, place, places, host, street, sfx = true }) => {
+export const MotionPost = ({ brand, scenes, music, musicList, style, look, cast, place, places, host, street, sfx = true, musicVolume = 1, voiceVolume = 1 }) => {
   let point = 0
   // "custom": its scenes are drawn in the look the AI picked for this video
   const custom = useMemo(() => (style === 'custom' ? customTemplate(look) : null), [style, look])
@@ -797,7 +797,8 @@ export const MotionPost = ({ brand, scenes, music, musicList, style, look, cast,
   const captionTop = typeof t.captionTop === 'function' ? t.captionTop(height) : t.captionTop
   return (
     <AbsoluteFill style={{ ...t.root, '--brand': brand.color }}>
-      {musicList?.length > 1 ? <ChapterMusic list={musicList} scenes={scenes} /> : music && <BackgroundMusic src={music} scenes={scenes} />}
+      {/* the video editor (app/motion.py edit_video) may turn the music and the voice up or down */}
+      {musicList?.length > 1 ? <ChapterMusic list={musicList} scenes={scenes} gain={musicVolume} /> : music && <BackgroundMusic src={music} scenes={scenes} gain={musicVolume} />}
       <TransitionSeries>
         {scenes.flatMap((scene, i) => {
           const Scene = t.scenes[scene.type]
@@ -817,7 +818,7 @@ export const MotionPost = ({ brand, scenes, music, musicList, style, look, cast,
                 {scene.caption && !noCaption.includes(scene.type) && (
                   <Caption text={scene.caption} words={scene.voiceWords} pauses={scene.pauses} seconds={scene.voiceSeconds || sceneFrames(scene) / FPS - 0.6} top={captionTop} look={t.caption} />
                 )}
-                {scene.audio && <Html5Audio src={srcOf(scene.audio)} />}
+                {scene.audio && <Html5Audio src={srcOf(scene.audio)} volume={Math.min(1, voiceVolume)} />}
               </Sequence>
             </TransitionSeries.Sequence>,
           ]

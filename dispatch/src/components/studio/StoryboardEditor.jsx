@@ -16,7 +16,7 @@ import { SCENE_LABELS, STYLE_LABELS } from './MotionBoard'
 
 // The words on screen each scene type shows (its other parts — chart
 // numbers, list items, chat messages — are kept as the AI wrote them).
-const FIELDS = {
+export const FIELDS = {
   hook: [['text', 'On screen']],
   talk: [['text', 'Says']],
   react: [

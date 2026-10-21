@@ -656,6 +656,13 @@ def _library_count(ws: int):
 LIBRARY_PAGE_MAX = 200  # a refresh re-fetches everything already scrolled into view
 
 
+def motion_can_edit(job) -> bool:
+    """Library: can this video be opened in the video editor? (app/motion.py, imported late — it imports a lot)"""
+    from app.motion import can_edit
+
+    return can_edit(job)
+
+
 @router.get("/library")
 def library_view(
     limit: int = 20,
@@ -765,6 +772,8 @@ def library_view(
                 "ready_at": v.created_at,
                 "favorite": bool(v.favorite),
                 "folder_id": v.folder_id,
+                # a template video whose scenes were kept: "Edit" opens it in the editor (app/motion.py edit_view)
+                "editable": motion_can_edit(j),
             }
         )
     return {"items": out, "has_more": has_more, "brand_counts": brand_counts}
