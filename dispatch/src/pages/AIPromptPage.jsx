@@ -15,6 +15,7 @@ import {
   FiMessageCircle,
   FiPaperclip,
   FiPlus,
+  FiAlertCircle,
   FiRefreshCw,
   FiSearch,
   FiSliders,
@@ -225,6 +226,30 @@ const STORY_OPTIONS = MOTION_STORIES.map((o) => {
   const t = MOTION_TEMPLATES.find((x) => x.story === o.value)
   return t ? { ...o, thumb: previewSrc(t.id), preview: previewSrc(t.id, 'mp4') } : o // hover: the clip, big (Select PreviewCard)
 })
+
+/** A turn that failed (or was stopped): a plain card — a soft red mark and red
+ * title when something went wrong, a grey one when the person pressed Stop —
+ * the reason, and Try again. Calmer than a full yellow box. */
+function FailedNote({ stopped, title, detail, onRetry, className = '' }) {
+  return (
+    <div className={`flex items-start gap-3 rounded-2xl border border-ink-200 bg-white px-4 py-3 ${className}`} role={stopped ? undefined : 'alert'}>
+      <span className={`mt-0.5 grid h-7 w-7 flex-none place-items-center rounded-full ${stopped ? 'bg-ink-100 text-ink-500' : 'bg-red-50 text-red-600'}`}>
+        {stopped ? <FiSquare size={11} fill="currentColor" aria-hidden="true" /> : <FiAlertCircle size={15} aria-hidden="true" />}
+      </span>
+      <div className="min-w-0 flex-1 text-[12.5px] leading-relaxed">
+        <div className={`font-semibold ${stopped ? 'text-ink-800' : 'text-red-600'}`}>{stopped ? 'Stopped' : title}</div>
+        {!stopped && detail && <div className="text-ink-600">{detail}</div>}
+      </div>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="inline-flex flex-none items-center gap-1.5 self-center rounded-full border border-ink-200 px-3 py-1.5 text-[12px] font-semibold text-ink-800 transition-colors hover:border-brand hover:text-brand"
+      >
+        <FiRefreshCw size={12} aria-hidden="true" /> Try again
+      </button>
+    </div>
+  )
+}
 
 export default function AIPromptPage({ embedded = false, preset = null }) {
   const navigate = useNavigate()
@@ -1816,12 +1841,7 @@ function AskTurn({ t, onRetry, onGenerate, onEdit }) {
           )}
 
           {t.status === 'failed' && (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12.5px] text-amber-900">
-              <b>{t.error === 'Stopped' ? 'Stopped.' : 'Couldn’t answer.'}</b> {t.error === 'Stopped' ? '' : t.error}
-              <button type="button" onClick={onRetry} className="ml-2 font-semibold text-brand hover:underline">
-                Try again
-              </button>
-            </div>
+            <FailedNote stopped={t.error === 'Stopped'} title="Couldn’t answer" detail={t.error} onRetry={onRetry} />
           )}
 
           {t.status === 'done' && (
@@ -2125,12 +2145,7 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary, onPlanChange, onMake,
         )}
 
         {t.status === 'failed' && (
-          <div className="max-w-[85%] rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12.5px] text-amber-900">
-            <b>{t.error === 'Stopped' ? 'Stopped.' : 'Couldn’t generate.'}</b> {t.error === 'Stopped' ? '' : t.error}
-            <button type="button" onClick={onRegenerate} className="ml-2 font-semibold text-brand hover:underline">
-              Try again
-            </button>
-          </div>
+          <FailedNote stopped={t.error === 'Stopped'} title="Couldn’t generate" detail={t.error} onRetry={onRegenerate} className="max-w-[85%]" />
         )}
 
         {t.status === 'done' && url && !finishing && (
