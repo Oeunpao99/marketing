@@ -347,12 +347,12 @@ def admin_add_credit(ws_id: int, payload: CreditIn, db: Session = Depends(get_db
         CreditEntry(
             workspace_id=ws_id,
             kind="grant",
-            amount_usd=round(payload.amount_usd, 2),
+            amount_usd=round(payload.amount_usd, 4),  # typed in credits (1 credit = $0.005)
             note=(payload.note.strip() or "Added by Marketing ឆ្លាតវៃ")[:300],
         )
     )
     db.commit()
-    log.warning("admin portal: +$%.2f credit to workspace %s", payload.amount_usd, ws_id)
+    log.warning("admin portal: +%.0f credits ($%.2f) to workspace %s", payload.amount_usd * billing.CREDITS_PER_USD, payload.amount_usd, ws_id)
     return billing.balance(db, ws_id)
 
 

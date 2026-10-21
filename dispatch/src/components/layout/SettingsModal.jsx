@@ -37,7 +37,7 @@ import { openTour } from '../../lib/tour'
 import { TZ } from '../../lib/tz'
 import Select from '../ui/Select'
 import HowItWorks from './HowItWorks'
-import { fmtUSD } from '../../lib/money'
+import { fmtCredits } from '../../lib/money'
 import ModelLogo from '../ui/ModelLogo'
 
 // Settings — every control here is real and saves to the backend
@@ -1071,7 +1071,7 @@ function AiModelSection({ canManage, showToast }) {
               <div className="mt-0.5 text-[11.5px] text-ink-500">{m.blurb}</div>
               {m.key && (
                 <div className="mt-1 text-[11px] tabular-nums text-ink-400">
-                  ${m.price_in} in · ${m.price_out} out per 1M tokens
+                  ≈ {fmtCredits((2000 * m.price_in + 700 * m.price_out) / 1_000_000)} per caption
                 </div>
               )}
             </button>
@@ -1088,7 +1088,7 @@ function AiModelSection({ canManage, showToast }) {
                 <th className="px-2 py-1.5 font-medium">Model</th>
                 <th className="px-2 py-1.5 text-right font-medium">Calls</th>
                 <th className="px-2 py-1.5 text-right font-medium">Tokens</th>
-                <th className="px-3.5 py-1.5 text-right font-medium">Credit</th>
+                <th className="px-3.5 py-1.5 text-right font-medium">Credits</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-ink-100">
@@ -1103,7 +1103,7 @@ function AiModelSection({ canManage, showToast }) {
                   </td>
                   <td className="px-2 py-1.5 text-right tabular-nums">{r.calls}</td>
                   <td className="px-2 py-1.5 text-right tabular-nums">{r.tokens.toLocaleString()}</td>
-                  <td className="px-3.5 py-1.5 text-right tabular-nums">${r.charged.toFixed(2)}</td>
+                  <td className="px-3.5 py-1.5 text-right tabular-nums">{fmtCredits(r.charged, false)}</td>
                 </tr>
               ))}
             </tbody>
@@ -1260,26 +1260,26 @@ function BillingTab() {
       {/* this month */}
       <section>
         <div className="flex flex-wrap items-center gap-2">
-          <h3 className="text-[15px] font-bold text-ink-900">Monthly AI credit</h3>
+          <h3 className="text-[15px] font-bold text-ink-900">Monthly AI credits</h3>
           <span className="rounded-full bg-brand-soft px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wide text-brand">
             {data.plan_label} plan
           </span>
         </div>
         <p className="mt-2 flex flex-wrap items-baseline gap-x-1.5 text-[13px] text-ink-600">
           <span className={`text-[22px] font-bold tabular-nums tracking-tight ${toneText}`}>
-            {fmtUSD(left)}
+            {fmtCredits(left, false)}
           </span>
-          <span>left of {fmtUSD(credit)}</span>
+          <span>credits left of {fmtCredits(credit, false)}</span>
           <span className="text-ink-300">·</span>
-          <span className="text-[15px] font-bold tabular-nums text-ink-900">{fmtUSD(data.spent)}</span>
+          <span className="text-[15px] font-bold tabular-nums text-ink-900">{fmtCredits(data.spent, false)}</span>
           <span>used this month</span>
         </p>
         <p className="mt-0.5 text-[12px] text-ink-500">
-          Refills on {reset}. AI pauses at $0 — posting and scheduling keep working.
-          {data.pending > 0 ? ` ${fmtUSD(data.pending)} is held for renders in progress.` : ''}
+          Refills on {reset}. AI pauses at 0 credits — posting and scheduling keep working.
+          {data.pending > 0 ? ` ${fmtCredits(data.pending)} are held for renders in progress.` : ''}
         </p>
         <div className="mt-2">
-          <UsageBar label="Credit used" pct={usedPct} right={`${usedPct}%`} tone={tone} />
+          <UsageBar label="Credits used" pct={usedPct} right={`${usedPct}%`} tone={tone} />
         </div>
       </section>
 
@@ -1330,7 +1330,7 @@ function BillingTab() {
                         <span
                           className={`flex-none text-[13px] font-semibold tabular-nums ${e.amount < 0 ? 'text-emerald-600' : 'text-ink-800'}`}
                         >
-                          {e.amount < 0 ? `+${fmtUSD(-e.amount)}` : `−${fmtUSD(e.amount)}`}
+                          {e.amount < 0 ? `+${fmtCredits(-e.amount)}` : `−${fmtCredits(e.amount)}`}
                         </span>
                       </div>
                       {snippet && <div className="mt-0.5 truncate text-[12px] text-ink-500">{snippet}</div>}
@@ -1381,8 +1381,8 @@ function BillingTab() {
           </button>
         </div>
         <p>
-          Costs are estimates from each AI provider’s prices (tokens for writing and images, seconds for video), so they can
-          differ slightly from the final bill. Unused credit doesn’t roll over.
+          Credits follow what each AI task really uses (words for writing, size for images, seconds for video), so the same
+          kind of task can use a little more or less. Unused credits don’t roll over.
         </p>
       </div>
     </div>

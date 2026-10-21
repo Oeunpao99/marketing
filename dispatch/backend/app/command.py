@@ -302,7 +302,7 @@ def command_center(brand_id: int | None = None, db: Session = Depends(get_db), w
                 "tone": "critical" if credit["available"] <= 0 else "warning",
                 "count": None,
                 "title": "AI credit is running low" if credit["available"] > 0 else "AI credit used up",
-                "detail": f"${max(credit['available'], 0):.2f} left this month — AI stops at $0",
+                "detail": f"{max(credit['available_credits'], 0):,.0f} credits left this month — AI stops at 0",
                 "to": None,
                 "brands": [],
             }
@@ -495,7 +495,7 @@ def command_center(brand_id: int | None = None, db: Session = Depends(get_db), w
             "posts": {"now": this_week["posts"], "before": last_week["posts"]},
             "audience": audience,
             "channels": {"live": len(live), "total": len(channels)},
-            "credit": {"available": credit["available"], "monthly": credit["monthly_credit"]},
+            "credit": {"available": credit["available"], "monthly": credit["monthly_credit"], "available_credits": credit["available_credits"], "monthly_credits": credit["monthly_credits"]},
         },
         "needs": needs,
         "today": rows,

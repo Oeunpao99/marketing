@@ -790,7 +790,7 @@ const CREDIT_USES = [
   [FiImage, ['AI image or poster', 'រូបភាព ឬប៉ូស្ទ័រ AI'], 10],
   [FiCalendar, ['Weekly plan (7 posts)', 'ផែនការសប្តាហ៍ (៧ ប្រកាស)'], 40],
   [FiPlay, ['Motion video with voice', 'វីដេអូចលនា មានសំឡេង'], 60],
-  [FiPlayCircle, ['AI film clip, 8 s', 'ឈុតវីដេអូ AI ៨ វិនាទី'], 150],
+  [FiPlayCircle, ['AI film clip, 8 s', 'ឈុតវីដេអូ AI ៨ វិនាទី'], 160],
 ]
 
 // The full comparison. A value per plan (Free, Starter, Pro, Business): true ✓, false —, or text.

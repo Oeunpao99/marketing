@@ -17,6 +17,7 @@ import {
   FiX,
 } from 'react-icons/fi'
 import Select from '../../components/ui/Select'
+import { CREDITS_PER_USD, fmtCredits } from '../../lib/money'
 import { hideSplash } from '../../lib/splash'
 import PlatformIcon, { PLAT_BRAND_CLASS } from '../../components/ui/PlatformIcon'
 import AiUsage, { AccountAiSection } from './AdminAI'
@@ -465,10 +466,16 @@ function Accounts({ onOpen }) {
 }
 
 // ── one account: details + controls (right slide-over) ────────────────────
+// app/billing.py PLAN_CREDITS — the pricing page's plans
 const PLAN_OPTIONS = [
-  { value: 'pro', label: 'Pro · $50 AI credit / month' },
-  { value: 'free', label: 'Free · no AI credit' },
+  { value: 'free', label: 'Free · 100 credits / month' },
+  { value: 'starter', label: 'Starter · 1,000 credits / month' },
+  { value: 'pro', label: 'Pro · 3,000 credits / month' },
+  { value: 'business', label: 'Business · 9,000 credits / month' },
+  { value: 'enterprise', label: 'Enterprise · 30,000 credits / month' },
 ]
+// what the customer sees, and the dollars behind it
+const both = (n) => `${fmtCredits(n)} · ${money(n)}`
 
 function AccountDrawer({ id, onClose, onChanged }) {
   const { data: w, error, load } = useLoad(`/workspaces/${id}`)
@@ -548,8 +555,8 @@ function AccountDrawer({ id, onClose, onChanged }) {
               {/* usage */}
               <section className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
                 {[
-                  ['AI this month', money(w.ai_month)],
-                  ['Credit left', money(bal?.available)],
+                  ['AI this month', fmtCredits(w.ai_month)],
+                  ['Credits left', fmtCredits(bal?.available)],
                   ['Posts 30d', w.posts_30d],
                   ['Last active', ago(w.last_active)],
                 ].map(([label, value]) => (
@@ -576,7 +583,7 @@ function AccountDrawer({ id, onClose, onChanged }) {
                   <div className="mt-3">
                     <div className="flex justify-between text-[11.5px] text-ink-500">
                       <span>
-                        {money(used)} used of {money(total)} this month
+                        {both(used)} used of {fmtCredits(total)} this month
                       </span>
                       <span>resets {day(bal.resets_at)}</span>
                     </div>
@@ -589,9 +596,9 @@ function AccountDrawer({ id, onClose, onChanged }) {
                   className="mt-3 flex flex-wrap items-center gap-2"
                   onSubmit={(e) => {
                     e.preventDefault()
-                    const n = Number(amount)
+                    const n = Number(amount) / CREDITS_PER_USD // typed in credits; the ledger keeps dollars
                     if (n > 0)
-                      act('credit', 'POST', `/workspaces/${id}/credit`, { amount_usd: n, note: creditNote }, `Added ${money(n)} of AI credit for this month`).then(() => {
+                      act('credit', 'POST', `/workspaces/${id}/credit`, { amount_usd: n, note: creditNote }, `Added ${both(n)} for this month`).then(() => {
                         setAmount('')
                         setCreditNote('')
                       })
@@ -599,18 +606,20 @@ function AccountDrawer({ id, onClose, onChanged }) {
                 >
                   <input
                     value={amount}
-                    onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))}
-                    inputMode="decimal"
-                    placeholder="$ amount"
+                    onChange={(e) => setAmount(e.target.value.replace(/[^\d]/g, ''))}
+                    inputMode="numeric"
+                    placeholder="Credits"
                     className={`${input} w-28 py-2`}
-                    aria-label="Credit amount in US dollars"
+                    aria-label="Credits to add"
                   />
                   <input value={creditNote} onChange={(e) => setCreditNote(e.target.value)} maxLength={200} placeholder="Note (optional)" className={`${input} min-w-0 flex-1 py-2`} />
                   <button type="submit" disabled={!(Number(amount) > 0) || busy === 'credit'} className="btn-primary py-2">
                     <FiPlus size={14} /> Add credit
                   </button>
                 </form>
-                <p className="mt-1.5 text-[11px] text-ink-400">Extra credit counts for this month, like the plan’s own credit.</p>
+                <p className="mt-1.5 text-[11px] text-ink-400">
+                  Extra credits count for this month, like the plan’s own. {Number(amount) > 0 && `${Number(amount).toLocaleString('en-US')} credits = ${money(Number(amount) / CREDITS_PER_USD)} of AI.`}
+                </p>
               </Section>
 
               {/* members */}

@@ -173,9 +173,9 @@ function Kpis({ k }) {
           note: `of ${k.channels.total} connected`,
         },
     {
-      label: 'AI credit left',
-      value: `$${Math.max(0, k.credit.available).toFixed(2)}`,
-      note: k.credit.monthly ? `of $${k.credit.monthly.toFixed(0)} this month` : 'This month',
+      label: 'AI credits left',
+      value: Math.max(0, Math.round(k.credit.available_credits ?? 0)).toLocaleString('en-US'),
+      note: k.credit.monthly_credits ? `of ${k.credit.monthly_credits.toLocaleString('en-US')} this month` : 'This month',
       warn: k.credit.monthly && k.credit.available <= k.credit.monthly * 0.15,
     },
   ]

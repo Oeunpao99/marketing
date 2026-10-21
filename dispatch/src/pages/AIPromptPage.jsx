@@ -32,7 +32,7 @@ import StoryboardEditor from '../components/studio/StoryboardEditor'
 import StoryEditor from '../components/story/StoryEditor'
 import { handoff } from '../lib/handoff'
 import { trackJob, untrackJob } from '../lib/genJobs'
-import { fmtUSD } from '../lib/money'
+import { fmtCredits } from '../lib/money'
 import { PILLAR_LABELS, pillarChipClass } from '../lib/angles'
 import { kitSrc, TemplatePicker } from '../components/brandkit/BrandKit'
 import { MOTION_OFF_TIP, useMotionReady } from '../lib/motionStatus'
@@ -2210,7 +2210,7 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary, onPlanChange, onMake,
               <button type="button" onClick={onLibrary} className="ml-1 text-[11px] text-ink-400 hover:text-brand">
                 Saved to Library
                 {t.tokens ? ` · ${fmtTok(t.tokens)} tok` : ''}
-                {t.cost ? ` · ~${fmtUSD(t.cost)}` : ''}
+                {t.cost ? ` · ~${fmtCredits(t.cost)}` : ''}
               </button>
             </div>
           </>

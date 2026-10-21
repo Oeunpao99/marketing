@@ -42,9 +42,22 @@ router = APIRouter(prefix="/billing", tags=["Billing"])
 
 PHNOM_PENH = timezone(timedelta(hours=7))
 
-# Monthly AI credit per plan, USD.
-PLAN_CREDIT = {"pro": 50.0, "free": 0.0}
-PLAN_LABEL = {"pro": "Pro", "free": "Free"}
+# Customers see CREDITS; the ledger keeps US dollars (what we charge, cost ×
+# markup — and cost_usd, what the providers charge us), so it still matches the
+# provider bills. 1 credit = $0.005 of that charge: a caption ≈ 1-2 credits, an
+# image ≈ 10, a motion video ≈ 40-60, an 8 s film clip ≈ 160 (the pricing
+# page's numbers). src/lib/money.js CREDITS_PER_USD says the same.
+CREDITS_PER_USD = 200
+
+# Monthly AI credits per plan (the pricing page, 2026-10-21) — and in dollars.
+PLAN_CREDITS = {"free": 100, "starter": 1000, "pro": 3000, "business": 9000, "enterprise": 30000}
+PLAN_CREDIT = {plan: credits / CREDITS_PER_USD for plan, credits in PLAN_CREDITS.items()}
+PLAN_LABEL = {"free": "Free", "starter": "Starter", "pro": "Pro", "business": "Business", "enterprise": "Enterprise"}
+
+
+def to_credits(usd: float) -> float:
+    """Dollars of AI charge → credits, one decimal (a caption can be 1.3)."""
+    return round((usd or 0) * CREDITS_PER_USD, 1)
 
 # ── price tables (USD, estimates) ─────────────────────────────────────────
 # Text: per 1M tokens (input, output). Matched by the longest prefix of the
@@ -217,6 +230,12 @@ def balance(db: Session, ws: int) -> dict:
         "balance": round(credit + spent, 6),
         "available": round(credit + spent - pending, 6),
         "resets_at": next_reset().isoformat(),
+        # the same in credits — what the customer sees
+        "credits_per_usd": CREDITS_PER_USD,
+        "monthly_credits": PLAN_CREDITS.get(plan, 0),
+        "spent_credits": to_credits(-spent),
+        "pending_credits": to_credits(pending),
+        "available_credits": to_credits(credit + spent - pending),
     }
 
 
@@ -224,7 +243,7 @@ def _out_of_credit_message() -> str:
     when = next_reset()
     reset = f"{when:%b} {when.day}"
     return (
-        f"Your workspace is out of AI credit for this month — it refills on {reset}. "
+        f"Your workspace is out of AI credits for this month — they refill on {reset}. "
         "See Settings → Billing."
     )
 
@@ -366,6 +385,7 @@ def billing_overview(db: Session = Depends(get_db), ws: int = Depends(current_wo
             "kind": kind,
             "label": _KIND_LABEL.get(kind, kind),
             "amount": round(-float(total or 0), 6),
+            "credits": to_credits(-float(total or 0)),
             "count": count,
             "tokens": int(tokens or 0),
             "seconds": int(seconds or 0),
@@ -400,6 +420,7 @@ def _activity_page(db: Session, ws: int, page: int, per_page: int) -> dict:
                 "kind": e.kind,
                 "label": _KIND_LABEL.get(e.kind, e.kind),
                 "amount": round(-float(e.amount_usd), 6),
+                "credits": to_credits(-float(e.amount_usd)),
                 "model": e.model,
                 "tokens": e.tokens,
                 "seconds": e.seconds,
@@ -448,5 +469,6 @@ def billing_summary(
             )
         ).one()
         out["session_spent"] = round(-float(spent or 0), 6)
+        out["session_spent_credits"] = to_credits(-float(spent or 0))
         out["session_tokens"] = int(tokens or 0)
     return out
