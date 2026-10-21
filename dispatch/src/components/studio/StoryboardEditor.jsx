@@ -1,13 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
-import { FiArrowDown, FiArrowUp, FiFilm, FiHeadphones, FiMic, FiPlay, FiRefreshCw, FiSquare, FiTrash2 } from 'react-icons/fi'
+import { FiArrowDown, FiArrowUp, FiCopy, FiFilm, FiHeadphones, FiMic, FiPlay, FiPlus, FiRefreshCw, FiSquare, FiTrash2 } from 'react-icons/fi'
 import AutoTextarea from '../ui/AutoTextarea'
 import { SCENE_LABELS, STYLE_LABELS } from './MotionBoard'
 
 // The storyboard of a Remotion video made from the person's own story
 // (POST /ai/motion/plan) — reviewed and edited here before anything is voiced
 // or rendered: each scene's on-screen words and its spoken line, the order,
-// scenes removed. "Make the video" sends it back as it is (POST /ai/motion
-// with ``script``; the server cleans it like the AI's own).
+// scenes removed, duplicated or added. "Make the video" sends it back as it
+// is (POST /ai/motion with ``script``; the server cleans it like the AI's own).
+//
+// A new scene is a kind the storyboard already has (so the template can draw
+// it): a copy of the first scene of that kind with its words and voice
+// emptied — any parts of it not edited here (list items, chart numbers) stay
+// as that scene had them.
 
 // The words on screen each scene type shows (its other parts — chart
 // numbers, list items, chat messages — are kept as the AI wrote them).
@@ -349,6 +354,40 @@ export default function StoryboardEditor({ plan, onChange, onMake, onRewrite, vo
     onChange({ ...plan, scenes: next })
   }
   const remove = (i) => onChange({ ...plan, scenes: scenes.filter((_, j) => j !== i) })
+  const insert = (at, scene) => onChange({ ...plan, scenes: [...scenes.slice(0, at), scene, ...scenes.slice(at)] })
+  const duplicate = (i) => insert(i + 1, structuredClone(scenes[i]))
+  // the kinds of scene this storyboard has — the ones its template draws
+  const kinds = [...new Set(scenes.map((s) => s.type))]
+  const blank = (type) => {
+    const like = structuredClone(scenes.find((s) => s.type === type) || { type })
+    for (const [key] of FIELDS[type] || []) like[key] = ''
+    like.say = ''
+    return like
+  }
+  const [adding, setAdding] = useState(null) // where "Add scene" puts it: an index, or null (menu shut)
+  const addMenu = (at) => (
+    <div className="mt-2 rounded-xl border border-ink-200 bg-white p-2 shadow-sm animate-fadein">
+      <div className="px-1.5 pb-1.5 text-[11px] text-ink-500">Add a scene{at < scenes.length ? ` after scene ${at}` : ' at the end'} — pick its kind:</div>
+      <div className="flex flex-wrap gap-1.5">
+        {kinds.map((type) => (
+          <button
+            key={type}
+            type="button"
+            onClick={() => {
+              insert(at, blank(type))
+              setAdding(null)
+            }}
+            className="rounded-full border border-ink-200 px-3 py-1 text-[12px] font-medium text-ink-700 hover:border-brand hover:bg-brand-soft hover:text-brand"
+          >
+            {SCENE_LABELS[type] || type}
+          </button>
+        ))}
+        <button type="button" onClick={() => setAdding(null)} className="rounded-full px-3 py-1 text-[12px] text-ink-400 hover:text-ink-700">
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
   const seconds = estimateSeconds(scenes)
   const style = STYLE_LABELS[plan?.style]
 
@@ -397,6 +436,12 @@ export default function StoryboardEditor({ plan, onChange, onMake, onRewrite, vo
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[10.5px] font-semibold uppercase tracking-wide text-ink-400">{SCENE_LABELS[s.type] || s.type}</span>
                   <span className="flex items-center gap-0.5 text-ink-400">
+                    <button type="button" title="Add a scene after this one" onClick={() => setAdding(adding === i + 1 ? null : i + 1)} className={`rounded-md p-1 hover:bg-ink-100 hover:text-ink-700 ${adding === i + 1 ? 'bg-brand-soft text-brand' : ''}`}>
+                      <FiPlus size={13} />
+                    </button>
+                    <button type="button" title="Duplicate this scene" onClick={() => duplicate(i)} className="rounded-md p-1 hover:bg-ink-100 hover:text-ink-700">
+                      <FiCopy size={12} />
+                    </button>
                     <button type="button" title="Move up" disabled={i === 0} onClick={() => move(i, -1)} className="rounded-md p-1 hover:bg-ink-100 hover:text-ink-700 disabled:opacity-30">
                       <FiArrowUp size={13} />
                     </button>
@@ -425,8 +470,9 @@ export default function StoryboardEditor({ plan, onChange, onMake, onRewrite, vo
                     <span className="w-16 flex-none text-[11px] text-ink-400">{label}</span>
                     <input
                       value={s[key] || ''}
+                      placeholder="Type the words on screen…"
                       onChange={(e) => set(i, { [key]: e.target.value })}
-                      className="min-w-0 flex-1 rounded-lg border border-ink-200 bg-white px-2.5 py-1.5 text-[12.5px] font-semibold text-ink-900 outline-none focus:border-brand"
+                      className={`min-w-0 flex-1 rounded-lg border bg-white px-2.5 py-1.5 text-[12.5px] font-semibold text-ink-900 outline-none placeholder:font-normal placeholder:text-ink-400 focus:border-brand ${s[key]?.trim() ? 'border-ink-200' : 'border-red-200'}`}
                     />
                   </label>
                 ))}
@@ -440,8 +486,9 @@ export default function StoryboardEditor({ plan, onChange, onMake, onRewrite, vo
                       value={s.say || ''}
                       minRows={1}
                       maxRows={5}
+                      placeholder="What the voice says in this scene…"
                       onChange={(e) => set(i, { say: e.target.value })}
-                      className="min-w-0 flex-1 rounded-lg border border-ink-200 bg-white px-2.5 py-1.5 text-[12.5px] leading-relaxed text-ink-800 outline-none focus:border-brand"
+                      className={`min-w-0 flex-1 rounded-lg border bg-white px-2.5 py-1.5 text-[12.5px] leading-relaxed text-ink-800 outline-none placeholder:text-ink-400 focus:border-brand ${s.say?.trim() ? 'border-ink-200' : 'border-red-200'}`}
                     />
                     {onHear && (
                       <button
@@ -461,11 +508,26 @@ export default function StoryboardEditor({ plan, onChange, onMake, onRewrite, vo
                     )}
                   </label>
                 )}
+                {adding === i + 1 && i + 1 < scenes.length && addMenu(i + 1)}
               </div>
             </li>
           )
         })}
       </ol>
+      {/* add at the end */}
+      <div className="border-t border-ink-200/60 px-4 py-2.5">
+        {adding === scenes.length ? (
+          addMenu(scenes.length)
+        ) : (
+          <button
+            type="button"
+            onClick={() => setAdding(scenes.length)}
+            className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[12.5px] font-semibold text-brand hover:bg-brand-soft"
+          >
+            <FiPlus size={14} /> Add a scene
+          </button>
+        )}
+      </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-ink-200/70 px-4 py-3">
         <span className="text-[11px] text-ink-400">Words in [brackets] are highlighted on screen.</span>
