@@ -69,6 +69,7 @@ import { PODCAST } from './podcast'
 import { PARABLE } from './parable'
 import { DIALOGUE } from './dialogue'
 import { STREET } from './street3d'
+import { ILLUSTRATED } from './illustrated'
 import { CARTOON } from './cartoon'
 import { SPOTLIGHT } from './spotlight'
 import { APPDEMO } from './appdemo'
@@ -770,6 +771,7 @@ const TEMPLATES = {
   parable: { ...PARABLE, scenes: { ...SCENES, ...PARABLE.scenes } }, // Parable · Two paths
   dialogue: { ...DIALOGUE, scenes: { ...SCENES, ...DIALOGUE.scenes } }, // Dialogue · Two voices
   street3d: { ...STREET, scenes: { ...SCENES, ...STREET.scenes } }, // 3D · Street (three.js)
+  illustrated: { ...ILLUSTRATED, scenes: { ...SCENES, ...ILLUSTRATED.scenes } }, // Illustrated · Everyday Cambodia
   gridcards: { ...GRIDCARDS, scenes: { ...SCENES, ...GRIDCARDS.scenes } },
   techflow: { ...TECHFLOW, scenes: { ...SCENES, ...TECHFLOW.scenes } },
   canvas: { ...CANVAS, scenes: { ...SCENES, ...CANVAS.scenes } }, // AI design — the AI designs every scene

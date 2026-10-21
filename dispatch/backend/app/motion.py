@@ -1709,6 +1709,77 @@ DIALOGUE_PROMPT = (
 DIALOGUE_STYLES = {"dialogue"}
 
 
+# "Illustrated · Everyday Cambodia" (motion/src/illustrated.jsx) — a calm documentary
+# story in a muted hand-drawn look: a phsar, a street of shophouses, a bank, a home,
+# rice fields; one main person walking through it, close-ups of their face beside the
+# thing that matters (an ATM, a phone, money, a paper, a stall, a laptop).
+ILL_TYPES = ("hook", "wide", "closeup", "fact", "cta")
+# (not in GOAL_STYLES yet — the weekly plan picks it once a real render has proved it)
+ILL_PLACES = ("market", "street", "bank", "home", "field")
+ILL_TIMES = ("morning", "day", "evening")
+ILL_POSES = ("stand", "walk", "carry", "phone", "talk", "point")
+ILL_ITEMS = ("none", "basket", "bag", "phone", "money")
+ILL_OBJECTS = ("atm", "phone", "money", "paper", "stall", "laptop")
+LEAD_HAIRS = ("short", "long", "bun")
+LEAD_SHIRTS = ("blue", "white", "yellow", "teal", "rust", "green", "pink", "navy")
+LEAD_BOTTOMS = ("pants", "khaki", "sarong", "skirt")
+LEAD_HATS = ("none", "cap", "straw", "krama")
+ILL_PROMPT = (
+    "You are a documentary storyteller in Cambodia. You plan a REMOTION VIDEO (Reels / TikTok / "
+    "YouTube, 40-80 s) in a calm, hand-drawn documentary look: everyday Cambodian life — the "
+    "phsar (market), a street of shophouses with motos and tuk-tuks, a bank, a home, the rice "
+    "fields — and ONE main person we follow through a small real-life story: a seller, a farmer, "
+    "a worker, a student. A narrator tells it simply and warmly, like a short documentary: what "
+    "their day is like, the problem, what changes. Explainers about money, banking and payments, "
+    "health, work, business or the brand's service fit well — the brand shown as part of their "
+    "life, never an advert read out.\n"
+    "\n"
+    "THE MAIN PERSON — return \"cast\": [{name (a Cambodian first name), gender (male | female), "
+    "skin (light | tan | brown | deep), hair (" + " | ".join(LEAD_HAIRS) + "), shirt ("
+    + " | ".join(LEAD_SHIRTS) + "), bottom (" + " | ".join(LEAD_BOTTOMS) + "), hat ("
+    + " | ".join(LEAD_HATS) + ")}].\n"
+    "\n"
+    "THE STORY (7-11 scenes): a hook over a wide place; then wide shots of the places their "
+    "day goes through, close-ups when they face the thing that matters, a fact when a fact or a "
+    "number helps; a call to action at the end.\n"
+    "\n"
+    "SCENE TYPES and their fields (place one of: " + ", ".join(ILL_PLACES) + "; time: "
+    + " | ".join(ILL_TIMES) + "):\n"
+    "- hook: text (max 8 words), place, time.\n"
+    "- wide: place, time, pose (" + " | ".join(ILL_POSES) + " — walk = they walk in), item ("
+    + " | ".join(ILL_ITEMS) + " — what they hold), crowd (0-6 — how many other people around), "
+    "title (optional, max 6 words — a small caption card).\n"
+    "- closeup: object (" + " | ".join(ILL_OBJECTS) + " — what they look at, beside their face), "
+    "text (optional, max 7 words — a caption card), place (the place behind, soft).\n"
+    "- fact: title (max 3 words, e.g. \"Did you know\"), text (max 14 words), icon, value (optional "
+    "— a TRUE number from the brief or common knowledge, counts up), prefix, suffix, place.\n"
+    "- cta: text (max 9 words), button (1-3 words), place.\n"
+    "`say` is the narrator — calm, warm, simple, like a documentary voice; each line leads into "
+    "the next.\n"
+    + _COMMON_RULES
+    + '{"cast": [{"name": "...", "gender": "male", "skin": "tan", "hair": "short", "shirt": "blue", '
+    '"bottom": "pants", "hat": "none"}], "scenes": [{"type": "hook", "text": "...", "place": "market", '
+    '"time": "morning", "say": "..."}, {"type": "wide", "place": "market", "time": "morning", "pose": '
+    '"walk", "item": "basket", "crowd": 4, "say": "..."}, {"type": "closeup", "object": "atm", "text": '
+    '"...", "place": "bank", "say": "..."}, ...]}'
+)
+
+
+def clean_lead(raw) -> list[dict]:
+    """Illustrated: the main person — a name and how they look."""
+    p = next((x for x in (raw if isinstance(raw, list) else []) if isinstance(x, dict)), {})
+    gender = p.get("gender") if p.get("gender") in ("male", "female") else "male"
+    return [{
+        "name": _line(p.get("name"), 20),
+        "gender": gender,
+        "skin": p.get("skin") if p.get("skin") in ("light", "tan", "brown", "deep") else "tan",
+        "hair": p.get("hair") if p.get("hair") in LEAD_HAIRS else ("bun" if gender == "female" else "short"),
+        "shirt": p.get("shirt") if p.get("shirt") in LEAD_SHIRTS else "blue",
+        "bottom": p.get("bottom") if p.get("bottom") in LEAD_BOTTOMS else ("sarong" if gender == "female" else "pants"),
+        "hat": p.get("hat") if p.get("hat") in LEAD_HATS else "none",
+    }]
+
+
 # "3D · Street" (motion/src/street3d.jsx) — a low-poly Cambodian street at dusk in real 3D:
 # a rival shophouse (shutter half down) and the brand's, lit up with its name on the sign;
 # people walk to it, a board on its front counts, customers' messages float up. Words on
@@ -2566,6 +2637,7 @@ STYLES = {
     "parable": (PARABLE_PROMPT, PARABLE_TYPES, 9, "tale"),
     "dialogue": (DIALOGUE_PROMPT, DIALOGUE_TYPES, 11, "line"),
     "street3d": (STREET_PROMPT, STREET_TYPES, 5, "shops"),
+    "illustrated": (ILL_PROMPT, ILL_TYPES, 10, "wide"),
     "clarity": (CLARITY_PROMPT, CLARITY_TYPES, 8, None),
     "countdown": (COUNTDOWN_PROMPT, COUNTDOWN_TYPES, 7, "rank"),
     "thisorthat": (THISORTHAT_PROMPT, THISORTHAT_TYPES, 6, "choice"),
@@ -2583,7 +2655,7 @@ LONG_STYLES = {"training"}
 # The templates laid out for 16:9 too (motion/src/training.jsx, saas.jsx wide scenes);
 # every other template is always vertical. Scenes drawn only for a tall frame are
 # left out of a wide video.
-WIDE_STYLES = {"street3d", "dialogue", "parable", "podcast", "presenter", "neural", "paper", "doodle", "cartoon", "lesson", "rise", "training", "custom", "demo", "offer", "spotlight", "trend", "pov", "showcase", "launch", "unveil", "gridcards", "techflow", "canvas", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
+WIDE_STYLES = {"illustrated", "street3d", "dialogue", "parable", "podcast", "presenter", "neural", "paper", "doodle", "cartoon", "lesson", "rise", "training", "custom", "demo", "offer", "spotlight", "trend", "pov", "showcase", "launch", "unveil", "gridcards", "techflow", "canvas", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
 TALL_ONLY_TYPES = {"problem", "chat", "product", "point"}
 
 
@@ -2859,7 +2931,7 @@ def _number(value) -> float:
 
 
 # The templates told by a narrator to everyone (not a shop talking to its customer, បង).
-NARRATOR_STYLES = {"explainer", "training", "quote", "doodle", "lesson", "rise", "parable", "countdown", "tips", "hottake", "report"}
+NARRATOR_STYLES = {"explainer", "training", "quote", "doodle", "lesson", "rise", "parable", "illustrated", "countdown", "tips", "hottake", "report"}
 
 
 def story_language(idea: str, picked: str) -> str:
@@ -2897,6 +2969,8 @@ def _only_story_numbers(scene: dict, story: str, allowed: tuple = ()) -> dict:
         nums = [float(scene.get("value") or 0)]
     elif kind == "tally":
         nums = [float(scene.get("value") or 0), float(scene.get("start") or 0)]
+    elif kind == "fact" and scene.get("value"):  # Illustrated: the number on the card
+        nums = [float(scene.get("value") or 0)]
     elif kind == "crowd":  # 3D · Street: the board's number
         nums = [float(scene.get("value") or 0), float(scene.get("start") or 0)]
     elif kind == "chart":
@@ -2907,6 +2981,8 @@ def _only_story_numbers(scene: dict, story: str, allowed: tuple = ()) -> dict:
         return scene
     if all(n in have for n in nums):
         return scene
+    if kind == "fact":  # Illustrated: the card without its number
+        return {k: v for k, v in scene.items() if k not in ("value", "prefix", "suffix")}
     if kind == "crowd":  # 3D · Street: the people walk in, without the board
         return {k: v for k, v in scene.items() if k not in ("label", "value", "start", "prefix", "suffix")}
     if kind == "tally" and "tale" in allowed:  # Parable: the moment, without the chalkboard
@@ -3001,6 +3077,10 @@ def _clean_scene(raw: dict, names: dict[str, str]) -> dict | None:
         scene = _clean_one(raw, names)
         if scene and str(raw.get("speaker")).strip() in ("1", "2"):  # Dialogue · Two voices: whose voice
             scene["speaker"] = int(str(raw["speaker"]).strip())
+        if scene and scene["type"] in ("hook", "cta") and raw.get("place") in ILL_PLACES:  # Illustrated: where it is
+            scene["place"] = raw["place"]
+            if raw.get("time") in ILL_TIMES:
+                scene["time"] = raw["time"]
         if scene and (raw.get("hero") in STREET_PROPS or raw.get("hero") == "product"):  # 3D · Street: the thing in front
             scene["hero"] = raw["hero"]
             if raw["hero"] == "product":
@@ -3123,6 +3203,34 @@ def _clean_one(raw: dict, names: dict[str, str]) -> dict | None:
                 "tone": "bad" if x.get("tone") == "bad" else "good",
             })
         return {"type": kind, "title": _line(raw.get("title"), 60), "people": people, "say": say} if len(people) >= 2 else None
+    if kind == "wide":  # Illustrated: a wide shot of a place, the main person in it
+        try:
+            crowd = max(0, min(6, int(raw.get("crowd"))))
+        except (TypeError, ValueError):
+            crowd = 3
+        return {
+            "type": kind,
+            "title": _line(raw.get("title"), 50),
+            "place": raw.get("place") if raw.get("place") in ILL_PLACES else "market",
+            "time": raw.get("time") if raw.get("time") in ILL_TIMES else "day",
+            "pose": raw.get("pose") if raw.get("pose") in ILL_POSES else "stand",
+            "item": raw.get("item") if raw.get("item") in ILL_ITEMS else "none",
+            "crowd": crowd,
+            "say": say,
+        }
+    if kind == "closeup":  # Illustrated: their face beside the thing that matters
+        if raw.get("object") not in ILL_OBJECTS:
+            return None
+        return {"type": kind, "object": raw["object"], "text": _line(raw.get("text"), 60), "place": raw.get("place") if raw.get("place") in ILL_PLACES else "street", "say": say}
+    if kind == "fact":  # Illustrated: a fact on a paper card (a number counting, when there is one)
+        text = _line(raw.get("text"), 140)
+        if not text:
+            return None
+        scene = {"type": kind, "title": _line(raw.get("title"), 40), "text": text, "icon": _icon(raw.get("icon"), "Lightbulb"), "place": raw.get("place") if raw.get("place") in ILL_PLACES else "market", "say": say}
+        value = _number(raw.get("value")) if raw.get("value") not in (None, "") else 0.0
+        if value > 0:
+            scene.update({"value": int(value) if value == int(value) else round(value, 1), "prefix": _line(raw.get("prefix"), 3), "suffix": _line(raw.get("suffix"), 10)})
+        return scene
     if kind == "shops":  # 3D · Street: the rival shop and the brand's
         sides = []
         for i, x in enumerate((raw.get("sides") if isinstance(raw.get("sides"), list) else [])[:2]):
@@ -3774,6 +3882,9 @@ _TEXT_FIELDS = {
     "remember": (("title", 40), ("text", 120), ("say", 300)),
     "line": (("text", 120), ("say", 300)),
     "shops": (("title", 60), ("say", 300)),
+    "wide": (("title", 50), ("say", 300)),
+    "closeup": (("text", 60), ("say", 300)),
+    "fact": (("title", 40), ("text", 140), ("say", 300)),
     "crowd": (("title", 60), ("label", 40), ("say", 300)),
     "chatter": (("title", 60), ("say", 300)),
     "tale": (("title", 50), ("say", 300)),
@@ -4118,6 +4229,8 @@ def write_script(
         script["cast"] = clean_duo(raw.get("cast"))
     if style == "street3d":
         script["street"] = clean_street(raw)
+    if style == "illustrated":
+        script["cast"] = clean_lead(raw.get("cast"))
     if style == "reaction":
         script["cast"] = clean_animals(raw.get("cast"))
     if style == "presenter":
@@ -4404,6 +4517,12 @@ def script_lines(script: dict) -> list[tuple[str, str]]:
                 screen += f" [{s['icon']}]"
             if s.get("guest"):
                 screen += f" + {s['guest']['look']} {s['guest']['name']}".rstrip()
+        elif s["type"] == "wide":
+            screen = f"({s['place']}, {s['time']}; {s['pose']}" + (f" with {s['item']}" if s.get("item", "none") != "none" else "") + f", {s.get('crowd', 0)} people around)" + (f" {s['title']}" if s.get("title") else "")
+        elif s["type"] == "closeup":
+            screen = f"(close-up: their face and the {s['object']})" + (f" {s['text']}" if s.get("text") else "")
+        elif s["type"] == "fact":
+            screen = (f"{s['title']}: " if s.get("title") else "") + (f"{s.get('prefix', '')}{s['value']}{s.get('suffix', '')} — " if s.get("value") else "") + s["text"]
         elif s["type"] == "shops":
             screen = (f"{s['title']} — " if s.get("title") else "") + " vs ".join(f"{x['label']} ({x['tone']})" for x in s["sides"])
         elif s["type"] == "crowd":
@@ -4769,7 +4888,7 @@ def pick_pictures(
                     s["image"] = photo
                 else:
                     s.pop("hero")
-        elif script.get("style") in ("doodle", "cartoon", "lesson", "rise", "podcast", "parable", "dialogue"):
+        elif script.get("style") in ("doodle", "cartoon", "lesson", "rise", "podcast", "parable", "dialogue", "illustrated"):
             continue  # drawn templates: no product photos (doodle / cartoon draw their own, app/doodle.py)
         elif script.get("style") == "appdemo":  # 3D · App demo: the app's own screenshot on the phone
             if s["type"] in ("hook", "cta") and shots:
@@ -4915,6 +5034,8 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
         props["place"] = {"image": script["place_image"]} if script.get("place_image") else {}
     if script.get("style") == "street3d":  # 3D · Street: what the shop sells, who comes
         props["street"] = script.get("street") or {"goods": [], "people": []}
+    if script.get("style") == "illustrated":  # Illustrated: the main person
+        props["cast"] = [{**c, "name": t(c["name"]) if c.get("name") else ""} for c in script.get("cast") or clean_lead(None)]
     if script.get("style") in ("parable", "dialogue"):  # Parable · Two paths / Dialogue: the two people
         props["cast"] = [{**c, "name": t(c["name"]) if c.get("name") else ""} for c in script.get("cast") or clean_duo(None)]
     if script.get("style") == "podcast":  # the places, painted (app/doodle.py); the host's look
@@ -5001,6 +5122,12 @@ def default_seconds(scene: dict) -> float:
         return 4.4
     if kind == "line":  # Dialogue · Two voices — shared.jsx defaultSeconds says the same
         return 3.6
+    if kind == "wide":  # Illustrated — shared.jsx defaultSeconds says the same
+        return 4.4
+    if kind == "closeup":
+        return 4.2
+    if kind == "fact":
+        return 4.6
     if kind == "shops":  # 3D · Street — shared.jsx defaultSeconds says the same
         return 4.6
     if kind == "crowd":
@@ -5914,6 +6041,7 @@ TEMPLATE_GUIDE = {
     "unveil": "unveiling a product or a new feature in a light, elegant way — one big word, the app card coming into focus, a field typing itself, a check with confetti",
     "gridcards": "how a product or service solves an everyday problem — the repetitive work today, then one input becoming several results (a post, a price poster, a caption), clear and friendly",
     "techflow": "explaining HOW a technology works step by step (the internet, email, payments, AI, apps) — devices, data packets travelling, addresses, lookups, the path, a recap",
+    "illustrated": "a calm documentary story of everyday Cambodian life in a muted hand-drawn look — one person through the market, a street of shophouses, a bank, home, the rice fields; close-ups of them with an ATM, a phone, money, a paper; explainers about money, banking, payments, health, work, a service in people's lives",
     "street3d": "a shop or business shown as the full one on its street, in real 3D — two shophouses side by side at dusk, the rival empty with its shutter half down, the brand's lit up with its name on the sign, people walking in, a number counting, customers' messages; for a café, a restaurant, a shop, a service that wants more customers",
     "dialogue": "two people really talking, each in their own voice — two friends, a seller and a customer, a boss and a worker, a parent and a child — short lines back and forth in an everyday Cambodian place, speech bubbles, a turn and a takeaway; a conversation, a sketch, a Q&A between two people",
     "parable": "a parable with a lesson — two people start the same (the same job, shop, money, chance) and choose differently; one stays stuck, the other gets ahead; told like a fable with two flat-cartoon villagers in Cambodian places, a number counting up, a split 'poor vs rich' moment, the moral; money, work, business, marketing, habits",
@@ -6314,6 +6442,8 @@ def checked_script(raw: dict, products: list[Product]) -> dict:
         script["cast"] = clean_duo(raw.get("cast"))
     if style == "street3d":
         script["street"] = clean_street(raw.get("street") if isinstance(raw.get("street"), dict) else raw)
+    if style == "illustrated":
+        script["cast"] = clean_lead(raw.get("cast"))
     if style == "reaction":
         script["cast"] = clean_animals(raw.get("cast"))
     if style in ("presenter", "podcast"):

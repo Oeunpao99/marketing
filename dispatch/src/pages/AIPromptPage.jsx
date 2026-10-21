@@ -222,6 +222,7 @@ const MOTION_STORIES = [
   { value: 'report', label: 'Data report', hint: 'Bars, a percent ring, numbers with their source' },
   { value: 'clarity', label: 'SaaS explainer', hint: 'Calm white and blue — the mess of tools today, your app in a frame, how it works' },
   { value: 'launch', label: 'Product launch', hint: 'A cinematic launch film — the one click that does the job, your screens stacking up, “Now live”' },
+  { value: 'illustrated', label: 'Illustrated · Everyday Cambodia', hint: 'A calm hand-drawn documentary — the market, shophouses, a bank, home, rice fields; one person’s day and close-ups with an ATM, a phone, money' },
   { value: 'street3d', label: '3D · Street', hint: 'Real 3D: your shop lit up on a Cambodian street at dusk next to an empty rival — people walk in, a board counts, messages float up' },
   { value: 'dialogue', label: 'Dialogue · Two voices', hint: 'Two cartoon villagers really talking — each in their own voice, speech bubbles, their mouths moving' },
   { value: 'parable', label: 'Parable · Two paths', hint: 'Two cartoon villagers start the same and choose differently — a chalkboard counting their numbers, “poor vs rich”, the lesson' },

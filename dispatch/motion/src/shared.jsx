@@ -77,6 +77,12 @@ export function defaultSeconds(s) {
       return 4.2
     case 'visit':
       return 4.4
+    case 'wide': // Illustrated · Everyday Cambodia — app/motion.py default_seconds says the same
+      return 4.4
+    case 'closeup':
+      return 4.2
+    case 'fact':
+      return 4.6
     case 'shops': // 3D · Street — app/motion.py default_seconds says the same
       return 4.6
     case 'crowd':

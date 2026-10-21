@@ -189,6 +189,16 @@ export const MOTION_TEMPLATES = [
     goals: ['education', 'solution'],
   },
   {
+    id: 'illustrated',
+    story: 'illustrated',
+    added: '2026-10-21T22:04:00+07:00',
+    name: 'Illustrated · Everyday Cambodia',
+    look: 'A calm hand-drawn documentary of everyday Cambodian life — muted warm colours and paper grain. A phsar with scalloped stall awnings, fish, rice and baskets before a row of shophouses with sugar palms; a street with motos and a tuk-tuk; a bank with an ATM; a home; rice fields with a stilt house. One person we follow, and close-ups of their face beside an ATM, a phone, money or a paper',
+    steps: ['A wide place, the question', 'Their day, place by place', 'Close-up: the thing that matters', 'A fact (a number counting)', 'Call to action'],
+    note: 'Great for explainers — money, banking and payments, health, work, a service in people’s lives. All drawn, no pictures to pay for',
+    goals: ['education', 'awareness'],
+  },
+  {
     id: 'dialogue',
     story: 'dialogue',
     added: '2026-10-21T20:35:00+07:00',

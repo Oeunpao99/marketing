@@ -1,0 +1,84 @@
+{
+  "brand": {
+    "name": "Smart Bank",
+    "color": "#2E5E7A",
+    "logo": "ours/smart-marketing.png",
+    "slug": "smart-marketing"
+  },
+  "style": "illustrated",
+  "frame": 150,
+  "cast": [
+    {
+      "name": "Dara",
+      "gender": "male",
+      "skin": "tan",
+      "hair": "short",
+      "shirt": "blue",
+      "bottom": "pants",
+      "hat": "none"
+    }
+  ],
+  "scenes": [
+    {
+      "type": "hook",
+      "text": "Where does the ⟦market money⟧ go?",
+      "place": "market",
+      "time": "day"
+    },
+    {
+      "type": "wide",
+      "title": "Dara sells fish",
+      "place": "market",
+      "time": "morning",
+      "pose": "walk",
+      "item": "basket",
+      "crowd": 4
+    }
+  ],
+  "clip": [
+    {
+      "type": "hook",
+      "text": "Where does the ⟦market money⟧ go?",
+      "place": "market",
+      "time": "day"
+    },
+    {
+      "type": "wide",
+      "title": "Dara sells fish",
+      "place": "market",
+      "time": "morning",
+      "pose": "walk",
+      "item": "basket",
+      "crowd": 4
+    },
+    {
+      "type": "wide",
+      "place": "street",
+      "time": "day",
+      "pose": "phone",
+      "item": "phone",
+      "crowd": 3
+    },
+    {
+      "type": "closeup",
+      "object": "atm",
+      "text": "Cash at the ⟦ATM⟧",
+      "place": "bank"
+    },
+    {
+      "type": "closeup",
+      "object": "phone",
+      "text": "Or pay by ⟦QR⟧",
+      "place": "street"
+    },
+    {
+      "type": "fact",
+      "title": "Did you know",
+      "text": "Most stalls now take ⟦QR payments⟧",
+      "value": 70,
+      "suffix": "%",
+      "icon": "Smartphone",
+      "place": "market"
+    }
+  ]
+}
