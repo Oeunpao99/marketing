@@ -4,6 +4,7 @@ import { applyTheme, isDark } from "../../lib/theme";
 import { openMoreSheet } from "./MobileBar";
 import { useEffect, useState } from "react";
 import Notifications from "./Notifications";
+import AccountMenu from "./AccountMenu";
 import { useAuth } from "../../auth";
 import { useStore } from "../../store";
 import { useNotifications } from "../../lib/notifications";
@@ -36,7 +37,7 @@ function labelFor(pathname) {
 export default function Topbar({ onToggleSidebar }) {
   const { pathname } = useLocation();
   const { review, channels } = useStore();
-  const { user, updatePrefs } = useAuth();
+  const { updatePrefs } = useAuth();
   // Light / dark in one click — the same setting as Settings → Appearance,
   // saved on the user so it follows them to every device.
   const [dark, setDark] = useState(isDark);
@@ -57,16 +58,6 @@ export default function Topbar({ onToggleSidebar }) {
 
   const label = labelFor(pathname);
   const { count: notifCount } = useNotifications();
-  const initials =
-    user?.initials ||
-    (user?.name || "")
-      .split(/\s+/)
-      .map((w) => w[0])
-      .join("")
-      .slice(0, 2)
-      .toUpperCase() ||
-    "U";
-
   return (
     <header className="sticky top-0 z-20 h-14 flex items-center gap-3 px-4 sm:px-6 bg-white border-b border-ink-200/70">
       <button
@@ -158,12 +149,8 @@ export default function Topbar({ onToggleSidebar }) {
       </Link>
 
       <span className="hidden sm:block h-6 w-px bg-ink-200" />
-      <span
-        className="w-9 h-9 rounded-full grid place-items-center flex-none bg-brand text-white text-[11px] font-bold"
-        title={user?.name || ""}
-      >
-        {initials}
-      </span>
+      {/* the credits left and the account — one panel (AccountMenu.jsx) */}
+      <AccountMenu />
     </header>
   );
 }

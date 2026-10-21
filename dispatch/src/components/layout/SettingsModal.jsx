@@ -38,6 +38,7 @@ import { TZ } from '../../lib/tz'
 import Select from '../ui/Select'
 import HowItWorks from './HowItWorks'
 import { fmtCredits } from '../../lib/money'
+import CreditCoin from './CreditCoin'
 import ModelLogo from '../ui/ModelLogo'
 
 // Settings — every control here is real and saves to the backend
@@ -1266,7 +1267,8 @@ function BillingTab() {
           </span>
         </div>
         <p className="mt-2 flex flex-wrap items-baseline gap-x-1.5 text-[13px] text-ink-600">
-          <span className={`text-[22px] font-bold tabular-nums tracking-tight ${toneText}`}>
+          <span className={`inline-flex items-center gap-1.5 self-center text-[22px] font-bold tabular-nums tracking-tight ${toneText}`}>
+            <CreditCoin size={24} />
             {fmtCredits(left, false)}
           </span>
           <span>credits left of {fmtCredits(credit, false)}</span>
