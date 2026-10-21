@@ -28,6 +28,8 @@ import { SiFacebook, SiInstagram, SiTelegram, SiTiktok, SiYoutube } from 'react-
 import { MOTION_TEMPLATES, previewSrc } from '../lib/motionTemplates'
 import { Course } from './TutorialsPage'
 import CreditCoin from '../components/layout/CreditCoin'
+import { PhoneFrame, RENDER } from '../components/preview/SocialPreview'
+import PlatformIcon, { PLAT_BRAND_CLASS } from '../components/ui/PlatformIcon'
 
 // The public page at "/" for people who aren't signed in (search engines,
 // visitors from ads): what Smart Marketing does, shown with the product's
@@ -462,6 +464,77 @@ function Feature({ eyebrow, title, khmer, text, points, visual, flip = false }) 
       </Reveal>
       <Reveal delay={150}>{visual}</Reveal>
     </div>
+  )
+}
+
+// ── one post, live everywhere ───────────────────────────────────────────
+// The same post as each platform shows it — the app's own previews
+// (components/preview/SocialPreview.jsx: PhoneFrame + RENDER, as in Compose),
+// scaled down, side by side — and the one button that sends it to all of them.
+const LIVE_APPS = ['TikTok', 'Instagram', 'Facebook', 'LinkedIn', 'Telegram']
+const LIVE_SCALE = 0.56 // the previews are drawn at a real phone's size (360 × 702)
+const LIVE_CAPTION = 'ថ្ងៃក្តៅៗ ត្រូវការអ្វីស្រស់ៗ!\nIced Latte ថ្មី ពី Sokha Coffee — ផ្អែមល្មម ត្រជាក់ស្រួល។\n☕ $2.50 · ទិញ ២ ថែម ១ ដល់ថ្ងៃសុក្រ\n#SokhaCoffee #IcedLatte'
+
+function LiveEverywhere({ onStart }) {
+  const t = useT()
+  const brand = { name: 'Sokha Coffee', slug: 'sokha-coffee', logo: null }
+  // a full URL: the previews resolve other paths against the media server
+  const media = typeof window === 'undefined' ? null : { kind: 'image', url: `${window.location.origin}/landing/latte.jpg` }
+  return (
+    <section id="everywhere" className="scroll-mt-20 overflow-hidden px-4 py-20 sm:px-6 sm:py-28">
+      <SectionTitle
+        eyebrow={t('Post everywhere', 'បង្ហោះគ្រប់កន្លែង')}
+        title={t('One click — your content is live on all your socials', 'ចុចម្តង — មាតិការបស់បង ចេញលើគ្រប់បណ្តាញសង្គម')}
+        khmer="ចុចម្តង ចេញគ្រប់ទំព័រ"
+        sub={t(
+          'Each platform gets the post the way it likes it — the right size, the caption cut where it should be. Here is one post on five of them.',
+          'វេទិកានីមួយៗទទួលបានប្រកាសតាមរបៀបដែលវាចូលចិត្ត — ទំហំត្រឹមត្រូវ ចំណងជើងកាត់ត្រង់កន្លែងគួរកាត់។ នេះជាប្រកាសមួយ លើវេទិកាប្រាំ។',
+        )}
+      />
+
+      {/* the one button */}
+      <div className="mt-10 flex justify-center">
+        <button
+          type="button"
+          onClick={onStart}
+          className="relative inline-flex items-center gap-2.5 rounded-full bg-brand px-6 py-3 text-[14.5px] font-bold text-white shadow-[0_14px_30px_-10px_rgb(var(--brand)/0.7)] transition-all hover:gap-3.5"
+        >
+          <span className="absolute inset-0 animate-ping rounded-full bg-brand/30 [animation-duration:2.4s]" aria-hidden="true" />
+          <FiZap size={16} className="relative" />
+          <span className="relative">{t('Post to 5 places', 'បង្ហោះទៅ ៥ កន្លែង')}</span>
+        </button>
+      </div>
+
+      {/* the five phones — the middle one a little forward */}
+      <div className="mx-auto mt-12 flex max-w-6xl items-end justify-center gap-3 sm:gap-5">
+        {LIVE_APPS.map((app, i) => {
+          const Post = RENDER[app]
+          const middle = i === 2
+          return (
+            <Reveal key={app} delay={i * 90} className={i === 0 || i === 4 ? 'hidden lg:block' : i === 1 || i === 3 ? 'hidden sm:block' : ''}>
+              <div className={`flex flex-col items-center ${middle ? '' : 'lg:translate-y-6'}`}>
+                <div className="relative overflow-hidden" style={{ width: 360 * LIVE_SCALE, height: 702 * LIVE_SCALE }}>
+                  <div className="absolute left-0 top-0 origin-top-left" style={{ width: 360, transform: `scale(${LIVE_SCALE})` }} aria-hidden="true">
+                    <PhoneFrame app={app} brand={brand}>
+                      <Post brand={brand} caption={LIVE_CAPTION} media={media} />
+                    </PhoneFrame>
+                  </div>
+                </div>
+                <div className="mt-4 flex items-center gap-2 rounded-full border border-ink-200 bg-white py-1 pl-1.5 pr-3 shadow-card">
+                  <span className={`grid h-6 w-6 place-items-center rounded-full bg-canvas ${PLAT_BRAND_CLASS[app] || ''}`}>
+                    <PlatformIcon name={app} />
+                  </span>
+                  <span className="text-[12.5px] font-semibold text-ink-800">{app}</span>
+                  <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-500 px-1.5 py-px text-[10.5px] font-bold text-white">
+                    <FiCheck size={10} strokeWidth={3.5} /> {t('Live', 'ចេញហើយ')}
+                  </span>
+                </div>
+              </div>
+            </Reveal>
+          )
+        })}
+      </div>
+    </section>
   )
 }
 
@@ -1692,6 +1765,9 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
           />
         </div>
       </section>
+
+      {/* ── one post, live everywhere ── */}
+      <LiveEverywhere onStart={onStart} />
 
       {/* ── videos ── */}
       <section id="videos" className="scroll-mt-20 overflow-hidden bg-canvas py-20 sm:py-28">

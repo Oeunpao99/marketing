@@ -454,7 +454,7 @@ function AppBar({ app, brand }) {
   return null
 }
 
-function PhoneFrame({ app, brand, children }) {
+export function PhoneFrame({ app, brand, children }) {
   const dark = app === 'TikTok'
   return (
     <div className="mx-auto w-full max-w-[360px] rounded-[52px] bg-night-950 p-[11px] shadow-[0_30px_60px_-20px_rgba(16,24,40,0.45)] ring-1 ring-night-800">
@@ -504,7 +504,8 @@ function PhoneFrame({ app, brand, children }) {
   )
 }
 
-const RENDER = { Facebook: FacebookPost, LinkedIn: LinkedInPost, Instagram: InstagramPost, TikTok: TikTokPost, Telegram: TelegramPost }
+// also the landing page's "live on every platform" phones
+export const RENDER = { Facebook: FacebookPost, LinkedIn: LinkedInPost, Instagram: InstagramPost, TikTok: TikTokPost, Telegram: TelegramPost }
 
 /**
  * The preview drawer.
