@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import {
   FiArrowRight,
+  FiBriefcase,
   FiBarChart2,
   FiCalendar,
   FiCheck,
@@ -26,6 +27,7 @@ import { FaLinkedin } from 'react-icons/fa'
 import { SiFacebook, SiInstagram, SiTelegram, SiTiktok, SiYoutube } from 'react-icons/si'
 import { MOTION_TEMPLATES, previewSrc } from '../lib/motionTemplates'
 import { Course } from './TutorialsPage'
+import CreditCoin from '../components/layout/CreditCoin'
 
 // The public page at "/" for people who aren't signed in (search engines,
 // visitors from ads): what Smart Marketing does, shown with the product's
@@ -751,13 +753,6 @@ const COMPARE = [
   [['Support', 'ជំនួយ'], [['Help center', 'មជ្ឈមណ្ឌលជំនួយ'], ['Chat', 'ឆាត'], ['Priority chat', 'ឆាតអាទិភាព'], ['Telegram group', 'ក្រុម Telegram']]],
 ]
 
-const ADDONS = [
-  [['Extra credits', 'ក្រេឌីតបន្ថែម'], ['500 for $6 · 2,000 for $20 · 5,000 for $45', '៥០០ = $6 · ២.០០០ = $20 · ៥.០០០ = $45']],
-  [['Extra brand', 'ម៉ាកបន្ថែម'], ['$10 / month each', '$10 / ខែ ក្នុងមួយ']],
-  [['Extra seat', 'អ្នកប្រើបន្ថែម'], ['$5 / month each', '$5 / ខែ ក្នុងម្នាក់']],
-  [['Done-for-you setup', 'រៀបចំជូនទាំងអស់'], ['$99 one time — brand kit, voice and your first month of posts', '$99 តែម្តង — កញ្ចប់ម៉ាក សំឡេង និងប្រកាសខែដំបូង']],
-]
-
 const KH_DIGITS = '០១២៣៤៥៦៧៨៩'
 const khDigits = (s) => String(s).replace(/\d/g, (d) => KH_DIGITS[d])
 
@@ -809,6 +804,185 @@ function Price({ plan, yearly, riel, dark = false }) {
       </div>
       <div className={`mt-2 h-4 text-[12px] ${dark ? 'text-white/60' : 'text-ink-400'}`}>{plan.usd > 0 && yearly ? t(`${price.year} billed yearly`, `${price.year} បង់ម្តងក្នុងមួយឆ្នាំ`) : ''}</div>
     </>
+  )
+}
+
+// ── what credits make: a planner and the add-on shop ─────────────────────
+// A sample month per plan — the counts the plan cards promise, plus weekly
+// plans and film clips — in credits (CREDIT_USES). Colours are the bar's
+// segments (saturated, so the same in both themes).
+const CREDIT_MIX = [
+  { key: 'posts', Icon: FiMessageCircle, label: ['posts', 'ប្រកាស'], each: 2, color: 'bg-sky-500' },
+  { key: 'images', Icon: FiImage, label: ['images', 'រូបភាព'], each: 10, color: 'bg-violet-500' },
+  { key: 'plans', Icon: FiCalendar, label: ['weekly plans', 'ផែនការសប្តាហ៍'], each: 40, color: 'bg-amber-400' },
+  { key: 'videos', Icon: FiPlay, label: ['motion videos', 'វីដេអូចលនា'], each: 60, color: 'bg-brand' },
+  { key: 'films', Icon: FiPlayCircle, label: ['film clips', 'ឈុតវីដេអូ AI'], each: 160, color: 'bg-emerald-500' },
+]
+const SAMPLE_MONTH = {
+  free: { posts: 10, images: 2, videos: 1 },
+  starter: { posts: 30, images: 15, plans: 4, videos: 8 },
+  pro: { posts: 90, images: 45, plans: 4, videos: 25, films: 4 },
+  business: { posts: 270, images: 135, plans: 16, videos: 75, films: 12 },
+}
+
+/** Pick a plan; a bar fills with a sample month of what its credits make. */
+function CreditPlanner() {
+  const t = useT()
+  const n = (v) => (t.lang === 'km' ? khDigits(v) : v)
+  const [pick, setPick] = useState('pro')
+  const plan = PLANS.find((p) => p.id === pick)
+  const total = { free: 100, starter: 1000, pro: 3000, business: 9000 }[pick]
+  const mix = CREDIT_MIX.map((m) => ({ ...m, count: SAMPLE_MONTH[pick][m.key] || 0 })).filter((m) => m.count)
+  const used = mix.reduce((sum, m) => sum + m.count * m.each, 0)
+  return (
+    <div className="mx-auto mt-16 max-w-6xl overflow-hidden rounded-3xl bg-white shadow-card">
+      <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
+        {/* the question and the picker */}
+        <div className="border-b border-ink-100 p-7 sm:p-9 lg:border-b-0 lg:border-r">
+          <div className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.12em] text-brand">
+            <CreditCoin size={18} /> {t('Credit planner', 'គណនាក្រេឌីត')}
+          </div>
+          <h3 className="mt-3 text-[24px] font-bold leading-tight text-ink-900 sm:text-[28px]">{t('What can a month of credits make?', 'ក្រេឌីតមួយខែ បង្កើតបានអ្វីខ្លះ?')}</h3>
+          <p className="mt-2 text-[14px] leading-relaxed text-ink-500">
+            {t('Pick a plan to see a typical month. Posting and scheduling never use credits.', 'ជ្រើសគម្រោង ដើម្បីមើលខែធម្មតាមួយ។ ការបង្ហោះ និងកំណត់ពេល មិនប្រើក្រេឌីតទេ។')}
+          </p>
+          <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-2">
+            {PLANS.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setPick(p.id)}
+                aria-pressed={pick === p.id}
+                className={`rounded-2xl border px-4 py-3 text-left transition-all ${pick === p.id ? 'border-brand bg-brand text-white shadow-[0_10px_24px_-10px_rgb(var(--brand)/0.7)]' : 'border-ink-200 text-ink-800 hover:border-brand/50'}`}
+              >
+                <div className="text-[14px] font-bold">{t(p.name)}</div>
+                <div className={`text-[12px] ${pick === p.id ? 'text-white/80' : 'text-ink-500'}`}>
+                  {n({ free: '100', starter: '1,000', pro: '3,000', business: '9,000' }[p.id])} {t('credits', 'ក្រេឌីត')}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* the month */}
+        <div className="p-7 sm:p-9">
+          <div className="flex items-baseline justify-between gap-3">
+            <div className="text-[15px] font-bold text-ink-900">{t(`A month on ${plan.name[0]}`, `មួយខែលើ ${plan.name[1]}`)}</div>
+            <div className="text-[13px] text-ink-500">
+              <span className="font-bold text-ink-900">{n(used.toLocaleString('en-US'))}</span> / {n(total.toLocaleString('en-US'))} {t('credits', 'ក្រេឌីត')}
+            </div>
+          </div>
+          {/* the bar: one segment per kind, sized by the credits it uses */}
+          <div className="mt-3 flex h-4 overflow-hidden rounded-full bg-ink-100">
+            {mix.map((m) => (
+              <div key={m.key} className={`${m.color} h-full transition-all duration-700 first:rounded-l-full`} style={{ width: `${((m.count * m.each) / total) * 100}%` }} title={`${m.count} ${m.label[0]}`} />
+            ))}
+          </div>
+          <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {mix.map((m) => (
+              <div key={m.key} className="rounded-2xl bg-canvas p-3.5">
+                <div className="flex items-center gap-2">
+                  <span className={`h-2.5 w-2.5 rounded-full ${m.color}`} />
+                  <m.Icon size={14} className="text-ink-500" />
+                </div>
+                <div className="mt-2 text-[26px] font-extrabold leading-none tabular-nums text-ink-900">{n(m.count)}</div>
+                <div className="mt-1 text-[12.5px] text-ink-500">{t(m.label)}</div>
+              </div>
+            ))}
+            {total - used > 0 && (
+              <div className="grid place-items-center rounded-2xl border-2 border-dashed border-ink-200 p-3.5 text-center text-[12.5px] text-ink-500">
+                <span>
+                  <span className="block text-[18px] font-bold text-ink-700">+{n((total - used).toLocaleString('en-US'))}</span>
+                  {t('to spare', 'នៅសល់')}
+                </span>
+              </div>
+            )}
+          </div>
+          {/* what each thing costs */}
+          <div className="mt-6 flex flex-wrap gap-2">
+            {CREDIT_USES.map(([Icon, label, credits]) => (
+              <span key={label[0]} className="inline-flex items-center gap-2 rounded-full border border-ink-200 py-1 pl-1 pr-3 text-[12px] text-ink-600">
+                <span className="inline-flex items-center gap-1 rounded-full bg-ink-900 px-2 py-0.5 text-[11.5px] font-bold text-ink-50">
+                  <CreditCoin size={13} /> {n(credits)}
+                </span>
+                <Icon size={13} className="text-ink-400" />
+                {t(label)}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** Add-ons as a little shop: the credit packs as stacks of tokens, then brand, seat, setup. */
+function AddonShop() {
+  const t = useT()
+  const n = (v) => (t.lang === 'km' ? khDigits(v) : v)
+  const packs = [
+    { credits: 500, usd: 6, coins: 1 },
+    { credits: 2000, usd: 20, coins: 2 },
+    { credits: 5000, usd: 45, coins: 3, best: true },
+  ]
+  const extras = [
+    [FiBriefcase, ['Extra brand', 'ម៉ាកបន្ថែម'], '$10', ['/ month each', '/ ខែ ក្នុងមួយ'], ['Another business, its own logo and pages', 'អាជីវកម្មមួយទៀត មានឡូហ្គោ និងទំព័រផ្ទាល់']],
+    [FiUsers, ['Extra seat', 'អ្នកប្រើបន្ថែម'], '$5', ['/ month each', '/ ខែ ក្នុងម្នាក់']  , ['One more teammate with their own login', 'សមាជិកក្រុមម្នាក់ទៀត មានគណនីផ្ទាល់']],
+    [FiPenTool, ['Done-for-you setup', 'រៀបចំជូនទាំងអស់'], '$99', ['once', 'តែម្តង'], ['Brand kit, voice and your first month of posts — by our team', 'កញ្ចប់ម៉ាក សំឡេង និងប្រកាសខែដំបូង — ដោយក្រុមយើង']],
+  ]
+  return (
+    <div className="mx-auto mt-16 max-w-6xl">
+      <div className="text-center">
+        <div className="text-[20px] font-bold text-ink-900">{t('Need a little more?', 'ត្រូវការបន្ថែមបន្តិច?')}</div>
+        <p className="mt-1 text-[13.5px] text-ink-500">{t('Add-ons for any paid plan.', 'សម្រាប់គ្រប់គម្រោងបង់ប្រាក់។')}</p>
+      </div>
+      <div className="mt-7 grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+        {/* credit packs */}
+        <div className="rounded-3xl bg-white p-6 shadow-card">
+          <div className="flex items-center gap-2 text-[15px] font-bold text-ink-900">
+            <CreditCoin size={20} /> {t('Top up credits', 'បញ្ចូលក្រេឌីតបន្ថែម')}
+          </div>
+          <p className="mt-1 text-[12.5px] text-ink-500">{t('They stay for the month you buy them, on top of your plan’s.', 'ប្រើបានក្នុងខែដែលបងទិញ បន្ថែមលើក្រេឌីតគម្រោង។')}</p>
+          <div className="mt-5 grid grid-cols-3 gap-3">
+            {packs.map((pk) => (
+              <div key={pk.credits} className={`relative rounded-2xl border p-4 text-center ${pk.best ? 'border-brand bg-brand-soft' : 'border-ink-200'}`}>
+                {pk.best && <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-brand px-2.5 py-0.5 text-[10.5px] font-bold text-white">{t('Best value', 'តម្លៃល្អបំផុត')}</span>}
+                {/* a stack of tokens: more for a bigger pack */}
+                <div className="relative mx-auto h-10 w-12">
+                  {Array.from({ length: pk.coins }).map((_, k) => (
+                    <span key={k} className="absolute left-1/2" style={{ bottom: k * 7, transform: `translateX(calc(-50% + ${(k % 2 ? 5 : -3)}px))` }}>
+                      <CreditCoin size={28} />
+                    </span>
+                  ))}
+                </div>
+                <div className="mt-2 text-[20px] font-extrabold tabular-nums text-ink-900">{n(pk.credits.toLocaleString('en-US'))}</div>
+                <div className="text-[11.5px] text-ink-500">{t('credits', 'ក្រេឌីត')}</div>
+                <div className="mt-2 text-[18px] font-bold text-brand">${pk.usd}</div>
+                <div className="text-[11px] text-ink-400">{t(`${((pk.usd / pk.credits) * 100).toFixed(1)}¢ a credit`, `${((pk.usd / pk.credits) * 100).toFixed(1)}¢ ក្នុងមួយក្រេឌីត`)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        {/* brand, seat, setup */}
+        <div className="grid gap-3">
+          {extras.map(([Icon, name, price, per, text]) => (
+            <div key={name[0]} className="flex items-center gap-4 rounded-3xl bg-white p-4 shadow-card">
+              <span className="grid h-12 w-12 flex-none place-items-center rounded-2xl bg-brand-soft text-brand">
+                <Icon size={20} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[14px] font-bold text-ink-900">{t(name)}</div>
+                <div className="text-[12.5px] leading-snug text-ink-500">{t(text)}</div>
+              </div>
+              <div className="flex-none text-right">
+                <div className="text-[20px] font-extrabold text-ink-900">{price}</div>
+                <div className="text-[11px] text-ink-500">{t(per)}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -964,41 +1138,8 @@ function Pricing({ onStart }) {
         </div>
       </div>
 
-      {/* what credits buy */}
-      <div className="mx-auto mt-16 max-w-6xl">
-        <div className="text-center">
-          <div className="text-[18px] font-bold text-ink-900">{t('What do AI credits make?', 'ក្រេឌីត AI បង្កើតបានអ្វីខ្លះ?')}</div>
-          <p className="mt-1 text-[13.5px] text-ink-500">{t('The same on every plan.', 'ដូចគ្នាគ្រប់គម្រោង។')}</p>
-        </div>
-        <div className="mt-6 grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          {CREDIT_USES.map(([Icon, label, credits]) => (
-            <div key={label[0]} className="flex items-center gap-3 rounded-2xl bg-white px-4 py-3 shadow-card">
-              <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-ink-100 text-ink-700">
-                <Icon size={16} />
-              </span>
-              <div className="min-w-0">
-                <div className="text-[15px] font-bold text-ink-900">
-                  {n(credits)} <span className="text-[12px] font-medium text-ink-500">{t('credits', 'ក្រេឌីត')}</span>
-                </div>
-                <div className="truncate text-[12px] text-ink-500">{t(label)}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* add-ons */}
-      <div className="mx-auto mt-12 max-w-6xl">
-        <div className="text-center text-[15px] font-bold text-ink-900">{t('Add-ons for any paid plan', 'បន្ថែមសម្រាប់គ្រប់គម្រោងបង់ប្រាក់')}</div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {ADDONS.map(([name, text]) => (
-            <div key={name[0]} className="rounded-2xl bg-white px-4 py-3 shadow-card">
-              <div className="text-[13.5px] font-semibold text-ink-900">{t(name)}</div>
-              <div className="mt-0.5 text-[12.5px] leading-snug text-ink-500">{t(text)}</div>
-            </div>
-          ))}
-        </div>
-      </div>
+      <CreditPlanner />
+      <AddonShop />
     </section>
   )
 }
@@ -1639,22 +1780,6 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
         </div>
       </section>
 
-      {/* ── final call ── */}
-      <section className="px-4 py-20 sm:px-6">
-        <div className="relative mx-auto max-w-6xl overflow-hidden rounded-3xl bg-brand px-6 py-14 text-center sm:px-12 sm:py-16">
-          <div className="pointer-events-none absolute -right-20 -top-20 h-72 w-72 rounded-full bg-white/10" />
-          <div className="pointer-events-none absolute -bottom-24 -left-16 h-72 w-72 rounded-full bg-white/10" />
-          <h2 className="relative text-[30px] font-bold leading-snug text-white sm:text-[40px]" style={km}>
-            <span className="whitespace-nowrap">ចាប់ផ្តើមថ្ងៃនេះ</span> — <span className="whitespace-nowrap">AI ធ្វើការ</span> <span className="whitespace-nowrap">បងសម្រាក</span>
-          </h2>
-          <p className="relative mx-auto mt-3 max-w-lg text-[16px] text-white/85">
-            {t('Set up your brand in minutes. Your first week of posts is one click away.', 'រៀបចំម៉ាករបស់បងក្នុងប៉ុន្មាននាទី។ ប្រកាសសប្តាហ៍ដំបូង នៅសល់តែមួយចុចប៉ុណ្ណោះ។')}
-          </p>
-          <button type="button" onClick={onStart} className="relative mt-8 inline-flex items-center gap-2 rounded-xl bg-white px-7 py-3.5 text-[15px] font-semibold text-brand transition-transform hover:-translate-y-0.5">
-            {t('Start free', 'ចាប់ផ្តើមឥតគិតថ្លៃ')} <FiArrowRight />
-          </button>
-        </div>
-      </section>
       </>
       )}
 
