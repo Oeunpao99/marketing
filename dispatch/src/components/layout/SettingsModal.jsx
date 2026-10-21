@@ -1718,7 +1718,7 @@ function TransferPanel({ available, initialNumber = '', initialCredits = 0, init
           <div className="rounded-2xl bg-canvas p-4 text-center">
             <div className="text-[12px] text-ink-500">You're sending</div>
             <div className="mt-1 text-[30px] font-bold tabular-nums text-red-600">−{credits.toLocaleString('en-US')}</div>
-            <div className="text-[11.5px] text-ink-500">credits</div>
+            <div className="mt-0.5 text-[15px] font-semibold text-ink-600">credits</div>
           </div>
           <Recipient />
           <dl className="space-y-1.5 text-[12.5px]">

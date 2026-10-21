@@ -63,11 +63,11 @@ export function CreditReceipt({ kind = "sent", credits, name, owner = "", accoun
           </span>
           <div className="mt-3 text-[15px] font-bold text-ink-900">{received ? "You received credits" : "Transfer successful"}</div>
           <div className={`mt-1 flex items-center justify-center gap-2 text-[34px] font-bold tabular-nums ${received ? "text-emerald-600" : "text-ink-900"}`}>
-            <CreditCoin size={40} sparkle />
+            <CreditCoin size={30} sparkle />
             {received ? "+" : ""}
             {Number(credits || 0).toLocaleString("en-US")}
           </div>
-          <div className="text-[12px] text-ink-500">credits</div>
+          <div className="mt-0.5 text-[16px] font-semibold text-ink-600">credits</div>
         </div>
         <dl className="space-y-2.5 px-6 py-5 text-[13px]">
           {rows.map(([k, v]) => (
