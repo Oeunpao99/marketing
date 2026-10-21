@@ -188,7 +188,7 @@ function Phone({ id, className = '', tilt = 0, label }) {
     <figure className={className || 'relative'}>
       {/* the screen is exactly 9:16 — the clips' own shape, so nothing is cropped — with
           the notch on its own black strip above it, not over the video */}
-      <div className="relative overflow-hidden rounded-[2.2rem] border-[6px] border-night-950 bg-night-950 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.55)]" style={{ transform: `rotate(${tilt}deg)` }}>
+      <div className="relative overflow-hidden rounded-[2.2rem] border-[6px] border-night-950 bg-night-950 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.55)] ring-1 ring-black/5 dark:border-night-800 dark:ring-white/20" style={{ transform: `rotate(${tilt}deg)` }}>
         <div className="flex h-6 items-center justify-center">
           <div className="h-3.5 w-14 rounded-full bg-black" />
         </div>
@@ -223,7 +223,7 @@ function Laptop() {
   const clip = WIDE[n]
   return (
     <div className="mx-auto w-full max-w-5xl">
-      <div className="relative mx-auto w-[92%] rounded-t-[1.4rem] border-[10px] border-b-[14px] border-night-800 bg-night-950 shadow-[0_40px_90px_-30px_rgba(0,0,0,0.7)]">
+      <div className="relative mx-auto w-[92%] rounded-t-[1.4rem] border-[10px] border-b-[14px] border-night-800 bg-night-950 shadow-[0_40px_90px_-30px_rgba(0,0,0,0.7)] dark:ring-1 dark:ring-white/15">
         <div className="absolute left-1/2 top-[-7px] h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-night-950" />
         <div className="relative aspect-video overflow-hidden rounded-md bg-night-950">
           <video
@@ -428,7 +428,7 @@ function PhoneShot({ src, alt, tags = [] }) {
   return (
     <div className="relative flex justify-center px-2 py-6">
       <div className="absolute inset-x-8 inset-y-16 rounded-[40px] bg-brand-soft" />
-      <img src={src} alt={alt} loading="lazy" className="relative w-[min(300px,70vw)] drop-shadow-[0_30px_40px_rgba(15,23,42,0.25)]" />
+      <img src={src} alt={alt} loading="lazy" className="relative w-[min(300px,70vw)] rounded-[40px] drop-shadow-[0_30px_40px_rgba(15,23,42,0.25)]" />
       {tags.map((tag, i) => (
         <FloatTag key={tag.text} {...tag} delay={i * 1.2} />
       ))}
@@ -1723,26 +1723,36 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
             )}
           </p>
         </div>
-        {/* the phones drift past in a loop (the list twice, moved by half), the full width
-            of the screen, edge to edge (no fade — the owner's choice); still on hover and for
-            people who turn motion off */}
+        {/* the phones drift past in a loop (the list twice, moved by half) inside a window the
+            header's width (max-w-6xl), its ends lined up with the header bar's, no fade (the
+            owner's choice); still on hover and for people who turn motion off */}
         <style>{`
           @keyframes lp-drift { from { transform: translateX(0) } to { transform: translateX(-50%) } }
-          .lp-drift { animation: lp-drift 60s linear infinite }
-          .lp-strip:hover .lp-drift { animation-play-state: paused }
-          @media (prefers-reduced-motion: reduce) { .lp-drift { animation: none } }
+          @keyframes lp-drift-back { from { transform: translateX(-50%) } to { transform: translateX(0) } }
+          .lp-drift { animation: lp-drift 70s linear infinite }
+          .lp-drift-back { animation: lp-drift-back 70s linear infinite }
+          .lp-strip:hover .lp-drift, .lp-strip:hover .lp-drift-back { animation-play-state: paused }
+          @media (prefers-reduced-motion: reduce) { .lp-drift, .lp-drift-back { animation: none } }
         `}</style>
-        <div className="lp-strip mt-14 w-full overflow-hidden pb-4">
-          <div className="lp-drift flex w-max">
-            {[0, 1].map((copy) =>
-              SHOWCASE.filter((id) => byId[id]).map((id) => (
-                <div key={`${copy}-${id}`} className="mr-5 w-[170px] flex-none sm:mr-7 sm:w-[210px]" aria-hidden={copy === 1 || undefined}>
-                  <Phone id={id} />
-                  <div className="mt-3 text-center text-[13px] font-semibold text-ink-700">{byId[id].name}</div>
-                </div>
-              )),
-            )}
-          </div>
+        {/* two rows going opposite ways: the top one right to left, the bottom one left to
+            right — the same templates, the bottom row starting halfway through the list */}
+        <div className="lp-strip mx-auto mt-14 max-w-6xl space-y-6 overflow-hidden rounded-[28px] pb-4 pt-2">
+          {[0, 1].map((row) => {
+            const ids = SHOWCASE.filter((id) => byId[id])
+            const order = row ? [...ids.slice(Math.ceil(ids.length / 2)), ...ids.slice(0, Math.ceil(ids.length / 2))] : ids
+            return (
+              <div key={row} className={`${row ? 'lp-drift-back' : 'lp-drift'} flex w-max`}>
+                {[0, 1].map((copy) =>
+                  order.map((id) => (
+                    <div key={`${copy}-${id}`} className="mr-4 w-[130px] flex-none sm:mr-6 sm:w-[160px]" aria-hidden={row === 1 || copy === 1 || undefined}>
+                      <Phone id={id} />
+                      <div className="mt-2.5 text-center text-[12.5px] font-semibold text-ink-700">{byId[id].name}</div>
+                    </div>
+                  )),
+                )}
+              </div>
+            )
+          })}
         </div>
         <LockedTemplates onStart={onStart} />
       </section>
