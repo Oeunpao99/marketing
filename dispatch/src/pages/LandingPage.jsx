@@ -1736,7 +1736,18 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
         `}</style>
         {/* two rows going opposite ways: the top one right to left, the bottom one left to
             right — the same templates, the bottom row starting halfway through the list */}
-        <div className="lp-strip mx-auto mt-14 max-w-6xl space-y-6 overflow-hidden rounded-[28px] pb-4 pt-2">
+        {/* the strip's own heading: pick a look, or leave it to the AI */}
+        <div className="mx-auto mt-16 max-w-6xl px-4 text-center sm:px-6">
+          <h3 className="text-[22px] font-bold leading-tight text-ink-900 sm:text-[28px]">
+            {t('Choose your vibe', 'ជ្រើសរចនាប័ទ្មរបស់បង')}
+            <span className="text-ink-400"> — </span>
+            <span className="text-brand">{t('pick a template, or let AI make it', 'ជ្រើសគំរូ ឬទុកឲ្យ AI បង្កើតជូន')}</span>
+          </h3>
+          <p className="mt-2 text-[14px] text-ink-500">
+            {t('Hover to pause. Every one speaks Khmer, wears your logo and your colours.', 'ដាក់កណ្ដុរលើ ដើម្បីផ្អាក។ គ្រប់គំរូនិយាយខ្មែរ មានឡូហ្គោ និងពណ៌របស់បង។')}
+          </p>
+        </div>
+        <div className="lp-strip mx-auto mt-8 max-w-6xl space-y-6 overflow-hidden rounded-[28px] pb-4 pt-2">
           {[0, 1].map((row) => {
             const ids = SHOWCASE.filter((id) => byId[id])
             const order = row ? [...ids.slice(Math.ceil(ids.length / 2)), ...ids.slice(0, Math.ceil(ids.length / 2))] : ids
