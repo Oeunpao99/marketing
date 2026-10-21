@@ -1,0 +1,79 @@
+{
+  "brand": {
+    "name": "Smart Coffee",
+    "color": "#E0533D",
+    "logo": "ours/smart-marketing.png",
+    "slug": "smart-marketing"
+  },
+  "style": "street3d",
+  "frame": 160,
+  "scenes": [
+    {
+      "type": "hook",
+      "text": "Same street. ⟦Why is one shop⟧ always full?"
+    },
+    {
+      "type": "shops",
+      "title": "Same coffee, ⟦same price⟧",
+      "sides": [
+        {
+          "label": "Waits for walk-ins",
+          "tone": "bad"
+        },
+        {
+          "label": "Posts every day",
+          "tone": "good"
+        }
+      ]
+    }
+  ],
+  "clip": [
+    {
+      "type": "hook",
+      "text": "Same street. ⟦Why is one shop⟧ always full?"
+    },
+    {
+      "type": "shops",
+      "title": "Same coffee, ⟦same price⟧",
+      "sides": [
+        {
+          "label": "Waits for walk-ins",
+          "tone": "bad"
+        },
+        {
+          "label": "Posts every day",
+          "tone": "good"
+        }
+      ]
+    },
+    {
+      "type": "crowd",
+      "title": "Customers ⟦this week⟧",
+      "label": "Customers this week",
+      "value": 320,
+      "start": 40,
+      "prefix": "",
+      "suffix": ""
+    },
+    {
+      "type": "chatter",
+      "title": "They ⟦message first⟧",
+      "messages": [
+        {
+          "text": "Do you still have iced latte?"
+        },
+        {
+          "text": "Can I order 5 for the office?"
+        },
+        {
+          "text": "Saw your post, coming now!"
+        }
+      ]
+    },
+    {
+      "type": "cta",
+      "text": "Make your shop ⟦the full one⟧",
+      "button": "Start posting"
+    }
+  ]
+}

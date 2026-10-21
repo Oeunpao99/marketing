@@ -78,6 +78,14 @@ export const SCENE_LABELS = {
   speak: 'The host explains',
   onair: 'At the mic',
   visit: 'In the story',
+  line: 'Someone speaks',
+  shops: 'The two shops',
+  crowd: 'People walk in',
+  chatter: 'Their messages',
+  tale: 'The story',
+  tally: 'The count',
+  fork: 'Two paths',
+  moral: 'The lesson',
   client: 'The customer',
   metrics: 'Before → after',
   timeline: 'Timeline',
@@ -86,7 +94,7 @@ export const SCENE_LABELS = {
   donut: 'Percent',
 }
 
-export const STYLE_LABELS = { tech: 'Sell', explainer: 'Teach', versus: 'Compare', poll: 'Poll', quote: 'Quote', testimonial: 'Testimonial', trend: 'AI News', pov: 'POV', demo: 'Product demo', offer: 'Offer', spotlight: '3D · Spotlight', appdemo: '3D · App demo', showcase: 'Showcase', launch: 'Product launch', unveil: 'Unveil', gridcards: 'How it works · Grid', techflow: 'Tech explainer', canvas: 'AI design', neural: 'AI explainer · Neural', paper: 'AI notes · Paper', doodle: 'Doodle notes', cartoon: 'Story · Characters', lesson: 'Lesson · Teacher', rise: 'Rise · Mindset', reaction: 'Reaction meme', studio: 'Collage · Studio', presenter: 'Presenter · Brand host', podcast: 'Podcast · Story talk', clarity: 'SaaS explainer', countdown: 'Top 5', thisorthat: 'This or that', reviews: 'Review wall', tips: 'Tip cards', hottake: 'Hot take', casestudy: 'Case study', faq: 'FAQ', report: 'Data report', custom: 'Designed for you', training: 'Training' }
+export const STYLE_LABELS = { tech: 'Sell', explainer: 'Teach', versus: 'Compare', poll: 'Poll', quote: 'Quote', testimonial: 'Testimonial', trend: 'AI News', pov: 'POV', demo: 'Product demo', offer: 'Offer', spotlight: '3D · Spotlight', appdemo: '3D · App demo', showcase: 'Showcase', launch: 'Product launch', unveil: 'Unveil', gridcards: 'How it works · Grid', techflow: 'Tech explainer', canvas: 'AI design', neural: 'AI explainer · Neural', paper: 'AI notes · Paper', doodle: 'Doodle notes', cartoon: 'Story · Characters', lesson: 'Lesson · Teacher', rise: 'Rise · Mindset', reaction: 'Reaction meme', studio: 'Collage · Studio', presenter: 'Presenter · Brand host', podcast: 'Podcast · Story talk', parable: 'Parable · Two paths', dialogue: 'Dialogue · Two voices', street3d: '3D · Street', clarity: 'SaaS explainer', countdown: 'Top 5', thisorthat: 'This or that', reviews: 'Review wall', tips: 'Tip cards', hottake: 'Hot take', casestudy: 'Case study', faq: 'FAQ', report: 'Data report', custom: 'Designed for you', training: 'Training' }
 
 /** 0-99 from the real steps: the story is the only part without a count, so
  * it creeps up with time; the voice counts lines, the render counts frames. */

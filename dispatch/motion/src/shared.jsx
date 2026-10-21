@@ -77,6 +77,22 @@ export function defaultSeconds(s) {
       return 4.2
     case 'visit':
       return 4.4
+    case 'shops': // 3D · Street — app/motion.py default_seconds says the same
+      return 4.6
+    case 'crowd':
+      return 5.0
+    case 'chatter':
+      return 2.0 + 1.0 * Math.min(3, (s.messages || []).length)
+    case 'line': // Dialogue · Two voices — app/motion.py default_seconds says the same
+      return 3.6
+    case 'tale': // Parable · Two paths — app/motion.py default_seconds says the same
+      return 4.2
+    case 'tally':
+      return 4.6
+    case 'fork':
+      return 4.8
+    case 'moral':
+      return 4.6
     case 'react': // app/motion.py default_seconds says the same
       return 4.2
     case 'punch':
@@ -218,7 +234,8 @@ export function chipOpacity(scenes, frame) {
 // one place instead of each scene's sizes (the layouts fit as they are).
 const TEXT_SCALE = '88%'
 const fontWait = delayRender('Loading the fonts')
-Promise.all([
+// resolved once both fonts are in — text drawn on a canvas (3D · Street's signs) waits for it
+export const fontsReady = Promise.all([
   new FontFace('CFLatin', `url(${staticFile('fonts/PlusJakartaSans.ttf')})`, { weight: '200 800', sizeAdjust: TEXT_SCALE }).load(),
   new FontFace('Kantumruy', `url(${staticFile('fonts/KantumruyPro.ttf')})`, { weight: '100 700', sizeAdjust: TEXT_SCALE }).load(),
 ])

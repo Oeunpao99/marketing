@@ -1,0 +1,112 @@
+{
+  "brand": {
+    "name": "Smart Marketing",
+    "color": "#2F6FD6",
+    "logo": "ours/smart-marketing.png",
+    "slug": "smart-marketing"
+  },
+  "style": "dialogue",
+  "frame": 150,
+  "cast": [
+    {
+      "name": "Dara",
+      "gender": "male",
+      "skin": "tan",
+      "hair": "short",
+      "shirt": "blue",
+      "extra": "krama"
+    },
+    {
+      "name": "Sophea",
+      "gender": "female",
+      "skin": "light",
+      "hair": "bun",
+      "shirt": "pink",
+      "extra": "none"
+    }
+  ],
+  "scenes": [
+    {
+      "type": "hook",
+      "text": "Why is ⟦her stall⟧ always full?",
+      "icon": "Zap",
+      "speaker": 1
+    },
+    {
+      "type": "line",
+      "text": "I post a photo every morning",
+      "mood": "happy",
+      "pose": "stand",
+      "item": "phone",
+      "listen": "thinking",
+      "place": "market",
+      "time": "morning",
+      "speaker": 2
+    }
+  ],
+  "clip": [
+    {
+      "type": "hook",
+      "text": "Why is ⟦her stall⟧ always full?",
+      "icon": "Zap",
+      "speaker": 1
+    },
+    {
+      "type": "line",
+      "text": "I post a photo every morning",
+      "mood": "happy",
+      "pose": "stand",
+      "item": "phone",
+      "listen": "thinking",
+      "place": "market",
+      "time": "morning",
+      "speaker": 2
+    },
+    {
+      "type": "line",
+      "text": "Posting? That takes too long!",
+      "mood": "worried",
+      "pose": "shrug",
+      "item": "basket",
+      "listen": "happy",
+      "place": "market",
+      "time": "morning",
+      "speaker": 1
+    },
+    {
+      "type": "line",
+      "text": "Two minutes. That's it.",
+      "mood": "excited",
+      "pose": "point",
+      "item": "none",
+      "listen": "shocked",
+      "place": "market",
+      "time": "morning",
+      "speaker": 2
+    },
+    {
+      "type": "tally",
+      "title": "Last week",
+      "place": "market",
+      "time": "day",
+      "who": 2,
+      "acts": [
+        {
+          "pose": "stand",
+          "mood": "happy",
+          "item": "none"
+        },
+        {
+          "pose": "cheer",
+          "mood": "excited",
+          "item": "phone"
+        }
+      ],
+      "label": "Orders by message",
+      "value": 40,
+      "prefix": "",
+      "suffix": "",
+      "speaker": 2
+    }
+  ]
+}

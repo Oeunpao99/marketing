@@ -66,6 +66,9 @@ import { REACTION } from './reaction'
 import { STUDIO } from './studio'
 import { PRESENTER } from './presenter'
 import { PODCAST } from './podcast'
+import { PARABLE } from './parable'
+import { DIALOGUE } from './dialogue'
+import { STREET } from './street3d'
 import { CARTOON } from './cartoon'
 import { SPOTLIGHT } from './spotlight'
 import { APPDEMO } from './appdemo'
@@ -764,6 +767,9 @@ const TEMPLATES = {
   studio: { ...STUDIO, scenes: { ...SCENES, ...STUDIO.scenes } },
   presenter: { ...PRESENTER, scenes: { ...SCENES, ...PRESENTER.scenes } },
   podcast: { ...PODCAST, scenes: { ...SCENES, ...PODCAST.scenes } },
+  parable: { ...PARABLE, scenes: { ...SCENES, ...PARABLE.scenes } }, // Parable · Two paths
+  dialogue: { ...DIALOGUE, scenes: { ...SCENES, ...DIALOGUE.scenes } }, // Dialogue · Two voices
+  street3d: { ...STREET, scenes: { ...SCENES, ...STREET.scenes } }, // 3D · Street (three.js)
   gridcards: { ...GRIDCARDS, scenes: { ...SCENES, ...GRIDCARDS.scenes } },
   techflow: { ...TECHFLOW, scenes: { ...SCENES, ...TECHFLOW.scenes } },
   canvas: { ...CANVAS, scenes: { ...SCENES, ...CANVAS.scenes } }, // AI design — the AI designs every scene

@@ -9,7 +9,7 @@ mkdir -p "$out" out
 ids=${*:-$(ls tools/previews | sed 's/\.json$//')}
 for id in $ids; do
   frame=$(python -c "import json,sys;print(json.load(open(sys.argv[1],encoding='utf-8'))['frame'])" "tools/previews/$id.json")
-  gl=""; [ "$id" = "spotlight" ] && gl="--gl=swangle"  # 3D draws with WebGL, in software here
+  gl=""; { [ "$id" = "spotlight" ] || [ "$id" = "street3d" ]; } && gl="--gl=swangle"  # 3D draws with WebGL, in software here
   npx remotion still src/index.jsx MotionPost "out/preview-$id.png" --props="tools/previews/$id.json" --frame="$frame" --log=error $gl
   python -c "
 from PIL import Image; import sys

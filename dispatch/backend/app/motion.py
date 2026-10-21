@@ -1520,6 +1520,244 @@ LESSON_PROMPT = (
     '{"type": "whiteboard", "title": "...", "kind": "sum", "parts": [...], "say": "..."}, ...]}'
 )
 
+# "Parable · Two paths" (motion/src/parable.jsx) — a little story with a lesson about two
+# people who start the same (the same job, shop, money, chance) and choose differently:
+# one stays stuck, the other gets ahead. Our own flat cartoon, all drawn in code — the
+# two villagers and Cambodian places (a village, rice fields, a river, a market, a city
+# street, an office, a home) at morning / day / evening / night.
+PARABLE_TYPES = ("hook", "tale", "tally", "fork", "moral", "cta")
+PARABLE_PLACES = ("village", "field", "river", "market", "city", "office", "home")
+PARABLE_TIMES = ("morning", "day", "evening", "night")
+PARABLE_POSES = ("stand", "walk", "carry", "cheer", "wave", "point", "think", "tired", "shrug", "proud", "sad")
+PARABLE_ITEMS = ("none", "bucket", "basket", "bag", "sack", "box", "phone", "money", "book")
+PARABLE_GUESTS = ("elder", "boss", "buyer", "child")
+DUO_SKINS = ("light", "tan", "brown", "deep")
+DUO_HAIRS = ("short", "spiky", "side", "bun", "long", "ponytail", "cap", "krama")
+DUO_SHIRTS = ("green", "blue", "red", "orange", "purple", "teal", "yellow", "pink", "brown", "navy")
+DUO_EXTRAS = ("krama", "glasses", "none")
+PARABLE_PROMPT = (
+    "You are the best animated-parable writer in Cambodia. You plan a REMOTION VIDEO (Reels / "
+    "TikTok, 40-75 s): a little story with a lesson about TWO people who start out the same — the "
+    "same job, the same shop, the same money, the same chance — and make different choices; one "
+    "stays stuck, the other gets ahead (or one learns the hard way). A narrator tells it like a "
+    "fable: simple, concrete, a little funny, with a clear turn. The lesson can be about money, "
+    "work, business, selling, marketing, habits, health or study — or the brand's product as the "
+    "smarter choice, shown in the story, never an advert read out. Tell it fresh, in everyday "
+    "Cambodian life — never retell a famous parable (the pipeline, the two buckets) word for word.\n"
+    "\n"
+    "THE CAST — return \"cast\": exactly 2 x {name (a short Cambodian first name), gender (male | "
+    "female), skin (" + " | ".join(DUO_SKINS) + "), hair (" + " | ".join(DUO_HAIRS) + "), shirt ("
+    + " | ".join(DUO_SHIRTS) + "), extra (" + " | ".join(DUO_EXTRAS) + ")}. Different hair and "
+    "shirt colours. Character 1 is usually the one who stays stuck, character 2 the one who gets "
+    "ahead.\n"
+    "\n"
+    "THE STORY (7-10 scenes):\n"
+    "1. hook — the setup in a few words (\"Two friends, [the same job]\").\n"
+    "2. tale — who they are and what they both do (who 0).\n"
+    "then tale / tally scenes — what each one does, one moment per scene, day after day; a tally "
+    "when a number tells it (buckets, customers, money, followers, hours).\n"
+    "a fork — the turn: one path vs the other, the result for each.\n"
+    "then moral — the lesson in one line.\n"
+    "last. cta — a question for the comments (which one are you?) or follow for part 2.\n"
+    "A guest (an elder, a boss, a buyer, a child) may come into a tale to ask or tell something.\n"
+    "\n"
+    "SCENE TYPES and their fields — who: 0 (both), 1 or 2; acts: exactly 2 x {pose, mood, item}, "
+    "one per character in cast order (only the shown ones matter); pose one of: "
+    + ", ".join(PARABLE_POSES) + " (walk = walks in); mood one of: " + ", ".join(CARTOON_MOODS)
+    + "; item (what they hold) one of: " + ", ".join(PARABLE_ITEMS) + ":\n"
+    "- hook: text (max 7 words).\n"
+    "- tale: title (max 5 words — the moment, like a chapter title), place (one of: "
+    + ", ".join(PARABLE_PLACES) + "), time (" + " | ".join(PARABLE_TIMES) + "), who, acts, icon "
+    "(optional — the thing that matters popping up over a head), guest (optional {name, look ("
+    + " | ".join(PARABLE_GUESTS) + "), pose, mood}).\n"
+    "- tally: the same as tale (title, place, time, who, acts) + label (max 3 words — what is "
+    "counted, e.g. \"Customers today\"), value (a number), start (optional — the number it counts "
+    "from), prefix (\"$\"), suffix.\n"
+    "- fork: title (max 5 words), sides: exactly 2 x {label (max 3 words — Poor / Rich, Waiting / "
+    "Posting daily), tone (good | bad), pose, mood, item, icon (optional)} — side 1 is character 1.\n"
+    "- moral: title (max 3 words, e.g. \"The lesson\"), text (max 14 words), icon.\n"
+    "- cta: text (max 10 words), button (1-3 words).\n"
+    "Numbers in a tally are the story's example numbers — small round numbers, the same through "
+    "the video, the maths right. `say` is the narrator telling the story to the viewer, each line "
+    "leading into the next.\n"
+    + _COMMON_RULES
+    + '{"cast": [{"name": "...", "gender": "male", "skin": "tan", "hair": "short", "shirt": "blue", '
+    '"extra": "krama"}, {...}], "scenes": [{"type": "hook", "text": "...", "say": "..."}, {"type": '
+    '"tale", "title": "...", "place": "market", "time": "morning", "who": 0, "acts": [{"pose": '
+    '"stand", "mood": "happy", "item": "basket"}, {...}], "say": "..."}, ...]}'
+)
+DUO_DEFAULT = (
+    {"gender": "male", "skin": "tan", "hair": "short", "shirt": "blue", "extra": "krama"},
+    {"gender": "female", "skin": "light", "hair": "bun", "shirt": "pink", "extra": "none"},
+)
+
+
+def clean_duo(raw) -> list[dict]:
+    """Parable · Two paths: the two people — a name and how they look."""
+    people = [p for p in (raw if isinstance(raw, list) else []) if isinstance(p, dict)][:2]
+    while len(people) < 2:
+        people.append({})
+    out = []
+    for n, p in enumerate(people):
+        d = DUO_DEFAULT[n]
+        gender = p.get("gender") if p.get("gender") in ("male", "female") else d["gender"]
+        hair = p.get("hair") if p.get("hair") in DUO_HAIRS else (d["hair"] if gender == d["gender"] else ("short", "bun")[gender == "female"])
+        shirt = p.get("shirt") if p.get("shirt") in DUO_SHIRTS else d["shirt"]
+        if out and shirt == out[0]["shirt"]:
+            shirt = next(c for c in ("pink", "green", "orange", "teal") if c != shirt)
+        if out and hair == out[0]["hair"]:
+            hair = next(h for h in (("bun", "long") if gender == "female" else ("spiky", "side")) if h != hair)
+        out.append({
+            "name": _line(p.get("name"), 20),
+            "gender": gender,
+            "skin": p.get("skin") if p.get("skin") in DUO_SKINS else d["skin"],
+            "hair": hair,
+            "shirt": shirt,
+            "extra": p.get("extra") if p.get("extra") in DUO_EXTRAS else d["extra"],
+        })
+    return out
+
+
+def _duo_who(value) -> int:
+    """Parable: who is in the scene — 0 both, 1 or 2."""
+    v = str(value).strip().lower()
+    return 1 if v == "1" else 2 if v == "2" else 0
+
+
+def _duo_act(raw) -> dict:
+    raw = raw if isinstance(raw, dict) else {}
+    return {
+        "pose": raw.get("pose") if raw.get("pose") in PARABLE_POSES else "stand",
+        "mood": raw.get("mood") if raw.get("mood") in CARTOON_MOODS else "happy",
+        "item": raw.get("item") if raw.get("item") in PARABLE_ITEMS else "none",
+    }
+
+
+def _tale_fields(raw: dict) -> dict:
+    """Parable: a story moment — the place, the time, who is there and what they do."""
+    acts = raw.get("acts") if isinstance(raw.get("acts"), list) else []
+    out = {
+        "title": _line(raw.get("title"), 50),
+        "place": raw.get("place") if raw.get("place") in PARABLE_PLACES else "village",
+        "time": raw.get("time") if raw.get("time") in PARABLE_TIMES else "day",
+        "who": _duo_who(raw.get("who")),
+        "acts": [_duo_act(acts[i] if i < len(acts) else None) for i in range(2)],
+    }
+    icon = _icon(raw.get("icon"), "")
+    if icon:
+        out["icon"] = icon
+    guest = raw.get("guest") if isinstance(raw.get("guest"), dict) else None
+    if guest and (_line(guest.get("name"), 20) or guest.get("look") in PARABLE_GUESTS):
+        act = _duo_act(guest)
+        out["guest"] = {"name": _line(guest.get("name"), 20), "look": guest.get("look") if guest.get("look") in PARABLE_GUESTS else "elder", "pose": act["pose"], "mood": act["mood"]}
+    return out
+
+
+# "Dialogue · Two voices" (motion/src/dialogue.jsx) — two people really talking, each in
+# their own voice (dialogue_voices), in Parable's look: the same two villagers and
+# Cambodian places, a speech bubble over whoever speaks, their mouth moving.
+DIALOGUE_TYPES = ("hook", "line", "tally", "moral", "cta")
+DIALOGUE_PROMPT = (
+    "You are the best writer of short animated dialogues in Cambodia. You plan a REMOTION VIDEO "
+    "(Reels / TikTok, 30-70 s): TWO people talking to each other in an everyday Cambodian place — "
+    "two friends, a seller and a customer, a boss and a worker, a parent and a child, a couple. "
+    "Each has their OWN VOICE, so it plays like a real conversation: short natural lines, back and "
+    "forth, a little funny, with a turn — a worry, a surprise, a smart idea — and a clear takeaway "
+    "(money, work, business, selling, marketing, habits, health — or the brand's product as the "
+    "answer one of them knows about, said the way a friend would, never an advert read out).\n"
+    "\n"
+    "THE CAST — return \"cast\": exactly 2 x {name (a short Cambodian first name), gender (male | "
+    "female), skin (" + " | ".join(DUO_SKINS) + "), hair (" + " | ".join(DUO_HAIRS) + "), shirt ("
+    + " | ".join(DUO_SHIRTS) + "), extra (" + " | ".join(DUO_EXTRAS) + ")}. Usually a man and a "
+    "woman (two clearly different voices). Different hair and shirt colours. Character 1 usually "
+    "has the problem or the question, character 2 the answer.\n"
+    "\n"
+    "THE STORY (7-12 scenes) — every scene has speaker (1 or 2): the one who speaks its `say`:\n"
+    "1. hook — text (max 7 words: what the talk is about, [key words] marked); its `say` is the "
+    "speaker's opening line to the other (a question, a complaint, news).\n"
+    "then line scenes — they take turns, one line each; a tally when a number matters (sales, "
+    "customers, money, hours) — the speaker says it.\n"
+    "near the end. moral — the takeaway, said by the one who knows.\n"
+    "last. cta — one of them turns to the viewer: a question for the comments, or follow for "
+    "part 2.\n"
+    "\n"
+    "SCENE TYPES and their fields (mood one of: " + ", ".join(CARTOON_MOODS) + "; pose one of: "
+    + ", ".join(PARABLE_POSES) + "; item one of: " + ", ".join(PARABLE_ITEMS) + "):\n"
+    "- hook: speaker, text (max 7 words).\n"
+    "- line: speaker, text (max 12 words — the bubble: the line itself or its key part), mood, "
+    "pose, item (what the speaker holds), listen (the OTHER one's mood as they listen), think "
+    "(true when it is a thought, not said aloud), place (one of: " + ", ".join(PARABLE_PLACES)
+    + "), time (" + " | ".join(PARABLE_TIMES) + "). Keep the same place and time while the talk "
+    "stays in one place.\n"
+    "- tally: speaker, title (max 5 words), label (max 3 words — what is counted), value (a "
+    "number), start (optional), prefix, suffix, place, time, who (0 both, 1 or 2 — who is shown), "
+    "acts: 2 x {pose, mood, item}.\n"
+    "- moral: speaker, title (max 3 words), text (max 14 words), icon.\n"
+    "- cta: speaker, text (max 10 words), button (1-3 words).\n"
+    "TWO VOICES: every `say` is spoken BY that scene's speaker in first person — their own words, "
+    "the way they really talk (in a line: to the other person, by name now and then; in the cta: "
+    "to the viewer). Never a narrator, never \"he said\". 4-20 words each; the bubble shows its key "
+    "part. (This replaces the narrator rule below.)\n"
+    + _COMMON_RULES
+    + '{"cast": [{"name": "...", "gender": "male", "skin": "tan", "hair": "short", "shirt": "blue", '
+    '"extra": "krama"}, {"name": "...", "gender": "female", ...}], "scenes": [{"type": "hook", '
+    '"speaker": 1, "text": "...", "say": "..."}, {"type": "line", "speaker": 2, "text": "...", "mood": '
+    '"thinking", "pose": "stand", "item": "none", "listen": "worried", "place": "market", "time": '
+    '"morning", "say": "..."}, ...]}'
+)
+# the templates whose lines are each person's own (never rewritten as one narrator's story)
+DIALOGUE_STYLES = {"dialogue"}
+
+
+# "3D · Street" (motion/src/street3d.jsx) — a low-poly Cambodian street at dusk in real 3D:
+# a rival shophouse (shutter half down) and the brand's, lit up with its name on the sign;
+# people walk to it, a board on its front counts, customers' messages float up. Words on
+# the page over the 3D; rendered with --gl=swangle.
+STREET_TYPES = ("hook", "shops", "crowd", "chatter", "cta")
+STREET_PROMPT = (
+    "You are a top short-video creative in Cambodia. You plan a REMOTION VIDEO in 3D (Reels / "
+    "TikTok, 20-40 s) set on one street at dusk: two shophouses side by side — a rival shop that "
+    "does things the old way (its shutter half down, nobody there) and THE BRAND's shop, lit up "
+    "with its name on the sign, people walking in, messages arriving. The story: why one shop "
+    "on the same street is full and the other is empty — and what the brand's shop does "
+    "differently (what the brand sells or offers: its product, its service, its way of "
+    "working). Proud, warm, a little cinematic; never a list of features read out.\n"
+    "\n"
+    "THE STORY (5-6 scenes):\n"
+    "1. hook — text (max 9 words): the question of the two shops (\"Same street. [Why is one "
+    "always full?]\").\n"
+    "2. shops — title (max 6 words), sides: exactly 2 x {label (max 4 words), tone (bad | good)} — "
+    "side 1 is the rival (what it does: bad), side 2 the brand's shop (what it does: good).\n"
+    "3. crowd — title (max 6 words), label (max 3 words — what the board counts), value (a "
+    "number), start (optional — the number it counts from), prefix (\"$\"), suffix — only a TRUE "
+    "number from the brief or product information; with none, leave value out (the people still "
+    "walk in, the board is left out).\n"
+    "4. chatter — title (max 6 words), messages: 2-3 x {text (max 8 words — what customers send "
+    "the shop: a question, an order, a thank-you)}.\n"
+    "last. cta — text (max 9 words), button (1-3 words).\n"
+    + _COMMON_RULES
+    + '{"scenes": [{"type": "hook", "text": "...", "say": "..."}, {"type": "shops", "title": "...", '
+    '"sides": [{"label": "...", "tone": "bad"}, {"label": "...", "tone": "good"}], "say": "..."}, '
+    '{"type": "crowd", "title": "...", "label": "...", "value": 120, "say": "..."}, {"type": '
+    '"chatter", "title": "...", "messages": [{"text": "..."}], "say": "..."}, {"type": "cta", '
+    '"text": "...", "button": "...", "say": "..."}]}'
+)
+
+
+def dialogue_voices(script: dict, language: str, narrator: str, setting: str) -> list[str]:
+    """Dialogue · Two voices: each scene's voice — its speaker's own (a man and a
+    woman read by the male and the female voice; two of a kind get two different
+    voices). With the brand's own voice, person 1 speaks in it."""
+    from app import speech
+
+    cast = script.get("cast") or clean_duo(None)
+    own = [speech.voice_for(language, c["gender"], "dialogue") or narrator for c in cast[:2]]
+    if setting == "brand":
+        own[0] = narrator
+    if own[0] == own[1]:
+        own[1] = speech.other_voice(own[1], cast[1]["gender"]) or own[1]
+    return [own[1] if s.get("speaker") == 2 else own[0] for s in script["scenes"]]
+
 # "Rise · Mindset" (motion/src/rise.jsx) — a motivational video told as one climb: a person
 # climbs a staircase a step per habit while the sky turns from night to sunrise; old me vs
 # new me, a seed growing, the lesson at the summit. All drawn in code.
@@ -2300,6 +2538,9 @@ STYLES = {
     "studio": (STUDIO_PROMPT, STUDIO_TYPES, 4, None),
     "presenter": (PRESENTER_PROMPT, PRESENTER_TYPES, 7, None),
     "podcast": (PODCAST_PROMPT, PODCAST_TYPES, 10, "visit"),
+    "parable": (PARABLE_PROMPT, PARABLE_TYPES, 9, "tale"),
+    "dialogue": (DIALOGUE_PROMPT, DIALOGUE_TYPES, 11, "line"),
+    "street3d": (STREET_PROMPT, STREET_TYPES, 5, "shops"),
     "clarity": (CLARITY_PROMPT, CLARITY_TYPES, 8, None),
     "countdown": (COUNTDOWN_PROMPT, COUNTDOWN_TYPES, 7, "rank"),
     "thisorthat": (THISORTHAT_PROMPT, THISORTHAT_TYPES, 6, "choice"),
@@ -2317,7 +2558,7 @@ LONG_STYLES = {"training"}
 # The templates laid out for 16:9 too (motion/src/training.jsx, saas.jsx wide scenes);
 # every other template is always vertical. Scenes drawn only for a tall frame are
 # left out of a wide video.
-WIDE_STYLES = {"podcast", "presenter", "neural", "paper", "doodle", "cartoon", "lesson", "rise", "training", "custom", "demo", "offer", "spotlight", "trend", "pov", "showcase", "launch", "unveil", "gridcards", "techflow", "canvas", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
+WIDE_STYLES = {"street3d", "dialogue", "parable", "podcast", "presenter", "neural", "paper", "doodle", "cartoon", "lesson", "rise", "training", "custom", "demo", "offer", "spotlight", "trend", "pov", "showcase", "launch", "unveil", "gridcards", "techflow", "canvas", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
 TALL_ONLY_TYPES = {"problem", "chat", "product", "point"}
 
 
@@ -2333,7 +2574,7 @@ def final_ratio(asked: str, style: str, suggested: str | None = None) -> str:
     return "9:16"
 SCREEN_STYLES = {"custom", "demo", "appdemo", "showcase", "launch", "unveil", "clarity", "canvas", "reaction"}  # the stories that can show the brand's screenshots
 # The templates that sell (the auto topic picks a product, not a teaching topic).
-SELLING_STYLES = {"tech", "demo", "offer", "spotlight", "appdemo", "showcase", "launch", "unveil", "gridcards"}
+SELLING_STYLES = {"tech", "demo", "offer", "spotlight", "street3d", "appdemo", "showcase", "launch", "unveil", "gridcards"}
 
 # Story mode (write_script ``seconds``): the person pasted their own story.
 MAX_STORY_SCENES = 20  # ~2 minutes
@@ -2544,14 +2785,14 @@ def estimate_seconds(script: dict) -> int:
 GOAL_STYLES = {
     "sell": ("tech",),
     "solution": ("tech", "demo", "custom", "showcase", "clarity", "gridcards", "cartoon", "appdemo"),
-    "conversion": ("offer", "spotlight", "tech", "launch", "reviews", "casestudy", "unveil", "studio"),
+    "conversion": ("offer", "spotlight", "tech", "launch", "reviews", "casestudy", "unveil", "studio", "street3d"),
     "teach": ("explainer",),
-    "education": ("explainer", "training", "custom", "clarity", "tips", "gridcards", "techflow", "neural", "paper", "doodle", "cartoon", "lesson", "presenter", "podcast"),
-    "reach": ("pov", "explainer", "countdown", "thisorthat", "hottake", "doodle", "cartoon", "lesson", "rise", "reaction", "podcast"),
+    "education": ("explainer", "training", "custom", "clarity", "tips", "gridcards", "techflow", "neural", "paper", "doodle", "cartoon", "lesson", "presenter", "podcast", "parable"),
+    "reach": ("pov", "explainer", "countdown", "thisorthat", "hottake", "doodle", "cartoon", "lesson", "rise", "reaction", "podcast", "parable", "dialogue"),
     "awareness": ("trend", "custom", "clarity", "showcase", "report", "unveil", "canvas", "studio", "presenter"),
     "authority": ("versus", "report", "casestudy", "hottake", "clarity", "techflow"),
-    "engagement": ("poll", "thisorthat", "faq", "countdown", "hottake", "reaction"),
-    "followers": ("quote", "explainer", "tips", "countdown", "hottake", "doodle", "lesson", "rise", "presenter", "podcast"),
+    "engagement": ("poll", "thisorthat", "faq", "countdown", "hottake", "reaction", "dialogue"),
+    "followers": ("quote", "explainer", "tips", "countdown", "hottake", "doodle", "lesson", "rise", "presenter", "podcast", "parable"),
     "trust": ("testimonial", "reviews", "casestudy", "faq", "report"),
 }
 
@@ -2593,7 +2834,7 @@ def _number(value) -> float:
 
 
 # The templates told by a narrator to everyone (not a shop talking to its customer, បង).
-NARRATOR_STYLES = {"explainer", "training", "quote", "doodle", "lesson", "rise", "countdown", "tips", "hottake", "report"}
+NARRATOR_STYLES = {"explainer", "training", "quote", "doodle", "lesson", "rise", "parable", "countdown", "tips", "hottake", "report"}
 
 
 def story_language(idea: str, picked: str) -> str:
@@ -2629,6 +2870,10 @@ def _only_story_numbers(scene: dict, story: str, allowed: tuple = ()) -> dict:
     kind = scene["type"]
     if kind in ("stat", "result"):
         nums = [float(scene.get("value") or 0)]
+    elif kind == "tally":
+        nums = [float(scene.get("value") or 0), float(scene.get("start") or 0)]
+    elif kind == "crowd":  # 3D · Street: the board's number
+        nums = [float(scene.get("value") or 0), float(scene.get("start") or 0)]
     elif kind == "chart":
         nums = [float(v) for ser in scene.get("series") or [] for v in ser.get("values") or []]
     elif kind == "dashboard":
@@ -2637,6 +2882,10 @@ def _only_story_numbers(scene: dict, story: str, allowed: tuple = ()) -> dict:
         return scene
     if all(n in have for n in nums):
         return scene
+    if kind == "crowd":  # 3D · Street: the people walk in, without the board
+        return {k: v for k, v in scene.items() if k not in ("label", "value", "start", "prefix", "suffix")}
+    if kind == "tally" and "tale" in allowed:  # Parable: the moment, without the chalkboard
+        return {k: v for k, v in scene.items() if k not in ("label", "value", "start", "prefix", "suffix")} | {"type": "tale"}
     text = scene.get("title") or scene.get("label") or ""
     if "reveal" in allowed:
         return {"type": "reveal", "text": text, "icon": scene.get("icon") or "Lightbulb", "say": scene.get("say", "")}
@@ -2648,6 +2897,11 @@ def _only_story_numbers(scene: dict, story: str, allowed: tuple = ()) -> dict:
 def _apps(value) -> list[dict]:
     """Showcase's app bubbles: [{"name"}] — the template draws each known app's icon."""
     return [{"name": _line(a.get("name"), 24)} for a in (value or []) if isinstance(a, dict) and _line(a.get("name"), 24)][:8]
+
+
+def _cast_names(script: dict) -> list[str]:
+    """The people's names in a story (Story · Characters, Parable) — the Khmer editors keep them."""
+    return [c["name"] for c in (script.get("cast") or []) if isinstance(c, dict) and c.get("name")]
 
 
 def _who(value) -> int:
@@ -2719,7 +2973,10 @@ def _clean_scene(raw: dict, names: dict[str, str]) -> dict | None:
     A scene whose fields have the wrong shape (a number where a list goes…)
     is left out, never fails the whole storyboard."""
     try:
-        return _clean_one(raw, names)
+        scene = _clean_one(raw, names)
+        if scene and str(raw.get("speaker")).strip() in ("1", "2"):  # Dialogue · Two voices: whose voice
+            scene["speaker"] = int(str(raw["speaker"]).strip())
+        return scene
     except (TypeError, ValueError, AttributeError, KeyError, IndexError) as exc:
         log.warning("storyboard: a %s scene left out — malformed (%s)", str(raw.get("type"))[:20], exc)
         return None
@@ -2835,6 +3092,67 @@ def _clean_one(raw: dict, names: dict[str, str]) -> dict | None:
                 "tone": "bad" if x.get("tone") == "bad" else "good",
             })
         return {"type": kind, "title": _line(raw.get("title"), 60), "people": people, "say": say} if len(people) >= 2 else None
+    if kind == "shops":  # 3D · Street: the rival shop and the brand's
+        sides = []
+        for i, x in enumerate((raw.get("sides") if isinstance(raw.get("sides"), list) else [])[:2]):
+            if isinstance(x, dict) and _line(x.get("label"), 40):
+                sides.append({"label": _line(x.get("label"), 40), "tone": x.get("tone") if x.get("tone") in ("good", "bad") else ("bad", "good")[i]})
+        return {"type": kind, "title": _line(raw.get("title"), 60), "sides": sides, "say": say} if len(sides) == 2 else None
+    if kind == "crowd":  # 3D · Street: people walk in, the board counts (when there's a number)
+        scene = {"type": kind, "title": _line(raw.get("title"), 60), "say": say}
+        value = _number(raw.get("value")) if raw.get("value") not in (None, "") else 0.0
+        if value > 0 and _line(raw.get("label"), 40):
+            start = _number(raw.get("start")) if raw.get("start") not in (None, "") else 0.0
+            scene.update({"label": _line(raw.get("label"), 40), "value": int(value) if value == int(value) else round(value, 1), "prefix": _line(raw.get("prefix"), 3), "suffix": _line(raw.get("suffix"), 10)})
+            if 0 < start < value:
+                scene["start"] = int(start) if start == int(start) else round(start, 1)
+        return scene if scene["title"] or say else None
+    if kind == "chatter":  # 3D · Street: customers' messages floating up
+        given = raw.get("messages") if isinstance(raw.get("messages"), list) else []
+        messages = [{"text": _line(m.get("text"), 60)} for m in given if isinstance(m, dict) and _line(m.get("text"), 60)][:3]
+        return {"type": kind, "title": _line(raw.get("title"), 60), "messages": messages, "say": say} if messages else None
+    if kind == "line":  # Dialogue · Two voices: one person speaks
+        text = _line(raw.get("text"), 120)
+        scene = {
+            "type": kind,
+            "text": text,
+            "mood": raw.get("mood") if raw.get("mood") in CARTOON_MOODS else "happy",
+            "pose": raw.get("pose") if raw.get("pose") in PARABLE_POSES and raw.get("pose") != "walk" else "stand",
+            "item": raw.get("item") if raw.get("item") in PARABLE_ITEMS else "none",
+            "listen": raw.get("listen") if raw.get("listen") in CARTOON_MOODS else "happy",
+            "place": raw.get("place") if raw.get("place") in PARABLE_PLACES else "village",
+            "time": raw.get("time") if raw.get("time") in PARABLE_TIMES else "day",
+            "say": say,
+        }
+        if raw.get("think") is True:
+            scene["think"] = True
+        return scene if text else None
+    if kind == "tale":  # Parable · Two paths: a story moment
+        fields = _tale_fields(raw)
+        return {"type": kind, **fields, "say": say} if fields["title"] or say else None
+    if kind == "tally":  # Parable: the moment, with a number counting on a chalkboard
+        label = _line(raw.get("label"), 40)
+        value = _number(raw.get("value"))
+        if not label or value <= 0:
+            return None
+        start = _number(raw.get("start")) if raw.get("start") not in (None, "") else 0.0
+        scene = {"type": kind, **_tale_fields(raw), "label": label, "value": int(value) if value == int(value) else round(value, 1), "prefix": _line(raw.get("prefix"), 3), "suffix": _line(raw.get("suffix"), 10), "say": say}
+        if start > 0:
+            scene["start"] = int(start) if start == int(start) else round(start, 1)
+        return scene
+    if kind == "fork":  # Parable: one path vs the other
+        sides = []
+        for i, x in enumerate((raw.get("sides") if isinstance(raw.get("sides"), list) else [])[:2]):
+            if not isinstance(x, dict) or not _line(x.get("label"), 30):
+                continue
+            side = {"label": _line(x.get("label"), 30), "tone": x.get("tone") if x.get("tone") in ("good", "bad") else ("bad", "good")[i], **_duo_act(x)}
+            if _icon(x.get("icon"), ""):
+                side["icon"] = _icon(x.get("icon"), "")
+            sides.append(side)
+        return {"type": kind, "title": _line(raw.get("title"), 50), "sides": sides, "say": say} if len(sides) == 2 else None
+    if kind == "moral":  # Parable: the lesson
+        text = _line(raw.get("text"), 140)
+        return {"type": kind, "title": _line(raw.get("title"), 30), "text": text, "icon": _icon(raw.get("icon"), "Lightbulb"), "say": say} if text else None
     if kind == "remember":
         text = _line(raw.get("text"), 120)
         return {"type": kind, "title": _line(raw.get("title"), 40), "text": text, "icon": _icon(raw.get("icon"), "Star"), "say": say} if text else None
@@ -3423,6 +3741,14 @@ _TEXT_FIELDS = {
     "summit": (("text", 140), ("say", 300)),
     "example": (("title", 60), ("say", 300)),
     "remember": (("title", 40), ("text", 120), ("say", 300)),
+    "line": (("text", 120), ("say", 300)),
+    "shops": (("title", 60), ("say", 300)),
+    "crowd": (("title", 60), ("label", 40), ("say", 300)),
+    "chatter": (("title", 60), ("say", 300)),
+    "tale": (("title", 50), ("say", 300)),
+    "tally": (("title", 50), ("label", 40), ("say", 300)),
+    "fork": (("title", 50), ("say", 300)),
+    "moral": (("title", 30), ("text", 140), ("say", 300)),
     "note": (("title", 40), ("say", 300)),
     "choice": (("question", 80), ("prompt", 30), ("say", 300)),
     "reviews": (("title", 30), ("say", 300)),
@@ -3757,6 +4083,8 @@ def write_script(
         _keep_own_voice(script, idea)
     if style == "cartoon":
         script["cast"], script["place"] = clean_cast(raw.get("cast")), _line(raw.get("place"), 400)
+    if style in ("parable", "dialogue"):
+        script["cast"] = clean_duo(raw.get("cast"))
     if style == "reaction":
         script["cast"] = clean_animals(raw.get("cast"))
     if style == "presenter":
@@ -3814,14 +4142,16 @@ def write_script(
             slots += [(x, key, 40) for x in s.get("cards", []) if isinstance(x, dict) for key in ("title", "sub") if x.get(key)]
             if s["type"] == "phones":
                 slots += [(s["words"], k, 20) for k in range(len(s["words"]))]
+            if s["type"] in ("fork", "shops"):  # Parable: the two paths' signs; 3D · Street: the two shops
+                slots += [(x, "label", 40) for x in s["sides"]]
         # Story mode: the voice lines are the person's own sentences — kept.
-        slots = [x for x in slots if x[0][x[1]] and x[1] != "say"]  # the voice lines: voice_script_khmer
+        slots = [x for x in slots if x[0][x[1]] and (x[1] != "say" or style in DIALOGUE_STYLES)]  # the voice lines: voice_script_khmer
         fixed = _polish_khmer(
             [obj[key] for obj, key, _ in slots],
             model,
             voice_examples=brand.voice_examples or "",
             khmer_only="english" not in (brand.lang or "").lower(),
-            keep=[brand.name, *(p.name for p in products), *([script["host"]["name"]] if script.get("host") else [])],
+            keep=[brand.name, *(p.name for p in products), *([script["host"]["name"]] if script.get("host") else []), *_cast_names(script)],
             # Story mode: only the short on-screen words are left to edit (the
             # voice lines are the person's own) — the quick pass; at high effort
             # it took a minute and more, while the person waited on the plan.
@@ -3829,19 +4159,21 @@ def write_script(
         )
         for (obj, key, n), value in zip(slots, fixed):
             obj[key] = _line(_fix_khmer_punctuation(value), n)
-        # every spoken line rewritten to be heard, not read (story mode: a light touch)
-        spoken = [s for s in script["scenes"] if s.get("say")]
-        shows = [screen for screen, _ in script_lines({"scenes": spoken})]
-        for s, line in zip(
-            spoken,
-            voice_script_khmer(
-                [s["say"] for s in spoken], model, [brand.name, *(p.name for p in products), *([script["host"]["name"]] if script.get("host") else [])], brand.voice_examples or "",
-                own=story, shows=shows, narrator=story or style in NARRATOR_STYLES,
-            ),
-        ):
-            s["say"] = line
+        # every spoken line rewritten to be heard, not read (story mode: a light touch) —
+        # not a dialogue's: each line is that person's own, polished above with the words
+        spoken = [s for s in script["scenes"] if s.get("say")] if style not in DIALOGUE_STYLES else []
+        if spoken:
+            shows = [screen for screen, _ in script_lines({"scenes": spoken})]
+            for s, line in zip(
+                spoken,
+                voice_script_khmer(
+                    [s["say"] for s in spoken], model, [brand.name, *(p.name for p in products), *([script["host"]["name"]] if script.get("host") else []), *_cast_names(script)], brand.voice_examples or "",
+                    own=story, shows=shows, narrator=story or style in NARRATOR_STYLES,
+                ),
+            ):
+                s["say"] = line
         _report(job_id, stage="pictures", scenes=_board(script))
-    elif not (story and own_voice(idea)):
+    elif not (story and own_voice(idea)) and style not in DIALOGUE_STYLES:
         # English: the same storyteller pass — the lines linked into one spoken story
         _narrate(script, brand, products, model, False, own=story, narrator=story)
         _report(job_id, stage="pictures", scenes=_board(script))
@@ -4029,6 +4361,28 @@ def script_lines(script: dict) -> list[tuple[str, str]]:
             sign = lambda i, x: (" = " if i == last else f" {x.get('op', '+')} ") if s["kind"] == "sum" else " / "  # noqa: E731
             body = "".join((sign(i, x) if i else "") + x["label"] + (f" {x['value']}" if x.get("value") else "") for i, x in enumerate(s["parts"]))
             screen = f"{s.get('title', '')} — {s['kind']}: {body}"
+        elif s["type"] in ("tale", "tally"):
+            who = {0: "both", 1: "#1", 2: "#2"}[s.get("who", 0)]
+            acts = ", ".join(f"#{i + 1} {a['pose']}/{a['mood']}" + (f" with {a['item']}" if a.get("item", "none") != "none" else "") for i, a in enumerate(s["acts"]) if s.get("who", 0) in (0, i + 1))
+            screen = f"({s['place']}, {s['time']}; {who}: {acts}) {s.get('title', '')}"
+            if s["type"] == "tally":
+                screen += f" — {s['label']}: " + (f"{s.get('prefix', '')}{s['start']}{s.get('suffix', '')} → " if s.get("start") else "") + f"{s.get('prefix', '')}{s['value']}{s.get('suffix', '')}"
+            if s.get("icon"):
+                screen += f" [{s['icon']}]"
+            if s.get("guest"):
+                screen += f" + {s['guest']['look']} {s['guest']['name']}".rstrip()
+        elif s["type"] == "shops":
+            screen = (f"{s['title']} — " if s.get("title") else "") + " vs ".join(f"{x['label']} ({x['tone']})" for x in s["sides"])
+        elif s["type"] == "crowd":
+            screen = (s.get("title") or "People walk in") + (f" — {s['label']}: " + (f"{s.get('prefix', '')}{s['start']}{s.get('suffix', '')} → " if s.get("start") else "") + f"{s.get('prefix', '')}{s['value']}{s.get('suffix', '')}" if s.get("value") else "")
+        elif s["type"] == "chatter":
+            screen = (f"{s['title']} — " if s.get("title") else "") + " / ".join(f"“{m['text']}”" for m in s["messages"])
+        elif s["type"] == "line":
+            screen = f"#{s.get('speaker', 1)} ({s['mood']}{', thinking' if s.get('think') else ''}; {s['place']}, {s['time']}) “{s['text']}”"
+        elif s["type"] == "fork":
+            screen = (f"{s['title']} — " if s.get("title") else "") + " vs ".join(f"{x['label']} ({x['tone']}, {x['pose']})" for x in s["sides"])
+        elif s["type"] == "moral":
+            screen = (f"{s['title']}: " if s.get("title") else "") + s["text"]
         elif s["type"] == "example":
             screen = (s.get("title") or "Example") + " — " + " | ".join(f"{x['name']}: {x['text']}" + (f" ({x['value']})" if x.get("value") else "") for x in s["people"])
         elif s["type"] in ("talk", "note"):
@@ -4373,7 +4727,7 @@ def pick_pictures(
                 s["image"], s["imgW"], s["imgH"] = shot["uri"], shot["w"], shot["h"]
             elif s.get("product"):
                 s["image"] = by_product.get(ids.get(s["product"])) or main
-        elif script.get("style") in ("doodle", "cartoon", "lesson", "rise", "podcast"):
+        elif script.get("style") in ("doodle", "cartoon", "lesson", "rise", "podcast", "parable", "dialogue", "street3d"):
             continue  # drawn templates: no product photos (doodle / cartoon draw their own, app/doodle.py)
         elif script.get("style") == "appdemo":  # 3D · App demo: the app's own screenshot on the phone
             if s["type"] in ("hook", "cta") and shots:
@@ -4490,6 +4844,10 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
             scene["n"], scene["of"] = len(scenes), len(script["scenes"])
         if s["type"] == "whiteboard":
             scene["parts"] = [{**x, "label": t(x["label"]), "value": t(x["value"]) if x.get("value") else ""} for x in scene["parts"]]
+        if s["type"] in ("fork", "shops"):  # Parable: the two paths' signs; 3D · Street: the two shops
+            scene["sides"] = [{**x, "label": t(x["label"])} for x in scene["sides"]]
+        if s["type"] in ("tale", "tally") and scene.get("guest"):
+            scene["guest"] = {**scene["guest"], "name": t(scene["guest"]["name"]) if scene["guest"].get("name") else ""}
         if s["type"] == "example":
             scene["people"] = [{**x, "name": t(x["name"]) if x.get("name") else "", "text": t(x["text"]), "value": t(x["value"]) if x.get("value") else ""} for x in scene["people"]]
         if s["type"] == "talk" and scene.get("item"):
@@ -4513,6 +4871,8 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
     if script.get("style") == "cartoon":  # Story · Characters: the two people and their place
         props["cast"] = [{**c, "name": t(c["name"]) if c.get("name") else ""} for c in script.get("cast") or clean_cast(None)]
         props["place"] = {"image": script["place_image"]} if script.get("place_image") else {}
+    if script.get("style") in ("parable", "dialogue"):  # Parable · Two paths / Dialogue: the two people
+        props["cast"] = [{**c, "name": t(c["name"]) if c.get("name") else ""} for c in script.get("cast") or clean_duo(None)]
     if script.get("style") == "podcast":  # the places, painted (app/doodle.py); the host's look
         host = script.get("host") or clean_host(None, khmer)
         props["places"] = list(script.get("place_images") or [])
@@ -4595,6 +4955,20 @@ def default_seconds(scene: dict) -> float:
         return 2.6 + 1.3 * min(3, len(scene.get("people") or []))
     if kind == "remember":
         return 4.4
+    if kind == "line":  # Dialogue · Two voices — shared.jsx defaultSeconds says the same
+        return 3.6
+    if kind == "shops":  # 3D · Street — shared.jsx defaultSeconds says the same
+        return 4.6
+    if kind == "crowd":
+        return 5.0
+    if kind == "chatter":
+        return 2.0 + 1.0 * min(3, len(scene.get("messages") or []))
+    if kind == "tale":  # Parable · Two paths — parable.jsx / shared.jsx defaultSeconds say the same
+        return 4.2
+    if kind in ("tally", "moral"):
+        return 4.6
+    if kind == "fork":
+        return 4.8
     if kind == "talk":
         return 2.8 + min(2.4, len(scene.get("text") or "") / 30) + (0.6 if scene.get("item") else 0)
     if kind == "note":
@@ -4762,13 +5136,15 @@ def add_voice(
     job_id: int,
     pronunciations: list[dict] | None = None,
     clone: bytes | None = None,
+    voices: list[str] | None = None,
 ) -> int:
     """Each scene's spoken line, read by ``voice`` — and, with ``clone`` (a
     brand voice's fingerprint, app/voice_clone.py), turned into that voice
     after it's read: the MP3 goes into the scene
     and the scene lasts as long as its line (never shorter than its
     animation). Best effort — a line that fails just stays silent. Returns
-    the characters spoken (what Azure bills)."""
+    the characters spoken (what Azure bills). ``voices``: each scene's own
+    voice (Dialogue · Two voices — the brand voice ``clone`` only on ``voice``'s lines)."""
     from app import speech
     from app.story import _probe
 
@@ -4788,13 +5164,14 @@ def add_voice(
     # for 4 at once up front; the loop below then takes them in order.
     ahead: dict = {}
     pool = None
-    if voice.startswith(speech.GEMINI):
+    reader = lambda n: voices[n] if voices and n < len(voices) and voices[n] else voice  # noqa: E731 — who reads scene n
+    if any(reader(n).startswith(speech.GEMINI) for n in range(len(says))):
         from concurrent.futures import ThreadPoolExecutor
 
         pool = ThreadPoolExecutor(max_workers=4)
         for n, say in enumerate(says):
-            if say:
-                ahead[n] = pool.submit(contextvars.copy_context().run, lambda t: (t, speech.speak_timed(t[0], voice)), spoken_text(say, pronunciations))
+            if say and reader(n).startswith(speech.GEMINI):
+                ahead[n] = pool.submit(contextvars.copy_context().run, lambda t, v: (t, speech.speak_timed(t[0], v)), spoken_text(say, pronunciations), reader(n))
 
     spoken = 0
     with tempfile.TemporaryDirectory() as tmp:
@@ -4811,7 +5188,7 @@ def add_voice(
                     (text, pieces), (mp3, words) = ahead[n].result()
                 else:
                     text, pieces = spoken_text(say, pronunciations)
-                    mp3, words = speech.speak_timed(text, voice)
+                    mp3, words = speech.speak_timed(text, reader(n))
                 from app.khmer_speech import remap_words
 
                 words = remap_words(words, pieces, text)  # subtitles keep "$80", not its Khmer words
@@ -4832,7 +5209,7 @@ def add_voice(
             else:
                 words = []
                 mp3 = _trim_silence(path) or mp3
-            if clone:
+            if clone and reader(n) == voice:
                 # the brand's own voice: same length out, so the word timings still fit
                 from app import voice_clone
 
@@ -4869,7 +5246,7 @@ def add_voice(
             for k in ("audio", "voiceWords", "pauses", "voiceSeconds"):
                 scene.pop(k, None)
         _report(job_id, voice_note=_backup_note(backup))
-        return add_voice(props, script, backup, ws, user_id, job_id, pronunciations, clone)
+        return add_voice(props, script, backup, ws, user_id, job_id, pronunciations, clone, [speech.backup_for(v) or v for v in voices] if voices else None)
     if voice.startswith("km-KH") and speech.gemini_ready() and not speech.gemini_available():
         # the person picked the Gemini voice; Gemini is out, so a backup read it
         _report(job_id, voice_note=_backup_note(voice))
@@ -5171,7 +5548,8 @@ def render(props: dict, job_id: int | None = None, preview: bool = False) -> byt
                     # level prints "Rendered 120/900" lines — the page's progress
                     "--concurrency=100%",
                     # 3D · Spotlight draws with WebGL — the server has no graphics card, so in software
-                    *(["--gl=swangle"] if props.get("style") == "spotlight" else []),
+                    # (software 3D starts slowly: up to 2 minutes for a frame, not the 30 s default)
+                    *(["--gl=swangle", "--timeout=120000"] if props.get("style") in ("spotlight", "street3d") else []),
                     *(["--scale=0.4", "--muted", "--crf=22"] if preview else []),
                 ],
                 cwd=MOTION_DIR,
@@ -5492,6 +5870,9 @@ TEMPLATE_GUIDE = {
     "unveil": "unveiling a product or a new feature in a light, elegant way — one big word, the app card coming into focus, a field typing itself, a check with confetti",
     "gridcards": "how a product or service solves an everyday problem — the repetitive work today, then one input becoming several results (a post, a price poster, a caption), clear and friendly",
     "techflow": "explaining HOW a technology works step by step (the internet, email, payments, AI, apps) — devices, data packets travelling, addresses, lookups, the path, a recap",
+    "street3d": "a shop or business shown as the full one on its street, in real 3D — two shophouses side by side at dusk, the rival empty with its shutter half down, the brand's lit up with its name on the sign, people walking in, a number counting, customers' messages; for a café, a restaurant, a shop, a service that wants more customers",
+    "dialogue": "two people really talking, each in their own voice — two friends, a seller and a customer, a boss and a worker, a parent and a child — short lines back and forth in an everyday Cambodian place, speech bubbles, a turn and a takeaway; a conversation, a sketch, a Q&A between two people",
+    "parable": "a parable with a lesson — two people start the same (the same job, shop, money, chance) and choose differently; one stays stuck, the other gets ahead; told like a fable with two flat-cartoon villagers in Cambodian places, a number counting up, a split 'poor vs rich' moment, the moral; money, work, business, marketing, habits",
     "rise": "mindset / motivation — encouraging people to live their best life: small habits, a fresh start, believing in yourself; a person climbing stairs as night turns to sunrise",
     "lesson": "teaching one idea step by step with a cartoon teacher and a pointer stick at a whiteboard — the maths (a sum, bars), steps, a list — then 2-3 example people who do it differently; money, business, health, study",
     "cartoon": "a little story with two cartoon characters talking in one everyday place (a shop, a market, an office, home) — speech bubbles, thought clouds, a business or life problem and its fix, part 1 / part 2 series",
@@ -5885,6 +6266,8 @@ def checked_script(raw: dict, products: list[Product]) -> dict:
         script["look"] = clean_look(raw.get("look"), "#6366F1")
     if style == "cartoon":
         script["cast"], script["place"] = clean_cast(raw.get("cast")), _line(raw.get("place"), 400)
+    if style in ("parable", "dialogue"):
+        script["cast"] = clean_duo(raw.get("cast"))
     if style == "reaction":
         script["cast"] = clean_animals(raw.get("cast"))
     if style in ("presenter", "podcast"):
@@ -6118,8 +6501,10 @@ def _make(
             if script.get("style") == "presenter" and voice in ("female", "male") and script.get("host"):  # (Podcast: the host follows the voice)
                 voice = script["host"]["gender"]  # the host speaks in her own voice (a male host: a male one)
             narrator, clone = voice_clone.narrator_for(brand, language, voice, script.get("style"))
+            # Dialogue · Two voices: each person speaks in their own voice
+            voices = dialogue_voices(script, language, narrator, voice) if narrator and script.get("style") in DIALOGUE_STYLES and voice in ("female", "male", "brand") else None
             if narrator:
-                add_voice(props, script, narrator, job.workspace_id, job.user_id, job_id, brand.pronunciations or [], clone)
+                add_voice(props, script, narrator, job.workspace_id, job.user_id, job_id, brand.pronunciations or [], clone, voices)
             if doodling:
                 _finish_doodles(doodling, props, job_id)
             _report(job_id, stage="render", render=0.0)

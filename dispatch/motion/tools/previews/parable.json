@@ -1,0 +1,167 @@
+{
+  "brand": {
+    "name": "Smart Marketing",
+    "color": "#2F6FD6",
+    "logo": "ours/smart-marketing.png",
+    "slug": "smart-marketing"
+  },
+  "style": "parable",
+  "frame": 60,
+  "cast": [
+    {
+      "name": "ដារា",
+      "gender": "male",
+      "skin": "tan",
+      "hair": "short",
+      "shirt": "blue",
+      "extra": "krama"
+    },
+    {
+      "name": "សុភា",
+      "gender": "female",
+      "skin": "light",
+      "hair": "bun",
+      "shirt": "pink",
+      "extra": "none"
+    }
+  ],
+  "scenes": [
+    {
+      "type": "hook",
+      "text": "ពីរ​នាក់ ⟦លក់​ដូច​គ្នា⟧",
+      "icon": "Store"
+    }
+  ],
+  "clip": [
+    {
+      "type": "hook",
+      "text": "ពីរ​នាក់ ⟦លក់​ដូច​គ្នា⟧",
+      "icon": "Store"
+    },
+    {
+      "type": "tale",
+      "title": "នំ​ដូច​គ្នា ⟦តម្លៃ​ដូច​គ្នា⟧",
+      "place": "market",
+      "time": "morning",
+      "who": 0,
+      "acts": [
+        {
+          "pose": "stand",
+          "mood": "happy",
+          "item": "basket"
+        },
+        {
+          "pose": "walk",
+          "mood": "happy",
+          "item": "basket"
+        }
+      ]
+    },
+    {
+      "type": "tally",
+      "title": "ដារា ⟦រង់​ចាំ⟧",
+      "label": "អតិថិជន​ថ្ងៃ​នេះ",
+      "value": 12,
+      "start": 0,
+      "prefix": "",
+      "suffix": "",
+      "place": "market",
+      "time": "day",
+      "who": 1,
+      "acts": [
+        {
+          "pose": "tired",
+          "mood": "worried",
+          "item": "basket"
+        },
+        {}
+      ]
+    },
+    {
+      "type": "tale",
+      "title": "សុភា ⟦ផុស​អនឡាញ⟧",
+      "place": "home",
+      "time": "evening",
+      "who": 2,
+      "acts": [
+        {},
+        {
+          "pose": "think",
+          "mood": "thinking",
+          "item": "phone"
+        }
+      ],
+      "icon": "Smartphone"
+    },
+    {
+      "type": "tally",
+      "title": "សុភា ⟦លក់​ដាច់⟧",
+      "label": "អតិថិជន​ថ្ងៃ​នេះ",
+      "value": 85,
+      "start": 0,
+      "prefix": "",
+      "suffix": "",
+      "place": "market",
+      "time": "day",
+      "who": 2,
+      "acts": [
+        {},
+        {
+          "pose": "cheer",
+          "mood": "excited",
+          "item": "none"
+        }
+      ]
+    },
+    {
+      "type": "tale",
+      "title": "ចាស់​ទុំ ⟦ឆ្ងល់⟧",
+      "place": "village",
+      "time": "evening",
+      "who": 1,
+      "acts": [
+        {
+          "pose": "shrug",
+          "mood": "worried"
+        },
+        {}
+      ],
+      "guest": {
+        "name": "តា​សុខ",
+        "look": "elder",
+        "pose": "point",
+        "mood": "thinking"
+      }
+    },
+    {
+      "type": "fork",
+      "title": "ហេតុ​អ្វី?!",
+      "sides": [
+        {
+          "label": "រង់​ចាំ",
+          "tone": "bad",
+          "pose": "tired",
+          "mood": "sad"
+        },
+        {
+          "label": "ផុស​រាល់​ថ្ងៃ",
+          "tone": "good",
+          "pose": "cheer",
+          "mood": "excited",
+          "icon": "TrendingUp"
+        }
+      ]
+    },
+    {
+      "type": "moral",
+      "title": "មេ​រៀន",
+      "text": "អតិថិជន​នៅ​លើ​ទូរស័ព្ទ — ⟦ទៅ​ជួប​គេ​នៅ​ទី​នោះ⟧",
+      "icon": "Lightbulb"
+    },
+    {
+      "type": "cta",
+      "text": "បង​នៅ​ផ្លូវ ⟦មួយ​ណា?⟧",
+      "button": "Comment"
+    }
+  ]
+}

@@ -12,6 +12,9 @@ import { hitFrames } from './canvas'
 import { mouthBeats } from './reaction'
 import { presenterCues } from './presenter'
 import { podcastCues } from './podcast'
+import { parableCues } from './parable'
+import { dialogueCues } from './dialogue'
+import { streetCues } from './street3d'
 
 const VOLUME = { whoosh: 0.22, pop: 0.3, blop: 0.32, click: 0.35, ding: 0.28, tick: 0.18, impact: 0.55, riser: 0.3 }
 const SAAS = new Set(['trend', 'pov', 'demo', 'offer', 'custom', 'showcase', 'launch', 'clarity', 'countdown', 'thisorthat', 'reviews', 'tips', 'hottake', 'casestudy', 'faq', 'report'])
@@ -29,6 +32,18 @@ export function cuesFor(scene, style, frames, first) {
   }
   if (style === 'podcast') {
     podcastCues(scene).forEach(([at, s]) => add(at, s)) // podcast.jsx
+    return cues
+  }
+  if (style === 'street3d') {
+    streetCues(scene).forEach(([at, s]) => add(at, s)) // street3d.jsx
+    return cues
+  }
+  if (style === 'dialogue') {
+    dialogueCues(scene).forEach(([at, s]) => add(at, s)) // dialogue.jsx
+    return cues
+  }
+  if (style === 'parable') {
+    parableCues(scene).forEach(([at, s]) => add(at, s)) // parable.jsx
     return cues
   }
   // Reaction meme (reaction.jsx): its hook is a meme moment and its close has the animals

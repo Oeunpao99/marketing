@@ -159,7 +159,24 @@ def backup_for(voice: str) -> str | None:
     if not voice.startswith(GEMINI) or provider() != "azure":
         return None
     name = voice[len(GEMINI) :].split("|")[0]
-    return VOICES[("km", "female" if name == get_settings().gemini_tts_voice_female else "male")]
+    female = name == get_settings().gemini_tts_voice_female or name in GEMINI_OTHERS["female"]
+    return VOICES[("km", "female" if female else "male")]
+
+
+# A second voice of the same kind, for a dialogue between two women or two men
+# (app/motion.py dialogue_voices). Azure's Khmer has one voice each — there the
+# two share it.
+GEMINI_OTHERS = {"female": ("Aoede", "Leda", "Kore"), "male": ("Puck", "Orus", "Charon")}
+AZURE_OTHERS = {"en-US-AvaNeural": "en-US-EmmaNeural", "en-US-AndrewNeural": "en-US-BrianNeural"}
+
+
+def other_voice(voice: str, gender: str) -> str | None:
+    """Another voice like ``voice`` (the same gender) — None when there is none."""
+    if voice.startswith(GEMINI):
+        name, _, act = voice[len(GEMINI) :].partition("|")
+        other = next((n for n in GEMINI_OTHERS.get(gender, ()) if n != name), None)
+        return GEMINI + other + (f"|{act}" if act else "") if other else None
+    return AZURE_OTHERS.get(voice)
 
 
 def _gemini_error(resp: httpx.Response) -> str:
@@ -584,6 +601,9 @@ GEMINI_ACT = {
     "doodle": "Calm and warm, like an older sibling sharing a life lesson — gentle pauses, never rushed.",
     "cartoon": "Lively and natural, like telling a funny everyday story to a friend.",
     "lesson": "Friendly and clear, like a favourite teacher explaining at the board — slow down on each number.",
+    "street3d": "Warm and confident, a little cinematic, like the voice of a short brand film — unhurried, proud of the shop.",
+    "dialogue": "Natural and conversational, like a real person chatting with a friend — relaxed, expressive, never like reading.",
+    "parable": "Warm and lively, like a grandparent telling a fable with a twinkle — a little playful, a small pause before the turn and the lesson.",
     "rise": "Warm and encouraging, building gently towards the end — like someone who believes in the listener.",
     "studio": "Calm, warm and elegant, like a premium brand film — unhurried, confident, inviting.",
     "podcast": "Relaxed, honest and warm, like a podcast host telling a personal story to a friend — natural pauses, a little smile in the voice.",
