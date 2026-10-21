@@ -302,7 +302,7 @@ def command_center(brand_id: int | None = None, db: Session = Depends(get_db), w
                 "tone": "warning",
                 "count": None,
                 "title": "Your monthly AI credits are ready to claim",
-                "detail": f"{credit['monthly_credits']:,} credits — claim them from the bell or your account menu (top right)",
+                "detail": f"{credit['claim_credits']:,} credits — claim them from the bell or your account menu (top right)",
                 "to": None,
                 "brands": [],
             }

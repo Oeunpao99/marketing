@@ -29,7 +29,7 @@ export function useNotifications() {
   const prefs = notifyPrefs(user)
   const key = JSON.stringify(prefs)
   const { credits } = useCredits()
-  const claimable = credits?.claim_available ? credits.monthly_credits : 0
+  const claimable = credits?.claim_available ? credits.claim_credits ?? credits.monthly_credits : 0
 
   return useMemo(() => {
     const out = []

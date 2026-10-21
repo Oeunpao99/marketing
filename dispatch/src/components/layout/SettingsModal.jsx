@@ -1265,14 +1265,14 @@ function BillingTab() {
           <CreditCoin size={34} />
           <div className="min-w-0 flex-1">
             <div className="text-[14px] font-bold text-ink-900">Your monthly credits are ready</div>
-            <div className="text-[12.5px] text-ink-600">{(data.monthly_credits || 0).toLocaleString('en-US')} credits for this month — claim them to use AI.</div>
+            <div className="text-[12.5px] text-ink-600">{(data.claim_credits ?? data.monthly_credits ?? 0).toLocaleString('en-US')} credits for this month — claim them to use AI.</div>
           </div>
           <button
             type="button"
             onClick={() => claimCredits().then(load).catch((e) => setError(e.message))}
             className="rounded-xl bg-brand px-4 py-2.5 text-[13px] font-bold text-white hover:bg-brand-dark"
           >
-            Claim {(data.monthly_credits || 0).toLocaleString('en-US')} credits
+            Claim {(data.claim_credits ?? data.monthly_credits ?? 0).toLocaleString('en-US')} credits
           </button>
         </section>
       )}

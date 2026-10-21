@@ -210,21 +210,39 @@ def _pending(db: Session, ws: int) -> float:
     return sum(job_cost(j) for j in jobs)
 
 
+def _counted(ws: int, since: datetime, claim_at: datetime | None):
+    """This month's entries that count against the credits: every claim and
+    grant, and spends from the month's first claim on — AI used before it
+    (the dollar system, before credits had to be claimed) isn't charged again."""
+    spent_since = claim_at or datetime.max.replace(tzinfo=UTC)
+    return (
+        (CreditEntry.workspace_id == ws)
+        & (CreditEntry.created_at >= since)
+        & ((CreditEntry.amount_usd > 0) | (CreditEntry.created_at >= spent_since))
+    )
+
+
 def balance(db: Session, ws: int) -> dict:
     plan = db.scalar(select(Workspace.plan).where(Workspace.id == ws)) or "free"
     credit = PLAN_CREDIT.get(plan, 0.0)
     since = month_start()
+    claim_at, claimed_usd = db.execute(
+        select(func.min(CreditEntry.created_at), func.coalesce(func.sum(CreditEntry.amount_usd), 0)).where(
+            CreditEntry.workspace_id == ws, CreditEntry.kind == "monthly", CreditEntry.created_at >= since
+        )
+    ).one()
     by_kind = {
         kind: float(total or 0)
         for kind, total in db.execute(
-            select(CreditEntry.kind, func.sum(CreditEntry.amount_usd))
-            .where(CreditEntry.workspace_id == ws, CreditEntry.created_at >= since)
-            .group_by(CreditEntry.kind)
+            select(CreditEntry.kind, func.sum(CreditEntry.amount_usd)).where(_counted(ws, since, claim_at)).group_by(CreditEntry.kind)
         ).all()
     }
-    total = sum(by_kind.values())  # claims and grants in, spends out
+    total = sum(by_kind.values())  # claims and grants in, spends (since the claim) out
     spent = -sum(v for v in by_kind.values() if v < 0)
-    claimed = "monthly" in by_kind
+    claimed = claim_at is not None
+    # what's still to claim this month: all of the plan's credits, or — after an
+    # upgrade (Pro claimed, now Enterprise) — the difference
+    due = max(0, PLAN_CREDITS.get(plan, 0) - round(to_credits(float(claimed_usd))))
     pending = _pending(db, ws)
     return {
         "plan": plan,
@@ -237,7 +255,8 @@ def balance(db: Session, ws: int) -> dict:
         "resets_at": next_reset().isoformat(),
         # this month's credits: claimed yet? (they're added only when claimed)
         "claimed": claimed,
-        "claim_available": credit > 0 and not claimed,
+        "claim_available": due > 0,
+        "claim_credits": due,
         # the same in credits — what the customer sees
         "credits_per_usd": CREDITS_PER_USD,
         "monthly_credits": PLAN_CREDITS.get(plan, 0),
@@ -272,7 +291,7 @@ def require(ws: int | None, needed: float = 0.0, db: Session | None = None) -> N
     if now["available"] - needed <= 0:
         if now["claim_available"]:
             raise OutOfCredit(
-                f"This month's {now['monthly_credits']:,} AI credits are ready — claim them from the bell or your "
+                f"This month's {now['claim_credits']:,} AI credits are ready — claim them from the bell or your "
                 "account menu (top right), then try again."
             )
         raise OutOfCredit(_out_of_credit_message())
@@ -388,9 +407,12 @@ def billing_overview(db: Session = Depends(get_db), ws: int = Depends(current_wo
     """Settings → Billing: plan, this month's credit, where it went, recent spends."""
     out = balance(db, ws)
     since = month_start()
+    claim_at = db.scalar(
+        select(func.min(CreditEntry.created_at)).where(CreditEntry.workspace_id == ws, CreditEntry.kind == "monthly", CreditEntry.created_at >= since)
+    )
     rows = db.execute(
         select(CreditEntry.kind, func.sum(CreditEntry.amount_usd), func.count(), func.sum(CreditEntry.tokens), func.sum(CreditEntry.seconds))
-        .where(CreditEntry.workspace_id == ws, CreditEntry.created_at >= since)
+        .where(_counted(ws, since, claim_at))  # the same entries the balance counts
         .group_by(CreditEntry.kind)
     ).all()
     out["breakdown"] = [
@@ -420,28 +442,24 @@ def claim_month(
     w = db.scalar(select(Workspace).where(Workspace.id == ws).with_for_update())  # one claim at a time
     if w is None or w.suspended_at:
         raise HTTPException(403, "This account is suspended — credits can't be claimed.")
-    credits = PLAN_CREDITS.get(w.plan, 0)
-    if credits <= 0:
+    if PLAN_CREDITS.get(w.plan, 0) <= 0:
         raise HTTPException(409, "Your plan has no monthly credits — choose a plan to get them.")
     since = month_start()
-    done = db.scalar(
-        select(func.count()).select_from(CreditEntry).where(
-            CreditEntry.workspace_id == ws, CreditEntry.kind == "monthly", CreditEntry.created_at >= since
-        )
-    )
+    due = balance(db, ws)["claim_credits"]  # the plan's credits, or what an upgrade adds
     added = 0
-    if not done:
+    if due > 0:
+        topup = due < PLAN_CREDITS[w.plan]
         db.add(
             CreditEntry(
                 workspace_id=ws,
                 user_id=user.id,
                 kind="monthly",
-                amount_usd=round(PLAN_CREDIT[w.plan], 6),
+                amount_usd=round(due / CREDITS_PER_USD, 6),
                 cost_usd=0,
-                note=f"{credits:,} monthly credits — {PLAN_LABEL.get(w.plan, w.plan)} plan, {since:%B %Y}",
+                note=f"{due:,} monthly credits — {PLAN_LABEL.get(w.plan, w.plan)} plan{' (upgrade)' if topup else ''}, {since:%B %Y}",
             )
         )
-        added = credits
+        added = due
     db.commit()
     return {**balance(db, ws), "claimed_now": added}
 

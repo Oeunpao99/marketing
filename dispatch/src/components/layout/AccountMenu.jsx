@@ -151,7 +151,7 @@ export default function AccountMenu() {
                 <div className="min-w-0 flex-1">
                   <div className="text-[13px] font-bold text-ink-900">Your monthly credits are ready</div>
                   <div className="flex items-center gap-1 text-[12px] text-ink-600">
-                    <CreditCoin size={14} /> {fmt(b.monthly_credits)} credits for this month
+                    <CreditCoin size={14} /> {fmt(b.claim_credits ?? b.monthly_credits)} credits for this month
                   </div>
                 </div>
               </div>
@@ -161,7 +161,7 @@ export default function AccountMenu() {
                 disabled={claiming}
                 className="mt-3 w-full rounded-xl bg-brand py-2.5 text-[13px] font-bold text-white transition-colors hover:bg-brand-dark disabled:opacity-60"
               >
-                {claiming ? "Claiming…" : `Claim ${fmt(b.monthly_credits)} credits`}
+                {claiming ? "Claiming…" : `Claim ${fmt(b.claim_credits ?? b.monthly_credits)} credits`}
               </button>
               {claimError && <div className="mt-2 text-[11.5px] text-red-600">{claimError}</div>}
             </div>
