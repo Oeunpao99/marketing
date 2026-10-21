@@ -1619,7 +1619,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
                     aria-checked={intent === o.id}
                     onClick={() => setIntentPick(o.id)}
                     className={`px-2.5 rounded-full inline-flex items-center gap-1 text-[11.5px] font-semibold transition-colors ${
-                      intent === o.id ? 'bg-white text-brand shadow-sm' : 'text-ink-500 hover:text-ink-800'
+                      intent === o.id ? 'bg-white text-brand shadow-sm dark:bg-brand/30 dark:text-white dark:ring-1 dark:ring-inset dark:ring-brand/60' : 'text-ink-500 hover:text-ink-800'
                     }`}
                   >
                     {o.icon}
@@ -2425,7 +2425,7 @@ function SettingsPopover({
   const motionLang = /english/i.test(voice || '') && !/khmer/i.test(voice || '') ? 'English' : 'Khmer'
   const seg = (on) =>
     `h-8 min-w-0 flex-1 rounded-lg px-2 text-[12px] font-semibold inline-flex items-center justify-center gap-1.5 whitespace-nowrap transition-colors ${
-      on ? 'bg-white text-brand shadow-sm' : 'text-ink-600 hover:text-ink-900'
+      on ? 'bg-white text-brand shadow-sm dark:bg-brand/30 dark:text-white dark:ring-1 dark:ring-inset dark:ring-brand/60' : 'text-ink-600 hover:text-ink-900'
     }`
   const ratios = RATIOS.filter((r) => !(story && r.id === '1:1'))
   const ratioOn = (id) => ratio === id || (story && ratio === '1:1' && id === '9:16')

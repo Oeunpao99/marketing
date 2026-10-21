@@ -1397,7 +1397,7 @@ function BillingTab() {
                   key={f}
                   type="button"
                   onClick={() => pickFlow(f)}
-                  className={`rounded-lg px-3 py-1.5 ${flow === f ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-500 hover:text-ink-800'}`}
+                  className={`rounded-lg px-3 py-1.5 ${flow === f ? 'bg-white text-ink-900 shadow-sm dark:bg-ink-200 dark:ring-1 dark:ring-inset dark:ring-ink-300' : 'text-ink-500 hover:text-ink-800'}`}
                 >
                   {label}
                 </button>

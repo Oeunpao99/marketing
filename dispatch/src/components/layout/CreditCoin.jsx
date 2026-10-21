@@ -26,7 +26,7 @@ function Twinkle({ size, className, delay }) {
   );
 }
 
-export default function CreditCoin({ size = 18, className = "", sparkle = false, sparkleClass = "text-brand" }) {
+export default function CreditCoin({ size = 18, className = "", sparkle = false, sparkleClass = "text-brand dark:text-brand-light" }) {
   const coin = (
     <svg width={size} height={size} viewBox="0 0 32 32" className={`flex-none ${className}`} aria-hidden="true">
       <circle cx="16" cy="16" r="15" style={{ fill: "rgb(var(--brand))" }} />
@@ -36,12 +36,12 @@ export default function CreditCoin({ size = 18, className = "", sparkle = false,
     </svg>
   );
   if (!sparkle) return coin;
-  const s = Math.max(6, Math.round(size * 0.42));
+  const s = Math.max(8, Math.round(size * 0.55));
   return (
     <span className={`relative inline-flex flex-none ${sparkleClass}`}>
       {coin}
-      <Twinkle size={s} className="-left-1 -top-1" delay="0s" />
-      <Twinkle size={Math.max(4, Math.round(s * 0.7))} className="-bottom-0.5 -right-1.5" delay="0.9s" />
+      <Twinkle size={s} className="-left-1.5 -top-1.5" delay="0s" />
+      <Twinkle size={Math.max(6, Math.round(s * 0.7))} className="-bottom-1 -right-2" delay="0.9s" />
     </span>
   );
 }
