@@ -149,8 +149,33 @@ function MockScreen({ color }) {
   )
 }
 
+/**
+ * The app's screenshot on the phone's screen, never cut at the sides: fitted to
+ * the screen's width. A taller one scrolls down slowly (like using the app); a
+ * shorter one sits in the middle over a soft, blurred copy of itself.
+ */
+function Screenshot({ image, imgW, imgH, sw, sh }) {
+  const frame = useCurrentFrame()
+  const { fps, durationInFrames } = useVideoConfig() // this scene's own length
+  const ratio = imgW && imgH ? imgH / imgW : 0
+  const dh = ratio ? sw * ratio : 0
+  if (!ratio || dh < sh * 0.98) {
+    // shorter than the screen (or its size unknown): whole, in the middle
+    return (
+      <>
+        <Img src={srcOf(image)} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(18px) saturate(1.1)', transform: 'scale(1.15)', opacity: 0.7 }} />
+        <Img src={srcOf(image)} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' }} />
+      </>
+    )
+  }
+  // taller: from the top, scrolling down — not further than the screenshot goes
+  const travel = Math.min(dh - sh, sh * 0.9)
+  const k = travel > sh * 0.06 ? interpolate(frame, [0.8 * fps, Math.max(1.4 * fps, durationInFrames - 0.4 * fps)], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: (t) => t * t * (3 - 2 * t) }) : 0
+  return <Img src={srcOf(image)} style={{ position: 'absolute', left: 0, top: -travel * k, width: '100%', height: dh }} />
+}
+
 /** The phone: a silver body with real thickness (layers in depth), a black bezel and the screen. */
-function Phone({ image, color, width = 470, style }) {
+function Phone({ image, imgW, imgH, color, width = 470, style }) {
   const { u } = useU()
   const w = width * u
   const h = w * 2.04
@@ -167,7 +192,7 @@ function Phone({ image, color, width = 470, style }) {
       {/* the front: bezel + screen */}
       <div style={{ position: 'absolute', inset: 0, borderRadius: r, background: '#0B0D10', padding: w * 0.028, boxShadow: `0 ${30 * u}px ${70 * u}px rgba(0,0,0,0.35)`, border: `${3 * u}px solid #D4D9DE` }}>
         <div style={{ position: 'relative', width: '100%', height: '100%', borderRadius: r * 0.82, overflow: 'hidden', background: '#fff' }}>
-          {image ? <Img src={srcOf(image)} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }} /> : <MockScreen color={color} />}
+          {image ? <Screenshot image={image} imgW={imgW} imgH={imgH} sw={w * 0.944 - 6 * u} sh={h - w * 0.056 - 6 * u} /> : <MockScreen color={color} />}
           {/* the notch */}
           <span style={{ position: 'absolute', top: w * 0.03, left: '50%', width: w * 0.22, height: w * 0.055, marginLeft: -w * 0.11, borderRadius: 99, background: '#0B0D10' }} />
           {/* a soft reflection across the glass */}
@@ -208,7 +233,7 @@ function Pages({ color, width = 470, count = 3, shown = 1 }) {
 function Headline({ text, top, size = 104, delay = 0.5, align = 'center', color = '#FFFFFF', accent = '#FFE27A', width }) {
   const { u, W } = useU()
   if (!text) return null
-  const wd = (width || 940) * u
+  const wd = (width || 840) * u // not under the like / comment buttons on the right of a Reel
   return (
     <div style={{ position: 'absolute', left: (W - wd) / 2, top: top * u, width: wd, display: 'flex', justifyContent: align === 'left' ? 'flex-start' : 'center', textShadow: '0 4px 26px rgba(0,0,0,0.28)' }}>
       <Pop text={text} size={size * u} width={wd} delay={delay} color={color} accent={accent} align={align} step={2} />
@@ -237,12 +262,12 @@ function Hook({ scene, brand }) {
           }}
         >
           <Pages color={brand.color} width={w} shown={s} />
-          <Phone image={scene.image} color={brand.color} width={w} />
+          <Phone image={scene.image} imgW={scene.imgW} imgH={scene.imgH} color={brand.color} width={w} />
         </div>
       </div>
       <Bubble x={900} y={1010} size={130} delay={0.8} color={brand.color} />
       <Bubble x={150} y={520} size={70} delay={1.1} color={brand.color} />
-      <Headline text={scene.text} top={1330} />
+      <Headline text={scene.text} top={1250} size={96} />
     </Silk>
   )
 }
@@ -318,7 +343,7 @@ function Platform({ scene, brand }) {
             transform: `translateY(${(1 - s) * 400 * u + Math.sin(frame / 22) * 8 * u}px) rotateX(6deg) rotateY(${turn}deg) rotateZ(-2deg) scale(${0.9 + 0.1 * s})`,
           }}
         >
-          <Phone image={scene.image} color={brand.color} width={w} />
+          <Phone image={scene.image} imgW={scene.imgW} imgH={scene.imgH} color={brand.color} width={w} />
         </div>
       </div>
       <Bubble x={930} y={620} size={90} delay={0.6} color={brand.color} />
@@ -390,7 +415,7 @@ function Cta({ scene, brand }) {
           }}
         >
           <Pages color={brand.color} width={w} shown={s} count={2} />
-          <Phone image={scene.image} color={brand.color} width={w} />
+          <Phone image={scene.image} imgW={scene.imgW} imgH={scene.imgH} color={brand.color} width={w} />
         </div>
       </div>
       <Bubble x={900} y={470} size={110} delay={0.7} color={brand.color} />
@@ -409,5 +434,6 @@ export const APPDEMO = {
   scenes: { hook: Hook, list: List, platform: Platform, stat: Stat, cta: Cta },
   root: { backgroundColor: '#CFE8E4' },
   light: true, // the white logo chip top-left (ExplainerChrome)
-  captionTop: (h) => (h < 1200 ? h - 150 : 1720),
+  // above a Reel's / TikTok's account name and caption at the bottom of the screen
+  captionTop: (h) => (h < 1200 ? h - 150 : 1540),
 }
