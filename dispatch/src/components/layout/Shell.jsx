@@ -8,6 +8,7 @@ import AIAssistant from '../ai/AIAssistant'
 import CreateBrandDrawer from './CreateBrandDrawer'
 import AppUpdate from './AppUpdate'
 import OnboardingTour from './OnboardingTour'
+import NewTemplates from './NewTemplates'
 import { useStore } from '../../store'
 import { useAutoRunWatcher } from '../../lib/autoRuns'
 import { useGenJobWatcher } from '../../lib/genJobs'
@@ -164,6 +165,7 @@ export default function Shell({ children }) {
       <CreateBrandDrawer />
       <AppUpdate />
       <OnboardingTour />
+      <NewTemplates />
     </div>
   )
 }

@@ -3,6 +3,11 @@
 // app/motion.py STYLES / GOAL_STYLES. `story` is the chat's Story value
 // (AIPromptPage MOTION_STORIES); the preview pictures are made by
 // motion/tools/make_previews.sh into public/templates/.
+//
+// `added: 'YYYY-MM-DD'` on a template makes it a NEW template: everyone who has
+// not seen it gets a "New template — try it out" pop-up once (lib/announce.js,
+// components/layout/NewTemplates.jsx). Add it when you add a template; the pop-up
+// stops by itself after NEW_DAYS.
 
 /** A template's preview picture / clip (public/templates/), with the build's
  * version on it: the files keep their names when they're re-made, and the
@@ -186,6 +191,7 @@ export const MOTION_TEMPLATES = [
   {
     id: 'podcast',
     story: 'podcast',
+    added: '2026-10-20',
     name: 'Podcast · Story talk',
     look: 'A podcast episode: your host at a desk with a mic and headphones in a cosy warm studio, then out in the places the story happens — a park, a home office, a market — painted like an animated film, the host standing there thinking, waving, typing at a laptop',
     steps: ['The episode question', 'At the mic', 'Out in the story', 'Back at the desk: the lesson', 'Follow for the next episode'],
@@ -195,6 +201,7 @@ export const MOTION_TEMPLATES = [
   {
     id: 'presenter',
     story: 'presenter',
+    added: '2026-10-20',
     name: 'Presenter · Brand host',
     look: 'Your own host — a friendly robot assistant in a T-shirt with your logo, at a desk in a studio in your brand colour. She greets (“Hi, I’m Kalyan, your brand’s personal assistant”), brings today’s topic and explains it, her mouth moving with the voice, a panel beside her showing the key words',
     steps: ['Hello + today’s topic', 'She explains, point by point', 'Tips / steps / a number / a question', 'Sign-off + call to action'],
@@ -325,6 +332,16 @@ export const MOTION_TEMPLATES = [
     note: 'Prices and discounts only from your brief or product details',
     goals: ['conversion'],
   },
+  {
+    id: 'spotlight',
+    story: 'spotlight',
+    added: '2026-10-21',
+    name: '3D · Spotlight',
+    look: 'A real 3D stage — your product photo on a box turning under a spotlight, then its price card',
+    steps: ['Product flies in', 'Why it is special', 'The price card', 'Call to action'],
+    note: 'Uses your brand kit product photo (else your logo). Takes a little longer to make',
+    goals: ['conversion'],
+  },
 ]
 
 // Each goal's templates — the weekly plan takes one of them at random per
@@ -338,7 +355,7 @@ export const GOAL_TEMPLATES = {
   trust: ['testimonial', 'reviews', 'casestudy', 'faq', 'report'],
   authority: ['versus', 'report', 'casestudy', 'hottake', 'clarity'],
   solution: ['sell', 'demo', 'custom', 'showcase', 'clarity'],
-  conversion: ['offer', 'sell', 'launch', 'reviews', 'casestudy'],
+  conversion: ['offer', 'spotlight', 'sell', 'launch', 'reviews', 'casestudy'],
 }
 
 export const templateById = (id) => MOTION_TEMPLATES.find((t) => t.id === id)
