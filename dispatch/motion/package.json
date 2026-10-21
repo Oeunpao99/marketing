@@ -8,11 +8,14 @@
     "render": "remotion render src/index.jsx MotionPost out/sample.mp4 --props=sample.json"
   },
   "dependencies": {
+    "@react-three/fiber": "8.18.0",
     "@remotion/cli": "4.0.535",
+    "@remotion/three": "4.0.535",
     "@remotion/transitions": "4.0.535",
     "lucide-react": "^1.55.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "remotion": "4.0.535"
+    "remotion": "4.0.535",
+    "three": "0.170.0"
   }
 }

@@ -595,6 +595,40 @@ OFFER_PROMPT = (
     + '{"scenes": [{"type": "hook", "text": "...", "icon": "BadgePercent", "say": "..."}, ...]}'
 )
 
+# ── 3D · Spotlight (motion/src/spotlight.jsx) ──────────────────────────────
+# The Offer story on a real 3D stage: the brand kit's product photo on a box
+# that turns under a spotlight (three.js). Same scene types and fields as Offer.
+SPOTLIGHT_TYPES = OFFER_TYPES
+SPOTLIGHT_PROMPT = (
+    "You are the best short-form sales storyteller in Cambodia. You plan a REMOTION VIDEO "
+    "(TikTok / Facebook Reels, about 30-40 s) that SHOWS A PRODUCT like a launch film: a dark "
+    "studio, a spotlight from above, and the product as a real 3D box that flies in, turns "
+    "and lands beside a glowing price card. Premium, confident, one product, one action.\n"
+    "\n"
+    "THE STORY (5-6 scenes):\n"
+    "1. hook — the product's promise in a few words, while the 3D box flies in (\"New iced "
+    "latte — [fresher] than ever\").\n"
+    "2. list — 3 things that make it special, as cards beside the turning product.\n"
+    "3. offer — the product card: name, price, what comes with it.\n"
+    "4. stat — one TRUE number that proves it (optional).\n"
+    "last. cta — exactly how to get it (\"Order today\", \"Message us 'LATTE'\").\n"
+    "\n"
+    "SCENE TYPES and their fields:\n"
+    "- hook: text (max 10 words), icon.\n"
+    "- list: title (max 6 words), items: 3 x {\"icon\", \"text\": 2-6 words}.\n"
+    "- offer: plan (the product name, 1-4 words), price (e.g. \"$2.50\", or \"\"), period (or \"\"), "
+    "was (the old price, or \"\"), badge (1-3 words, e.g. \"New\", or \"\"), features: 3 x short phrases (2-5 words).\n"
+    "- stat: value, prefix, suffix, label (max 6 words), icon — only a TRUE number.\n"
+    "- cta: text (max 9 words), button (2-4 words).\n"
+    "The product's own picture (from the brand kit) is put on the box for you — never describe or "
+    "ask for pictures.\n"
+    "OFFER HONESTY: price, old price, discount and deadline ONLY when the brief or the product "
+    "information gives them — otherwise leave price/was \"\" and let the offer be the product "
+    "and what comes with it. Never invent a discount or a deadline.\n"
+    + _COMMON_RULES
+    + '{"scenes": [{"type": "hook", "text": "...", "icon": "Sparkles", "say": "..."}, ...]}'
+)
+
 # ── The clean goal templates (motion/src/clean.jsx) ────────────────────────
 COUNTDOWN_TYPES = ("hook", "rank", "reveal", "stat", "list", "cta")
 COUNTDOWN_PROMPT = (
@@ -2215,6 +2249,7 @@ STYLES = {
     "pov": (POV_PROMPT, POV_TYPES, 5, "notify"),
     "demo": (DEMO_PROMPT, DEMO_TYPES, 7, "step"),
     "offer": (OFFER_PROMPT, OFFER_TYPES, 5, "offer"),
+    "spotlight": (SPOTLIGHT_PROMPT, SPOTLIGHT_TYPES, 5, "offer"),
     "showcase": (SHOWCASE_PROMPT, SHOWCASE_TYPES, 7, None),
     "launch": (LAUNCH_PROMPT, LAUNCH_TYPES, 7, None),
     "unveil": (UNVEIL_PROMPT, UNVEIL_TYPES, 6, None),
@@ -2248,7 +2283,7 @@ LONG_STYLES = {"training"}
 # The templates laid out for 16:9 too (motion/src/training.jsx, saas.jsx wide scenes);
 # every other template is always vertical. Scenes drawn only for a tall frame are
 # left out of a wide video.
-WIDE_STYLES = {"podcast", "presenter", "neural", "paper", "doodle", "cartoon", "lesson", "rise", "training", "custom", "demo", "offer", "trend", "pov", "showcase", "launch", "unveil", "gridcards", "techflow", "canvas", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
+WIDE_STYLES = {"podcast", "presenter", "neural", "paper", "doodle", "cartoon", "lesson", "rise", "training", "custom", "demo", "offer", "spotlight", "trend", "pov", "showcase", "launch", "unveil", "gridcards", "techflow", "canvas", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
 TALL_ONLY_TYPES = {"problem", "chat", "product", "point"}
 
 
@@ -2264,7 +2299,7 @@ def final_ratio(asked: str, style: str, suggested: str | None = None) -> str:
     return "9:16"
 SCREEN_STYLES = {"custom", "demo", "showcase", "launch", "unveil", "clarity", "canvas", "reaction"}  # the stories that can show the brand's screenshots
 # The templates that sell (the auto topic picks a product, not a teaching topic).
-SELLING_STYLES = {"tech", "demo", "offer", "showcase", "launch", "unveil", "gridcards"}
+SELLING_STYLES = {"tech", "demo", "offer", "spotlight", "showcase", "launch", "unveil", "gridcards"}
 
 # Story mode (write_script ``seconds``): the person pasted their own story.
 MAX_STORY_SCENES = 20  # ~2 minutes
@@ -2475,7 +2510,7 @@ def estimate_seconds(script: dict) -> int:
 GOAL_STYLES = {
     "sell": ("tech",),
     "solution": ("tech", "demo", "custom", "showcase", "clarity", "gridcards", "cartoon"),
-    "conversion": ("offer", "tech", "launch", "reviews", "casestudy", "unveil", "studio"),
+    "conversion": ("offer", "spotlight", "tech", "launch", "reviews", "casestudy", "unveil", "studio"),
     "teach": ("explainer",),
     "education": ("explainer", "training", "custom", "clarity", "tips", "gridcards", "techflow", "neural", "paper", "doodle", "cartoon", "lesson", "presenter", "podcast"),
     "reach": ("pov", "explainer", "countdown", "thisorthat", "hottake", "doodle", "cartoon", "lesson", "rise", "reaction", "podcast"),
@@ -4304,6 +4339,9 @@ def pick_pictures(
                 s["image"] = by_product.get(ids.get(s["product"])) or main
         elif script.get("style") in ("doodle", "cartoon", "lesson", "rise", "podcast"):
             continue  # drawn templates: no product photos (doodle / cartoon draw their own, app/doodle.py)
+        elif script.get("style") == "spotlight":  # 3D · Spotlight: the product's photo on the 3D box
+            if s["type"] in ("hook", "list", "offer", "cta"):
+                s["image"] = by_product.get(ids.get(s.get("product") or "")) or main
         elif s["type"] in ("hook", "cta", "offer") or script.get("style") == "quote":
             s["image"] = main
 
@@ -5091,6 +5129,8 @@ def render(props: dict, job_id: int | None = None, preview: bool = False) -> byt
                     # all cores Remotion is allowed (containers too); the default log
                     # level prints "Rendered 120/900" lines — the page's progress
                     "--concurrency=100%",
+                    # 3D · Spotlight draws with WebGL — the server has no graphics card, so in software
+                    *(["--gl=swangle"] if props.get("style") == "spotlight" else []),
                     *(["--scale=0.4", "--muted", "--crf=22"] if preview else []),
                 ],
                 cwd=MOTION_DIR,
@@ -5428,6 +5468,7 @@ TEMPLATE_GUIDE = {
     "testimonial": "a customer's story or case study — who they are, before → after, their result",
     "tech": "selling a product or service of a shop / business — the problem, the product working, proof, buy now",
     "offer": "a promotion, a price, a discount, a package — one clear offer and action",
+    "spotlight": "a physical product shown like a launch film — its photo on a real 3D box turning under a spotlight, 3 reasons to want it, its price card, one action; for a drink, snack, cosmetic, gadget or any product with a photo in the brand kit",
     "versus": "a comparison — old way vs new way, option A vs B, myths vs facts",
     "poll": "a quiz or questions for the audience to answer in the comments",
     "quote": "inspiring quotes or short lessons worth following",
