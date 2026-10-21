@@ -37,7 +37,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.database import SessionLocal, get_db
 from app.models import Brand, CreditEntry, GenerationJob, TeamMember, Workspace
-from app.tenancy import current_workspace_id, get_current_user
+from app.tenancy import current_workspace_id, get_current_user, require_manager
 
 log = logging.getLogger("app.billing")
 
@@ -504,16 +504,47 @@ def remind_claims() -> int:
 ACTIVITY_PAGE = 10  # rows per page of Settings → Billing → Recent activity
 
 
-def _activity_page(db: Session, ws: int, page: int, per_page: int) -> dict:
-    """One page of the workspace's credit ledger, newest first."""
+KEEP_DAYS = 90  # "Clear older history" keeps the last 3 months
+_PP = timezone(timedelta(hours=7))  # the date filter's days are Phnom Penh days
+
+
+def _day(s: str, end: bool = False) -> datetime | None:
+    """"2026-10-21" → the start of that Phnom Penh day (or of the next, for an end)."""
+    try:
+        d = datetime.strptime(s, "%Y-%m-%d").replace(tzinfo=_PP)
+    except (TypeError, ValueError):
+        return None
+    return d + timedelta(days=1) if end else d
+
+
+def _activity_page(db: Session, ws: int, page: int, per_page: int, start: str = "", end: str = "", flow: str = "") -> dict:
+    """One page of the workspace's credit ledger, newest first — optionally only
+    days ``start``..``end`` ("YYYY-MM-DD", inclusive) and only credits "in" or "out"."""
     per_page = max(1, min(per_page, 50))
-    total = db.scalar(select(func.count()).select_from(CreditEntry).where(CreditEntry.workspace_id == ws)) or 0
+    hidden = db.scalar(select(Workspace.activity_hidden_before).where(Workspace.id == ws))
+    shown = [CreditEntry.workspace_id == ws]
+    if hidden:
+        shown.append(CreditEntry.created_at >= hidden)
+    cond = list(shown)
+    if (a := _day(start)) is not None:
+        cond.append(CreditEntry.created_at >= a)
+    if (b := _day(end, end=True)) is not None:
+        cond.append(CreditEntry.created_at < b)
+    if flow == "in":
+        cond.append(CreditEntry.amount_usd > 0)
+    elif flow == "out":
+        cond.append(CreditEntry.amount_usd <= 0)
+    total = db.scalar(select(func.count()).select_from(CreditEntry).where(*cond)) or 0
+    # rows past 3 months, still shown → Billing suggests clearing them
+    older = db.scalar(
+        select(func.count()).select_from(CreditEntry).where(*shown, CreditEntry.created_at < datetime.now(UTC) - timedelta(days=KEEP_DAYS))
+    ) or 0
     pages = max(1, -(-total // per_page))
     page = max(1, min(page, pages))
     names = dict(db.execute(select(TeamMember.id, TeamMember.name).where(TeamMember.workspace_id == ws)).all())
     rows = db.scalars(
         select(CreditEntry)
-        .where(CreditEntry.workspace_id == ws)
+        .where(*cond)
         .order_by(CreditEntry.created_at.desc(), CreditEntry.id.desc())
         .offset((page - 1) * per_page)
         .limit(per_page)
@@ -539,6 +570,8 @@ def _activity_page(db: Session, ws: int, page: int, per_page: int) -> dict:
         "recent_pages": pages,
         "recent_total": total,
         "recent_per_page": per_page,
+        "recent_older": older,
+        "recent_keep_days": KEEP_DAYS,
     }
 
 
@@ -546,11 +579,27 @@ def _activity_page(db: Session, ws: int, page: int, per_page: int) -> dict:
 def billing_activity(
     page: int = 1,
     per_page: int = ACTIVITY_PAGE,
+    start: str = "",
+    end: str = "",
+    flow: str = "",
     db: Session = Depends(get_db),
     ws: int = Depends(current_workspace_id),
 ):
-    """Settings → Billing → Recent activity, a page at a time."""
-    return _activity_page(db, ws, page, per_page)
+    """Settings → Billing → Recent activity, a page at a time (filtered by days / in-out)."""
+    return _activity_page(db, ws, page, per_page, start, end, flow)
+
+
+@router.post("/activity/clear-old")
+def clear_old_activity(db: Session = Depends(get_db), user: TeamMember = Depends(require_manager)):
+    """Hide activity older than 3 months from the workspace's list. Nothing is
+    deleted — the balance only counts this month, and the admin portal keeps
+    the full ledger."""
+    w = db.get(Workspace, user.workspace_id)
+    cut = datetime.now(UTC) - timedelta(days=KEEP_DAYS)
+    if w.activity_hidden_before is None or w.activity_hidden_before < cut:
+        w.activity_hidden_before = cut
+    db.commit()
+    return _activity_page(db, w.id, 1, ACTIVITY_PAGE)
 
 
 @router.get("/summary")

@@ -6,6 +6,7 @@ import { phnomPenhDate } from '../../lib/tz'
 // that marks the days that have something on them. Dates are "YYYY-MM-DD"
 // strings (Phnom Penh calendar days). value = { from, to } or null (all dates).
 //   counts: { "YYYY-MM-DD": n } — drawn as a dot, and summed for the label.
+//   unit: what the label counts ("· 3 posts"); null = no count
 
 const DOW = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
 
@@ -39,7 +40,7 @@ export function inRange(day, value) {
   return !value || (!!day && day >= value.from && day <= value.to)
 }
 
-export default function DateRangePicker({ value, onChange, counts = {}, align = 'left' }) {
+export default function DateRangePicker({ value, onChange, counts = {}, align = 'left', unit = 'post' }) {
   const [open, setOpen] = useState(false)
   const [anchor, setAnchor] = useState(null) // first click of a range
   const [month, setMonth] = useState(() => (value?.from && value.from !== '9999-12-31' ? value.from : phnomPenhDate(0)).slice(0, 7))
@@ -128,7 +129,7 @@ export default function DateRangePicker({ value, onChange, counts = {}, align = 
       >
         <FiCalendar size={13} className="text-brand" />
         {label}
-        <span className="font-medium text-ink-400">· {total} post{total === 1 ? '' : 's'}</span>
+        {unit && <span className="font-medium text-ink-400">· {total} {unit}{total === 1 ? '' : 's'}</span>}
         <FiChevronDown size={13} className={`text-ink-500 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 

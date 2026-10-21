@@ -2,6 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   FiAlertTriangle,
+  FiArchive,
+  FiArrowUpRight,
+  FiArrowDownLeft,
+  FiGift,
   FiBell,
   FiBriefcase,
   FiCalendar,
@@ -36,6 +40,7 @@ import { APP_VERSION, applyUpdate, latestVersion } from '../../lib/update'
 import { openTour } from '../../lib/tour'
 import { TZ } from '../../lib/tz'
 import Select from '../ui/Select'
+import DateRangePicker from '../ui/DateRangePicker'
 import HowItWorks from './HowItWorks'
 import { fmtCredits } from '../../lib/money'
 import CreditCoin from './CreditCoin'
@@ -1186,29 +1191,30 @@ const ACTIVITY_ICON = {
   text: { icon: FiEdit3, tone: 'bg-sky-50 text-sky-600' },
   image: { icon: FiImage, tone: 'bg-violet-50 text-violet-600' },
   video: { icon: FiVideo, tone: 'bg-brand-soft text-brand' },
-  grant: { icon: FiCreditCard, tone: 'bg-emerald-50 text-emerald-600' },
+  // credits in — a claim or credit added
+  added: { icon: FiGift, tone: 'bg-emerald-50 text-emerald-600' },
 }
 
-// A label, a thin bar and a figure on the right — one row of usage.
-// tone: 'brand' (normal) | 'warn' (running low) | 'danger' (used up)
-function UsageBar({ label, pct, right, tone = 'brand' }) {
-  return (
-    <div className="grid grid-cols-[minmax(0,7.5rem)_1fr_auto] items-center gap-4 py-2">
-      <span className="truncate text-[13px] text-ink-800">{label}</span>
-      <div className="h-1.5 overflow-hidden rounded-full bg-ink-100">
-        <div
-          className={`h-full rounded-full transition-[width,background-color] duration-500 ${
-            tone === 'danger' ? 'bg-red-500' : tone === 'warn' ? 'bg-amber-500' : 'bg-brand'
-          }`}
-          style={{ width: `${Math.max(0, Math.min(100, pct))}%` }}
-        />
-      </div>
-      <span className="min-w-[3.5rem] text-right text-[12.5px] tabular-nums text-ink-600">{right}</span>
-    </div>
-  )
+// White on the accent-coloured balance card — fixed, not the theme's "white"
+// (bg-white turns dark in dark mode).
+const ON_CARD = (alpha) => ({ background: `rgba(255, 255, 255, ${alpha})` })
+
+/** The activity rows as days: [{ day: 'Today', date: '21 Oct', rows }], newest first. */
+function groupByDay(rows) {
+  const out = []
+  for (const e of rows) {
+    const day = dayLabel(e.created_at)
+    if (!out.length || out[out.length - 1].day !== day) {
+      const d = new Date(e.created_at)
+      out.push({ day, date: day === 'Today' || day === 'Yesterday' ? d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : '', rows: [] })
+    }
+    out[out.length - 1].rows.push(e)
+  }
+  return out
 }
 
 function BillingTab() {
+  const { user } = useAuth()
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
   const [loadedAt, setLoadedAt] = useState(null)
@@ -1218,6 +1224,8 @@ function BillingTab() {
       .get('/billing')
       .then((d) => {
         setData(d)
+        setRange(null) // a fresh load is page 1, unfiltered
+        setFlow('')
         setError('')
         setLoadedAt(new Date())
       })
@@ -1226,14 +1234,45 @@ function BillingTab() {
     load()
   }, [])
 
-  // Recent activity, a page at a time (GET /billing/activity).
+  // Recent activity, a page at a time (GET /billing/activity), filtered by days
+  // (range: { from, to } "YYYY-MM-DD" or null) and credits in / out (flow).
   const [pageBusy, setPageBusy] = useState(false)
-  const goPage = (page) => {
+  const [range, setRange] = useState(null)
+  const [flow, setFlow] = useState('')
+  const goPage = (page, r = range, f = flow) => {
     setPageBusy(true)
+    const q = new URLSearchParams({ page: String(page) })
+    if (r) {
+      q.set('start', r.from)
+      if (r.to < '9999') q.set('end', r.to)
+    }
+    if (f) q.set('flow', f)
     api
-      .get(`/billing/activity?page=${page}`)
+      .get(`/billing/activity?${q}`)
       .then((p) => setData((d) => ({ ...d, ...p })))
       .catch(() => {})
+      .finally(() => setPageBusy(false))
+  }
+  const pickRange = (r) => {
+    setRange(r)
+    goPage(1, r, flow)
+  }
+  const pickFlow = (f) => {
+    setFlow(f)
+    goPage(1, range, f)
+  }
+  const canManage = user?.role === 'owner' || user?.role === 'admin'
+  const clearOld = () => {
+    if (!window.confirm(`Hide credit activity older than ${Math.round((data.recent_keep_days || 90) / 30)} months? Your balance doesn’t change.`)) return
+    setPageBusy(true)
+    api
+      .post('/billing/activity/clear-old')
+      .then((p) => {
+        setRange(null)
+        setFlow('')
+        setData((d) => ({ ...d, ...p }))
+      })
+      .catch((e) => setError(e.message))
       .finally(() => setPageBusy(false))
   }
 
@@ -1252,7 +1291,6 @@ function BillingTab() {
   const left = Math.max(0, data.available)
   const usedPct = credit > 0 ? Math.round(((credit - left) / credit) * 100) : 0
   const tone = left <= 0 ? 'danger' : usedPct >= 80 ? 'warn' : 'brand'
-  const toneText = { danger: 'text-red-600', warn: 'text-amber-600', brand: 'text-brand' }[tone]
   const reset = new Date(data.resets_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
   const byKind = Object.fromEntries(data.breakdown.map((b) => [b.kind, b]))
   const totalSpent = data.breakdown.reduce((sum, b) => sum + Math.max(0, b.amount), 0)
@@ -1277,86 +1315,175 @@ function BillingTab() {
         </section>
       )}
 
-      {/* this month */}
-      <section>
-        <div className="flex flex-wrap items-center gap-2">
-          <h3 className="text-[15px] font-bold text-ink-900">Monthly AI credits</h3>
-          <span className="rounded-full bg-brand-soft px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wide text-brand">
-            {data.plan_label} plan
-          </span>
+      {/* the balance, like a bank card: one big number, the rest small */}
+      <section className="relative overflow-hidden rounded-3xl bg-brand p-5 text-white shadow-sm">
+        <span className="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full" style={ON_CARD(0.1)} />
+        <span className="pointer-events-none absolute -bottom-16 right-16 h-36 w-36 rounded-full" style={ON_CARD(0.1)} />
+        <div className="relative flex items-center justify-between gap-3">
+          <span className="text-[12.5px] font-medium text-white/80">Available credits</span>
+          <span className="rounded-full px-2.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wide" style={ON_CARD(0.2)}>{data.plan_label} plan</span>
         </div>
-        <p className="mt-2 flex flex-wrap items-baseline gap-x-1.5 text-[13px] text-ink-600">
-          <span className={`inline-flex items-center gap-1.5 self-center text-[22px] font-bold tabular-nums tracking-tight ${toneText}`}>
-            <CreditCoin size={24} />
-            {fmtCredits(left, false)}
+        <div className="relative mt-1 flex items-center gap-2">
+          <span className="rounded-full p-0.5" style={ON_CARD(1)}>
+            <CreditCoin size={26} />
           </span>
-          <span>credits left of {fmtCredits(credit, false)}</span>
-          <span className="text-ink-300">·</span>
-          <span className="text-[15px] font-bold tabular-nums text-ink-900">{fmtCredits(data.spent, false)}</span>
-          <span>used this month</span>
-        </p>
-        <p className="mt-0.5 text-[12px] text-ink-500">
-          Next month’s credits can be claimed on {reset}. AI pauses at 0 credits — posting and scheduling keep working.
-          {data.pending > 0 ? ` ${fmtCredits(data.pending)} are held for renders in progress.` : ''}
-        </p>
-        <div className="mt-2">
-          <UsageBar label="Credits used" pct={usedPct} right={`${usedPct}%`} tone={tone} />
+          <span className="text-[34px] font-bold leading-none tabular-nums tracking-tight">{fmtCredits(left, false)}</span>
+          {tone !== 'brand' && (
+            <span className="rounded-full px-2 py-0.5 text-[10.5px] font-bold text-red-600" style={ON_CARD(1)}>{left <= 0 ? 'Empty' : 'Low'}</span>
+          )}
+        </div>
+        <div className="relative mt-4 h-1.5 overflow-hidden rounded-full" style={ON_CARD(0.25)}>
+          <div className="h-full rounded-full" style={{ ...ON_CARD(1), width: `${Math.max(0, 100 - usedPct)}%` }} />
+        </div>
+        <div className="relative mt-3 grid grid-cols-3 gap-2 text-[11px] text-white/75">
+          <div>
+            Monthly
+            <div className="text-[14px] font-bold tabular-nums text-white">{fmtCredits(credit, false)}</div>
+          </div>
+          <div>
+            Used
+            <div className="text-[14px] font-bold tabular-nums text-white">{fmtCredits(data.spent, false)}</div>
+          </div>
+          <div className="text-right">
+            Next claim
+            <div className="text-[14px] font-bold text-white">{reset}</div>
+          </div>
         </div>
       </section>
+      {data.pending > 0 && (
+        <p className="-mt-5 text-[12px] text-ink-500">{fmtCredits(data.pending)} are held for renders in progress.</p>
+      )}
 
-      {/* by type */}
+      {/* by type — three small cards */}
       <section>
-        <h3 className="text-[15px] font-bold text-ink-900">This month’s usage by type</h3>
-        <div className="mt-2">
+        <h3 className="text-[15px] font-bold text-ink-900">Used this month</h3>
+        <div className="mt-2 grid grid-cols-3 gap-2">
           {KIND_ORDER.map(({ kind, label }) => {
             const b = byKind[kind]
-            const share = totalSpent > 0 && b ? Math.round((b.amount / totalSpent) * 100) : 0
-            return <UsageBar key={kind} label={label} pct={share} right={`${share}%`} />
+            const used = b ? Math.max(0, b.amount) : 0
+            const share = totalSpent > 0 ? Math.round((used / totalSpent) * 100) : 0
+            const { icon: Icon, tone: iconTone } = ACTIVITY_ICON[kind]
+            return (
+              <div key={kind} className="rounded-2xl border border-ink-200 bg-white p-3">
+                <div className="flex items-center justify-between">
+                  <span className={`grid h-8 w-8 place-items-center rounded-full ${iconTone}`}>
+                    <Icon size={14} />
+                  </span>
+                  <span className="text-[11px] font-semibold tabular-nums text-ink-400">{share}%</span>
+                </div>
+                <div className="mt-2 text-[18px] font-bold leading-tight tabular-nums text-ink-900">{fmtCredits(used, false)}</div>
+                <div className="text-[11.5px] text-ink-500">{label}</div>
+              </div>
+            )
           })}
         </div>
       </section>
 
       {/* recent spends */}
       <section>
-        <h3 className="text-[15px] font-bold text-ink-900">Recent activity</h3>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-[15px] font-bold text-ink-900">Recent activity</h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex rounded-xl bg-ink-100 p-0.5 text-[12px] font-semibold">
+              {[
+                ['', 'All'],
+                ['in', 'In'],
+                ['out', 'Out'],
+              ].map(([f, label]) => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => pickFlow(f)}
+                  className={`rounded-lg px-3 py-1.5 ${flow === f ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-500 hover:text-ink-800'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <DateRangePicker value={range} onChange={pickRange} align="right" unit={null} />
+          </div>
+        </div>
+
+        {/* a long list → suggest hiding what's past 3 months */}
+        {data.recent_older > 0 && canManage && (
+          <div className="mt-3 flex flex-wrap items-center gap-3 rounded-2xl border border-ink-200 bg-canvas px-4 py-3">
+            <span className="grid h-8 w-8 flex-none place-items-center rounded-full bg-white text-ink-500">
+              <FiArchive size={14} />
+            </span>
+            <div className="min-w-0 flex-1 text-[12.5px] text-ink-600">
+              <span className="font-semibold text-ink-900">{data.recent_older.toLocaleString('en-US')} records are older than 3 months.</span>{' '}
+              Clear them to keep this list short — your balance stays the same.
+            </div>
+            <button
+              type="button"
+              onClick={clearOld}
+              disabled={pageBusy}
+              className="rounded-xl border border-ink-200 bg-white px-3 py-2 text-[12.5px] font-semibold text-ink-800 hover:bg-ink-50 disabled:opacity-50"
+            >
+              Clear older history
+            </button>
+          </div>
+        )}
+
         {data.recent.length === 0 ? (
-          <p className="mt-2 text-[12.5px] text-ink-500">No AI used yet this month.</p>
+          <p className="mt-3 rounded-2xl border border-dashed border-ink-200 px-4 py-6 text-center text-[12.5px] text-ink-500">
+            {range || flow ? 'Nothing in these dates.' : 'No AI used yet this month.'}
+          </p>
         ) : (
-          <div className="mt-1">
-            {data.recent.map((e, i) => {
-              const day = dayLabel(e.created_at)
-              const newDay = i === 0 || dayLabel(data.recent[i - 1].created_at) !== day
-              const meta = [
-                new Date(e.created_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }),
-                shortModel(e.model),
-                e.kind === 'video' ? '' : usageDetail(e),
-                e.user,
-              ]
-                .filter(Boolean)
-                .join(' · ')
-              const snippet = activitySnippet(e)
-              const { icon: Icon, tone } = ACTIVITY_ICON[e.kind] || ACTIVITY_ICON.text
+          // like a bank statement: a card per day (its net on the right), money in
+          // green "+", money out red "−", the amount big with "credits" under it
+          <div className="mt-3 space-y-4">
+            {groupByDay(data.recent).map(({ day, date, rows }) => {
+              const net = rows.reduce((sum, e) => sum - e.amount, 0) // e.amount: + spent, − added
               return (
-                <div key={e.id}>
-                  {newDay && (
-                    <div className="pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wide text-ink-400">{day}</div>
-                  )}
-                  <div className="flex items-start gap-3 border-b border-ink-100 py-2.5 last:border-0">
-                    <span className={`mt-0.5 grid h-7 w-7 flex-none place-items-center rounded-lg ${tone}`}>
-                      <Icon size={13} />
+                <div key={day} className="overflow-hidden rounded-2xl border border-ink-200 bg-white">
+                  <div className="flex items-center justify-between bg-canvas px-4 py-2.5">
+                    <span className="text-[12px] font-semibold text-ink-700">
+                      {day}
+                      {date && <span className="font-normal text-ink-400"> · {date}</span>}
                     </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-baseline justify-between gap-3">
-                        <span className="truncate text-[13px] font-medium text-ink-800">{activityTitle(e)}</span>
-                        <span
-                          className={`flex-none text-[13px] font-semibold tabular-nums ${e.amount < 0 ? 'text-emerald-600' : 'text-ink-800'}`}
-                        >
-                          {e.amount < 0 ? `+${fmtCredits(-e.amount)}` : `−${fmtCredits(e.amount)}`}
-                        </span>
-                      </div>
-                      {snippet && <div className="mt-0.5 truncate text-[12px] text-ink-500">{snippet}</div>}
-                      <div className="mt-0.5 truncate text-[11px] text-ink-400">{meta}</div>
-                    </div>
+                    <span className={`text-[12px] font-semibold tabular-nums ${net >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                      {net >= 0 ? '+' : '−'}
+                      {fmtCredits(Math.abs(net))}
+                    </span>
+                  </div>
+                  <div className="divide-y divide-ink-100">
+                    {rows.map((e) => {
+                      const added = e.amount < 0
+                      const meta = [
+                        new Date(e.created_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }),
+                        shortModel(e.model),
+                        e.kind === 'video' ? '' : usageDetail(e),
+                        e.user,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')
+                      const snippet = activitySnippet(e)
+                      const { icon: Icon, tone } = added ? ACTIVITY_ICON.added : ACTIVITY_ICON[e.kind] || ACTIVITY_ICON.text
+                      return (
+                        <div key={e.id} className="flex items-center gap-3 px-4 py-3">
+                          <span className={`relative grid h-10 w-10 flex-none place-items-center rounded-full ${tone}`}>
+                            <Icon size={16} />
+                            {/* the direction, like a bank app: in ↙ green, out ↗ red */}
+                            <span className={`absolute -bottom-0.5 -right-0.5 grid h-4 w-4 place-items-center rounded-full ring-2 ring-white ${added ? 'bg-emerald-500' : 'bg-red-500'} text-white`}>
+                              {added ? <FiArrowDownLeft size={10} strokeWidth={3} /> : <FiArrowUpRight size={10} strokeWidth={3} />}
+                            </span>
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-[13.5px] font-semibold text-ink-900">{activityTitle(e)}</div>
+                            {snippet && <div className="truncate text-[12px] text-ink-500">{snippet}</div>}
+                            <div className="truncate text-[11px] text-ink-400">{meta}</div>
+                          </div>
+                          <div className="flex-none text-right">
+                            <div className={`text-[15px] font-bold tabular-nums ${added ? 'text-emerald-600' : 'text-red-600'}`}>
+                              {added ? '+' : '−'}
+                              {fmtCredits(Math.abs(e.amount), false)}
+                            </div>
+                            <div className="text-[10.5px] text-ink-400">credits</div>
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               )

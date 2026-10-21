@@ -423,13 +423,11 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
     }
   }, [brandObj?.id])
 
-  // Opened from the Content studio's Quick content tab: starts on making an image.
+  // Opened from the Content studio's Quick content tab: starts on making — an
+  // image or a video, as last left (the remembered settings; image the first time).
   useEffect(() => {
     if (location.state?.motionStory) return // opened from a template — stays on Remotion
-    if (preset === 'images') {
-      setType('image')
-      setIntentPick('create')
-    }
+    if (preset === 'images') setIntentPick('create')
   }, [preset])
 
   // The brand kit follows the chosen brand; its logo is on by default.

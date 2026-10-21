@@ -62,6 +62,9 @@ class Workspace(Base, TimestampMixin):
     # The month ("2026-11") the "your monthly credits are ready" push last went
     # out (app/billing.py remind_claims) — once a month.
     credit_notice_month: Mapped[str | None] = mapped_column(String(7), nullable=True)
+    # Settings → Billing → "Clear older history": activity before this is hidden
+    # from the workspace (the ledger rows stay, for the admin portal).
+    activity_hidden_before: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # Suspended by the platform admin (/admin-mkt, app/admin.py): nobody in it
     # can sign in or use the app, and no AI is charged to it. Null = active.
     suspended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
