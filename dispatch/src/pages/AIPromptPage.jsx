@@ -153,6 +153,7 @@ function serializeTurn(t) {
     productId: t.productId ?? null,
     voice: t.voice || undefined,
     music: t.music,
+    branded: t.branded,
     goal: t.goal || undefined,
     // Remotion from the person's own story: the storyboard to review / that was made
     reviewFirst: !!t.reviewFirst,
@@ -237,6 +238,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
   const [videoMode, setVideoMode] = useState('clip') // 'clip' = instant video | 'story' = storyboard | 'motion'
   const [motionVoice, setMotionVoice] = useState('female')
   const [motionMusic, setMotionMusic] = useState(true)
+  const [motionLogo, setMotionLogo] = useState(true) // false = "No logo": a video without the brand
   // Remotion story: teach (Explainer style) or sell (Tech style); auto = sell when a product is chosen
   const [motionGoal, setMotionGoal] = useState('auto')
   // Your own story: the AI plans a storyboard you check and edit before it's rendered.
@@ -720,6 +722,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
           language: turn.language || 'Khmer',
           goal: turn.goal || 'auto',
           music: turn.music !== false,
+          branded: turn.branded !== false,
           length: turn.length || 'auto',
           ratio: turn.shape || 'auto',
           ref_url: turn.refUrl || '', // a screenshot of their app: the design the video copies
@@ -743,6 +746,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
           language: turn.language || 'Khmer',
           voice: turn.voice || 'female',
           music: turn.music !== false,
+          branded: turn.branded !== false,
           goal: turn.goal || 'auto',
           script: turn.script || null, // a reviewed storyboard: made exactly as it is
           ratio: turn.script?.ratio || turn.shape || (turn.ratio === '16:9' ? '16:9' : '9:16'), // a reviewed plan keeps its shape
@@ -902,11 +906,12 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
       productId: isMotion ? (productId ?? null) : undefined,
       voice: isMotion ? motionVoice : undefined,
       music: isMotion ? motionMusic : undefined,
+      branded: isMotion ? motionLogo : undefined,
       goal: isMotion ? motionGoal : undefined,
       reviewFirst: isMotion && motionReview,
       length: isMotion && motionReview ? motionLength : undefined,
       brandId: brandObj?.id ?? null,
-      brandName: brandObj?.name || '',
+      brandName: isMotion && !motionLogo ? 'No brand' : brandObj?.name || '',
       refUrl: refImg?.url || '',
       refUrls: maxRefs > 1 ? refImgs.map((i) => i.url).filter(Boolean).slice(0, maxRefs) : [],
       refPreview: refImg?.previewUrl || '',
@@ -942,9 +947,10 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
       productId: productId ?? null,
       voice: motionVoice,
       music: motionMusic,
+      branded: motionLogo,
       goal: motionGoal,
       brandId: brandObj?.id ?? null,
-      brandName: brandObj?.name || '',
+      brandName: motionLogo ? brandObj?.name || '' : 'No brand',
       refUrl: '',
       refPreview: '',
       kit: null,
@@ -1434,6 +1440,8 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
                   motionVoice={motionVoice}
                   motionMusic={motionMusic}
                   setMotionMusic={setMotionMusic}
+                  motionLogo={motionLogo}
+                  setMotionLogo={setMotionLogo}
                   motionGoal={motionGoal}
                   setMotionGoal={setMotionGoal}
                   motionReview={motionReview}
@@ -2347,9 +2355,12 @@ function RatioShape({ id }) {
   return <span className="inline-block flex-none rounded-[2px] border-[1.5px] border-current" style={{ width: w, height: h }} aria-hidden="true" />
 }
 
+const NO_BRAND = '__no_brand__' // the Brand menu's last Remotion option
+
 function SettingsPopover({
   type, setType, ratio, setRatio, seconds, setSeconds, videoMode, setVideoMode, storySeconds, setStorySeconds,
   motionVoice = 'female', setMotionVoice = () => {}, motionMusic = true, setMotionMusic = () => {},
+  motionLogo = true, setMotionLogo = () => {},
   motionGoal = 'auto', setMotionGoal = () => {},
   motionReview = true, setMotionReview = () => {}, motionLength = 'auto', setMotionLength = () => {},
   motionRatio = '16:9', setMotionRatio = () => {},
@@ -2587,13 +2598,23 @@ function SettingsPopover({
           </Row>
         )}
 
-        <Row label="Brand">
+        {/* Remotion: "No brand" last — the video carries no logo, name, colours or
+            photos (a script about something else); it is still saved under the
+            brand picked before, for the Library and the credit */}
+        <Row label="Brand" hint={motion && !motionLogo ? 'No logo, name, colours or brand photos in the video' : undefined}>
           <Select
             size="sm"
             align="right"
-            value={brand || ''}
-            onChange={setBrand}
-            options={brands.map((b) => ({ value: b.slug, label: b.name, ...markOf(b) }))}
+            value={motion && !motionLogo ? NO_BRAND : brand || ''}
+            onChange={(v) => {
+              if (v === NO_BRAND) return setMotionLogo(false)
+              setMotionLogo(true)
+              setBrand(v)
+            }}
+            options={[
+              ...brands.map((b) => ({ value: b.slug, label: b.name, ...markOf(b) })),
+              ...(motion ? [{ value: NO_BRAND, label: 'No brand — no logo' }] : []),
+            ]}
           />
         </Row>
 

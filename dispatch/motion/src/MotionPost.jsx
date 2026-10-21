@@ -823,7 +823,8 @@ export const MotionPost = ({ brand, scenes, music, musicList, style, look, cast,
           return out
         })}
       </TransitionSeries>
-      {t.chrome ? <t.chrome scenes={scenes} brand={brand} /> : t.light ? <ExplainerChrome scenes={scenes} brand={brand} /> : <Chrome scenes={scenes} brand={brand} />}
+      {/* "No logo" (app/motion.py Unbranded): no corner chip */}
+      {!brand.logo && !brand.name ? null : t.chrome ? <t.chrome scenes={scenes} brand={brand} /> : t.light ? <ExplainerChrome scenes={scenes} brand={brand} /> : <Chrome scenes={scenes} brand={brand} />}
     </AbsoluteFill>
   )
 }

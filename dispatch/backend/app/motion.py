@@ -1386,8 +1386,8 @@ def host_greeting(host: dict, brand_name: str, khmer: bool) -> str:
     """Her first words, always the same shape: hello, who she is, whose assistant."""
     if khmer:
         me = "នាងខ្ញុំ" if host.get("gender") != "male" else "ខ្ញុំបាទ"
-        return f"សួស្តី! {me} {host['name']} ជំនួយការផ្ទាល់របស់ {brand_name}។"
-    return f"Hi! I'm {host['name']}, {possessive(brand_name)} personal assistant."
+        return f"សួស្តី! {me} {host['name']} ជំនួយការផ្ទាល់របស់ {brand_name}។" if brand_name else f"សួស្តី! {me} {host['name']}។"
+    return f"Hi! I'm {host['name']}, {possessive(brand_name)} personal assistant." if brand_name else f"Hi! I'm {host['name']}."
 
 
 def possessive(name: str) -> str:
@@ -2318,9 +2318,38 @@ def own_moments(text: str) -> int:
     return len(_MOMENT.findall(text[first.start():])) if first else 0
 
 
+# A voice label alone on its line — "🎙 Voice Over (Khmer)", "Narration:" — its
+# line is the next one with words on it (scripts written by ChatGPT often do this).
+_VOICE_HEAD = re.compile(
+    r"(?i)^\W*(?:(?:khmer|english|kh|en|ខ្មែរ)\s+)?(?:voice(?:[- ]?over)?|vo|narrat(?:or|ion)|សំឡេង)"
+    r"(?:\s*\([^)]{1,20}\))?\s*[:：]?\s*$"
+)
+
+
+def _voice_lines(text: str) -> list[tuple[int, str]]:
+    """(line number, words) of each of the script's own voice lines: "Voice: …"
+    on one line, or a label alone on its line with the words under it."""
+    lines = (text or "").splitlines()
+    out: list[tuple[int, str]] = []
+    i = 0
+    while i < len(lines):
+        m = _VOICE_LINE.match(lines[i])
+        if m:
+            out.append((i, m.group(1)))
+        elif _VOICE_HEAD.match(lines[i]):
+            j = i + 1
+            while j < len(lines) and not lines[j].strip():
+                j += 1
+            if j < len(lines) and not _SCENE_HEAD.match(lines[j]) and not _VOICE_HEAD.match(lines[j]) and not _VOICE_LINE.match(lines[j]):
+                out.append((j, lines[j]))
+                i = j
+        i += 1
+    return out
+
+
 def own_voice(text: str) -> list[str]:
-    """The script's own voice lines ("Voice: …"), quotes taken off."""
-    return [ln.strip().strip("\"“”«»'").strip() for ln in _VOICE_LINE.findall(text or "") if ln.strip()]
+    """The script's own voice lines ("Voice: …", or under a "Voice Over" label), quotes taken off."""
+    return [ln for ln in (w.strip().strip("\"“”«»'").strip() for _, w in _voice_lines(text)) if ln]
 
 
 _QUOTED = re.compile(r"[\"“]([^\"“”\n]{2,120})[\"”]")
@@ -2333,8 +2362,10 @@ def own_onscreen(text: str) -> list[str]:
     if not first:
         return []
     out = []
-    for line in text[first.start():].splitlines():
-        if _VOICE_LINE.match(line):
+    spoken = {n for n, _ in _voice_lines(text)}  # a quoted voice line is said, not shown
+    start = text[: first.start()].count("\n")
+    for n, line in enumerate(text[first.start():].splitlines(), start):
+        if n in spoken or _VOICE_LINE.match(line):
             continue
         for q in _QUOTED.findall(line):  # "A · B" may be shown as two items — each part counts
             out += [part.strip() for part in re.split(r"\s+[·|]\s+", q) if len(part.strip()) > 1]
@@ -3418,6 +3449,12 @@ def _auto_topic(products: list[Product], style: str = "tech") -> str:
     )
 
 
+NO_BRAND = (
+    "(none — this video carries no brand: never add a company or brand name, logo or slogan of "
+    "your own; a product or company the brief itself names may be mentioned as the brief does)"
+)
+
+
 def write_script(
     brand: Brand,
     products: list[Product],
@@ -3522,7 +3559,7 @@ def write_script(
             {"role": "system", "content": prompt + extra},
             {
                 "role": "user",
-                "content": f"BRAND: {brand.name}\nLANGUAGE: {language}\nPRODUCTS:\n{facts}\n\n"
+                "content": f"BRAND: {brand.name or NO_BRAND}\nLANGUAGE: {language}\nPRODUCTS:\n{facts}\n\n"
                 + (
                     f"THE VIDEO IS ABOUT: {idea.strip()[: 12000 if story else 4000]}"
                     if idea.strip()
@@ -3547,7 +3584,7 @@ def write_script(
                 again = _chat(
                     [
                         {"role": "system", "content": prompt + extra},
-                        {"role": "user", "content": f"BRAND: {brand.name}\nLANGUAGE: {language}\nPRODUCTS:\n{facts}\n\nTHE VIDEO IS ABOUT: {idea.strip()[:12000]}"},
+                        {"role": "user", "content": f"BRAND: {brand.name or NO_BRAND}\nLANGUAGE: {language}\nPRODUCTS:\n{facts}\n\nTHE VIDEO IS ABOUT: {idea.strip()[:12000]}"},
                         {"role": "assistant", "content": json.dumps(raw, ensure_ascii=False)[:60000]},
                         {
                             "role": "user",
@@ -4405,7 +4442,7 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
         host = script.get("host") or clean_host(None, khmer)
         props["host"] = {
             "name": t(host["name"]),
-            "role": t(f"ជំនួយការផ្ទាល់របស់ {brand.name}" if khmer else f"{possessive(brand.name)} personal assistant"),
+            "role": t(("ជំនួយការផ្ទាល់របស់ " + brand.name if brand.name else "ជំនួយការផ្ទាល់") if khmer else (f"{possessive(brand.name)} personal assistant" if brand.name else "Personal assistant")),
             "hello": "សួស្តី!" if khmer else "Hi!",
             "kicker": t("ប្រធានបទថ្មី" if khmer else "Today's topic"),
             "female": host.get("gender") != "male",
@@ -5337,6 +5374,9 @@ class MotionIn(BaseModel):
     ref_url: str = Field(default="", max_length=500)
     # More screenshots attached with it (up to 6 in all) — screenshots 2, 3…
     ref_urls: list[str] = Field(default_factory=list, max_length=6)
+    # False = "No logo": a video without the brand — no logo, name, colours,
+    # photos or products (Unbranded), e.g. a script about another product
+    branded: bool = True
 
 
 class PlanIn(BaseModel):
@@ -5350,6 +5390,7 @@ class PlanIn(BaseModel):
     ratio: str = "auto"  # "auto" (the director picks) | "9:16" | "16:9" — see final_ratio
     ref_url: str = Field(default="", max_length=500)  # see MotionIn
     ref_urls: list[str] = Field(default_factory=list, max_length=6)  # see MotionIn
+    branded: bool = True  # see MotionIn
 
 
 # ── The director: Story "Auto" reads the brief and picks the template ──────
@@ -5557,6 +5598,25 @@ _plans: dict[str, dict] = {}
 _PLAN_KEEP = 3600  # seconds a finished storyboard waits to be picked up
 
 
+class Unbranded:
+    """A brand with its branding taken off — the "No logo" choice, for a video
+    about something else (another product, a client's script): no name, no
+    colours, no past posts, no products; the rest (its workspace, its voice,
+    its pronunciations) from the real one."""
+
+    name = ""
+    colors = ["#2F6FD6"]
+    slug = "unbranded"
+    voice_examples = ""
+    unbranded = True
+
+    def __init__(self, brand):
+        self._brand = brand
+
+    def __getattr__(self, key):
+        return getattr(self._brand, key)
+
+
 def _build_plan(payload: "PlanIn", ws: int, user_id: int, on_style=None) -> dict:
     """The storyboard itself — the slow part (several AI calls). ``on_style``
     hears the template picked (and why) as soon as it's decided, for the page."""
@@ -5565,6 +5625,8 @@ def _build_plan(payload: "PlanIn", ws: int, user_id: int, on_style=None) -> dict
         brand = db.get(Brand, payload.brand_id)
         all_products = list(db.scalars(select(Product).where(Product.brand_id == brand.id).order_by(Product.name)).all())
         products = [p for p in all_products if p.id == payload.product_id] or all_products
+        if not payload.branded:  # "No logo": nothing of the brand in it
+            brand, products = Unbranded(brand), []
         style, why, suggested = (
             pick_style(payload.idea, products, payload.product_id is not None, bool(payload.ref_url), payload.ratio)
             if payload.goal in ("auto", "")
@@ -5579,7 +5641,7 @@ def _build_plan(payload: "PlanIn", ws: int, user_id: int, on_style=None) -> dict
         more = attached_shots(payload.ref_url, payload.ref_urls) if ref else []
         for shot in more:  # what each one shows, so the storyboard knows where it belongs
             shot["note"] = describe_screen(base64.b64decode(shot["uri"].split(",", 1)[1]))
-        shots = ([ref] if ref else []) + more + (brand_screens(db, brand.id) if style in SCREEN_STYLES else [])
+        shots = ([ref] if ref else []) + more + (brand_screens(db, brand.id) if style in SCREEN_STYLES and payload.branded else [])
         db.rollback()  # no transaction held open through the AI calls
         script = write_script(
             brand, products, payload.idea, payload.language, "", list(music_tracks()) if payload.music else [], style,
@@ -5795,7 +5857,7 @@ def create_motion(
     threading.Thread(
         target=_make,
         args=(job.id, payload.product_id, payload.language, payload.voice, "", payload.music, payload.goal, payload.script, payload.ratio, payload.ref_url, billing.requested_model()),
-        kwargs={"ref_urls": payload.ref_urls},
+        kwargs={"ref_urls": payload.ref_urls, "branded": payload.branded},
         daemon=True,
         name=f"motion-{job.id}",
     ).start()
@@ -5857,6 +5919,7 @@ def _make(
     ref_url: str = "",
     model: str = "",
     ref_urls: list[str] | None = None,
+    branded: bool = True,
 ) -> None:
     from app.content_ai import ContentAIError
     from app.video import _ready_push
@@ -5878,6 +5941,8 @@ def _make(
             learned = brand_learnings(db, brand.id).get("prompt") or ""
         except Exception:  # noqa: BLE001 — a video without learnings beats no video
             learned = ""
+        if not branded:  # "No logo": nothing of the brand in it
+            brand, all_products, products, learned, product_id = Unbranded(brand), [], [], "", None
         try:
             _check(job_id)
             moods = list(music_tracks()) if music else []
@@ -5901,7 +5966,7 @@ def _make(
                 more = attached_shots(ref_url, ref_urls) if ref else []
                 for shot in more:  # what each one shows, so the storyboard knows where it belongs
                     shot["note"] = describe_screen(base64.b64decode(shot["uri"].split(",", 1)[1]))
-                shots = ([ref] if ref else []) + more + (brand_screens(db, brand.id) if style in SCREEN_STYLES else [])
+                shots = ([ref] if ref else []) + more + (brand_screens(db, brand.id) if style in SCREEN_STYLES and branded else [])
                 script = write_script(
                     brand, products, job.prompt, language, learned, moods, style, job_id=job_id, shots=shots, design=design, wide=shape == "16:9", voice=voice
                 )
@@ -5912,10 +5977,10 @@ def _make(
             if job.aspect_ratio != script["ratio"]:
                 job.aspect_ratio = script["ratio"]
                 db.commit()
-            by_product, order, logo = _brand_pictures(db, brand.id)
+            by_product, order, logo = _brand_pictures(db, brand.id) if branded else ({}, [], None)
             ref_shot = _shot_from_blob(read_media(ref_url) or b"", "reference") if ref_url else None  # screenshot 1, as planned
             more_now = attached_shots(ref_url, ref_urls) if ref_shot else []  # screenshots 2, 3… as planned
-            shots_now = ([ref_shot] if ref_shot else []) + more_now + (brand_screens(db, brand.id) if script.get("style") in SCREEN_STYLES else [])
+            shots_now = ([ref_shot] if ref_shot else []) + more_now + (brand_screens(db, brand.id) if script.get("style") in SCREEN_STYLES and branded else [])
             pick_pictures(script, all_products, by_product, order, product_id, shots_now)
             # Doodle notes: its hand-drawn sketches are drawn in the background while
             # the rest of the video is prepared and the voice records — joined just
