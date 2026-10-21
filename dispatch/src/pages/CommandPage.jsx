@@ -4,6 +4,7 @@ import { FiArrowDownRight, FiArrowUpRight, FiCheck, FiChevronRight, FiPlus, FiRe
 import { api } from '../api/client'
 import { useStore } from '../store'
 import Select from '../components/ui/Select'
+import BrandJourney from '../components/setup/BrandJourney'
 import { useBrandMarks } from '../lib/brandMarks'
 
 // Command center (backend app/command.py): what the AI is doing, and the few
@@ -95,6 +96,9 @@ export default function CommandPage() {
       </div>
 
       {error && <p className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-[12.5px] text-red-700">{error}</p>}
+
+      {/* until a brand has its products and a platform: the three steps, and what's next */}
+      <BrandJourney hideWhenDone className="mb-5" />
 
       {!data ? (
         <Skeleton />

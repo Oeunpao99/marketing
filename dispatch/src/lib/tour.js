@@ -38,8 +38,8 @@ export const TOUR_STEPS = [
   {
     id: 'setup',
     route: '/channels',
-    title: 'First, connect your accounts',
-    body: 'Open Setup, then Channels, and link Facebook, Instagram, TikTok, YouTube, LinkedIn or Telegram. Nothing can be published until you do. Your products, brand kit and Autopilot live here too.',
+    title: 'Start in Setup: brand → platform → products',
+    body: 'Setup is where you begin: create your brand, connect Facebook, Instagram, TikTok, YouTube… so it can publish, then add its products so the AI writes true posts. A line at the top of the page shows where you are.',
     targets: ['[data-tour="channels"]'],
     place: 'right',
   },

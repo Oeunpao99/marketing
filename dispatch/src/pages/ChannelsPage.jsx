@@ -13,6 +13,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import { useAuth } from "../auth";
 import AutopilotCard from "../components/setup/AutopilotCard";
+import BrandJourney from "../components/setup/BrandJourney";
 import Tag from "../components/ui/Tag";
 import { PLAT } from "../data/brands";
 import { colorForBrand } from "../lib/brandColor";
@@ -24,15 +25,16 @@ export default function ChannelsPage() {
   const { brands, channels, refreshChannels, showToast, activeBrand } = useStore();
   const navigate = useNavigate();
 
-  // Brand tabs + status filter, so nobody scrolls through every brand's 6–7
-  // platforms. Kept in localStorage (not the url — this page's url params are
-  // the OAuth "connected / failed" results, cleared on arrival).
-  const [tab, setTabState] = useState(() => readPref("channels_tab") || activeBrand || "all");
+  // The brand in the sidebar (the one brand switcher) or every brand, + a status
+  // filter, so nobody scrolls through every brand's 6–7 platforms. Kept in
+  // localStorage (not the url — this page's url params are the OAuth
+  // "connected / failed" results, cleared on arrival).
+  const [showAll, setShowAllState] = useState(() => readPref("channels_all") === "1");
   const [show, setShowState] = useState(() => readPref("channels_show") || "all");
-  const setTab = (v) => (setTabState(v), writePref("channels_tab", v));
+  const setShowAll = (v) => (setShowAllState(v), writePref("channels_all", v ? "1" : ""));
   const setShow = (v) => (setShowState(v), writePref("channels_show", v));
-  const tabBrand = brands.find((b) => b.slug === tab);
-  const currentTab = tabBrand ? tab : "all"; // a deleted brand falls back to All
+  const scopeBrand = brands.find((b) => b.slug === activeBrand) || brands[0];
+  const currentTab = showAll || !scopeBrand ? "all" : scopeBrand.slug;
   const counts = useMemo(() => {
     const scope = currentTab === "all" ? channels : channels.filter((c) => c.b === currentTab);
     return {
@@ -191,60 +193,42 @@ export default function ChannelsPage() {
           <h1 className="page-title">
             Channels
           </h1>
-          <p className="page-sub mt-1">
-            Connect each account once. Facebook Page tokens don't expire; TikTok
-            and YouTube do, and the portal warns you before they lapse.
-          </p>
         </div>
         <div className="flex gap-2">
           <button
-            onClick={openCreateBrand}
-            className="btn-outline"
-          >
-            + Create Brand
-          </button>
-          <button
-            onClick={() => navigate("/channels/add")}
+            onClick={() => navigate("/channels/add", { state: { brandSlug: currentTab === "all" ? activeBrand : currentTab } })}
             className="btn-primary"
           >
-            + Add Platform
+            + Connect a platform
           </button>
         </div>
       </div>
 
-      {/* Brand tabs — "3/6" = connected / total for that brand */}
-      <div className="mb-4 border-b border-ink-200/80" role="tablist" aria-label="Brands">
-        <div className="-mb-px flex gap-1 overflow-x-auto">
-          {[{ slug: "all", name: "All brands" }, ...brands].map((b) => {
-            const own = b.slug === "all" ? channels : channels.filter((c) => c.b === b.slug);
-            const live = own.filter((c) => c.s !== "off").length;
-            const active = currentTab === b.slug;
-            return (
-              <button
-                key={b.slug}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => setTab(b.slug)}
-                className={`inline-flex items-center gap-2 whitespace-nowrap border-b-2 px-3.5 py-2.5 text-[13px] font-medium transition-colors ${
-                  active ? "border-brand text-brand" : "border-transparent text-ink-500 hover:text-ink-800"
-                }`}
-              >
-                {b.slug !== "all" && (
-                  <span className="h-2 w-2 rounded-full" style={{ background: colorForBrand(b.slug) }} aria-hidden="true" />
-                )}
-                {b.name}
-                <span className={`rounded-full px-1.5 py-0.5 text-[10.5px] font-semibold ${active ? "bg-brand-soft text-brand" : "bg-ink-100 text-ink-500"}`}>
-                  {live}/{own.length}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      {/* until the brand is set up: the three steps, and what's next */}
+      <BrandJourney compact here="platforms" className="mb-5" />
 
-      {/* Status filter */}
-      <div className="mb-5 flex flex-wrap gap-1.5" role="group" aria-label="Show">
+      {/* this brand's (the sidebar's) or every brand's · status filter */}
+      <div className="mb-5 flex flex-wrap items-center gap-1.5" role="group" aria-label="Show">
+        <div className="mr-1.5 inline-flex min-w-0 rounded-xl bg-ink-100/70 p-1" role="group" aria-label="Which brand">
+          {[
+            [false, scopeBrand?.name || "This brand", scopeBrand ? channels.filter((c) => c.b === scopeBrand.slug).length : 0],
+            [true, "All brands", channels.length],
+          ].map(([all, label, n]) => (
+            <button
+              key={label}
+              type="button"
+              aria-pressed={showAll === all}
+              onClick={() => setShowAll(all)}
+              className={`flex max-w-[220px] items-center gap-1.5 rounded-lg px-3 py-1 text-[12.5px] font-semibold transition-colors duration-150 ${
+                showAll === all ? "bg-white text-ink-900 shadow-sm" : "text-ink-500 hover:text-ink-800"
+              }`}
+            >
+              {!all && scopeBrand && <span className="h-2 w-2 flex-none rounded-full" style={{ background: colorForBrand(scopeBrand.slug) }} aria-hidden="true" />}
+              <span className="truncate">{label}</span>
+              <span className="tabular-nums text-ink-400">{n}</span>
+            </button>
+          ))}
+        </div>
         {[
           ["all", "All", counts.all],
           ["connected", "Connected", counts.connected],

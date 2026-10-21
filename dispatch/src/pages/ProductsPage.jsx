@@ -9,14 +9,18 @@ import { useStore } from '../store'
 import MarkdownText from '../components/ui/MarkdownText'
 import Select from '../components/ui/Select'
 import { BrandKitPanel, ProductPhoto, kitSrc } from '../components/brandkit/BrandKit'
+import BrandJourney, { refreshProducts } from '../components/setup/BrandJourney'
 
 const EMPTY_FORM = { name: '', description: '', highlights: '' }
 const PREVIEW_CHARS = 340
 
 export default function ProductsPage() {
-  const { brands, showToast } = useStore()
+  const { brands, showToast, activeBrand } = useStore()
   const [items, setItems] = useState(null)
-  const [brandFilter, setBrandFilter] = useState('all')
+  // Products of the brand being worked on (the sidebar's) — or everyone's
+  const [showAll, setShowAll] = useState(false)
+  const scopeBrand = brands.find((b) => b.slug === activeBrand) || brands[0]
+  const brandFilter = showAll ? 'all' : scopeBrand?.slug || 'all'
   const [editingId, setEditingId] = useState(null) // product id, or 'new'
   const [form, setForm] = useState(EMPTY_FORM)
   const [busy, setBusy] = useState(false)
@@ -34,8 +38,9 @@ export default function ProductsPage() {
     api.get('/brand-kit').then(setAssets).catch(() => setAssets([]))
   }, [])
 
-  // The brand kit is per brand — "All" shows the first one.
-  const kitBrand = brands.find((b) => b.slug === brandFilter) || brands[0]
+  // The brand kit is per brand — the one being worked on.
+  const kitBrand = scopeBrand
+  const thisBrandCount = items?.filter((p) => p.brand_id === scopeBrand?.id).length ?? 0
   const photoFor = (p) => assets.find((a) => a.kind === 'product' && a.product_id === p.id)
   // a brand's own logo from its brand kit, where it uploaded one
   const logoOf = (brandId) => assets.find((a) => a.kind === 'logo' && a.brand_id === brandId)?.url
@@ -52,10 +57,16 @@ export default function ProductsPage() {
   const brandFor = (product) => brands.find((b) => b.id === product.brand_id)
 
   const startNew = () => {
-    const defaultBrand = brandFilter !== 'all' ? brands.find((b) => b.slug === brandFilter) : brands[0]
+    const defaultBrand = scopeBrand
     setForm({ ...EMPTY_FORM, brand_id: defaultBrand?.id ?? brands[0]?.id })
     setEditingId('new')
   }
+
+  // the journey's "Add a product" lands here with the form open
+  useEffect(() => {
+    if (location.state?.add && brands.length) startNew()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [brands.length])
 
   const startEdit = (p) => {
     setForm({ brand_id: p.brand_id, name: p.name, description: p.description, highlights: p.highlights })
@@ -74,6 +85,7 @@ export default function ProductsPage() {
       if (editingId === 'new') {
         const created = await api.post('/products', form)
         setItems((xs) => [...(xs || []), created])
+        refreshProducts()
         showToast('Product added')
       } else {
         const updated = await api.patch(`/products/${editingId}`, form)
@@ -92,6 +104,7 @@ export default function ProductsPage() {
     try {
       await api.del(`/products/${p.id}`)
       setItems((xs) => (xs || []).filter((x) => x.id !== p.id))
+      refreshProducts()
       showToast('Deleted')
     } catch (e) {
       showToast(`Could not delete — ${e.message}`)
@@ -112,7 +125,10 @@ export default function ProductsPage() {
         </p>
       </div>
 
-      {/* One toolbar: which part · which brand · add */}
+      {/* until the brand is set up: the three steps, and what's next */}
+      <BrandJourney compact here={view === 'kit' ? 'brand' : 'products'} className="mb-6" />
+
+      {/* One toolbar: which part · whose products · add */}
       <div className="mb-6 flex flex-wrap items-center gap-3 border-b border-ink-200/70 pb-4">
         <div className="inline-flex flex-none rounded-xl bg-ink-100/70 p-1" role="tablist" aria-label="Section">
           {[
@@ -136,47 +152,35 @@ export default function ProductsPage() {
 
         <span className="hidden h-6 w-px bg-ink-200 sm:block" aria-hidden="true" />
 
-        {/* phones: the brand chips get their own line under the tabs + Add
-            (scrolls sideways with many brands); one row from sm up */}
-        <div
-          className="order-last flex min-w-0 basis-full items-center gap-1.5 overflow-x-auto sm:order-none sm:flex-1 sm:basis-auto sm:flex-wrap"
-          role="group"
-          aria-label="Brand"
-        >
-          {view === 'products' && (
-            <button
-              type="button"
-              onClick={() => setBrandFilter('all')}
-              className={`flex-none whitespace-nowrap rounded-full border px-3 py-1.5 text-[12px] font-semibold transition-colors ${
-                brandFilter === 'all' ? 'border-brand-line bg-brand-soft text-brand' : 'border-ink-200 bg-white text-ink-600 hover:border-brand-line'
-              }`}
-            >
-              All brands
-              <span className={`ml-1.5 tabular-nums ${brandFilter === 'all' ? 'text-brand' : 'text-ink-400'}`}>{items?.length ?? 0}</span>
-            </button>
-          )}
-          {brands.map((b) => {
-            const on = view === 'kit' ? kitBrand?.id === b.id : brandFilter === b.slug
-            return (
+        {/* products: this brand's (the one set above), or every brand's — one tap */}
+        {view === 'products' ? (
+          <div className="inline-flex min-w-0 flex-none rounded-xl bg-ink-100/70 p-1" role="group" aria-label="Which products">
+            {[
+              [false, scopeBrand?.name || 'This brand', thisBrandCount],
+              [true, 'All brands', items?.length ?? 0],
+            ].map(([all, label, n]) => (
               <button
-                key={b.id}
+                key={label}
                 type="button"
-                onClick={() => setBrandFilter(b.slug)}
-                className={`flex flex-none items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-[12px] font-semibold transition-colors ${
-                  on ? 'border-brand-line bg-brand-soft text-brand' : 'border-ink-200 bg-white text-ink-600 hover:border-brand-line'
+                aria-pressed={showAll === all}
+                onClick={() => setShowAll(all)}
+                className={`flex max-w-[220px] items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-[13px] font-semibold transition-colors duration-150 ${
+                  showAll === all ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-500 hover:text-ink-800'
                 }`}
               >
-                <BrandMark logo={logoOf(b.id)} color={colorForBrand(b.slug)} />
-                {b.name}
-                {view === 'products' && (
-                  <span className={`tabular-nums ${on ? 'text-brand' : 'text-ink-400'}`}>{items?.filter((p) => p.brand_id === b.id).length ?? 0}</span>
-                )}
+                <span className="truncate">{label}</span>
+                <span className="tabular-nums text-ink-400">{n}</span>
               </button>
-            )
-          })}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <span className="text-[12.5px] text-ink-500">
+            Brand kit of <b className="font-semibold text-ink-800">{kitBrand?.name}</b> — switch brand in the sidebar
+          </span>
+        )}
 
-        {view === 'products' && (
+        {/* none yet: the empty box below has the one Add button */}
+        {view === 'products' && filtered.length > 0 && (
           <button type="button" onClick={startNew} disabled={!brands.length} className="btn-primary ml-auto flex-none">
             <FiPlus size={15} /> Add product
           </button>
@@ -217,9 +221,9 @@ export default function ProductsPage() {
           <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-brand-soft text-brand">
             <FiPackage size={22} aria-hidden="true" />
           </span>
-          <div className="mt-3 text-[15px] font-semibold text-ink-900">No products yet</div>
+          <div className="mt-3 text-[15px] font-semibold text-ink-900">{showAll || !scopeBrand ? 'No products yet' : `Add what ${scopeBrand.name} sells`}</div>
           <p className="mx-auto mt-1 max-w-[42ch] text-[12.5px] leading-relaxed text-ink-500">
-            Add what this brand sells or offers — a name, a short description and what makes it good. The AI uses it so posts stay true.
+            A name, a short description and what makes it good. The AI only uses these facts, so posts about it stay true.
           </p>
           <button type="button" onClick={startNew} disabled={!brands.length} className="btn-primary mt-5">
             <FiPlus size={15} /> Add your first product
@@ -459,23 +463,12 @@ function ProductForm({ form, setForm, brands, logoOf, busy, onCancel, onSave, ti
                 maxRows={24}
                 value={form.description}
                 onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                placeholder="What it is, who it's for…"
+                placeholder="What it is, who it's for, the price, what makes it good…"
                 className={fieldClass}
               />
               <span className="mt-1.5 block text-[11px] text-ink-400">Markdown works: # headings, **bold**, - bullets</span>
             </label>
-            <label className="block">
-              <span className="mb-1.5 block text-[12px] font-semibold text-ink-800">Highlights</span>
-              <AutoTextarea
-                minRows={3}
-                maxRows={12}
-                value={form.highlights}
-                onChange={(e) => setForm((f) => ({ ...f, highlights: e.target.value }))}
-                placeholder="Cheap; fast; local support…"
-                className={fieldClass}
-              />
-              <span className="mt-1.5 block text-[11px] text-ink-400">Selling points, pricing, offers — separate with ; or new lines</span>
-            </label>
+            {/* no Highlights box — one Description is simpler; old highlights are kept (form.highlights) */}
           </div>
 
           <footer className="px-6 py-4 border-t border-ink-100 flex justify-end gap-2">
