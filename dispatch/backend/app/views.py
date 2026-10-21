@@ -90,22 +90,36 @@ def _run_publish(db: Session, target: PostTarget) -> dict:
         _push_outcome(db, target, channel, failed=str(exc))
         return {"id": target.id, "status": "failed", "error": str(exc)}
 
-    now = datetime.now(UTC)
-    target.status = "posted"
-    target.error = ""
-    target.external_id = result.external_id
-    target.published_at = now
-    channel.last_post_at = now
-    if target.post and all(t.status == "posted" for t in target.post.targets):
-        target.post.status = "posted"
-    db.commit()
-    _push_outcome(db, target, channel)
+    if (result.detail or {}).get("processing"):
+        # Uploaded, but the platform (YouTube) is still processing the video: it
+        # is not watchable yet, so it isn't "posted" yet. Kept as "processing"
+        # until settle_processing_targets sees the platform say it is ready.
+        target.status = "processing"
+        target.error = ""
+        target.external_id = result.external_id
+        db.commit()
+        return {"id": target.id, "status": "processing", "external_id": result.external_id, "detail": result.detail}
+    _mark_posted(db, target, channel, result.external_id)
     return {
         "id": target.id,
         "status": "posted",
         "external_id": result.external_id,
         "detail": result.detail,
     }
+
+
+def _mark_posted(db: Session, target: PostTarget, channel: Channel, external_id: str) -> None:
+    """The post is live: record it, update its post, tell the workspace."""
+    now = datetime.now(UTC)
+    target.status = "posted"
+    target.error = ""
+    target.external_id = external_id
+    target.published_at = now
+    channel.last_post_at = now
+    if target.post and all(t.status == "posted" for t in target.post.targets):
+        target.post.status = "posted"
+    db.commit()
+    _push_outcome(db, target, channel)
 
 
 def _push_outcome(db: Session, target: PostTarget, channel: Channel, failed: str | None = None) -> None:
@@ -169,7 +183,7 @@ def publishing_view(
         .options(selectinload(PostTarget.post))
         .where(
             scope(PostTarget, ws),
-            PostTarget.status.in_(("posted", "queued", "posting")),
+            PostTarget.status.in_(("posted", "queued", "posting", "processing")),
             func.coalesce(PostTarget.published_at, PostTarget.scheduled_for) >= start,
             func.coalesce(PostTarget.published_at, PostTarget.scheduled_for) < end,
         )
@@ -2107,7 +2121,7 @@ def schedule(payload: ScheduleIn, db: Session = Depends(get_db), ws: int = Depen
         published, failed = [], []
         for pt in created:
             outcome = _run_publish(db, pt)
-            (published if outcome["status"] == "posted" else failed).append(outcome)
+            (published if outcome["status"] in ("posted", "processing") else failed).append(outcome)
         result["published"] = published
         result["failed"] = failed
     return result
@@ -2430,7 +2444,7 @@ def _take_down(db: Session, target_id: int, force: bool) -> dict:
     }
     # Going out now (or within the edit lock) — the delivery worker may be
     # about to send it, same rule as editing / cancelling.
-    if t.status == "posting" or (t.status == "queued" and not _editable(t, datetime.now(UTC))):
+    if t.status in ("posting", "processing") or (t.status == "queued" and not _editable(t, datetime.now(UTC))):
         db.rollback()
         return {**out, "result": "busy", "detail": "It's being sent right now — try again in a minute."}
     if t.status == "posted" and ch is not None:
@@ -2650,7 +2664,7 @@ def repost_target(
         for pt in created:
             db.refresh(pt)
             outcome = _run_publish(db, pt)
-            (published if outcome["status"] == "posted" else failed).append(outcome)
+            (published if outcome["status"] in ("posted", "processing") else failed).append(outcome)
         result.update(published=published, failed=failed)
     return result
 
@@ -3314,8 +3328,62 @@ def publish_due_targets(
     published, failed = [], []
     for t in rows:
         outcome = _run_publish(db, t)
-        (published if outcome["status"] == "posted" else failed).append(outcome)
+        (published if outcome["status"] in ("posted", "processing") else failed).append(outcome)
     return {"due": len(rows), "published": published, "failed": failed}
+
+
+# A video YouTube has been "processing" this long is almost always up already
+# (processing ended without our check seeing it) — count it posted.
+_PROCESSING_GIVE_UP = timedelta(hours=3)
+# …and YouTube having no record of it this long after the upload means it is gone.
+_PROCESSING_MISSING_AFTER = timedelta(minutes=15)
+
+
+def settle_processing_targets(db: Session, *, limit: int = 50) -> dict:
+    """Finish the posts YouTube was still processing: ask YouTube about each one;
+    "ready" -> posted (and the "Posted" push goes out then), "failed" -> failed
+    with YouTube's own reason, still working -> left as it is. Run by the delivery
+    worker every tick; costs 1 YouTube quota unit per post per pass."""
+    from app import youtube
+
+    now = datetime.now(UTC)
+    rows = db.scalars(
+        select(PostTarget)
+        .join(Channel, Channel.id == PostTarget.channel_id)
+        .where(PostTarget.status == "processing", Channel.status != "off")
+        .order_by(PostTarget.updated_at)
+        .limit(limit)
+    ).all()
+    settled, failed, waiting = [], [], 0
+    for t in rows:
+        channel = db.get(Channel, t.channel_id)
+        age = now - (t.updated_at or now)
+        try:
+            token, updated = youtube.ensure_access_token(channel.config or {})
+            if updated is not None:
+                channel.config = updated
+                db.commit()
+            state = youtube.video_state(token, t.external_id)
+        except youtube.YouTubeError as exc:
+            log.warning("target %s: couldn't check YouTube processing: %s", t.id, exc)
+            state = {"state": "processing", "why": ""}  # try again next pass
+        kind = state["state"]
+        if kind == "processing" and age > _PROCESSING_GIVE_UP:
+            kind = "ready"
+        elif kind == "missing":
+            kind = "failed" if age > _PROCESSING_MISSING_AFTER else "processing"
+        if kind == "ready":
+            _mark_posted(db, t, channel, t.external_id)
+            settled.append(t.id)
+        elif kind == "failed":
+            t.status = "failed"
+            t.error = state["why"] or "YouTube couldn't process the video."
+            db.commit()
+            _push_outcome(db, t, channel, failed=t.error)
+            failed.append(t.id)
+        else:
+            waiting += 1
+    return {"checked": len(rows), "posted": settled, "failed": failed, "waiting": waiting}
 
 
 @router.post("/publish-due")

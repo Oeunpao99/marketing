@@ -381,7 +381,7 @@ def command_center(brand_id: int | None = None, db: Session = Depends(get_db), w
     for r in today_rows.values():
         st = r.pop("statuses")
         r["status"] = (
-            "failed" if "failed" in st else "posted" if all(s == "posted" for s in st) else "posting" if "posting" in st else "scheduled"
+            "failed" if "failed" in st else "posted" if all(s == "posted" for s in st) else "posting" if ("posting" in st or "processing" in st) else "scheduled"
         )
         r["channels"] = sorted(set(r["channels"]))
         r["time"] = _clock(r.pop("at"))

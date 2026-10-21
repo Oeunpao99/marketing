@@ -10,7 +10,7 @@ import PlatformIcon from '../ui/PlatformIcon'
 import Select from '../ui/Select'
 import StatusBadge from './StatusBadge'
 
-const statusWord = (s) => (s === 'posting' ? 'sending' : s === 'queued' ? 'waiting' : s)
+const statusWord = (s) => (s === 'posting' ? 'sending' : s === 'queued' ? 'waiting' : s)  // 'processing' has its own badge
 
 const rowFrom = (t) => ({
   key: `t${t.id}`,

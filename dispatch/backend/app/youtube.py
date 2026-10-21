@@ -283,6 +283,53 @@ def video_url(video_id: str, short: bool = False) -> str:
     return f"https://www.youtube.com/shorts/{video_id}" if short else f"https://youtu.be/{video_id}"
 
 
+_REJECTED = {
+    "duplicate": "YouTube says this video was already uploaded.",
+    "copyright": "YouTube rejected it over copyright.",
+    "claim": "YouTube rejected it — a copyright claim.",
+    "inappropriate": "YouTube rejected it as inappropriate.",
+    "length": "YouTube rejected it — the video is too long for this account.",
+    "termsOfUse": "YouTube rejected it — it breaks the terms of use.",
+    "trademark": "YouTube rejected it over a trademark.",
+    "legal": "YouTube rejected it for a legal reason.",
+    "uploaderAccountClosed": "The YouTube account is closed.",
+    "uploaderAccountSuspended": "The YouTube account is suspended.",
+}
+_FAILED = {
+    "codec": "YouTube couldn't read the video's format.",
+    "conversion": "YouTube couldn't convert the video.",
+    "emptyFile": "The uploaded file was empty.",
+    "invalidFile": "YouTube says the file isn't a valid video.",
+    "tooSmall": "The video is too small for YouTube.",
+    "uploadAborted": "The upload was interrupted.",
+}
+
+
+def video_state(access_token: str, video_id: str) -> dict:
+    """Has YouTube finished with an uploaded video?  {"state": ..., "why": ...}
+    state: "ready" (processed — it's up) · "processing" (still working on it —
+    longer videos take minutes) · "failed" (rejected / couldn't be processed —
+    why says in plain words) · "missing" (YouTube has no such video).
+    Costs 1 quota unit."""
+    data = _get(access_token, "videos", {"part": "status,processingDetails", "id": video_id})
+    items = data.get("items") or []
+    if not items:
+        return {"state": "missing", "why": "YouTube has no video with this id — it may have been deleted."}
+    st = items[0].get("status") or {}
+    pd = items[0].get("processingDetails") or {}
+    upload = st.get("uploadStatus", "")
+    proc = pd.get("processingStatus", "")
+    if upload == "rejected":
+        return {"state": "failed", "why": _REJECTED.get(st.get("rejectionReason", ""), "YouTube rejected the video.")}
+    if upload == "failed" or proc in ("failed", "terminated"):
+        return {"state": "failed", "why": _FAILED.get(st.get("failureReason", ""), "YouTube couldn't process the video.")}
+    if upload == "deleted":
+        return {"state": "failed", "why": "The video was deleted on YouTube."}
+    if upload == "processed" and proc in ("", "succeeded"):
+        return {"state": "ready", "why": ""}
+    return {"state": "processing", "why": ""}
+
+
 def video_insights(access_token: str, video_id: str) -> dict:
     """views / likes / comments for one video, and whether it's still private."""
     data = _get(access_token, "videos", {"part": "statistics,status", "id": video_id})

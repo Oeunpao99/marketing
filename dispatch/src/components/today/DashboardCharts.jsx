@@ -49,7 +49,7 @@ export function useDashboardStats(queue, channels) {
     const all = []
     for (const post of queue) {
       for (const d of post.deliveries || []) {
-        const status = d.status === 'posting' ? 'sending' : d.status
+        const status = d.status === 'posting' || d.status === 'processing' ? 'sending' : d.status
         all.push({ ...d, status, day: phnomPenhDay(d.at) })
       }
     }

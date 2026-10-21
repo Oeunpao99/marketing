@@ -45,7 +45,7 @@ function Thumb({ media, name, color }) {
   )
 }
 
-const WHEN_VERB = { posted: 'Posted', queued: 'Scheduled for', sending: 'Sending now \u00B7', failed: 'Failed \u00B7' }
+const WHEN_VERB = { posted: 'Posted', queued: 'Scheduled for', sending: 'Sending now \u00B7', processing: 'Processing since', failed: 'Failed \u00B7' }
 
 /** "Posted Fri 18 Sep \u00B7 18:05" \u2014 the day and time in words, so it reads
  *  without looking up at the day header. */
@@ -56,7 +56,7 @@ function When({ q }) {
     <span className="inline-flex items-center gap-1.5 text-[11.5px] text-ink-600">
       <Icon size={12} className="text-ink-400" aria-hidden="true" />
       <span>
-        {WHEN_VERB[q.st] || 'Scheduled for'}{' '}
+        {WHEN_VERB[q.processing ? 'processing' : q.st] || 'Scheduled for'}{' '}
         <b className="font-semibold text-ink-800">
           {day ? dayLabel(day) : 'no date'}
           {q.t && q.t !== '--:--' ? ` \u00B7 ${q.t}` : ''}
@@ -229,7 +229,7 @@ export default function DayView({ queue, match = () => true }) {
                       </span>
                     ))}
                     <span className="ml-auto">
-                      <StatusBadge status={q.st} compact />
+                      <StatusBadge status={q.processing ? 'processing' : q.st} compact />
                     </span>
                   </div>
                   {/* what */}
@@ -255,7 +255,9 @@ export default function DayView({ queue, match = () => true }) {
                         <span className="absolute top-0 h-full rounded-full bg-brand animate-indeterminate" />
                       </div>
                       <span className="text-[10px] font-semibold text-brand whitespace-nowrap">
-                        sending to {q.c.length === 1 ? q.c[0] : `${q.c.length} channels`}…
+                        {q.processing
+                          ? 'YouTube is processing the video — it shows as posted when it’s ready'
+                          : `sending to ${q.c.length === 1 ? q.c[0] : `${q.c.length} channels`}…`}
                       </span>
                     </div>
                   )}

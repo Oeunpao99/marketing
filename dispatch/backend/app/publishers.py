@@ -336,6 +336,15 @@ def _publish_youtube(target: PostTarget, channel: Channel, video: Video | None) 
             except Exception as exc:  # noqa: BLE001 — a picture PIL can't read
                 log.warning("youtube thumbnail for %s failed: %s", video_id, exc)
                 notes.append("The thumbnail wasn't set — that picture couldn't be read.")
+    # The file is up, but YouTube isn't done: it still processes the video (a
+    # longer one takes minutes), and it isn't watchable until then. Say "processing",
+    # not "posted" — views.settle_processing_targets moves it to posted when
+    # YouTube says it is ready (or failed).
+    try:
+        processing = youtube.video_state(access_token, video_id)["state"] != "ready"
+    except youtube.YouTubeError as exc:
+        log.warning("youtube %s: couldn't ask whether it is processed yet: %s", video_id, exc)
+        processing = True  # unknown → the background check finds out
     return PublishResult(
         external_id=video_id,
         detail={
@@ -343,6 +352,7 @@ def _publish_youtube(target: PostTarget, channel: Channel, video: Video | None) 
             "url": youtube.video_url(video_id, short),
             "short": short,
             "thumbnail": thumb_set,
+            "processing": processing,
             "note": " ".join(notes),
         },
     )

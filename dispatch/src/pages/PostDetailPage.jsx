@@ -322,7 +322,7 @@ export default function PostDetailPage() {
                     </span>
                   ))}
                   <span className="ml-auto">
-                    <StatusBadge status={q.st === "queued" ? "waiting" : q.st} compact />
+                    <StatusBadge status={q.processing ? "processing" : q.st === "queued" ? "waiting" : q.st} compact />
                   </span>
                 </div>
                 <h1 className={`mt-2.5 text-[17px] font-bold leading-snug tracking-tight text-ink-900 ${isKhmer(title) ? "font-khmer" : ""}`}>{title}</h1>

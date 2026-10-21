@@ -5,6 +5,7 @@ const STATUS = {
   posted: { label: "Posted", dot: "bg-emerald-500" },
   failed: { label: "Failed", dot: "bg-red-500" },
   sending: { label: "Posting", dot: "bg-brand animate-pulse-glow" },
+  processing: { label: "Processing on YouTube", dot: "bg-brand animate-pulse-glow" },
   waiting: { label: "Waiting", dot: "bg-amber-400" },
 };
 

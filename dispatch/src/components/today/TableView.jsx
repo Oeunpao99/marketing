@@ -87,7 +87,7 @@ export default function TableView({ queue, match = () => true }) {
                   </span>
                 </td>
                 <td className="px-7 py-2.5 whitespace-nowrap text-right">
-                  <StatusBadge status={q.st} compact />
+                  <StatusBadge status={q.processing ? 'processing' : q.st} compact />
                 </td>
               </tr>
             )

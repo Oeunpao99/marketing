@@ -74,10 +74,12 @@ function groupTargets(targets) {
       let st;
       if (card._statuses.includes("failed")) st = "failed";
       else if (card._statuses.includes("posting")) st = "sending";
+      // uploaded, but the platform (YouTube) is still processing it — not posted yet
+      else if (card._statuses.includes("processing")) st = "sending";
       else if (card._statuses.every((s) => s === "posted")) st = "posted";
       else if (card._statuses.includes("queued") && justDue) st = "sending";
       else st = "queued";
-      return { ...card, st, error: card._errors[0] || null };
+      return { ...card, st, processing: card._statuses.includes("processing") && st === "sending", error: card._errors[0] || null };
     })
     .sort((a, b) => String(a.t).localeCompare(String(b.t)));
 }

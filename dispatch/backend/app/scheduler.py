@@ -16,7 +16,7 @@ import logging
 
 from app.config import get_settings
 from app.database import SessionLocal
-from app.views import publish_due_targets
+from app.views import publish_due_targets, settle_processing_targets
 
 log = logging.getLogger("app.scheduler")
 
@@ -25,7 +25,17 @@ def _tick() -> dict:
     """One delivery pass. Runs in a worker thread (sync DB session)."""
     db = SessionLocal()
     try:
-        return publish_due_targets(db, dwell=True)
+        result = publish_due_targets(db, dwell=True)
+        # videos YouTube was still processing: posted when it says they're ready
+        settled = settle_processing_targets(db)
+        if settled["posted"] or settled["failed"]:
+            log.info(
+                "YouTube processing: %d now posted, %d failed, %d still processing",
+                len(settled["posted"]),
+                len(settled["failed"]),
+                settled["waiting"],
+            )
+        return result
     finally:
         db.close()
 

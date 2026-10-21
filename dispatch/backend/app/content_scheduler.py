@@ -737,7 +737,7 @@ def force_regenerate(db: Session, automation_id: int, report: Report = _no_repor
         )
         if post is not None:
             targets = db.scalars(select(PostTarget).where(PostTarget.post_id == post.id)).all()
-            if any(t.status in ("posted", "posting") for t in targets):
+            if any(t.status in ("posted", "posting", "processing") for t in targets):
                 # Already went out somewhere, or is going out right now —
                 # don't touch it.
                 kept_live += 1
