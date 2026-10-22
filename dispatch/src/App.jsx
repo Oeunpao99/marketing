@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { hideSplash } from "./lib/splash";
 import { BrowserRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./auth";
@@ -19,6 +19,8 @@ import LegalPage from "./pages/LegalPage";
 import LibraryPage from "./pages/LibraryPage";
 import VideoEditPage from './pages/VideoEditPage'
 import EditorPage from './pages/EditorPage'
+// the slide presenter: loaded only when a deck is opened (it brings the slides' icons)
+const PresentPage = lazy(() => import('./pages/PresentPage'))
 import LoginPage from "./pages/LoginPage";
 import LandingPage from "./pages/LandingPage";
 import NewPostPage from "./pages/NewPostPage";
@@ -96,6 +98,7 @@ function Portal() {
             <Route path="/library/edit/:id" element={<VideoEditPage />} />
             <Route path="/editor" element={<EditorPage />} />
             <Route path="/editor/:id" element={<EditorPage />} />
+            <Route path="/present/:id" element={<Suspense fallback={null}><PresentPage /></Suspense>} />
             <Route path="/insights" element={<InsightsPage />} />
             <Route path="/insights/:targetId" element={<InsightsPostPage />} />
             <Route path="/post/:index" element={<PostDetailPage />} />

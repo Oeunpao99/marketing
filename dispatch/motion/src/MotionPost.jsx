@@ -71,6 +71,7 @@ import { DIALOGUE } from './dialogue'
 import { STREET } from './street3d'
 import { ILLUSTRATED } from './illustrated'
 import { AITEAM } from './aiteam'
+import { DECK } from './deck'
 import { CARTOON } from './cartoon'
 import { SPOTLIGHT } from './spotlight'
 import { APPDEMO } from './appdemo'
@@ -774,6 +775,7 @@ const TEMPLATES = {
   street3d: { ...STREET, scenes: { ...SCENES, ...STREET.scenes } }, // 3D · Street (three.js)
   illustrated: { ...ILLUSTRATED, scenes: { ...SCENES, ...ILLUSTRATED.scenes } }, // Illustrated · Everyday Cambodia
   aiteam: { ...AITEAM, scenes: { ...SCENES, ...AITEAM.scenes } }, // AI service · Your AI team
+  deck: { ...DECK, scenes: { ...SCENES, ...DECK.scenes } }, // Slides · Presentation
   gridcards: { ...GRIDCARDS, scenes: { ...SCENES, ...GRIDCARDS.scenes } },
   techflow: { ...TECHFLOW, scenes: { ...SCENES, ...TECHFLOW.scenes } },
   canvas: { ...CANVAS, scenes: { ...SCENES, ...CANVAS.scenes } }, // AI design — the AI designs every scene

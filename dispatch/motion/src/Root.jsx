@@ -2,6 +2,7 @@ import { Composition } from 'remotion'
 import { MotionPost, FPS, TRANSITION, sceneFrames } from './MotionPost'
 import { Tutorial, TutorialThumb, tutorialLength } from './tutorial'
 import { Timeline, EDIT_FPS, EDIT_SIZES, timelineFrames } from './timeline'
+import { DeckPages } from './deck'
 import sample from '../sample.json'
 
 /** The motion post (vertical, or wide for some templates), and the app's own
@@ -42,6 +43,17 @@ export const Root = () => (
       const wide = props.ratio === '16:9'
       return { durationInFrames: total - TRANSITION * (props.scenes.length - 1), width: wide ? 1920 : 1080, height: wide ? 1080 : 1920 }
     }}
+  />
+  {/* Slides · Presentation's PDF: frame n = slide n at rest (deck.jsx; app/motion.py deck_pdf) */}
+  <Composition
+    id="DeckPages"
+    component={DeckPages}
+    width={1920}
+    height={1080}
+    fps={FPS}
+    durationInFrames={1}
+    defaultProps={{ brand: { name: '', color: '#2563EB' }, scenes: [] }}
+    calculateMetadata={({ props }) => ({ durationInFrames: Math.max(1, (props.scenes || []).length) })}
   />
   {/* the video editor's export (timeline.jsx; app/editor.py) */}
   <Composition

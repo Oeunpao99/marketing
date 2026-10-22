@@ -17,6 +17,7 @@ const PAGE_FEATURE = [
   ['/auto', 'auto'],
   ['/library', 'library'],
   ['/editor', 'library'], // the video editor
+  ['/present', 'library'], // a slide deck, presented
   ['/products', 'products'],
   ['/insights', 'insights'],
   ['/website', 'website'],

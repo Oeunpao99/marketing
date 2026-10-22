@@ -1,0 +1,211 @@
+{
+  "brand": {
+    "name": "Smart Marketing",
+    "color": "#2563EB",
+    "logo": "ours/smart-marketing.png",
+    "slug": "smart-marketing"
+  },
+  "style": "deck",
+  "ratio": "16:9",
+  "frame": 340,
+  "scenes": [
+    {
+      "type": "hook",
+      "text": "Your ⟦AI marketing team⟧, as a service",
+      "sub": "Smart Marketing · plan, write, design and post — you just approve"
+    },
+    {
+      "type": "agenda",
+      "title": "What we'll cover",
+      "entries": [
+        "The problem small businesses face",
+        "Meet your AI team",
+        "How a week of posts gets made",
+        "What you get",
+        "How to start"
+      ]
+    },
+    {
+      "type": "keypoints",
+      "title": "One team, ⟦four jobs⟧ done for you",
+      "blocks": [
+        {
+          "title": "Plans",
+          "text": "A week of posts at the best times",
+          "icon": "Calendar"
+        },
+        {
+          "title": "Writes",
+          "text": "Captions in Khmer and English",
+          "icon": "FileText"
+        },
+        {
+          "title": "Designs",
+          "text": "Posters with real Khmer text",
+          "icon": "Image"
+        },
+        {
+          "title": "Makes videos",
+          "text": "Motion videos with a Khmer voice",
+          "icon": "Video"
+        }
+      ]
+    },
+    {
+      "type": "bignum",
+      "value": 40,
+      "suffix": "+",
+      "label": "video templates, ready to use",
+      "text": "From AI explainers to product launches — each one in Khmer or English."
+    },
+    {
+      "type": "twocol",
+      "title": "Before and ⟦after⟧",
+      "cols": [
+        {
+          "label": "Doing it alone",
+          "items": [
+            "Posting when there's time",
+            "Captions written late at night",
+            "No idea what works"
+          ]
+        },
+        {
+          "label": "With Smart Marketing",
+          "items": [
+            "A weekly plan, made for you",
+            "Captions and posters in minutes",
+            "Results for every post"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "roadmap",
+      "title": "How a week gets made",
+      "stages": [
+        {
+          "title": "Connect",
+          "text": "Link your Facebook, TikTok and Telegram"
+        },
+        {
+          "title": "Plan",
+          "text": "The AI plans 7 posts for your goals"
+        },
+        {
+          "title": "Approve",
+          "text": "Check each post, change what you like"
+        },
+        {
+          "title": "Post",
+          "text": "It goes out at the best time"
+        }
+      ]
+    },
+    {
+      "type": "barchart",
+      "title": "Monthly AI credits by plan",
+      "data": [
+        {
+          "label": "Free",
+          "value": 100
+        },
+        {
+          "label": "Starter",
+          "value": 1000
+        },
+        {
+          "label": "Pro",
+          "value": 3000
+        },
+        {
+          "label": "Business",
+          "value": 9000
+        }
+      ]
+    },
+    {
+      "type": "pullquote",
+      "text": "Nothing goes out until ⟦you say yes⟧.",
+      "author": "Smart Marketing",
+      "role": "how every post works"
+    },
+    {
+      "type": "statement",
+      "text": "Posting and scheduling ⟦never⟧ use credits.",
+      "sub": "Credits are only for what the AI makes."
+    },
+    {
+      "type": "cta",
+      "text": "Your AI marketing team, ready today",
+      "button": "Start free"
+    }
+  ],
+  "clip": [
+    {
+      "type": "hook",
+      "text": "Your ⟦AI marketing team⟧, as a service",
+      "sub": "Smart Marketing · plan, write, design and post — you just approve"
+    },
+    {
+      "type": "keypoints",
+      "title": "One team, ⟦four jobs⟧ done for you",
+      "blocks": [
+        {
+          "title": "Plans",
+          "text": "A week of posts at the best times",
+          "icon": "Calendar"
+        },
+        {
+          "title": "Writes",
+          "text": "Captions in Khmer and English",
+          "icon": "FileText"
+        },
+        {
+          "title": "Designs",
+          "text": "Posters with real Khmer text",
+          "icon": "Image"
+        },
+        {
+          "title": "Makes videos",
+          "text": "Motion videos with a Khmer voice",
+          "icon": "Video"
+        }
+      ]
+    },
+    {
+      "type": "bignum",
+      "value": 40,
+      "suffix": "+",
+      "label": "video templates, ready to use",
+      "text": "From AI explainers to product launches — each one in Khmer or English."
+    },
+    {
+      "type": "roadmap",
+      "title": "How a week gets made",
+      "stages": [
+        {
+          "title": "Connect",
+          "text": "Link your Facebook, TikTok and Telegram"
+        },
+        {
+          "title": "Plan",
+          "text": "The AI plans 7 posts for your goals"
+        },
+        {
+          "title": "Approve",
+          "text": "Check each post, change what you like"
+        },
+        {
+          "title": "Post",
+          "text": "It goes out at the best time"
+        }
+      ]
+    },
+    {
+      "type": "cta",
+      "text": "Your AI marketing team, ready today",
+      "button": "Start free"
+    }
+  ]
+}

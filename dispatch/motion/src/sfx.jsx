@@ -17,6 +17,7 @@ import { dialogueCues } from './dialogue'
 import { streetCues } from './street3d'
 import { illustratedCues } from './illustrated'
 import { aiteamCues } from './aiteam'
+import { deckCues } from './deck'
 
 const VOLUME = { whoosh: 0.22, pop: 0.3, blop: 0.32, click: 0.35, ding: 0.28, tick: 0.18, impact: 0.55, riser: 0.3 }
 const SAAS = new Set(['trend', 'pov', 'demo', 'offer', 'custom', 'showcase', 'launch', 'clarity', 'countdown', 'thisorthat', 'reviews', 'tips', 'hottake', 'casestudy', 'faq', 'report'])
@@ -34,6 +35,10 @@ export function cuesFor(scene, style, frames, first) {
   }
   if (style === 'podcast') {
     podcastCues(scene).forEach(([at, s]) => add(at, s)) // podcast.jsx
+    return cues
+  }
+  if (style === 'deck') {
+    deckCues(scene).forEach(([at, s]) => add(at, s)) // deck.jsx
     return cues
   }
   if (style === 'aiteam') {

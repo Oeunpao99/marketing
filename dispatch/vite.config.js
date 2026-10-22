@@ -24,7 +24,7 @@ export default defineConfig({
   // The video editor plays motion/src/timeline.jsx in the page — that file
   // must use the app's own React and Remotion (motion/ has its own copies,
   // and two Reacts / two Remotions on one page break).
-  resolve: { dedupe: ['react', 'react-dom', 'remotion'] },
+  resolve: { dedupe: ['react', 'react-dom', 'remotion', 'lucide-react'] },
   define: {
     __APP_VERSION__: JSON.stringify(APP_VERSION),
   },

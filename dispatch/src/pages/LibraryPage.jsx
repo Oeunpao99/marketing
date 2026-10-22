@@ -1469,6 +1469,11 @@ function DetailPanel({ it, busy, folders, onClose, onUse, onDelete, onRewrite, o
                 <FiEdit3 size={13} /> Edit video
               </button>
             )}
+            {it.deck && (
+              <button type="button" onClick={() => navigate(`/present/${it.id}`)} title="Present the slides, or download them as a PDF" className="btn-primary">
+                <FiMonitor size={13} /> Present
+              </button>
+            )}
             {it.kind !== 'image' && (
               <button
                 type="button"

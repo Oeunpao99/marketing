@@ -189,6 +189,16 @@ export const MOTION_TEMPLATES = [
     goals: ['education', 'solution'],
   },
   {
+    id: 'deck',
+    story: 'deck',
+    added: '2026-10-23T09:00:00+07:00',
+    name: 'Slides · Presentation',
+    look: 'Paste a prompt or your own text and get a clean slide deck in your brand’s colours — a cover, an agenda, key-point cards, big numbers counting up, charts, before / after, a roadmap, quotes and a closing slide. Present it in the app, download a PDF, or post it as a video',
+    steps: ['Cover', 'Agenda', 'Key points', 'Numbers and charts', 'Roadmap', 'Closing'],
+    note: 'Open it from the Library with Present. Always 16:9. Numbers only from your text',
+    goals: [],
+  },
+  {
     id: 'aiteam',
     story: 'aiteam',
     added: '2026-10-22T10:20:00+07:00',

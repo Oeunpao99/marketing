@@ -77,6 +77,16 @@ export function defaultSeconds(s) {
       return 4.2
     case 'visit':
       return 4.4
+    case 'agenda': // Slides · Presentation — app/motion.py default_seconds says the same
+    case 'keypoints':
+    case 'twocol':
+    case 'roadmap':
+      return 6.5
+    case 'bignum':
+    case 'barchart':
+    case 'pullquote':
+    case 'picture':
+      return 5.5
     case 'overload': // AI service · Your AI team — app/motion.py default_seconds says the same
       return 4.4
     case 'crew':

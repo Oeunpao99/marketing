@@ -24,6 +24,9 @@ dependencies = [
     "transformers>=4.44",
     "numpy>=1.26",
     "anthropic>=1.14",
+    "pypdf>=6.21.2",
+    "python-docx>=1.2.0",
+    "python-pptx>=1.0.2",
 ]
 
 [dependency-groups]

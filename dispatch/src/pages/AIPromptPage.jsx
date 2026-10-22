@@ -14,6 +14,7 @@ import {
   FiMaximize2,
   FiMessageCircle,
   FiPaperclip,
+  FiFileText,
   FiPlus,
   FiAlertCircle,
   FiRefreshCw,
@@ -222,6 +223,7 @@ const MOTION_STORIES = [
   { value: 'report', label: 'Data report', hint: 'Bars, a percent ring, numbers with their source' },
   { value: 'clarity', label: 'SaaS explainer', hint: 'Calm white and blue — the mess of tools today, your app in a frame, how it works' },
   { value: 'launch', label: 'Product launch', hint: 'A cinematic launch film — the one click that does the job, your screens stacking up, “Now live”' },
+  { value: 'deck', label: 'Slides · Presentation', hint: 'A slide deck from your prompt or text — present it in the app, download a PDF, or post it as a video' },
   { value: 'aiteam', label: 'AI service · Your AI team', hint: 'Introduce an AI product like hiring a team — AI workers doing the jobs, one input to finished work, approve with one tap, results and plans' },
   { value: 'illustrated', label: 'Illustrated · Everyday Cambodia', hint: 'A calm hand-drawn documentary — the market, shophouses, a bank, home, rice fields; one person’s day and close-ups with an ATM, a phone, money' },
   { value: 'street3d', label: '3D · Street', hint: 'Real 3D: your shop lit up on a Cambodian street at dusk next to an empty rival — people walk in, a board counts, messages float up' },
@@ -298,6 +300,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
   const [motionLogo, setMotionLogo] = useState(saved.motionLogo ?? true) // false = "No logo": a video without the brand
   // Remotion story: teach (Explainer style) or sell (Tech style); auto = sell when a product is chosen
   const [motionGoal, setMotionGoal] = useState(saved.motionGoal ?? 'auto')
+  const [readingDoc, setReadingDoc] = useState(false) // a document being read into the prompt box (Slides)
   // Your own story: the AI plans a storyboard you check and edit before it's rendered.
   const [motionReview, setMotionReview] = useState(saved.motionReview ?? true)
   const [motionLength, setMotionLength] = useState(saved.motionLength ?? 'auto')
@@ -1544,6 +1547,44 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
               <input type="file" accept="image/*" multiple={maxRefs > 1} className="hidden" onChange={attach} />
               <FiPaperclip size={15} />
             </label>
+
+            {isMotion && (
+              // a document (PDF, Word, PowerPoint, text) read into the box — Slides are made from it,
+              // like from a pasted text (POST /ai/motion/read-doc; no credits)
+              <label
+                className={`h-9 px-2.5 rounded-full inline-flex items-center gap-1.5 text-[12px] font-medium cursor-pointer transition-colors ${readingDoc ? 'bg-brand-soft text-brand' : 'text-ink-600 hover:bg-ink-100'}`}
+                title="Make slides from a document — PDF, Word, PowerPoint or a text file"
+              >
+                <input
+                  type="file"
+                  accept=".pdf,.docx,.pptx,.txt,.md"
+                  className="hidden"
+                  disabled={readingDoc}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0]
+                    e.target.value = ''
+                    if (!file) return
+                    setReadingDoc(true)
+                    try {
+                      const fd = new FormData()
+                      fd.append('file', file)
+                      const r = await api.upload('/ai/motion/read-doc', fd)
+                      setText((t) => (t.trim() ? `${t.trim()}\n\n` : '') + r.text)
+                      if (motionGoal === 'auto') setMotionGoal('deck') // a document → slides, unless they picked another story
+                      showToast(
+                        `Read ${file.name}${r.pages ? ` (${r.pages} ${r.kind === 'pptx' ? 'slides' : 'pages'})` : ''}${r.condensed ? ' — shortened to fit, every heading kept' : ''}. Check the text, then send.`,
+                      )
+                    } catch (err) {
+                      showToast(err.message || 'Could not read that file — paste its text instead')
+                    } finally {
+                      setReadingDoc(false)
+                    }
+                  }}
+                />
+                {readingDoc ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand/30 border-t-brand" /> : <FiFileText size={14} />}
+                <span className="hidden sm:inline">{readingDoc ? 'Reading…' : 'Document'}</span>
+              </label>
+            )}
 
             {intent === 'create' && (isImage || isClip) && (
               // Phones: not `relative`, so the panel anchors to the whole

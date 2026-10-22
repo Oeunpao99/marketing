@@ -33,7 +33,7 @@ import time
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from PIL import Image
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
@@ -1780,6 +1780,109 @@ def clean_lead(raw) -> list[dict]:
     }]
 
 
+# "Slides · Presentation" (motion/src/deck.jsx) — a slide deck from a prompt or a pasted
+# text: presented in the app (PresentPage), downloaded as a PDF (deck_pdf), or played
+# as a 16:9 video. One scene = one slide; hook = the cover, cta = the closing slide.
+DECK_TYPES = ("hook", "agenda", "keypoints", "bignum", "barchart", "twocol", "pullquote", "picture", "roadmap", "statement", "cta")
+DECK_PROMPT = (
+    "You are a top presentation designer. You turn the brief into a clear, beautiful SLIDE DECK "
+    "(8-14 slides) for a business audience — like the best pitch and training decks: one idea per "
+    "slide, short words on the slide, the details in what the presenter says. Use the slide that "
+    "fits each idea best and vary them; never a wall of text.\n"
+    "\n"
+    "THE DECK: a cover first (hook), often an agenda second, then the content slides, a closing "
+    "slide last (cta).\n"
+    "A DOCUMENT as the brief (read from a PDF / Word / PowerPoint): \"# …\" lines are its headings, "
+    "\"- …\" its bullets, \"a | b | c\" its table rows, \"## Slide 3: …\" an old deck's slides. Follow "
+    "its structure — each main heading becomes a slide (or two), bullets become keypoints / agenda / "
+    "twocol, a table's numbers become a barchart or a bignum (its own numbers, exactly), an old "
+    "deck's slides stay in their order — and cover EVERY section, condensed to the slides' few "
+    "words; the details go in `say`.\n"
+    "\n"
+    "SLIDE TYPES and their fields:\n"
+    "- hook (the cover): text (the deck's title, max 9 words), sub (one line, max 14 words).\n"
+    "- agenda: title (max 6 words), entries (3-6 sections, max 7 words each).\n"
+    "- keypoints: title (max 9 words), blocks (2-4: {title (max 4 words), text (max 14 words), icon}).\n"
+    "- bignum: value (ONE true number from the brief or common knowledge), prefix (optional, e.g. $), "
+    "suffix (optional, e.g. % or +), label (what it counts, max 8 words), text (optional, max 18 words).\n"
+    "- barchart: title (max 9 words), data (2-7: {label (max 3 words), value (a number)}), suffix (optional "
+    "unit, e.g. %) — ONLY numbers the brief gives.\n"
+    "- twocol: title (max 8 words), cols (exactly 2: {label (max 4 words), items (2-5 lines, max 10 "
+    "words each)}) — before / after, problem / solution, option A / option B.\n"
+    "- pullquote: text (a quote or a key message, max 24 words), author (optional), role (optional).\n"
+    "- picture: title (max 8 words), text (max 24 words), draw (ENGLISH, max 25 words — the picture "
+    "beside the words: what it shows, never any text in it).\n"
+    "- roadmap: title (max 8 words), stages (2-5 steps in order: {title (max 3 words), text (max 12 "
+    "words)}).\n"
+    "- statement: text (one big sentence, max 14 words), sub (optional, max 12 words).\n"
+    "- cta (the closing slide): text (max 9 words), button (optional, 1-3 words — the next step).\n"
+    "`say` is what the presenter says on that slide (it becomes the voice of the deck's video).\n"
+    "Every word on the slides is in the LANGUAGE; names of products and brands as written.\n"
+    + _COMMON_RULES
+    + '{"scenes": [{"type": "hook", "text": "...", "sub": "...", "say": "..."}, {"type": "agenda", "title": '
+    '"...", "entries": ["..."], "say": "..."}, {"type": "keypoints", "title": "...", "blocks": [{"title": "...", '
+    '"text": "...", "icon": "Lightbulb"}], "say": "..."}, ..., {"type": "cta", "text": "...", "button": "...", '
+    '"say": "..."}]}'
+)
+
+
+def _deck_scene(kind: str, raw: dict, say: str) -> dict | None:
+    """Slides · Presentation: its own slides (None = not one of them, or empty)."""
+    title = _line(raw.get("title"), 90)
+
+    def items(key, n, most):
+        return [_line(x, n) for x in (raw.get(key) if isinstance(raw.get(key), list) else []) if _line(x, n)][:most]
+
+    if kind == "agenda":
+        entries = items("entries", 70, 6)
+        return {"type": kind, "title": title, "entries": entries, "say": say} if len(entries) >= 2 else None
+    if kind == "keypoints":
+        blocks = [
+            {"title": _line(b.get("title"), 40), "text": _line(b.get("text"), 120), "icon": _icon(b.get("icon"), "Lightbulb")}
+            for b in (raw.get("blocks") if isinstance(raw.get("blocks"), list) else [])
+            if isinstance(b, dict) and _line(b.get("title"), 40)
+        ][:4]
+        return {"type": kind, "title": title, "blocks": blocks, "say": say} if len(blocks) >= 2 else None
+    if kind == "bignum":
+        value = _number(raw.get("value")) if raw.get("value") not in (None, "") else 0.0
+        label = _line(raw.get("label"), 80)
+        if value <= 0 or not label:
+            return None
+        return {"type": kind, "value": int(value) if value == int(value) else round(value, 1), "prefix": _line(raw.get("prefix"), 3), "suffix": _line(raw.get("suffix"), 8), "label": label, "text": _line(raw.get("text"), 160), "say": say}
+    if kind == "barchart":
+        data = []
+        for d in raw.get("data") if isinstance(raw.get("data"), list) else []:
+            if isinstance(d, dict) and _line(d.get("label"), 24) and _number(d.get("value")) > 0:
+                v = _number(d.get("value"))
+                data.append({"label": _line(d.get("label"), 24), "value": int(v) if v == int(v) else round(v, 1)})
+        return {"type": kind, "title": title, "data": data[:7], "suffix": _line(raw.get("suffix"), 6), "say": say} if len(data) >= 2 else None
+    if kind == "twocol":
+        cols = []
+        for c in (raw.get("cols") if isinstance(raw.get("cols"), list) else [])[:2]:
+            if not isinstance(c, dict):
+                continue
+            lines = [_line(x, 90) for x in (c.get("items") if isinstance(c.get("items"), list) else []) if _line(x, 90)][:5]
+            if _line(c.get("label"), 34) and lines:
+                cols.append({"label": _line(c.get("label"), 34), "items": lines})
+        return {"type": kind, "title": title, "cols": cols, "say": say} if len(cols) == 2 else None
+    if kind == "pullquote":
+        text = _line(raw.get("text"), 220)
+        return {"type": kind, "text": text, "author": _line(raw.get("author"), 40), "role": _line(raw.get("role"), 50), "say": say} if text else None
+    if kind == "picture":
+        scene = {"type": kind, "title": title, "text": _line(raw.get("text"), 200), "icon": _icon(raw.get("icon"), "Image"), "say": say}
+        if _line(raw.get("draw"), 300):
+            scene["draw"] = _line(raw["draw"], 300)  # painted beside the words (app/doodle.py)
+        return scene if title else None
+    if kind == "roadmap":
+        stages = [
+            {"title": _line(x.get("title"), 30), "text": _line(x.get("text"), 100)}
+            for x in (raw.get("stages") if isinstance(raw.get("stages"), list) else [])
+            if isinstance(x, dict) and _line(x.get("title"), 30)
+        ][:5]
+        return {"type": kind, "title": title, "stages": stages, "say": say} if len(stages) >= 2 else None
+    return None
+
+
 # "AI service · Your AI team" (motion/src/aiteam.jsx) — an AI-as-a-service told as a
 # team you hire: the work piling up, the AI "workers" each doing a job, one input
 # becoming finished work, you approving with one tap, results, plans, the call to action.
@@ -2757,6 +2860,7 @@ STYLES = {
     "street3d": (STREET_PROMPT, STREET_TYPES, 5, "shops"),
     "illustrated": (ILL_PROMPT, ILL_TYPES, 10, "wide"),
     "aiteam": (AITEAM_PROMPT, AITEAM_TYPES, 6, "crew"),
+    "deck": (DECK_PROMPT, DECK_TYPES, 14, None),
     "clarity": (CLARITY_PROMPT, CLARITY_TYPES, 8, None),
     "countdown": (COUNTDOWN_PROMPT, COUNTDOWN_TYPES, 7, "rank"),
     "thisorthat": (THISORTHAT_PROMPT, THISORTHAT_TYPES, 6, "choice"),
@@ -2774,7 +2878,7 @@ LONG_STYLES = {"training"}
 # The templates laid out for 16:9 too (motion/src/training.jsx, saas.jsx wide scenes);
 # every other template is always vertical. Scenes drawn only for a tall frame are
 # left out of a wide video.
-WIDE_STYLES = {"aiteam", "illustrated", "street3d", "dialogue", "parable", "podcast", "presenter", "neural", "paper", "doodle", "cartoon", "lesson", "rise", "training", "custom", "demo", "offer", "spotlight", "trend", "pov", "showcase", "launch", "unveil", "gridcards", "techflow", "canvas", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
+WIDE_STYLES = {"deck", "aiteam", "illustrated", "street3d", "dialogue", "parable", "podcast", "presenter", "neural", "paper", "doodle", "cartoon", "lesson", "rise", "training", "custom", "demo", "offer", "spotlight", "trend", "pov", "showcase", "launch", "unveil", "gridcards", "techflow", "canvas", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
 TALL_ONLY_TYPES = {"problem", "chat", "product", "point"}
 
 
@@ -2783,6 +2887,8 @@ def final_ratio(asked: str, style: str, suggested: str | None = None) -> str:
     asked for, or the director's suggestion when the Size is Auto."""
     if style not in WIDE_STYLES:
         return "9:16"
+    if style == "deck":  # slides are always wide
+        return "16:9"
     if asked == "16:9":
         return "16:9"
     if asked == "auto":
@@ -3088,6 +3194,10 @@ def _only_story_numbers(scene: dict, story: str, allowed: tuple = ()) -> dict:
         nums = [float(scene.get("value") or 0)]
     elif kind == "tally":
         nums = [float(scene.get("value") or 0), float(scene.get("start") or 0)]
+    elif kind == "bignum":  # Slides: the big number
+        nums = [float(scene.get("value") or 0)]
+    elif kind == "barchart":  # Slides: the bars
+        nums = [float(d.get("value") or 0) for d in scene.get("data") or []]
     elif kind == "gains":  # AI service: the results
         nums = [float(m.get("value") or 0) for m in scene.get("metrics") or []]
     elif kind == "plans":  # AI service: the prices
@@ -3104,6 +3214,9 @@ def _only_story_numbers(scene: dict, story: str, allowed: tuple = ()) -> dict:
         return scene
     if all(n in have for n in nums):
         return scene
+    if kind in ("bignum", "barchart"):  # Slides: the line as one big sentence
+        line = scene.get("label") or scene.get("title") or scene.get("text") or ""
+        return {"type": "statement", "text": line, "sub": "", "say": scene.get("say", "")} if line else scene
     if kind == "plans":  # AI service: the plans without prices
         return {**scene, "tiers": [{**x, "price": ""} for x in scene["tiers"]]}
     if kind == "gains":  # AI service: the line alone
@@ -3330,6 +3443,8 @@ def _clean_one(raw: dict, names: dict[str, str]) -> dict | None:
                 "tone": "bad" if x.get("tone") == "bad" else "good",
             })
         return {"type": kind, "title": _line(raw.get("title"), 60), "people": people, "say": say} if len(people) >= 2 else None
+    if kind in ("agenda", "keypoints", "bignum", "barchart", "twocol", "pullquote", "picture", "roadmap"):  # Slides
+        return _deck_scene(kind, raw, say)
     if kind in ("overload", "crew", "pipeline", "approve", "gains", "plans"):  # AI service · Your AI team
         return _aiteam_scene(kind, raw, say)
     if kind == "wide":  # Illustrated: a wide shot of a place, the main person in it
@@ -4011,6 +4126,14 @@ _TEXT_FIELDS = {
     "remember": (("title", 40), ("text", 120), ("say", 300)),
     "line": (("text", 120), ("say", 300)),
     "shops": (("title", 60), ("say", 300)),
+    "agenda": (("title", 90), ("say", 300)),
+    "keypoints": (("title", 90), ("say", 300)),
+    "bignum": (("label", 80), ("text", 160), ("say", 300)),
+    "barchart": (("title", 90), ("say", 300)),
+    "twocol": (("title", 90), ("say", 300)),
+    "pullquote": (("text", 220), ("author", 40), ("role", 50), ("say", 300)),
+    "picture": (("title", 90), ("text", 200), ("say", 300)),
+    "roadmap": (("title", 90), ("say", 300)),
     "overload": (("text", 120), ("say", 300)),
     "crew": (("text", 120), ("say", 300)),
     "pipeline": (("text", 120), ("say", 300)),
@@ -4411,6 +4534,17 @@ def write_script(
                 slots += [(s["features"], k, 50) for k in range(len(s["features"]))]
             slots += [(n, "text", 90) for n in s.get("notes", [])]
             slots += [(m, "label", 30) for m in s.get("metrics", [])]
+            if s["type"] == "agenda":  # Slides
+                slots += [(s["entries"], k, 70) for k in range(len(s["entries"]))]
+            if s["type"] == "keypoints":
+                slots += [(b, key, n) for b in s["blocks"] for key, n in (("title", 40), ("text", 120)) if b.get(key)]
+            if s["type"] == "barchart":
+                slots += [(d, "label", 24) for d in s["data"]]
+            if s["type"] == "twocol":
+                for c in s["cols"]:
+                    slots += [(c, "label", 34)] + [(c["items"], k, 90) for k in range(len(c["items"]))]
+            if s["type"] == "roadmap":
+                slots += [(st, key, n) for st in s["stages"] for key, n in (("title", 30), ("text", 100)) if st.get(key)]
             if s["type"] == "overload":  # AI service: the to-dos
                 slots += [(s["tasks"], k, 40) for k in range(len(s["tasks"]))]
             if s["type"] == "crew":  # AI service: each worker's role and job
@@ -4660,6 +4794,22 @@ def script_lines(script: dict) -> list[tuple[str, str]]:
                 screen += f" [{s['icon']}]"
             if s.get("guest"):
                 screen += f" + {s['guest']['look']} {s['guest']['name']}".rstrip()
+        elif s["type"] == "agenda":
+            screen = (f"{s['title']}: " if s.get("title") else "") + "; ".join(s["entries"])
+        elif s["type"] == "keypoints":
+            screen = (f"{s['title']}: " if s.get("title") else "") + "; ".join(f"{b['title']} — {b['text']}" for b in s["blocks"])
+        elif s["type"] == "bignum":
+            screen = f"{s.get('prefix', '')}{s['value']}{s.get('suffix', '')} {s['label']}" + (f" — {s['text']}" if s.get("text") else "")
+        elif s["type"] == "barchart":
+            screen = (f"{s['title']}: " if s.get("title") else "") + ", ".join(f"{d['label']} {d['value']}{s.get('suffix', '')}" for d in s["data"])
+        elif s["type"] == "twocol":
+            screen = (f"{s['title']}: " if s.get("title") else "") + " | ".join(f"{c['label']}: " + "; ".join(c["items"]) for c in s["cols"])
+        elif s["type"] == "pullquote":
+            screen = f"“{s['text']}”" + (f" — {s['author']}" if s.get("author") else "")
+        elif s["type"] == "picture":
+            screen = f"(a picture) {s['title']}" + (f" — {s['text']}" if s.get("text") else "")
+        elif s["type"] == "roadmap":
+            screen = (f"{s['title']}: " if s.get("title") else "") + " → ".join(st["title"] for st in s["stages"])
         elif s["type"] == "overload":
             screen = (f"{s['text']}: " if s.get("text") else "") + "; ".join(s["tasks"])
         elif s["type"] == "crew":
@@ -5043,6 +5193,10 @@ def pick_pictures(
                     s["image"] = photo
                 else:
                     s.pop("hero")
+        elif script.get("style") == "deck":  # Slides: a picture slide shows the product's photo, else one painted
+            if s["type"] == "picture" and main:
+                s["image"] = main
+                s.pop("draw", None)
         elif script.get("style") == "aiteam":  # AI service: the product's photo on the post and in the pipeline
             if s["type"] in ("approve", "pipeline") and main:
                 s["image"] = main
@@ -5158,6 +5312,18 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
         if s["type"] == "fanout":
             scene["outputs"] = [{**o, "value": t(o["value"]) if o.get("value") else ""} for o in scene.get("outputs") or []]
             scene["checks"] = [t(c) for c in scene.get("checks") or []]
+        if s["type"] == "agenda":  # Slides · Presentation
+            scene["entries"] = [t(x) for x in scene["entries"]]
+        if s["type"] == "keypoints":
+            scene["blocks"] = [{**b, "title": t(b["title"]), "text": t(b["text"]) if b.get("text") else ""} for b in scene["blocks"]]
+        if s["type"] == "barchart":
+            scene["data"] = [{**d, "label": t(d["label"])} for d in scene["data"]]
+        if s["type"] == "twocol":
+            scene["cols"] = [{"label": t(c["label"]), "items": [t(x) for x in c["items"]]} for c in scene["cols"]]
+        if s["type"] == "roadmap":
+            scene["stages"] = [{"title": t(st["title"]), "text": t(st["text"]) if st.get("text") else ""} for st in scene["stages"]]
+        if s["type"] == "pullquote" and scene.get("role"):
+            scene["role"] = t(scene["role"])
         if s["type"] == "overload":  # AI service · Your AI team
             scene["tasks"] = [t(x) for x in scene["tasks"]]
         if s["type"] == "crew":
@@ -5292,6 +5458,10 @@ def default_seconds(scene: dict) -> float:
         return 4.4
     if kind == "line":  # Dialogue · Two voices — shared.jsx defaultSeconds says the same
         return 3.6
+    if kind in ("agenda", "keypoints", "twocol", "roadmap"):  # Slides — shared.jsx defaultSeconds says the same
+        return 6.5
+    if kind in ("bignum", "barchart", "pullquote", "picture"):
+        return 5.5
     if kind == "overload":  # AI service · Your AI team — shared.jsx defaultSeconds says the same
         return 4.4
     if kind == "crew":
@@ -6324,6 +6494,7 @@ TEMPLATE_GUIDE = {
     "unveil": "unveiling a product or a new feature in a light, elegant way — one big word, the app card coming into focus, a field typing itself, a check with confetti",
     "gridcards": "how a product or service solves an everyday problem — the repetitive work today, then one input becoming several results (a post, a price poster, a caption), clear and friendly",
     "techflow": "explaining HOW a technology works step by step (the internet, email, payments, AI, apps) — devices, data packets travelling, addresses, lookups, the path, a recap",
+    "deck": "a slide deck / presentation (a pitch, a lesson, a report, a training, a plan) — clean slides with a cover, an agenda, key points, big numbers, charts, two columns, quotes, a roadmap and a closing slide, to present or download as a PDF",
     "aiteam": "introducing an AI-as-a-service — an AI product people subscribe to instead of hiring (an AI marketing team, assistant, bookkeeper, support agent): the work piling up, AI workers each doing a job, one input becoming finished work, the owner approving with one tap, results, plans and prices",
     "illustrated": "a calm documentary story of everyday Cambodian life in a muted hand-drawn look — one person through the market, a street of shophouses, a bank, home, the rice fields; close-ups of them with an ATM, a phone, money, a paper; explainers about money, banking, payments, health, work, a service in people's lives",
     "street3d": "a shop or business shown as the full one on its street, in real 3D — two shophouses side by side at dusk, the rival empty with its shutter half down, the brand's lit up with its name on the sign, people walking in, a number counting, customers' messages; for a café, a restaurant, a shop, a service that wants more customers",
@@ -6918,6 +7089,11 @@ def _make(
 
                 r, g, b = brand_rgb(brand)
                 doodling = _start_doodles(script, job, job_id, style=doodle.host_picture_style(f"#{r:02x}{g:02x}{b:02x}"))
+            if script.get("style") == "deck" and any(sc.get("draw") and not sc.get("image") for sc in script["scenes"]):
+                from app import doodle  # Slides: the picture slides, painted in the brand's colour
+
+                r, g, b = brand_rgb(brand)
+                doodling = _start_doodles(script, job, job_id, style=doodle.host_picture_style(f"#{r:02x}{g:02x}{b:02x}"))
             if script.get("style") == "aiteam" and any(sc.get("draw") and not sc.get("image") for sc in script["scenes"]):
                 from app import doodle  # AI service: the post's photo, painted
 
@@ -7282,6 +7458,154 @@ def other_shape(
 # charge); a changed line is voiced again. The result is a NEW Library video —
 # the original stays.
 EDIT_MAX_SCENES = 40
+
+
+# ── Slides · Presentation: the presenter and the PDF ────────────────────────
+_VOICE_FIELDS = ("audio", "voiceWords", "pauses", "voiceSeconds", "seconds", "caption")
+_pdf_making: set[int] = set()  # decks whose PDF is being drawn right now
+
+
+def _deck_source(db: Session, job_id: int, ws: int) -> tuple[GenerationJob, dict]:
+    src = owned(db, GenerationJob, job_id, ws, "Generation job")
+    try:
+        making = json.loads(src.making) if src.making else {}
+    except ValueError:
+        making = {}
+    if src.kind != "motion" or src.status != "succeeded" or making.get("style") != "deck" or not making.get("remake"):
+        raise HTTPException(400, "This isn't a finished slide deck.")
+    return src, making
+
+
+def _linked_props(url: str) -> dict:
+    """The kept props with each stored file as its /media link (the browser loads it) —
+    not embedded, so the presenter's page stays light."""
+    raw = read_media(url)
+    if raw is None:
+        raise RuntimeError("This deck's slides are no longer stored.")
+
+    def swap(value):
+        if isinstance(value, str) and value.startswith("blob:data:") and "|" in value:
+            return value.split("|", 1)[1]
+        if isinstance(value, dict):
+            return {k: swap(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [swap(v) for v in value]
+        return value
+
+    return swap(json.loads(raw))
+
+
+def is_deck(job: GenerationJob) -> bool:
+    """For the Library: a finished slide deck (it can be presented and downloaded as a PDF)."""
+    return job.kind == "motion" and job.status == "succeeded" and '"style": "deck"' in (job.making or "")
+
+
+@router.get("/deck/{job_id}")
+def deck_view(job_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    """The slides, for the presenter (pages/PresentPage.jsx) — and its PDF when made."""
+    src, making = _deck_source(db, job_id, ws)
+    try:
+        props = _linked_props(making["remake"])
+    except (RuntimeError, ValueError) as exc:
+        log.warning("deck %s: %s", job_id, exc)
+        raise HTTPException(400, "This deck's slides can't be opened any more — make it again.") from None
+    video = db.get(Video, src.video_id) if src.video_id else None
+    slides = [{k: v for k, v in s.items() if k not in _VOICE_FIELDS} for s in props.get("scenes") or []]
+    return {
+        "id": src.id,
+        "title": (Path(video.filename).stem if video and video.filename else "") or "Slides",
+        "brand": props.get("brand") or {},
+        "slides": slides,
+        "video": video.url if video else "",
+        "pdf": making.get("pdf") or "",
+        "pdf_making": src.id in _pdf_making,
+    }
+
+
+@router.post("/deck/{job_id}/pdf")
+def deck_pdf(job_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    """The deck as a PDF, one page a slide: made once (in the background — the page
+    polls GET /deck/{id}), then kept. No AI, no credits."""
+    src, making = _deck_source(db, job_id, ws)
+    if making.get("pdf"):
+        return {"pdf": making["pdf"]}
+    reason = not_ready()
+    if reason:
+        log.warning("deck pdf: motion not ready: %s", reason)
+        raise HTTPException(503, "Downloading slides isn't available on this server right now — try again later.")
+    if src.id not in _pdf_making:
+        _pdf_making.add(src.id)
+        threading.Thread(target=_make_pdf, args=(src.id,), daemon=True, name=f"deck-pdf-{src.id}").start()
+    return {"pdf": "", "making": True}
+
+
+@router.post("/read-doc")
+def read_document(file: UploadFile = File(...), ws: int = Depends(current_workspace_id)):
+    """A document (PDF, Word, PowerPoint, text) as text for the Studio's prompt box —
+    Slides are then made from it like from a pasted text. No AI, no credits."""
+    from app import docread
+
+    data = file.file.read(docread.MAX_BYTES + 1)
+    try:
+        got = docread.read(file.filename or "", data)
+    except docread.DocError as exc:
+        raise HTTPException(422, str(exc)) from None
+    except Exception:  # noqa: BLE001 — a file the readers choke on
+        log.exception("read-doc: %s couldn't be read", file.filename)
+        raise HTTPException(422, "This file couldn't be read — paste its text instead.") from None
+    return {**got, "name": file.filename or ""}
+
+
+def deck_pages(props: dict) -> bytes:
+    """Every slide at rest (the DeckPages composition) → one PDF, a page a slide."""
+    reason = not_ready()
+    if reason:
+        raise RuntimeError(reason)
+    with _render_lock, tempfile.TemporaryDirectory() as tmp:
+        entry, public = _entry()
+        rel = f"run-{uuid.uuid4().hex[:12]}"
+        assets = public / rel
+        assets.mkdir(parents=True)
+        try:
+            pages = {"brand": props.get("brand") or {}, "scenes": props.get("scenes") or []}
+            props_path = Path(tmp) / "props.json"
+            props_path.write_text(json.dumps(_to_files(pages, assets, rel), ensure_ascii=False), encoding="utf-8")
+            out = Path(tmp) / "pages"
+            run = subprocess.run(
+                [_npx(), "remotion", "render", entry, "DeckPages", str(out), f"--props={props_path}", "--sequence", "--image-format=jpeg", "--jpeg-quality=90", "--concurrency=100%"],
+                cwd=MOTION_DIR, capture_output=True, text=True, errors="replace", timeout=600,
+            )
+            files = sorted(out.glob("*.jpeg"), key=lambda p: int(re.sub(r"\D", "", p.stem) or 0)) if out.exists() else []
+            if run.returncode != 0 or not files:
+                log.error("deck pages failed: %s", (run.stdout + run.stderr)[-1500:])
+                raise RuntimeError("The slides couldn't be drawn — try again.")
+            images = [Image.open(f).convert("RGB") for f in files]
+            buf = io.BytesIO()
+            images[0].save(buf, "PDF", save_all=True, append_images=images[1:], resolution=144)
+            return buf.getvalue()
+        finally:
+            shutil.rmtree(assets, ignore_errors=True)
+
+
+def _make_pdf(job_id: int) -> None:
+    db = SessionLocal()
+    try:
+        src = db.get(GenerationJob, job_id)
+        making = json.loads(src.making)
+        props = _kept_props(making["remake"])
+        db.rollback()  # no transaction held open through the drawing
+        blob = deck_pages(props)
+        src = db.get(GenerationJob, job_id)
+        making = json.loads(src.making)
+        making["pdf"] = store_blob(db, blob, ".pdf", "application/pdf")
+        src.making = json.dumps(making, ensure_ascii=False)
+        db.commit()
+    except Exception:  # noqa: BLE001 — the page stops waiting and offers it again
+        log.exception("deck %s: PDF failed", job_id)
+        db.rollback()
+    finally:
+        _pdf_making.discard(job_id)
+        db.close()
 
 
 def _editable_text(value: str) -> str:
