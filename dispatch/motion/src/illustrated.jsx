@@ -503,7 +503,7 @@ function Wide({ scene, brand, cast }) {
         }}
       </Panorama>
       {scene.title && (
-        <Card top={(wide ? 60 : 160) * u} width={W * (wide ? 0.5 : 0.8)} center={!wide}>
+        <Card top={(wide ? 110 : 240) * u} width={W * (wide ? 0.5 : 0.8)} center={!wide}>
           <Pop text={scene.title} size={(wide ? 54 : 62) * u} width={W * (wide ? 0.44 : 0.72)} color={INK} accent={P.rust} delay={(CARD_AT + 6) / 30} />
         </Card>
       )}
@@ -605,10 +605,10 @@ function Closeup({ scene, brand, cast }) {
       <Panorama place={scene.place || 'street'} time={scene.time} brand={brand} crowd={2} blur={6 * u} pan={[0.3, 0.36]} />
       <AbsoluteFill style={{ transform: `scale(${push})`, transformOrigin: '30% 80%' }}>
         <Thing kind={scene.object} brand={brand} x={wide ? W * 0.55 : W * 0.5} y={wide ? H * 0.12 : H * 0.3} size={wide ? 520 * u : 500 * u} />
-        <Bust p={p} x={wide ? W * 0.08 : -60 * u} y={wide ? H - bust * 0.95 : H * 0.5} size={bust} />
+        <Bust p={p} x={wide ? W * 0.08 : -60 * u} y={wide ? H - bust * 0.95 : H * 0.5 - 250 * u} size={bust} />
       </AbsoluteFill>
       {scene.text && (
-        <Card top={(wide ? 60 : 170) * u} width={W * (wide ? 0.46 : 0.8)} center={!wide} delay={CARD_AT + 10}>
+        <Card top={(wide ? 110 : 240) * u} width={W * (wide ? 0.46 : 0.8)} center={!wide} delay={CARD_AT + 10}>
           <Pop text={scene.text} size={(wide ? 54 : 60) * u} width={W * (wide ? 0.4 : 0.72)} color={INK} accent={P.rust} delay={(CARD_AT + 14) / 30} />
         </Card>
       )}
