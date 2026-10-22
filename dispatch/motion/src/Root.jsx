@@ -1,6 +1,7 @@
 import { Composition } from 'remotion'
 import { MotionPost, FPS, TRANSITION, sceneFrames } from './MotionPost'
 import { Tutorial, TutorialThumb, tutorialLength } from './tutorial'
+import { Timeline, EDIT_FPS, EDIT_SIZES, timelineFrames } from './timeline'
 import sample from '../sample.json'
 
 /** The motion post (vertical, or wide for some templates), and the app's own
@@ -40,6 +41,20 @@ export const Root = () => (
       // props.ratio "16:9" = a wide 1920×1080 video (the Training template); else vertical
       const wide = props.ratio === '16:9'
       return { durationInFrames: total - TRANSITION * (props.scenes.length - 1), width: wide ? 1920 : 1080, height: wide ? 1080 : 1920 }
+    }}
+  />
+  {/* the video editor's export (timeline.jsx; app/editor.py) */}
+  <Composition
+    id="Timeline"
+    component={Timeline}
+    width={1080}
+    height={1920}
+    fps={EDIT_FPS}
+    durationInFrames={30}
+    defaultProps={{ ratio: '9:16', tracks: [], clips: [] }}
+    calculateMetadata={({ props }) => {
+      const [width, height] = EDIT_SIZES[props.ratio] || EDIT_SIZES['9:16']
+      return { durationInFrames: timelineFrames(props), width, height }
     }}
   />
   </>

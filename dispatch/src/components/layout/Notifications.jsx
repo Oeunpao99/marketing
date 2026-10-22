@@ -1,11 +1,61 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import { FiX } from "react-icons/fi";
+import { FiCheck, FiShield, FiX } from "react-icons/fi";
 import { useStore } from "../../store";
 import { useNotifications } from "../../lib/notifications";
 import { claimCredits } from "../../lib/credits";
+import { confirmDevice, signOutDevice } from "../../lib/securityAlerts";
 import CreditCoin from "./CreditCoin";
+
+/** "New device signed in — was this you?": keep it, or sign it out right here. */
+function DeviceCard({ item }) {
+  const [busy, setBusy] = useState("");
+  const [error, setError] = useState("");
+  const act = async (kind) => {
+    setBusy(kind);
+    setError("");
+    try {
+      await (kind === "yes" ? confirmDevice(item.session) : signOutDevice(item.session));
+    } catch (e) {
+      setError(e.message || "Couldn’t do that just now — try again.");
+      setBusy("");
+    }
+  };
+  return (
+    <div className="m-1 rounded-xl border border-red-200 bg-red-50 p-3">
+      <div className="flex items-start gap-3">
+        <span className="grid h-8 w-8 flex-none place-items-center rounded-lg bg-white text-red-600">
+          <FiShield size={16} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[12.5px] font-semibold text-ink-900">{item.title}</span>
+          <span className="mt-0.5 block text-[11px] text-ink-600">{item.body}</span>
+          <span className="mt-1 block text-[11px] font-semibold text-red-700">Was this you?</span>
+        </span>
+      </div>
+      <div className="mt-2.5 flex gap-2">
+        <button
+          type="button"
+          onClick={() => act("yes")}
+          disabled={!!busy}
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-ink-200 bg-white py-2 text-[12px] font-semibold text-ink-800 hover:border-ink-300 disabled:opacity-60"
+        >
+          <FiCheck size={13} /> {busy === "yes" ? "Saving…" : "Yes, it was me"}
+        </button>
+        <button
+          type="button"
+          onClick={() => act("no")}
+          disabled={!!busy}
+          className="flex-1 rounded-lg bg-red-600 py-2 text-[12px] font-bold text-white hover:bg-red-700 disabled:opacity-60"
+        >
+          {busy === "no" ? "Signing out…" : "No, sign it out"}
+        </button>
+      </div>
+      {error && <div className="mt-1.5 text-[11px] text-red-600">{error}</div>}
+    </div>
+  );
+}
 
 /**
  * Notifications — a bell dropdown for threads needing attention.
@@ -101,7 +151,9 @@ export default function Notifications({ open, onClose, anchor = "header" }) {
           ) : (
             <div className="max-h-[min(58vh,420px)] overflow-y-auto p-1.5">
               {items.map((item) =>
-                item.action === "claim" ? (
+                item.action === "device" ? (
+                  <DeviceCard key={item.id} item={item} />
+                ) : item.action === "claim" ? (
                   // the monthly credits: claimed right here, not a link
                   <div key={item.id} className="m-1 rounded-xl border border-brand/30 bg-brand-soft p-3">
                     <div className="flex items-start gap-3">

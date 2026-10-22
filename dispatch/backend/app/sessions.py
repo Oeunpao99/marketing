@@ -98,14 +98,30 @@ def _locate(sid: str, ip: str) -> None:
 
 
 # ── recording ─────────────────────────────────────────────────────────────
-def _create(sid: str, user: TeamMember, ip: str, ua: str) -> None:
+def _is_new_device(db: Session, user_id: int, ua: str) -> bool:
+    """A browser + system this person has never signed in with — and not their
+    very first sign-in (nothing to compare with yet)."""
+    seen = db.scalars(
+        select(UserSession.user_agent).where(UserSession.user_id == user_id).order_by(UserSession.created_at.desc()).limit(300)
+    ).all()
+    if not seen:
+        return False
+    here = _device(ua)
+    return all(_device(u) != here for u in seen)
+
+
+def _create(sid: str, user: TeamMember, ip: str, ua: str, fresh: bool = False) -> None:
+    """Record a session. ``fresh``: a real sign-in just now (not an old token
+    seen for the first time) — then a new device is flagged and its owner told."""
     db = SessionLocal()
+    new_device = False
     try:
         now = datetime.now(UTC)
+        new_device = fresh and _is_new_device(db, user.id, ua)
         db.add(
             UserSession(
                 id=sid, user_id=user.id, workspace_id=user.workspace_id,
-                created_at=now, last_seen_at=now, ip=ip, user_agent=ua,
+                created_at=now, last_seen_at=now, ip=ip, user_agent=ua, new_device=new_device,
             )
         )
         db.commit()
@@ -115,12 +131,20 @@ def _create(sid: str, user: TeamMember, ip: str, ua: str) -> None:
     finally:
         db.close()
     threading.Thread(target=_locate, args=(sid, ip), daemon=True, name="session-locate").start()
+    if new_device:
+        from app.push import notify_user
+
+        notify_user(
+            user.id, "security", "New device signed in to your account",
+            f"{_device(ua)} just signed in. Was this you? If not, sign it out now.",
+            "/?alerts=security", f"device-{sid[:12]}",
+        )
 
 
 def start(token: str, user: TeamMember, request: Request) -> None:
-    """A fresh login / sign-up: record its session."""
+    """A fresh login / sign-up: record its session (and flag a new device)."""
     ip, ua = _client(request)
-    _create(session_id(token), user, ip, ua)
+    _create(session_id(token), user, ip, ua, fresh=True)
 
 
 def touch(db: Session, token: str, user: TeamMember, request: Request) -> None:
@@ -200,6 +224,42 @@ def list_sessions(request: Request, db: Session = Depends(get_db), user: TeamMem
     ]
     out.sort(key=lambda r: not r["current"])  # this device first
     return out
+
+
+@router.get("/security/alerts")
+def security_alerts(request: Request, db: Session = Depends(get_db), user: TeamMember = Depends(get_current_user)):
+    """New devices that signed in to your account and still wait for "Was this
+    you?" — for the bell. Not this device, not one already signed out."""
+    here = session_id(_token(request))
+    oldest = datetime.now(UTC) - min(timedelta(days=14), timedelta(hours=get_settings().token_ttl_hours))
+    rows = db.scalars(
+        select(UserSession)
+        .where(
+            UserSession.user_id == user.id,
+            UserSession.new_device.is_(True),
+            UserSession.confirmed_at.is_(None),
+            UserSession.revoked_at.is_(None),
+            UserSession.created_at >= oldest,
+            UserSession.id != here,
+        )
+        .order_by(UserSession.created_at.desc())
+        .limit(10)
+    ).all()
+    return [
+        {"id": r.id, "device": _device(r.user_agent), "location": r.location or "Unknown place", "ip": r.ip, "created_at": r.created_at}
+        for r in rows
+    ]
+
+
+@router.post("/security/sessions/{sid}/confirm", status_code=204)
+def confirm_session(sid: str, db: Session = Depends(get_db), user: TeamMember = Depends(get_current_user)):
+    """ "Yes, it was me" — the alert goes away; the device stays signed in."""
+    row = db.get(UserSession, sid)
+    if row is None or row.user_id != user.id:
+        raise HTTPException(404, "Session not found.")
+    if row.confirmed_at is None:
+        row.confirmed_at = datetime.now(UTC)
+        db.commit()
 
 
 @router.delete("/security/sessions/{sid}", status_code=204)

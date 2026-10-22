@@ -18,6 +18,7 @@ import JoinPage from "./pages/JoinPage";
 import LegalPage from "./pages/LegalPage";
 import LibraryPage from "./pages/LibraryPage";
 import VideoEditPage from './pages/VideoEditPage'
+import EditorPage from './pages/EditorPage'
 import LoginPage from "./pages/LoginPage";
 import LandingPage from "./pages/LandingPage";
 import NewPostPage from "./pages/NewPostPage";
@@ -93,6 +94,8 @@ function Portal() {
             <Route path="/ai" element={<ContentStudioPage />} />
             <Route path="/library" element={<LibraryPage />} />
             <Route path="/library/edit/:id" element={<VideoEditPage />} />
+            <Route path="/editor" element={<EditorPage />} />
+            <Route path="/editor/:id" element={<EditorPage />} />
             <Route path="/insights" element={<InsightsPage />} />
             <Route path="/insights/:targetId" element={<InsightsPostPage />} />
             <Route path="/post/:index" element={<PostDetailPage />} />

@@ -9,6 +9,7 @@ import {
   FiDownload,
   FiEdit2,
   FiEdit3,
+  FiScissors,
   FiFilter,
   FiFolder,
   FiFolderPlus,
@@ -1466,6 +1467,16 @@ function DetailPanel({ it, busy, folders, onClose, onUse, onDelete, onRewrite, o
             {it.editable && (
               <button type="button" onClick={() => navigate(`/library/edit/${it.id}`)} title="Change the words, the voice lines, the order and the sound — saved as a new video" className="btn-outline">
                 <FiEdit3 size={13} /> Edit video
+              </button>
+            )}
+            {it.kind !== 'image' && (
+              <button
+                type="button"
+                onClick={() => navigate(`/editor?${new URLSearchParams({ src: it.url, name: it.filename || 'Library video', ratio: it.aspect_ratio || '9:16', kind: 'video' })}`)}
+                title="Open it on the video editor's timeline — cut, trim, add music and words"
+                className="btn-outline"
+              >
+                <FiScissors size={13} /> Open in editor
               </button>
             )}
             {it.kind !== 'image' && (

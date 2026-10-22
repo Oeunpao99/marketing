@@ -10,6 +10,7 @@ import {
   FiPackage,
   FiPlayCircle,
   FiRepeat,
+  FiScissors,
   FiSliders,
   FiUserCheck,
 } from 'react-icons/fi'
@@ -40,6 +41,7 @@ export const BOSS = [
     sub: [
       { to: '/ai', icon: FiFilm, label: 'Studio' },
       { to: '/library', icon: FiImage, label: 'Media Library', badge: 'library' },
+      { to: '/editor', icon: FiScissors, label: 'Video editor' },
     ],
   },
   { to: '/leads', icon: FiUserCheck, label: 'Leads & hand-off', badge: 'leads' },

@@ -24,6 +24,7 @@ from app.models import (
     Channel,
     CreditEntry,
     Draft,
+    EditProject,
     GenerationJob,
     Lead,
     LeadAccount,
@@ -93,7 +94,8 @@ def scope(model, ws: int):
     if model is Platform:
         return None
     if model in (
-        Brand, Video, GenerationJob, TeamMember, VideoStory, CreditEntry, Website, SalesRep, LeadAccount, LibraryFolder
+        Brand, Video, GenerationJob, TeamMember, VideoStory, CreditEntry, Website, SalesRep, LeadAccount, LibraryFolder,
+        EditProject,
     ):
         return model.workspace_id == ws
     if model in (Channel, Post, Draft, Automation, Product, WeeklyPlan, BrandAsset, ActivityPlan, Lead):

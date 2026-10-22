@@ -48,6 +48,10 @@ export default function Topbar({ onToggleSidebar }) {
     updatePrefs?.({ theme: next }).catch(() => {});
   };
   const [notifOpen, setNotifOpen] = useState(false);
+  // a "new device signed in" push opens the app at /?alerts=security — open the bell
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("alerts") === "security") setNotifOpen(true);
+  }, []);
 
   // The mobile "More" sheet opens the inbox through this event.
   useEffect(() => {

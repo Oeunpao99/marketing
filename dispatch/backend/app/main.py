@@ -18,6 +18,7 @@ from app.story import router as story_router
 from app.chats import router as chats_router
 from app.config import get_settings
 from app.crud_router import build_router
+from app.editor import router as editor_router
 from app.media import router as media_router
 from app.media import serve_router as media_serve_router
 from app.push import router as push_router
@@ -150,6 +151,7 @@ api.include_router(video_gen_router, dependencies=authed)
 api.include_router(motion_router, dependencies=authed)
 api.include_router(gemini_keys_router, dependencies=authed)
 api.include_router(media_router, dependencies=authed)
+api.include_router(editor_router, dependencies=authed)
 api.include_router(brand_kit_router, dependencies=authed)
 api.include_router(brand_voice_router, dependencies=authed)
 api.include_router(views_router, dependencies=authed)

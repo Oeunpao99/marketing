@@ -269,6 +269,26 @@ class LibraryFolder(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(80))
 
 
+class EditProject(Base, TimestampMixin):
+    """A video editor project (Content studio → Video editor, app/editor.py):
+    the timeline — tracks and clips, as JSON (motion/src/timeline.jsx) —
+    saved as people edit. Exporting it renders a new Library video."""
+
+    __tablename__ = "edit_projects"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
+    brand_id: Mapped[int | None] = mapped_column(ForeignKey("brands.id", ondelete="SET NULL"), nullable=True, index=True)
+    name: Mapped[str] = mapped_column(String(120), default="Untitled video")
+    ratio: Mapped[str] = mapped_column(String(8), default="9:16")
+    data: Mapped[str] = mapped_column(Text, default="", server_default="")
+    seconds: Mapped[float] = mapped_column(Numeric(8, 2), default=0)
+    # a picture for the project list: the first picture / video clip's url
+    cover: Mapped[str] = mapped_column(String(500), default="", server_default="")
+    # the last export, in the Library
+    video_id: Mapped[int | None] = mapped_column(ForeignKey("videos.id", ondelete="SET NULL"), nullable=True)
+
+
 class MediaBlob(Base, TimestampMixin):
     """The raw bytes behind a ``/media/<name>`` url.
 
@@ -633,6 +653,10 @@ class UserSession(Base):
     # "Phnom Penh, Phnom Penh, KH" — looked up once from the IP (ipwho.is).
     location: Mapped[str] = mapped_column(String(160), default="", server_default="")
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # a sign-in from a device this person hadn't used before — the bell asks
+    # "Was this you?" until they answer (confirmed_at) or sign it out
+    new_device: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class LoginEvent(Base):

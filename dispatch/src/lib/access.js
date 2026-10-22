@@ -16,6 +16,7 @@ const PAGE_FEATURE = [
   ['/weekly', 'weekly'],
   ['/auto', 'auto'],
   ['/library', 'library'],
+  ['/editor', 'library'], // the video editor
   ['/products', 'products'],
   ['/insights', 'insights'],
   ['/website', 'website'],

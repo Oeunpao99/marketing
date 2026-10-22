@@ -515,3 +515,52 @@ html.dark .cf-halo { background-color: rgb(var(--brand) / .45); }
 @media (prefers-reduced-motion: reduce) {
   .cf-dash, .cf-dash-v { animation: none; }
 }
+
+/* ————— video editor sliders (components/editor) — slim, like CapCut ————— */
+.edit-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 14px;
+  background: transparent;
+  cursor: pointer;
+}
+.edit-range::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 9999px;
+  /* --pct: how far the knob is (set by the component) — the part before it in the brand colour */
+  background: linear-gradient(to right, rgb(var(--brand)) 0 var(--pct, 0%), rgb(var(--ink-200)) var(--pct, 0%));
+}
+.edit-range::-moz-range-track {
+  height: 3px;
+  border-radius: 9999px;
+  background: rgb(var(--ink-200));
+}
+.edit-range::-moz-range-progress {
+  height: 3px;
+  border-radius: 9999px;
+  background: rgb(var(--brand));
+}
+.edit-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  margin-top: -4.5px;
+  border-radius: 9999px;
+  background: rgb(var(--brand));
+  border: 2px solid rgb(var(--surface));
+  box-shadow: 0 0 0 1px rgb(var(--brand) / 0.35);
+}
+.edit-range::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border-radius: 9999px;
+  background: rgb(var(--brand));
+  border: 2px solid rgb(var(--surface));
+}
+.edit-range:focus-visible {
+  outline: none;
+}
+.edit-range:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px rgb(var(--brand) / 0.3);
+}

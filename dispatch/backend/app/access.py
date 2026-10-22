@@ -46,6 +46,7 @@ RULES: list[tuple[str, set[str] | None, re.Pattern[str]]] = [
     ("auto", _W, re.compile(r"^/automations(/|$)")),
     ("library", None, re.compile(r"^/views/(library|media/)")),
     ("library", _W, re.compile(r"^/(videos|generation-jobs)(/|$)")),
+    ("library", None, re.compile(r"^/editor(/|$)")),  # the video editor (app/editor.py)
     ("products", _W, re.compile(r"^/(products|brand-kit)(/|$)")),
     ("channels", _W, re.compile(r"^/views/channels(/|$)")),
     ("channels", None, re.compile(r"^/views/oauth/")),

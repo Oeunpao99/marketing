@@ -5693,10 +5693,76 @@ def _entry() -> tuple[str, Path]:
     return "src/index.jsx", MOTION_DIR / "public"
 
 
-def render(props: dict, job_id: int | None = None, preview: bool = False) -> bytes:
+_VIDEO_SUFFIXES = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi", ".3gp"}
+
+
+def _even_video(data: bytes, out: Path) -> None:
+    """A video as the render reads it best: H.264 at a steady 30 fps, no
+    B-frames, no MP4 edit list, at most 1920 px on its long side. Phones send
+    HEVC, variable frame rates and edit lists, and the render's frame reader
+    then fails ("No frame found at position …") when it draws in parallel."""
+    from app.story import _ffmpeg
+
+    with tempfile.NamedTemporaryFile(suffix=".bin", delete=False) as src:
+        src.write(data)
+    try:
+        run = subprocess.run(
+            [
+                _ffmpeg(), "-hide_banner", "-loglevel", "error", "-y", "-i", src.name,
+                "-vf", "fps=30,scale='if(gte(iw,ih),min(1920,iw),-2)':'if(gte(iw,ih),-2,min(1920,ih))'",
+                "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-g", "30", "-bf", "0",
+                "-c:a", "aac", "-ar", "48000", "-ac", "2", "-use_editlist", "0", "-movflags", "+faststart", str(out),
+            ],
+            capture_output=True, text=True, errors="replace", timeout=900,
+        )
+        if run.returncode != 0 or not out.exists():
+            log.error("editor: a video couldn't be prepared: %s", run.stderr[-800:])
+            raise RuntimeError("A video in the timeline couldn't be read — try importing it again.")
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("A video in the timeline is too long to prepare — cut it shorter and try again.") from None
+    finally:
+        Path(src.name).unlink(missing_ok=True)
+
+
+def _media_to_files(props: dict, folder: Path, rel: str) -> dict:
+    """``props`` with every stored file ("/media/<name>" — the video editor's
+    clips) copied to ``folder`` and swapped for its path under public/: the
+    render's own little server can't reach the app's /media."""
+    from app.media import read_media
+
+    kept: dict[str, str] = {}
+
+    def swap(value):
+        if isinstance(value, str) and value.startswith("/media/"):
+            if value not in kept:
+                data = read_media(value)
+                if data is None:
+                    raise RuntimeError("A file in the video was deleted — remove it from the timeline and try again.")
+                suffix = Path(value).suffix.lower()[:8]
+                name = f"m{len(kept) + 1}"
+                if suffix in _VIDEO_SUFFIXES:
+                    name += ".mp4"
+                    _even_video(data, folder / name)
+                else:
+                    name += suffix
+                    (folder / name).write_bytes(data)
+                kept[value] = f"{rel}/{name}"
+            return kept[value]
+        if isinstance(value, dict):
+            return {k: swap(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [swap(v) for v in value]
+        return value
+
+    return swap(props)
+
+
+def render(props: dict, job_id: int | None = None, preview: bool = False, composition: str = "MotionPost", seconds: float | None = None) -> bytes:
     """The MP4 for ``props`` — Remotion, run as a subprocess. Raises
     RuntimeError, or Stopped when the person pressed Stop. ``preview``: small
-    and silent, for AI design's self-check (review_design) — quick."""
+    and silent, for AI design's self-check (review_design) — quick.
+    ``composition`` "Timeline" = the video editor's export (its ``seconds``
+    long; its clips' stored files are copied in for the render)."""
     reason = not_ready()
     if reason:
         raise RuntimeError(reason)
@@ -5709,10 +5775,13 @@ def render(props: dict, job_id: int | None = None, preview: bool = False) -> byt
         try:
             props_path = Path(tmp) / "props.json"
             out = Path(tmp) / "motion.mp4"
-            props_path.write_text(json.dumps(_to_files(props, assets, rel), ensure_ascii=False), encoding="utf-8")
+            files = _to_files(props, assets, rel)
+            if composition == "Timeline":
+                files = _media_to_files(files, assets, rel)
+            props_path.write_text(json.dumps(files, ensure_ascii=False), encoding="utf-8")
             proc = subprocess.Popen(
                 [
-                    _npx(), "remotion", "render", entry, "MotionPost", str(out), f"--props={props_path}",
+                    _npx(), "remotion", "render", entry, composition, str(out), f"--props={props_path}",
                     # every core draws frames (the default is half — one at a time on a 2-core server)
                     # all cores Remotion is allowed (containers too); the default log
                     # level prints "Rendered 120/900" lines — the page's progress
@@ -5748,7 +5817,7 @@ def render(props: dict, job_id: int | None = None, preview: bool = False) -> byt
             reader = threading.Thread(target=follow, daemon=True)
             reader.start()
             try:
-                proc.wait(timeout=900 + 2 * length_of(props))  # a 10-minute training renders for a while
+                proc.wait(timeout=900 + 2 * (seconds if seconds is not None else length_of(props)))  # a 10-minute training renders for a while
             except subprocess.TimeoutExpired:
                 _kill_tree(proc)
                 proc.wait()

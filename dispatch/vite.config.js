@@ -21,6 +21,10 @@ const versionFile = {
 
 export default defineConfig({
   plugins: [react(), versionFile],
+  // The video editor plays motion/src/timeline.jsx in the page — that file
+  // must use the app's own React and Remotion (motion/ has its own copies,
+  // and two Reacts / two Remotions on one page break).
+  resolve: { dedupe: ['react', 'react-dom', 'remotion'] },
   define: {
     __APP_VERSION__: JSON.stringify(APP_VERSION),
   },
