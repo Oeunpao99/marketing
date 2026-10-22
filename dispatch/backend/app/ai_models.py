@@ -17,6 +17,7 @@ endpoint, through GEMINI_BASE_URL when set — app/config.py gemini_url).
 from __future__ import annotations
 
 import json
+import logging
 import re
 import threading
 import time
@@ -158,6 +159,16 @@ def choose(fallback: str) -> str:
 
 # ── the calls ─────────────────────────────────────────────────────────────
 _JSON = "\n\nReply with ONLY the JSON object — no markdown, no words before or after it."
+log = logging.getLogger("app.ai_models")
+# what the person sees (the reason goes to the log — never a provider's raw error)
+TRY_AGAIN = "The AI's answer came out incomplete — please try again."
+BUSY = "The AI is busy right now — please try again in a minute."
+UNAVAILABLE = "The AI service had a problem — please try again in a minute."
+_RETRY_TOKENS = 32000  # a cut-off answer is asked again with this much room
+
+
+class _Retry(Exception):
+    """The answer was cut off (out of room) or isn't JSON we can read — ask once more."""
 _claude_client = None
 
 
@@ -172,24 +183,41 @@ def _claude():
 
 
 def _json_from(text: str) -> dict:
+    """The JSON object in a reply — forgiving the slips models make in long answers: a
+    code fence round it, real line breaks inside a string, a comma before } or ].
+    Raises _Retry when there's still nothing readable."""
     m = re.search(r"\{[\s\S]*\}", text or "")
     if not m:
-        raise ModelError("The AI didn't return JSON.")
-    try:
-        return json.loads(m[0])
-    except ValueError as exc:
-        raise ModelError("The AI returned broken JSON.") from exc
+        log.warning("ai_models: no JSON in the reply (%s chars): %r", len(text or ""), (text or "")[-300:])
+        raise _Retry("no JSON")
+    raw = m[0]
+    for candidate in (raw, re.sub(r",\s*([}\]])", r"\1", raw)):
+        try:
+            out = json.loads(candidate, strict=False)  # strict=False: line breaks inside strings are fine
+        except ValueError:
+            continue
+        if isinstance(out, dict):
+            return out
+    log.warning("ai_models: unreadable JSON (%s chars), ends: %r", len(raw), raw[-300:])
+    raise _Retry("broken JSON")
 
 
 def complete(messages: list[dict], model: str, max_tokens: int, effort: str = "") -> tuple[dict, dict]:
     """A JSON reply from a non-Azure-OpenAI catalog model: (the parsed object,
     usage {"input_tokens", "output_tokens"}). Raises ModelError."""
     provider = CATALOG[model]["provider"]
-    if provider == "azure_claude":
-        return _complete_claude(messages, model, max_tokens, effort)
-    if provider == "gemini":
-        return _complete_gemini(messages, model, max_tokens, effort)
-    raise ModelError(f"{model} isn't called this way")
+    call = _complete_claude if provider == "azure_claude" else _complete_gemini if provider == "gemini" else None
+    if call is None:
+        raise ModelError(f"{model} isn't called this way")
+    try:
+        return call(messages, model, max_tokens, effort)
+    except _Retry as why:
+        log.warning("ai_models: %s — %s; asking once more with more room", model, why)
+    try:
+        return call(messages, model, max(max_tokens, _RETRY_TOKENS), effort)
+    except _Retry as why:
+        log.error("ai_models: %s — %s again; gave up", model, why)
+        raise ModelError(TRY_AGAIN) from None
 
 
 def _complete_claude(messages: list[dict], model: str, max_tokens: int, effort: str) -> tuple[dict, dict]:
@@ -208,13 +236,18 @@ def _complete_claude(messages: list[dict], model: str, max_tokens: int, effort: 
         ) as stream:
             msg = stream.get_final_message()
     except anthropic.RateLimitError as exc:
-        raise ModelError("Claude is busy — try again in a minute.") from exc
+        log.warning("ai_models: Claude rate-limited: %s", str(exc)[:300])
+        raise ModelError(BUSY) from exc
     except anthropic.APIStatusError as exc:
-        raise ModelError(f"Claude said {exc.status_code}: {str(exc)[:200]}") from exc
+        log.error("ai_models: Claude said %s: %s", exc.status_code, str(exc)[:300])
+        raise ModelError(UNAVAILABLE) from exc
     except anthropic.APIConnectionError as exc:
-        raise ModelError(f"Could not reach Claude: {exc}") from exc
+        log.error("ai_models: could not reach Claude: %s", exc)
+        raise ModelError(UNAVAILABLE) from exc
     if msg.stop_reason == "refusal":
-        raise ModelError("Claude declined this request.")
+        raise ModelError("The AI declined this request — try wording it differently.")
+    if msg.stop_reason == "max_tokens":  # ran out of room mid-answer: the JSON is cut off
+        raise _Retry(f"cut off at {max(max_tokens, 16000)} tokens")
     text = next((b.text for b in msg.content if b.type == "text"), "")
     return _json_from(text), {"input_tokens": msg.usage.input_tokens, "output_tokens": msg.usage.output_tokens}
 
@@ -222,6 +255,8 @@ def _complete_claude(messages: list[dict], model: str, max_tokens: int, effort: 
 def _complete_gemini(messages: list[dict], model: str, max_tokens: int, effort: str) -> tuple[dict, dict]:
     s = get_settings()
     body = {"model": model, "messages": messages, "response_format": {"type": "json_object"}}
+    if max_tokens >= _RETRY_TOKENS:  # the second try, after a cut-off answer: more room
+        body["max_tokens"] = max_tokens
     if effort in ("low", "medium", "high"):
         body["reasoning_effort"] = effort
     try:
@@ -232,12 +267,18 @@ def _complete_gemini(messages: list[dict], model: str, max_tokens: int, effort: 
             timeout=300.0,
         )
     except httpx.HTTPError as exc:
-        raise ModelError(f"Could not reach Gemini: {exc}") from exc
+        log.error("ai_models: could not reach Gemini: %s", exc)
+        raise ModelError(UNAVAILABLE) from exc
     if resp.status_code == 429:
-        raise ModelError("Gemini is busy or its daily limit is used up — try again later.")
+        log.warning("ai_models: Gemini 429: %s", resp.text[:300])
+        raise ModelError(BUSY)
     if resp.status_code >= 400:
-        raise ModelError(f"Gemini said {resp.status_code}: {resp.text[:200]}")
+        log.error("ai_models: Gemini said %s: %s", resp.status_code, resp.text[:300])
+        raise ModelError(UNAVAILABLE)
     data = resp.json()
     usage = data.get("usage") or {}
-    text = data["choices"][0]["message"]["content"]
+    choice = data["choices"][0]
+    if choice.get("finish_reason") == "length":  # ran out of room mid-answer
+        raise _Retry("cut off (length)")
+    text = choice["message"]["content"]
     return _json_from(text), {"input_tokens": usage.get("prompt_tokens") or 0, "output_tokens": usage.get("completion_tokens") or 0}
