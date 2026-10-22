@@ -27,7 +27,7 @@ from datetime import UTC, datetime, timedelta
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app import billing, text_overlay
@@ -318,6 +318,29 @@ _IMG_DIMS = {"1:1": (1024, 1024), "9:16": (1024, 1536), "16:9": (1536, 1024)}
 # once) queues behind the cap instead of hammering the provider and turning
 # into a wall of 429s + retry. A job's status is "queued" while it waits.
 _IMAGE_SLOTS = threading.BoundedSemaphore(get_settings().image_max_concurrency)
+
+
+BUSY_MESSAGE = "Lots of people are creating right now — please try again in a moment."
+_BUSY_WINDOW = timedelta(minutes=30)  # an older job still "running" is a leftover, not a line
+
+
+def refuse_if_busy(db: Session, kind: str) -> None:
+    """Turn a new image / template video away (429) while too many are already
+    waiting or being made across the app — a friendly "try again in a moment"
+    instead of a wait of many minutes (settings image_busy_at / motion_busy_at)."""
+    s = get_settings()
+    limit = s.image_busy_at if kind == "image" else s.motion_busy_at
+    if limit <= 0:
+        return
+    since = datetime.now(UTC) - _BUSY_WINDOW
+    waiting = db.scalar(
+        select(func.count())
+        .select_from(GenerationJob)
+        .where(GenerationJob.kind == kind, GenerationJob.status.in_(("queued", "running")), GenerationJob.created_at >= since)
+    ) or 0
+    if waiting >= limit:
+        log.warning("busy: %s %s jobs in line (limit %s) — turned one away", waiting, kind, limit)
+        raise HTTPException(429, BUSY_MESSAGE)
 
 
 @contextmanager
@@ -749,6 +772,7 @@ def create_image(
         raise HTTPException(503, "Image generation is turned off (IMAGE_GENERATION_ENABLED=false).")
 
     billing.require(ws, billing.IMAGE_HOLD, db)
+    refuse_if_busy(db, "image")
     own: list[bytes] = []
     for url in [u for u in dict.fromkeys([payload.reference_url, *payload.reference_urls]) if u][:4]:
         blob = read_media(url)
@@ -816,12 +840,18 @@ def _render_image(job_id: int, reference: bytes | list[bytes] | None, guide: str
         if job is None:
             return
         overlay = _khmer_overlay_text(job)
+        prompt = guide + job.prompt + (text_overlay.NO_TEXT_RULE if overlay else "")
+        ratio = job.aspect_ratio
+        # Hand the database connection back while this waits for a slot and the
+        # provider draws (30-60 s): a burst of images each holding one ran the
+        # pool dry — the rest failed and every page waited (30 at once, 2026-10-22).
+        db.rollback()
         try:
             with image_slot():
-                job.status = "running"  # commit sets updated_at = render start
-                db.commit()
-                prompt = guide + job.prompt + (text_overlay.NO_TEXT_RULE if overlay else "")
-                provider, blob, usage = generate_image(prompt, job.aspect_ratio, reference)
+                db.execute(update(GenerationJob).where(GenerationJob.id == job_id).values(status="running", updated_at=func.now()))
+                db.commit()  # updated_at = render start (the stale-job check); the connection goes back
+                provider, blob, usage = generate_image(prompt, ratio, reference)
+            job = db.get(GenerationJob, job_id)
         except VideoGenError as exc:
             job.status, job.error = "failed", str(exc)
             db.commit()

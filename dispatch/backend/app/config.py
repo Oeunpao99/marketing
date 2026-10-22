@@ -137,6 +137,12 @@ class Settings(BaseSettings):
     # App-wide cap on simultaneous provider image calls. Requests beyond it
     # wait (job stays "queued") instead of hitting the provider at once.
     image_max_concurrency: int = 6
+    # Busy: past this many images / template videos already waiting or being made
+    # (the whole app, the last 30 min), a new one is turned away with "Lots of people
+    # are creating right now — please try again in a moment" (app/video.py refuse_if_busy).
+    # Videos render one at a time, so their line is short.
+    image_busy_at: int = 30
+    motion_busy_at: int = 4
 
     # YouTube (Shorts + videos) — "Connect" on the Channels page (app/youtube.py).
     # A Google Cloud project with the YouTube Data API v3 + YouTube Analytics API on,

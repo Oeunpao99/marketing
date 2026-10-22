@@ -273,6 +273,9 @@ def export_project(
         if srcs - mine:
             raise HTTPException(400, "A file in the timeline was deleted — remove it and export again.")
     seconds = timeline_seconds(data)
+    from app.video import refuse_if_busy
+
+    refuse_if_busy(db, "motion")  # the export renders like a template video, one at a time
     job = GenerationJob(
         workspace_id=ws,
         user_id=user.id,

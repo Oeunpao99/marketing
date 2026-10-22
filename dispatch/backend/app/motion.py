@@ -36,7 +36,8 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Response
 from PIL import Image
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy import update as sa_update
 from sqlalchemy.orm import Session
 
 from app import billing
@@ -5914,6 +5915,28 @@ def _even_video(data: bytes, out: Path) -> None:
         Path(src.name).unlink(missing_ok=True)
 
 
+def refuse_if_busy(db: Session, kind: str) -> None:
+    """Too many videos already in line → "please try again in a moment" (app/video.py)."""
+    from app.video import refuse_if_busy as refuse  # local: app.video imports this module lazily
+
+    refuse(db, kind)
+
+
+def _render_started(job_id: int) -> None:
+    """Its turn has come: the job's updated_at is now — the stale-job check
+    (video._tick, 45 min) counts from here, not from the time spent waiting
+    behind other videos' renders (one at a time: 30 at once queue for an hour)."""
+    db = SessionLocal()
+    try:
+        db.execute(sa_update(GenerationJob).where(GenerationJob.id == job_id).values(updated_at=func.now()))
+        db.commit()
+    except Exception:  # noqa: BLE001 — the render matters more than the clock
+        log.warning("motion %s: render start not recorded", job_id, exc_info=True)
+        db.rollback()
+    finally:
+        db.close()
+
+
 def _media_to_files(props: dict, folder: Path, rel: str) -> dict:
     """``props`` with every stored file ("/media/<name>" — the video editor's
     clips) copied to ``folder`` and swapped for its path under public/: the
@@ -5958,6 +5981,8 @@ def render(props: dict, job_id: int | None = None, preview: bool = False, compos
         raise RuntimeError(reason)
     with _render_lock, tempfile.TemporaryDirectory() as tmp:
         _check(job_id)
+        if job_id is not None and not preview:
+            _render_started(job_id)
         entry, public = _entry()
         rel = f"run-{uuid.uuid4().hex[:12]}"
         assets = public / rel  # served to the render as staticFile(rel/…)
@@ -6741,6 +6766,7 @@ def create_motion(
     if payload.product_id is not None:
         owned(db, Product, payload.product_id, ws)
     billing.require(ws, 0.0, db)
+    refuse_if_busy(db, "motion")
     job = GenerationJob(
         workspace_id=ws,
         user_id=user.id,
@@ -7229,6 +7255,7 @@ def other_shape(
     except ValueError:
         making = None
     redraw = can_redraw(making, target) and not not_ready()
+    refuse_if_busy(db, "motion")
     job = GenerationJob(
         workspace_id=ws,
         user_id=user.id,
@@ -7363,6 +7390,7 @@ def edit_video(
     if any(e.i >= max(count, 1) for e in payload.scenes):
         raise HTTPException(400, "A scene in the edit isn't in this video.")
     billing.require(ws, 0.0, db)
+    refuse_if_busy(db, "motion")
     job = GenerationJob(
         workspace_id=ws,
         user_id=user.id,
