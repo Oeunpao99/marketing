@@ -1714,7 +1714,6 @@ DIALOGUE_STYLES = {"dialogue"}
 # rice fields; one main person walking through it, close-ups of their face beside the
 # thing that matters (an ATM, a phone, money, a paper, a stall, a laptop).
 ILL_TYPES = ("hook", "wide", "closeup", "fact", "cta")
-# (not in GOAL_STYLES yet — the weekly plan picks it once a real render has proved it)
 ILL_PLACES = ("market", "street", "bank", "home", "field")
 ILL_TIMES = ("morning", "day", "evening")
 ILL_POSES = ("stand", "walk", "carry", "phone", "talk", "point")
@@ -2884,9 +2883,9 @@ GOAL_STYLES = {
     "solution": ("tech", "demo", "custom", "showcase", "clarity", "gridcards", "cartoon", "appdemo"),
     "conversion": ("offer", "spotlight", "tech", "launch", "reviews", "casestudy", "unveil", "studio", "street3d"),
     "teach": ("explainer",),
-    "education": ("explainer", "training", "custom", "clarity", "tips", "gridcards", "techflow", "neural", "paper", "doodle", "cartoon", "lesson", "presenter", "podcast", "parable"),
+    "education": ("explainer", "training", "custom", "clarity", "tips", "gridcards", "techflow", "neural", "paper", "doodle", "cartoon", "lesson", "presenter", "podcast", "parable", "illustrated"),
     "reach": ("pov", "explainer", "countdown", "thisorthat", "hottake", "doodle", "cartoon", "lesson", "rise", "reaction", "podcast", "parable", "dialogue"),
-    "awareness": ("trend", "custom", "clarity", "showcase", "report", "unveil", "canvas", "studio", "presenter"),
+    "awareness": ("trend", "custom", "clarity", "showcase", "report", "unveil", "canvas", "studio", "presenter", "illustrated"),
     "authority": ("versus", "report", "casestudy", "hottake", "clarity", "techflow"),
     "engagement": ("poll", "thisorthat", "faq", "countdown", "hottake", "reaction", "dialogue"),
     "followers": ("quote", "explainer", "tips", "countdown", "hottake", "doodle", "lesson", "rise", "presenter", "podcast", "parable"),
