@@ -76,7 +76,8 @@
           "icon": "Calendar",
           "label": "A weekly plan"
         }
-      ]
+      ],
+      "poster": "ours/spotlight-product.jpg"
     },
     {
       "type": "approve",
@@ -88,7 +89,8 @@
         "TikTok",
         "Telegram",
         "YouTube"
-      ]
+      ],
+      "image": "ours/spotlight-product.jpg"
     },
     {
       "type": "gains",
@@ -200,7 +202,8 @@
           "icon": "Calendar",
           "label": "A weekly plan"
         }
-      ]
+      ],
+      "poster": "ours/spotlight-product.jpg"
     },
     {
       "type": "approve",
@@ -212,7 +215,8 @@
         "TikTok",
         "Telegram",
         "YouTube"
-      ]
+      ],
+      "image": "ours/spotlight-product.jpg"
     },
     {
       "type": "cta",

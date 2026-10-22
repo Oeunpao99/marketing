@@ -220,6 +220,17 @@ PLACE_STYLE = (
 )
 
 
+# AI service · Your AI team (motion/src/aiteam.jsx): the picture of the post the AI made,
+# on the phone the owner approves — when the brand has no product photo of its own.
+POST_PHOTO_STYLE = (
+    "A bright, appealing photo for a small business's social media post: realistic, natural "
+    "light, one clear subject (the product or the moment), a clean simple background, warm "
+    "inviting colours, shot like a good phone photo by a professional. Where people or places "
+    "appear, set it in Cambodia. ABSOLUTELY NO text, letters, numbers, words, price tags, signs "
+    "with writing, logos or watermarks anywhere in the image.\n\nThe photo: "
+)
+
+
 # Podcast · Story Talk (motion/src/podcast.jsx): the places its story visits —
 # painted film backdrops, our coded host stands in front of them.
 BACKDROP_STYLE = (

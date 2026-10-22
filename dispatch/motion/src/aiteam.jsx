@@ -10,8 +10,11 @@
  *   { type: "hook", text, icon, sub? }                                the AI core pulsing, the line
  *   { type: "overload", text, tasks: [label] }                        to-dos piling up, a red counter
  *   { type: "crew", text, agents: [{ role, task, icon }] }            AI workers typing their task, ✓
- *   { type: "pipeline", text, input: { icon, label }, outputs: [{ icon, label }] }   one in, many out
- *   { type: "approve", text, post, button?, channels: [name] }        a phone, one tap, out to every page
+ *   { type: "pipeline", text, input: { icon, label }, outputs: [{ icon, label }], image?, poster? }   one in, many out
+ *   { type: "approve", text, post, button?, channels: [name], image? }   a phone, one tap, out to every page
+ * Pictures (app/motion.py): the post's picture is the product's photo, else one the image
+ * AI painted from the scene's `draw`; the pipeline shows the photo in its input and the
+ * painted post on its picture output (`poster`).
  *   { type: "gains", text, metrics: [{ label, value, prefix, suffix }] }   numbers counting up
  *   { type: "plans", text, tiers: [{ name, price, note }], pick, badge? }   the plans, one picked
  *   { type: "cta", text, button }                                     the logo, the button, a tap
@@ -44,6 +47,15 @@ const CHANNELS = {
   messenger: ['MessageCircle', '#0084FF'],
   whatsapp: ['Phone', '#25D366'],
 }
+/** ``hex`` darkened by ``k`` (0-1) — white icons read on it. */
+function shade(hex, k = 0.35) {
+  const h = String(hex || '#2563EB').replace('#', '')
+  const n = parseInt(h.length === 3 ? h.replace(/./g, '$&$&') : h, 16)
+  const c = (v) => Math.round(v * (1 - k))
+  return `rgb(${c((n >> 16) & 255)},${c((n >> 8) & 255)},${c(n & 255)})`
+}
+/** The fill behind a white icon: the brand colour, darker towards the edge. */
+const solid = (brand) => `linear-gradient(135deg, ${brand.color}, ${shade(brand.color, 0.38)})`
 const CARD = { background: C.panel, border: `2px solid ${C.line}`, borderRadius: 28, boxShadow: '0 24px 60px rgba(0,0,0,0.35)' }
 
 // sound cue frames (sfx.jsx aiteamCues) — the animations below use the same
@@ -136,7 +148,7 @@ function Core({ x, y, size, icon = 'Sparkles', brand, delay = 0 }) {
         return (
           <div
             key={k}
-            style={{ position: 'absolute', inset: -size * 0.45 * p, borderRadius: '50%', border: `3px solid ${tint('#38BDF8', 0.55 * (1 - p))}` }}
+            style={{ position: 'absolute', inset: -size * 0.45 * p, borderRadius: '50%', border: `2px solid ${tint('#38BDF8', 0.28 * (1 - p))}` }}
           />
         )
       })}
@@ -146,7 +158,7 @@ function Core({ x, y, size, icon = 'Sparkles', brand, delay = 0 }) {
           inset: -10,
           borderRadius: '50%',
           background: `conic-gradient(from ${frame * 4}deg, transparent 0deg, ${C.glow} 60deg, transparent 140deg, ${brand.color} 220deg, transparent 300deg)`,
-          opacity: 0.9,
+          opacity: 0.32,
         }}
       />
       <div
@@ -154,8 +166,9 @@ function Core({ x, y, size, icon = 'Sparkles', brand, delay = 0 }) {
           position: 'absolute',
           inset: 0,
           borderRadius: '50%',
-          background: `radial-gradient(circle at 35% 30%, ${tint('#FFFFFF', 0.35)}, transparent 45%), linear-gradient(135deg, ${brand.color}, ${C.glow})`,
-          boxShadow: `0 0 ${size * 0.45}px ${tint('#38BDF8', 0.55)}`,
+          background: `radial-gradient(circle at 35% 28%, ${tint('#FFFFFF', 0.16)}, transparent 50%), ${solid(brand)}`,
+          border: `3px solid ${tint('#38BDF8', 0.55)}`,
+          boxShadow: `0 0 ${size * 0.16}px ${tint('#38BDF8', 0.28)}, 0 18px 40px rgba(0,0,0,0.35)`,
           display: 'grid',
           placeItems: 'center',
         }}
@@ -204,7 +217,7 @@ function Hook({ scene, brand }) {
         return (
           <div
             key={i}
-            style={{ position: 'absolute', left: core.x + Math.cos(a) * r - 7, top: core.y + Math.sin(a) * r * 0.55 - 7, width: 14, height: 14, borderRadius: 7, background: i % 2 ? C.glow : brand.color, boxShadow: `0 0 16px ${C.glow}`, opacity: interpolate(frame, [8, 20], [0, 1], clamp) }}
+            style={{ position: 'absolute', left: core.x + Math.cos(a) * r - 7, top: core.y + Math.sin(a) * r * 0.55 - 7, width: 14, height: 14, borderRadius: 7, background: i % 2 ? C.glow : brand.color, boxShadow: `0 0 5px ${tint('#38BDF8', 0.5)}`, opacity: interpolate(frame, [8, 20], [0, 1], clamp) }}
           />
         )
       })}
@@ -261,7 +274,7 @@ function Overload({ scene, brand }) {
               <Icon name="Clock" size={H * 0.32} color={C.bad} stroke={2.4} />
             </div>
             <span style={{ flex: 1, minWidth: 0, fontFamily: FONT, fontWeight: 600, fontSize: wide ? 38 : 44, color: C.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{clean(t)}</span>
-            <div style={{ width: 22, height: 22, flex: 'none', borderRadius: 11, background: C.bad, boxShadow: `0 0 16px ${C.bad}` }} />
+            <div style={{ width: 22, height: 22, flex: 'none', borderRadius: 11, background: C.bad, boxShadow: `0 0 6px ${tint('#F43F5E', 0.5)}` }} />
           </div>
         )
       })}
@@ -280,7 +293,7 @@ function Overload({ scene, brand }) {
             display: 'grid',
             placeItems: 'center',
             transform: `scale(${badge * (shaky ? 1 + Math.sin(frame / 2.5) * 0.06 : 1)})`,
-            boxShadow: `0 0 30px ${tint('#F43F5E', 0.6)}`,
+            boxShadow: '0 8px 20px rgba(0,0,0,0.35)',
             fontFamily: FONT,
             fontWeight: 800,
             fontSize: 46,
@@ -323,14 +336,14 @@ function Agent({ a, i, w, h, wide, brand }) {
         />
       )}
       {done && (
-        <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: C.ok, display: 'grid', placeItems: 'center', transform: `scale(${check})`, boxShadow: `0 0 22px ${tint('#22C55E', 0.6)}` }}>
+        <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: C.ok, display: 'grid', placeItems: 'center', transform: `scale(${check})`, boxShadow: `0 0 8px ${tint('#22C55E', 0.4)}` }}>
           <Icon name="Check" size={36} color="#FFFFFF" stroke={3.2} />
         </div>
       )}
     </div>
   )
   const avatar = (
-    <div style={{ width: av, height: av, flex: 'none', borderRadius: '50%', background: `linear-gradient(135deg, ${brand.color}, ${C.glow})`, display: 'grid', placeItems: 'center', boxShadow: `0 0 ${typing ? 34 : 14}px ${tint('#38BDF8', 0.5)}` }}>
+    <div style={{ width: av, height: av, flex: 'none', borderRadius: '50%', background: solid(brand), border: `3px solid ${tint('#38BDF8', typing ? 0.7 : 0.3)}`, display: 'grid', placeItems: 'center', boxShadow: typing ? `0 0 12px ${tint('#38BDF8', 0.3)}` : 'none' }}>
       <Icon name={a.icon || 'Bot'} size={av * 0.46} color="#FFFFFF" stroke={2.1} />
     </div>
   )
@@ -396,7 +409,7 @@ function Crew({ scene, brand }) {
 }
 
 // ── pipeline: one input → the AI → finished work ────────────────────────────
-function Box({ icon, label, x, y, w, h, s, accent, wide }) {
+function Box({ icon, label, x, y, w, h, s, accent, wide, img }) {
   return (
     <div
       style={{
@@ -414,9 +427,13 @@ function Box({ icon, label, x, y, w, h, s, accent, wide }) {
         transform: `scale(${0.8 + s * 0.2})`,
       }}
     >
-      <div style={{ width: h * 0.56, height: h * 0.56, flex: 'none', borderRadius: 16, background: accent, display: 'grid', placeItems: 'center' }}>
-        <Icon name={icon || 'Sparkles'} size={h * 0.3} color="#FFFFFF" stroke={2.2} />
-      </div>
+      {img ? (
+        <Img src={srcOf(img)} style={{ width: h * 0.72, height: h * 0.72, flex: 'none', borderRadius: 16, objectFit: 'cover', border: '2px solid rgba(255,255,255,0.85)' }} />
+      ) : (
+        <div style={{ width: h * 0.56, height: h * 0.56, flex: 'none', borderRadius: 16, background: accent, display: 'grid', placeItems: 'center' }}>
+          <Icon name={icon || 'Sparkles'} size={h * 0.3} color="#FFFFFF" stroke={2.2} />
+        </div>
+      )}
       <span style={{ flex: 1, minWidth: 0, fontFamily: FONT, fontWeight: 600, fontSize: wide ? 30 : 34, color: C.ink, lineHeight: 1.25 }}>{clean(label)}</span>
     </div>
   )
@@ -427,6 +444,8 @@ function Pipeline({ scene, brand }) {
   const { wide, width, fps } = useLayout()
   const outs = (scene.outputs || []).slice(0, 4)
   const inp = scene.input || {}
+  // the painted post (the approve scene's picture) shows on the output that is a picture
+  const poster = scene.poster ? outs.find((o) => o.icon === 'Image') || outs[0] : null
   // where everything sits
   const core = wide ? { x: 900, y: 520, size: 190 } : { x: width / 2, y: 820, size: 210 }
   const inBox = wide ? { x: 380, y: 520, w: 440, h: 140 } : { x: width / 2, y: 520, w: 640, h: 150 }
@@ -462,19 +481,19 @@ function Pipeline({ scene, brand }) {
                   // a point along the curve (the same Bézier)
                   const bx = wide ? (1 - t) ** 3 * x1 + 3 * (1 - t) ** 2 * t * mx + 3 * (1 - t) * t ** 2 * mx + t ** 3 * x2 : (1 - t) ** 3 * x1 + 3 * (1 - t) ** 2 * t * x1 + 3 * (1 - t) * t ** 2 * x2 + t ** 3 * x2
                   const by = wide ? (1 - t) ** 3 * y1 + 3 * (1 - t) ** 2 * t * y1 + 3 * (1 - t) * t ** 2 * y2 + t ** 3 * y2 : (1 - t) ** 3 * y1 + 3 * (1 - t) ** 2 * t * my + 3 * (1 - t) * t ** 2 * my + t ** 3 * y2
-                  return <circle key={k} cx={bx} cy={by} r={8} fill={C.glow} style={{ filter: `drop-shadow(0 0 8px ${C.glow})` }} />
+                  return <circle key={k} cx={bx} cy={by} r={8} fill={C.glow} style={{ filter: `drop-shadow(0 0 3px ${tint('#38BDF8', 0.6)})` }} />
                 })}
             </g>
           )
         })}
       </svg>
-      <Box icon={inp.icon} label={inp.label} {...inBox} s={inS} accent={tint('#A7B2CF', 0.25)} wide={wide} />
+      <Box icon={inp.icon} label={inp.label} {...inBox} s={inS} accent={tint('#A7B2CF', 0.25)} img={scene.image} wide={wide} />
       <div style={{ opacity: 0.4 + lit * 0.6 }}>
         <Core {...core} icon="Sparkles" brand={brand} delay={CORE_AT - 6} />
       </div>
       {outs.map((o, i) => {
         const s = spring({ frame: frame - OUT_AT - i * OUT_GAP, fps, config: { damping: 12 } })
-        return <Box key={i} icon={o.icon} label={o.label} {...outSpots[i]} s={s} accent={`linear-gradient(135deg, ${brand.color}, ${C.glow})`} wide={wide} />
+        return <Box key={i} icon={o.icon} label={o.label} {...outSpots[i]} s={s} accent={solid(brand)} img={o === poster ? scene.poster : null} wide={wide} />
       })}
     </AbsoluteFill>
   )
@@ -526,9 +545,13 @@ function Approve({ scene, brand }) {
           {/* the post, ready */}
           <div style={{ flex: 1, borderRadius: 26 * k, background: '#FFFFFF', boxShadow: '0 6px 20px rgba(17,24,39,0.08)', padding: 24 * k, display: 'flex', flexDirection: 'column', gap: 18 * k }}>
             <div style={{ fontFamily: FONT, fontWeight: 500, fontSize: 30 * k, color: '#1F2937', lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{clean(scene.post)}</div>
-            <div style={{ flex: 1, borderRadius: 20 * k, background: `linear-gradient(135deg, ${brand.color}, ${C.glow})`, display: 'grid', placeItems: 'center', minHeight: 160 * k }}>
-              <Icon name="Image" size={90 * k} color="rgba(255,255,255,0.85)" stroke={1.6} />
-            </div>
+            {scene.image ? (
+              <Img src={srcOf(scene.image)} style={{ flex: 1, minHeight: 160 * k, width: '100%', borderRadius: 20 * k, objectFit: 'cover', display: 'block' }} />
+            ) : (
+              <div style={{ flex: 1, borderRadius: 20 * k, background: solid(brand), display: 'grid', placeItems: 'center', minHeight: 160 * k }}>
+                <Icon name="Image" size={90 * k} color="rgba(255,255,255,0.85)" stroke={1.6} />
+              </div>
+            )}
           </div>
           {/* edit · approve */}
           <div style={{ display: 'flex', gap: 18 * k, height: 92 * k }}>
@@ -666,7 +689,7 @@ function Plans({ scene, brand }) {
                 position: 'relative',
                 background: on ? `linear-gradient(160deg, ${tint(brand.color, 0.55)}, ${C.panel2})` : C.panel,
                 borderColor: on ? C.glow : C.line,
-                boxShadow: on ? `0 0 ${40 * lift}px ${tint('#38BDF8', 0.45)}, 0 24px 60px rgba(0,0,0,0.35)` : CARD.boxShadow,
+                boxShadow: on ? `0 0 ${14 * lift}px ${tint('#38BDF8', 0.3)}, 0 24px 60px rgba(0,0,0,0.35)` : CARD.boxShadow,
                 opacity: Math.min(1, s * 1.5),
                 transform: `translateY(${(1 - s) * 50}px) scale(${1 + lift * 0.04})`,
                 padding: wide ? '40px 30px' : '0 40px',
@@ -708,7 +731,7 @@ function Cta({ scene, brand }) {
     <AbsoluteFill>
       <Bg brand={brand} />
       <div style={{ position: 'absolute', left: width / 2 - L.size / 2, top: L.top, width: L.size, height: L.size, transform: `scale(${s})` }}>
-        <div style={{ position: 'absolute', inset: -26, borderRadius: '50%', background: `radial-gradient(circle, ${tint('#38BDF8', 0.45)}, transparent 70%)` }} />
+        <div style={{ position: 'absolute', inset: -26, borderRadius: '50%', background: `radial-gradient(circle, ${tint('#38BDF8', 0.18)}, transparent 70%)` }} />
         <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: '#FFFFFF', display: 'grid', placeItems: 'center', overflow: 'hidden', boxShadow: '0 20px 50px rgba(0,0,0,0.4)' }}>
           {brand.logo ? (
             <Img src={srcOf(brand.logo)} style={{ width: '66%', height: '66%', objectFit: 'contain' }} />
@@ -730,8 +753,9 @@ function Cta({ scene, brand }) {
               width: bw,
               height: bh,
               borderRadius: bh / 2,
-              background: `linear-gradient(135deg, ${brand.color}, ${C.glow})`,
-              boxShadow: `0 0 40px ${tint('#38BDF8', 0.5)}`,
+              background: solid(brand),
+              border: `3px solid ${tint('#38BDF8', 0.5)}`,
+              boxShadow: '0 16px 36px rgba(0,0,0,0.4)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',

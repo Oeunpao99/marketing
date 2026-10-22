@@ -1811,7 +1811,8 @@ AITEAM_PROMPT = (
     "- pipeline: text (max 8 words), input {icon, label (max 3 words)}, outputs (2-4: {icon, label "
     "(max 3 words)}).\n"
     "- approve: text (max 7 words), post (the ready post on the phone, max 18 words, in the "
-    "brand's voice), button (1-2 words, e.g. \"Approve\"), channels (2-5 of: "
+    "brand's voice), draw (ENGLISH, max 25 words — the post's photo: what it shows, never any "
+    "text in it), button (1-2 words, e.g. \"Approve\"), channels (2-5 of: "
     + ", ".join(AITEAM_CHANNELS)
     + ").\n"
     "- gains: text (max 6 words), metrics (1-3: {label (max 5 words), value (a number), prefix "
@@ -1863,7 +1864,10 @@ def _aiteam_scene(kind: str, raw: dict, say: str) -> dict | None:
             if name and name not in channels:
                 channels.append(name)
         post = _line(raw.get("post"), 160)
-        return {"type": kind, "text": text, "post": post, "button": _line(raw.get("button"), 24), "channels": channels[:5], "say": say} if post else None
+        scene = {"type": kind, "text": text, "post": post, "button": _line(raw.get("button"), 24), "channels": channels[:5], "say": say}
+        if _line(raw.get("draw"), 300):
+            scene["draw"] = _line(raw["draw"], 300)  # the post's photo, painted when there's no product photo
+        return scene if post else None
     if kind == "gains":
         metrics = []
         for m in raw.get("metrics") if isinstance(raw.get("metrics"), list) else []:
@@ -5038,6 +5042,10 @@ def pick_pictures(
                     s["image"] = photo
                 else:
                     s.pop("hero")
+        elif script.get("style") == "aiteam":  # AI service: the product's photo on the post and in the pipeline
+            if s["type"] in ("approve", "pipeline") and main:
+                s["image"] = main
+                s.pop("draw", None)
         elif script.get("style") in ("doodle", "cartoon", "lesson", "rise", "podcast", "parable", "dialogue", "illustrated"):
             continue  # drawn templates: no product photos (doodle / cartoon draw their own, app/doodle.py)
         elif script.get("style") == "appdemo":  # 3D · App demo: the app's own screenshot on the phone
@@ -5664,6 +5672,16 @@ def _finish_doodles(doodling: tuple[threading.Thread, dict], props: dict, job_id
     for n, uri in got.items():
         if n < len(props["scenes"]):
             props["scenes"][n]["image"] = uri
+
+
+def share_post_picture(props: dict) -> None:
+    """AI service · Your AI team: the post's picture (the product photo or the painted
+    one) also shows in the pipeline, on the output that is a picture — what goes in,
+    what comes out. Not when it's the same photo as the pipeline's input."""
+    picture = next((s.get("image") for s in props["scenes"] if s.get("type") == "approve" and s.get("image")), None)
+    for s in props["scenes"]:
+        if s.get("type") == "pipeline" and picture and picture != s.get("image"):
+            s["poster"] = picture
 
 
 def _report(job_id: int | None, **fields) -> None:
@@ -6874,6 +6892,10 @@ def _make(
 
                 r, g, b = brand_rgb(brand)
                 doodling = _start_doodles(script, job, job_id, style=doodle.host_picture_style(f"#{r:02x}{g:02x}{b:02x}"))
+            if script.get("style") == "aiteam" and any(sc.get("draw") and not sc.get("image") for sc in script["scenes"]):
+                from app import doodle  # AI service: the post's photo, painted
+
+                doodling = _start_doodles(script, job, job_id, style=doodle.POST_PHOTO_STYLE)
             if script.get("style") == "canvas":  # AI design: the pictures its scenes asked for
                 from app import doodle
 
@@ -6924,6 +6946,8 @@ def _make(
                 add_voice(props, script, narrator, job.workspace_id, job.user_id, job_id, brand.pronunciations or [], clone, voices)
             if doodling:
                 _finish_doodles(doodling, props, job_id)
+            if script.get("style") == "aiteam":
+                share_post_picture(props)
             _report(job_id, stage="render", render=0.0)
             blob = render(props, job_id)
         except Stopped:
