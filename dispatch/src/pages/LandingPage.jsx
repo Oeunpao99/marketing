@@ -6,6 +6,7 @@ import {
   FiCalendar,
   FiCheck,
   FiChevronDown,
+  FiClock,
   FiCpu,
   FiGlobe,
   FiImage,
@@ -738,6 +739,10 @@ function Faq() {
 // The plans (the owner's decision, 2026-10-21). usd / khr = a month; a year =
 // 10 months (2 free). Free is the wide card on top; the paid plans under it,
 // the popular one dark; then the full comparison. Credits: CREDIT_USES.
+// Paid prices aren't confirmed yet (2026-10-22): they show "Coming soon" — Free
+// stays $0. Set to false once the prices are agreed; the numbers below come back.
+const PRICES_SOON = true
+
 const PLANS = [
   {
     id: 'free',
@@ -888,6 +893,18 @@ function Tick({ dark = false, filled = false }) {
 function Price({ plan, yearly, riel, dark = false }) {
   const t = useT()
   const price = priceOf(plan, yearly, riel)
+  if (PRICES_SOON && plan.usd) {
+    return (
+      <>
+        <div className="mt-6 flex h-[44px] items-end">
+          <span className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-[15px] font-bold ${dark ? 'bg-white/15 text-white' : 'bg-brand-soft text-brand'}`}>
+            <FiClock size={15} /> {t('Coming soon', 'ឆាប់ៗនេះ')}
+          </span>
+        </div>
+        <div className={`mt-2 h-4 text-[12px] ${dark ? 'text-white/60' : 'text-ink-400'}`}>{t('Prices announced soon', 'នឹងប្រកាសតម្លៃឆាប់ៗនេះ')}</div>
+      </>
+    )
+  }
   return (
     <>
       <div className="mt-6 flex items-baseline gap-1.5">
@@ -1049,8 +1066,14 @@ function AddonShop() {
                 </div>
                 <div className="mt-2 text-[20px] font-extrabold tabular-nums text-ink-900">{n(pk.credits.toLocaleString('en-US'))}</div>
                 <div className="text-[11.5px] text-ink-500">{t('credits', 'ក្រេឌីត')}</div>
-                <div className="mt-2 text-[18px] font-bold text-brand">${pk.usd}</div>
-                <div className="text-[11px] text-ink-400">{t(`${((pk.usd / pk.credits) * 100).toFixed(1)}¢ a credit`, `${((pk.usd / pk.credits) * 100).toFixed(1)}¢ ក្នុងមួយក្រេឌីត`)}</div>
+                {PRICES_SOON ? (
+                  <div className="mt-2 text-[13px] font-bold text-brand">{t('Coming soon', 'ឆាប់ៗនេះ')}</div>
+                ) : (
+                  <>
+                    <div className="mt-2 text-[18px] font-bold text-brand">${pk.usd}</div>
+                    <div className="text-[11px] text-ink-400">{t(`${((pk.usd / pk.credits) * 100).toFixed(1)}¢ a credit`, `${((pk.usd / pk.credits) * 100).toFixed(1)}¢ ក្នុងមួយក្រេឌីត`)}</div>
+                  </>
+                )}
               </div>
             ))}
           </div>
@@ -1067,8 +1090,14 @@ function AddonShop() {
                 <div className="text-[12.5px] leading-snug text-ink-500">{t(text)}</div>
               </div>
               <div className="flex-none text-right">
-                <div className="text-[20px] font-extrabold text-ink-900">{price}</div>
-                <div className="text-[11px] text-ink-500">{t(per)}</div>
+                {PRICES_SOON ? (
+                  <div className="text-[13px] font-bold text-brand">{t('Coming soon', 'ឆាប់ៗនេះ')}</div>
+                ) : (
+                  <>
+                    <div className="text-[20px] font-extrabold text-ink-900">{price}</div>
+                    <div className="text-[11px] text-ink-500">{t(per)}</div>
+                  </>
+                )}
               </div>
             </div>
           ))}
@@ -1104,7 +1133,7 @@ function Pricing({ onStart }) {
         sub={t('Start free. Every plan includes AI credits each month — posting and scheduling never use them.', 'ចាប់ផ្តើមឥតគិតថ្លៃ។ គ្រប់គម្រោងមានក្រេឌីត AI រៀងរាល់ខែ — ការបង្ហោះ និងកំណត់ពេល មិនប្រើក្រេឌីតទេ។')}
       />
 
-      <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
+      <div className={`mt-10 flex flex-wrap items-center justify-center gap-3 ${PRICES_SOON ? 'hidden' : ''}`}>
         <Toggle value={yearly} onChange={setYearly} options={[[false, t('Monthly', 'ប្រចាំខែ')], [true, t('Yearly', 'ប្រចាំឆ្នាំ'), t('2 months free', 'ឥតគិតថ្លៃ ២ ខែ')]]} />
         <Toggle value={riel} onChange={setRiel} options={[[false, 'USD $'], [true, 'KHR ៛']]} />
       </div>
@@ -1221,7 +1250,7 @@ function Pricing({ onStart }) {
                 <td className="px-6 py-4 text-ink-600">{t('Price / month', 'តម្លៃ / ខែ')}</td>
                 {PLANS.map((p) => (
                   <td key={p.id} className="px-3 py-4 text-center font-semibold text-ink-900">
-                    {p.usd ? priceOf(p, yearly, riel).main : riel ? '0៛' : '$0'}
+                    {p.usd ? (PRICES_SOON ? <span className="text-[12.5px] font-semibold text-brand">{t('Coming soon', 'ឆាប់ៗនេះ')}</span> : priceOf(p, yearly, riel).main) : riel ? '0៛' : '$0'}
                   </td>
                 ))}
               </tr>
