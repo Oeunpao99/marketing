@@ -564,3 +564,21 @@ html.dark .cf-halo { background-color: rgb(var(--brand) / .45); }
 .edit-range:focus-visible::-webkit-slider-thumb {
   box-shadow: 0 0 0 3px rgb(var(--brand) / 0.3);
 }
+
+/* "New feature · Video editor" pop-up (NewFeature.jsx): the red line sweeping
+   across the little timeline, and the scissors giving a snip now and then. */
+@keyframes cf-sweep {
+  from { left: 6%; }
+  to { left: 94%; }
+}
+.cf-sweep { animation: cf-sweep 3.6s linear infinite; }
+@keyframes cf-snip {
+  0%, 70%, 100% { transform: rotate(0deg) scale(1); }
+  78% { transform: rotate(-18deg) scale(1.12); }
+  86% { transform: rotate(8deg) scale(1.05); }
+}
+.cf-snip { animation: cf-snip 2.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .cf-sweep { animation: none; left: 58%; }
+  .cf-snip { animation: none; }
+}

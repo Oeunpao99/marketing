@@ -26,7 +26,7 @@ const SPARKLES = [
   ['97%', '95%', 30, '0.2s', 'text-amber-300'],
   ['50%', '-6%', 16, '1.6s', 'text-white'],
 ]
-function Sparkles() {
+export function Sparkles() {
   return SPARKLES.map(([left, top, size, delay, color], i) => (
     <svg
       key={i}

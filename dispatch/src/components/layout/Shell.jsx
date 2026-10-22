@@ -9,6 +9,7 @@ import CreateBrandDrawer from './CreateBrandDrawer'
 import AppUpdate from './AppUpdate'
 import OnboardingTour from './OnboardingTour'
 import NewTemplates from './NewTemplates'
+import NewFeature from './NewFeature'
 import { useStore } from '../../store'
 import { useAutoRunWatcher } from '../../lib/autoRuns'
 import { useGenJobWatcher } from '../../lib/genJobs'
@@ -166,6 +167,7 @@ export default function Shell({ children }) {
       <AppUpdate />
       <OnboardingTour />
       <NewTemplates />
+      <NewFeature />
     </div>
   )
 }

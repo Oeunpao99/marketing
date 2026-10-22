@@ -43,3 +43,44 @@ export function markTemplatesSeen(updatePrefs) {
     /* not saved — the pop-up simply shows again next time */
   })
 }
+
+// ── "New feature" (components/layout/NewFeature.jsx) ───────────────────────
+// A new part of the app, introduced once to each person who can open it: add
+// an entry here with `added` (a full time, as above). Seen ids are kept in
+// `features_seen` in their preferences. Same rules as templates: not for an
+// account made after the feature, not while the first-run tour is about to
+// open, and not while a new-template pop-up is waiting (one pop-up at a time).
+export const NEW_FEATURES = [
+  {
+    id: 'video-editor',
+    added: '2026-10-22T10:00:00+07:00',
+    to: '/editor',
+    eyebrow: 'New feature',
+    title: 'Introducing the Video editor',
+    body: 'Cut, trim and adjust your generated videos freely — add your own clips, music, pictures and words, then export a new video to your Library.',
+    points: ['Cut & trim', 'Drag & drop', 'Music & words', 'Export in one click'],
+    cta: 'Try it now',
+  },
+]
+const FEATURES_KEY = 'features_seen'
+const FEATURE_DAYS = 30
+
+/** The features this person hasn't been introduced to yet, newest first. */
+export function unseenFeatures(user, now = Date.now()) {
+  if (!user || shouldAutoStart(user) || unseenTemplates(user, now).length) return []
+  const seen = new Set(user.preferences?.[FEATURES_KEY] || [])
+  const made = Date.parse(user.created_at || '') || 0
+  return NEW_FEATURES.filter((f) => {
+    const at = day(f.added)
+    return !seen.has(f.id) && canOpen(user, f.to) && now - at < FEATURE_DAYS * 86400000 && !(made && made > at)
+  }).sort((a, b) => day(b.added) - day(a.added))
+}
+
+export function markFeatureSeen(user, updatePrefs, id) {
+  if (!updatePrefs) return
+  const seen = new Set(user?.preferences?.[FEATURES_KEY] || [])
+  seen.add(id)
+  updatePrefs({ [FEATURES_KEY]: [...seen] }).catch(() => {
+    /* not saved — the pop-up simply shows again next time */
+  })
+}
