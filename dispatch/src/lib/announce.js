@@ -33,6 +33,9 @@ export function unseenTemplates(user, now = Date.now()) {
   return MOTION_TEMPLATES.filter((t) => {
     if (!t.added) return false
     const at = day(t.added)
+    // a date still to come isn't announced yet — closing the pop-up saves "now", which is
+    // always before it, so it came back on every page (2026-10-23)
+    if (at > now) return false
     return at > seen && now - at < NEW_DAYS * 86400000 && !(made && made > at)
   }).sort((a, b) => day(b.added) - day(a.added))
 }
@@ -72,7 +75,7 @@ export function unseenFeatures(user, now = Date.now()) {
   const made = Date.parse(user.created_at || '') || 0
   return NEW_FEATURES.filter((f) => {
     const at = day(f.added)
-    return !seen.has(f.id) && canOpen(user, f.to) && now - at < FEATURE_DAYS * 86400000 && !(made && made > at)
+    return at <= now && !seen.has(f.id) && canOpen(user, f.to) && now - at < FEATURE_DAYS * 86400000 && !(made && made > at)
   }).sort((a, b) => day(b.added) - day(a.added))
 }
 
