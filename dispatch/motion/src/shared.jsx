@@ -77,6 +77,18 @@ export function defaultSeconds(s) {
       return 4.2
     case 'visit':
       return 4.4
+    case 'overload': // AI service · Your AI team — app/motion.py default_seconds says the same
+      return 4.4
+    case 'crew':
+      return 5.6
+    case 'pipeline':
+      return 5
+    case 'approve':
+      return 5
+    case 'gains':
+      return 4.6
+    case 'plans':
+      return 4.8
     case 'wide': // Illustrated · Everyday Cambodia — app/motion.py default_seconds says the same
       return 4.4
     case 'closeup':

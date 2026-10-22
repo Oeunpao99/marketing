@@ -189,6 +189,16 @@ export const MOTION_TEMPLATES = [
     goals: ['education', 'solution'],
   },
   {
+    id: 'aiteam',
+    story: 'aiteam',
+    added: '2026-10-22T10:20:00+07:00',
+    name: 'AI service · Your AI team',
+    look: 'Introduce an AI-as-a-service like hiring a team — deep navy with a glowing AI core. The to-dos piling up, AI workers typing their jobs and ticking them off, one input becoming finished work, a phone where the owner approves with one tap and it goes out to every page, results counting up, the plans',
+    steps: ['The promise', 'The work piling up', 'Meet the AI team', 'One in, many out', 'Approve with one tap', 'Results and plans', 'Call to action'],
+    note: 'Made for AI products and services — and for introducing Smart Marketing itself. Prices and numbers come only from your brief',
+    goals: ['solution', 'awareness'],
+  },
+  {
     id: 'illustrated',
     story: 'illustrated',
     added: '2026-10-21T22:04:00+07:00',

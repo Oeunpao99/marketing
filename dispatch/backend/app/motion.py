@@ -1779,6 +1779,120 @@ def clean_lead(raw) -> list[dict]:
     }]
 
 
+# "AI service · Your AI team" (motion/src/aiteam.jsx) — an AI-as-a-service told as a
+# team you hire: the work piling up, the AI "workers" each doing a job, one input
+# becoming finished work, you approving with one tap, results, plans, the call to action.
+AITEAM_TYPES = ("hook", "overload", "crew", "pipeline", "approve", "gains", "plans", "cta")
+AITEAM_CHANNELS = ("Facebook", "TikTok", "Telegram", "YouTube", "Instagram", "LinkedIn", "Messenger", "WhatsApp")
+AITEAM_PROMPT = (
+    "You are the best SaaS launch-video writer in Cambodia. You plan a REMOTION VIDEO (Reels / "
+    "TikTok / YouTube, 35-60 s) that introduces an AI-AS-A-SERVICE — an AI product people "
+    "subscribe to instead of hiring (an AI marketing team, an AI assistant, AI bookkeeping, an AI "
+    "support agent…). The look: deep navy, a glowing AI core, cards and a phone. Told like hiring "
+    "a team: the work that piles up today, the AI workers that take it over, one input becoming "
+    "finished work, the owner staying in control, what they get, how they pay, the next step. "
+    "Confident and clear, never hype.\n"
+    "\n"
+    "THE STORY (6-8 scenes, in this order; skip a middle one when the brief gives nothing for it):\n"
+    "1. hook — the promise or the pain, in one line.\n"
+    "2. overload — the to-dos that pile up without it.\n"
+    "3. crew — the AI workers, each with a role and the job it does.\n"
+    "4. pipeline — one thing goes in, several finished things come out.\n"
+    "5. approve — the owner approves with one tap; it goes out to their channels.\n"
+    "6. gains — what they get, as numbers (ONLY true numbers from the brief or product facts).\n"
+    "7. plans — the plans, only when the brief gives plans or prices.\n"
+    "8. cta — the next step.\n"
+    "\n"
+    "SCENE TYPES and their fields:\n"
+    "- hook: text (max 9 words), icon, sub (optional, max 5 words — e.g. the product name).\n"
+    "- overload: text (max 7 words), tasks (3-5 to-dos, max 5 words each).\n"
+    "- crew: text (max 6 words), agents (2-4: {role (1-2 words, e.g. \"Writer\"), task (max 7 "
+    "words — what it does), icon}).\n"
+    "- pipeline: text (max 8 words), input {icon, label (max 3 words)}, outputs (2-4: {icon, label "
+    "(max 3 words)}).\n"
+    "- approve: text (max 7 words), post (the ready post on the phone, max 18 words, in the "
+    "brand's voice), button (1-2 words, e.g. \"Approve\"), channels (2-5 of: "
+    + ", ".join(AITEAM_CHANNELS)
+    + ").\n"
+    "- gains: text (max 6 words), metrics (1-3: {label (max 5 words), value (a number), prefix "
+    "(optional, e.g. $), suffix (optional, e.g. % or +)}).\n"
+    "- plans: text (max 6 words), tiers (2-4: {name (1-2 words), price (as written in the brief, "
+    "e.g. \"$19\" or \"Free\"; leave \"\" when the brief gives none), note (max 5 words)}), pick (the "
+    "index of the tier to suggest, from 0), badge (optional, 1-2 words, e.g. \"Popular\").\n"
+    "- cta: text (max 9 words), button (1-3 words).\n"
+    "Every word on screen is in the video's LANGUAGE (roles, tasks, labels, the button too); app "
+    "names stay as written.\n"
+    + _COMMON_RULES
+    + '{"scenes": [{"type": "hook", "text": "...", "icon": "Sparkles", "sub": "...", "say": "..."}, '
+    '{"type": "overload", "text": "...", "tasks": ["...", "..."], "say": "..."}, {"type": "crew", "text": "...", '
+    '"agents": [{"role": "...", "task": "...", "icon": "Calendar"}], "say": "..."}, {"type": "pipeline", "text": '
+    '"...", "input": {"icon": "Lightbulb", "label": "..."}, "outputs": [{"icon": "FileText", "label": "..."}], '
+    '"say": "..."}, {"type": "approve", "text": "...", "post": "...", "button": "...", "channels": ["Facebook", '
+    '"TikTok"], "say": "..."}, ...]}'
+)
+
+
+def _aiteam_scene(kind: str, raw: dict, say: str) -> dict | None:
+    """AI service · Your AI team: its own scenes (None = not one of them, or empty)."""
+    text = _line(raw.get("text"), 120)
+    if kind == "overload":
+        tasks = [_line(x, 40) for x in (raw.get("tasks") if isinstance(raw.get("tasks"), list) else []) if _line(x, 40)][:5]
+        return {"type": kind, "text": text, "tasks": tasks, "say": say} if len(tasks) >= 2 else None
+    if kind == "crew":
+        agents = [
+            {"role": _line(a.get("role"), 24), "task": _line(a.get("task"), 60), "icon": _icon(a.get("icon"), "Bot")}
+            for a in (raw.get("agents") if isinstance(raw.get("agents"), list) else [])
+            if isinstance(a, dict) and _line(a.get("role"), 24) and _line(a.get("task"), 60)
+        ][:4]
+        return {"type": kind, "text": text, "agents": agents, "say": say} if len(agents) >= 2 else None
+    if kind == "pipeline":
+        given = raw.get("input") if isinstance(raw.get("input"), dict) else {}
+        outputs = [
+            {"icon": _icon(o.get("icon"), "Sparkles"), "label": _line(o.get("label"), 30)}
+            for o in (raw.get("outputs") if isinstance(raw.get("outputs"), list) else [])
+            if isinstance(o, dict) and _line(o.get("label"), 30)
+        ][:4]
+        if not _line(given.get("label"), 30) or len(outputs) < 2:
+            return None
+        return {"type": kind, "text": text, "input": {"icon": _icon(given.get("icon"), "Lightbulb"), "label": _line(given.get("label"), 30)}, "outputs": outputs, "say": say}
+    if kind == "approve":
+        known = {c.lower(): c for c in AITEAM_CHANNELS}
+        channels = []
+        for c in raw.get("channels") if isinstance(raw.get("channels"), list) else []:
+            name = known.get(str(c).strip().lower())
+            if name and name not in channels:
+                channels.append(name)
+        post = _line(raw.get("post"), 160)
+        return {"type": kind, "text": text, "post": post, "button": _line(raw.get("button"), 24), "channels": channels[:5], "say": say} if post else None
+    if kind == "gains":
+        metrics = []
+        for m in raw.get("metrics") if isinstance(raw.get("metrics"), list) else []:
+            if not isinstance(m, dict) or not _line(m.get("label"), 40):
+                continue
+            value = _number(m.get("value"))
+            if value <= 0:
+                continue
+            metrics.append({"label": _line(m.get("label"), 40), "value": int(value) if value == int(value) else round(value, 1), "prefix": _line(m.get("prefix"), 3), "suffix": _line(m.get("suffix"), 8)})
+        return {"type": kind, "text": text, "metrics": metrics[:3], "say": say} if metrics else None
+    if kind == "plans":
+        tiers = [
+            {"name": _line(x.get("name"), 20), "price": _line(x.get("price"), 14), "note": _line(x.get("note"), 40)}
+            for x in (raw.get("tiers") if isinstance(raw.get("tiers"), list) else [])
+            if isinstance(x, dict) and _line(x.get("name"), 20)
+        ][:4]
+        if len(tiers) < 2:
+            return None
+        try:
+            pick = max(0, min(len(tiers) - 1, int(raw.get("pick"))))
+        except (TypeError, ValueError):
+            pick = min(1, len(tiers) - 1)
+        scene = {"type": kind, "text": text, "tiers": tiers, "pick": pick, "say": say}
+        if _line(raw.get("badge"), 16):
+            scene["badge"] = _line(raw.get("badge"), 16)
+        return scene
+    return None
+
+
 # "3D · Street" (motion/src/street3d.jsx) — a low-poly Cambodian street at dusk in real 3D:
 # a rival shophouse (shutter half down) and the brand's, lit up with its name on the sign;
 # people walk to it, a board on its front counts, customers' messages float up. Words on
@@ -2637,6 +2751,7 @@ STYLES = {
     "dialogue": (DIALOGUE_PROMPT, DIALOGUE_TYPES, 11, "line"),
     "street3d": (STREET_PROMPT, STREET_TYPES, 5, "shops"),
     "illustrated": (ILL_PROMPT, ILL_TYPES, 10, "wide"),
+    "aiteam": (AITEAM_PROMPT, AITEAM_TYPES, 6, "crew"),
     "clarity": (CLARITY_PROMPT, CLARITY_TYPES, 8, None),
     "countdown": (COUNTDOWN_PROMPT, COUNTDOWN_TYPES, 7, "rank"),
     "thisorthat": (THISORTHAT_PROMPT, THISORTHAT_TYPES, 6, "choice"),
@@ -2654,7 +2769,7 @@ LONG_STYLES = {"training"}
 # The templates laid out for 16:9 too (motion/src/training.jsx, saas.jsx wide scenes);
 # every other template is always vertical. Scenes drawn only for a tall frame are
 # left out of a wide video.
-WIDE_STYLES = {"illustrated", "street3d", "dialogue", "parable", "podcast", "presenter", "neural", "paper", "doodle", "cartoon", "lesson", "rise", "training", "custom", "demo", "offer", "spotlight", "trend", "pov", "showcase", "launch", "unveil", "gridcards", "techflow", "canvas", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
+WIDE_STYLES = {"aiteam", "illustrated", "street3d", "dialogue", "parable", "podcast", "presenter", "neural", "paper", "doodle", "cartoon", "lesson", "rise", "training", "custom", "demo", "offer", "spotlight", "trend", "pov", "showcase", "launch", "unveil", "gridcards", "techflow", "canvas", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
 TALL_ONLY_TYPES = {"problem", "chat", "product", "point"}
 
 
@@ -2880,12 +2995,12 @@ def estimate_seconds(script: dict) -> int:
 # random per video, so a week's plan doesn't repeat the same look.
 GOAL_STYLES = {
     "sell": ("tech",),
-    "solution": ("tech", "demo", "custom", "showcase", "clarity", "gridcards", "cartoon", "appdemo"),
+    "solution": ("tech", "demo", "custom", "showcase", "clarity", "gridcards", "cartoon", "appdemo", "aiteam"),
     "conversion": ("offer", "spotlight", "tech", "launch", "reviews", "casestudy", "unveil", "studio", "street3d"),
     "teach": ("explainer",),
     "education": ("explainer", "training", "custom", "clarity", "tips", "gridcards", "techflow", "neural", "paper", "doodle", "cartoon", "lesson", "presenter", "podcast", "parable", "illustrated"),
     "reach": ("pov", "explainer", "countdown", "thisorthat", "hottake", "doodle", "cartoon", "lesson", "rise", "reaction", "podcast", "parable", "dialogue"),
-    "awareness": ("trend", "custom", "clarity", "showcase", "report", "unveil", "canvas", "studio", "presenter", "illustrated"),
+    "awareness": ("trend", "custom", "clarity", "showcase", "report", "unveil", "canvas", "studio", "presenter", "illustrated", "aiteam"),
     "authority": ("versus", "report", "casestudy", "hottake", "clarity", "techflow"),
     "engagement": ("poll", "thisorthat", "faq", "countdown", "hottake", "reaction", "dialogue"),
     "followers": ("quote", "explainer", "tips", "countdown", "hottake", "doodle", "lesson", "rise", "presenter", "podcast", "parable"),
@@ -2968,6 +3083,10 @@ def _only_story_numbers(scene: dict, story: str, allowed: tuple = ()) -> dict:
         nums = [float(scene.get("value") or 0)]
     elif kind == "tally":
         nums = [float(scene.get("value") or 0), float(scene.get("start") or 0)]
+    elif kind == "gains":  # AI service: the results
+        nums = [float(m.get("value") or 0) for m in scene.get("metrics") or []]
+    elif kind == "plans":  # AI service: the prices
+        nums = [n for x in scene.get("tiers") or [] for n in _numbers_in(x.get("price") or "")]
     elif kind == "fact" and scene.get("value"):  # Illustrated: the number on the card
         nums = [float(scene.get("value") or 0)]
     elif kind == "crowd":  # 3D · Street: the board's number
@@ -2980,6 +3099,10 @@ def _only_story_numbers(scene: dict, story: str, allowed: tuple = ()) -> dict:
         return scene
     if all(n in have for n in nums):
         return scene
+    if kind == "plans":  # AI service: the plans without prices
+        return {**scene, "tiers": [{**x, "price": ""} for x in scene["tiers"]]}
+    if kind == "gains":  # AI service: the line alone
+        return {"type": "hook", "text": scene.get("text") or "", "icon": "TrendingUp", "say": scene.get("say", "")} if scene.get("text") else scene
     if kind == "fact":  # Illustrated: the card without its number
         return {k: v for k, v in scene.items() if k not in ("value", "prefix", "suffix")}
     if kind == "crowd":  # 3D · Street: the people walk in, without the board
@@ -3202,6 +3325,8 @@ def _clean_one(raw: dict, names: dict[str, str]) -> dict | None:
                 "tone": "bad" if x.get("tone") == "bad" else "good",
             })
         return {"type": kind, "title": _line(raw.get("title"), 60), "people": people, "say": say} if len(people) >= 2 else None
+    if kind in ("overload", "crew", "pipeline", "approve", "gains", "plans"):  # AI service · Your AI team
+        return _aiteam_scene(kind, raw, say)
     if kind == "wide":  # Illustrated: a wide shot of a place, the main person in it
         try:
             crowd = max(0, min(6, int(raw.get("crowd"))))
@@ -3881,6 +4006,12 @@ _TEXT_FIELDS = {
     "remember": (("title", 40), ("text", 120), ("say", 300)),
     "line": (("text", 120), ("say", 300)),
     "shops": (("title", 60), ("say", 300)),
+    "overload": (("text", 120), ("say", 300)),
+    "crew": (("text", 120), ("say", 300)),
+    "pipeline": (("text", 120), ("say", 300)),
+    "approve": (("text", 120), ("post", 160), ("button", 24), ("say", 300)),
+    "gains": (("text", 120), ("say", 300)),
+    "plans": (("text", 120), ("badge", 16), ("say", 300)),
     "wide": (("title", 50), ("say", 300)),
     "closeup": (("text", 60), ("say", 300)),
     "fact": (("title", 40), ("text", 140), ("say", 300)),
@@ -4275,6 +4406,14 @@ def write_script(
                 slots += [(s["features"], k, 50) for k in range(len(s["features"]))]
             slots += [(n, "text", 90) for n in s.get("notes", [])]
             slots += [(m, "label", 30) for m in s.get("metrics", [])]
+            if s["type"] == "overload":  # AI service: the to-dos
+                slots += [(s["tasks"], k, 40) for k in range(len(s["tasks"]))]
+            if s["type"] == "crew":  # AI service: each worker's role and job
+                slots += [(a, key, n) for a in s["agents"] for key, n in (("role", 24), ("task", 60))]
+            if s["type"] == "pipeline":
+                slots += [(s["input"], "label", 30)] + [(o, "label", 30) for o in s["outputs"]]
+            if s["type"] == "plans":
+                slots += [(x, key, n) for x in s["tiers"] for key, n in (("name", 20), ("note", 40)) if x.get(key)]
             if s["type"] == "checklist":
                 slots += [(s["checks"], k, 90) for k in range(len(s["checks"]))]
             slots += [(x, key, n) for x in s.get("points", []) for key, n in (("title", 40), ("text", 100)) if x.get(key)]
@@ -4516,6 +4655,18 @@ def script_lines(script: dict) -> list[tuple[str, str]]:
                 screen += f" [{s['icon']}]"
             if s.get("guest"):
                 screen += f" + {s['guest']['look']} {s['guest']['name']}".rstrip()
+        elif s["type"] == "overload":
+            screen = (f"{s['text']}: " if s.get("text") else "") + "; ".join(s["tasks"])
+        elif s["type"] == "crew":
+            screen = (f"{s['text']}: " if s.get("text") else "") + "; ".join(f"{a['role']} — {a['task']}" for a in s["agents"])
+        elif s["type"] == "pipeline":
+            screen = (f"{s['text']}: " if s.get("text") else "") + f"{s['input']['label']} → " + ", ".join(o["label"] for o in s["outputs"])
+        elif s["type"] == "approve":
+            screen = (f"{s['text']}: " if s.get("text") else "") + f"(phone, post: {s['post']}) [{s.get('button') or '✓'}]" + (f" → {', '.join(s['channels'])}" if s.get("channels") else "")
+        elif s["type"] == "gains":
+            screen = (f"{s['text']}: " if s.get("text") else "") + "; ".join(f"{m.get('prefix', '')}{m['value']}{m.get('suffix', '')} {m['label']}" for m in s["metrics"])
+        elif s["type"] == "plans":
+            screen = (f"{s['text']}: " if s.get("text") else "") + "; ".join(f"{x['name']}" + (f" {x['price']}" if x.get("price") else "") for x in s["tiers"])
         elif s["type"] == "wide":
             screen = f"({s['place']}, {s['time']}; {s['pose']}" + (f" with {s['item']}" if s.get("item", "none") != "none" else "") + f", {s.get('crowd', 0)} people around)" + (f" {s['title']}" if s.get("title") else "")
         elif s["type"] == "closeup":
@@ -4998,6 +5149,17 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
         if s["type"] == "fanout":
             scene["outputs"] = [{**o, "value": t(o["value"]) if o.get("value") else ""} for o in scene.get("outputs") or []]
             scene["checks"] = [t(c) for c in scene.get("checks") or []]
+        if s["type"] == "overload":  # AI service · Your AI team
+            scene["tasks"] = [t(x) for x in scene["tasks"]]
+        if s["type"] == "crew":
+            scene["agents"] = [{**a, "role": t(a["role"]), "task": t(a["task"])} for a in scene["agents"]]
+        if s["type"] == "pipeline":
+            scene["input"] = {**scene["input"], "label": t(scene["input"]["label"])}
+            scene["outputs"] = [{**o, "label": t(o["label"])} for o in scene["outputs"]]
+        if s["type"] == "approve" and scene.get("post"):
+            scene["post"] = t(scene["post"])
+        if s["type"] == "plans":
+            scene["tiers"] = [{**x, "name": t(x["name"]), "note": t(x["note"]) if x.get("note") else ""} for x in scene["tiers"]]
         if s["type"] == "word" and scene.get("rows"):  # Unveil's card: its people / items
             scene["rows"] = [{"name": t(x["name"]), "sub": t(x["sub"]) if x.get("sub") else ""} for x in scene["rows"]]
         if script.get("style") == "rise":  # Rise: the climb and the sky move on scene by scene
@@ -5121,6 +5283,16 @@ def default_seconds(scene: dict) -> float:
         return 4.4
     if kind == "line":  # Dialogue · Two voices — shared.jsx defaultSeconds says the same
         return 3.6
+    if kind == "overload":  # AI service · Your AI team — shared.jsx defaultSeconds says the same
+        return 4.4
+    if kind == "crew":
+        return 5.6
+    if kind in ("pipeline", "approve"):
+        return 5.0
+    if kind == "gains":
+        return 4.6
+    if kind == "plans":
+        return 4.8
     if kind == "wide":  # Illustrated — shared.jsx defaultSeconds says the same
         return 4.4
     if kind == "closeup":
@@ -6109,6 +6281,7 @@ TEMPLATE_GUIDE = {
     "unveil": "unveiling a product or a new feature in a light, elegant way — one big word, the app card coming into focus, a field typing itself, a check with confetti",
     "gridcards": "how a product or service solves an everyday problem — the repetitive work today, then one input becoming several results (a post, a price poster, a caption), clear and friendly",
     "techflow": "explaining HOW a technology works step by step (the internet, email, payments, AI, apps) — devices, data packets travelling, addresses, lookups, the path, a recap",
+    "aiteam": "introducing an AI-as-a-service — an AI product people subscribe to instead of hiring (an AI marketing team, assistant, bookkeeper, support agent): the work piling up, AI workers each doing a job, one input becoming finished work, the owner approving with one tap, results, plans and prices",
     "illustrated": "a calm documentary story of everyday Cambodian life in a muted hand-drawn look — one person through the market, a street of shophouses, a bank, home, the rice fields; close-ups of them with an ATM, a phone, money, a paper; explainers about money, banking, payments, health, work, a service in people's lives",
     "street3d": "a shop or business shown as the full one on its street, in real 3D — two shophouses side by side at dusk, the rival empty with its shutter half down, the brand's lit up with its name on the sign, people walking in, a number counting, customers' messages; for a café, a restaurant, a shop, a service that wants more customers",
     "dialogue": "two people really talking, each in their own voice — two friends, a seller and a customer, a boss and a worker, a parent and a child — short lines back and forth in an everyday Cambodian place, speech bubbles, a turn and a takeaway; a conversation, a sketch, a Q&A between two people",

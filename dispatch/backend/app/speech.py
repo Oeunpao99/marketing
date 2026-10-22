@@ -601,6 +601,7 @@ GEMINI_ACT = {
     "doodle": "Calm and warm, like an older sibling sharing a life lesson — gentle pauses, never rushed.",
     "cartoon": "Lively and natural, like telling a funny everyday story to a friend.",
     "lesson": "Friendly and clear, like a favourite teacher explaining at the board — slow down on each number.",
+    "aiteam": "Confident, clear and modern, like the voice of a good product launch film — upbeat but never pushy, a small pause before each turn.",
     "illustrated": "Calm, warm and clear, like the narrator of a short documentary — unhurried, kind, a little pause between thoughts.",
     "street3d": "Warm and confident, a little cinematic, like the voice of a short brand film — unhurried, proud of the shop.",
     "dialogue": "Natural and conversational, like a real person chatting with a friend — relaxed, expressive, never like reading.",

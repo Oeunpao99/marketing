@@ -1,0 +1,223 @@
+{
+  "brand": {
+    "name": "Smart Marketing",
+    "color": "#2563EB",
+    "logo": "ours/smart-marketing.png",
+    "slug": "smart-marketing"
+  },
+  "style": "aiteam",
+  "frame": 300,
+  "scenes": [
+    {
+      "type": "hook",
+      "text": "Your ⟦AI marketing team⟧, ready today",
+      "icon": "Sparkles",
+      "sub": "Smart Marketing",
+      "say": "Every business needs to post, every day. But who has the time, or the budget for a full marketing team?"
+    },
+    {
+      "type": "overload",
+      "text": "Too much to do, ⟦every day⟧",
+      "tasks": [
+        "Plan this week's posts",
+        "Write captions in Khmer",
+        "Design the posters",
+        "Edit the videos",
+        "Reply to new leads"
+      ]
+    },
+    {
+      "type": "crew",
+      "text": "Meet your ⟦AI team⟧",
+      "agents": [
+        {
+          "role": "Planner",
+          "task": "Plans your week at the best times",
+          "icon": "Calendar"
+        },
+        {
+          "role": "Writer",
+          "task": "Writes captions in Khmer and English",
+          "icon": "FileText"
+        },
+        {
+          "role": "Designer",
+          "task": "Designs a poster for every post",
+          "icon": "Image"
+        },
+        {
+          "role": "Video maker",
+          "task": "Makes videos with a Khmer voice",
+          "icon": "Video"
+        }
+      ]
+    },
+    {
+      "type": "pipeline",
+      "text": "One idea in, ⟦a week of posts⟧ out",
+      "input": {
+        "icon": "Lightbulb",
+        "label": "Your product"
+      },
+      "outputs": [
+        {
+          "icon": "FileText",
+          "label": "Captions"
+        },
+        {
+          "icon": "Image",
+          "label": "Posters"
+        },
+        {
+          "icon": "Video",
+          "label": "Videos"
+        },
+        {
+          "icon": "Calendar",
+          "label": "A weekly plan"
+        }
+      ]
+    },
+    {
+      "type": "approve",
+      "text": "You stay in control — ⟦one tap⟧",
+      "post": "New this week: iced coffee, 2 for 1 every afternoon. See you at the shop!",
+      "button": "Approve",
+      "channels": [
+        "Facebook",
+        "TikTok",
+        "Telegram",
+        "YouTube"
+      ]
+    },
+    {
+      "type": "gains",
+      "text": "Everything in ⟦one place⟧",
+      "metrics": [
+        {
+          "label": "video templates",
+          "value": 40,
+          "suffix": "+"
+        },
+        {
+          "label": "languages: Khmer and English",
+          "value": 2
+        },
+        {
+          "label": "days planned for you",
+          "value": 7
+        }
+      ]
+    },
+    {
+      "type": "plans",
+      "text": "Pay only for ⟦what you use⟧",
+      "tiers": [
+        {
+          "name": "Free",
+          "price": "100",
+          "note": "credits a month"
+        },
+        {
+          "name": "Starter",
+          "price": "1,000",
+          "note": "credits a month"
+        },
+        {
+          "name": "Pro",
+          "price": "3,000",
+          "note": "credits a month"
+        },
+        {
+          "name": "Business",
+          "price": "9,000",
+          "note": "credits a month"
+        }
+      ],
+      "pick": 2,
+      "badge": "Popular"
+    },
+    {
+      "type": "cta",
+      "text": "Your AI marketing team, ⟦ready today⟧",
+      "button": "Start free"
+    }
+  ],
+  "clip": [
+    {
+      "type": "hook",
+      "text": "Your ⟦AI marketing team⟧, ready today",
+      "icon": "Sparkles",
+      "sub": "Smart Marketing"
+    },
+    {
+      "type": "crew",
+      "text": "Meet your ⟦AI team⟧",
+      "agents": [
+        {
+          "role": "Planner",
+          "task": "Plans your week at the best times",
+          "icon": "Calendar"
+        },
+        {
+          "role": "Writer",
+          "task": "Writes captions in Khmer and English",
+          "icon": "FileText"
+        },
+        {
+          "role": "Designer",
+          "task": "Designs a poster for every post",
+          "icon": "Image"
+        },
+        {
+          "role": "Video maker",
+          "task": "Makes videos with a Khmer voice",
+          "icon": "Video"
+        }
+      ]
+    },
+    {
+      "type": "pipeline",
+      "text": "One idea in, ⟦a week of posts⟧ out",
+      "input": {
+        "icon": "Lightbulb",
+        "label": "Your product"
+      },
+      "outputs": [
+        {
+          "icon": "FileText",
+          "label": "Captions"
+        },
+        {
+          "icon": "Image",
+          "label": "Posters"
+        },
+        {
+          "icon": "Video",
+          "label": "Videos"
+        },
+        {
+          "icon": "Calendar",
+          "label": "A weekly plan"
+        }
+      ]
+    },
+    {
+      "type": "approve",
+      "text": "You stay in control — ⟦one tap⟧",
+      "post": "New this week: iced coffee, 2 for 1 every afternoon. See you at the shop!",
+      "button": "Approve",
+      "channels": [
+        "Facebook",
+        "TikTok",
+        "Telegram",
+        "YouTube"
+      ]
+    },
+    {
+      "type": "cta",
+      "text": "Your AI marketing team, ⟦ready today⟧",
+      "button": "Start free"
+    }
+  ]
+}

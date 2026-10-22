@@ -28,6 +28,12 @@ export const FIELDS = {
   onair: [['text', 'On the card']],
   visit: [['text', 'Caption']],
   line: [['text', 'In the bubble']],
+  overload: [['text', 'On screen']],
+  crew: [['text', 'On screen']],
+  pipeline: [['text', 'On screen']],
+  approve: [['text', 'On screen'], ['post', 'The post'], ['button', 'Button']],
+  gains: [['text', 'On screen']],
+  plans: [['text', 'On screen'], ['badge', 'Badge']],
   wide: [['title', 'Caption card']],
   closeup: [['text', 'Caption card']],
   fact: [
