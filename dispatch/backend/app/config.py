@@ -230,6 +230,29 @@ class Settings(BaseSettings):
     # — every question is one AI call, so this caps the bill per account.
     advisor_daily_limit: int = 60
 
+    # Paying for a plan with KHQR (app/payments.py, app/khqr.py, app/bakong.py).
+    # The account the money goes to — its Bakong id ("name@bank"), the name and
+    # city a bank app shows. A merchant account also has its merchant id and bank
+    # (empty = an individual account).
+    bakong_account_id: str = ""
+    bakong_merchant_name: str = ""
+    bakong_merchant_city: str = "Phnom Penh"
+    bakong_merchant_id: str = ""
+    bakong_acquiring_bank: str = ""
+    # The Bakong Open API token (api-bakong.nbc.gov.kh — renewed every ~90 days)
+    # that confirms payments. The URL can point at a relay in Cambodia if the API
+    # refuses our server's (Hong Kong) address.
+    bakong_api_token: str = ""
+    bakong_api_url: str = "https://api-bakong.nbc.gov.kh"
+    # What each plan costs a month, both currencies, as JSON — the pricing
+    # proposal's prices (2026-10-23), the same as the website's (LandingPage
+    # PLANS). Override in .env; "{}" = nothing for sale ("Coming soon" on Upgrade).
+    # Nothing is sold anyway until the Bakong account and token above are set.
+    plan_prices: str = (
+        '{"starter": {"USD": 19, "KHR": 79000}, "pro": {"USD": 49, "KHR": 199000},'
+        ' "business": {"USD": 129, "KHR": 529000}}'
+    )
+
     # Web Push (app/push.py) — lock-screen / desktop notifications. Generate a
     # pair with `python -m app.push keys`; empty = push turned off.
     vapid_public_key: str = ""

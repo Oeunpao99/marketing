@@ -57,8 +57,9 @@ class Workspace(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(120))
     # Billing plan (app/billing.py): "pro" gets PLAN_CREDIT["pro"] of AI credit
-    # a month. Not editable through any API yet — there's no payment system.
-    plan: Mapped[str] = mapped_column(String(20), default="pro", server_default="pro")
+    # a month. New accounts start on "free"; a paid plan comes from Billing →
+    # Upgrade (KHQR, app/payments.py) or the admin portal.
+    plan: Mapped[str] = mapped_column(String(20), default="free", server_default="free")
     # The month ("2026-11") the "your monthly credits are ready" push last went
     # out (app/billing.py remind_claims) — once a month.
     credit_notice_month: Mapped[str | None] = mapped_column(String(7), nullable=True)
@@ -72,6 +73,10 @@ class Workspace(Base, TimestampMixin):
     # can sign in or use the app, and no AI is charged to it. Null = active.
     suspended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     suspended_reason: Mapped[str] = mapped_column(String(300), default="", server_default="")
+    # A plan paid for with KHQR (app/payments.py) runs until this moment, then the
+    # workspace goes back to Free. Null = not a paid period (Free, or a plan the
+    # team set in the admin portal) — never expires by itself.
+    plan_paid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # Chatbot lead intake (app/leads.py, POST /api/intake/leads): only a hash of
     # the secret key is kept — the key is shown once, when it is made — plus its
     # last 4 characters so Setup can tell keys apart, and when a bot last sent a lead.
@@ -109,6 +114,36 @@ class AiModel(Base):
     price_out: Mapped[float] = mapped_column(Numeric(10, 4), default=0, server_default="0")  # $ / 1M output tokens
     markup: Mapped[float] = mapped_column(Numeric(6, 3), default=1.3, server_default="1.3")
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class Payment(Base, TimestampMixin):
+    """One plan payment by KHQR (app/payments.py): the code shown to the
+    customer, its md5 (Bakong finds the transaction by it), and what Bakong
+    reported once it was paid. The receipt in Settings → Billing and the admin
+    portal's payments list read these rows."""
+
+    __tablename__ = "payments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("team_members.id", ondelete="SET NULL"), nullable=True)
+    plan: Mapped[str] = mapped_column(String(20))
+    currency: Mapped[str] = mapped_column(String(3))  # "USD" | "KHR"
+    amount: Mapped[float] = mapped_column(Numeric(14, 2))
+    bill_number: Mapped[str] = mapped_column(String(25), unique=True)
+    qr: Mapped[str] = mapped_column(Text)
+    md5: Mapped[str] = mapped_column(String(32), index=True)
+    # "pending" → "paid" | "expired" | "cancelled" | "mismatch" (Bakong's
+    # transaction wasn't what we asked for — not activated; the team checks it)
+    status: Mapped[str] = mapped_column(String(10), default="pending", server_default="pending", index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # from Bakong once paid: the transaction hash and the payer's account
+    bakong_hash: Mapped[str] = mapped_column(String(80), default="", server_default="")
+    from_account: Mapped[str] = mapped_column(String(80), default="", server_default="")
+    # the paid period this payment bought (for the receipt)
+    period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class CreditEntry(Base):

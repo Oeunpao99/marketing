@@ -241,6 +241,36 @@ def admin_workspaces(q: str = "", status: str = "all", db: Session = Depends(get
     return rows
 
 
+@router.get("/payments", dependencies=[Depends(require_admin)])
+def admin_payments(status: str = "", db: Session = Depends(get_db)):
+    """KHQR plan payments (app/payments.py), newest first — "paid", "mismatch"
+    (Bakong's transaction wasn't what we asked: never activated, check it), etc."""
+    from app.models import Payment
+
+    stmt = select(Payment, Workspace.name).join(Workspace, Workspace.id == Payment.workspace_id)
+    if status:
+        stmt = stmt.where(Payment.status == status)
+    rows = db.execute(stmt.order_by(Payment.created_at.desc()).limit(300)).all()
+    return [
+        {
+            "id": p.id,
+            "workspace_id": p.workspace_id,
+            "workspace": name,
+            "plan": p.plan,
+            "currency": p.currency,
+            "amount": float(p.amount),
+            "bill_number": p.bill_number,
+            "status": p.status,
+            "created_at": p.created_at.isoformat() if p.created_at else None,
+            "paid_at": p.paid_at.isoformat() if p.paid_at else None,
+            "period_end": p.period_end.isoformat() if p.period_end else None,
+            "bakong_hash": p.bakong_hash,
+            "from_account": p.from_account,
+        }
+        for p, name in rows
+    ]
+
+
 def _workspace(db: Session, ws_id: int) -> Workspace:
     w = db.get(Workspace, ws_id)
     if w is None:

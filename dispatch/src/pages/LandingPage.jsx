@@ -769,9 +769,14 @@ function Faq() {
 // The plans (the owner's decision, 2026-10-21). usd / khr = a month; a year =
 // 10 months (2 free). Free is the wide card on top; the paid plans under it,
 // the popular one dark; then the full comparison. Credits: CREDIT_USES.
-// Paid prices aren't confirmed yet (2026-10-22): they show "Coming soon" — Free
-// stays $0. Set to false once the prices are agreed; the numbers below come back.
-const PRICES_SOON = true
+// Monthly plan prices are confirmed (2026-10-23, the pricing proposal) and paid
+// in the app with KHQR (Settings → Billing → Upgrade; app/payments.py PLAN_PRICES
+// — keep the two in step). Set true again to show "Coming soon".
+const PRICES_SOON = false
+// What the app can't sell yet: yearly billing, credit packs and add-ons stay
+// "Coming soon" (the Yearly switch is hidden) until checkout supports them.
+const YEARLY_ON = false
+const EXTRAS_SOON = true
 
 const PLANS = [
   {
@@ -1097,7 +1102,7 @@ function AddonShop() {
                 </div>
                 <div className="mt-2 text-[20px] font-extrabold tabular-nums text-ink-900">{n(pk.credits.toLocaleString('en-US'))}</div>
                 <div className="text-[11.5px] text-ink-500">{t('credits', 'ក្រេឌីត')}</div>
-                {PRICES_SOON ? (
+                {EXTRAS_SOON ? (
                   <div className="mt-2 text-[13px] font-bold text-brand">{t('Coming soon', 'ឆាប់ៗនេះ')}</div>
                 ) : (
                   <>
@@ -1121,7 +1126,7 @@ function AddonShop() {
                 <div className="text-[12.5px] leading-snug text-ink-500">{t(text)}</div>
               </div>
               <div className="flex-none text-right">
-                {PRICES_SOON ? (
+                {EXTRAS_SOON ? (
                   <div className="text-[13px] font-bold text-brand">{t('Coming soon', 'ឆាប់ៗនេះ')}</div>
                 ) : (
                   <>
@@ -1166,7 +1171,7 @@ function Pricing({ onStart }) {
       />
 
       <div className={`mt-10 flex flex-wrap items-center justify-center gap-3 ${PRICES_SOON ? 'hidden' : ''}`}>
-        <Toggle value={yearly} onChange={setYearly} options={[[false, t('Monthly', 'ប្រចាំខែ')], [true, t('Yearly', 'ប្រចាំឆ្នាំ'), t('2 months free', 'ឥតគិតថ្លៃ ២ ខែ')]]} />
+        {YEARLY_ON && <Toggle value={yearly} onChange={setYearly} options={[[false, t('Monthly', 'ប្រចាំខែ')], [true, t('Yearly', 'ប្រចាំឆ្នាំ'), t('2 months free', 'ឥតគិតថ្លៃ ២ ខែ')]]} />}
         <Toggle value={riel} onChange={setRiel} options={[[false, 'USD $'], [true, 'KHR ៛']]} />
       </div>
 

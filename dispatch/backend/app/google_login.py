@@ -155,7 +155,7 @@ def google_callback(request: Request, code: str = "", state: str = "", error: st
     if user is None:
         # first time: a new private workspace, them as owner (as app/auth.py register)
         name = (person.get("name") or email.split("@")[0]).strip()[:120]
-        workspace = Workspace(name=f"{name}'s workspace")
+        workspace = Workspace(name=f"{name}'s workspace", plan="free")  # new accounts start on Free
         db.add(workspace)
         db.flush()
         user = TeamMember(

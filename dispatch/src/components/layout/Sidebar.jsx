@@ -118,6 +118,14 @@ export default function Sidebar({ collapsed = false }) {
       window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
       openSettings({ detail: { tab: "billing" } });
     }
+    // /?settings=billing — a notification's link (e.g. "Payment received", app/payments.py)
+    const tab = new URLSearchParams(window.location.search).get("settings");
+    if (tab) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("settings");
+      window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+      openSettings({ detail: { tab: tab.replace(/[^a-z]/g, "") } });
+    }
     return () => {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("dispatch:open-search", open);

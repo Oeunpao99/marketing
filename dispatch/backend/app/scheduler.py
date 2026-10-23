@@ -46,6 +46,8 @@ CLAIM_CHECK_S = 600  # how often the monthly "claim your credits" reminder is ch
 async def _run(interval: int) -> None:
     log.info("delivery worker started (every %ss)", interval)
     last_claim_check = 0.0
+    last_pay_sweep = 0.0
+    last_plan_check = 0.0
     while True:
         try:
             # once a month per workspace: "your monthly credits are ready" (app/billing.py)
@@ -60,6 +62,23 @@ async def _run(interval: int) -> None:
             raise
         except Exception:  # noqa: BLE001 - a reminder never stops delivery
             log.exception("monthly credit reminder failed")
+        try:
+            # KHQR plan payments (app/payments.py): confirm open ones with Bakong
+            # (a page closed after paying), and end paid months that ran out
+            from app import payments
+
+            if time.monotonic() - last_pay_sweep >= payments.SWEEP_S:
+                last_pay_sweep = time.monotonic()
+                await asyncio.to_thread(payments.sweep)
+            if time.monotonic() - last_plan_check >= CLAIM_CHECK_S:
+                last_plan_check = time.monotonic()
+                ended = await asyncio.to_thread(payments.expire_plans)
+                if ended:
+                    log.info("paid plans: %d ended, back to Free", ended)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001 - payments never stop delivery
+            log.exception("payment sweep failed")
         try:
             result = await asyncio.to_thread(_tick)
             if result["due"]:

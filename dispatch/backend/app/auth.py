@@ -56,7 +56,8 @@ def register(payload: RegisterIn, request: Request, db: Session = Depends(get_db
         raise HTTPException(409, "An account with that email already exists.")
 
     name = payload.name.strip()
-    workspace = Workspace(name=payload.workspace_name.strip() or f"{name}'s workspace")
+    # every new account starts on Free (100 credits); paid plans: Billing → Upgrade (app/payments.py)
+    workspace = Workspace(name=payload.workspace_name.strip() or f"{name}'s workspace", plan="free")
     db.add(workspace)
     db.flush()
     user = TeamMember(

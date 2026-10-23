@@ -225,7 +225,9 @@ def _counted(ws: int, since: datetime, claim_at: datetime | None):
 
 
 def balance(db: Session, ws: int) -> dict:
-    plan = db.scalar(select(Workspace.plan).where(Workspace.id == ws)) or "free"
+    row = db.execute(select(Workspace.plan, Workspace.plan_paid_until).where(Workspace.id == ws)).first()
+    plan = (row.plan if row else None) or "free"
+    paid_until = row.plan_paid_until if row else None
     credit = PLAN_CREDIT.get(plan, 0.0)
     since = month_start()
     claim_at, claimed_usd = db.execute(
@@ -249,6 +251,8 @@ def balance(db: Session, ws: int) -> dict:
     return {
         "plan": plan,
         "plan_label": PLAN_LABEL.get(plan, plan.title()),
+        # a plan paid for with KHQR runs until then (app/payments.py); None = doesn't expire
+        "plan_paid_until": paid_until.isoformat() if paid_until else None,
         "monthly_credit": credit,
         "spent": round(spent, 6),
         "pending": round(pending, 6),
@@ -455,24 +459,31 @@ def claim_month(
         raise HTTPException(403, "This account is suspended — credits can't be claimed.")
     if PLAN_CREDITS.get(w.plan, 0) <= 0:
         raise HTTPException(409, "Your plan has no monthly credits — choose a plan to get them.")
-    since = month_start()
-    due = balance(db, ws)["claim_credits"]  # the plan's credits, or what an upgrade adds
-    added = 0
-    if due > 0:
-        topup = due < PLAN_CREDITS[w.plan]
-        db.add(
-            CreditEntry(
-                workspace_id=ws,
-                user_id=user.id,
-                kind="monthly",
-                amount_usd=round(due / CREDITS_PER_USD, 6),
-                cost_usd=0,
-                note=f"{due:,} monthly credits — {PLAN_LABEL.get(w.plan, w.plan)} plan{' (upgrade)' if topup else ''}, {since:%B %Y}",
-            )
-        )
-        added = due
+    added = grant_month(db, w, user.id)
     db.commit()
     return {**balance(db, ws), "claimed_now": added}
+
+
+def grant_month(db: Session, w: Workspace, user_id: int | None) -> int:
+    """Add this month's credits still due on ``w``'s plan (all of them, or what
+    an upgrade adds) to the ledger — the caller commits. Returns how many.
+    Used by Claim and by a paid upgrade (app/payments.py)."""
+    since = month_start()
+    due = balance(db, w.id)["claim_credits"]  # the plan's credits, or what an upgrade adds
+    if due <= 0:
+        return 0
+    topup = due < PLAN_CREDITS.get(w.plan, 0)
+    db.add(
+        CreditEntry(
+            workspace_id=w.id,
+            user_id=user_id,
+            kind="monthly",
+            amount_usd=round(due / CREDITS_PER_USD, 6),
+            cost_usd=0,
+            note=f"{due:,} monthly credits — {PLAN_LABEL.get(w.plan, w.plan)} plan{' (upgrade)' if topup else ''}, {since:%B %Y}",
+        )
+    )
+    return due
 
 
 def remind_claims() -> int:

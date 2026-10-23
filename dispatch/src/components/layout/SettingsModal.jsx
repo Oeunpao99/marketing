@@ -50,6 +50,7 @@ import CreditCoin from './CreditCoin'
 import { CreditReceipt, fmtAccount, SendingAnimation } from './CreditReceipt'
 import { claimCredits } from '../../lib/credits'
 import ModelLogo from '../ui/ModelLogo'
+import UpgradeDialog from '../billing/UpgradeDialog'
 
 // Settings — every control here is real and saves to the backend
 // (app/auth.py): profile, password, workspace name, and the team (add people
@@ -1817,6 +1818,7 @@ function BillingTab() {
     setTransferOpen(true)
   }
   const [copied, setCopied] = useState(false)
+  const [upgradeOpen, setUpgradeOpen] = useState(false) // Upgrade / Renew — paid with KHQR
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
 
@@ -1914,6 +1916,22 @@ function BillingTab() {
           </button>
         </section>
       )}
+
+      {/* the plan: until when it's paid, and Upgrade / Renew (KHQR — UpgradeDialog) */}
+      <section className="flex flex-wrap items-center gap-3 rounded-2xl border border-ink-200 bg-white p-4">
+        <div className="min-w-0 flex-1">
+          <div className="text-[13.5px] font-bold text-ink-900">{data.plan_label} plan</div>
+          <div className="text-[12px] text-ink-500">
+            {data.plan_paid_until
+              ? `Paid until ${new Date(data.plan_paid_until).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })} — then back to Free unless you renew`
+              : `${(data.monthly_credits ?? 0).toLocaleString('en-US')} AI credits a month`}
+          </div>
+        </div>
+        <button type="button" onClick={() => setUpgradeOpen(true)} className="btn-primary h-9 px-4 text-[12.5px]">
+          {data.plan_paid_until ? 'Renew or change' : 'Upgrade'}
+        </button>
+      </section>
+      <UpgradeDialog open={upgradeOpen} onClose={() => setUpgradeOpen(false)} onPaid={() => load()} />
 
       {/* the balance, like a bank card: one big number, the rest small */}
       <section className="relative overflow-hidden rounded-3xl bg-brand p-5 text-white shadow-sm">
