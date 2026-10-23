@@ -2873,8 +2873,6 @@ STYLES = {
     "custom": (CUSTOM_PROMPT, CUSTOM_TYPES, 8, None),
     "training": (TRAINING_PROMPT, TRAINING_TYPES, 12, None),
 }
-# Styles made for long material (a whole training): story mode up to 10 minutes.
-LONG_STYLES = {"training"}
 # The templates laid out for 16:9 too (motion/src/training.jsx, saas.jsx wide scenes);
 # every other template is always vertical. Scenes drawn only for a tall frame are
 # left out of a wide video.
@@ -2899,8 +2897,10 @@ SCREEN_STYLES = {"custom", "demo", "appdemo", "showcase", "launch", "unveil", "c
 SELLING_STYLES = {"tech", "demo", "offer", "spotlight", "street3d", "appdemo", "showcase", "launch", "unveil", "gridcards"}
 
 # Story mode (write_script ``seconds``): the person pasted their own story.
-MAX_STORY_SCENES = 20  # ~2 minutes
-MAX_LONG_SCENES = 80  # LONG_STYLES — ~10 minutes
+# Every template may run to ~10 minutes (2026-10-24 — it was 2, Training only went long).
+MAX_STORY_SCENES = 80  # ~10 minutes
+STORY_MAX_S = 600
+LONG_STORY_SCENES = 20  # past this many scenes the storyboard gets the long writing budget
 STORY_RULES = (
     "\n\nTHE PERSON WROTE THEIR OWN STORY — it is under THE VIDEO IS ABOUT. Turn THAT story "
     "into the storyboard instead of inventing one: follow its order and its content scene by "
@@ -3101,10 +3101,10 @@ def stated_seconds(text: str) -> int:
     return int(float(m[1]) * 60) if m else 0
 
 
-def story_seconds(text: str, length: str = "auto", cap: int = 120) -> int:
+def story_seconds(text: str, length: str = "auto", cap: int = STORY_MAX_S) -> int:
     """How long a story video should be: "60" / "120" / "300" / "600", or from
     how long the story takes to read aloud (Khmer ~11 characters a second,
-    English ~2.6 words), between 30 s and ``cap`` (2 minutes; 10 for a training)."""
+    English ~2.6 words), between 30 s and ``cap`` (10 minutes, every template)."""
     if length in ("60", "120", "300", "600"):
         return min(int(length), cap)
     if stated_seconds(text) >= 20:  # the brief says how long
@@ -4356,10 +4356,10 @@ def write_script(
         khmer = "khmer" in language.lower()
         model = writer_model(khmer)
     if story:
-        count = max(5, min(MAX_LONG_SCENES if style in LONG_STYLES else MAX_STORY_SCENES, round(seconds / 6.5)))
+        count = max(5, min(MAX_STORY_SCENES, round(seconds / 6.5)))
         numbered = own_scenes(idea)
         if numbered:  # their own scene list — plus a scene for each moment a scene lists
-            count = max(2, min(MAX_LONG_SCENES if style in LONG_STYLES else MAX_STORY_SCENES, numbered + own_moments(idea)))
+            count = max(2, min(MAX_STORY_SCENES, numbered + own_moments(idea)))
         most = count  # the person's story sets the length, not the template
         extra += STORY_RULES.format(count=count, seconds=seconds)
         if numbered:
@@ -4393,7 +4393,8 @@ def write_script(
         ],
         model,
         # AI design writes every layer of every scene — it needs more room
-        max_tokens=(32000 if style in LONG_STYLES or style == "canvas" else 16000) if story else (20000 if style == "canvas" else 9000),
+        # a long story (past LONG_STORY_SCENES scenes) needs the long budget too
+        max_tokens=(32000 if count > LONG_STORY_SCENES or style == "canvas" else 16000) if story else (20000 if style == "canvas" else 9000),
         # A storyboard follows the template's recipe — it doesn't need long
         # reasoning; the default (medium) took 1-2 minutes on gpt-5-mini. The
         # Khmer editor pass after it still runs at high effort.
@@ -4418,7 +4419,7 @@ def write_script(
                         },
                     ],
                     model,
-                    max_tokens=(32000 if style in LONG_STYLES or style == "canvas" else 16000),
+                    max_tokens=(32000 if count > LONG_STORY_SCENES or style == "canvas" else 16000),
                     effort="low",
                 )
                 if isinstance(again.get("scenes"), list) and len(_missing_onscreen(idea, again)) < len(missing):
@@ -4434,7 +4435,7 @@ def write_script(
         s
         for s in (_clean_scene(r, names) for r in (raw.get("scenes") or []) if isinstance(r, dict))
         if s and s["type"] in allowed
-    ][: ((MAX_LONG_SCENES if style in LONG_STYLES else MAX_STORY_SCENES) + 2) if story else 14]
+    ][: (MAX_STORY_SCENES + 2) if story else 14]
     if style == "canvas":
         # AI design: its own scenes in the brief's order (no hook / CTA types), and its checklist
         if len(scenes) < 2:
@@ -5884,7 +5885,9 @@ def share_post_picture(props: dict) -> None:
 
 def _report(job_id: int | None, **fields) -> None:
     if job_id is not None:
-        _progress[job_id] = {**_progress.get(job_id, {}), **fields}
+        # "_at": when it last moved — video._tick keeps a long render (a 10-minute
+        # video, past the 45-minute stale mark) alive while this keeps changing
+        _progress[job_id] = {**_progress.get(job_id, {}), **fields, "_at": time.monotonic()}
 
 
 def progress_of(job_id: int) -> dict | None:
@@ -6229,7 +6232,9 @@ def render(props: dict, job_id: int | None = None, preview: bool = False, compos
             reader = threading.Thread(target=follow, daemon=True)
             reader.start()
             try:
-                proc.wait(timeout=900 + 2 * (seconds if seconds is not None else length_of(props)))  # a 10-minute training renders for a while
+                # any template may run 10 minutes now, and a heavy one (AI design, 3D) draws
+                # slower than a training: ~75 minutes allowed for a 10-minute video
+                proc.wait(timeout=900 + 6 * (seconds if seconds is not None else length_of(props)))
             except subprocess.TimeoutExpired:
                 _kill_tree(proc)
                 proc.wait()
@@ -6496,7 +6501,7 @@ class PlanIn(BaseModel):
     language: str = "Khmer"
     goal: str = "auto"
     music: bool = True
-    length: str = "auto"  # "auto" | "60" | "120" | "300" | "600" (the last two: a training)
+    length: str = "auto"  # "auto" | "60" | "120" | "300" | "600" — any template (up to 10 minutes)
     ratio: str = "auto"  # "auto" (the director picks) | "9:16" | "16:9" — see final_ratio
     ref_url: str = Field(default="", max_length=500)  # see MotionIn
     ref_urls: list[str] = Field(default_factory=list, max_length=6)  # see MotionIn
@@ -6753,7 +6758,7 @@ def _build_plan(payload: "PlanIn", ws: int, user_id: int, on_style=None) -> dict
         if on_style:
             on_style(style, why)
         shape = final_ratio(payload.ratio, style, suggested)
-        seconds = story_seconds(payload.idea, payload.length, 600 if style in LONG_STYLES else 120)
+        seconds = story_seconds(payload.idea, payload.length, STORY_MAX_S)  # every template: up to 10 minutes
         r, g, b = brand_rgb(brand)
         ref, design = reference_shot(db, payload.ref_url, f"#{r:02x}{g:02x}{b:02x}")
         more = attached_shots(payload.ref_url, payload.ref_urls) if ref else []
@@ -6906,7 +6911,7 @@ def checked_script(raw: dict, products: list[Product]) -> dict:
     names = {p.name.strip().lower(): p.name for p in products}
     scenes = [
         sc
-        for sc in (_clean_scene(r, names) for r in (raw.get("scenes") or [])[: MAX_LONG_SCENES + 2] if isinstance(r, dict))
+        for sc in (_clean_scene(r, names) for r in (raw.get("scenes") or [])[: MAX_STORY_SCENES + 2] if isinstance(r, dict))
         if sc and sc["type"] in allowed
     ]
     if len(scenes) < 2:

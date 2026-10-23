@@ -27,6 +27,7 @@ import {
 import { useStore } from '../store'
 import { api } from '../api/client'
 import AutoTextarea from '../components/ui/AutoTextarea'
+import LiveAvatar from '../components/ui/LiveAvatar'
 import Select from '../components/ui/Select'
 import GeneratingCanvas from '../components/ui/GeneratingCanvas'
 import { MotionMaking, motionPercent, motionStage } from '../components/studio/MotionBoard'
@@ -1967,9 +1968,8 @@ function AskTurn({ t, onRetry, onGenerate, onEdit, onUseDraft }) {
       </div>
 
       <div className="flex items-start gap-3">
-        <span className="mt-0.5 w-8 h-8 flex-none rounded-xl grid place-items-center bg-white ring-1 ring-ink-200/80 shadow-sm">
-          <img src="/brand/logo-mark.png" alt="Marketing ឆ្លាតវៃ" className="w-6 h-6 object-contain" />
-        </span>
+        {/* our robot answers: tilting its head with dots while it thinks, then floating and blinking */}
+        <LiveAvatar size={40} thinking={t.status === 'working'} wave={false} className="-mt-1" />
         <div className="min-w-0 flex-1 max-w-[860px]">
           {t.status === 'working' && (
             <div className="inline-flex items-center gap-2.5 pt-1.5 text-[12.5px] text-ink-500">
@@ -2824,22 +2824,17 @@ function SettingsPopover({
         {motion && motionReview && (
           <Row
             label="Length"
-            hint={motionLength === 'auto' ? `As long as your story needs — 30 s to ${motionGoal === 'training' || motionGoal === 'auto' ? '10 min for a training, 2' : '2'} min` : 'About this long'}
+            hint={motionLength === 'auto' ? 'As long as your story needs — 30 s to 10 min' : Number(motionLength) >= 300 ? 'About this long — a long video takes a while to make' : 'About this long'}
           >
             <Segmented>
-              {(motionGoal === 'training' || motionGoal === 'auto'
-                ? [
-                    ['auto', 'Auto'],
-                    ['120', '2 min'],
-                    ['300', '5 min'],
-                    ['600', '10 min'],
-                  ]
-                : [
-                    ['auto', 'Auto'],
-                    ['60', '1 min'],
-                    ['120', '2 min'],
-                  ]
-              ).map(([v, label]) => (
+              {/* every template may run to 10 minutes (app/motion.py MAX_STORY_SCENES) */}
+              {[
+                ['auto', 'Auto'],
+                ['60', '1 min'],
+                ['120', '2 min'],
+                ['300', '5 min'],
+                ['600', '10 min'],
+              ].map(([v, label]) => (
                 <button key={v} type="button" onClick={() => setMotionLength(v)} className={`${seg(motionLength === v)} px-0 text-[11.5px]`}>
                   {label}
                 </button>

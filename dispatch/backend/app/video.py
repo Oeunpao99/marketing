@@ -551,7 +551,8 @@ def _motion_progress(job: GenerationJob) -> dict | None:
         return None
     from app.motion import progress_of  # app.motion imports this module
 
-    return progress_of(job.id)
+    p = progress_of(job.id)
+    return {k: v for k, v in p.items() if k != "_at"} if p else p  # "_at" is the stale check's, not the page's
 
 
 def _clip(text: str, n: int = 110) -> str:
@@ -910,7 +911,8 @@ _WORKER_EVERY = 15
 # job waiting in the image_slot() queue is never failed just for being slow.
 _IMAGE_STALE = timedelta(minutes=8)
 _VIDEO_STALE = timedelta(hours=3)
-_MOTION_STALE = timedelta(minutes=45)  # a 10-minute training renders for a while
+_MOTION_STALE = timedelta(minutes=45)  # since its render started…
+_MOTION_STALL_S = 600  # …unless its progress (app/motion.py _report) moved in the last 10 minutes
 _MOTION_ORPHAN = timedelta(minutes=2)  # running, but not in this process (see _tick)
 
 
@@ -935,8 +937,11 @@ def _tick() -> None:
                 # behind by a restart: fail it now, not after the full timeout.
                 from app.motion import progress_of
 
-                orphan = job.status == "running" and progress_of(job.id) is None and now - job.updated_at > _MOTION_ORPHAN
-                if orphan or now - job.updated_at > _MOTION_STALE:
+                live = progress_of(job.id)
+                orphan = job.status == "running" and live is None and now - job.updated_at > _MOTION_ORPHAN
+                # still moving (a long video renders well past _MOTION_STALE): leave it be
+                moving = live is not None and time.monotonic() - live.get("_at", 0) < _MOTION_STALL_S
+                if orphan or (now - job.updated_at > _MOTION_STALE and not moving):
                     job.status = "failed"
                     job.error = "The video stopped rendering (the server restarted?) — try again."
                     db.commit()

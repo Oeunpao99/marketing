@@ -399,11 +399,22 @@ html.dark .cf-halo { background-color: rgb(var(--brand) / .45); }
   38% { transform: rotate(8deg); }
   48% { transform: rotate(-6deg); }
 }
+/* thinking (Ask writing an answer): the head tilts slowly, the dots pulse in turn */
+@keyframes cf-avatar-think {
+  0%, 100% { transform: rotate(-7deg) translateY(0); }
+  50%      { transform: rotate(6deg) translateY(-4%); }
+}
+@keyframes cf-avatar-dot {
+  0%, 60%, 100% { opacity: .3; transform: translateY(0); }
+  30%           { opacity: 1; transform: translateY(-35%); }
+}
 .cf-avatar-float { animation: cf-avatar-float 3.4s ease-in-out infinite; }
+.cf-avatar-think { animation: cf-avatar-think 1.8s ease-in-out infinite; transform-origin: 50% 80%; }
+.cf-avatar-dots > span { animation: cf-avatar-dot 1s ease-in-out infinite; }
 .cf-avatar-blink { animation: cf-avatar-blink 4.2s ease-in-out infinite; }
 .cf-avatar-wave  { animation: cf-avatar-wave 2.8s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) {
-  .cf-avatar-float, .cf-avatar-blink, .cf-avatar-wave { animation: none !important; }
+  .cf-avatar-float, .cf-avatar-think, .cf-avatar-dots > span, .cf-avatar-blink, .cf-avatar-wave { animation: none !important; }
 }
 
 /* the credits chip catching the claimed coins (CreditClaimFx) */
