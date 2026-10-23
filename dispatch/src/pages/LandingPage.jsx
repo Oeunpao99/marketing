@@ -41,7 +41,9 @@ import SkyGuide from '../components/landing/SkyGuide'
 // (Pricing) are the owner's own plans.
 
 const KHMER_FONT = 'https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@300;500;700&display=swap'
+const SERIF_FONT = 'https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap'
 const km = { fontFamily: '"Kantumruy Pro", "Khmer OS Siemreap", sans-serif' }
+const serif = { fontFamily: '"Instrument Serif", "IBM Plex Sans", serif', fontWeight: 400, letterSpacing: '-0.01em' }
 
 // English / Khmer — the switch in the header, remembered on this device.
 // t('English', 'ខ្មែរ') or t(['English', 'ខ្មែរ']) gives the text for the language picked.
@@ -215,6 +217,17 @@ function Phone({ id, className = '', tilt = 0, label }) {
   )
 }
 
+/** A slow aurora of brand, sand and sky glows — the page's background texture. */
+function Aurora({ className = '' }) {
+  return (
+    <div aria-hidden="true" className={`pointer-events-none absolute inset-0 overflow-hidden ${className}`}>
+      <div className="lp-aurora lp-aurora-a absolute -left-[15%] -top-[25%] h-[620px] w-[620px] rounded-full bg-brand/15 blur-[120px] dark:bg-brand/25" />
+      <div className="lp-aurora lp-aurora-b absolute -right-[10%] top-[5%] h-[520px] w-[520px] rounded-full bg-[#c9a06a]/15 blur-[130px] dark:bg-[#8a6a3d]/15" />
+      <div className="lp-aurora lp-aurora-c absolute -bottom-[35%] left-[30%] h-[560px] w-[560px] rounded-full bg-[#9fbfe0]/20 blur-[140px] dark:bg-[#33557c]/25" />
+    </div>
+  )
+}
+
 // The templates that also come wide (16:9) — public/templates/<id>-wide.mp4
 const WIDE = [
   { id: 'cartoon', name: 'Story · Characters' },
@@ -373,11 +386,17 @@ function Eyebrow({ children }) {
 
 function SectionTitle({ eyebrow, title, khmer, sub }) {
   // in Khmer the title already says it — the Khmer tagline under it is only for the English page
-  if (useT().lang === 'km') khmer = null
+  const en = useT().lang !== 'km'
+  if (!en) khmer = null
   return (
     <div className="mx-auto max-w-2xl text-center">
       {eyebrow && <Eyebrow>{eyebrow}</Eyebrow>}
-      <h2 className="mt-3 text-[28px] font-bold leading-tight tracking-tight text-ink-900 sm:text-[38px]">{title}</h2>
+      <h2
+        className={`mt-3 leading-[1.12] text-ink-900 ${en ? 'text-[30px] sm:text-[42px]' : 'text-[28px] font-bold leading-tight tracking-tight sm:text-[38px]'}`}
+        style={en ? serif : undefined}
+      >
+        {title}
+      </h2>
       {khmer && (
         <p className="mt-2 text-[17px] font-medium text-ink-600 sm:text-[19px]" style={km}>
           {khmer}
@@ -442,12 +461,18 @@ function PhoneShot({ src, alt, tags = [] }) {
 }
 
 function Feature({ eyebrow, title, khmer, text, points, visual, flip = false }) {
-  if (useT().lang === 'km') khmer = null
+  const en = useT().lang !== 'km'
+  if (!en) khmer = null
   return (
     <div className={`grid items-center gap-10 lg:grid-cols-2 lg:gap-16 ${flip ? 'lg:[&>*:first-child]:order-2' : ''}`}>
       <Reveal>
         <Eyebrow>{eyebrow}</Eyebrow>
-        <h3 className="mt-3 text-[26px] font-bold leading-tight tracking-tight text-ink-900 sm:text-[32px]">{title}</h3>
+        <h3
+          className={`mt-3 leading-[1.14] text-ink-900 ${en ? 'text-[28px] sm:text-[36px]' : 'text-[26px] font-bold leading-tight tracking-tight sm:text-[32px]'}`}
+          style={en ? serif : undefined}
+        >
+          {title}
+        </h3>
         {khmer && (
           <p className="mt-2 text-[16px] font-medium text-ink-600" style={km}>
             {khmer}
@@ -485,7 +510,8 @@ function LiveEverywhere({ onStart }) {
   // previews resolve other paths against the media server
   const media = typeof window === 'undefined' ? null : { kind: 'video', url: `${window.location.origin}${previewSrc('presenter', 'mp4')}`, autoPlay: true }
   return (
-    <section id="everywhere" className="scroll-mt-20 overflow-hidden px-4 py-20 sm:px-6 sm:py-28">
+    <section id="everywhere" className="relative isolate scroll-mt-20 overflow-hidden px-4 py-20 sm:px-6 sm:py-28">
+      <Aurora className="-z-10 opacity-50" />
       <SectionTitle
         eyebrow={t('Post everywhere', 'បង្ហោះគ្រប់កន្លែង')}
         title={t('One click — your content is live on all your socials', 'ចុចម្តង — មាតិការបស់បង ចេញលើគ្រប់បណ្តាញសង្គម')}
@@ -1128,7 +1154,8 @@ function Pricing({ onStart }) {
     )
   const pill = 'inline-flex w-full items-center justify-center rounded-full px-5 py-3 text-[14.5px] font-semibold transition-colors'
   return (
-    <section id="pricing" className="scroll-mt-20 bg-canvas px-4 py-20 sm:px-6 sm:py-28">
+    <section id="pricing" className="relative isolate scroll-mt-20 overflow-hidden bg-canvas px-4 py-20 sm:px-6 sm:py-28">
+      <Aurora className="-z-10 opacity-60" />
       <SectionTitle
         eyebrow={t('Pricing', 'តម្លៃ')}
         title={t('Simple plans that grow with you', 'គម្រោងសាមញ្ញ រីកចម្រើនជាមួយបង')}
@@ -1305,10 +1332,11 @@ const PRODUCT_MENU = [
   },
 ]
 
-// The hero headline. Under the mouse a small black hole follows the cursor:
-// a dark disc with a glowing ring, and the letters inside it turn to
-// starlight — a second copy of the headline, cut to that circle, so it works
-// letter by letter. Phones (no mouse) just see the headline.
+// The hero headline: one calm ink line with a single brand-coloured phrase.
+// Under the mouse a small black hole follows the cursor — a dark disc with a
+// glowing ring, and the letters inside it turn to starlight (a second copy of
+// the headline, cut to that circle, so it works letter by letter). Phones
+// (no mouse) just see the headline.
 const LENS = 36
 function HeroTitle() {
   const lens = useRef(null)
@@ -1336,7 +1364,7 @@ function HeroTitle() {
       onMouseLeave={(e) => place(e, 0)}
     >
       <h1 className={`${h1} text-ink-900`} style={km}>
-        {words({ plain: '', hot: 'lp-galaxy' })}
+        {words({ plain: '', hot: 'lp-hot' })}
       </h1>
       <div
         ref={lens}
@@ -1404,10 +1432,11 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
     }
   }
   useEffect(() => {
-    if (!document.querySelector(`link[href="${KHMER_FONT}"]`)) {
+    for (const href of [KHMER_FONT, SERIF_FONT]) {
+      if (document.querySelector(`link[href="${href}"]`)) continue
       const l = document.createElement('link')
       l.rel = 'stylesheet'
-      l.href = KHMER_FONT
+      l.href = href
       document.head.appendChild(l)
     }
     const on = () => setScrolled(window.scrollY > 40)
@@ -1566,12 +1595,11 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
       {/* light or dark with the theme: the page's own surface, a soft brand glow and a faint grid */}
       <section className="relative overflow-hidden bg-white pb-20 pt-32 sm:pb-28 sm:pt-40">
         <div className="pointer-events-none absolute inset-0">
-          <div className="absolute -left-40 top-10 h-[520px] w-[520px] rounded-full bg-brand/15 blur-[120px] dark:bg-brand/25" />
-          <div className="absolute -right-32 bottom-0 h-[460px] w-[460px] rounded-full bg-violet-500/10 blur-[120px] dark:bg-violet-500/20" />
+          <Aurora />
           <div
             className="absolute inset-0"
             style={{
-              backgroundImage: 'linear-gradient(rgb(var(--ink-900) / 0.05) 1px, transparent 1px), linear-gradient(90deg, rgb(var(--ink-900) / 0.05) 1px, transparent 1px)',
+              backgroundImage: 'linear-gradient(rgb(var(--ink-900) / 0.03) 1px, transparent 1px), linear-gradient(90deg, rgb(var(--ink-900) / 0.03) 1px, transparent 1px)',
               backgroundSize: '56px 56px',
               maskImage: 'radial-gradient(ellipse 90% 80% at 50% 40%, black 40%, transparent 100%)',
               WebkitMaskImage: 'radial-gradient(ellipse 90% 80% at 50% 40%, black 40%, transparent 100%)',
@@ -1580,42 +1608,40 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
         </div>
         <div className="relative mx-auto grid max-w-6xl items-center gap-14 px-4 sm:px-6 lg:grid-cols-[1.05fr_1fr]">
           <div className="text-center lg:text-left">
-            {/* the highlighted words are filled with a slowly turning galaxy: nebula
-                colours swirling round a dark core, with tiny stars drifting through */}
+            {/* the one flourish: under the mouse, a small black hole travels the
+                headline and the letters inside turn to starlight */}
             <style>{`
-              .lp-galaxy {
-                background-image:
-                  radial-gradient(1.2px 1.2px at 12% 30%, #fff 60%, transparent 100%),
-                  radial-gradient(1px 1px at 38% 70%, #fff 60%, transparent 100%),
-                  radial-gradient(1.4px 1.4px at 63% 22%, #fff 60%, transparent 100%),
-                  radial-gradient(1px 1px at 82% 64%, #fff 60%, transparent 100%),
-                  radial-gradient(1.2px 1.2px at 92% 18%, #fff 60%, transparent 100%),
-                  radial-gradient(circle at 50% 50%, var(--lp-core) 0 7%, #f59e0b 9%, #fde68a 10.5%, #c084fc 13%, transparent 19%),
-                  radial-gradient(ellipse at 30% 40%, rgb(236 72 153 / 0.75), transparent 45%),
-                  linear-gradient(110deg, #7c3aed, #2563eb 18%, #06b6d4 32%, #a855f7 48%, #ec4899 62%, #4f46e5 78%, #0ea5e9 90%, #7c3aed);
-                background-size: 140px 70px, 180px 90px, 160px 80px, 210px 100px, 120px 60px, 260% 180%, 220% 160%, 320% 100%;
-                --lp-core: #0b0820;
-                -webkit-background-clip: text;
-                background-clip: text;
-                color: transparent;
-                -webkit-text-fill-color: transparent;
-                animation: lp-galaxy 14s ease-in-out infinite alternate;
-                filter: drop-shadow(0 6px 22px rgb(124 58 237 / 0.25));
+              .lp-hot { color: rgb(var(--brand)); }
+              .dark .lp-hot { color: #9cc0ea; }
+              .lp-aurora { will-change: transform }
+              .lp-aurora-a { animation: lp-aurora-a 26s ease-in-out infinite alternate }
+              .lp-aurora-b { animation: lp-aurora-b 32s ease-in-out infinite alternate }
+              .lp-aurora-c { animation: lp-aurora-c 38s ease-in-out infinite alternate }
+              @keyframes lp-aurora-a {
+                from { transform: translate3d(-4%, -2%, 0) scale(1) }
+                to { transform: translate3d(6%, 4%, 0) scale(1.12) }
               }
+              @keyframes lp-aurora-b {
+                from { transform: translate3d(3%, 2%, 0) scale(1.08) }
+                to { transform: translate3d(-5%, -4%, 0) scale(1) }
+              }
+              @keyframes lp-aurora-c {
+                from { transform: translate3d(0, 3%, 0) scale(1) }
+                to { transform: translate3d(-6%, -3%, 0) scale(1.1) }
+              }
+              @media (prefers-reduced-motion: reduce) { .lp-aurora { animation: none } }
               @keyframes lp-float { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-8px) } }
               @media (prefers-reduced-motion: reduce) { [style*='lp-float'] { animation: none !important } }
               @keyframes lp-galaxy {
-                0% { background-position: 0 0, 0 0, 0 0, 0 0, 0 0, 0% 40%, 100% 0%, 0% 50% }
-                100% { background-position: 140px 70px, -180px 90px, 160px -80px, -210px 100px, 120px 60px, 100% 60%, 0% 100%, 100% 50% }
+                0% { background-position: 0 0, 0 0, 0% 50% }
+                100% { background-position: 90px 50px, -130px 70px, 100% 50% }
               }
-              /* on the dark page the black hole's core is a deep violet, not black, so the letters stay readable */
-              .dark .lp-galaxy { --lp-core: #3b0764 }
-              /* inside the black-hole lens: bright starlight letters on the dark disc */
+              /* inside the black-hole lens: warm starlight letters on the dark disc */
               .lp-lens-text {
                 background-image:
                   radial-gradient(1.2px 1.2px at 20% 30%, #fff 60%, transparent 100%),
                   radial-gradient(1px 1px at 70% 65%, #fff 60%, transparent 100%),
-                  linear-gradient(110deg, #fde68a, #f9a8d4 25%, #c4b5fd 50%, #67e8f9 75%, #fde68a);
+                  linear-gradient(110deg, #fde68a, #ffffff 25%, #d8e5f5 50%, #ffffff 75%, #fde68a);
                 background-size: 90px 50px, 130px 70px, 300% 100%;
                 -webkit-background-clip: text;
                 background-clip: text;
@@ -1624,9 +1650,9 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
                 animation: lp-galaxy 14s ease-in-out infinite alternate;
               }
               .lp-lens-disc {
-                background: radial-gradient(circle at calc(var(--mx) + 60px) calc(var(--my) + 60px),#1e1145 0, #05030f 20px, #0b0820 27px, #f59e0b 31px, #fde68a 32.5px, #c084fc 35px, transparent 36px);
+                background: radial-gradient(circle at calc(var(--mx) + 60px) calc(var(--my) + 60px),#0e2138 0, #05030f 20px, #0b0820 27px, #f59e0b 31px, #fde68a 32.5px, rgb(var(--brand-light)) 35px, transparent 36px);
               }
-              @media (prefers-reduced-motion: reduce) { .lp-galaxy, .lp-lens-text { animation: none } }
+              @media (prefers-reduced-motion: reduce) { .lp-lens-text { animation: none } }
             `}</style>
             <HeroTitle />
             <p className="mx-auto mt-5 max-w-xl text-[17px] leading-relaxed text-ink-500 lg:mx-0">
@@ -1652,7 +1678,8 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
           </div>
 
           {/* three phones, each playing a real template */}
-          <div className="relative mx-auto h-[400px] w-full max-w-[460px] sm:h-[470px]">
+          <div className="relative isolate mx-auto h-[400px] w-full max-w-[460px] sm:h-[470px]">
+            <div className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[420px] w-[420px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand/20 blur-[90px] dark:bg-brand/30" />
             <Phone id="reaction" className="absolute left-0 top-12 w-[38%]" tilt={-8} />
             <Phone id="studio" className="absolute left-1/2 top-0 z-10 w-[44%] -translate-x-1/2" />
             <Phone id="doodle" className="absolute right-0 top-12 w-[38%]" tilt={8} />
@@ -1664,7 +1691,7 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
               <LiveAvatar size={118} className="sm:h-[136px] sm:w-[136px]" />
             </div>
             <div className="absolute -left-2 bottom-2 z-20 flex items-center gap-2.5 rounded-2xl bg-white px-3.5 py-2.5 shadow-pop sm:-left-6">
-              <span className="grid h-8 w-8 place-items-center rounded-full bg-emerald-500 text-white">
+              <span className="grid h-8 w-8 place-items-center rounded-full bg-brand text-white">
                 <FiCheck strokeWidth={3} />
               </span>
               <div className="text-left">
@@ -1696,7 +1723,8 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
       </section>
 
       {/* ── how it works ── */}
-      <section id="how" className="scroll-mt-20 px-4 py-20 sm:px-6 sm:py-28">
+      <section id="how" className="relative isolate scroll-mt-20 overflow-hidden px-4 py-20 sm:px-6 sm:py-28">
+        <Aurora className="-z-10 opacity-60" />
         <SectionTitle
           eyebrow={t('How it works', 'របៀបដំណើរការ')}
           title={t('Sunday night, your whole week is ready', 'ល្ងាចថ្ងៃអាទិត្យ ប្រកាសពេញមួយសប្តាហ៍ត្រៀមរួច')}
@@ -1726,7 +1754,10 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
       </section>
 
       {/* ── features ── */}
-      <section id="features" className="scroll-mt-20 space-y-24 bg-white px-4 py-20 sm:space-y-32 sm:px-6 sm:py-28">
+      <section id="features" className="relative isolate scroll-mt-20 space-y-24 overflow-hidden bg-white px-4 py-20 sm:space-y-32 sm:px-6 sm:py-28">
+        <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[900px] overflow-hidden">
+          <Aurora className="opacity-50" />
+        </div>
         <div className="mx-auto max-w-6xl">
           <Feature
             eyebrow={t('Autopilot', 'ស្វ័យប្រវត្តិ')}
@@ -1812,7 +1843,8 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
       <LiveEverywhere onStart={onStart} />
 
       {/* ── videos ── */}
-      <section id="videos" className="scroll-mt-20 overflow-hidden bg-canvas py-20 sm:py-28">
+      <section id="videos" className="relative isolate scroll-mt-20 overflow-hidden bg-canvas py-20 sm:py-28">
+        <Aurora className="-z-10 opacity-50" />
         <div className="px-4 sm:px-6">
           <div className="mx-auto max-w-2xl text-center">
             <div className={eyebrowCls(lang)}>{t('Video studio', 'ស្ទូឌីយោវីដេអូ')}</div>
