@@ -34,7 +34,7 @@ import io
 import logging
 import re
 
-from PIL import Image, ImageDraw, ImageStat, features
+from PIL import Image, ImageDraw, ImageFilter, ImageStat, features
 
 from app.meme import _font, _has_khmer, _wrap, drawable, fit_lines
 from app.poster import INK, WHITE, _line_h, _tint
@@ -51,10 +51,13 @@ EXTRACT_PROMPT = (
     "- Never print web addresses, step lists (\"Connect → Configure → …\") or long paragraphs "
     "in the headline, subheading or button.\n"
     "Return a JSON object:\n"
-    '{"headline": "...", "subheading": "...", "points": ["...", ...], "cta": "...", "link": "..."}\n'
+    '{"headline": "...", "highlight": "...", "subheading": "...", "points": ["...", ...], "cta": "...", "link": "..."}\n'
     "- headline: the main title, at most 8 words (if the prompt's is longer, keep its "
     "strongest part, e.g. the words before a dash). Two stacked lines (a brand name, then a "
     "Khmer line) may be joined with \\n.\n"
+    "- highlight: the 1-3 words of the headline that carry its point (the key idea, the "
+    "question word, the product), copied EXACTLY as they appear in the headline — they are "
+    "printed in the brand colour. \"\" when nothing stands out.\n"
     "- subheading: ONE short sentence under it (at most ~18 words), or \"\".\n"
     "- points: short benefit chips of 1-3 words each, at most 4, or [].\n"
     "- cta: the button, 2-4 words of action (e.g. \"ចុះឈ្មោះឥឡូវ\", \"Order now\") — never a URL; "
@@ -133,8 +136,12 @@ def extract_text(prompt: str) -> dict | None:
     head, sub, cta = tidy(raw.get("headline")), tidy(raw.get("subheading")), tidy(raw.get("cta"))
     link = s(raw.get("link") or (found[0] if found else ""), 48)
     link = link.removeprefix("https://").removeprefix("http://").removeprefix("www.").rstrip("/.")
+    headline = s(head, 90, lines=2)
+    key = " ".join(str(raw.get("highlight") or "").split())
     text = {
-        "headline": s(head, 90, lines=2),
+        "headline": headline,
+        # only words really in the headline — anything else is dropped, never drawn
+        "highlight": key if key and len(key) < len(headline) and key in " ".join(headline.split()) else "",
         "subheading": s(sub, 160, lines=2),
         "points": [p for p in (s(v, 28) for v in points[:4]) if p],
         "cta": s(cta, 32),
@@ -155,11 +162,48 @@ def _fit(text: str, width: int, max_lines: int, big: int, small: int, weight: st
     return font, lines, _line_h(font)
 
 
-def _centred(draw: ImageDraw.ImageDraw, w: int, y: int, lines, font, fill, lh: int) -> int:
+def _centred(draw: ImageDraw.ImageDraw, w: int, y: int, lines, font, fill, lh: int, glow=None, key: str = "", key_fill=None) -> int:
+    """Lines centred from ``y``. ``glow``: an "L" draw the same text goes into too
+    (blurred later into a soft halo behind it). ``key``: the headline's key words,
+    drawn in ``key_fill`` — also when the wrap split them over two lines."""
     for ln in lines:
-        draw.text(((w - font.getlength(ln)) / 2, y), ln, font=font, fill=fill)
+        x = (w - font.getlength(ln)) / 2
+        for part, hot in _runs(ln, key):
+            draw.text((x, y), part, font=font, fill=key_fill if hot and key_fill else fill)
+            if glow is not None:
+                glow.text((x, y), part, font=font, fill=255)
+            x += font.getlength(part)
         y += lh
     return y
+
+
+def _runs(line: str, key: str) -> list[tuple[str, bool]]:
+    """``line`` cut into (text, is key) pieces. The key may sit inside the line,
+    or be split by the wrap: the line's end starts it, or its start ends it."""
+    if not key:
+        return [(line, False)]
+    i = line.find(key)
+    if i >= 0:
+        return [p for p in ((line[:i], False), (key, True), (line[i + len(key):], False)) if p[0]]
+    if line.strip() and line.strip() in key:
+        return [(line, True)]
+    for n in range(min(len(line), len(key)) - 1, 1, -1):
+        if line.endswith(key[:n]) and key[:n].strip():
+            return [(line[:-n], False), (line[-n:], True)]
+        if line.startswith(key[-n:]) and key[-n:].strip():
+            return [(line[:n], True), (line[n:], False)]
+    return [(line, False)]
+
+
+def _readable(c: tuple[int, int, int], light: bool) -> tuple[int, int, int]:
+    """The brand colour, deep enough to read on a light picture / bright enough on a dark one."""
+    lum = 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]
+    if light and lum > 120:
+        k = 120 / lum
+        return tuple(round(v * k) for v in c)
+    if not light and lum < 150:
+        return _tint(c, min(0.7, (150 - lum) / 255 + 0.25))
+    return c
 
 
 def _layout(head: str, sub: str, points: list[str], w: int, measure: int, scale: float):
@@ -217,7 +261,9 @@ def render(picture: bytes, text: dict, accent: tuple[int, int, int]) -> bytes:
     busy = stat.stddev[0] > 38
     ink = INK if light else WHITE
     shade = (255, 255, 255) if light else (8, 12, 20)
-    solid = 215 if busy else 120
+    # a light veil only — the picture's own colours show through; a soft halo
+    # behind the letters (below) keeps them readable instead of a heavy wash
+    solid = 150 if busy else 70
     fade = round(h * 0.12)
 
     scrim = Image.new("L", (1, h), 0)
@@ -225,21 +271,35 @@ def render(picture: bytes, text: dict, accent: tuple[int, int, int]) -> bytes:
         a = solid if y <= bottom + pad // 2 else solid * (1 - (y - bottom - pad // 2) / (pad // 2 + fade))
         scrim.putpixel((0, y), max(0, round(a)))
     img = Image.composite(Image.new("RGB", (w, h), shade), img, scrim.resize((w, h)))
-    draw = ImageDraw.Draw(img)
 
-    y = _centred(draw, w, top, hl, hf, ink, hlh)
+    # the words go on their own layer first, so the halo can be drawn under them
+    words = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    halo = Image.new("L", (w, h), 0)
+    draw, glow = ImageDraw.Draw(words), ImageDraw.Draw(halo)
+    hot = _readable(accent, light)
+
+    y = _centred(draw, w, top, hl, hf, ink, hlh, glow, text.get("highlight", ""), hot)
     if sl:
-        y = _centred(draw, w, y + gap, sl, sf, _tint(INK, 0.15) if light else ink, slh)
+        y = _centred(draw, w, y + gap, sl, sf, _tint(INK, 0.15) if light else _tint(ink, 0.08), slh, glow)
     if rows:
         y += gap * 2
-        chip = _tint(accent, 0.86) if light else tuple(round(c * 0.45 + 12) for c in accent)
+        # the brand's colour: a soft tint of it, its own colour round the edge and on the words
+        fill = _tint(accent, 0.88) if light else tuple(round(c * 0.32 + 10) for c in accent)
+        edge = _tint(hot, 0.35) if light else _tint(hot, 0.2)
+        label_ink = hot if light else WHITE
         for row in rows:
             x = round((w - sum(c for _, c in row) - cgap * (len(row) - 1)) / 2)
             for label, cw in row:
-                draw.rounded_rectangle((x, y, x + cw, y + ch), radius=ch // 2, fill=chip)
-                draw.text((x + cpx, y + cpy), label, font=pf, fill=ink)
+                draw.rounded_rectangle((x, y, x + cw, y + ch), radius=ch // 2, fill=fill, outline=edge, width=max(2, round(w * 0.0022)))
+                draw.text((x + cpx, y + cpy), label, font=pf, fill=label_ink)
                 x += cw + cgap
             y += ch + cgap
+
+    halo = halo.filter(ImageFilter.GaussianBlur(max(4, round(w * 0.012))))
+    halo = halo.point(lambda v: min(255, round(v * (1.6 if busy else 1.2))))
+    img = Image.composite(Image.new("RGB", (w, h), shade), img, halo)
+    img.paste(words, (0, 0), words)
+    draw = ImageDraw.Draw(img)
 
     # The button and the link sit bottom-centre, no wider than the middle ~56%
     # — the logo the model was asked to put in a bottom corner stays clear.
