@@ -21,7 +21,7 @@ function useLayout() {
   const wide = width > height
   const u = Math.min(width, height) / 1080
   // tall: the logo sits above 230, the subtitles start at 1480
-  return { width, height, fps, wide, u, top: (wide ? 120 : 250) * u, bottom: (wide ? 230 : 460) * u, content: wide ? width * 0.42 : width * 0.86 }
+  return { width, height, fps, wide, u, top: (wide ? 120 : 250) * u, bottom: (wide ? 230 : 460) * u, content: wide ? width * 0.5 : width * 0.86 }
 }
 const useEnter = (delay = 0, damping = 14) => {
   const frame = useCurrentFrame()
@@ -43,7 +43,7 @@ function Paper() {
  * size bigger, the way the Reel says the key word. Khmer is never split
  * inside a word (the script's zero-width spaces mark the breaks).
  */
-function Headline({ text, size, width, delay = 0.1, align = 'center' }) {
+function Headline({ text, size, width, delay = 0.1, align = 'center', em: emSize = 1.22 }) {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
   const pieces = []
@@ -61,11 +61,14 @@ function Headline({ text, size, width, delay = 0.1, align = 'center' }) {
   }
   const km = KHMER.test(clean(text))
   return (
-    <div style={{ width, display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: align === 'center' ? 'center' : 'flex-start', fontFamily: FONT, fontSize: fitSize(text, size), fontWeight: 800, lineHeight: km ? 1.5 : 1.12, letterSpacing: km ? 0 : '-0.02em', color: C.ink }}>
+    // align "left" / "middle" (beside a sketch, 16:9): the block is only as wide as its
+    // words need (up to `width`), so the sketch sits right next to them — "middle"
+    // centres its lines inside that block (the words left of the sketch)
+    <div style={{ ...(align === 'center' ? { width } : { width: 'max-content', maxWidth: width }), display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: align === 'left' ? 'flex-start' : 'center', fontFamily: FONT, fontSize: fitSize(text, size), fontWeight: 800, lineHeight: km ? 1.5 : 1.06, letterSpacing: km ? 0 : '-0.025em', color: C.ink }}>
       {pieces.map(({ p, gap, em: hi }, n) => {
         const s = spring({ frame: frame - Math.round(delay * fps) - n * 3, fps, config: { damping: 12, mass: 0.5 } })
         return (
-          <span key={n} style={{ display: 'inline-block', marginRight: gap ? '0.26em' : 0, color: hi ? C.orange : C.ink, fontSize: hi ? '1.22em' : '1em', opacity: Math.min(1, s * 1.6), transform: `translateY(${(1 - s) * 30}px) scale(${0.8 + 0.2 * s})` }}>
+          <span key={n} style={{ display: 'inline-block', marginRight: gap ? '0.26em' : 0, color: hi ? C.orange : C.ink, fontSize: hi ? `${emSize}em` : '1em', opacity: Math.min(1, s * 1.6), transform: `translateY(${(1 - s) * 30}px) scale(${0.8 + 0.2 * s})` }}>
             {p}
           </span>
         )
@@ -76,7 +79,8 @@ function Headline({ text, size, width, delay = 0.1, align = 'center' }) {
 
 /** A body line in ink (Khmer-safe). */
 function Line({ text, size, width, color = C.soft, align = 'center', weight = 600 }) {
-  return <div style={{ width, fontFamily: FONT, color, fontWeight: weight, fontSize: fitSize(text, size), lineHeight: KHMER.test(clean(text)) ? 1.55 : 1.25, textAlign: align }}>{clean(text)}</div>
+  const fit = align !== 'center' // beside a sketch: no wider than its words
+  return <div style={{ ...(fit ? { maxWidth: width } : { width }), fontFamily: FONT, color, fontWeight: weight, fontSize: fitSize(text, size), lineHeight: KHMER.test(clean(text)) ? 1.55 : 1.25, textAlign: align === 'middle' ? 'center' : align }}>{clean(text)}</div>
 }
 
 /** Pen "boil": the drawing shifts a hair every few frames, like a hand-drawn cartoon. */
@@ -108,7 +112,7 @@ function Sketch({ scene, box, delay = 0.35 }) {
   }
   // No drawing: the icon, inked bold inside a hand-drawn circle with an orange
   // swash — clean and on purpose (random strokes round a thin icon looked broken)
-  const d = box * 0.62
+  const d = box * 0.72
   return (
     <div style={{ ...fit, width: d, height: d, display: 'grid', placeItems: 'center', transform: boil(frame, 'sk', u) }}>
       <InkRing size={d} progress={p} />
@@ -168,35 +172,49 @@ function Page({ children, gap = 40 }) {
     </AbsoluteFill>
   )
 }
-function Split({ text, sketch }) {
+/** 16:9: the words and the sketch as ONE tight group in the middle — the words only
+ * as wide as they need, right beside the sketch (left of it: their lines centred),
+ * like a thumbnail. ``flip`` puts the sketch on the left. */
+function Split({ text, sketch, flip }) {
   const { u, width } = useLayout()
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 60 * u, width: width * 0.84 }}>
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 26 * u }}>{text}</div>
+    <div style={{ display: 'flex', flexDirection: flip ? 'row-reverse' : 'row', alignItems: 'center', justifyContent: 'center', gap: 28 * u, maxWidth: width * 0.92 }}>
+      <div style={{ flex: '0 1 auto', minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: flip ? 'flex-start' : 'center', gap: 22 * u }}>{text}</div>
       {sketch}
     </div>
   )
 }
 
+/** Which side a 16:9 scene's sketch sits on — from its own words, so it's the same on
+ * every render, and scenes change sides through a video instead of all matching. */
+const sketchLeft = (scene) => {
+  let h = 0
+  for (const ch of clean(scene.title || scene.text || '')) h = (h * 31 + ch.charCodeAt(0)) | 0
+  return (h & 1) === 0
+}
+
 // ── the scenes ─────────────────────────────────────────────────────────────
 function Hook({ scene }) {
   const { u, wide, content } = useLayout()
-  const head = <Headline text={scene.text} size={(wide ? 104 : 118) * u} width={content} align={wide ? 'left' : 'center'} />
-  const sketch = <Sketch scene={scene} box={(wide ? 600 : 760) * u} delay={0.45} />
-  return <Page gap={30}>{wide ? <Split text={head} sketch={sketch} /> : [<div key="h">{head}</div>, <div key="s">{sketch}</div>]}</Page>
+  // 16:9: the opener has its sketch on the left, the words big beside it
+  const head = <Headline text={scene.text} size={(wide ? 150 : 118) * u} width={content} align={wide ? 'left' : 'center'} em={wide ? 1.3 : 1.22} />
+  const sketch = <Sketch scene={scene} box={(wide ? 700 : 760) * u} delay={0.45} />
+  return <Page gap={30}>{wide ? <Split text={head} sketch={sketch} flip /> : [<div key="h">{head}</div>, <div key="s">{sketch}</div>]}</Page>
 }
 
 function Doodle({ scene }) {
   const { u, wide, content } = useLayout()
   const line = useEnter(1.1)
-  const head = <Headline text={scene.title} size={(wide ? 88 : 96) * u} width={content} align={wide ? 'left' : 'center'} />
+  const left = wide && sketchLeft(scene) // 16:9: the sketch's side, the words set against it
+  const side = left ? 'left' : 'middle' // words right of the sketch: left-aligned; left of it: centred lines
+  const head = <Headline text={scene.title} size={(wide ? 128 : 96) * u} width={content} align={wide ? side : 'center'} em={wide ? 1.3 : 1.22} />
   const text = scene.text && (
     <div style={{ opacity: line, transform: `translateY(${(1 - line) * 20}px)` }}>
-      <Line text={scene.text} size={(wide ? 46 : 50) * u} width={content} align={wide ? 'left' : 'center'} />
+      <Line text={scene.text} size={(wide ? 54 : 50) * u} width={content} align={wide ? side : 'center'} />
     </div>
   )
-  const sketch = <Sketch scene={scene} box={(wide ? 580 : scene.text ? 640 : 720) * u} />
-  if (wide) return <Page><Split text={[<div key="h">{head}</div>, <div key="t">{text}</div>]} sketch={sketch} /></Page>
+  const sketch = <Sketch scene={scene} box={(wide ? 660 : scene.text ? 640 : 720) * u} />
+  if (wide) return <Page><Split text={[<div key="h">{head}</div>, <div key="t">{text}</div>]} sketch={sketch} flip={left} /></Page>
   return (
     <Page gap={26}>
       {head}
