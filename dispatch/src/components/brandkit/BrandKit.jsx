@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { FiCamera, FiCheck, FiImage, FiPlus, FiTrash2, FiUploadCloud } from 'react-icons/fi'
 import { api } from '../../api/client'
+import { useStore } from '../../store'
 import AutoTextarea from '../ui/AutoTextarea'
 import BrandVoice from './BrandVoice'
 
@@ -184,6 +185,8 @@ export function BrandKitPanel({ brand, assets, setAssets, showToast }) {
   const logo = assets.find((a) => a.kind === 'logo' && a.brand_id === brand.id)
   const templates = assets.filter((a) => a.kind === 'template' && a.brand_id === brand.id)
   const screens = assets.filter((a) => a.kind === 'screenshot' && a.brand_id === brand.id)
+  // the sidebar's brand switcher shows the logo — reload the brands when it changes
+  const { refreshChannels } = useStore() || {}
 
   const add = async (files, kind) => {
     for (const file of files) {
@@ -195,6 +198,7 @@ export function BrandKitPanel({ brand, assets, setAssets, showToast }) {
         return
       }
     }
+    if (kind === 'logo') refreshChannels?.()
     const what = kind === 'screenshot' ? 'screenshot' : 'template'
     showToast(kind === 'logo' ? 'Logo saved' : files.length > 1 ? `${files.length} ${what}s added` : `${what[0].toUpperCase()}${what.slice(1)} added`)
   }
@@ -203,6 +207,7 @@ export function BrandKitPanel({ brand, assets, setAssets, showToast }) {
     try {
       await api.del(`/brand-kit/${a.id}`)
       setAssets((xs) => xs.filter((x) => x.id !== a.id))
+      if (a.kind === 'logo') refreshChannels?.()
     } catch (e) {
       showToast(`Couldn’t remove — ${e.message}`)
     }

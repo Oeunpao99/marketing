@@ -27,6 +27,7 @@ from app.media import local_path_for
 from app.models import (
     Automation,
     Brand,
+    BrandAsset,
     Channel,
     Draft,
     GenerationJob,
@@ -291,6 +292,17 @@ def today(db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)
 def channels_view(db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
     plats = _platform_map(db)
     brands = db.scalars(select(Brand).where(scope(Brand, ws)).order_by(Brand.name)).all()
+    # each brand's own logo (Brand kit), for the brand switcher's badge
+    logos = (
+        {
+            a.brand_id: a.url
+            for a in db.scalars(
+                select(BrandAsset).where(BrandAsset.brand_id.in_([b.id for b in brands]), BrandAsset.kind == "logo")
+            )
+        }
+        if brands
+        else {}
+    )
     chans = _scoped(db, Channel, ws)
     # A brand can hold several accounts per platform. Once one is connected,
     # its other "not connected" rows (old Pages, kept for their post history)
@@ -340,6 +352,7 @@ def channels_view(db: Session = Depends(get_db), ws: int = Depends(current_works
                 "lang": b.lang,
                 "note": b.note,
                 "voice_ready": b.voice_ready,  # its own voice is learned (Brand kit → Brand voice)
+                "logo_url": logos.get(b.id) or "",
                 "channels": rows,
             }
         )

@@ -133,13 +133,14 @@ export function StoreProvider({ children }) {
         .get("/views/channels")
         .then((groups) => {
           setBrands(
-            groups.map(({ id, slug, name, lang, note, voice_ready }) => ({
+            groups.map(({ id, slug, name, lang, note, voice_ready, logo_url }) => ({
               id,
               slug,
               name,
               lang,
               note,
               voiceReady: !!voice_ready, // its own voice can be picked for videos
+              logoUrl: logo_url || "", // its Brand kit logo — the switcher's badge (BrandBadge)
             })),
           );
           setChannels(

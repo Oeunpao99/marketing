@@ -196,7 +196,9 @@ function Phone({ id, className = '', tilt = 0, label }) {
       {/* the screen is exactly 9:16 — the clips' own shape, so nothing is cropped — with
           the notch on its own black strip above it, not over the video */}
       <div className="relative overflow-hidden rounded-[2.2rem] border-[6px] border-night-950 bg-night-950 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.55)] ring-1 ring-black/5 dark:border-night-800 dark:ring-white/20" style={{ transform: `rotate(${tilt}deg)` }}>
-        <div className="flex h-6 items-center justify-center">
+        {/* the phone's top strip: our logo on the left (like the app on its screen), the notch in the middle */}
+        <div className="relative flex h-6 items-center justify-center">
+          <img src="/brand/logo-mark.png" alt="" className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 rounded-[5px] bg-white object-contain p-[1.5px]" />
           <div className="h-3.5 w-14 rounded-full bg-black" />
         </div>
         <div className="relative aspect-[9/16] overflow-hidden rounded-b-[1.6rem] bg-night-900">

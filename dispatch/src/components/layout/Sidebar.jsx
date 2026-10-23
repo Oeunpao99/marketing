@@ -16,6 +16,28 @@ import SettingsModal from "./SettingsModal";
 import { openCreateBrand } from "./CreateBrandDrawer";
 import { canOpen } from "../../lib/access";
 import { BOSS, onPath } from "../../lib/nav";
+import { kitSrc } from "../brandkit/BrandKit";
+
+/** A brand's badge: its own logo (Brand kit) on a white tile, else its first letter in its colour. */
+function BrandBadge({ brand, className = "", tone }) {
+  const [broken, setBroken] = useState(false);
+  useEffect(() => setBroken(false), [brand?.logoUrl]);
+  if (brand?.logoUrl && !broken) {
+    return (
+      <span className={`grid flex-none place-items-center overflow-hidden border border-ink-200 bg-white ${className}`}>
+        <img src={kitSrc(brand.logoUrl)} alt="" className="h-[84%] w-[84%] object-contain" onError={() => setBroken(true)} />
+      </span>
+    );
+  }
+  return (
+    <span
+      className={`grid flex-none place-items-center font-bold text-white ${className}`}
+      style={tone ? undefined : { background: brand ? colorForBrand(brand.slug) : "#94A3B8" }}
+    >
+      {brand?.name?.slice(0, 1) || "?"}
+    </span>
+  );
+}
 
 
 // ``collapsed`` = the slim icon rail (Shell's sidebar toggle): icons only,
@@ -301,12 +323,9 @@ export default function Sidebar({ collapsed = false }) {
             type="button"
             onClick={() => setBrandOpen((v) => !v)}
             title={`${active?.name || "Select a brand"} — switch brand`}
-            className={`w-10 h-10 rounded-xl grid place-items-center text-white text-[13px] font-bold ring-2 transition ${
-              brandOpen ? "ring-brand/40" : "ring-transparent hover:ring-ink-200"
-            }`}
-            style={{ background: active ? colorForBrand(active.slug) : "#94A3B8" }}
+            className={`rounded-xl ring-2 transition ${brandOpen ? "ring-brand/40" : "ring-transparent hover:ring-ink-200"}`}
           >
-            {active?.name?.slice(0, 1) || "?"}
+            <BrandBadge brand={active} className="h-10 w-10 rounded-xl text-[13px]" />
           </button>
         ) : (
         <button
@@ -316,12 +335,7 @@ export default function Sidebar({ collapsed = false }) {
             brandOpen ? "border-brand-line bg-brand-soft" : "border-ink-200 bg-white hover:border-ink-300"
           }`}
         >
-          <span
-            className="w-7 h-7 rounded-lg grid place-items-center flex-none text-white text-[11px] font-bold"
-            style={{ background: active ? colorForBrand(active.slug) : "#94A3B8" }}
-          >
-            {active?.name?.slice(0, 1) || "?"}
-          </span>
+          <BrandBadge brand={active} className="h-7 w-7 rounded-lg text-[11px]" />
           <span className="min-w-0 flex-1">
             <span className="block text-[12.5px] font-semibold text-ink-900 truncate leading-tight">
               {active?.name || "Select a brand"}
@@ -383,13 +397,11 @@ export default function Sidebar({ collapsed = false }) {
                           current ? "bg-brand-soft" : "hover:bg-ink-50"
                         }`}
                       >
-                        <span
-                          className={`w-6 h-6 rounded-md grid place-items-center text-white font-bold text-[10px] flex-none ${
-                            current ? "bg-brand" : "bg-ink-300"
-                          }`}
-                        >
-                          {b.name?.slice(0, 1)}
-                        </span>
+                        <BrandBadge
+                          brand={b}
+                          tone
+                          className={`h-6 w-6 rounded-md text-[10px] ${b.logoUrl ? "" : current ? "bg-brand" : "bg-ink-300"}`}
+                        />
                         <span className="min-w-0 flex-1">
                           <span className="block text-[11.5px] font-semibold text-ink-800 truncate">{b.name}</span>
                           <span className="block text-[10px] text-ink-400">
