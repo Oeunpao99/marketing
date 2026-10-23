@@ -8,6 +8,11 @@ numbers the Analytics page shows). The model is told to cite those numbers,
 say plainly when the data can't answer something (e.g. reach isn't
 collected), and end with up to three ready-to-generate post ideas the page
 turns into "✦ Generate this" buttons.
+
+Asked to WRITE something (a video script, a story, an image prompt…), it also
+returns "drafts": the finished piece, written in the layout each Create mode
+reads best (a motion script scene by scene with On screen / Voice lines), which
+the page's "Use in Create" drops into the Create box with that mode picked.
 """
 
 from __future__ import annotations
@@ -73,10 +78,44 @@ Also propose up to 3 concrete next posts as "suggestions" for the brand the user
   style lists, and never text or logos drawn in the visual.
 Return [] if suggestions don't fit the question.
 
+WRITING — you are also their scriptwriter. When they ask you to WRITE something to make (a video
+script, a story, an ad, a post, an image or video prompt — about their brand, a product, or any
+topic they give), write the finished piece, ready to paste into the Create box, as a "draft":
+- Put the full piece in "drafts", NOT in "answer". "answer" then says in 1-3 lines what you wrote
+  and why it works (no 200-word limit applies to drafts). "suggestions" is usually [].
+- Give 1 draft, or 2-3 only when they ask for options. Pick its "kind" from what they want:
+  - "motion": an animated video (words, icons, numbers, their app's screenshots, a narrator) — best
+    for explaining, products, apps, tips, ads, pitches. 30-120 seconds. Write it scene by scene,
+    exactly like this, one blank line between scenes:
+      Scene 1 — <short scene name>
+      On screen: "<the few words shown, max ~8>"
+      Voice: <what the narrator says in this scene, 1-3 sentences>
+    Optionally a line "Visual: <what the scene shows>" after the scene name. 5-14 scenes, a hook
+    first and a call to action last.
+  - "story": a filmed short film with real-looking people and places (shot like a camera would) —
+    3-6 scenes of ~8 seconds, each: "Scene N — <name>", "Visual: <who, where, what happens>",
+    "Voice: <narration>".
+  - "clip": ONE continuous 8-second shot: one paragraph — the subject, the action, the place, the
+    camera move and the light. No text in the picture.
+  - "image": a poster or photo: one paragraph describing the picture, then the words to print, each
+    on its own line: Headline: "...", Subheading: "...", Points: "..." · "...", Button: "...".
+- The spoken and printed words are in the language they write in (Khmer → natural spoken Khmer),
+  unless they ask for another. Visual descriptions may be English.
+- Facts about their brand and products come from the DATA (names, what it does, prices if given).
+  Never invent prices, numbers, results, awards, customers or testimonials; if a fact is needed and
+  missing, write around it.
+- A draft has: "label" (a short title), "kind", "text" (the full piece).
+
 Reply as JSON: {"answer": "<markdown>", "suggestions": [{"label": "<short title>",
-"type": "image" | "video", "pillar": "...", "product": "...", "brief": "..."}]}""".replace(
+"type": "image" | "video", "pillar": "...", "product": "...", "brief": "..."}],
+"drafts": [{"label": "...", "kind": "motion" | "story" | "clip" | "image", "text": "..."}]}""".replace(
     "__PILLARS__", ", ".join(f"{k} ({label})" for k, (label, _) in PILLARS.items())
 )
+
+
+# What a written draft is made with — the Create modes (AIPromptPage): Remotion
+# motion video, filmed story, one instant clip, an image.
+DRAFT_KINDS = ("motion", "story", "clip", "image")
 
 
 class HistoryItem(BaseModel):
@@ -267,7 +306,7 @@ def advisor(
         messages.append({"role": "user", "content": payload.message})
 
     try:
-        out = _chat(messages, model, max_tokens=6000)
+        out = _chat(messages, model, max_tokens=9000)  # room for a full script
     except ContentAIError as exc:
         raise HTTPException(503, str(exc)) from exc
 
@@ -302,7 +341,26 @@ def advisor(
                 "product_id": photos.get(str(s.get("product") or "").strip().lower()),
             }
         )
+    # Written pieces (scripts, stories, prompts) — the page's "Use in Create" puts
+    # one in the Create box with the right mode picked.
+    drafts = []
+    for d in (out.get("drafts") or [])[:3] if isinstance(out.get("drafts"), list) else []:
+        if not isinstance(d, dict):
+            continue
+        body = str(d.get("text") or "").strip()
+        kind = str(d.get("kind") or "").strip().lower()
+        if len(body) < 10:
+            continue
+        drafts.append(
+            {
+                "label": _clip(str(d.get("label") or "Draft"), 80),
+                "kind": kind if kind in DRAFT_KINDS else "motion",
+                "text": body[:12000],
+            }
+        )
     answer = str(out.get("answer") or "").strip()
+    if not answer and drafts:
+        answer = "Here it is — check it, then press **Use in Create**."
     if not answer:
         raise HTTPException(502, "The advisor returned an empty answer — try asking again.")
-    return {"answer": answer, "suggestions": suggestions, "remaining_today": remaining}
+    return {"answer": answer, "suggestions": suggestions, "drafts": drafts, "remaining_today": remaining}

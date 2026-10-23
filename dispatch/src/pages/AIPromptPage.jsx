@@ -112,6 +112,7 @@ const QUESTIONS = [
   'What should I post next week?',
   'Which product needs more attention?',
 ]
+const SCRIPT_ASK = 'Write a 60-second animated video script about our brand and its main product — scene by scene, with what the narrator says.'
 
 // Heuristic router for the composer — shown to the person (Ask / Create
 // toggle) so a wrong guess is one click to fix, never a silent surprise.
@@ -165,6 +166,7 @@ function serializeTurn(t) {
     error: t.error || '',
     answer: t.answer,
     suggestions: t.suggestions,
+    drafts: t.drafts || [], // Ask's written scripts / prompts (Use in Create)
     video: t.video || null,
     jobId: t.jobId || null,
     storyId: t.storyId || null,
@@ -752,6 +754,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
           status: 'done',
           answer: res.answer,
           suggestions: res.suggestions || [],
+          drafts: res.drafts || [],
           remaining: res.remaining_today,
         })
       } else if (turn.kind === 'image') {
@@ -1135,6 +1138,22 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
     navigate('/new')
   }
 
+  // Ask wrote a script / prompt: into the Create box, with the mode it was written for
+  // (a Remotion script opens as a storyboard to check first)
+  const applyDraft = (draft) => {
+    setText(draft.text || '')
+    setIntentPick('create')
+    if (draft.kind === 'image') {
+      chooseType('image')
+    } else {
+      chooseType('video')
+      setVideoMode(draft.kind === 'story' || draft.kind === 'motion' ? draft.kind : 'clip')
+      if (draft.kind === 'motion') setMotionReview(true)
+    }
+    requestAnimationFrame(() => composerRef.current?.querySelector('textarea')?.focus())
+    showToast(`${DRAFT_KIND_LABEL[draft.kind] || 'Draft'} ready in Create — check it, then press Generate`)
+  }
+
   const editPrompt = (turn) => {
     setText(turn.prompt || '')
     chooseType(turn.kind === 'image' ? 'image' : 'video')
@@ -1248,7 +1267,8 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
               <div className="mt-6 grid grid-cols-2 gap-2 sm:flex sm:flex-nowrap sm:justify-center">
                 {[
                   { label: 'How’s my engagement?', text: QUESTIONS[0], pick: 'ask' },
-                  { label: 'What to post next week?', text: QUESTIONS[1], pick: 'ask' },
+                  // Ask writes too: a full script / prompt with "Use in Create" (app/advisor.py drafts)
+                  { label: 'Write a video script', text: SCRIPT_ASK, pick: 'ask' },
                   { label: isImage ? 'Product hero shot' : 'Product intro video', text: SUGGESTIONS[type][0], pick: 'create' },
                   { label: isImage ? 'Weekend sale banner' : 'Cinematic B-roll', text: SUGGESTIONS[type][1], pick: 'create' },
                 ].map((s) => (
@@ -1282,6 +1302,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
                 t={t}
                 onRetry={() => regenerate(t)}
                 onGenerate={generateSuggestion}
+                onUseDraft={applyDraft}
                 onEdit={() => {
                   setText(t.prompt)
                   setIntentPick('ask')
@@ -1860,7 +1881,56 @@ const ASK_STAGES = [
   [Infinity, 'Writing your advice…'],
 ]
 
-function AskTurn({ t, onRetry, onGenerate, onEdit }) {
+// What each Ask draft is made with (app/advisor.py DRAFT_KINDS)
+const DRAFT_KIND_LABEL = { motion: 'Animated video script', story: 'Filmed story', clip: 'Instant video prompt', image: 'Image prompt' }
+
+/** One script / prompt Ask wrote: the first lines, "Show all", Copy and Use in Create. */
+function DraftCard({ d, onUse }) {
+  const [open, setOpen] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const lines = String(d.text || '').split('\n')
+  const long = lines.length > 12 || d.text.length > 900
+  const shown = open || !long ? d.text : `${lines.slice(0, 12).join('\n').slice(0, 900)}…`
+  const khmer = /[ក-៿]/.test(d.text || '') ? 'font-khmer' : ''
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(d.text || '')
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      /* ignore */
+    }
+  }
+  return (
+    <div className="mt-3 rounded-2xl border border-ink-200 bg-white p-4">
+      <div className="flex items-center gap-2">
+        <span className="grid h-7 w-7 flex-none place-items-center rounded-lg bg-brand-soft text-brand">
+          {d.kind === 'image' ? <FiImage size={14} /> : d.kind === 'motion' ? <FiLayers size={14} /> : <FiVideo size={14} />}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[13px] font-bold text-ink-900">{d.label}</div>
+          <div className="text-[11px] text-ink-500">{DRAFT_KIND_LABEL[d.kind] || 'Draft'}</div>
+        </div>
+      </div>
+      <div className={`mt-3 whitespace-pre-wrap rounded-xl bg-canvas px-3.5 py-3 text-[12.5px] leading-relaxed text-ink-800 ${khmer}`}>{shown}</div>
+      {long && (
+        <button type="button" onClick={() => setOpen((v) => !v)} className="mt-1.5 text-[11.5px] font-semibold text-brand hover:underline">
+          {open ? 'Show less' : 'Show all'}
+        </button>
+      )}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <button type="button" onClick={() => onUse(d)} className="btn-primary h-9 px-4 text-[12.5px]">
+          ✦ Use in Create
+        </button>
+        <button type="button" onClick={copy} className="btn-ghost h-9 px-3 text-[12.5px]">
+          {copied ? <FiCheck size={13} /> : <FiCopy size={13} />} {copied ? 'Copied' : 'Copy'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function AskTurn({ t, onRetry, onGenerate, onEdit, onUseDraft }) {
   const [copied, setCopied] = useState(false)
   const elapsed = t.startedAt ? (Date.now() - t.startedAt) / 1000 : 0
   const stage = ASK_STAGES.find(([s]) => elapsed < s)[1]
@@ -1925,6 +1995,9 @@ function AskTurn({ t, onRetry, onGenerate, onEdit }) {
               <div className={`pt-1 ${khmer(t.answer)}`}>
                 <Markdown text={t.answer} />
               </div>
+
+              {/* the scripts / prompts it wrote — one press puts one in Create */}
+              {t.drafts?.map((d, i) => <DraftCard key={i} d={d} onUse={onUseDraft} />)}
 
               {t.suggestions?.length > 0 && (
                 <div className="mt-3">
