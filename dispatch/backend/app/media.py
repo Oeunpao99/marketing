@@ -75,29 +75,48 @@ def store_blob(
     Flushes (not commits) so the blob rides the caller's transaction.
     """
     name = f"{uuid.uuid4().hex}{ext}"
-    db.add(
-        MediaBlob(
-            name=name,
-            content_type=content_type
-            or mimetypes.guess_type(name)[0]
-            or "application/octet-stream",
-            size_bytes=len(data),
-            data=data,
-        )
-    )
+    save_file(db, name, data, content_type or mimetypes.guess_type(name)[0] or "application/octet-stream")
     db.flush()
     return f"/media/{name}"
 
 
+def save_file(db: Session, name: str, data: bytes, content_type: str) -> MediaBlob:
+    """A file's row (added to ``db``): its bytes in Azure Blob Storage when that's
+    set up (app/blobstore.py), else in the row. Azure out of reach → the row, so a
+    save never fails for it (move_media can move it later)."""
+    from app import blobstore
+
+    if blobstore.enabled():
+        try:
+            blobstore.put(name, data, content_type)
+            row = MediaBlob(name=name, content_type=content_type, size_bytes=len(data), data=None, stored="azure")
+            db.add(row)
+            return row
+        except Exception:  # noqa: BLE001
+            log.warning("blob storage: %s kept in the database (upload failed)", name, exc_info=True)
+    row = MediaBlob(name=name, content_type=content_type, size_bytes=len(data), data=data)
+    db.add(row)
+    return row
+
+
+def _bytes_of(blob: MediaBlob) -> bytes | None:
+    if blob.stored == "azure":
+        from app import blobstore
+
+        return blobstore.get(blob.name)
+    return bytes(blob.data) if blob.data is not None else None
+
+
 def read_media(url: str) -> bytes | None:
-    """Return the bytes behind a '/media/<name>' url — DB blob first, then disk."""
+    """Return the bytes behind a '/media/<name>' url — its row (database or Blob
+    Storage) first, then the legacy disk folder."""
     name = _name_from_url(url)
     if name is None:
         return None
     with SessionLocal() as db:
         blob = db.scalar(select(MediaBlob).where(MediaBlob.name == name))
         if blob is not None:
-            return bytes(blob.data)
+            return _bytes_of(blob)
     path = local_path_for(url)
     return path.read_bytes() if path is not None else None
 
@@ -109,6 +128,13 @@ def delete_media(db: Session, url: str) -> None:
         return
     blob = db.scalar(select(MediaBlob).where(MediaBlob.name == name))
     if blob is not None:
+        if blob.stored == "azure":
+            from app import blobstore
+
+            try:
+                blobstore.delete(name)
+            except Exception:  # noqa: BLE001 — the row goes either way; a stray file costs little
+                log.warning("blob storage: %s not deleted", name, exc_info=True)
         db.delete(blob)
     path = local_path_for(url)
     if path is not None:
@@ -149,9 +175,10 @@ def serve_thumb(name: str, db: Session = Depends(get_db)):
     MP4s just for a still), which made the page crawl. 404 when no picture can
     be made; the page then falls back to the original."""
     tname = f"thumb{THUMB_W}-{Path(name).stem}.jpg"[:120]
-    kept = db.scalar(select(MediaBlob.data).where(MediaBlob.name == tname))
+    row = db.scalar(select(MediaBlob).where(MediaBlob.name == tname))
+    kept = _bytes_of(row) if row is not None else None  # thumbnails stay in the database (small, asked for a lot)
     if kept is not None:
-        return Response(content=bytes(kept), media_type="image/jpeg", headers=CACHE)
+        return Response(content=kept, media_type="image/jpeg", headers=CACHE)
     data = read_media(f"/media/{name}")
     if data is None:
         raise HTTPException(404, "Media not found.")
@@ -176,8 +203,32 @@ _RANGE = re.compile(r"bytes=(\d*)-(\d*)$")
 @serve_router.get("/media/{name}", include_in_schema=False)
 def serve_media(name: str, request: Request, db: Session = Depends(get_db)):
     head = db.execute(
-        select(MediaBlob.content_type, func.length(MediaBlob.data)).where(MediaBlob.name == name)
+        select(MediaBlob.content_type, func.coalesce(func.length(MediaBlob.data), MediaBlob.size_bytes), MediaBlob.stored).where(MediaBlob.name == name)
     ).first()
+    if head is not None and head[2] == "azure":  # in Blob Storage: read from there, a piece at a time for videos
+        from app import blobstore
+
+        ctype, size = head[0] or "application/octet-stream", int(head[1] or 0)
+        m = _RANGE.match((request.headers.get("range") or "").strip())
+        if m and size and (m.group(1) or m.group(2)):
+            if m.group(1):
+                start = int(m.group(1))
+                end = min(int(m.group(2)) if m.group(2) else start + RANGE_CHUNK - 1, size - 1)
+            else:
+                start, end = max(0, size - int(m.group(2))), size - 1
+            if start >= size or end < start:
+                return Response(status_code=416, headers={"Content-Range": f"bytes */{size}"})
+            part = blobstore.get_range(name, start, end)
+            if part is None:
+                raise HTTPException(404, "Media not found.")
+            return Response(
+                content=part, status_code=206, media_type=ctype,
+                headers={**CACHE, "Accept-Ranges": "bytes", "Content-Range": f"bytes {start}-{end}/{size}"},
+            )
+        data = blobstore.get(name)
+        if data is None:
+            raise HTTPException(404, "Media not found.")
+        return Response(content=data, media_type=ctype, headers={**CACHE, "Accept-Ranges": "bytes"})
     if head is not None:
         ctype, size = head[0] or "application/octet-stream", int(head[1] or 0)
         m = _RANGE.match((request.headers.get("range") or "").strip())

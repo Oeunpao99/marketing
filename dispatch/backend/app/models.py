@@ -306,7 +306,9 @@ class MediaBlob(Base, TimestampMixin):
         server_default="application/octet-stream",
     )
     size_bytes: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
-    data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    # the bytes — empty once the file lives in Azure Blob Storage (``stored`` = "azure", app/blobstore.py)
+    data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    stored: Mapped[str] = mapped_column(String(8), default="", server_default="")
 
 
 class Post(Base, TimestampMixin):

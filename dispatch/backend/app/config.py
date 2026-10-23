@@ -137,6 +137,12 @@ class Settings(BaseSettings):
     # App-wide cap on simultaneous provider image calls. Requests beyond it
     # wait (job stays "queued") instead of hitting the provider at once.
     image_max_concurrency: int = 6
+    # Azure Blob Storage for the app's files (app/blobstore.py): both set → new files
+    # go there (their /media links stay the same); empty → kept in the database.
+    azure_storage_connection_string: str = ""
+    azure_storage_container_name: str = ""
+    # our folder inside the container — it may be shared with another app
+    azure_storage_prefix: str = "smart-marketing/"
     # Busy: past this many images / template videos already waiting or being made
     # (the whole app, the last 30 min), a new one is turned away with "Lots of people
     # are creating right now — please try again in a moment" (app/video.py refuse_if_busy).

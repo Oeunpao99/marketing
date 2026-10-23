@@ -44,7 +44,7 @@ from app import billing
 from app.config import get_settings
 from app.database import SessionLocal, get_db
 from app.khmer_words import ZWSP, breaks
-from app.media import read_media, store_blob
+from app.media import read_media, save_file, store_blob
 from app.models import Brand, BrandAsset, GenerationJob, Product, TeamMember, Video
 from app.poster import brand_rgb
 from app.tenancy import current_workspace_id, get_current_user, owned
@@ -7248,7 +7248,7 @@ def keep_props(db: Session, props: dict) -> str:
             if db.scalar(select(MediaBlob.id).where(MediaBlob.name == name)) is None:
                 try:
                     with db.begin_nested():  # another video may store the same file at the same moment
-                        db.add(MediaBlob(name=name, content_type=head[5:].split(";")[0] or "application/octet-stream", size_bytes=len(raw), data=raw))
+                        save_file(db, name, raw, head[5:].split(";")[0] or "application/octet-stream")
                 except IntegrityError:
                     pass
             return f"blob:{head}|/media/{name}"
