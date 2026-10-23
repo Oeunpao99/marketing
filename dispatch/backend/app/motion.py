@@ -2958,11 +2958,21 @@ _VOICE_HEAD = re.compile(
 )
 
 
+_QUOTE_START = re.compile(r"^\s*[\"“«]")
+
+
 def _voice_lines(text: str) -> list[tuple[int, str]]:
     """(line number, words) of each of the script's own voice lines: "Voice: …"
-    on one line, or a label alone on its line with the words under it."""
+    on one line, or a label alone on its line with the words under it — every
+    quoted paragraph under it, up to the next heading ("Purpose", "Visual",
+    "---"): a scene's voice-over is often two or three paragraphs, and a missed
+    one was dropped from the voice and demanded on screen instead."""
     lines = (text or "").splitlines()
     out: list[tuple[int, str]] = []
+
+    def plain_line(k: int) -> bool:
+        return not (_SCENE_HEAD.match(lines[k]) or _VOICE_HEAD.match(lines[k]) or _VOICE_LINE.match(lines[k]))
+
     i = 0
     while i < len(lines):
         m = _VOICE_LINE.match(lines[i])
@@ -2972,9 +2982,19 @@ def _voice_lines(text: str) -> list[tuple[int, str]]:
             j = i + 1
             while j < len(lines) and not lines[j].strip():
                 j += 1
-            if j < len(lines) and not _SCENE_HEAD.match(lines[j]) and not _VOICE_HEAD.match(lines[j]) and not _VOICE_LINE.match(lines[j]):
+            if j < len(lines) and plain_line(j):
                 out.append((j, lines[j]))
                 i = j
+                # the next quoted paragraphs belong to the same voice-over
+                while True:
+                    k = i + 1
+                    while k < len(lines) and not lines[k].strip():
+                        k += 1
+                    if k < len(lines) and plain_line(k) and _QUOTE_START.match(lines[k]):
+                        out.append((k, lines[k]))
+                        i = k
+                    else:
+                        break
         i += 1
     return out
 
@@ -3029,6 +3049,9 @@ def _missing_onscreen(idea: str, raw: dict) -> list[str]:
     return [q for q in own_onscreen(idea) if _plain(q) not in shown]
 
 
+_PUNCT = ".,!?;:\"“”‘’'«»()…—–-"
+
+
 def _keep_own_voice(script: dict, idea: str) -> None:
     """A script with its own Voice lines: a `say` that isn't from them (the AI
     filled a scene with a line of its own) is taken out — the scene plays
@@ -3037,7 +3060,11 @@ def _keep_own_voice(script: dict, idea: str) -> None:
     if not lines:
         return
     theirs = _plain(" ".join(lines))
-    words = set(theirs.split())
+    # a line the AI took from anywhere in their script is theirs too — however the
+    # script lays its voice-over out (a format we don't read must not silence a scene);
+    # only words they never wrote take a line out
+    written = _plain(idea)
+    words = {w.strip(_PUNCT) for w in written.split()}
     # one storyboard scene per Voice line: each scene says exactly the person's
     # line — the AI's light rewrites ("ចាំ" → "រង់ចាំ", an added opening) and its
     # translations never replace words they wrote themselves
@@ -3047,9 +3074,9 @@ def _keep_own_voice(script: dict, idea: str) -> None:
         return
     for sc in script["scenes"]:
         said = _plain(sc.get("say"))
-        if said and said in theirs:
+        if said and (said in theirs or said in written):
             continue
-        mine = [w.strip(".,!?;:") for w in said.split()]
+        mine = [w.strip(_PUNCT) for w in said.split()]
         if not said or sum(1 for w in mine if w in words) / max(1, len(mine)) < 0.75:
             if said:
                 log.info("storyboard: a voice line the script doesn't have taken out: %s", _line(sc["say"], 80))
