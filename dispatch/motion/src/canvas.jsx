@@ -21,6 +21,7 @@
  * layer's hit = a big reveal: a riser builds up to it, an impact lands with a
  * flash and a short shake (sfx.jsx cues the sounds on the same frames).
  */
+import { useLayoutEffect, useRef, useState } from 'react'
 import { AbsoluteFill, Img, interpolate, random, spring, useCurrentFrame, useVideoConfig } from 'remotion'
 import { FONT, Icon, KHMER_RE, Words, clean, srcOf, tint } from './shared'
 
@@ -275,16 +276,20 @@ function loopStyle(L, frame) {
   }[L.loop] || {}
 }
 
-function Layer({ L, pal, brand, u, delay }) {
+// blocks of words: the scene measures them (even before they arrive) and moves one
+// down when the AI's guess of its height ran it into the block above (spaceOut)
+const FLOW = new Set(['text', 'list'])
+
+function Layer({ L, pal, brand, u, delay, dy = 0, measure }) {
   const frame = useCurrentFrame()
   const { fps, width, height } = useVideoConfig()
   const { f, t, style } = arrive(L, frame, fps, delay)
-  if (f < 0) return null
+  if (f < 0 && !FLOW.has(L.kind)) return null
   const loop = loopStyle(L, frame)
   const color = col(pal, L.color)
   const w = L.w ? L.w * u : undefined
   const h = L.h ? L.h * u : undefined
-  const box = { position: 'absolute', left: `${L.x ?? 50}%`, top: `${L.y ?? 50}%`, transform: `translate(-50%, -50%) rotate(${L.rotate || 0}deg)`, zIndex: L.z || 1 }
+  const box = { position: 'absolute', left: `${L.x ?? 50}%`, top: dy ? `calc(${L.y ?? 50}% + ${dy}px)` : `${L.y ?? 50}%`, visibility: f < 0 ? 'hidden' : undefined, transform: `translate(-50%, -50%) rotate(${L.rotate || 0}deg)`, zIndex: L.z || 1 }
   const fill = (c, d) => col(pal, c, d)
   const glass = pal.mode === 'light' ? 'rgba(255,255,255,0.86)' : 'rgba(255,255,255,0.07)'
   const border = pal.mode === 'light' ? 'rgba(15,23,42,0.08)' : 'rgba(255,255,255,0.14)'
@@ -310,6 +315,8 @@ function Layer({ L, pal, brand, u, delay }) {
           {L.in === 'type' ? (
             <span style={{ fontFamily: L.mono ? MONO : FONT, fontWeight: L.weight || 700, fontSize: size, color, lineHeight: 1.2, letterSpacing: L.weight && L.weight <= 400 ? '-0.03em' : '-0.015em' }}>
               {clean(L.text).slice(0, Math.max(0, Math.floor(f / 1.5)))}
+              {/* the rest is there but unseen, so the block keeps its full size while it types */}
+              <span style={{ opacity: 0 }}>{clean(L.text).slice(Math.max(0, Math.floor(f / 1.5)))}</span>
             </span>
           ) : (
             <Words
@@ -576,7 +583,7 @@ function Layer({ L, pal, brand, u, delay }) {
   }
   if (!body) return null
   return (
-    <div style={box}>
+    <div style={box} ref={FLOW.has(L.kind) ? measure : undefined}>
       <div style={style}>
         <div style={loop}>{body}</div>
       </div>
@@ -599,11 +606,54 @@ export const hitFrames = (scene, fps = 30) => {
   return (scene.layers || []).filter((L) => L.hit).map((L) => Math.round((L.at || 0) * fps) + delay)
 }
 
+/** How far (px) to move each block of words down so none runs into the one above:
+ * the AI places blocks by their centre but can't know how many lines a headline
+ * wraps to. boxes: { i: { x, y, w, h } } (centre and size, px). If the moved
+ * blocks run off the bottom, the whole column goes back up as far as there's room. */
+export function spaceOut(boxes, height, gap) {
+  const list = Object.entries(boxes).map(([i, b]) => ({ i, ...b, top: b.y - b.h / 2, dy: 0 })).sort((a, b) => a.top - b.top)
+  const across = (a, b) => Math.min(a.x + a.w / 2, b.x + b.w / 2) - Math.max(a.x - a.w / 2, b.x - b.w / 2) > 0
+  for (let j = 0; j < list.length; j++) {
+    for (let k = 0; k < j; k++) {
+      const a = list[k]
+      const b = list[j]
+      if (!across(a, b)) continue
+      const need = a.top + a.dy + a.h + gap - (b.top + b.dy)
+      if (need > 0) b.dy += need
+    }
+  }
+  const moved = list.filter((b) => b.dy > 0)
+  if (moved.length) {
+    const over = Math.max(...moved.map((b) => b.top + b.dy + b.h)) - height * 0.9
+    if (over > 0) {
+      // lift every block in the moved column (and those above it) by what fits
+      const col = list.filter((b) => moved.some((m) => across(m, b)))
+      const room = Math.min(...col.map((b) => b.top + b.dy)) - height * 0.06
+      const lift = Math.max(0, Math.min(over, room))
+      col.forEach((b) => (b.dy -= lift))
+    }
+  }
+  return Object.fromEntries(list.filter((b) => Math.abs(b.dy) > 0.5).map((b) => [b.i, Math.round(b.dy)]))
+}
+
 /** One AI-designed scene: its background and its layers, in its act's palette. */
 export function CanvasScene({ scene, brand }) {
   const frame = useCurrentFrame()
   const { width, height, fps } = useVideoConfig()
   const u = Math.min(width, height) / 1080
+  // measure the blocks of words every frame (cheap; their size doesn't change as they animate)
+  const els = useRef({})
+  const [dys, setDys] = useState({})
+  useLayoutEffect(() => {
+    const boxes = {}
+    ;(scene.layers || []).forEach((L, i) => {
+      const el = els.current[i]
+      if (!el || !FLOW.has(L.kind) || L.rotate) return
+      boxes[i] = { x: ((L.x ?? 50) / 100) * width, y: ((L.y ?? 50) / 100) * height, w: el.offsetWidth, h: el.offsetHeight }
+    })
+    const next = spaceOut(boxes, height, 28 * u)
+    if (JSON.stringify(next) !== JSON.stringify(dys)) setDys(next)
+  })
   const pal = { bg: '#070B16', a: '#3B82F6', b: '#22D3EE', ink: '#FFFFFF', sub: 'rgba(226,232,255,0.72)', mode: 'dark', white: '#FFFFFF', black: '#000000', ...(scene.pal || {}) }
   // the breath before a reveal: near-black, then the scene fades up
   const delay = Math.round((Number(scene.pause) || 0) * fps)
@@ -624,7 +674,7 @@ export function CanvasScene({ scene, brand }) {
       <AbsoluteFill style={{ transform: jolt }}>
         <Background bg={scene.bg} pal={pal} />
         {(scene.layers || []).map((L, i) => (
-          <Layer key={i} L={L} pal={pal} brand={brand} u={u} delay={delay} />
+          <Layer key={i} L={L} pal={pal} brand={brand} u={u} delay={delay} dy={dys[i] || 0} measure={(el) => (els.current[i] = el)} />
         ))}
       </AbsoluteFill>
       {flash > 0 && <AbsoluteFill style={{ background: pal.mode === 'light' ? '#FFFFFF' : tint(pal.a, 0.9), opacity: flash, mixBlendMode: 'screen' }} />}

@@ -8,6 +8,8 @@ import AIAssistant from '../ai/AIAssistant'
 import CreateBrandDrawer from './CreateBrandDrawer'
 import AppUpdate from './AppUpdate'
 import OnboardingTour from './OnboardingTour'
+import WelcomeHello from './WelcomeHello'
+import CreditClaimFx from './CreditClaimFx'
 import NewTemplates from './NewTemplates'
 import NewFeature from './NewFeature'
 import { useStore } from '../../store'
@@ -165,6 +167,8 @@ export default function Shell({ children }) {
       <AIAssistant />
       <CreateBrandDrawer />
       <AppUpdate />
+      <WelcomeHello />
+      <CreditClaimFx />
       <OnboardingTour />
       <NewTemplates />
       <NewFeature />

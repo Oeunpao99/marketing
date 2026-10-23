@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { FiArrowLeft, FiArrowRight, FiCheck, FiX } from 'react-icons/fi'
+import { FiArrowLeft, FiArrowRight, FiX } from 'react-icons/fi'
 import { useAuth } from '../../auth'
+import LiveAvatar from '../ui/LiveAvatar'
 import { markTourSeen, shouldAutoStart, tourStepsFor } from '../../lib/tour'
+import { helloOpen } from '../../lib/hello'
 
 // The spotlight: a full-screen dim with a rounded hole cut over one piece of
 // navigation, a pulsing ring around the hole, and a card with an arrow
@@ -97,6 +99,12 @@ export default function OnboardingTour() {
   useEffect(() => {
     if (started.current || !shouldAutoStart(user)) return
     started.current = true
+    // just signed up: the hello comes first, the tour when it closes
+    if (helloOpen()) {
+      const after = () => setTimeout(() => show(0), 350)
+      window.addEventListener('dispatch:hello-done', after, { once: true })
+      return () => window.removeEventListener('dispatch:hello-done', after)
+    }
     const t = setTimeout(() => show(0), AUTO_START_MS)
     return () => clearTimeout(t)
   }, [user, show])
@@ -220,19 +228,17 @@ export default function OnboardingTour() {
       <div
         ref={cardRef}
         onClick={(e) => e.stopPropagation()}
-        className={`absolute w-[300px] animate-fade rounded-2xl border border-ink-200/70 bg-white shadow-pop ${
+        className={`absolute ${centred ? 'w-[340px]' : 'w-[300px]'} animate-fade rounded-2xl border border-ink-200/70 bg-white shadow-pop ${
           centred ? 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 p-5' : 'p-4'
         } ${pending ? 'invisible' : ''}`}
         style={at ? { left: at.x, top: at.y } : undefined}
       >
         {arrow && <span className={`absolute h-3 w-3 rotate-45 border-ink-200/70 bg-white ${arrow.edge}`} style={arrow.pos} />}
 
+        {/* the welcome and the goodbye: our robot leans over the card and waves */}
+        {centred && <LiveAvatar size={124} className="mx-auto -mt-[78px] mb-1" />}
+
         <div className="flex items-start gap-3">
-          {centred && (
-            <span className="mt-0.5 grid h-8 w-8 flex-none place-items-center rounded-xl bg-brand-soft text-brand">
-              {last ? <FiCheck size={16} /> : <FiArrowRight size={16} />}
-            </span>
-          )}
           <div className="min-w-0 flex-1">
             <h2 id="tour-title" className="text-[15px] font-bold leading-snug text-brand">
               {step.title}

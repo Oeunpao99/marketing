@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { api, tokenStore } from './api/client'
 import { applyPreferences } from './lib/theme'
+import { markHello } from './lib/hello'
 
 const AuthContext = createContext(null)
 
@@ -10,6 +11,7 @@ const AuthContext = createContext(null)
 const fromGoogle = /[#&]google_token=([^&]+)/.exec(window.location.hash)
 if (fromGoogle) {
   tokenStore.set(decodeURIComponent(fromGoogle[1]))
+  markHello()
   window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search)
 }
 
@@ -63,6 +65,7 @@ export function AuthProvider({ children }) {
 
   const finish = ({ token, user: u }) => {
     tokenStore.set(token)
+    markHello() // the app says hello once (WelcomeHello)
     setUser(u)
     return u
   }

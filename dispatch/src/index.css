@@ -381,6 +381,39 @@ html.dark .cf-halo { background-color: rgb(var(--brand) / .45); }
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+/* The live robot (components/ui/LiveAvatar.jsx): a gentle float, a blink every
+   few seconds, and a hello wave — three quick waves, a rest, again. */
+@keyframes cf-avatar-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-5%); }
+}
+@keyframes cf-avatar-blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  95%           { transform: scaleY(0.1); }
+}
+@keyframes cf-avatar-wave {
+  0%, 60%, 100% { transform: rotate(0deg); }
+  8%  { transform: rotate(-11deg); }
+  18% { transform: rotate(8deg); }
+  28% { transform: rotate(-11deg); }
+  38% { transform: rotate(8deg); }
+  48% { transform: rotate(-6deg); }
+}
+.cf-avatar-float { animation: cf-avatar-float 3.4s ease-in-out infinite; }
+.cf-avatar-blink { animation: cf-avatar-blink 4.2s ease-in-out infinite; }
+.cf-avatar-wave  { animation: cf-avatar-wave 2.8s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .cf-avatar-float, .cf-avatar-blink, .cf-avatar-wave { animation: none !important; }
+}
+
+/* the credits chip catching the claimed coins (CreditClaimFx) */
+@keyframes cf-chip-pop {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.18); box-shadow: 0 0 0 6px rgb(var(--brand) / 0.18); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgb(var(--brand) / 0); }
+}
+.cf-chip-pop { animation: cf-chip-pop .6s cubic-bezier(.2,1.4,.4,1); }
+
 @keyframes cf-fade-in { from { opacity: 0; } to { opacity: 1; } }
 .cf-mark-in { animation: cf-mark-in .8s cubic-bezier(.2,.8,.2,1) both; }
 .cf-letter  { opacity: 0; animation: cf-letter-in .5s cubic-bezier(.2,.8,.2,1) forwards; }

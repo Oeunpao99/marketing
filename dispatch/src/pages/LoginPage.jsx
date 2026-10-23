@@ -61,24 +61,24 @@ export default function LoginPage({ initial = 'signin', onBack }) {
   }
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-[1.1fr_1fr] bg-canvas">
+    <div className="min-h-screen grid lg:h-dvh lg:overflow-hidden lg:grid-cols-[1.1fr_1fr] bg-canvas">
       <BrandPanel />
 
       {/* ── form panel ── */}
-      <main className="flex items-center justify-center p-6 sm:p-10">
-        <div className="w-full max-w-[380px]">
+      <main className="flex items-center justify-center p-6 sm:p-10 lg:min-h-0 lg:overflow-y-auto lg:py-[clamp(12px,3.2vh,40px)]">
+        <div className="w-full max-w-[380px] my-auto">
           {onBack && (
-            <button type="button" onClick={onBack} className="mb-6 text-[13px] font-medium text-ink-500 hover:text-brand">
+            <button type="button" onClick={onBack} className="mb-[clamp(8px,2.2vh,24px)] text-[13px] font-medium text-ink-500 hover:text-brand">
               ← Back to the home page
             </button>
           )}
           <BrandLockup />
 
           <div className="text-center">
-            <h1 className="text-[24px] font-bold tracking-tight text-ink-900">
+            <h1 className="text-[clamp(20px,3.2vh,24px)] font-bold tracking-tight text-ink-900">
               {isRegister ? 'Create your account' : 'Welcome back'}
             </h1>
-            <p className="mt-1 text-[13px] text-ink-500">
+            <p className={`mt-1 text-[13px] text-ink-500 ${isRegister ? '[@media(max-height:640px)]:hidden' : ''}`}>
               {isRegister
                 ? 'Your own private workspace — only people you invite can see it.'
                 : 'Sign in to continue to your workspace.'}
@@ -91,12 +91,12 @@ export default function LoginPage({ initial = 'signin', onBack }) {
                 type="button"
                 onClick={withGoogle}
                 disabled={leaving}
-                className="mt-7 flex h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-ink-200 bg-white text-[13.5px] font-semibold text-ink-800 transition-colors hover:border-ink-300 hover:bg-ink-50 disabled:opacity-60"
+                className="mt-[clamp(10px,2.6vh,28px)] flex h-[clamp(34px,5.2vh,44px)] w-full items-center justify-center gap-2.5 rounded-xl border border-ink-200 bg-white text-[13.5px] font-semibold text-ink-800 transition-colors hover:border-ink-300 hover:bg-ink-50 disabled:opacity-60"
               >
                 <GoogleG />
                 {leaving ? 'Opening Google…' : isRegister ? 'Sign up with Google' : 'Continue with Google'}
               </button>
-              <div className="mt-5 flex items-center gap-3 text-[11.5px] text-ink-400">
+              <div className="mt-[clamp(8px,1.9vh,20px)] flex items-center gap-3 text-[11.5px] text-ink-400">
                 <span className="h-px flex-1 bg-ink-200" />
                 or with email
                 <span className="h-px flex-1 bg-ink-200" />
@@ -104,30 +104,30 @@ export default function LoginPage({ initial = 'signin', onBack }) {
             </>
           )}
 
-          <form onSubmit={submit} className={`${google ? 'mt-5' : 'mt-7'} space-y-4`}>
+          <form onSubmit={submit} className={`${google ? 'mt-[clamp(8px,1.9vh,20px)]' : 'mt-[clamp(10px,2.6vh,28px)]'} flex flex-col gap-[clamp(6px,1.5vh,16px)]`}>
             {isRegister && (
-              <Field label="Name">
-                <input
-                  type="text"
-                  required
-                  autoFocus
-                  value={form.name}
-                  onChange={set('name')}
-                  placeholder="Sokha R."
-                  className={inputCls}
-                />
-              </Field>
-            )}
-            {isRegister && (
-              <Field label="Company or workspace name">
-                <input
-                  type="text"
-                  value={form.company}
-                  onChange={set('company')}
-                  placeholder="e.g. Sokha Coffee Co."
-                  className={inputCls}
-                />
-              </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Name">
+                  <input
+                    type="text"
+                    required
+                    autoFocus
+                    value={form.name}
+                    onChange={set('name')}
+                    placeholder="Sokha R."
+                    className={inputCls}
+                  />
+                </Field>
+                <Field label="Company or workspace">
+                  <input
+                    type="text"
+                    value={form.company}
+                    onChange={set('company')}
+                    placeholder="e.g. Sokha Coffee"
+                    className={inputCls}
+                  />
+                </Field>
+              </div>
             )}
             <Field label="Email">
               <input
@@ -160,12 +160,12 @@ export default function LoginPage({ initial = 'signin', onBack }) {
               </div>
             )}
 
-            <button type="submit" disabled={busy} className="w-full btn-primary h-11 text-[13.5px]">
+            <button type="submit" disabled={busy} className="w-full btn-primary h-[clamp(34px,5.2vh,44px)] text-[13.5px]">
               {busy ? 'One moment…' : isRegister ? 'Create account' : 'Sign in'}
             </button>
           </form>
 
-          <p className="mt-6 text-center text-[12.5px] text-ink-500">
+          <p className="mt-[clamp(10px,2.2vh,24px)] text-center text-[12.5px] text-ink-500">
             {isRegister ? 'Already have an account?' : 'No account yet?'}{' '}
             <button
               type="button"
@@ -179,7 +179,7 @@ export default function LoginPage({ initial = 'signin', onBack }) {
             </button>
           </p>
 
-          <p className="mt-8 text-center text-[11.5px] text-ink-400">
+          <p className="mt-[clamp(10px,2.8vh,32px)] text-center text-[11.5px] text-ink-400">
             {isRegister ? 'By creating an account you agree to our ' : ''}
             <a href="/terms" className="hover:text-ink-700 underline-offset-2 hover:underline">
               {isRegister ? 'Terms' : 'Terms of Service'}
@@ -199,24 +199,24 @@ export default function LoginPage({ initial = 'signin', onBack }) {
 // ── left: what ContentFlow is, with a floating product preview ─────────────
 export function BrandPanel() {
   return (
-    <aside className="hidden lg:flex relative overflow-hidden flex-col justify-center px-14 xl:px-20 py-14 bg-[#0A1B38] text-white">
+    <aside className="hidden lg:flex relative overflow-hidden flex-col justify-center px-14 xl:px-20 py-[clamp(20px,5vh,56px)] bg-[#0A1B38] text-white">
       {/* light + grid */}
       <div className="absolute inset-0 bg-[radial-gradient(60%_50%_at_15%_10%,rgba(43,132,214,.45),transparent_60%),radial-gradient(50%_45%_at_90%_95%,rgba(92,200,240,.28),transparent_60%)]" />
       <div className="absolute inset-0 opacity-[.06] bg-[linear-gradient(rgba(255,255,255,.7)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.7)_1px,transparent_1px)] bg-[size:48px_48px] [mask-image:radial-gradient(ellipse_at_center,black_40%,transparent_75%)]" />
 
       <div className="relative max-w-[560px]">
-        <h2 className="text-[44px] xl:text-[50px] font-bold leading-[1.05] tracking-tight">
+        <h2 className="text-[clamp(28px,min(5.4vh,4.4vw),50px)] font-bold leading-[1.05] tracking-tight">
           Create, schedule and publish —{' '}
           <span className="bg-gradient-to-r from-[#5CC8F0] to-[#7FA8FF] bg-clip-text text-transparent">on autopilot.</span>
         </h2>
-        <p className="mt-4 max-w-[460px] text-[15px] leading-relaxed text-white/65">
+        <p className="mt-[clamp(8px,1.6vh,16px)] max-w-[460px] text-[15px] leading-relaxed text-white/65">
           Marketing ឆ្លាតវៃ writes your posts, designs the visuals and publishes them to every channel — all
           grounded in your real products.
         </p>
 
         <Preview />
 
-        <div className="mt-10 flex items-center gap-4">
+        <div className="mt-[clamp(14px,3.4vh,40px)] flex items-center gap-4">
           <span className="text-[11.5px] font-medium uppercase tracking-[.14em] text-white/40">Publishes to</span>
           <div className="flex items-center gap-3.5 text-white/55">
             {PLATFORMS.map(([Icon, name]) => (
@@ -226,7 +226,7 @@ export function BrandPanel() {
         </div>
       </div>
 
-      <div className="absolute bottom-7 left-14 xl:left-20 text-[11px] text-white/35">
+      <div className="absolute bottom-[clamp(8px,2.2vh,28px)] left-14 xl:left-20 text-[11px] text-white/35">
         © {new Date().getFullYear()} Marketing ឆ្លាតវៃ · Proudly a Khmer brand
       </div>
     </aside>
@@ -235,7 +235,7 @@ export function BrandPanel() {
 
 function Preview() {
   return (
-    <div className="relative mt-10 h-[250px]">
+    <div className="relative mt-[clamp(14px,3.4vh,40px)] h-[250px] [@media(max-height:859px)]:[zoom:.82] [@media(max-height:779px)]:[zoom:.66] [@media(max-height:679px)]:hidden">
       {/* scheduled post card */}
       <div className="absolute left-0 top-2 -rotate-[4deg]">
       <div className="cf-float w-[270px] rounded-2xl bg-white p-3 text-ink-800 shadow-[0_24px_60px_rgba(0,0,0,.35)]">
@@ -313,16 +313,16 @@ export function BrandLockup() {
     .concat([[' ', ''], ['ឆ្លាតវៃ', 'text-brand font-bold font-khmer']])
 
   return (
-    <div className="mb-8 flex flex-col items-center text-center">
-      <div className="relative cf-mark-in">
+    <div className="mb-[clamp(8px,2.6vh,32px)] flex flex-col items-center text-center">
+      <div className="relative cf-mark-in [@media(max-height:559px)]:hidden">
         <span className="cf-halo absolute -inset-6 rounded-full bg-brand/20 blur-2xl" />
         <img
           src="/brand/logo-mark.png"
           alt=""
-          className="cf-float relative w-20 h-20 object-contain drop-shadow-[0_10px_18px_rgba(26,111,196,.25)]"
+          className="cf-float relative h-[clamp(36px,8vh,80px)] w-[clamp(36px,8vh,80px)] object-contain drop-shadow-[0_10px_18px_rgba(26,111,196,.25)]"
         />
       </div>
-      <div className="mt-4 text-[34px] leading-none tracking-tight" aria-label="Marketing ឆ្លាតវៃ">
+      <div className="mt-[clamp(6px,1.6vh,16px)] text-[clamp(22px,4.2vh,34px)] leading-none tracking-tight" aria-label="Marketing ឆ្លាតវៃ">
         {letters.map(([ch, cls], k) => (
           <span
             key={k}
@@ -334,7 +334,7 @@ export function BrandLockup() {
           </span>
         ))}
       </div>
-      <p className="cf-fade-late mt-2.5 text-[13px] text-ink-500">
+      <p className="cf-fade-late mt-[clamp(4px,1vh,10px)] text-[13px] text-ink-500 [@media(max-height:739px)]:hidden">
         Content that’s{' '}
         <span key={i} className="cf-word inline-block min-w-[74px] font-semibold text-brand">
           {DOES[i]}
@@ -359,13 +359,13 @@ function GoogleG() {
 }
 
 export const inputCls =
-  'w-full h-11 bg-white border border-ink-200 rounded-xl px-3.5 text-[13px] text-ink-800 placeholder:text-ink-300 ' +
+  'w-full h-[clamp(34px,5.2vh,44px)] bg-white border border-ink-200 rounded-xl px-3.5 text-[13px] text-ink-800 placeholder:text-ink-300 ' +
   'focus:outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 transition-all duration-150'
 
 export function Field({ label, children }) {
   return (
     <label className="block">
-      <span className="block font-semibold text-[11.5px] text-ink-700 mb-1.5">{label}</span>
+      <span className="block font-semibold text-[11.5px] text-ink-700 mb-[clamp(3px,.8vh,6px)]">{label}</span>
       {children}
     </label>
   )

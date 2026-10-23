@@ -107,6 +107,7 @@ export default function AccountMenu() {
       {/* the credits chip */}
       <button
         type="button"
+        data-credit-chip
         onClick={() => setOpen((v) => !v)}
         className="flex h-9 items-center gap-1.5 rounded-full border border-ink-200 bg-white pl-1.5 pr-1.5 transition-colors hover:border-ink-300 sm:pr-2"
         aria-label={left != null ? `${fmt(left)} AI credits left` : "AI credits"}

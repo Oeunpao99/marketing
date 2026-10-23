@@ -31,6 +31,8 @@ import { Course } from './TutorialsPage'
 import CreditCoin from '../components/layout/CreditCoin'
 import { PhoneFrame, RENDER } from '../components/preview/SocialPreview'
 import PlatformIcon, { PLAT_BRAND_CLASS } from '../components/ui/PlatformIcon'
+import LiveAvatar from '../components/ui/LiveAvatar'
+import SkyGuide from '../components/landing/SkyGuide'
 
 // The public page at "/" for people who aren't signed in (search engines,
 // visitors from ads): what Smart Marketing does, shown with the product's
@@ -1654,6 +1656,13 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
             <Phone id="reaction" className="absolute left-0 top-12 w-[38%]" tilt={-8} />
             <Phone id="studio" className="absolute left-1/2 top-0 z-10 w-[44%] -translate-x-1/2" />
             <Phone id="doodle" className="absolute right-0 top-12 w-[38%]" tilt={8} />
+            {/* our robot says hello from the corner */}
+            <div className="absolute -right-3 -top-12 z-30 flex items-start sm:-right-10 sm:-top-14">
+              <div className="mr-1 mt-4 rounded-2xl rounded-tr-sm bg-white px-3 py-2 text-[12.5px] font-bold text-ink-900 shadow-pop">
+                {t('Hi! I’m your AI marketer', 'សួស្តី! ខ្ញុំជាអ្នកទីផ្សារ AI របស់បង')}
+              </div>
+              <LiveAvatar size={118} className="sm:h-[136px] sm:w-[136px]" />
+            </div>
             <div className="absolute -left-2 bottom-2 z-20 flex items-center gap-2.5 rounded-2xl bg-white px-3.5 py-2.5 shadow-pop sm:-left-6">
               <span className="grid h-8 w-8 place-items-center rounded-full bg-emerald-500 text-white">
                 <FiCheck strokeWidth={3} />
@@ -1670,6 +1679,9 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
           </div>
         </div>
       </section>
+
+      {/* past the hero, the robot flies along beside each section */}
+      <SkyGuide t={t} />
 
       {/* ── channels strip ── */}
       <section className="border-b border-ink-200 bg-white">

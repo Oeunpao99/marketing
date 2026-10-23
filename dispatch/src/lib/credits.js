@@ -32,7 +32,8 @@ export async function claimCredits() {
   const b = await api.post('/billing/claim', {})
   current = b
   tell()
-  window.dispatchEvent(new Event('dispatch:credits-claimed'))
+  // { amount } — the piggy-bank scene plays wherever the claim came from (CreditClaimFx)
+  window.dispatchEvent(new CustomEvent('dispatch:credits-claimed', { detail: { amount: b.claimed_now || 0 } }))
   return b.claimed_now || 0
 }
 
