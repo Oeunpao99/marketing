@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { FiArrowLeft, FiArrowRight, FiX } from 'react-icons/fi'
+import { FiArrowLeft, FiArrowRight, FiCheck, FiX } from 'react-icons/fi'
 import { useAuth } from '../../auth'
 import LiveAvatar from '../ui/LiveAvatar'
+import CreditCoin from './CreditCoin'
+import { claimCredits, useCredits } from '../../lib/credits'
 import { markTourSeen, shouldAutoStart, tourStepsFor } from '../../lib/tour'
 import { helloOpen } from '../../lib/hello'
 
@@ -69,8 +71,10 @@ function place(hole, size, prefer) {
     side === 'right' ? hole.x + hole.w + GAP : side === 'left' ? hole.x - GAP - size.w : hole.x + hole.w / 2 - size.w / 2
   const y =
     side === 'bottom' ? hole.y + hole.h + GAP : side === 'top' ? hole.y - GAP - size.h : hole.y + hole.h / 2 - size.h / 2
+  // keep the WHOLE card on screen — its far edge too (a target at the window's edge,
+  // like the credits coin top-right, pushed the card half off-screen)
   const clamp = (v, max) => Math.min(Math.max(v, EDGE), Math.max(EDGE, max - EDGE))
-  return { side, x: clamp(x, vw), y: clamp(y, vh) }
+  return { side, x: clamp(x, vw - size.w), y: clamp(y, vh - size.h) }
 }
 
 export default function OnboardingTour() {
@@ -173,6 +177,24 @@ export default function OnboardingTour() {
     setIndex((i) => i + 1)
   }, [last, finish])
 
+  // the credits step: claim them from the tour card — the piggy-bank scene plays
+  // (CreditClaimFx, on top of the tour) and the tour moves on underneath it
+  const { credits } = useCredits()
+  const [claiming, setClaiming] = useState(false)
+  const [claimError, setClaimError] = useState('')
+  const claimHere = useCallback(async () => {
+    setClaiming(true)
+    setClaimError('')
+    try {
+      await claimCredits()
+      next()
+    } catch (e) {
+      setClaimError(e.message || 'Couldn’t claim just now — try again.')
+    } finally {
+      setClaiming(false)
+    }
+  }, [next])
+
   const back = useCallback(() => {
     setHole(null)
     setPending(true)
@@ -239,6 +261,8 @@ export default function OnboardingTour() {
         {centred && <LiveAvatar size={124} className="mx-auto -mt-[78px] mb-1" />}
 
         <div className="flex items-start gap-3">
+          {/* the credits step: our robot points them to the coin */}
+          {step.action === 'claim' && <LiveAvatar size={64} className="-ml-1 -mt-1" />}
           <div className="min-w-0 flex-1">
             <h2 id="tour-title" className="text-[15px] font-bold leading-snug text-brand">
               {step.title}
@@ -254,6 +278,19 @@ export default function OnboardingTour() {
             <FiX size={15} />
           </button>
         </div>
+
+        {/* claim right here — the piggy bank breaks (CreditClaimFx), then the tour goes on */}
+        {step.action === 'claim' &&
+          (credits?.claim_available ? (
+            <button type="button" onClick={claimHere} disabled={claiming} className="btn-primary mt-3 h-10 w-full text-[13px]">
+              <CreditCoin size={18} /> {claiming ? 'Claiming…' : `Claim ${(credits.claim_credits ?? credits.monthly_credits ?? 0).toLocaleString('en-US')} credits`}
+            </button>
+          ) : credits ? (
+            <div className="mt-3 flex items-center gap-2 rounded-xl bg-brand-soft px-3 py-2 text-[12.5px] font-semibold text-brand">
+              <FiCheck size={14} /> Your credits are in — {(credits.available_credits ?? 0).toLocaleString('en-US')} ready to use
+            </div>
+          ) : null)}
+        {claimError && step.action === 'claim' && <div className="mt-2 text-[11.5px] text-red-600">{claimError}</div>}
 
         <div className={`flex items-center gap-2 ${centred ? 'mt-5' : 'mt-4'}`}>
           <span className="text-[11.5px] font-semibold text-ink-600 tabular-nums">
