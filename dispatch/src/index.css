@@ -412,6 +412,10 @@ html.dark .cf-halo { background-color: rgb(var(--brand) / .45); }
 .cf-avatar-think { animation: cf-avatar-think 1.8s ease-in-out infinite; transform-origin: 50% 80%; }
 .cf-avatar-dots > span { animation: cf-avatar-dot 1s ease-in-out infinite; }
 .cf-avatar-blink { animation: cf-avatar-blink 4.2s ease-in-out infinite; }
+/* the KHQR sand timer (billing/UpgradeDialog Hourglass): the stream keeps falling */
+@keyframes cf-sand-fall { to { stroke-dashoffset: -8; } }
+.cf-hourglass-stream { animation: cf-sand-fall 0.5s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .cf-hourglass-stream { animation: none; } }
 .cf-avatar-wave  { animation: cf-avatar-wave 2.8s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) {
   .cf-avatar-float, .cf-avatar-think, .cf-avatar-dots > span, .cf-avatar-blink, .cf-avatar-wave { animation: none !important; }

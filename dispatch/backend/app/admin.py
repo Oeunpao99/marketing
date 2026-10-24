@@ -241,6 +241,34 @@ def admin_workspaces(q: str = "", status: str = "all", db: Session = Depends(get
     return rows
 
 
+@router.get("/prices", dependencies=[Depends(require_admin)])
+def admin_get_prices(db: Session = Depends(get_db)):
+    """Each plan's monthly price (USD, KHR) — what checkout charges and the website shows."""
+    from app import payments
+
+    return payments.admin_prices(db)
+
+
+class PricesIn(BaseModel):
+    plans: dict[str, dict[str, float | None]]
+
+
+@router.put("/prices", dependencies=[Depends(require_admin)])
+def admin_set_prices(payload: PricesIn, db: Session = Depends(get_db)):
+    from app import payments
+
+    rows = {plan: payments.PriceRow(usd=v.get("usd"), khr=v.get("khr")) for plan, v in payload.plans.items()}
+    return payments.save_admin_prices(db, rows)
+
+
+@router.delete("/prices/{plan}", dependencies=[Depends(require_admin)])
+def admin_reset_price(plan: str, db: Session = Depends(get_db)):
+    """Back to the built-in price for one plan."""
+    from app import payments
+
+    return payments.reset_admin_price(db, plan)
+
+
 @router.get("/payments", dependencies=[Depends(require_admin)])
 def admin_payments(status: str = "", db: Session = Depends(get_db)):
     """KHQR plan payments (app/payments.py), newest first — "paid", "mismatch"

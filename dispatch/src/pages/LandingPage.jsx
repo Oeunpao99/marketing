@@ -32,6 +32,7 @@ import CreditCoin from '../components/layout/CreditCoin'
 import { PhoneFrame, RENDER } from '../components/preview/SocialPreview'
 import PlatformIcon, { PLAT_BRAND_CLASS } from '../components/ui/PlatformIcon'
 import LiveAvatar from '../components/ui/LiveAvatar'
+import { PLANS } from '../lib/plans'
 import SkyGuide from '../components/landing/SkyGuide'
 
 // The public page at "/" for people who aren't signed in (search engines,
@@ -778,80 +779,6 @@ const PRICES_SOON = false
 const YEARLY_ON = false
 const EXTRAS_SOON = true
 
-const PLANS = [
-  {
-    id: 'free',
-    name: ['Free', 'ឥតគិតថ្លៃ'],
-    for: ['Perfect to get started', 'ល្អសម្រាប់ចាប់ផ្តើម'],
-    usd: 0,
-    khr: 0,
-    cta: ['Get started free', 'ចាប់ផ្តើមឥតគិតថ្លៃ'],
-    points: [
-      ['100 AI credits / month (~10 posts or 1 video)', 'ក្រេឌីត AI ១០០ / ខែ (~១០ ប្រកាស ឬវីដេអូ ១)'],
-      ['1 brand · 2 connected pages', 'ម៉ាក ១ · ទំព័រ ២'],
-      ['Scheduling & auto-posting', 'កំណត់ពេល និងបង្ហោះស្វ័យប្រវត្តិ'],
-      ['3 motion video templates', 'គំរូវីដេអូចលនា ៣'],
-      ['7 days of analytics', 'ស្ថិតិ ៧ ថ្ងៃ'],
-      ['No credit card required', 'មិនចាំបាច់កាតឥណទាន'],
-    ],
-  },
-  {
-    id: 'starter',
-    name: ['Starter', 'Starter'],
-    for: ['For one shop and its owner', 'សម្រាប់ហាងមួយ និងម្ចាស់ហាង'],
-    usd: 19,
-    khr: 79000,
-    cta: ['Get started', 'ចាប់ផ្តើម'],
-    points: [
-      ['1,000 AI credits / month (~30 posts + 15 images + 8 videos)', 'ក្រេឌីត AI ១.០០០ / ខែ (~៣០ ប្រកាស + ១៥ រូបភាព + ៨ វីដេអូ)'],
-      ['1 brand · 5 connected pages', 'ម៉ាក ១ · ទំព័រ ៥'],
-      ['Everything in Free', 'គ្រប់យ៉ាងក្នុង Free'],
-      ['Weekly AI plan, posted for you', 'ផែនការ AI ប្រចាំសប្តាហ៍ បង្ហោះជូនបង'],
-      ['All motion video templates', 'គំរូវីដេអូចលនាទាំងអស់'],
-      ['Your logo on every video', 'ឡូហ្គោរបស់បង លើគ្រប់វីដេអូ'],
-      ['30 days of analytics', 'ស្ថិតិ ៣០ ថ្ងៃ'],
-      ['Monthly website check', 'ពិនិត្យគេហទំព័រ ប្រចាំខែ'],
-      ['Chat support', 'ជំនួយតាមឆាត'],
-    ],
-  },
-  {
-    id: 'pro',
-    name: ['Pro', 'Pro'],
-    for: ['For growing businesses and small agencies', 'សម្រាប់អាជីវកម្មកំពុងរីក និងភ្នាក់ងារតូច'],
-    usd: 49,
-    khr: 199000,
-    popular: true,
-    cta: ['Get started', 'ចាប់ផ្តើម'],
-    points: [
-      ['3,000 AI credits / month (~90 posts + 45 images + 25 videos)', 'ក្រេឌីត AI ៣.០០០ / ខែ (~៩០ ប្រកាស + ៤៥ រូបភាព + ២៥ វីដេអូ)'],
-      ['3 brands · 15 pages · 3 team seats', 'ម៉ាក ៣ · ទំព័រ ១៥ · អ្នកប្រើ ៣'],
-      ['Everything in Starter', 'គ្រប់យ៉ាងក្នុង Starter'],
-      ['12 months of analytics', 'ស្ថិតិ ១២ ខែ'],
-      ['Weekly website check', 'ពិនិត្យគេហទំព័រ ប្រចាំសប្តាហ៍'],
-      ['API (read-only)', 'API (អានប៉ុណ្ណោះ)'],
-      ['Priority chat support', 'ជំនួយតាមឆាត អាទិភាព'],
-    ],
-  },
-  {
-    id: 'business',
-    name: ['Business', 'Business'],
-    for: ['For agencies and businesses with many branches', 'សម្រាប់ភ្នាក់ងារ និងអាជីវកម្មមានសាខាច្រើន'],
-    usd: 129,
-    khr: 529000,
-    cta: ['Get started', 'ចាប់ផ្តើម'],
-    points: [
-      ['9,000 AI credits / month (~270 posts + 135 images + 75 videos)', 'ក្រេឌីត AI ៩.០០០ / ខែ (~២៧០ ប្រកាស + ១៣៥ រូបភាព + ៧៥ វីដេអូ)'],
-      ['10 brands · unlimited pages · 10 seats', 'ម៉ាក ១០ · ទំព័រគ្មានដែនកំណត់ · អ្នកប្រើ ១០'],
-      ['Everything in Pro', 'គ្រប់យ៉ាងក្នុង Pro'],
-      ['Your own voice for videos', 'សំឡេងផ្ទាល់របស់បង សម្រាប់វីដេអូ'],
-      ['Leads & hand-off to your team', 'អតិថិជនសក្តានុពល និងបញ្ជូនទៅក្រុម'],
-      ['Full API & webhooks', 'API ពេញលេញ និង webhooks'],
-      ['MCP — use it from Claude or ChatGPT', 'MCP — ប្រើពី Claude ឬ ChatGPT'],
-      ['Onboarding with our team', 'ណែនាំការប្រើប្រាស់ជាមួយក្រុមយើង'],
-      ['Telegram support group', 'ក្រុមជំនួយលើ Telegram'],
-    ],
-  },
-]
 
 // What a credit buys — the same on every plan.
 const CREDIT_USES = [
@@ -1143,11 +1070,33 @@ function AddonShop() {
   )
 }
 
+/** The plans with the prices set in the admin portal (GET /api/public/prices — the
+ * same ones KHQR checkout charges); the built-in numbers above until they arrive,
+ * or if the server can't be reached. */
+function useLivePlans() {
+  const [plans, setPlans] = useState(PLANS)
+  useEffect(() => {
+    let live = true
+    fetch('/api/public/prices')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!live || !d?.prices) return
+        setPlans(PLANS.map((p) => (d.prices[p.id] ? { ...p, usd: d.prices[p.id].USD ?? p.usd, khr: d.prices[p.id].KHR ?? p.khr } : p)))
+      })
+      .catch(() => {})
+    return () => {
+      live = false
+    }
+  }, [])
+  return plans
+}
+
 function Pricing({ onStart }) {
   const t = useT()
   const [yearly, setYearly] = useState(false)
   const [riel, setRiel] = useState(t.lang === 'km')
   const n = (s) => (t.lang === 'km' ? khDigits(s) : s)
+  const PLANS = useLivePlans() // shadows the built-in list: the live prices
   const [free, ...paid] = PLANS
   const cell = (v, popular) =>
     v === true ? (

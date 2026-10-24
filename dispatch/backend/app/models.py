@@ -116,6 +116,19 @@ class AiModel(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
+class PlanPrice(Base, TimestampMixin):
+    """What a plan costs a month, set in the admin portal (Prices). A row wins over
+    PLAN_PRICES in .env / the built-in prices (app/payments.py prices); a currency
+    left empty isn't sold in that currency. The website shows the same
+    (GET /api/public/prices)."""
+
+    __tablename__ = "plan_prices"
+
+    plan: Mapped[str] = mapped_column(String(20), primary_key=True)
+    usd: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
+    khr: Mapped[float | None] = mapped_column(Numeric(12, 0), nullable=True)
+
+
 class Payment(Base, TimestampMixin):
     """One plan payment by KHQR (app/payments.py): the code shown to the
     customer, its md5 (Bakong finds the transaction by it), and what Bakong

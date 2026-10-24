@@ -175,6 +175,7 @@ const TABS = [
   { id: 'overview', label: 'Overview', icon: FiGrid },
   { id: 'accounts', label: 'Accounts', icon: FiUsers },
   { id: 'ai', label: 'AI usage', icon: FiCpu },
+  { id: 'prices', label: 'Prices', icon: FiDollarSign },
 ]
 
 function AdminPortal({ onSignOut }) {
@@ -244,6 +245,8 @@ function AdminPortal({ onSignOut }) {
           <Overview key={stamp} onOpen={setOpenId} onAll={() => setTab('accounts')} />
         ) : tab === 'ai' ? (
           <AiUsage key={stamp} api={adminApi} onOpen={setOpenId} />
+        ) : tab === 'prices' ? (
+          <Prices key={stamp} />
         ) : (
           <Accounts key={stamp} onOpen={setOpenId} />
         )}
@@ -269,6 +272,110 @@ function useLoad(path) {
     load()
   }, [load])
   return { data, error, load, setData }
+}
+
+// ── prices ────────────────────────────────────────────────────────────────
+// Each plan's monthly price in USD and KHR (app/payments.py): what KHQR checkout
+// charges and what the website's pricing shows (GET /api/public/prices). An empty
+// box = not sold in that currency; "Use built-in" = back to the standard price.
+function Prices() {
+  const { data, error, setData } = useLoad('/prices')
+  const [edit, setEdit] = useState({}) // plan → { usd, khr } as typed
+  const [busy, setBusy] = useState(false)
+  const [note, setNote] = useState('')
+  const [fail, setFail] = useState('')
+
+  useEffect(() => {
+    if (data) setEdit(Object.fromEntries(data.map((p) => [p.plan, { usd: p.usd ?? '', khr: p.khr ?? '' }])))
+  }, [data])
+
+  const num = (v) => (v === '' || v == null ? null : Number(String(v).replace(/,/g, '')))
+  const changed = data?.some((p) => num(edit[p.plan]?.usd) !== (p.usd ?? null) || num(edit[p.plan]?.khr) !== (p.khr ?? null))
+
+  const save = async () => {
+    setBusy(true)
+    setFail('')
+    setNote('')
+    try {
+      const plans = Object.fromEntries(data.map((p) => [p.plan, { usd: num(edit[p.plan]?.usd), khr: num(edit[p.plan]?.khr) }]))
+      setData(await adminApi('PUT', '/prices', { plans }))
+      setNote('Saved — checkout and the website use the new prices within a minute.')
+    } catch (e) {
+      setFail(e.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  const reset = async (plan) => {
+    setBusy(true)
+    setFail('')
+    try {
+      setData(await adminApi('DELETE', `/prices/${plan}`))
+      setNote('Back to the built-in price.')
+    } catch (e) {
+      setFail(e.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (error) return <div className="text-[13px] text-red-600">{error}</div>
+  if (!data) return <div className="text-[13px] text-ink-500">Loading…</div>
+  const input = 'h-10 w-full rounded-xl border border-ink-200 bg-white px-3 text-[14px] tabular-nums text-ink-900 focus:border-brand focus:outline-none'
+  return (
+    <div className="space-y-5">
+      <div>
+        <h1 className="text-[24px] font-bold tracking-tight text-ink-900">Prices</h1>
+        <p className="mt-1 text-[13px] text-ink-500">What each plan costs a month — KHQR checkout charges this, and the website shows it.</p>
+      </div>
+      <section className={`${card} divide-y divide-ink-100`}>
+        {data.map((p) => (
+          <div key={p.plan} className="grid gap-3 p-5 sm:grid-cols-[180px_1fr_1fr_auto] sm:items-end">
+            <div>
+              <div className="text-[15px] font-bold text-ink-900">{p.label}</div>
+              <div className="text-[12px] text-ink-500">{p.monthly_credits.toLocaleString('en-US')} credits / month</div>
+              <div className="mt-1 text-[11px] text-ink-400">{p.set_here ? `Set here${p.updated_at ? ` · ${day(p.updated_at)}` : ''}` : 'Built-in price'}</div>
+            </div>
+            <label className="block">
+              <span className="mb-1 block text-[11.5px] font-semibold text-ink-600">US dollars ($)</span>
+              <input
+                inputMode="decimal"
+                className={input}
+                value={edit[p.plan]?.usd ?? ''}
+                placeholder={p.default_usd != null ? String(p.default_usd) : 'not sold in USD'}
+                onChange={(e) => setEdit((x) => ({ ...x, [p.plan]: { ...x[p.plan], usd: e.target.value.replace(/[^\d.]/g, '') } }))}
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-[11.5px] font-semibold text-ink-600">Riel (៛)</span>
+              <input
+                inputMode="numeric"
+                className={input}
+                value={edit[p.plan]?.khr ?? ''}
+                placeholder={p.default_khr != null ? String(p.default_khr) : 'not sold in KHR'}
+                onChange={(e) => setEdit((x) => ({ ...x, [p.plan]: { ...x[p.plan], khr: e.target.value.replace(/[^\d]/g, '') } }))}
+              />
+            </label>
+            {p.set_here ? (
+              <button type="button" disabled={busy} onClick={() => reset(p.plan)} className="h-10 rounded-xl px-3 text-[12.5px] font-semibold text-ink-500 hover:bg-ink-50 hover:text-ink-800">
+                Use built-in
+              </button>
+            ) : (
+              <span />
+            )}
+          </div>
+        ))}
+      </section>
+      <div className="flex flex-wrap items-center gap-3">
+        <button type="button" onClick={save} disabled={busy || !changed} className="btn-primary h-10 px-5 text-[13px] disabled:opacity-50">
+          {busy ? 'Saving…' : 'Save prices'}
+        </button>
+        {note && <span className="text-[12.5px] text-emerald-600">{note}</span>}
+        {fail && <span className="text-[12.5px] text-red-600">{fail}</span>}
+      </div>
+      <p className="text-[11.5px] text-ink-400">Leave a box empty to stop selling that plan in that currency. Customers who already paid keep their month at the old price.</p>
+    </div>
+  )
 }
 
 // ── overview ──────────────────────────────────────────────────────────────

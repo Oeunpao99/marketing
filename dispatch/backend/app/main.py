@@ -11,6 +11,7 @@ from app.ai import router as ai_router
 from app.auth import router as auth_router
 from app.google_login import router as google_login_router
 from app import billing, sessions
+from app.payments import public_router as payments_public_router
 from app.payments import router as payments_router
 from app.brand_kit import router as brand_kit_router
 from app.brand_voice import router as brand_voice_router
@@ -165,6 +166,7 @@ api.include_router(leads_router, dependencies=authed)
 api.include_router(sales_alerts_router, dependencies=authed)
 api.include_router(ai_models_router, dependencies=authed)
 api.include_router(views_public_router)
+api.include_router(payments_public_router)  # public: the website's plan prices (no sign-in)
 api.include_router(motion_sketch_router)  # scene pictures behind an unguessable code (an <img> has no login)
 api.include_router(leads_intake_router)  # chatbots: X-ContentFlow-Key, no login
 api.include_router(admin_router)  # /admin-mkt: its own .env login (X-Admin-Token), not a customer's

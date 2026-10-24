@@ -89,6 +89,7 @@ export default function Sidebar({ collapsed = false }) {
       setSettingsTab(event?.detail?.tab || null);
       setSettingsOpen(true);
     };
+    const closeSettings = () => setSettingsOpen(false);
     const onKeyDown = (event) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
@@ -103,6 +104,8 @@ export default function Sidebar({ collapsed = false }) {
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("dispatch:open-search", open);
     window.addEventListener("dispatch:open-settings", openSettings);
+    // Settings → Billing → Upgrade goes to the /upgrade page: Settings closes first
+    window.addEventListener("dispatch:close-settings", closeSettings);
     // A scanned "send me credits" QR (Settings → Billing → Receive) lands on
     // /?transfer=<account ID>: open Billing with Transfer filled in (BillingTab
     // picks the number up from sessionStorage).
@@ -130,6 +133,7 @@ export default function Sidebar({ collapsed = false }) {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("dispatch:open-search", open);
     window.removeEventListener("dispatch:open-settings", openSettings);
+    window.removeEventListener("dispatch:close-settings", closeSettings);
     };
   }, []);
 

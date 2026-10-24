@@ -64,6 +64,7 @@ def build(
     merchant_id: str = "",
     acquiring_bank: str = "",
     store_label: str = "",
+    account_info: str = "",
 ) -> str:
     """One dynamic KHQR string for ``amount`` in ``currency`` paid to ``account_id``."""
     if currency not in CURRENCY_CODE:
@@ -72,8 +73,12 @@ def build(
         raise ValueError("amount must be more than 0")
     if merchant_id:  # a merchant account: its Bakong id, merchant id and bank
         account = _f("30", _f("00", account_id) + _f("01", merchant_id) + _f("02", acquiring_bank or "Bakong"))
-    else:  # an individual account
-        account = _f("29", _f("00", account_id) + (_f("02", acquiring_bank) if acquiring_bank else ""))
+    else:  # an individual account — a bank's shared Bakong id (ACLEDA: khqr@aclb) names
+        # the person's own account in "account information" (01)
+        account = _f(
+            "29",
+            _f("00", account_id) + (_f("01", account_info) if account_info else "") + (_f("02", acquiring_bank) if acquiring_bank else ""),
+        )
     extra = _f("01", bill_number[:25]) + (_f("03", store_label[:25]) if store_label else "")
     body = (
         _f("00", "01")

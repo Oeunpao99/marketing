@@ -239,19 +239,26 @@ class Settings(BaseSettings):
     bakong_merchant_city: str = "Phnom Penh"
     bakong_merchant_id: str = ""
     bakong_acquiring_bank: str = ""
+    # Some banks give personal accounts one shared Bakong id (ACLEDA: "khqr@aclb") and
+    # tell them apart by this "account information" number — copy both from the
+    # account's own KHQR (tag 29: 00 = the id, 01 = this, 02 = the bank)
+    bakong_account_info: str = ""
+    # Who the paid-plan invoices are from (app/invoice.py) — the company's legal name,
+    # address, tax ID (VAT TIN) and email. Empty name = the Bakong merchant name.
+    invoice_company: str = ""
+    invoice_address: str = ""
+    invoice_tax_id: str = ""
+    invoice_email: str = ""
     # The Bakong Open API token (api-bakong.nbc.gov.kh — renewed every ~90 days)
     # that confirms payments. The URL can point at a relay in Cambodia if the API
     # refuses our server's (Hong Kong) address.
     bakong_api_token: str = ""
     bakong_api_url: str = "https://api-bakong.nbc.gov.kh"
-    # What each plan costs a month, both currencies, as JSON — the pricing
-    # proposal's prices (2026-10-23), the same as the website's (LandingPage
-    # PLANS). Override in .env; "{}" = nothing for sale ("Coming soon" on Upgrade).
-    # Nothing is sold anyway until the Bakong account and token above are set.
-    plan_prices: str = (
-        '{"starter": {"USD": 19, "KHR": 79000}, "pro": {"USD": 49, "KHR": 199000},'
-        ' "business": {"USD": 129, "KHR": 529000}}'
-    )
+    # Price overrides as JSON, per plan: {"starter": {"USD": 0.1, "KHR": 100}} — the
+    # plans named here replace the built-in prices (app/payments.py BUILT_IN_PRICES),
+    # the others keep theirs. The admin portal's Prices tab wins over both.
+    # Nothing is sold until the Bakong account and token above are set.
+    plan_prices: str = ""
 
     # Web Push (app/push.py) — lock-screen / desktop notifications. Generate a
     # pair with `python -m app.push keys`; empty = push turned off.

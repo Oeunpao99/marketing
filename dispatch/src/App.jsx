@@ -24,6 +24,7 @@ const PresentPage = lazy(() => import('./pages/PresentPage'))
 import LoginPage from "./pages/LoginPage";
 import LandingPage from "./pages/LandingPage";
 import NewPostPage from "./pages/NewPostPage";
+import UpgradePage from "./pages/UpgradePage";
 import PostDetailPage from "./pages/PostDetailPage";
 import ProductsPage from "./pages/ProductsPage";
 import ReviewPage from "./pages/ReviewPage";
@@ -80,6 +81,7 @@ function Portal() {
             <Route path="/command" element={<CommandPage />} />
             <Route path="/leads" element={<LeadsPage />} />
             <Route path="/new" element={<NewPostPage />} />
+            <Route path="/upgrade" element={<UpgradePage />} />
             <Route path="/review" element={<ReviewPage />} />
             <Route path="/channels" element={<ChannelsPage />} />
             <Route path="/bots" element={<BotSetupPage />} />
