@@ -120,11 +120,19 @@ const SCRIPT_ASK = 'Write a 60-second animated video script about our brand and 
 const QUESTION_START =
   /^(how|what|why|which|who|when|where|should|could|can you|can i|can we|do |does |did |is |are |was |will |would |tell me|give me (some )?(advice|ideas|tips|suggestions|feedback)|suggest|analy[sz]e|review my|help me (decide|understand|plan|improve|grow)|compare|explain|recommend|any (idea|tip|advice))/i
 const KHMER_QUESTION = /(ទេ|អ្វី|យ៉ាងម៉េច|យ៉ាងដូចម្តេច|ដូចម្តេច|ហេតុអ្វី|គួរ|ប៉ុន្មាន|មែនទេ)/
+// A request to WRITE something (a caption, a script, ideas, topics…) is for Ask — it
+// writes it (app/advisor.py drafts). Create would have made a picture of the sentence.
+const WRITE_VERB = /^(please )?(write|draft|rewrite|re-write|translate|brainstorm|outline|summari[sz]e)\b/i
+const WRITE_ASK =
+  /^(please )?(give me|list|suggest|come up with|help me (write|with)|make (me )?(a |an )?(script|caption|post|plan|outline|list)|create (a |an )?(script|caption|post copy|content plan|outline))/i
+const WRITE_WORDS = /\b(captions?|scripts?|copy|hashtags?|topics?|ideas?|headlines?|content plan|post plan|storyline|outline|slogans?|taglines?)\b/i
+const KHMER_WRITE = /(សរសេរ|ស្គ្រីប|ចំណងជើង|គំនិត|ប្រធានបទ|ខ្លឹមសារ|បកប្រែ)/
 function looksLikeQuestion(raw) {
   const t = raw.trim()
   if (!t) return false
   if (/[?？]\s*$/.test(t)) return true
-  if (/[\u1780-\u17FF]/.test(t)) return KHMER_QUESTION.test(t)
+  if (/[\u1780-\u17FF]/.test(t)) return KHMER_QUESTION.test(t) || KHMER_WRITE.test(t)
+  if (WRITE_VERB.test(t) || (WRITE_ASK.test(t) && WRITE_WORDS.test(t))) return true
   return QUESTION_START.test(t)
 }
 
@@ -1142,6 +1150,12 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
   // Ask wrote a script / prompt: into the Create box, with the mode it was written for
   // (a Remotion script opens as a storyboard to check first)
   const applyDraft = (draft) => {
+    if (draft.kind === 'post') {
+      // a caption: straight into New Post (Compose), ready to add a picture and publish
+      handoff.set({ kind: 'text', caption: draft.text || '', source: 'Ask' })
+      navigate('/new')
+      return
+    }
     setText(draft.text || '')
     setIntentPick('create')
     if (draft.kind === 'image') {
@@ -1883,7 +1897,7 @@ const ASK_STAGES = [
 ]
 
 // What each Ask draft is made with (app/advisor.py DRAFT_KINDS)
-const DRAFT_KIND_LABEL = { motion: 'Animated video script', story: 'Filmed story', clip: 'Instant video prompt', image: 'Image prompt' }
+const DRAFT_KIND_LABEL = { motion: 'Animated video script', story: 'Filmed story', clip: 'Instant video prompt', image: 'Image prompt', post: 'Post caption' }
 
 /** One script / prompt Ask wrote: the first lines, "Show all", Copy and Use in Create. */
 function DraftCard({ d, onUse }) {
@@ -1921,7 +1935,7 @@ function DraftCard({ d, onUse }) {
       )}
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <button type="button" onClick={() => onUse(d)} className="btn-primary h-9 px-4 text-[12.5px]">
-          ✦ Use in Create
+          {d.kind === 'post' ? '✦ Use in Compose' : '✦ Use in Create'}
         </button>
         <button type="button" onClick={copy} className="btn-ghost h-9 px-3 text-[12.5px]">
           {copied ? <FiCheck size={13} /> : <FiCopy size={13} />} {copied ? 'Copied' : 'Copy'}

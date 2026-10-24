@@ -18,6 +18,7 @@ the page's "Use in Create" drops into the Create box with that mode picked.
 from __future__ import annotations
 
 import base64
+import re
 import threading
 from datetime import UTC, date, datetime, timedelta
 
@@ -27,7 +28,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.content_ai import PILLARS, ContentAIError, _chat
+from app.content_ai import PILLARS, ContentAIError, _chat, writer_model
 from app.database import get_db
 from app.imaging import ImageError, shrink
 from app.learning import brand_learnings
@@ -99,6 +100,8 @@ topic they give), write the finished piece, ready to paste into the Create box, 
     camera move and the light. No text in the picture.
   - "image": a poster or photo: one paragraph describing the picture, then the words to print, each
     on its own line: Headline: "...", Subheading: "...", Points: "..." · "...", Button: "...".
+  - "post": a social media post / caption ready to publish (Facebook, Instagram, TikTok, Telegram,
+    LinkedIn): the caption itself exactly as it should be posted — no labels, no "Caption:".
 - The spoken and printed words are in the language they write in (Khmer → natural spoken Khmer),
   unless they ask for another. Visual descriptions may be English.
 - Facts about their brand and products come from the DATA (names, what it does, prices if given).
@@ -106,16 +109,39 @@ topic they give), write the finished piece, ready to paste into the Create box, 
   missing, write around it.
 - A draft has: "label" (a short title), "kind", "text" (the full piece).
 
+QUALITY — every draft must read like a professional social media agency wrote it:
+- Open with a hook: the first line (or the first 3 seconds of a video) stops the scroll — a sharp
+  question, a surprising fact from the DATA, a relatable moment. Never "Are you looking for…",
+  "In today's world…", "Introducing…".
+- One clear idea and one clear benefit for the customer, said concretely (what changes for them),
+  in the brand's voice from the DATA. Specific beats generic: the product's real name, what it
+  really does, the real price only if the DATA gives it.
+- Khmer: natural, warm, spoken Khmer the way Cambodians write on Facebook — not a translation from
+  English, correct spelling, polite (បង / អ្នក as the brand uses), English product names kept in
+  English. English: plain, confident, short sentences.
+- No hype or filler: no "unlock", "elevate", "game-changer", "revolutionary", "best in the world",
+  no stacked exclamation marks, at most 2-3 emojis in a post (none in a video's voice lines).
+- End with ONE clear call to action that fits the platform (message us, comment, save, order now).
+- Posts: platform-fit length (Facebook 60-150 words, Instagram 40-120 + line breaks, TikTok 1-2
+  lines), short paragraphs, 3-5 relevant hashtags at the end (the brand name as one), no URL
+  unless the DATA gives one.
+- Video scripts: short spoken sentences (max ~15 words), one idea per scene, the words on screen
+  short (max ~8), a hook scene first and a call to action last; the voice and the screen don't
+  repeat each other word for word.
+- Before you answer, check it: would a Cambodian business owner post this as it is, proudly? If
+  not, make it better.
+
 Reply as JSON: {"answer": "<markdown>", "suggestions": [{"label": "<short title>",
 "type": "image" | "video", "pillar": "...", "product": "...", "brief": "..."}],
-"drafts": [{"label": "...", "kind": "motion" | "story" | "clip" | "image", "text": "..."}]}""".replace(
+"drafts": [{"label": "...", "kind": "motion" | "story" | "clip" | "image" | "post", "text": "..."}]}""".replace(
     "__PILLARS__", ", ".join(f"{k} ({label})" for k, (label, _) in PILLARS.items())
 )
 
 
 # What a written draft is made with — the Create modes (AIPromptPage): Remotion
-# motion video, filmed story, one instant clip, an image.
-DRAFT_KINDS = ("motion", "story", "clip", "image")
+# motion video, filmed story, one instant clip, an image — or a post's caption,
+# which goes to Compose (New Post) instead.
+DRAFT_KINDS = ("motion", "story", "clip", "image", "post")
 
 
 class HistoryItem(BaseModel):
@@ -282,7 +308,10 @@ def advisor(
     for h in payload.history[-8:]:
         if h.role in ("user", "assistant") and h.content.strip():
             messages.append({"role": h.role, "content": h.content})
-    model = get_settings().azure_openai_deployment
+    # the workspace's writing model — the one captions and scripts use (the person's
+    # pick, else the platform's writer; Khmer-aware): Ask writes posts and scripts too,
+    # and a cheap analysis model made them read flat. A picture still goes to vision.
+    model = writer_model(khmer=bool(re.search(r"[ក-៿]", payload.message)))
     if payload.image_url:
         image = read_media(payload.image_url)
         if image is None:

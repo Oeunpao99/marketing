@@ -410,7 +410,20 @@ def speak(text: str, voice: str) -> bytes:
     return _openai(text, voice) if which == "openai" else _azure(text, voice)
 
 
-def _gemini(text: str, voice: str, style: str = "", plain: bool = False, key: str | None = None) -> bytes:
+TAKES = 3  # Gemini takes per line before the backup voice reads it (_gemini's length check)
+# Measured 2026-10-24 (Kore): a normal read is 0.08-0.09 s a character, a 9-character line
+# 1.2 s. The limit leaves room for a calmer template style; a line read twice (~2x) is over it.
+SLOWEST_S_PER_CHAR = 0.115
+TAKE_PAD_S = 1.0  # its silence at either end
+
+
+def too_long(said: str) -> float:
+    """Seconds above which a Gemini take of ``said`` holds more than the line once (the line
+    twice, or the director's notes) — see SLOWEST_S_PER_CHAR."""
+    return TAKE_PAD_S + len(said) * SLOWEST_S_PER_CHAR
+
+
+def _gemini(text: str, voice: str, style: str = "", plain: bool = False, key: str | None = None, attempt: int = 0) -> bytes:
     """Gemini TTS: 24 kHz 16-bit PCM back, made an MP3 here. The director's
     notes (HOW + the template's ACT) say how to read it, kept apart from the
     transcript in the layout Google's TTS guide uses. Now and then a voice
@@ -487,12 +500,17 @@ def _gemini(text: str, voice: str, style: str = "", plain: bool = False, key: st
         pcm = base64.b64decode(resp.json()["candidates"][0]["content"]["parts"][0]["inlineData"]["data"])
     except (KeyError, IndexError, ValueError) as exc:
         raise SpeechError("Gemini returned no audio.") from exc
-    # ~0.07 s a character is normal speech; reading the notes too adds ~0.06 s
-    # for each of their characters. Longer than a slow read of the line plus
-    # under half the notes = it said (some of) the notes: ask again, line only.
-    if not plain and len(pcm) / 48000 > 2.0 + len(said) * 0.085 + len(notes) * 0.025:
-        log.warning("Gemini TTS read the notes aloud (%.1fs for %s chars) — asking again with the text only", len(pcm) / 48000, len(said))
-        return _gemini(text, voice, style, plain=True, key=key)
+    # ~0.085 s a character is normal speech. A take far longer than a slow read of
+    # the LINE ALONE means Gemini said more than the line: the notes, or — now and
+    # then — the line twice (a known glitch of its voice models). Ask again with the
+    # bare text, up to TAKES times; still too long → SpeechError, and speak() has the
+    # backup voice read this line rather than putting it in the video twice.
+    seconds = len(pcm) / 48000
+    if seconds > too_long(said):
+        if attempt + 1 < TAKES:
+            log.warning("Gemini TTS read more than the line (%.1fs for %s chars, take %d) — asking again with the text only", seconds, len(said), attempt + 1)
+            return _gemini(text, voice, style, plain=True, key=key, attempt=attempt + 1)
+        raise SpeechError(f"Gemini kept reading more than the line ({seconds:.1f}s for {len(said)} characters)")
     pcm = _trim_tail(pcm)
     done = subprocess.run(
         [imageio_ffmpeg.get_ffmpeg_exe(), "-y", "-loglevel", "error", "-f", "s16le", "-ar", "24000", "-ac", "1", "-i", "pipe:0",

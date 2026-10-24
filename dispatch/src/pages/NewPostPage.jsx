@@ -74,7 +74,8 @@ export default function NewPostPage() {
   // Asset dragged in on the AI agent page, if any.
   useEffect(() => {
     const a = handoff.take();
-    if (a) {
+    // a caption alone (Ask → Use in Compose) brings no picture or video
+    if (a && a.kind !== "text") {
       setVideo({
         name: a.name,
         size: a.size,
@@ -85,11 +86,11 @@ export default function NewPostPage() {
         previewUrl: a.url,
         videoId: a.videoId ?? null,
       });
-      if (a.caption) {
-        handedCaption.current = true;
-        // a caption written elsewhere arrives in the clean phone layout
-        setStartCaption(tidyCaption(a.caption));
-      }
+    }
+    if (a?.caption) {
+      handedCaption.current = true;
+      // a caption written elsewhere arrives in the clean phone layout
+      setStartCaption(tidyCaption(a.caption));
     }
   }, []);
 
