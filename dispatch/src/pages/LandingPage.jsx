@@ -34,6 +34,7 @@ import PlatformIcon, { PLAT_BRAND_CLASS } from '../components/ui/PlatformIcon'
 import LiveAvatar from '../components/ui/LiveAvatar'
 import { PLANS } from '../lib/plans'
 import SkyGuide from '../components/landing/SkyGuide'
+import { api, tokenStore } from '../api/client'
 
 // The public page at "/" for people who aren't signed in (search engines,
 // visitors from ads): what Smart Marketing does, shown with the product's
@@ -41,9 +42,9 @@ import SkyGuide from '../components/landing/SkyGuide'
 // Only true claims — no made-up ratings, customers or logos. The prices
 // (Pricing) are the owner's own plans.
 
-const KHMER_FONT = 'https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@300;500;700&display=swap'
 const SERIF_FONT = 'https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap'
-const km = { fontFamily: '"Kantumruy Pro", "Khmer OS Siemreap", sans-serif' }
+// Khmer in Google Sans's own Khmer letters, like the app (Google Fonts serves a Khmer part of it)
+const km = { fontFamily: '"Google Sans", "Khmer OS Siemreap", sans-serif' }
 const serif = { fontFamily: '"Instrument Serif", "Google Sans", serif', fontWeight: 400, letterSpacing: '-0.01em' }
 
 // English / Khmer — the switch in the header, remembered on this device.
@@ -220,14 +221,21 @@ function Phone({ id, className = '', tilt = 0, label }) {
   )
 }
 
-/** A slow aurora of brand, sand and sky glows — the page's background texture. */
-function Aurora({ className = '' }) {
+/** The page's background texture: a fine grid that fades out toward the edges (it was
+ * blurred colour glows — the owner asked for the grid instead). Light or dark with the theme. */
+function GridBackdrop({ className = '' }) {
   return (
-    <div aria-hidden="true" className={`pointer-events-none absolute inset-0 overflow-hidden ${className}`}>
-      <div className="lp-aurora lp-aurora-a absolute -left-[15%] -top-[25%] h-[620px] w-[620px] rounded-full bg-brand/15 blur-[120px] dark:bg-brand/25" />
-      <div className="lp-aurora lp-aurora-b absolute -right-[10%] top-[5%] h-[520px] w-[520px] rounded-full bg-[#c9a06a]/15 blur-[130px] dark:bg-[#8a6a3d]/15" />
-      <div className="lp-aurora lp-aurora-c absolute -bottom-[35%] left-[30%] h-[560px] w-[560px] rounded-full bg-[#9fbfe0]/20 blur-[140px] dark:bg-[#33557c]/25" />
-    </div>
+    <div
+      aria-hidden="true"
+      className={`pointer-events-none absolute inset-0 ${className}`}
+      style={{
+        backgroundImage: 'linear-gradient(rgb(var(--ink-900) / 0.06) 1px, transparent 1px), linear-gradient(90deg, rgb(var(--ink-900) / 0.06) 1px, transparent 1px)',
+        backgroundSize: '56px 56px',
+        backgroundPosition: 'center top',
+        maskImage: 'radial-gradient(ellipse 85% 75% at 50% 40%, black 35%, transparent 100%)',
+        WebkitMaskImage: 'radial-gradient(ellipse 85% 75% at 50% 40%, black 35%, transparent 100%)',
+      }}
+    />
   )
 }
 
@@ -514,7 +522,7 @@ function LiveEverywhere({ onStart }) {
   const media = typeof window === 'undefined' ? null : { kind: 'video', url: `${window.location.origin}${previewSrc('presenter', 'mp4')}`, autoPlay: true }
   return (
     <section id="everywhere" className="relative isolate scroll-mt-20 overflow-hidden px-4 py-20 sm:px-6 sm:py-28">
-      <Aurora className="-z-10 opacity-50" />
+      <GridBackdrop className="-z-10 opacity-60" />
       <SectionTitle
         eyebrow={t('Post everywhere', 'បង្ហោះគ្រប់កន្លែង')}
         title={t('One click — your content is live on all your socials', 'ចុចម្តង — មាតិការបស់បង ចេញលើគ្រប់បណ្តាញសង្គម')}
@@ -1131,7 +1139,7 @@ function Pricing({ onStart }) {
   const pill = 'inline-flex w-full items-center justify-center rounded-full px-5 py-3 text-[14.5px] font-semibold transition-colors'
   return (
     <section id="pricing" className="relative isolate scroll-mt-20 overflow-hidden bg-canvas px-4 py-20 sm:px-6 sm:py-28">
-      <Aurora className="-z-10 opacity-60" />
+      <GridBackdrop className="-z-10 opacity-70" />
       <SectionTitle
         eyebrow={t('Pricing', 'តម្លៃ')}
         title={t('Simple plans that grow with you', 'គម្រោងសាមញ្ញ រីកចម្រើនជាមួយបង')}
@@ -1360,6 +1368,25 @@ function HeroTitle() {
 
 // page "tutorials" = /mkt-tutorial: the same header and footer around the course
 // (TutorialsPage.jsx Course) instead of the landing sections.
+/** Someone who already has an account and is signed in on this browser (the tutorials page,
+ * which anyone can open): their credits and plan, so the header offers Dashboard instead of
+ * Log in / Start free. null while unknown or signed out — an expired sign-in shows the usual buttons. */
+function useSignedIn() {
+  const [me, setMe] = useState(null)
+  useEffect(() => {
+    if (!tokenStore.get()) return undefined
+    let live = true
+    api
+      .get('/billing/summary')
+      .then((b) => live && setMe({ credits: Math.floor(b.available_credits ?? 0), plan: b.plan_label || '' }))
+      .catch(() => {}) // signed out or offline: the usual buttons
+    return () => {
+      live = false
+    }
+  }, [])
+  return me
+}
+
 export default function LandingPage({ onLogin, onStart, page = 'home' }) {
   const [lang, setLangState] = useState(startLang)
   const setLang = (l) => {
@@ -1375,6 +1402,8 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
   }, [lang])
   // this component sits above the language provider, so it reads `lang` itself
   const t = (en, kh) => (Array.isArray(en) ? en[lang === 'km' ? 1 : 0] : lang === 'km' ? kh : en)
+  const n = (v) => (lang === 'km' ? khDigits(v) : v)
+  const me = useSignedIn() // already has an account: credits + Dashboard in the header
   const [scrolled, setScrolled] = useState(false)
   // the menu item for the section in view gets the soft "selected" highlight
   const [section, setSection] = useState('')
@@ -1408,7 +1437,7 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
     }
   }
   useEffect(() => {
-    for (const href of [KHMER_FONT, SERIF_FONT]) {
+    for (const href of [SERIF_FONT]) {
       if (document.querySelector(`link[href="${href}"]`)) continue
       const l = document.createElement('link')
       l.rel = 'stylesheet'
@@ -1462,7 +1491,7 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
             {/* narrow phones: the mark alone — the name was cut off next to the buttons */}
             <span className="whitespace-nowrap text-[16px] font-bold text-ink-900 max-[420px]:hidden">Smart Marketing</span>
           </a>
-          <div className="hidden items-center gap-1 text-[14px] font-medium md:flex">
+          <div className="hidden items-center gap-0.5 text-[14px] font-medium lg:flex xl:gap-1">
             {NAV.map(([id, label]) =>
               id === 'features' ? (
                 <button
@@ -1471,7 +1500,7 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
                   onClick={() => setMenu((m) => !m)}
                   onMouseEnter={() => setMenu(true)}
                   aria-expanded={menu}
-                  className={`inline-flex items-center gap-1 whitespace-nowrap rounded-lg px-3 py-1.5 transition-colors ${menu || section === id ? 'bg-ink-100 text-ink-900' : 'text-ink-600 hover:bg-ink-50 hover:text-ink-900'}`}
+                  className={`inline-flex items-center gap-1 whitespace-nowrap rounded-lg px-2 py-1.5 xl:px-3 transition-colors ${menu || section === id ? 'bg-ink-100 text-ink-900' : 'text-ink-600 hover:bg-ink-50 hover:text-ink-900'}`}
                 >
                   {t(label)}
                   <FiChevronDown size={14} className={`transition-transform duration-200 ${menu ? 'rotate-180' : ''}`} />
@@ -1482,7 +1511,7 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
                   type="button"
                   onClick={() => go(id)}
                   onMouseEnter={() => setMenu(false)}
-                  className={`whitespace-nowrap rounded-lg px-3 py-1.5 transition-colors ${section === id ? 'bg-ink-100 text-ink-900' : 'text-ink-600 hover:bg-ink-50 hover:text-ink-900'}`}
+                  className={`whitespace-nowrap rounded-lg px-2 py-1.5 xl:px-3 transition-colors ${section === id ? 'bg-ink-100 text-ink-900' : 'text-ink-600 hover:bg-ink-50 hover:text-ink-900'}`}
                 >
                   {t(label)}
                 </button>
@@ -1492,7 +1521,7 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
             <a
               href="/mkt-tutorial"
               onMouseEnter={() => setMenu(false)}
-              className={`whitespace-nowrap rounded-lg px-3 py-1.5 transition-colors ${page === 'tutorials' ? 'bg-ink-100 text-ink-900' : 'text-ink-600 hover:bg-ink-50 hover:text-ink-900'}`}
+              className={`whitespace-nowrap rounded-lg px-2 py-1.5 xl:px-3 transition-colors ${page === 'tutorials' ? 'bg-ink-100 text-ink-900' : 'text-ink-600 hover:bg-ink-50 hover:text-ink-900'}`}
             >
               {t('Tutorials', 'មេរៀន')}
             </a>
@@ -1508,12 +1537,32 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
             >
               {dark ? <FiSun size={16} /> : <FiMoon size={16} />}
             </button>
-            <button type="button" onClick={onLogin} className="rounded-xl border border-ink-200 px-2.5 py-1.5 text-[13.5px] font-semibold text-ink-800 transition-colors hover:bg-ink-50 sm:px-3.5 sm:text-[14px]">
-              {t('Log in', 'ចូល')}
-            </button>
-            <button type="button" onClick={onStart} className="whitespace-nowrap rounded-xl bg-brand px-3.5 py-1.5 text-[14px] font-semibold text-white shadow-glow-lg transition-transform hover:-translate-y-px sm:px-4">
-              {t('Start free', 'ចាប់ផ្តើម')}
-            </button>
+            {me ? (
+              <>
+                {/* already has an account: their credits, and the way back in — kept as narrow as
+                    Log in / Start free so the bar never grows past the page width (plan in the tooltip) */}
+                <a
+                  href="/upgrade"
+                  title={`${me.plan ? `${me.plan} · ` : ''}${t('Your credits — get more', 'ក្រេឌីតរបស់បង — ទិញបន្ថែម')}`}
+                  className="hidden items-center gap-1 whitespace-nowrap rounded-full border border-ink-200 py-1 pl-1 pr-2.5 text-[13px] font-semibold tabular-nums text-ink-900 transition-colors hover:bg-ink-50 sm:inline-flex"
+                >
+                  <CreditCoin size={18} />
+                  {n(me.credits.toLocaleString('en-US'))}
+                </a>
+                <a href="/command" className="whitespace-nowrap rounded-xl bg-brand px-3.5 py-1.5 text-[14px] font-semibold text-white shadow-glow-lg transition-transform hover:-translate-y-px">
+                  {t('Dashboard', 'ផ្ទាំងគ្រប់គ្រង')}
+                </a>
+              </>
+            ) : (
+              <>
+                <button type="button" onClick={onLogin} className="rounded-xl border border-ink-200 px-2.5 py-1.5 text-[13.5px] font-semibold text-ink-800 transition-colors hover:bg-ink-50 sm:px-3.5 sm:text-[14px]">
+                  {t('Log in', 'ចូល')}
+                </button>
+                <button type="button" onClick={onStart} className="whitespace-nowrap rounded-xl bg-brand px-3.5 py-1.5 text-[14px] font-semibold text-white shadow-glow-lg transition-transform hover:-translate-y-px sm:px-4">
+                  {t('Start free', 'ចាប់ផ្តើម')}
+                </button>
+              </>
+            )}
           </div>
           </div>
           {/* the Product panel — three columns + a get-started card, desktop only */}
@@ -1568,19 +1617,10 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
       ) : (
       <>
       {/* ── hero ── */}
-      {/* light or dark with the theme: the page's own surface, a soft brand glow and a faint grid */}
+      {/* light or dark with the theme: the page's own surface and a fine grid */}
       <section className="relative overflow-hidden bg-white pb-20 pt-32 sm:pb-28 sm:pt-40">
         <div className="pointer-events-none absolute inset-0">
-          <Aurora />
-          <div
-            className="absolute inset-0"
-            style={{
-              backgroundImage: 'linear-gradient(rgb(var(--ink-900) / 0.03) 1px, transparent 1px), linear-gradient(90deg, rgb(var(--ink-900) / 0.03) 1px, transparent 1px)',
-              backgroundSize: '56px 56px',
-              maskImage: 'radial-gradient(ellipse 90% 80% at 50% 40%, black 40%, transparent 100%)',
-              WebkitMaskImage: 'radial-gradient(ellipse 90% 80% at 50% 40%, black 40%, transparent 100%)',
-            }}
-          />
+          <GridBackdrop />
         </div>
         <div className="relative mx-auto grid max-w-6xl items-center gap-14 px-4 sm:px-6 lg:grid-cols-[1.05fr_1fr]">
           <div className="text-center lg:text-left">
@@ -1589,23 +1629,6 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
             <style>{`
               .lp-hot { color: rgb(var(--brand)); }
               .dark .lp-hot { color: #9cc0ea; }
-              .lp-aurora { will-change: transform }
-              .lp-aurora-a { animation: lp-aurora-a 26s ease-in-out infinite alternate }
-              .lp-aurora-b { animation: lp-aurora-b 32s ease-in-out infinite alternate }
-              .lp-aurora-c { animation: lp-aurora-c 38s ease-in-out infinite alternate }
-              @keyframes lp-aurora-a {
-                from { transform: translate3d(-4%, -2%, 0) scale(1) }
-                to { transform: translate3d(6%, 4%, 0) scale(1.12) }
-              }
-              @keyframes lp-aurora-b {
-                from { transform: translate3d(3%, 2%, 0) scale(1.08) }
-                to { transform: translate3d(-5%, -4%, 0) scale(1) }
-              }
-              @keyframes lp-aurora-c {
-                from { transform: translate3d(0, 3%, 0) scale(1) }
-                to { transform: translate3d(-6%, -3%, 0) scale(1.1) }
-              }
-              @media (prefers-reduced-motion: reduce) { .lp-aurora { animation: none } }
               @keyframes lp-float { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-8px) } }
               @media (prefers-reduced-motion: reduce) { [style*='lp-float'] { animation: none !important } }
               @keyframes lp-galaxy {
@@ -1700,7 +1723,7 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
 
       {/* ── how it works ── */}
       <section id="how" className="relative isolate scroll-mt-20 overflow-hidden px-4 py-20 sm:px-6 sm:py-28">
-        <Aurora className="-z-10 opacity-60" />
+        <GridBackdrop className="-z-10 opacity-70" />
         <SectionTitle
           eyebrow={t('How it works', 'របៀបដំណើរការ')}
           title={t('Sunday night, your whole week is ready', 'ល្ងាចថ្ងៃអាទិត្យ ប្រកាសពេញមួយសប្តាហ៍ត្រៀមរួច')}
@@ -1732,7 +1755,7 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
       {/* ── features ── */}
       <section id="features" className="relative isolate scroll-mt-20 space-y-24 overflow-hidden bg-white px-4 py-20 sm:space-y-32 sm:px-6 sm:py-28">
         <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[900px] overflow-hidden">
-          <Aurora className="opacity-50" />
+          <GridBackdrop className="opacity-60" />
         </div>
         <div className="mx-auto max-w-6xl">
           <Feature
@@ -1820,7 +1843,7 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
 
       {/* ── videos ── */}
       <section id="videos" className="relative isolate scroll-mt-20 overflow-hidden bg-canvas py-20 sm:py-28">
-        <Aurora className="-z-10 opacity-50" />
+        <GridBackdrop className="-z-10 opacity-60" />
         <div className="px-4 sm:px-6">
           <div className="mx-auto max-w-2xl text-center">
             <div className={eyebrowCls(lang)}>{t('Video studio', 'ស្ទូឌីយោវីដេអូ')}</div>

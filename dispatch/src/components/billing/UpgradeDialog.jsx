@@ -10,7 +10,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { FiArrowLeft, FiBriefcase, FiCheck, FiDownload, FiStar, FiX, FiZap } from 'react-icons/fi'
-import CreditCoin from '../layout/CreditCoin'
+import CreditCoin, { CoinFlip, Twinkle } from '../layout/CreditCoin'
 
 // each plan's mark on its card
 const PLAN_ICONS = { starter: FiZap, pro: FiStar, business: FiBriefcase }
@@ -438,13 +438,16 @@ export default function UpgradeDialog({ open: shown, onClose, onPaid, page = fal
                         return (
                           <div key={pk.id} className={`relative flex flex-col items-center rounded-2xl border p-4 text-center ${best ? 'border-brand bg-brand-soft' : 'border-ink-200'}`}>
                             {best && <span className="absolute -top-2.5 whitespace-nowrap rounded-full bg-brand px-2.5 py-0.5 text-[10.5px] font-bold text-white">Best value</span>}
-                            {/* a stack of coins: taller for a bigger pack */}
-                            <div className="relative h-10 w-12">
+                            {/* a stack of 3D coins flipping one after another, sparkles blinking around it: taller for a bigger pack */}
+                            <div className="relative h-10 w-12 text-brand dark:text-brand-light">
                               {Array.from({ length: Math.min(4, i + 1) }).map((_, k) => (
-                                <span key={k} className="absolute left-1/2" style={{ bottom: k * 7, transform: `translateX(calc(-50% + ${k % 2 ? 5 : -3}px))` }}>
-                                  <CreditCoin size={28} />
+                                <span key={k} className="absolute left-1/2 flex" style={{ bottom: k * 7, transform: `translateX(calc(-50% + ${k % 2 ? 5 : -3}px))` }}>
+                                  <CoinFlip size={28} delay={`${k * 0.18 + i * 0.4}s`} />
                                 </span>
                               ))}
+                              <Twinkle size={13} className="-left-3 top-0" delay={`${i * 0.3}s`} />
+                              <Twinkle size={9} className="-right-3 top-3" delay={`${i * 0.3 + 0.6}s`} />
+                              <Twinkle size={7} className="-left-1 bottom-0" delay={`${i * 0.3 + 1.2}s`} />
                             </div>
                             <div className="mt-2 text-[22px] font-extrabold leading-none tabular-nums text-ink-900">{pk.credits.toLocaleString('en-US')}</div>
                             <div className="text-[11.5px] text-ink-500">credits</div>

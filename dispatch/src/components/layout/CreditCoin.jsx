@@ -11,7 +11,7 @@
  */
 const STAR = "M0 -9 C0.9 -2.2 2.2 -0.9 9 0 C2.2 0.9 0.9 2.2 0 9 C-0.9 2.2 -2.2 0.9 -9 0 C-2.2 -0.9 -0.9 -2.2 0 -9 Z";
 
-function Twinkle({ size, className, delay }) {
+export function Twinkle({ size, className, delay }) {
   return (
     <svg
       width={size}
@@ -23,6 +23,31 @@ function Twinkle({ size, className, delay }) {
     >
       <path d={STAR} fill="currentColor" />
     </svg>
+  );
+}
+
+/**
+ * The same token as a 3D coin that flips on its vertical axis (cf-coin-flip in
+ * index.css): a front and a back face plus a few darker discs between them for
+ * the rim's thickness. `delay` staggers coins in a stack. Still for reduced motion.
+ */
+export function CoinFlip({ size = 28, delay = "0s" }) {
+  const depth = Math.max(2, Math.round(size / 9)); // rim thickness in px
+  const face = (back) => (
+    <span className="absolute inset-0" style={{ transform: `${back ? "rotateY(180deg) " : ""}translateZ(${depth / 2}px)`, backfaceVisibility: "hidden" }}>
+      <CreditCoin size={size} />
+    </span>
+  );
+  return (
+    <span className="relative inline-block flex-none" style={{ width: size, height: size, perspective: size * 6 }} aria-hidden="true">
+      <span className="cf-coin-flip absolute inset-0" style={{ transformStyle: "preserve-3d", animationDelay: delay }}>
+        {Array.from({ length: depth + 1 }).map((_, k) => (
+          <span key={k} className="absolute inset-0 rounded-full" style={{ background: "rgb(var(--brand-dark))", transform: `translateZ(${k - depth / 2}px)` }} />
+        ))}
+        {face(false)}
+        {face(true)}
+      </span>
+    </span>
   );
 }
 

@@ -162,7 +162,7 @@ export default function OnboardingTour() {
     if (!open) return
     const el = cardRef.current
     if (!el) return
-    const r = el.getBoundingClientRect()
+    const r = rectOf(el) // the page's own pixels — under the display size, like the hole
     if (r.width) setSize((s) => (s.w === r.width && s.h === r.height ? s : { w: r.width, h: r.height }))
   }, [open, index, hole])
 
@@ -288,7 +288,7 @@ export default function OnboardingTour() {
             </button>
           ) : credits ? (
             <div className="mt-3 flex items-center gap-2 rounded-xl bg-brand-soft px-3 py-2 text-[12.5px] font-semibold text-brand">
-              <FiCheck size={14} /> Your credits are in — {(credits.available_credits ?? 0).toLocaleString('en-US')} ready to use
+              <FiCheck size={14} /> Your credits are in — {Math.floor(credits.available_credits ?? 0).toLocaleString('en-US')} ready to use
             </div>
           ) : null)}
         {claimError && step.action === 'claim' && <div className="mt-2 text-[11.5px] text-red-600">{claimError}</div>}
