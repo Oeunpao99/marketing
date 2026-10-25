@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Player } from '@remotion/player'
-import { FiArrowLeft, FiCheck, FiDownload, FiFilm, FiMaximize, FiPause, FiPlay, FiPlus, FiSend, FiSkipBack, FiTrash2, FiUpload, FiX } from 'react-icons/fi'
+import { FiArrowLeft, FiCheck, FiDownload, FiFilm, FiMaximize, FiMoon, FiPause, FiPlay, FiPlus, FiSend, FiSkipBack, FiSun, FiTrash2, FiUpload, FiX } from 'react-icons/fi'
 import { api } from '../api/client'
 import { Timeline, EDIT_SIZES } from '../../motion/src/timeline'
 import MediaPanel, { DRAG_TYPE } from '../components/editor/MediaPanel'
@@ -24,9 +24,12 @@ import {
   trimClip,
   startTracks,
   tidyTracks,
+  setSpeed,
   updateClip,
 } from '../lib/editorModel'
 import { handoff } from '../lib/handoff'
+import ExportDialog from '../components/editor/ExportDialog'
+import { unzoom } from '../lib/zoom'
 import { useStore } from '../store'
 
 // Content studio → Video editor: a CapCut-style editor. /editor lists the
@@ -213,7 +216,7 @@ function Stage({ playerRef, clock, inputProps, ratio, frames, onDropItem, onDrop
   }, [playerRef, clock, size.w > 0]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="flex min-h-[260px] min-w-0 flex-1 flex-col bg-ink-100">
+    <div className="flex min-h-[260px] min-w-0 flex-1 flex-col bg-canvas bg-[radial-gradient(ellipse_at_center,rgb(var(--ink-100))_0%,transparent_70%)]">
       {/* drop from the left panel (or files from the computer) — added at the red line */}
       <div
         ref={box}
@@ -242,7 +245,7 @@ function Stage({ playerRef, clock, inputProps, ratio, frames, onDropItem, onDrop
         }}
       >
         {size.w > 0 && (
-          <div style={{ width: size.w, height: size.h }} className={`relative overflow-hidden rounded-md bg-night-950 shadow-lg transition-shadow ${over ? 'ring-2 ring-brand ring-offset-2 ring-offset-ink-100' : 'ring-1 ring-ink-200'}`}>
+          <div style={{ width: size.w, height: size.h }} className={`relative overflow-hidden rounded-lg bg-night-950 shadow-[0_18px_50px_-12px_rgba(0,0,0,0.55)] transition-shadow ${over ? 'ring-2 ring-brand ring-offset-2 ring-offset-canvas' : 'ring-1 ring-ink-200'}`}>
             {over && (
               <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center bg-night-950/40">
                 <span className="rounded-lg bg-brand px-3 py-1.5 text-[12px] font-semibold text-white shadow">Drop to add at the red line</span>
@@ -275,15 +278,15 @@ function Controls({ playerRef, clock, frames }) {
   const playing = usePlaying(clock)
   const btn = 'grid h-8 w-8 place-items-center rounded-lg text-ink-500 hover:bg-ink-100 hover:text-ink-900'
   return (
-    <div className="flex flex-none items-center justify-center gap-2 border-t border-ink-200 bg-white px-3 py-1.5 text-ink-900">
+    <div className="flex flex-none items-center justify-center gap-3 border-t border-ink-200 bg-white px-3 py-2 text-ink-900">
       <button type="button" title="Back to the start" onClick={() => playerRef.current?.seekTo(0)} className={btn}>
         <FiSkipBack size={14} />
       </button>
-      <button type="button" title="Play / pause (Space)" onClick={() => playerRef.current?.toggle()} className="grid h-9 w-9 place-items-center rounded-full bg-ink-900 text-ink-50 hover:scale-105">
+      <button type="button" title="Play / pause (Space)" onClick={() => playerRef.current?.toggle()} className="grid h-10 w-10 place-items-center rounded-full bg-brand text-white shadow-[0_6px_18px_-6px_rgb(var(--brand)/0.8)] transition-transform hover:scale-105">
         {playing ? <FiPause size={15} /> : <FiPlay size={15} className="translate-x-px" />}
       </button>
-      <span className="min-w-[120px] text-center text-[11.5px] tabular-nums text-ink-500">
-        <b className="font-semibold text-ink-900">{fmtTime(t, true)}</b> / {fmtTime(frames / FPS, true)}
+      <span className="min-w-[150px] text-center font-mono text-[12px] tabular-nums text-ink-500">
+        <b className="font-semibold text-brand">{fmtTime(t, true)}</b> / {fmtTime(frames / FPS, true)}
       </span>
       <button type="button" title="Full screen" onClick={() => playerRef.current?.requestFullscreen()} className={btn}>
         <FiMaximize size={14} />
@@ -318,7 +321,7 @@ function Workspace({ id }) {
     const most = Math.max(TIMELINE_MIN, (box.current?.clientHeight || 800) - 240) // the player keeps some room
     let h = h0
     const move = (ev) => {
-      h = Math.round(Math.min(most, Math.max(TIMELINE_MIN, h0 + (y0 - ev.clientY))))
+      h = Math.round(Math.min(most, Math.max(TIMELINE_MIN, h0 + unzoom(y0 - ev.clientY))))
       setTimelineH(h)
     }
     const up = () => {
@@ -339,6 +342,26 @@ function Workspace({ id }) {
   const [save, setSave] = useState('saved') // saved | saving | waiting | failed
   const [job, setJob] = useState(null) // the export: { id, pct }
   const [done, setDone] = useState(null) // the exported video
+  // the export window: null (closed) · 'setup' · 'running' · 'done'; Keep editing closes it while
+  // the export carries on (the top bar shows its progress), and it opens again when it's done
+  const [exportStep, setExportStep] = useState(null)
+  // CapCut's dark studio (index.css .studio) — the sun / moon in the top bar switches it
+  const [studio, setStudio] = useState(() => {
+    try {
+      return localStorage.getItem('cf_editor_light') !== '1'
+    } catch {
+      return true
+    }
+  })
+  const toggleStudio = () =>
+    setStudio((on) => {
+      try {
+        localStorage.setItem('cf_editor_light', on ? '1' : '0')
+      } catch {
+        /* not remembered — fine */
+      }
+      return !on
+    })
   const [, bump] = useState(0) // re-draw when undo / redo become (un)available
   const clock = useMemo(() => createClock(), [])
   const playerRef = useRef(null)
@@ -636,9 +659,19 @@ function Workspace({ id }) {
       const res = await api.post(`/editor/projects/${project.id}/export`)
       setDone(null)
       setJob({ id: res.id, pct: 0 })
+      setExportStep('running')
     } catch (e) {
+      setExportStep(null)
       showToast(e.message || 'Could not export — try again')
     }
+  }
+  const openExport = () => {
+    if (!now.current?.clips.length) {
+      showToast('Add a video, picture or words to the timeline first')
+      return
+    }
+    playerRef.current?.pause()
+    setExportStep(job ? 'running' : 'setup')
   }
   useEffect(() => {
     if (!job?.id) return undefined
@@ -649,10 +682,11 @@ function Workspace({ id }) {
         if (!alive) return
         if (j.status === 'succeeded' && j.video) {
           setJob(null)
-          setDone({ url: j.video.url, filename: j.video.filename, video_id: j.video.id })
-          showToast('Exported to your Library')
+          setDone({ url: j.video.url, filename: j.video.filename, video_id: j.video.id, size: j.video.size_bytes || 0 })
+          setExportStep('done')
         } else if (j.status === 'failed') {
           setJob(null)
+          setExportStep(null)
           if (j.error !== 'Stopped') showToast(j.error || 'Could not export — try again')
         } else {
           setJob((x) => x && { ...x, pct: Math.round((j.progress?.render || 0) * 100) })
@@ -673,6 +707,7 @@ function Workspace({ id }) {
       /* it may have just finished */
     }
     setJob(null)
+    setExportStep(null)
   }
   const post = () => {
     handoff.set({ name: done.filename, size: 0, kind: 'video', url: abs(done.url), videoId: done.video_id, caption: '', source: 'Library' })
@@ -700,7 +735,7 @@ function Workspace({ id }) {
   const saveLabel = { saved: 'Saved', saving: 'Saving…', waiting: 'Saving…', failed: 'Not saved — check your connection' }[save]
 
   return (
-    <div ref={box} className="flex w-full flex-col bg-canvas text-ink-900 lg:h-[calc(100dvh-3.5rem-var(--tabs-h,0px))]">
+    <div ref={box} className={`flex w-full flex-col bg-canvas text-ink-900 lg:h-[calc(100dvh/var(--z,1)-3.5rem-var(--tabs-h,0px))] ${studio ? 'studio' : ''}`}>
       {/* top bar */}
       <div className="flex flex-none flex-wrap items-center gap-2 border-b border-ink-200 bg-white px-3 py-2">
         <button type="button" onClick={() => navigate('/editor')} title="Your projects" className="grid h-8 w-8 place-items-center rounded-lg text-ink-500 hover:bg-ink-100 hover:text-ink-900">
@@ -716,25 +751,65 @@ function Workspace({ id }) {
           {save === 'saved' && <FiCheck size={11} />} {saveLabel}
         </span>
         <div className="ml-auto flex items-center gap-2">
+          <button
+            type="button"
+            onClick={toggleStudio}
+            title={studio ? 'Light editor' : 'Dark studio'}
+            aria-label={studio ? 'Switch the editor to light' : 'Switch the editor to the dark studio'}
+            className="grid h-8 w-8 place-items-center rounded-lg text-ink-500 hover:bg-ink-100 hover:text-ink-900"
+          >
+            {studio ? <FiSun size={15} /> : <FiMoon size={15} />}
+          </button>
           {job ? (
             <>
-              <span className="flex items-center gap-2 text-[12px] text-ink-600">
+              <button type="button" onClick={() => setExportStep('running')} title="Show the export" className="flex items-center gap-2 rounded-lg px-2 py-1 text-[12px] text-ink-600 hover:bg-ink-100">
                 <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand/30 border-t-brand" />
                 Exporting… {job.pct ? `${job.pct}%` : ''}
-              </span>
+                <span className="h-1 w-16 overflow-hidden rounded-full bg-ink-100">
+                  <span className="block h-full rounded-full bg-brand transition-[width] duration-700" style={{ width: `${Math.max(4, job.pct || 0)}%` }} />
+                </span>
+              </button>
               <button type="button" onClick={stopExport} className="rounded-lg px-2.5 py-1.5 text-[12px] font-semibold text-ink-500 hover:bg-ink-100 hover:text-ink-900">
                 Stop
               </button>
             </>
           ) : (
-            <button type="button" onClick={exportVideo} className="btn-primary">
+            <button type="button" onClick={openExport} className="btn-primary">
               <FiUpload size={13} /> Export
             </button>
           )}
         </div>
       </div>
 
-      {done && (
+      <ExportDialog
+        studio={studio}
+        step={exportStep}
+        name={project.name}
+        onName={(n) => setProject((x) => ({ ...x, name: n }))}
+        seconds={lengthOf(tl)}
+        ratio={project.ratio}
+        cover={(() => {
+          const first = [...tl.clips].filter((c) => c.kind === 'video' || c.kind === 'image').sort((a, b) => a.start - b.start)[0]
+          return first ? thumbOf(first.src) : ''
+        })()}
+        pct={job?.pct || 0}
+        done={done ? { ...done, url: abs(done.url) } : null}
+        onExport={exportVideo}
+        onCancel={() => setExportStep(null)}
+        onKeepEditing={() => setExportStep(null)}
+        onStop={stopExport}
+        onPost={post}
+        onDownload={() => {
+          const a = document.createElement('a')
+          a.href = abs(done.url)
+          a.download = done.filename
+          a.click()
+        }}
+        onLibrary={() => navigate('/library')}
+        onClose={() => setExportStep(null)}
+      />
+
+      {done && exportStep !== 'done' && (
         <div className="flex flex-none flex-wrap items-center gap-2 border-b border-emerald-200 bg-emerald-50 px-4 py-2 text-[12.5px]">
           <FiCheck size={14} className="text-emerald-700" />
           <span className="min-w-0 flex-1 text-emerald-800">Your video is in the Library. Keep editing — export again any time.</span>
@@ -764,7 +839,7 @@ function Workspace({ id }) {
             onAddWords={(w) => addMedia({ kind: 'text', ...w }, clock.get(), null)}
           />
         </div>
-        <div className="order-1 flex h-[56vh] min-w-0 flex-1 lg:order-none lg:h-auto">
+        <div className="order-1 flex h-[calc(56vh/var(--z,1))] min-w-0 flex-1 lg:order-none lg:h-auto">
           <Stage
             playerRef={playerRef}
             clock={clock}
@@ -783,6 +858,10 @@ function Workspace({ id }) {
             onStart={begin}
             onLive={(cid, patch) => live(updateClip(now.current, cid, patch))}
             onChange={(cid, patch) => commit((x) => updateClip(x, cid, patch))}
+            onSpeed={(cid, v) => commit((x) => setSpeed(x, cid, v))}
+            // while the slider moves: from the clip as it was when the drag began, so a stop at
+            // the next clip on the way doesn't cut what it shows for good
+            onSpeedLive={(cid, v) => live(setSpeed(pending.current || now.current, cid, v))}
             onSplit={split}
             onDuplicate={duplicate}
             onDelete={remove}

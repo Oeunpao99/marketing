@@ -175,7 +175,7 @@ function MoreSheet({ onClose }) {
   return createPortal(
     <div className="fixed inset-0 z-[80] lg:hidden">
       <div className="absolute inset-0 glass-overlay animate-fadein" onClick={onClose} />
-      <div className="absolute inset-x-0 bottom-0 max-h-[88dvh] overflow-y-auto rounded-t-3xl glass-panel border-b-0 px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)+16px)] animate-sheet-up">
+      <div className="absolute inset-x-0 bottom-0 max-h-[calc(88dvh/var(--z,1))] overflow-y-auto rounded-t-3xl glass-panel border-b-0 px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)+16px)] animate-sheet-up">
         <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-ink-200" />
 
         <div className="mb-3 flex items-center justify-between">

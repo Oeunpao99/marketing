@@ -11,7 +11,11 @@ import { AbsoluteFill, Audio, Img, OffthreadVideo, Sequence, continueRender, del
 // props: { ratio, tracks: [{ id, kind: video|text|audio, muted?, hidden? }],
 //          clips: [{ id, track, kind: video|image|audio|text, start, dur, from,
 //                    src, volume, x, y, scale, fit, fadeIn, fadeOut,
+//                    speed, rotate, opacity, brightness, contrast, saturation,
+//                    blur, filter, animIn, animInDur, animOut, animOutDur,
 //                    text, size, color, look: plain|box|outline }] }
+// speed: a video or sound plays that many times faster — `dur` seconds on the
+// timeline use dur × speed seconds of the file, from `from`.
 // Tracks are listed top to bottom as the editor shows them: a higher track
 // draws over a lower one. Times are seconds.
 
@@ -51,9 +55,94 @@ const fadeAt = (f, len, clip) => {
   return a
 }
 
-/** A picture or video clip's place on the frame: moved by x / y (% of the frame from the centre), scaled. */
-const placed = (clip) => ({
-  transform: `translate(${Number(clip.x) || 0}%, ${Number(clip.y) || 0}%) scale(${clip.scale == null ? 1 : Number(clip.scale)})`,
+// The looks a picture or video can have (CapCut's filters) — CSS filters, so the
+// editor's preview and the export draw them the same.
+export const FILTERS = {
+  none: '',
+  bw: 'grayscale(1) contrast(1.1)',
+  warm: 'sepia(0.28) saturate(1.25) hue-rotate(-10deg)',
+  cool: 'saturate(1.1) hue-rotate(14deg) brightness(1.03)',
+  vintage: 'sepia(0.5) contrast(0.9) brightness(1.06) saturate(0.85)',
+  vivid: 'saturate(1.55) contrast(1.12)',
+  fade: 'contrast(0.82) brightness(1.12) saturate(0.75)',
+  drama: 'contrast(1.35) saturate(0.85) brightness(0.92)',
+}
+
+// How a clip comes in and goes out (CapCut's Animation): a move, a zoom or a pop
+export const ANIMS = ['none', 'fade', 'zoom', 'zoom-out', 'pop', 'slide-left', 'slide-right', 'slide-up', 'slide-down', 'spin']
+
+const num = (v, d) => (v == null || v === '' || Number.isNaN(Number(v)) ? d : Number(v))
+
+/** A clip's adjustments and filter as one CSS filter ('' = none). */
+const filterOf = (clip) => {
+  const parts = []
+  const b = num(clip.brightness, 1)
+  const c = num(clip.contrast, 1)
+  const s = num(clip.saturation, 1)
+  if (b !== 1) parts.push(`brightness(${b})`)
+  if (c !== 1) parts.push(`contrast(${c})`)
+  if (s !== 1) parts.push(`saturate(${s})`)
+  if (FILTERS[clip.filter]) parts.push(FILTERS[clip.filter])
+  return parts.join(' ')
+}
+
+/** One animation at `p` (0 = hidden, 1 = in place): a shift (% of the frame), a scale, a turn, an opacity. */
+const animAt = (type, p) => {
+  const q = 1 - p
+  switch (type) {
+    case 'fade':
+      return { o: p }
+    case 'zoom':
+      return { s: 0.6 + 0.4 * p, o: p }
+    case 'zoom-out':
+      return { s: 1.4 - 0.4 * p, o: p }
+    case 'pop': {
+      // a little past full size, then back (easeOutBack)
+      const k = 1.70158
+      const e = 1 + (k + 1) * (p - 1) ** 3 + k * (p - 1) ** 2
+      return { s: Math.max(0, e), o: Math.min(1, p * 2.5) }
+    }
+    case 'slide-left':
+      return { x: -100 * q }
+    case 'slide-right':
+      return { x: 100 * q }
+    case 'slide-up':
+      return { y: 100 * q }
+    case 'slide-down':
+      return { y: -100 * q }
+    case 'spin':
+      return { r: -180 * q, s: 0.4 + 0.6 * p, o: p }
+    default:
+      return {}
+  }
+}
+
+const ease = (t) => 1 - (1 - t) ** 3
+
+/** The in / out animations at frame `f` of a clip `len` frames long, put together. */
+const motionAt = (f, len, clip) => {
+  let x = 0
+  let y = 0
+  let s = 1
+  let r = 0
+  let o = 1
+  const add = (m) => {
+    x += m.x || 0
+    y += m.y || 0
+    s *= m.s == null ? 1 : m.s
+    r += m.r || 0
+    o *= m.o == null ? 1 : m.o
+  }
+  const inLen = Math.round(num(clip.animInDur, 0.5) * EDIT_FPS)
+  const outLen = Math.round(num(clip.animOutDur, 0.5) * EDIT_FPS)
+  if (clip.animIn && clip.animIn !== 'none' && inLen > 0 && f < inLen) add(animAt(clip.animIn, ease(f / inLen)))
+  if (clip.animOut && clip.animOut !== 'none' && outLen > 0 && f > len - outLen) add(animAt(clip.animOut, ease((len - f) / outLen)))
+  return { x, y, s, r, o }
+}
+
+/** A clip's place on the frame: moved by x / y (% of the frame from the centre), scaled, turned — plus its animation. */
+const placed = (clip, m) => ({
+  transform: `translate(${(Number(clip.x) || 0) + m.x}%, ${(Number(clip.y) || 0) + m.y}%) rotate(${num(clip.rotate, 0) + m.r}deg) scale(${num(clip.scale, 1) * m.s})`,
 })
 
 function Words({ clip, len }) {
@@ -63,12 +152,13 @@ function Words({ clip, len }) {
   const size = (Number(clip.size) || 64) * k
   const look = clip.look || 'box'
   const color = clip.color || '#ffffff'
-  const pop = interpolate(f, [0, 8], [0.92, 1], { extrapolateRight: 'clamp' })
+  const m = motionAt(f, len, clip)
+  const pop = clip.animIn && clip.animIn !== 'none' ? 1 : interpolate(f, [0, 8], [0.92, 1], { extrapolateRight: 'clamp' })
   return (
-    <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center', opacity: fadeAt(f, len, clip) }}>
+    <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center', opacity: fadeAt(f, len, clip) * num(clip.opacity, 1) * m.o }}>
       <div
         style={{
-          transform: `translate(${Number(clip.x) || 0}%, ${Number(clip.y) || 0}%) scale(${(clip.scale == null ? 1 : Number(clip.scale)) * pop})`,
+          transform: `translate(${(Number(clip.x) || 0) + m.x}%, ${(Number(clip.y) || 0) + m.y}%) rotate(${num(clip.rotate, 0) + m.r}deg) scale(${num(clip.scale, 1) * pop * m.s})`,
           maxWidth: '86%',
           textAlign: 'center',
           fontFamily: FONT,
@@ -94,17 +184,23 @@ function Words({ clip, len }) {
 function Picture({ clip, len, muted }) {
   const f = useCurrentFrame()
   const fit = clip.fit || 'contain'
-  const box = { width: '100%', height: '100%', objectFit: fit }
+  const { width } = useVideoConfig()
+  const blur = num(clip.blur, 0) * (width / 1080) // set for a 1080-wide frame
+  const look = [filterOf(clip), blur > 0 ? `blur(${blur}px)` : ''].filter(Boolean).join(' ')
+  const box = { width: '100%', height: '100%', objectFit: fit, filter: look || undefined }
   const from = Math.max(0, Math.round((Number(clip.from) || 0) * EDIT_FPS))
   const vol = clip.volume == null ? 1 : Number(clip.volume)
+  const speed = Math.min(4, Math.max(0.25, num(clip.speed, 1)))
+  const m = motionAt(f, len, clip)
   return (
-    <AbsoluteFill style={{ opacity: fadeAt(f, len, clip), ...placed(clip) }}>
+    <AbsoluteFill style={{ opacity: fadeAt(f, len, clip) * num(clip.opacity, 1) * m.o, ...placed(clip, m) }}>
       {clip.kind === 'image' ? (
         <Img src={srcOf(clip.src)} style={box} />
       ) : (
         <OffthreadVideo
           src={srcOf(clip.src)}
           trimBefore={from || undefined}
+          playbackRate={speed}
           muted={muted || vol <= 0}
           volume={(i) => vol * fadeAt(i, len, clip)}
           style={box}
@@ -117,8 +213,9 @@ function Picture({ clip, len, muted }) {
 function Sound({ clip, len, muted }) {
   const from = Math.max(0, Math.round((Number(clip.from) || 0) * EDIT_FPS))
   const vol = clip.volume == null ? 1 : Number(clip.volume)
+  const speed = Math.min(4, Math.max(0.25, num(clip.speed, 1)))
   if (muted || vol <= 0) return null
-  return <Audio src={srcOf(clip.src)} trimBefore={from || undefined} volume={(i) => vol * fadeAt(i, len, clip)} />
+  return <Audio src={srcOf(clip.src)} trimBefore={from || undefined} playbackRate={speed} volume={(i) => vol * fadeAt(i, len, clip)} />
 }
 
 export function Timeline(props) {

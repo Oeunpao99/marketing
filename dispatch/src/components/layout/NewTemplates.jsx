@@ -109,7 +109,7 @@ export default function NewTemplates() {
       <div className="absolute inset-0 bg-night-950/60" onClick={close} />
       <div className="cf-pop-in relative w-full max-w-[640px]">
         <Sparkles />
-        <div className="relative max-h-[calc(100vh-2rem)] overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl sm:p-6" role="dialog" aria-modal="true" aria-labelledby="new-template-title">
+        <div className="relative max-h-[calc(100vh/var(--z,1)-2rem)] overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl sm:p-6" role="dialog" aria-modal="true" aria-labelledby="new-template-title">
           <button type="button" onClick={close} className="absolute right-3 top-3 z-10 grid h-8 w-8 place-items-center rounded-full bg-ink-100 text-ink-500 hover:text-ink-900" aria-label="Close">
             <FiX size={16} />
           </button>

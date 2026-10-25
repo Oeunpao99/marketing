@@ -13,6 +13,7 @@ import { fullDayLabel, phnomPenhClock, phnomPenhDay } from '../lib/tz'
 import { kitSrc, TemplatePicker } from '../components/brandkit/BrandKit'
 import ModelLogo from '../components/ui/ModelLogo'
 import { forgetWriterModels, writerHint } from '../components/studio/WriterModelSelect'
+import { unzoom, viewW } from '../lib/zoom'
 
 // `value` is what's stored (Automation.topic_source) — only the wording shown changed.
 const TOPIC_SOURCES = [
@@ -369,7 +370,7 @@ const LANGUAGE_HINT = {
 // The settings drawer's width — drag its left edge; remembered per browser.
 const DRAWER_KEY = 'cf_autopilot_drawer_w'
 const DRAWER_MIN = 420
-const drawerMax = () => Math.max(DRAWER_MIN, Math.min(1000, window.innerWidth - 80))
+const drawerMax = () => Math.max(DRAWER_MIN, Math.min(1000, viewW() - 80))
 const readDrawerWidth = () => {
   try {
     const w = Number(localStorage.getItem(DRAWER_KEY))
@@ -387,7 +388,7 @@ function SettingsDrawer({ a, channels, onUpdate, onBrandUpdate, onOpenPlan, onCl
     const start = width
     let last = start
     const move = (ev) => {
-      last = Math.min(drawerMax(), Math.max(DRAWER_MIN, start + from - ev.clientX))
+      last = Math.min(drawerMax(), Math.max(DRAWER_MIN, start + unzoom(from - ev.clientX)))
       setWidth(last)
     }
     const up = () => {

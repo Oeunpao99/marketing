@@ -650,13 +650,13 @@ function PreviewModal({ item, busy, onClose, onApprove, onReject, onUseIdea, onM
       <div
         role="dialog"
         aria-modal="true"
-        className="flex max-h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl bg-white shadow-[0_24px_60px_-16px_rgba(16,24,40,0.35)] sm:flex-row"
+        className="flex max-h-[calc(88vh/var(--z,1))] w-full max-w-5xl flex-col overflow-hidden rounded-3xl bg-white shadow-[0_24px_60px_-16px_rgba(16,24,40,0.35)] sm:flex-row"
         onClick={(e) => e.stopPropagation()}
       >
         {/* the media, as it will post (or being made right now) */}
         {making && (
           <div className="flex-none p-3 sm:w-[380px]">
-            <div className="mx-auto aspect-[9/16] max-h-[36vh] sm:max-h-none">
+            <div className="mx-auto aspect-[9/16] max-h-[calc(36vh/var(--z,1))] sm:max-h-none">
               <GeneratingCanvas
                 icon={item.media_pending === 'video' ? '▶' : '✦'}
                 stage={item.media_pending === 'video' ? 'Making the video…' : 'Making the image…'}
@@ -665,16 +665,16 @@ function PreviewModal({ item, busy, onClose, onApprove, onReject, onUseIdea, onM
           </div>
         )}
         {m && (
-          <div className="flex max-h-[40vh] flex-none items-center justify-center bg-night-950 sm:max-h-none sm:w-[380px]">
+          <div className="flex max-h-[calc(40vh/var(--z,1))] flex-none items-center justify-center bg-night-950 sm:max-h-none sm:w-[380px]">
             {m.kind === 'image' ? (
-              <img src={`${mediaBase}${m.url}`} alt="" className="max-h-[40vh] w-full object-contain sm:max-h-[88vh]" />
+              <img src={`${mediaBase}${m.url}`} alt="" className="max-h-[calc(40vh/var(--z,1))] w-full object-contain sm:max-h-[calc(88vh/var(--z,1))]" />
             ) : (
               <video
                 src={`${mediaBase}${m.url}`}
                 controls
                 playsInline
                 preload="metadata"
-                className="max-h-[40vh] w-full bg-black object-contain sm:max-h-[88vh]"
+                className="max-h-[calc(40vh/var(--z,1))] w-full bg-black object-contain sm:max-h-[calc(88vh/var(--z,1))]"
               />
             )}
           </div>

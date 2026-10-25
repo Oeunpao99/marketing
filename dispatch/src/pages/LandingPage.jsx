@@ -44,7 +44,7 @@ import SkyGuide from '../components/landing/SkyGuide'
 const KHMER_FONT = 'https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@300;500;700&display=swap'
 const SERIF_FONT = 'https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap'
 const km = { fontFamily: '"Kantumruy Pro", "Khmer OS Siemreap", sans-serif' }
-const serif = { fontFamily: '"Instrument Serif", "IBM Plex Sans", serif', fontWeight: 400, letterSpacing: '-0.01em' }
+const serif = { fontFamily: '"Instrument Serif", "Google Sans", serif', fontWeight: 400, letterSpacing: '-0.01em' }
 
 // English / Khmer — the switch in the header, remembered on this device.
 // t('English', 'ខ្មែរ') or t(['English', 'ខ្មែរ']) gives the text for the language picked.

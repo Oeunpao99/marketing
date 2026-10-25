@@ -285,7 +285,7 @@ export default function UpgradeDialog({ open: shown, onClose, onPaid, page = fal
         className={
           part === 'plans'
             ? 'relative w-full' // the page: its full width, no box round the plans
-            : `relative max-h-[92vh] w-full overflow-y-auto rounded-3xl border border-ink-200 bg-white p-5 shadow-pop sm:p-7 ${pay ? 'max-w-[460px]' : 'max-w-[1040px]'}`
+            : `relative max-h-[calc(92vh/var(--z,1))] w-full overflow-y-auto rounded-3xl border border-ink-200 bg-white p-5 shadow-pop sm:p-7 ${pay ? 'max-w-[460px]' : 'max-w-[1040px]'}`
         }
       >
         {part !== 'plans' && (
@@ -367,7 +367,7 @@ export default function UpgradeDialog({ open: shown, onClose, onPaid, page = fal
                         className={`relative flex flex-col rounded-3xl border bg-white p-5 transition-transform ${popular ? `border-brand shadow-[0_18px_40px_-18px_rgb(var(--brand)/0.45)] ring-1 ring-brand ${page ? 'md:-translate-y-3 md:py-7' : ''}` : 'border-ink-200 hover:-translate-y-0.5'}`}
                       >
                         {(popular || current) && (
-                          <span className={`absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-bold ${current ? 'bg-ink-800 text-white' : 'bg-brand text-white'}`}>
+                          <span className={`absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-bold ${current ? 'bg-ink-900 text-canvas' : 'bg-brand text-white'}`}>
                             {current ? 'Your plan' : 'Most popular'}
                           </span>
                         )}

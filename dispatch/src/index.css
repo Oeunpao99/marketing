@@ -55,6 +55,37 @@ html.dark {
   color-scheme: dark;
 }
 
+/* The video editor's studio look (pages/EditorPage.jsx, its sun/moon button): CapCut's
+   charcoal panels and a cyan accent, whatever the app's theme — the same variables, so
+   everything inside follows. Its pop-ups (the export window) carry the class too. */
+.studio {
+  --ink-50: 34 34 38;
+  --ink-100: 44 44 49;
+  --ink-200: 56 56 62;
+  --ink-300: 82 82 90;
+  --ink-400: 138 138 148;
+  --ink-500: 163 163 173;
+  --ink-600: 192 192 200;
+  --ink-700: 213 213 219;
+  --ink-800: 229 229 233;
+  --ink-900: 241 241 244;
+  --ink-950: 250 250 251;
+  --surface: 30 30 34;
+  --edge: 56 56 62;
+  --canvas: 17 17 20;
+  --canvas-soft: 24 24 28;
+  --brand: 6 182 212;
+  --brand-light: 34 211 238;
+  --brand-dark: 8 145 178;
+  --brand-deep: 22 78 99;
+  --brand-soft: 14 52 62;
+  --brand-softer: 18 38 44;
+  --brand-line: 21 94 117;
+  --brand-text: 103 232 249;
+  color-scheme: dark;
+  color: rgb(var(--ink-900));
+}
+
 /* Settings → Appearance → Reduce motion */
 [data-reduce-motion] *,
 [data-reduce-motion] *::before,
@@ -81,7 +112,7 @@ html.dark {
 @layer base {
   html, body {
     @apply m-0 p-0 bg-canvas text-ink-900 antialiased;
-    font-family: 'IBM Plex Sans', 'Khmer OS Siemreap', system-ui, sans-serif;
+    font-family: 'Google Sans', 'Khmer OS Siemreap', system-ui, sans-serif;
     /* No elastic "bounce" past the top/bottom (Chrome on Windows touchpads,
        Safari): it dragged the whole app — pinned sidebar, top bar and the AI
        Agent's composer — off the edges and showed empty grey around them. */
@@ -111,10 +142,10 @@ select {
 .toast-enter { @apply transition-all duration-200 ease-out; }
 
 .khmer, [lang="km"], textarea[data-khmer], .km-text {
-  font-family: 'Khmer OS Siemreap', 'IBM Plex Sans', system-ui, sans-serif;
+  font-family: 'Khmer OS Siemreap', 'Google Sans', system-ui, sans-serif;
 }
 @supports (font-family: 'Khmer OS Siemreap') {
-  .auto-khmer { font-family: 'Khmer OS Siemreap', 'IBM Plex Sans', sans-serif; }
+  .auto-khmer { font-family: 'Khmer OS Siemreap', 'Google Sans', sans-serif; }
 }
 
 @layer components {

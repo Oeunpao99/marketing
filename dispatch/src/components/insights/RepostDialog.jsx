@@ -79,7 +79,7 @@ export default function RepostDialog({ post, onClose }) {
   return createPortal(
     <div className="fixed inset-0 z-[110] grid place-items-center glass-overlay p-4 animate-fadein" onClick={() => !busy && onClose()}>
       <div
-        className="w-full max-w-[520px] max-h-[90dvh] overflow-y-auto rounded-3xl glass-panel p-5"
+        className="w-full max-w-[520px] max-h-[calc(90dvh/var(--z,1))] overflow-y-auto rounded-3xl glass-panel p-5"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2">

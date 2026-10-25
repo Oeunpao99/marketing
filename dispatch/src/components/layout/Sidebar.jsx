@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import {
   FiCheck,
   FiChevronDown,
+  FiCreditCard,
   FiLogOut,
   FiSearch,
   FiSettings,
@@ -198,7 +199,7 @@ export default function Sidebar({ collapsed = false }) {
           aria-label={label}
           className={({ isActive }) =>
             `relative mx-auto grid place-items-center w-10 h-10 rounded-xl transition-colors duration-150 ${
-              isActive ? "bg-brand-soft text-brand" : "text-ink-500 hover:bg-ink-100/80 hover:text-ink-800"
+              isActive ? "bg-ink-100 text-ink-900" : "text-ink-500 hover:bg-ink-100/60 hover:text-ink-900"
             }`
           }
         >
@@ -216,18 +217,18 @@ export default function Sidebar({ collapsed = false }) {
           end={end}
           data-tour={tour}
           className={({ isActive }) =>
-            `group flex items-center gap-3 w-full px-3 py-[9px] rounded-lg text-[13px] transition-colors duration-150 ${
+            `group flex items-center gap-3.5 w-full px-3.5 py-[7px] rounded-xl text-[15px] transition-colors duration-150 ${
               isActive
-                ? "bg-brand-soft text-brand font-semibold"
-                : "text-ink-700 font-medium hover:bg-ink-100/80 hover:text-ink-900"
+                ? "bg-ink-100 text-ink-900 font-semibold"
+                : "text-ink-700 font-medium hover:bg-ink-100/60 hover:text-ink-900"
             }`
           }
         >
           {({ isActive }) => (
             <>
               <Icon
-                size={17}
-                className={`flex-none ${isActive ? "text-brand" : "text-ink-500 group-hover:text-ink-700"}`}
+                size={16}
+                className={`flex-none ${isActive ? "text-ink-900" : "text-ink-500 group-hover:text-ink-800"}`}
                 aria-hidden="true"
               />
               <span className="flex-1 truncate">{label}</span>
@@ -271,7 +272,7 @@ export default function Sidebar({ collapsed = false }) {
           title={total ? `${item.label} (${total})` : item.label}
           aria-label={item.label}
           className={`relative mx-auto grid h-10 w-10 place-items-center rounded-xl transition-colors duration-150 ${
-            here ? "bg-brand-soft text-brand" : "text-ink-500 hover:bg-ink-100/80 hover:text-ink-800"
+            here ? "bg-ink-100 text-ink-900" : "text-ink-500 hover:bg-ink-100/60 hover:text-ink-900"
           }`}
         >
           <Icon size={18} aria-hidden="true" />
@@ -287,11 +288,11 @@ export default function Sidebar({ collapsed = false }) {
         key={item.label}
         to={to}
         data-tour={item.tour}
-        className={`group flex w-full items-center gap-3 rounded-lg px-3 py-[9px] text-[13px] transition-colors duration-150 ${
-          here ? "bg-brand-soft font-semibold text-brand" : "font-medium text-ink-700 hover:bg-ink-100/80 hover:text-ink-900"
+        className={`group flex w-full items-center gap-3.5 rounded-xl px-3.5 py-[7px] text-[15px] transition-colors duration-150 ${
+          here ? "bg-ink-100 font-semibold text-ink-900" : "font-medium text-ink-700 hover:bg-ink-100/60 hover:text-ink-900"
         }`}
       >
-        <Icon size={17} className={`flex-none ${here ? "text-brand" : "text-ink-500 group-hover:text-ink-700"}`} aria-hidden="true" />
+        <Icon size={16} className={`flex-none ${here ? "text-ink-900" : "text-ink-500 group-hover:text-ink-800"}`} aria-hidden="true" />
         <span className="flex-1 truncate">{item.label}</span>
         {total > 0 && pillFor(kind, total)}
         {showDot && <span title={dotTitle} className="h-2 w-2 flex-none rounded-full bg-red-500" />}
@@ -310,7 +311,7 @@ export default function Sidebar({ collapsed = false }) {
     "U";
 
   return (
-    <aside className="hidden lg:flex flex-col sticky top-0 h-screen bg-canvas-soft border-r border-ink-200/70 side-scroll">
+    <aside className="hidden lg:flex flex-col sticky top-0 h-screen bg-canvas-soft border-r border-ink-200/70 side-scroll font-gsans">
       {/* App name */}
       <NavLink
         to="/"
@@ -320,7 +321,7 @@ export default function Sidebar({ collapsed = false }) {
         <img src="/brand/logo-mark.png" alt="Marketing ឆ្លាតវៃ" className="w-9 h-9 flex-none object-contain" />
         {!collapsed && (
           <span className="min-w-0">
-            <span className="block text-[15px] font-bold text-ink-900 tracking-tight leading-tight">
+            <span className="block text-[17px] font-semibold text-ink-900 leading-tight">
               Marketing <span className="font-khmer text-brand">ឆ្លាតវៃ</span>
             </span>
             <span className="block text-[11px] text-ink-500">Your AI marketing team</span>
@@ -444,7 +445,23 @@ export default function Sidebar({ collapsed = false }) {
       </div>
 
       <nav className={`flex-1 overflow-y-auto side-scroll pb-3 ${collapsed ? "px-2" : "px-3"}`}>
-        <div className={collapsed ? "space-y-1.5" : "space-y-1"}>{BOSS.map(section)}</div>
+        <div className={collapsed ? "space-y-1.5" : "space-y-0.5"}>
+          {BOSS.map((item) => {
+            const line = section(item);
+            if (!line) return null;
+            if (!item.group) return line;
+            return (
+              <div key={`g-${item.label}`} className={collapsed ? "space-y-1.5" : "space-y-0.5"}>
+                {collapsed ? (
+                  <div className="mx-auto my-2.5 h-px w-6 bg-ink-200" aria-hidden="true" />
+                ) : (
+                  <div className="px-3.5 pb-1 pt-4 text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-400">{item.group}</div>
+                )}
+                {line}
+              </div>
+            );
+          })}
+        </div>
       </nav>
 
       {/* Footer: settings + user */}
@@ -459,20 +476,39 @@ export default function Sidebar({ collapsed = false }) {
             <span className="mt-0.5 block text-[11.5px] leading-snug text-ink-500">{autopilot.note}</span>
           </NavLink>
         )}
-        <div className="border-t border-ink-200/70 pt-3 mb-2">
-          <button
-            type="button"
-            onClick={() => setSettingsOpen(true)}
-            title="Settings"
-            className={
-              collapsed
-                ? "mx-auto grid place-items-center w-10 h-10 rounded-xl text-ink-500 hover:bg-ink-100/80 hover:text-ink-800 transition-colors duration-150"
-                : "group flex items-center gap-3 w-full px-3 py-[7px] rounded-lg text-[13px] font-medium text-ink-700 hover:bg-ink-100/80 hover:text-ink-900 transition-colors duration-150"
-            }
-          >
-            <FiSettings size={collapsed ? 18 : 17} className="flex-none text-ink-500 group-hover:text-ink-700" />
-            {!collapsed && "Settings"}
-          </button>
+        <div className={`border-t border-ink-200/70 pt-3 mb-2 ${collapsed ? "space-y-1.5" : "grid grid-cols-3 gap-2"}`}>
+          {[
+            {
+              icon: FiSettings,
+              label: "Settings",
+              onClick: () => {
+                setSettingsTab(null);
+                setSettingsOpen(true);
+              },
+            },
+            { icon: FiSearch, label: "Search (Ctrl K)", onClick: () => setSearchOpen(true) },
+            {
+              icon: FiCreditCard,
+              label: "Billing & credits",
+              onClick: () => {
+                setSettingsTab("billing");
+                setSettingsOpen(true);
+              },
+            },
+          ].map(({ icon: Icon, label, onClick }) => (
+            <button
+              key={label}
+              type="button"
+              onClick={onClick}
+              title={label}
+              aria-label={label}
+              className={`grid h-10 place-items-center rounded-xl border border-ink-200/80 text-ink-500 transition-colors duration-150 hover:bg-ink-100/60 hover:text-ink-900 ${
+                collapsed ? "mx-auto w-10" : "w-full"
+              }`}
+            >
+              <Icon size={17} />
+            </button>
+          ))}
         </div>
 
         <div className="relative">
@@ -480,16 +516,16 @@ export default function Sidebar({ collapsed = false }) {
             type="button"
             onClick={() => setUserOpen((v) => !v)}
             title={collapsed ? user?.name || "Account" : undefined}
-            className={`w-full flex items-center gap-3 rounded-xl py-2 text-left hover:bg-ink-100/70 transition-colors duration-150 ${
-              collapsed ? "justify-center px-0" : "px-2"
+            className={`w-full flex items-center gap-2.5 rounded-xl py-2 text-left transition-colors duration-150 ${
+              collapsed ? "justify-center px-0 hover:bg-ink-100/60" : "border border-ink-200/80 px-2.5 hover:bg-ink-100/60"
             }`}
           >
-            <span className="w-10 h-10 rounded-full grid place-items-center flex-none bg-brand text-white text-[12px] font-bold">
+            <span className={`rounded-full grid place-items-center flex-none bg-brand text-white font-bold ${collapsed ? "w-10 h-10 text-[12px]" : "w-8 h-8 text-[11px]"}`}>
               {initials}
             </span>
             {!collapsed && (
             <span className="min-w-0 flex-1">
-              <span className="block text-[13px] font-bold text-ink-900 truncate leading-tight">
+              <span className="block text-[13px] font-semibold text-ink-900 truncate leading-tight">
                 {user?.name || "Account"}
               </span>
               <span className="block text-[11.5px] text-ink-500 truncate">{user?.email || ""}</span>
@@ -497,7 +533,7 @@ export default function Sidebar({ collapsed = false }) {
             )}
             {!collapsed && (
               <FiChevronDown
-                size={18}
+                size={16}
                 className={`text-ink-500 flex-none transition-transform duration-200 ${userOpen ? "rotate-180" : ""}`}
               />
             )}
@@ -611,7 +647,7 @@ function SearchModal({ open, onClose, channels, queue, review, brands, navigate 
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-[12vh]"
+      className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-[calc(12vh/var(--z,1))]"
       role="dialog"
       aria-modal="true"
       aria-label="Search"

@@ -207,7 +207,7 @@ export default function VideoEditPage() {
               playsInline
               preload="metadata"
               style={{ aspectRatio: wide ? '16 / 9' : '9 / 16' }}
-              className={`mx-auto w-auto max-w-full rounded-xl bg-black object-contain ${wide ? 'h-auto w-full' : 'h-[62vh]'}`}
+              className={`mx-auto w-auto max-w-full rounded-xl bg-black object-contain ${wide ? 'h-auto w-full' : 'h-[calc(62vh/var(--z,1))]'}`}
             />
           </div>
           {done ? (

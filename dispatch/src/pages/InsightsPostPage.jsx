@@ -489,9 +489,9 @@ export default function InsightsPostPage() {
         {zoom && src && (
           <div className="fixed inset-0 z-[100] grid place-items-center bg-night-950/80 p-6 animate-fadein" onClick={() => setZoom(false)}>
             {post.media_kind === 'video' ? (
-              <video src={src} className="max-h-[85vh] max-w-full rounded-xl" controls autoPlay onClick={(e) => e.stopPropagation()} />
+              <video src={src} className="max-h-[calc(85vh/var(--z,1))] max-w-full rounded-xl" controls autoPlay onClick={(e) => e.stopPropagation()} />
             ) : (
-              <img src={src} alt="" className="max-h-[85vh] max-w-full rounded-xl object-contain" />
+              <img src={src} alt="" className="max-h-[calc(85vh/var(--z,1))] max-w-full rounded-xl object-contain" />
             )}
           </div>
         )}

@@ -1250,7 +1250,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
   return (
     // Fills the screen below the top bar, so the composer always sits at the
     // bottom — even when the thread is short or empty.
-    <div className="w-full px-5 lg:px-10 animate-fade flex flex-col min-h-[calc(100dvh-7.5rem-env(safe-area-inset-bottom))] lg:min-h-[calc(100dvh-3.5rem)]">
+    <div className="w-full px-5 lg:px-10 animate-fade flex flex-col min-h-[calc(100dvh/var(--z,1)-7.5rem-env(safe-area-inset-bottom))] lg:min-h-[calc(100dvh/var(--z,1)-3.5rem)]">
       {/* Page header — pinned under the top bar while the thread scrolls. */}
       {/* …under the section tabs and the Content studio title, also pinned (usePinnedHeight). */}
       <div className="sticky top-[calc(3.5rem+var(--tabs-h,0px)+var(--studio-head,0px))] z-[16] -mx-5 lg:-mx-10 px-5 lg:px-10 bg-canvas">
@@ -1278,7 +1278,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
       <div className="w-full flex-1">
         <div className="mt-2 space-y-8 pb-6">
           {turns.length === 0 && (
-            <div className="pt-[14vh] pb-4 text-center">
+            <div className="pt-[calc(14vh/var(--z,1))] pb-4 text-center">
               <h2 className="text-[22px] font-semibold text-ink-900 tracking-tight">How can I help?</h2>
               <div className="mt-6 grid grid-cols-2 gap-2 sm:flex sm:flex-nowrap sm:justify-center">
                 {[
@@ -2946,7 +2946,7 @@ function KitChip({ children, onRemove }) {
 function KitPopover({ video = false, kit, setKit, templates, logo, products, onManage }) {
   const empty = video ? !products.length : !templates.length && !logo && !products.length
   return (
-    <div className="absolute inset-x-2 bottom-full z-30 mb-2 max-h-[60vh] overflow-y-auto rounded-2xl border border-ink-200 bg-white p-4 shadow-[0_12px_40px_rgba(16,24,40,0.16)] sm:inset-x-auto sm:bottom-11 sm:left-0 sm:mb-0 sm:w-[340px]">
+    <div className="absolute inset-x-2 bottom-full z-30 mb-2 max-h-[calc(60vh/var(--z,1))] overflow-y-auto rounded-2xl border border-ink-200 bg-white p-4 shadow-[0_12px_40px_rgba(16,24,40,0.16)] sm:inset-x-auto sm:bottom-11 sm:left-0 sm:mb-0 sm:w-[340px]">
       {empty ? (
         <div className="text-[12.5px] leading-relaxed text-ink-600">
           {video

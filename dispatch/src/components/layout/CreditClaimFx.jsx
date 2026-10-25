@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import LiveAvatar from '../ui/LiveAvatar'
 import CreditCoin from './CreditCoin'
+import { rectOf } from '../../lib/zoom'
 
 const fmt = (n) => Number(n || 0).toLocaleString('en-US')
 const reduced = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -81,9 +82,9 @@ export default function CreditClaimFx() {
   }
 
   const getIt = () => {
-    const from = coinRef.current?.getBoundingClientRect()
+    const from = coinRef.current && rectOf(coinRef.current)
     const chip = [...document.querySelectorAll('[data-credit-chip]')].find((el) => el.getBoundingClientRect().width > 0)
-    const to = chip?.getBoundingClientRect()
+    const to = chip && rectOf(chip)
     if (!from || !to || reduced()) return done()
     setShown(amount)
     setFly({ x: from.left + from.width / 2, y: from.top + from.height / 2, tx: to.left + 18, ty: to.top + to.height / 2 })

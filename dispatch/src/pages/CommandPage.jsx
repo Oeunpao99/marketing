@@ -4,8 +4,8 @@ import { FiArrowDownRight, FiArrowUpRight, FiCheck, FiChevronRight, FiPlus, FiRe
 import { api } from '../api/client'
 import { useStore } from '../store'
 import Select from '../components/ui/Select'
-import BrandJourney from '../components/setup/BrandJourney'
 import { useBrandMarks } from '../lib/brandMarks'
+import CreditUsageCard from '../components/billing/CreditUsageCard'
 
 // Command center (backend app/command.py): what the AI is doing, and the few
 // things that need a person. One read, refreshed every minute; rows link to
@@ -97,9 +97,6 @@ export default function CommandPage() {
 
       {error && <p className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-[12.5px] text-red-700">{error}</p>}
 
-      {/* until a brand has its products and a platform: the three steps, and what's next */}
-      <BrandJourney hideWhenDone className="mb-5" />
-
       {!data ? (
         <Skeleton />
       ) : (
@@ -112,6 +109,9 @@ export default function CommandPage() {
             <NeedsYou needs={data.needs} autopilot={data.autopilot} showBrand={showBrand} />
             <Today rows={data.today} showBrand={showBrand} acting={acting} onAct={act} />
           </div>
+
+          {/* AI credits: added, used, left, and the credits used each day */}
+          <CreditUsageCard />
 
           <AgentLog log={data.log} />
         </div>

@@ -2,6 +2,7 @@ import {
   FiBarChart2,
   FiCalendar,
   FiClipboard,
+  FiCreditCard,
   FiFilm,
   FiGlobe,
   FiHome,
@@ -20,12 +21,14 @@ import {
 // (SectionTabs.jsx). The first sub-page is the section's own page.
 // `tour` is the anchor the first-run spotlight points at (lib/tour.js); a step
 // whose anchor isn't on screen is simply skipped.
+// `group` starts a new group under a small grey heading (the sidebar, AI Studio style).
 export const BOSS = [
   { to: '/command', icon: FiHome, label: 'Command center', tour: 'command' },
   {
     to: '/weekly',
     icon: FiClipboard,
     label: 'Plan & best time',
+    group: 'Create',
     badge: 'plan',
     tour: 'plan',
     sub: [
@@ -44,12 +47,13 @@ export const BOSS = [
       { to: '/editor', icon: FiScissors, label: 'Video editor' },
     ],
   },
-  { to: '/leads', icon: FiUserCheck, label: 'Leads & hand-off', badge: 'leads' },
+  { to: '/leads', icon: FiUserCheck, label: 'Leads & hand-off', badge: 'leads', group: 'Grow' },
   { to: '/insights', icon: FiBarChart2, label: 'Insights & sales' },
   {
     to: '/channels',
     icon: FiSliders,
     label: 'Setup',
+    group: 'Manage',
     dot: 'setup',
     tour: 'channels',
     sub: [
@@ -60,8 +64,10 @@ export const BOSS = [
       { to: '/products', icon: FiPackage, label: 'Products & brand kit' },
     ],
   },
+  // the plans, extra credits and invoices (pages/UpgradePage.jsx)
+  { to: '/upgrade', icon: FiCreditCard, label: 'Plans & credits' },
   // how-to videos for customers (pages/TutorialsPage.jsx, lib/tutorials.js)
-  { to: '/tutorials', icon: FiPlayCircle, label: 'Video tutorials' },
+  { to: '/tutorials', icon: FiPlayCircle, label: 'Video tutorials', group: 'Learn' },
 ];
 
 export const onPath = (pathname, to) => pathname === to || pathname.startsWith(`${to}/`);

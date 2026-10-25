@@ -97,9 +97,10 @@ export const splitClip = (tl, id, t) => {
   if (!c) return { tl, id: null }
   const at = snapFrame(t)
   if (at <= c.start + MIN_DUR || at >= endOf(c) - MIN_DUR) return { tl, id: null }
-  const left = { ...c, dur: r3(at - c.start), fadeOut: 0 }
-  const right = { ...c, id: newId(), start: at, dur: r3(endOf(c) - at), fadeIn: 0 }
-  if (c.kind === 'video' || c.kind === 'audio') right.from = r3((c.from || 0) + (at - c.start))
+  // the cut ends the left half's animation out and the right half's animation in
+  const left = { ...c, dur: r3(at - c.start), fadeOut: 0, animOut: 'none' }
+  const right = { ...c, id: newId(), start: at, dur: r3(endOf(c) - at), fadeIn: 0, animIn: 'none' }
+  if (c.kind === 'video' || c.kind === 'audio') right.from = r3((c.from || 0) + (at - c.start) * speedOf(c))
   return { tl: { ...tl, clips: tl.clips.flatMap((x) => (x.id === id ? [left, right] : [x])) }, id: right.id }
 }
 
@@ -112,8 +113,31 @@ export const duplicateClip = (tl, id) => {
   return { tl: { ...tl, clips: [...tl.clips, copy] }, id: copy.id }
 }
 
+/** A video's or sound's speed (1 = as filmed): `dur` seconds on the timeline use dur × speed of the file. */
+export const SPEED_MIN = 0.25
+export const SPEED_MAX = 4
+export const speedOf = (c) => ((c.kind === 'video' || c.kind === 'audio') && c.speed > 0 ? Math.min(SPEED_MAX, Math.max(SPEED_MIN, c.speed)) : 1)
+
 /** How long a clip may become — a video or sound can't run past its file's end. */
-export const maxDur = (c) => (c.kind === 'video' || c.kind === 'audio') && c.srcDur > 0 ? Math.max(MIN_DUR, c.srcDur - (c.from || 0)) : 3600
+export const maxDur = (c) =>
+  (c.kind === 'video' || c.kind === 'audio') && c.srcDur > 0 ? Math.max(MIN_DUR, (c.srcDur - (c.from || 0)) / speedOf(c)) : 3600
+
+/**
+ * A new speed for a video or sound: it keeps the same part of its file, so it gets
+ * shorter when faster and longer when slower — but a slower clip stops at the next
+ * clip on its track (the end of what it shows is cut there).
+ */
+export const setSpeed = (tl, id, speed) => {
+  const c = tl.clips.find((x) => x.id === id)
+  if (!c || (c.kind !== 'video' && c.kind !== 'audio')) return tl
+  const v = Math.min(SPEED_MAX, Math.max(SPEED_MIN, Math.round(speed * 100) / 100))
+  const used = c.dur * speedOf(c) // seconds of the file the clip shows
+  const next = onTrack(tl, c.track, id).find((o) => o.start >= endOf(c) - 1e-6)
+  const room = next ? next.start - c.start : Infinity
+  const dur = r3(Math.max(MIN_DUR, Math.min(snapFrame(used / v), room)))
+  const half = dur / 2
+  return updateClip(tl, id, { speed: v, dur, fadeIn: Math.min(c.fadeIn || 0, half), fadeOut: Math.min(c.fadeOut || 0, half) })
+}
 
 /**
  * Trim a clip's edge. side "left": the clip starts later (or earlier, up to
@@ -128,11 +152,11 @@ export const trimClip = (tl, id, side, t) => {
   if (side === 'left') {
     const prev = others.filter((o) => endOf(o) <= c.start + 1e-6).pop()
     let lo = prev ? endOf(prev) : 0
-    if (c.kind === 'video' || c.kind === 'audio') lo = Math.max(lo, c.start - (c.from || 0)) // the file's start
+    if (c.kind === 'video' || c.kind === 'audio') lo = Math.max(lo, c.start - (c.from || 0) / speedOf(c)) // the file's start
     const s = snapFrame(Math.min(end - MIN_DUR, Math.max(lo, t)))
     const shift = s - c.start
     const patch = { start: r3(s), dur: r3(end - s) }
-    if (c.kind === 'video' || c.kind === 'audio') patch.from = r3(Math.max(0, (c.from || 0) + shift))
+    if (c.kind === 'video' || c.kind === 'audio') patch.from = r3(Math.max(0, (c.from || 0) + shift * speedOf(c)))
     return updateClip(tl, id, patch)
   }
   const next = others.find((o) => o.start >= end - 1e-6)

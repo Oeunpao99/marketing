@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { FiCalendar, FiChevronDown, FiChevronLeft, FiChevronRight } from 'react-icons/fi'
 import { phnomPenhDate } from '../../lib/tz'
+import { rectOf, viewH } from '../../lib/zoom'
 
 // A date filter in the app's menu style: quick presets plus a month calendar
 // that marks the days that have something on them. Dates are "YYYY-MM-DD"
@@ -69,8 +70,8 @@ export default function DateRangePicker({ value, onChange, counts = {}, align = 
   // Open upward when there's no room below.
   useLayoutEffect(() => {
     if (!open || !panel.current || !root.current) return
-    const r = root.current.getBoundingClientRect()
-    setUp(window.innerHeight - r.bottom < panel.current.offsetHeight + 12 && r.top > window.innerHeight - r.bottom)
+    const r = rectOf(root.current)
+    setUp(viewH() - r.bottom < panel.current.offsetHeight + 12 && r.top > viewH() - r.bottom)
   }, [open])
 
   const total = useMemo(

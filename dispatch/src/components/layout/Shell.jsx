@@ -16,6 +16,7 @@ import { useStore } from '../../store'
 import { useAutoRunWatcher } from '../../lib/autoRuns'
 import { useGenJobWatcher } from '../../lib/genJobs'
 import { useAppBadge } from '../../lib/notifications'
+import { applyZoom, unzoom } from '../../lib/zoom'
 
 const KEY = 'dispatch.sidebarCollapsed'
 
@@ -64,11 +65,11 @@ function ResizeHandle({ width, onChange }) {
     document.body.style.userSelect = 'none'
   }
   const move = (e) => {
-    if (drag.current) onChange(clampWidth(drag.current.w + e.clientX - drag.current.x), false)
+    if (drag.current) onChange(clampWidth(drag.current.w + unzoom(e.clientX - drag.current.x)), false)
   }
   const up = (e) => {
     if (!drag.current) return
-    onChange(clampWidth(drag.current.w + e.clientX - drag.current.x), true)
+    onChange(clampWidth(drag.current.w + unzoom(e.clientX - drag.current.x)), true)
     drag.current = null
     setActive(false)
     document.body.style.cursor = ''
@@ -139,6 +140,18 @@ export default function Shell({ children }) {
   useLayoutEffect(() => {
     window.scrollTo(0, 0)
   }, [pathname])
+
+  // the display size (lib/zoom.js) — on while the app shows; again when the window
+  // crosses 1024 px or moves to another screen (its scaling can differ)
+  useLayoutEffect(() => {
+    applyZoom(true)
+    const again = () => applyZoom(true)
+    window.addEventListener('resize', again)
+    return () => {
+      window.removeEventListener('resize', again)
+      applyZoom(false)
+    }
+  }, [])
 
   const toggle = () =>
     setCollapsed((v) => {

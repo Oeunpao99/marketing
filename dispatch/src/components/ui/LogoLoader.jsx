@@ -3,7 +3,7 @@
 // of empty grey boxes. Stays still for people who turn motion off.
 export default function LogoLoader({ label = 'Loading…', className = '' }) {
   return (
-    <div className={`flex min-h-[60vh] flex-col items-center justify-center gap-5 animate-fadein ${className}`} role="status" aria-live="polite">
+    <div className={`flex min-h-[calc(60vh/var(--z,1))] flex-col items-center justify-center gap-5 animate-fadein ${className}`} role="status" aria-live="polite">
       <style>{`
         @keyframes ll-breathe { 0%, 100% { transform: scale(0.94); filter: drop-shadow(0 4px 10px rgb(var(--brand) / 0.15)) } 50% { transform: scale(1.06); filter: drop-shadow(0 10px 24px rgb(var(--brand) / 0.35)) } }
         @keyframes ll-ring { 0% { transform: scale(0.7); opacity: 0.55 } 100% { transform: scale(1.7); opacity: 0 } }

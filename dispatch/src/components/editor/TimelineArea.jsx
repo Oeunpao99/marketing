@@ -4,6 +4,7 @@ import { endOf, fmtTime, moveClip, snapPoints, snapTo, trimClip } from '../../li
 import { useTime } from './clock'
 import { DRAG_TYPE } from './MediaPanel'
 import { thumbOf } from './media'
+import { unzoom } from '../../lib/zoom'
 
 // The video editor's timeline: a ruler, the tracks (words, videos, sound) and
 // their clips, and the red playhead line. Drag a clip to move it (to another
@@ -14,10 +15,10 @@ const LABEL_W = 88
 const ROW_H = { text: 34, video: 58, audio: 42 }
 const TRACK_ICON = { text: FiType, video: FiFilm, audio: FiMusic }
 const CLIP_CLS = {
-  video: 'bg-sky-700 ring-sky-400',
-  image: 'bg-indigo-700 ring-indigo-400',
-  text: 'bg-amber-600 ring-amber-300',
-  audio: 'bg-emerald-700 ring-emerald-400',
+  video: 'bg-gradient-to-b from-teal-600 to-teal-800 ring-white',
+  image: 'bg-gradient-to-b from-indigo-500 to-indigo-700 ring-white',
+  text: 'bg-gradient-to-b from-amber-500 to-orange-600 ring-white',
+  audio: 'bg-gradient-to-b from-emerald-600 to-emerald-800 ring-white',
 }
 const STEPS = [0.5, 1, 2, 5, 10, 15, 30, 60, 120]
 
@@ -51,8 +52,8 @@ function Playhead({ clock, zoom, scroller, height }) {
   }, [x, clock, scroller])
   return (
     <div className="pointer-events-none absolute top-0 z-20" style={{ left: LABEL_W + x, height }}>
-      <div className="absolute -left-[5px] top-0 h-2.5 w-2.5 rotate-45 rounded-[2px] bg-red-500" />
-      <div className="absolute left-0 top-0 h-full w-px bg-red-500" />
+      <div className="absolute -left-[6px] top-0 h-3.5 w-3 rounded-b-[5px] rounded-t-[2px] bg-brand shadow" />
+      <div className="absolute left-0 top-0 h-full w-[1.5px] -translate-x-[0.25px] bg-ink-900" />
     </div>
   )
 }
@@ -64,13 +65,13 @@ function Clip({ clip, zoom, selected, onPointerDown }) {
   return (
     <div
       onPointerDown={(e) => onPointerDown(e, clip, 'move')}
-      className={`group absolute inset-y-1 cursor-grab overflow-hidden rounded-md text-white shadow-sm active:cursor-grabbing ${CLIP_CLS[clip.kind] || CLIP_CLS.video} ${selected ? 'z-10 ring-2' : 'ring-0'}`}
+      className={`group absolute inset-y-1 cursor-grab overflow-hidden rounded-lg text-white shadow-sm active:cursor-grabbing ${CLIP_CLS[clip.kind] || CLIP_CLS.video} ${selected ? 'z-10 ring-2 ring-offset-1 ring-offset-canvas' : 'ring-0'}`}
       style={{ left, width }}
       title={clip.name || clip.text || ''}
     >
       {thumb && (
         <div
-          className="absolute inset-0 opacity-70"
+          className="absolute inset-0 opacity-90"
           style={{ backgroundImage: `url("${thumb}")`, backgroundRepeat: 'repeat-x', backgroundSize: 'auto 100%' }}
         />
       )}
@@ -80,8 +81,11 @@ function Clip({ clip, zoom, selected, onPointerDown }) {
           style={{ backgroundImage: 'repeating-linear-gradient(90deg, rgba(255,255,255,.9) 0 2px, transparent 2px 5px)', maskImage: 'linear-gradient(transparent 0, black 30%, black 70%, transparent 100%)' }}
         />
       )}
-      <span className="relative block truncate px-2 pt-0.5 text-[10.5px] font-semibold drop-shadow">
-        {clip.kind === 'text' ? clip.text || 'Words' : clip.name || ''}
+      <span className="relative flex items-center gap-1 truncate px-2 pt-0.5 text-[10.5px] font-semibold drop-shadow">
+        {clip.speed && clip.speed !== 1 && clip.kind !== 'text' && clip.kind !== 'image' && (
+          <span className="flex-none rounded bg-black/45 px-1 tabular-nums">{clip.speed}×</span>
+        )}
+        <span className="truncate">{clip.kind === 'text' ? clip.text || 'Words' : clip.name || ''}</span>
       </span>
       {clip.volume === 0 && clip.kind !== 'text' && clip.kind !== 'image' && (
         <FiVolumeX size={11} className="absolute bottom-1 left-1.5 opacity-80" />
@@ -105,7 +109,7 @@ function TimelineArea({ tl, clock, selected, onSelect, onSeek, onLive, onBegin, 
   const timeAt = (clientX) => {
     const el = scroller.current
     const box = el.getBoundingClientRect()
-    return Math.max(0, (clientX - box.left - LABEL_W + el.scrollLeft) / zoom)
+    return Math.max(0, (unzoom(clientX - box.left) - LABEL_W + el.scrollLeft) / zoom)
   }
   const trackAt = (clientX, clientY) => {
     for (const el of document.elementsFromPoint(clientX, clientY)) {
@@ -141,7 +145,7 @@ function TimelineArea({ tl, clock, selected, onSelect, onSeek, onLive, onBegin, 
     drag.current = { id: clip.id }
     onBegin()
     const move = (ev) => {
-      const dt = (ev.clientX - x0) / zoom
+      const dt = unzoom(ev.clientX - x0) / zoom
       if (!moved && Math.abs(ev.clientX - x0) < 3) return
       moved = true
       if (mode === 'move') {

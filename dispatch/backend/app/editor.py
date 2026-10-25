@@ -34,6 +34,9 @@ router = APIRouter(prefix="/editor", tags=["Video editor"])
 RATIOS = {"9:16": "1080x1920", "16:9": "1920x1080", "1:1": "1080x1080", "4:5": "1080x1350"}
 TRACK_KINDS = {"video", "text", "audio"}
 CLIP_KINDS = {"video", "image", "audio", "text"}
+# timeline.jsx FILTERS and ANIMS — keep the same
+FILTERS = {"none", "bw", "warm", "cool", "vintage", "vivid", "fade", "drama"}
+ANIMS = {"none", "fade", "zoom", "zoom-out", "pop", "slide-left", "slide-right", "slide-up", "slide-down", "spin"}
 MEDIA_KINDS = {"video", "image", "audio"}
 MAX_TRACKS = 12
 MAX_CLIPS = 400
@@ -108,14 +111,29 @@ def clean_timeline(raw, ratio: str = "9:16") -> dict:
                     "srcDur": _num(c.get("srcDur"), 0, 36000, 0),
                 }
             )
+            if kind in ("video", "audio"):
+                clip["speed"] = _num(c.get("speed"), 0.25, 4, 1)
         if kind != "audio":
             clip.update(
                 x=_num(c.get("x"), -100, 100, 0),
                 y=_num(c.get("y"), -100, 100, 0),
                 scale=_num(c.get("scale"), 0.05, 5, 1),
+                rotate=_num(c.get("rotate"), -180, 180, 0),
+                opacity=_num(c.get("opacity"), 0, 1, 1),
+                animIn=c.get("animIn") if c.get("animIn") in ANIMS else "none",
+                animOut=c.get("animOut") if c.get("animOut") in ANIMS else "none",
+                animInDur=_num(c.get("animInDur"), 0.1, 3, 0.5),
+                animOutDur=_num(c.get("animOutDur"), 0.1, 3, 0.5),
             )
             if kind != "text":
                 clip["fit"] = c.get("fit") if c.get("fit") in ("contain", "cover") else "contain"
+                clip.update(
+                    brightness=_num(c.get("brightness"), 0.3, 1.7, 1),
+                    contrast=_num(c.get("contrast"), 0.3, 1.7, 1),
+                    saturation=_num(c.get("saturation"), 0, 2, 1),
+                    blur=_num(c.get("blur"), 0, 30, 0),
+                    filter=c.get("filter") if c.get("filter") in FILTERS else "none",
+                )
         seen.add(cid)
         clips.append(clip)
     return {"ratio": ratio if ratio in RATIOS else "9:16", "tracks": tracks, "clips": clips}

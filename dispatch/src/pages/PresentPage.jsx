@@ -114,7 +114,7 @@ export default function PresentPage() {
 
   if (error) {
     return (
-      <div className="grid min-h-[60vh] place-items-center px-5 text-center">
+      <div className="grid min-h-[calc(60vh/var(--z,1))] place-items-center px-5 text-center">
         <div>
           <p className="text-[14px] text-ink-700">{error}</p>
           <button type="button" onClick={() => navigate('/library')} className="btn-outline mt-4">
@@ -126,7 +126,7 @@ export default function PresentPage() {
   }
   if (!deck) {
     return (
-      <div className="grid min-h-[60vh] place-items-center">
+      <div className="grid min-h-[calc(60vh/var(--z,1))] place-items-center">
         <span className="h-6 w-6 animate-spin rounded-full border-2 border-brand/30 border-t-brand" />
       </div>
     )

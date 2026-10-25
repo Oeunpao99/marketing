@@ -11,9 +11,9 @@ import { abs, thumbOf } from './media'
 export const DRAG_TYPE = 'application/x-cf-media'
 
 const TABS = [
-  { id: 'imports', label: 'Import', icon: FiUploadCloud },
+  { id: 'imports', label: 'Media', icon: FiUploadCloud },
   { id: 'library', label: 'Library', icon: FiFilm },
-  { id: 'words', label: 'Words', icon: FiType },
+  { id: 'words', label: 'Text', icon: FiType },
 ]
 
 // ready-made words: a title, a subtitle line, a label
@@ -36,7 +36,7 @@ function Tile({ item, onAdd, onRemove }) {
         e.dataTransfer.setData(DRAG_TYPE, JSON.stringify(item))
         e.dataTransfer.effectAllowed = 'copy'
       }}
-      className="group relative aspect-square cursor-grab overflow-hidden rounded-lg bg-ink-100 ring-1 ring-ink-200 active:cursor-grabbing"
+      className="group relative aspect-square cursor-grab overflow-hidden rounded-xl bg-ink-100 ring-1 ring-ink-200 transition hover:ring-2 hover:ring-brand active:cursor-grabbing"
       title={item.name}
     >
       {thumb ? (
@@ -116,15 +116,17 @@ export default function MediaPanel({ onImport, onAdd, onAddWords, uploads, setUp
 
   return (
     <aside className="flex h-full min-h-0 flex-col border-ink-200 bg-white lg:w-[272px] lg:flex-none lg:border-r">
-      <div className="flex flex-none gap-1 border-b border-ink-200 p-2">
+      <div className="flex flex-none gap-1 border-b border-ink-200 px-2 pt-2">
         {TABS.map((t) => (
           <button
             key={t.id}
             type="button"
             onClick={() => setTab(t.id)}
-            className={`flex flex-1 flex-col items-center gap-0.5 rounded-lg py-1.5 text-[10.5px] font-semibold transition-colors ${tab === t.id ? 'bg-ink-100 text-ink-900' : 'text-ink-500 hover:text-ink-800'}`}
+            className={`-mb-px flex flex-1 flex-col items-center gap-1 border-b-2 pb-2 pt-1 text-[11px] font-semibold transition-colors ${tab === t.id ? 'border-brand text-brand' : 'border-transparent text-ink-500 hover:text-ink-800'}`}
           >
-            <t.icon size={15} />
+            <span className={`grid h-8 w-8 place-items-center rounded-lg transition-colors ${tab === t.id ? 'bg-brand-soft' : ''}`}>
+              <t.icon size={16} />
+            </span>
             {t.label}
           </button>
         ))}

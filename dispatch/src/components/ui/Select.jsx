@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { FiCheck, FiChevronDown, FiSearch } from 'react-icons/fi'
+import { rectOf, viewH, viewW } from '../../lib/zoom'
 
 // A dropdown in the app's own menu style (same look as the sidebar's brand
 // switcher) — use it instead of the browser's native <select> everywhere.
@@ -62,13 +63,13 @@ export default function Select({
       return setUp(false)
     }
     let top = 0
-    let bottom = window.innerHeight
+    let bottom = viewH()
     let left = 0
-    let right = window.innerWidth
+    let right = viewW()
     let scroller = false
     for (let el = root.current.parentElement; el; el = el.parentElement) {
       if (/auto|scroll/.test(getComputedStyle(el).overflowY)) {
-        const r = el.getBoundingClientRect()
+        const r = rectOf(el)
         top = Math.max(top, r.top)
         bottom = Math.min(bottom, r.bottom)
         left = Math.max(left, r.left)
@@ -77,7 +78,7 @@ export default function Select({
         break
       }
     }
-    const box = root.current.getBoundingClientRect()
+    const box = rectOf(root.current)
     const room = right - left - 16
     const w = Math.min(menu.current.offsetWidth, room)
     const want = align === 'right' ? box.right - w : box.left
@@ -259,15 +260,15 @@ function PreviewCard({ option, menu, row }) {
   useLayoutEffect(() => {
     setStill(false)
     if (!menu.current || !row || !window.matchMedia?.('(hover: hover) and (pointer: fine)').matches) return setBox(null)
-    const m = menu.current.getBoundingClientRect()
-    const r = row.getBoundingClientRect()
+    const m = rectOf(menu.current)
+    const r = rectOf(row)
     const W = 230
     const H = Math.round((W * 16) / 9) + 74 // the 9:16 clip + its name and hint
     const gap = 14
-    const left = m.left - gap - W >= 8 ? m.left - gap - W : m.right + gap + W <= window.innerWidth - 8 ? m.right + gap : null
+    const left = m.left - gap - W >= 8 ? m.left - gap - W : m.right + gap + W <= viewW() - 8 ? m.right + gap : null
     if (left == null) return setBox(null)
     const mid = r.top + r.height / 2
-    const top = Math.max(8, Math.min(mid - H / 2, window.innerHeight - 8 - H))
+    const top = Math.max(8, Math.min(mid - H / 2, viewH() - 8 - H))
     setBox({ left, top, W, H, tail: Math.max(22, Math.min(H - 22, mid - top)), side: left < m.left ? 'right' : 'left' })
   }, [option.value, row, menu])
   if (!box) return null

@@ -494,9 +494,9 @@ export default function PostDetailPage() {
       {zoom && src && (
         <div className="fixed inset-0 z-[100] bg-night-950/80 grid place-items-center p-6 animate-fadein" onClick={() => setZoom(false)}>
           {isImage ? (
-            <img src={src} alt="" className="max-h-[85vh] max-w-full rounded-xl object-contain" />
+            <img src={src} alt="" className="max-h-[calc(85vh/var(--z,1))] max-w-full rounded-xl object-contain" />
           ) : (
-            <video src={src} className="max-h-[85vh] max-w-full rounded-xl" controls autoPlay onClick={(e) => e.stopPropagation()} />
+            <video src={src} className="max-h-[calc(85vh/var(--z,1))] max-w-full rounded-xl" controls autoPlay onClick={(e) => e.stopPropagation()} />
           )}
         </div>
       )}

@@ -641,7 +641,7 @@ function ResultCard({ story, voice, onUseFinal, onLibrary }) {
           src={abs(story.final_video.url)}
           controls
           playsInline
-          className={`block rounded-xl bg-black object-contain ${vertical ? 'max-h-[68vh] w-auto' : 'max-h-[60vh] w-full'}`}
+          className={`block rounded-xl bg-black object-contain ${vertical ? 'max-h-[calc(68vh/var(--z,1))] w-auto' : 'max-h-[calc(60vh/var(--z,1))] w-full'}`}
         />
       </div>
       <div className="flex flex-col p-6">
@@ -1068,7 +1068,7 @@ function FinalVideo({ story, compact = false, onUseFinal, onLibrary }) {
           src={abs(story.final_video.url)}
           controls
           playsInline
-          className={`w-full ${shape} block max-h-[58vh] rounded-xl bg-black object-contain`}
+          className={`w-full ${shape} block max-h-[calc(58vh/var(--z,1))] rounded-xl bg-black object-contain`}
         />
       </div>
       <div className="p-4">
@@ -1124,7 +1124,7 @@ function RedoDialog({ value, story, busy, onChange, onCancel, onSubmit }) {
   const index = story.scenes.findIndex((scene) => scene.key === value.scene.key)
   return createPortal(
     <div className="fixed inset-0 z-[110] glass-overlay flex items-center justify-center p-4 animate-fadein" onClick={onCancel}>
-      <form role="dialog" aria-modal="true" onSubmit={onSubmit} className="glass-panel rounded-3xl w-full max-w-xl max-h-[90vh] flex flex-col" onClick={(event) => event.stopPropagation()}>
+      <form role="dialog" aria-modal="true" onSubmit={onSubmit} className="glass-panel rounded-3xl w-full max-w-xl max-h-[calc(90vh/var(--z,1))] flex flex-col" onClick={(event) => event.stopPropagation()}>
         <header className="flex items-start justify-between gap-3 px-6 pt-6 pb-4 border-b border-ink-100">
           <div>
             <h2 className="text-[16px] font-bold text-ink-900">Edit & redo scene {index + 1}</h2>

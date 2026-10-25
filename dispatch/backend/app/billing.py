@@ -619,6 +619,69 @@ def billing_activity(
     return _activity_page(db, ws, page, per_page, start, end, flow)
 
 
+USAGE_TYPES = {"writing": ("text",), "images": ("image",), "videos": ("video",)}
+
+
+@router.get("/usage")
+def credit_usage(
+    period: str = "month",
+    type: str = "all",
+    db: Session = Depends(get_db),
+    ws: int = Depends(current_workspace_id),
+):
+    """The Command center's AI-credits card: credits in and used over ``period`` ("month" =
+    this month, "last_month", "7d", "28d", "90d" — Phnom Penh days), the credits left now,
+    and the credits used per day (by writing / images / videos). ``type`` narrows "used"
+    and the bars to one of USAGE_TYPES. Every AI call counts here, also one made before
+    the month's claim (the balance doesn't charge those)."""
+    now = datetime.now(PHNOM_PENH)
+    today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    if period == "last_month":
+        end = month_start(now).astimezone(PHNOM_PENH)
+        start = month_start(end - timedelta(days=1)).astimezone(PHNOM_PENH)
+    elif period in ("7d", "28d", "90d"):
+        end = today + timedelta(days=1)
+        start = end - timedelta(days=int(period[:-1]))
+    else:
+        period = "month"
+        start = month_start(now).astimezone(PHNOM_PENH)
+        end = next_reset(now).astimezone(PHNOM_PENH)
+    kinds = USAGE_TYPES.get(type)
+    in_range = (CreditEntry.workspace_id == ws) & (CreditEntry.created_at >= start) & (CreditEntry.created_at < end)
+    spend = (CreditEntry.amount_usd < 0) & (CreditEntry.kind != "transfer_out")
+
+    credits_in = db.scalar(select(func.coalesce(func.sum(CreditEntry.amount_usd), 0)).where(in_range, CreditEntry.amount_usd > 0)) or 0
+    day = func.date(func.timezone("Asia/Phnom_Penh", CreditEntry.created_at))
+    rows = db.execute(
+        select(day, CreditEntry.kind, func.sum(CreditEntry.amount_usd))
+        .where(in_range, spend, *([CreditEntry.kind.in_(kinds)] if kinds else []))
+        .group_by(day, CreditEntry.kind)
+    ).all()
+    group = {k: g for g, ks in USAGE_TYPES.items() for k in ks}
+    by_day: dict[str, dict] = {}
+    for d, kind, usd in rows:
+        slot = by_day.setdefault(str(d), {"writing": 0.0, "images": 0.0, "videos": 0.0})
+        slot[group.get(kind, "videos")] += to_credits(-float(usd or 0))
+    days = []
+    d = start
+    last = min(end, today + timedelta(days=1))  # no empty bars for days still to come
+    while d < end:
+        key = d.date().isoformat()
+        slot = by_day.get(key, {"writing": 0.0, "images": 0.0, "videos": 0.0})
+        days.append({"date": key, **{k: round(v, 1) for k, v in slot.items()}, "used": round(sum(slot.values()), 1), "future": d >= last})
+        d += timedelta(days=1)
+    return {
+        "period": period,
+        "type": type if kinds else "all",
+        "start": start.date().isoformat(),
+        "end": (end - timedelta(days=1)).date().isoformat(),
+        "credits_in": to_credits(float(credits_in)),
+        "used": round(sum(x["used"] for x in days), 1),
+        "left": balance(db, ws)["available_credits"],
+        "days": days,
+    }
+
+
 @router.post("/activity/clear-old")
 def clear_old_activity(db: Session = Depends(get_db), user: TeamMember = Depends(require_manager)):
     """Hide activity older than 3 months from the workspace's list. Nothing is

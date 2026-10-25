@@ -7,6 +7,7 @@ import CreditCoin from './CreditCoin'
 import { claimCredits, useCredits } from '../../lib/credits'
 import { markTourSeen, shouldAutoStart, tourStepsFor } from '../../lib/tour'
 import { helloOpen } from '../../lib/hello'
+import { rectOf, viewH, viewW } from '../../lib/zoom'
 
 // The spotlight: a full-screen dim with a rounded hole cut over one piece of
 // navigation, a pulsing ring around the hole, and a card with an arrow
@@ -41,12 +42,12 @@ function readHole(step) {
   for (const sel of step.targets || []) {
     const el = document.querySelector(sel)
     if (!el) continue
-    const r = el.getBoundingClientRect()
+    const r = rectOf(el)
     if (r.width < 4 || r.height < 4) continue
     const x = Math.max(0, r.left - PAD)
     const y = Math.max(0, r.top - PAD_Y)
-    const w = Math.min(r.right + PAD, window.innerWidth) - x
-    const h = Math.min(r.bottom + PAD_Y, window.innerHeight) - y
+    const w = Math.min(r.right + PAD, viewW()) - x
+    const h = Math.min(r.bottom + PAD_Y, viewH()) - y
     if (w < 4 || h < 4) continue
     return { x, y, w, h }
   }
@@ -57,8 +58,8 @@ function readHole(step) {
 // inside the window.
 function place(hole, size, prefer) {
   if (!hole) return null
-  const vw = window.innerWidth
-  const vh = window.innerHeight
+  const vw = viewW()
+  const vh = viewH()
   const room = {
     right: hole.x + hole.w + GAP + size.w + EDGE <= vw,
     left: hole.x - GAP - size.w - EDGE >= 0,

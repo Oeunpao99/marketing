@@ -36,6 +36,7 @@ import { colorForBrand } from '../lib/brandColor'
 import { isKhmer } from '../lib/format'
 import { handoff } from '../lib/handoff'
 import { useStore } from '../store'
+import { rectOf, viewH, viewW } from '../lib/zoom'
 
 const mediaBase = window.location.port === '5173' ? 'http://localhost:8000' : ''
 const abs = (u) => `${mediaBase}${u}`
@@ -922,9 +923,9 @@ function FolderMenu({ it, rect, folders, onPick, onCreate, onClose }) {
     }
   }, [onClose])
   const width = 240
-  const left = Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8))
-  const below = rect.bottom + 320 < window.innerHeight
-  const pos = below ? { top: rect.bottom + 6 } : { bottom: window.innerHeight - rect.top + 6 }
+  const left = Math.max(8, Math.min(rect.right - width, viewW() - width - 8))
+  const below = rect.bottom + 320 < viewH()
+  const pos = below ? { top: rect.bottom + 6 } : { bottom: viewH() - rect.top + 6 }
   return createPortal(
     <>
       <button type="button" aria-label="Close" className="fixed inset-0 z-[115] cursor-default" onClick={onClose} />
@@ -1114,7 +1115,7 @@ function LibraryCard({ it, isNew, busy, onOpen, onUse, onWrite, onDelete, onFavo
           )}
           <button
             type="button"
-            onClick={stop((e) => onFolder(e.currentTarget.getBoundingClientRect()))}
+            onClick={stop((e) => onFolder(rectOf(e.currentTarget)))}
             title="Add to folder"
             aria-label="Add to folder"
             className={barBtn}
@@ -1302,7 +1303,7 @@ function DetailPanel({ it, busy, folders, onClose, onUse, onDelete, onRewrite, o
       >
         <div className="flex min-h-0 items-center justify-center bg-night-950 p-3 lg:w-[55%]">
           {it.kind === 'image' ? (
-            <img src={abs(it.url)} alt="" className="max-h-[42vh] lg:max-h-[82vh] w-auto max-w-full rounded-xl object-contain" />
+            <img src={abs(it.url)} alt="" className="max-h-[calc(42vh/var(--z,1))] lg:max-h-[calc(82vh/var(--z,1))] w-auto max-w-full rounded-xl object-contain" />
           ) : (
             // its real shape from the start, with the first frame showing while it loads
             <video
@@ -1313,7 +1314,7 @@ function DetailPanel({ it, busy, folders, onClose, onUse, onDelete, onRewrite, o
               playsInline
               preload="auto"
               style={{ aspectRatio: ratioOf(it) }}
-              className="h-[42vh] lg:h-[82vh] w-auto max-w-full rounded-xl bg-black object-contain"
+              className="h-[calc(42vh/var(--z,1))] lg:h-[calc(82vh/var(--z,1))] w-auto max-w-full rounded-xl bg-black object-contain"
             />
           )}
         </div>

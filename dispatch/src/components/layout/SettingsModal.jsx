@@ -51,6 +51,7 @@ import { CreditReceipt, fmtAccount, SendingAnimation } from './CreditReceipt'
 import { claimCredits } from '../../lib/credits'
 import ModelLogo from '../ui/ModelLogo'
 import { useNavigate } from 'react-router-dom'
+import { DISPLAY_SIZES, displaySize, setDisplaySize } from '../../lib/zoom'
 
 // Settings — every control here is real and saves to the backend
 // (app/auth.py): profile, password, workspace name, and the team (add people
@@ -106,7 +107,7 @@ export default function SettingsModal({ open, onClose, showToast, initialTab = n
           that keeps animating (AI Agent renders, videos) re-blurs the whole
           screen every frame and made this feel stuck. */}
       <div className="fixed inset-0 bg-night-950/50" onClick={onClose} />
-      <div className="relative animate-fadein flex h-[90dvh] w-full sm:w-[70vw] overflow-hidden rounded-3xl border border-ink-200/70 bg-white shadow-[0_24px_60px_-16px_rgba(16,24,40,0.35)]">
+      <div className="relative animate-fadein flex h-[calc(90dvh/var(--z,1))] w-full sm:w-[70vw] overflow-hidden rounded-3xl border border-ink-200/70 bg-white shadow-[0_24px_60px_-16px_rgba(16,24,40,0.35)]">
         {/* tabs */}
         <nav className="hidden sm:flex w-[200px] flex-none flex-col gap-0.5 border-r border-ink-100 bg-ink-50/70 p-3">
           <div className="px-2.5 pb-3 pt-1 text-[15px] font-bold text-ink-900">Settings</div>
@@ -413,6 +414,8 @@ function AppearanceTab({ showToast }) {
           </button>
         )}
       </section>
+
+      <DisplaySize showToast={showToast} />
 
       <section className="rounded-2xl border border-ink-200 px-4">
         <ToggleRow
@@ -1308,7 +1311,7 @@ function Sheet({ id, onClose, children }) {
         id={id}
         role="dialog"
         aria-modal="true"
-        className="cf-pop-in relative max-h-[90vh] w-full max-w-[420px] overflow-y-auto overscroll-contain rounded-3xl bg-white p-5 shadow-2xl"
+        className="cf-pop-in relative max-h-[calc(90vh/var(--z,1))] w-full max-w-[420px] overflow-y-auto overscroll-contain rounded-3xl bg-white p-5 shadow-2xl"
       >
         {children}
       </section>
@@ -2795,3 +2798,35 @@ function SaveBar({ dirty, saving, onSave, onReset }) {
     </div>
   )
 }
+
+
+/** Settings → Appearance → Display size (lib/zoom.js): this browser only — it depends on the screen. */
+function DisplaySize({ showToast }) {
+  const [size, setSize] = useState(displaySize)
+  const pick = (id) => {
+    setSize(id)
+    setDisplaySize(id)
+    showToast?.(id === 'auto' ? 'Display size: automatic' : `Display size: ${Math.round(Number(id) * 100)}%`)
+  }
+  return (
+    <section className="rounded-2xl border border-ink-200 p-4">
+      <div className="text-[13.5px] font-semibold text-ink-900">Display size</div>
+      <p className="mt-0.5 text-[12px] text-ink-500">
+        How big the app looks on this screen. Auto makes it smaller on Windows laptops with scaling turned up (125 %, 150 %), so more fits.
+      </p>
+      <div className="mt-3 inline-flex rounded-xl bg-ink-100 p-1">
+        {DISPLAY_SIZES.map((o) => (
+          <button
+            key={o.id}
+            type="button"
+            onClick={() => pick(o.id)}
+            className={`rounded-lg px-3.5 py-1.5 text-[12.5px] font-semibold transition-colors ${size === o.id ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-500 hover:text-ink-800'}`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </section>
+  )
+}
+

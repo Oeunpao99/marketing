@@ -50,7 +50,7 @@ function ToastHost() {
 function NoAccess() {
   const navigate = useNavigate();
   return (
-    <div className="grid min-h-[60vh] place-items-center px-6">
+    <div className="grid min-h-[calc(60vh/var(--z,1))] place-items-center px-6">
       <div className="max-w-sm text-center">
         <div className="text-[17px] font-bold text-ink-900">This part isn’t in your access</div>
         <p className="mt-1.5 text-[13px] leading-relaxed text-ink-500">

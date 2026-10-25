@@ -75,13 +75,20 @@ export default {
         },
       },
       fontFamily: {
-        // IBM Plex — the boss's design (2026-10-13). Plex has no Khmer letters:
-        // Khmer text falls through to Khmer OS Siemreap (index.css @font-face).
-        sans: ['"IBM Plex Sans"', '"Khmer OS Siemreap"', 'system-ui', 'sans-serif'],
-        display: ['"IBM Plex Sans"', '"Khmer OS Siemreap"', 'system-ui', 'sans-serif'],
-        khmer: ['"Khmer OS Siemreap"', '"IBM Plex Sans"', 'system-ui', 'sans-serif'],
+        // Google Sans — the AI Studio look (2026-10-25; was IBM Plex, 2026-10-13). It has no
+        // Khmer letters: Khmer text falls through to Khmer OS Siemreap (index.css @font-face).
+        sans: ['"Google Sans"', '"Khmer OS Siemreap"', 'system-ui', 'sans-serif'],
+        display: ['"Google Sans"', '"Khmer OS Siemreap"', 'system-ui', 'sans-serif'],
+        khmer: ['"Khmer OS Siemreap"', '"Google Sans"', 'system-ui', 'sans-serif'],
         mono: ['"IBM Plex Mono"', '"Khmer OS Siemreap"', 'ui-monospace', 'monospace'],
+        // the same as sans (the sidebar asked for it by name first)
+        gsans: ['"Google Sans"', '"Khmer OS Siemreap"', 'system-ui', 'sans-serif'],
       },
+      // full-window heights under the app's display size (src/lib/zoom.js): the zoom shrinks
+      // vh too, so it's divided back out — --z is 1 where there's no zoom
+      height: { screen: 'calc(100vh / var(--z, 1))', dvh: 'calc(100dvh / var(--z, 1))' },
+      minHeight: { screen: 'calc(100vh / var(--z, 1))', dvh: 'calc(100dvh / var(--z, 1))' },
+      maxHeight: { screen: 'calc(100vh / var(--z, 1))', dvh: 'calc(100dvh / var(--z, 1))' },
       boxShadow: {
         card: '0 1px 2px rgba(22, 25, 29, 0.04), 0 1px 1px rgba(22, 25, 29, 0.03)',
         'card-hover': '0 4px 14px rgba(22, 25, 29, 0.08), 0 1px 2px rgba(22, 25, 29, 0.05)',
