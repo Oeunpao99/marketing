@@ -269,6 +269,50 @@ def admin_reset_price(plan: str, db: Session = Depends(get_db)):
     return payments.reset_admin_price(db, plan)
 
 
+@router.get("/credit-packs", dependencies=[Depends(require_admin)])
+def admin_get_packs(db: Session = Depends(get_db)):
+    """The credit packs customers on a paid plan can buy (credits, USD, KHR, on sale)."""
+    from app import payments
+
+    return payments.admin_packs(db)
+
+
+class PacksIn(BaseModel):
+    packs: list[dict]
+
+
+@router.put("/credit-packs", dependencies=[Depends(require_admin)])
+def admin_set_packs(payload: PacksIn, db: Session = Depends(get_db)):
+    """The whole list: rows with an id are updated, without one added, missing ones removed."""
+    from app import payments
+
+    try:
+        rows = [payments.PackRow(**r) for r in payload.packs]
+    except ValueError as exc:
+        raise HTTPException(422, "Each pack needs its credits (a whole number) and a price.") from exc
+    return payments.save_admin_packs(db, rows)
+
+
+@router.get("/credit-custom", dependencies=[Depends(require_admin)])
+def admin_get_custom(db: Session = Depends(get_db)):
+    """The price of 100 credits for a customer's own amount (None = not on sale)."""
+    from app import payments
+
+    return {"custom": payments._custom_out(db)}
+
+
+class CustomIn(BaseModel):
+    usd: float | None = None
+    khr: float | None = None
+
+
+@router.put("/credit-custom", dependencies=[Depends(require_admin)])
+def admin_set_custom(payload: CustomIn, db: Session = Depends(get_db)):
+    from app import payments
+
+    return {"custom": payments.save_custom_rate(db, payload.usd, payload.khr)}
+
+
 @router.get("/payments", dependencies=[Depends(require_admin)])
 def admin_payments(status: str = "", db: Session = Depends(get_db)):
     """KHQR plan payments (app/payments.py), newest first — "paid", "mismatch"

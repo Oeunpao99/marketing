@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   FiActivity,
@@ -374,6 +374,170 @@ function Prices() {
         {fail && <span className="text-[12.5px] text-red-600">{fail}</span>}
       </div>
       <p className="text-[11.5px] text-ink-400">Leave a box empty to stop selling that plan in that currency. Customers who already paid keep their month at the old price.</p>
+      <CreditPacks />
+    </div>
+  )
+}
+
+// ── credit packs: extra credits customers on a paid plan buy with KHQR ────
+function CreditPacks() {
+  const { data, error, setData } = useLoad('/credit-packs')
+  const [rows, setRows] = useState([]) // as typed: { id?, key, credits, usd, khr, active }
+  const [busy, setBusy] = useState(false)
+  const [note, setNote] = useState('')
+  const [fail, setFail] = useState('')
+  const fresh = useRef(0)
+
+  const fromData = (d) => d.map((p) => ({ ...p, key: `p${p.id}`, credits: String(p.credits), usd: p.usd ?? '', khr: p.khr ?? '' }))
+  useEffect(() => {
+    if (data) setRows(fromData(data))
+  }, [data])
+
+  const num = (v) => (v === '' || v == null ? null : Number(String(v).replace(/,/g, '')))
+  const set = (key, field, value) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, [field]: value } : r)))
+  const changed = data && JSON.stringify(rows.map(({ key, ...r }) => r)) !== JSON.stringify(fromData(data).map(({ key, ...r }) => r))
+
+  const save = async () => {
+    setBusy(true)
+    setFail('')
+    setNote('')
+    try {
+      const packs = rows.map((r) => ({ id: r.id ?? null, credits: num(r.credits) ?? 0, usd: num(r.usd), khr: num(r.khr), active: r.active }))
+      setData(await adminApi('PUT', '/credit-packs', { packs }))
+      setNote('Saved — customers see the new packs straight away.')
+    } catch (e) {
+      setFail(e.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (error) return <div className="text-[13px] text-red-600">{error}</div>
+  if (!data) return null
+  const input = 'h-10 w-full rounded-xl border border-ink-200 bg-white px-3 text-[14px] tabular-nums text-ink-900 focus:border-brand focus:outline-none'
+  return (
+    <div className="space-y-4 pt-4">
+      <div>
+        <h2 className="text-[18px] font-bold tracking-tight text-ink-900">Credit packs</h2>
+        <p className="mt-1 text-[13px] text-ink-500">Extra credits a customer on a paid plan can buy (Upgrade page → Top up credits). They last until the month ends.</p>
+      </div>
+      <section className={`${card} divide-y divide-ink-100`}>
+        {rows.length === 0 && <div className="p-5 text-[13px] text-ink-500">No packs — customers can&apos;t buy extra credits.</div>}
+        {rows.map((r) => {
+          const usd = num(r.usd)
+          const credits = num(r.credits)
+          return (
+            <div key={r.key} className="grid gap-3 p-5 sm:grid-cols-[1fr_1fr_1fr_auto_auto] sm:items-end">
+              <label className="block">
+                <span className="mb-1 block text-[11.5px] font-semibold text-ink-600">Credits</span>
+                <input inputMode="numeric" className={input} value={r.credits} placeholder="e.g. 1000" onChange={(e) => set(r.key, 'credits', e.target.value.replace(/[^\d]/g, ''))} />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-[11.5px] font-semibold text-ink-600">US dollars ($)</span>
+                <input inputMode="decimal" className={input} value={r.usd} placeholder="not sold in USD" onChange={(e) => set(r.key, 'usd', e.target.value.replace(/[^\d.]/g, ''))} />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-[11.5px] font-semibold text-ink-600">Riel (៛)</span>
+                <input inputMode="numeric" className={input} value={r.khr} placeholder="not sold in KHR" onChange={(e) => set(r.key, 'khr', e.target.value.replace(/[^\d]/g, ''))} />
+              </label>
+              <label className="flex h-10 items-center gap-2 text-[12.5px] font-semibold text-ink-700">
+                <input type="checkbox" checked={r.active} onChange={(e) => set(r.key, 'active', e.target.checked)} className="h-4 w-4 accent-[rgb(var(--brand))]" />
+                On sale
+              </label>
+              <button type="button" disabled={busy} onClick={() => setRows((rs) => rs.filter((x) => x.key !== r.key))} className="h-10 rounded-xl px-3 text-[12.5px] font-semibold text-ink-500 hover:bg-ink-50 hover:text-red-600">
+                Remove
+              </button>
+              {usd > 0 && credits > 0 && (
+                <div className="text-[11.5px] text-ink-400 sm:col-span-5">
+                  {((usd / credits) * 100).toFixed(2)}¢ a credit
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </section>
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => setRows((rs) => [...rs, { key: `n${++fresh.current}`, credits: '', usd: '', khr: '', active: true }])}
+          className="btn-ghost h-10 px-4 text-[13px]"
+        >
+          + Add a pack
+        </button>
+        <button type="button" onClick={save} disabled={busy || !changed} className="btn-primary h-10 px-5 text-[13px] disabled:opacity-50">
+          {busy ? 'Saving…' : 'Save packs'}
+        </button>
+        {note && <span className="text-[12.5px] text-emerald-600">{note}</span>}
+        {fail && <span className="text-[12.5px] text-red-600">{fail}</span>}
+      </div>
+      <CustomCredits />
+    </div>
+  )
+}
+
+// ── custom amount: the customer types how many credits; the price is per 100 ──
+function CustomCredits() {
+  const { data, error, setData } = useLoad('/credit-custom')
+  const [usd, setUsd] = useState('')
+  const [khr, setKhr] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [note, setNote] = useState('')
+  const [fail, setFail] = useState('')
+
+  useEffect(() => {
+    if (!data) return
+    setUsd(data.custom?.per_100?.USD ?? '')
+    setKhr(data.custom?.per_100?.KHR ?? '')
+  }, [data])
+
+  const num = (v) => (v === '' || v == null ? null : Number(String(v).replace(/,/g, '')))
+  const changed = data && (num(usd) !== (data.custom?.per_100?.USD ?? null) || num(khr) !== (data.custom?.per_100?.KHR ?? null))
+
+  const save = async () => {
+    setBusy(true)
+    setFail('')
+    setNote('')
+    try {
+      setData(await adminApi('PUT', '/credit-custom', { usd: num(usd), khr: num(khr) }))
+      setNote(num(usd) || num(khr) ? 'Saved — customers can type their own amount.' : 'Custom amounts are off.')
+    } catch (e) {
+      setFail(e.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (error) return <div className="text-[13px] text-red-600">{error}</div>
+  if (!data) return null
+  const input = 'h-10 w-full rounded-xl border border-ink-200 bg-white px-3 text-[14px] tabular-nums text-ink-900 focus:border-brand focus:outline-none'
+  const example = num(usd) ? `1,000 credits = ${money(num(usd) * 10)}` : ''
+  return (
+    <div className="space-y-4 pt-4">
+      <div>
+        <h2 className="text-[18px] font-bold tracking-tight text-ink-900">Custom amount</h2>
+        <p className="mt-1 text-[13px] text-ink-500">
+          Customers type how many credits they want (100 to 100,000, in hundreds) and pay this price per 100. Leave both empty to turn it off.
+        </p>
+      </div>
+      <section className={`${card} grid gap-3 p-5 sm:grid-cols-2`}>
+        <label className="block">
+          <span className="mb-1 block text-[11.5px] font-semibold text-ink-600">100 credits in US dollars ($)</span>
+          <input inputMode="decimal" className={input} value={usd} placeholder="e.g. 1.20 — empty: not sold in USD" onChange={(e) => setUsd(e.target.value.replace(/[^\d.]/g, ''))} />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-[11.5px] font-semibold text-ink-600">100 credits in riel (៛)</span>
+          <input inputMode="numeric" className={input} value={khr} placeholder="e.g. 5000 — empty: not sold in KHR" onChange={(e) => setKhr(e.target.value.replace(/[^\d]/g, ''))} />
+        </label>
+        {example && <div className="text-[11.5px] text-ink-400 sm:col-span-2">{example} · {(num(usd)).toFixed(2)}¢ a credit</div>}
+      </section>
+      <div className="flex flex-wrap items-center gap-3">
+        <button type="button" onClick={save} disabled={busy || !changed} className="btn-primary h-10 px-5 text-[13px] disabled:opacity-50">
+          {busy ? 'Saving…' : 'Save custom price'}
+        </button>
+        {note && <span className="text-[12.5px] text-emerald-600">{note}</span>}
+        {fail && <span className="text-[12.5px] text-red-600">{fail}</span>}
+      </div>
     </div>
   )
 }

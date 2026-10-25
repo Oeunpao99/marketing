@@ -3,6 +3,7 @@
 //   2. a KHQR card (any Cambodian bank app scans it) with the amount and a
 //      countdown; the page asks every few seconds whether it's paid
 //   3. paid → the robot says thank you, the plan's end date, done
+// Also "Top up credits": a credit pack (admin portal) paid the same way, for a paid plan.
 // Expired → make a new code; "mismatch" (paid, but not what we asked) → the
 // team checks it. Closing while unpaid cancels the code (the server checks once
 // more first, so a payment made just before closing still counts).
@@ -67,6 +68,56 @@ const POLL_MS = 3000
 const money = (amount, currency) =>
   currency === 'KHR' ? `${Math.round(amount).toLocaleString('en-US')} ៛` : `$${Number(amount).toLocaleString('en-US', { minimumFractionDigits: amount % 1 ? 2 : 0, maximumFractionDigits: 2 })}`
 const day = (iso) => (iso ? new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '')
+// bought credits: period_end is when the month resets (the 1st, midnight) — the day before it
+const lastDay = (iso) => (iso ? day(new Date(Date.parse(iso) - 1000).toISOString()) : '')
+
+/** "Your own amount": type the credits (in steps), see the price, Buy. The price is worked
+ * out as the server does (app/payments.py custom_price) — the server's is the one charged. */
+function CustomAmount({ custom, currency, disabled, going, onBuy }) {
+  const { min, max, step } = custom
+  const [text, setText] = useState(String(Math.max(min, 1000)))
+  const n = Number(text) || 0
+  const valid = n >= min && n <= max && n % step === 0
+  const per100 = custom.per_100[currency]
+  const price = !per100 || !valid ? null : currency === 'USD' ? Math.round(per100 * n) / 100 : Math.max(100, Math.round((per100 * n) / 100 / 100) * 100)
+  const nudge = (d) => setText(String(Math.min(max, Math.max(min, Math.round((n || 0) / step) * step + d))))
+  return (
+    <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-dashed border-ink-200 p-4">
+      <div className="min-w-[160px] flex-1">
+        <div className="text-[13.5px] font-bold text-ink-900">Your own amount</div>
+        <div className="text-[11.5px] text-ink-500">
+          {min.toLocaleString('en-US')}–{max.toLocaleString('en-US')} credits, in hundreds
+          {per100 ? ` · ${money(per100, currency)} per 100` : ''}
+        </div>
+      </div>
+      <div className="flex items-center rounded-xl border border-ink-200 bg-white">
+        <button type="button" onClick={() => nudge(-step)} aria-label="Fewer credits" className="h-10 w-10 text-[18px] font-bold text-ink-500 hover:text-ink-900">
+          −
+        </button>
+        <input
+          inputMode="numeric"
+          aria-label="Credits"
+          value={text}
+          onChange={(e) => setText(e.target.value.replace(/[^\d]/g, '').slice(0, 6))}
+          className="h-10 w-24 bg-transparent text-center text-[15px] font-bold tabular-nums text-ink-900 focus:outline-none"
+        />
+        <button type="button" onClick={() => nudge(step)} aria-label="More credits" className="h-10 w-10 text-[18px] font-bold text-ink-500 hover:text-ink-900">
+          +
+        </button>
+      </div>
+      <div className="w-24 text-right text-[17px] font-bold tabular-nums text-brand">{price ? money(price, currency) : '—'}</div>
+      <button type="button" disabled={disabled || !price} onClick={() => onBuy(n)} className="h-10 rounded-xl bg-brand px-5 text-[13px] font-bold text-white hover:bg-brand-dark disabled:opacity-50">
+        {going ? 'Making your code…' : 'Buy'}
+      </button>
+      {!valid && text !== '' && (
+        <div className="w-full text-[11.5px] text-red-600">
+          Choose {min.toLocaleString('en-US')} to {max.toLocaleString('en-US')} credits, in hundreds.
+        </div>
+      )}
+      {valid && !per100 && <div className="w-full text-[11.5px] text-ink-500">Not sold in {currency === 'KHR' ? 'riel' : 'dollars'} — switch the currency above.</div>}
+    </div>
+  )
+}
 
 // page: shown as its own page (/upgrade, UpgradePage) instead of a pop-up — always open
 export default function UpgradeDialog({ open: shown, onClose, onPaid, page = false }) {
@@ -136,7 +187,7 @@ export default function UpgradeDialog({ open: shown, onClose, onPaid, page = fal
         .then((p) => {
           setPay((cur) => (cur && cur.id === p.id ? { ...p, qr: p.qr || cur.qr } : cur))
           if (p.status === 'paid') {
-            loadCredits()
+            receive(p) // "Receiving your payment…", then the credits fly in
             onPaid?.(p)
           }
         })
@@ -149,13 +200,48 @@ export default function UpgradeDialog({ open: shown, onClose, onPaid, page = fal
   }, [pay?.id, pay?.status, onPaid])
 
   // a plan card's Choose: its KHQR straight away
-  const start = async (planId) => {
-    if (!planId) return
-    setPick(planId)
+  // Paid: a short "Receiving your payment…" with its steps ticking in, then the credits
+  // scene (CreditClaimFx — the piggy bank, the coins flying into the chip) with the credits
+  // the payment really added (the balance now − the balance when the code was made)
+  const [receiving, setReceiving] = useState(0) // 0 = no · 1-3 = steps done · 4 = finished
+  const [added, setAdded] = useState(0)
+  const before = useRef(null)
+  const received = useRef(new Set())
+  const receive = async (p) => {
+    if (received.current.has(p.id)) return
+    received.current.add(p.id)
+    setReceiving(1)
+    let got = 0
+    try {
+      const now = await loadCredits()
+      got = Math.max(0, Math.round((now?.available_credits ?? 0) - (before.current ?? 0)))
+    } catch {
+      /* the plan's credits below */
+    }
+    if (!got) got = p.credits || info?.plans.find((x) => x.plan === p.plan)?.monthly_credits || 0
+    setAdded(got)
+    setTimeout(() => setReceiving(2), 700)
+    setTimeout(() => setReceiving(3), 1400)
+    setTimeout(() => {
+      setReceiving(4)
+      if (got > 0 && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+        window.dispatchEvent(new CustomEvent('dispatch:credits-claimed', { detail: { amount: got } }))
+      }
+    }, 2300)
+  }
+
+  // a plan ("starter") or a credit pack ({ pack: id })
+  const start = async (what) => {
+    if (!what) return
+    const pack = what.pack ?? null
+    const own = what.credits ?? null // the customer's own amount
+    setPick(pack ? `pack:${pack}` : own ? 'custom' : what)
     setBusy(true)
     setError('')
+    setReceiving(0)
     try {
-      setPay(await api.post('/billing/pay', { plan: planId, currency }))
+      before.current = (await loadCredits())?.available_credits ?? 0 // to tell what the payment adds
+      setPay(await api.post('/billing/pay', pack ? { pack, currency } : own ? { credits: own, currency } : { plan: what, currency }))
     } catch (e) {
       setError(e.message)
     } finally {
@@ -188,7 +274,8 @@ export default function UpgradeDialog({ open: shown, onClose, onPaid, page = fal
   if (!open) return null
   const left = pay ? Math.max(0, Math.round((Date.parse(pay.expires_at) - now) / 1000)) : 0
   const has = (p) => Object.keys(p.prices || {}).length > 0
-  const currencies = ['USD', 'KHR'].filter((c) => info?.plans.some((p) => p.prices?.[c]))
+  const currencies = ['USD', 'KHR'].filter((c) => [...(info?.plans || []), ...(info?.packs || [])].some((p) => p.prices?.[c]))
+  const topUp = pay?.plan === 'credits' // the payment is for extra credits, not a plan
 
   // part: 'all' (the pop-up from elsewhere) · 'plans' (the /upgrade page itself) · 'pay' (the
   // page's KHQR pop-up: the code, then paid / expired)
@@ -327,6 +414,57 @@ export default function UpgradeDialog({ open: shown, onClose, onPaid, page = fal
                   })}
                 </div>
                 <p className="mt-4 text-[11.5px] text-ink-400">Pay once with KHQR from any Cambodian bank app · the plan runs 30 days · no automatic charges.</p>
+                {/* extra credits on top of the plan's (packs set in the admin portal) */}
+                {(info.packs?.length > 0 || info.custom) && (
+                  <section id="top-up" className="mt-8 scroll-mt-6 rounded-3xl border border-ink-200 bg-white p-5 sm:p-6">
+                    <div className="flex flex-wrap items-start gap-3">
+                      <div className="min-w-0 flex-1">
+                        <h2 className="flex items-center gap-2 text-[17px] font-bold text-ink-900">
+                          <CreditCoin size={22} /> Top up credits
+                        </h2>
+                        <p className="mt-1 text-[12.5px] text-ink-500">
+                          Ran short this month? Add credits on top of your plan&apos;s — they&apos;re yours until the month ends.
+                        </p>
+                      </div>
+                      {!info.can_top_up && (
+                        <span className="rounded-full bg-canvas px-3 py-1 text-[11.5px] font-semibold text-ink-600">For paid plans — choose a plan above first</span>
+                      )}
+                    </div>
+                    <div className="mt-5 grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
+                      {info.packs.map((pk, i) => {
+                        const price = pk.prices[currency]
+                        const going = busy && pick === `pack:${pk.id}`
+                        const best = info.packs.length > 1 && i === info.packs.length - 1
+                        return (
+                          <div key={pk.id} className={`relative flex flex-col items-center rounded-2xl border p-4 text-center ${best ? 'border-brand bg-brand-soft' : 'border-ink-200'}`}>
+                            {best && <span className="absolute -top-2.5 whitespace-nowrap rounded-full bg-brand px-2.5 py-0.5 text-[10.5px] font-bold text-white">Best value</span>}
+                            {/* a stack of coins: taller for a bigger pack */}
+                            <div className="relative h-10 w-12">
+                              {Array.from({ length: Math.min(4, i + 1) }).map((_, k) => (
+                                <span key={k} className="absolute left-1/2" style={{ bottom: k * 7, transform: `translateX(calc(-50% + ${k % 2 ? 5 : -3}px))` }}>
+                                  <CreditCoin size={28} />
+                                </span>
+                              ))}
+                            </div>
+                            <div className="mt-2 text-[22px] font-extrabold leading-none tabular-nums text-ink-900">{pk.credits.toLocaleString('en-US')}</div>
+                            <div className="text-[11.5px] text-ink-500">credits</div>
+                            <div className="mt-2 text-[17px] font-bold text-brand">{price ? money(price, currency) : '—'}</div>
+                            {price && currency === 'USD' && <div className="text-[11px] text-ink-400">{((price / pk.credits) * 100).toFixed(1)}¢ a credit</div>}
+                            <button
+                              type="button"
+                              disabled={!price || busy || !info.can_top_up}
+                              onClick={() => start({ pack: pk.id })}
+                              className={`mt-3 h-9 w-full rounded-xl text-[12.5px] font-bold transition-colors disabled:opacity-50 ${best ? 'bg-brand text-white hover:bg-brand-dark' : 'bg-canvas text-ink-900 hover:bg-ink-100'}`}
+                            >
+                              {going ? 'Making your code…' : !price ? `Not sold in ${currency === 'KHR' ? 'riel' : 'dollars'}` : 'Buy'}
+                            </button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    {info.custom && <CustomAmount custom={info.custom} currency={currency} disabled={busy || !info.can_top_up} going={busy && pick === 'custom'} onBuy={(n) => start({ credits: n })} />}
+                  </section>
+                )}
                 {/* the page: every paid month, its invoice a click away */}
                 {page && paid.length > 0 && (
                   <section className="mt-8 rounded-3xl border border-ink-200 bg-white p-5">
@@ -336,11 +474,11 @@ export default function UpgradeDialog({ open: shown, onClose, onPaid, page = fal
                         <div key={p.id} className="flex flex-wrap items-center gap-3 py-3">
                           <div className="min-w-0 flex-1">
                             <div className="text-[13px] font-semibold text-ink-900">
-                              {p.plan_label} plan · {money(p.amount, p.currency)}
+                              {p.plan === 'credits' ? p.plan_label : `${p.plan_label} plan`} · {money(p.amount, p.currency)}
                             </div>
                             <div className="text-[11.5px] text-ink-500">
                               {invoiceName(p)} · paid {day(p.paid_at)}
-                              {p.period_end ? ` · until ${day(p.period_end)}` : ''}
+                              {p.period_end ? (p.plan === 'credits' ? ` · use by ${lastDay(p.period_end)}` : ` · until ${day(p.period_end)}`) : ''}
                             </div>
                           </div>
                           <button type="button" onClick={() => downloadInvoice(p)} className="btn-ghost h-9 px-3 text-[12.5px]">
@@ -400,18 +538,63 @@ export default function UpgradeDialog({ open: shown, onClose, onPaid, page = fal
                   <span key={i} className="h-1.5 w-1.5 animate-bounce rounded-full bg-brand" style={{ animationDelay: `${i * 0.15}s` }} />
                 ))}
               </span>
-              Waiting for your payment… · {pay.plan_label} plan, one month
+              Waiting for your payment… · {topUp ? `${pay.plan_label} for this month` : `${pay.plan_label} plan, one month`}
             </div>
           </div>
         )}
 
+        {/* 3a · receiving: a spinner, the steps ticking in one by one */}
+        {part !== 'plans' && pay?.status === 'paid' && receiving > 0 && receiving < 4 && (
+          <div className="py-4 text-center">
+            <div className="relative mx-auto h-20 w-20">
+              <span className="absolute inset-0 animate-spin rounded-full border-[5px] border-brand-soft border-t-brand" />
+              <span className="absolute inset-0 grid place-items-center">
+                <CreditCoin size={34} />
+              </span>
+            </div>
+            <h2 className="mt-4 text-[18px] font-bold text-ink-900">Receiving your payment…</h2>
+            <ul className="mx-auto mt-4 w-fit space-y-2.5 text-left text-[13.5px]">
+              {(topUp
+                ? [
+                    `Payment received from your bank · ${money(pay.amount, pay.currency)}`,
+                    `${added.toLocaleString('en-US')} credits added to your balance`,
+                    `Yours to use until ${lastDay(pay.period_end)}`,
+                  ]
+                : [
+                    `Payment received from your bank · ${money(pay.amount, pay.currency)}`,
+                    `${pay.plan_label} plan activated`,
+                    `${added.toLocaleString('en-US')} credits added to your balance`,
+                  ]
+              ).map((label, i) => {
+                const done = receiving > i
+                return (
+                  <li key={label} className={`flex items-center gap-2.5 transition-opacity duration-300 ${done ? 'opacity-100' : 'opacity-40'}`}>
+                    <span className={`grid h-6 w-6 flex-none place-items-center rounded-full ${done ? 'bg-brand text-white' : 'border-2 border-ink-200'}`}>
+                      {done && <FiCheck size={13} strokeWidth={3} />}
+                    </span>
+                    <span className={done ? 'font-semibold text-ink-900' : 'text-ink-500'}>{label}</span>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        )}
+
         {/* 3 · paid */}
-        {part !== 'plans' && pay?.status === 'paid' && (
+        {part !== 'plans' && pay?.status === 'paid' && (receiving === 0 || receiving === 4) && (
           <div className="pt-2 text-center">
             <LiveAvatar size={120} className="mx-auto" />
             <h2 className="mt-2 text-[20px] font-bold text-ink-900">Payment received — thank you!</h2>
             <p className="mt-1.5 text-[13px] text-ink-600">
-              Your <b>{pay.plan_label}</b> plan is on until <b>{day(pay.period_end)}</b>, and this month&apos;s credits are in your balance.
+              {topUp ? (
+                <>
+                  <b>{pay.plan_label}</b> are in your balance — use them by <b>{lastDay(pay.period_end)}</b>.
+                </>
+              ) : (
+                <>
+                  Your <b>{pay.plan_label}</b> plan is on until <b>{day(pay.period_end)}</b>, and this month&apos;s credits are in your balance.
+                </>
+              )}
             </p>
             <p className="mt-1 text-[11.5px] text-ink-400">Invoice {invoiceName(pay)} · {money(pay.amount, pay.currency)}</p>
             <div className="mt-5 flex flex-wrap justify-center gap-2">

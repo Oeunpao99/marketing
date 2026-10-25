@@ -129,6 +129,21 @@ class PlanPrice(Base, TimestampMixin):
     khr: Mapped[float | None] = mapped_column(Numeric(12, 0), nullable=True)
 
 
+class CreditPack(Base, TimestampMixin):
+    """A pack of extra AI credits a customer on a paid plan can buy with KHQR
+    (app/payments.py; the Upgrade page's "Top up credits"). Set in the admin
+    portal (Prices); a currency left empty isn't sold in it; ``active`` off =
+    hidden. Bought credits last the month they're bought in, like the plan's own."""
+
+    __tablename__ = "credit_packs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    credits: Mapped[int] = mapped_column(Integer)
+    usd: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
+    khr: Mapped[float | None] = mapped_column(Numeric(12, 0), nullable=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+
+
 class Payment(Base, TimestampMixin):
     """One plan payment by KHQR (app/payments.py): the code shown to the
     customer, its md5 (Bakong finds the transaction by it), and what Bakong
@@ -157,6 +172,8 @@ class Payment(Base, TimestampMixin):
     from_account: Mapped[str] = mapped_column(String(80), default="", server_default="")
     # the paid period this payment bought (for the receipt)
     period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # a credit top-up (plan = "credits"): how many credits it buys; None for a plan
+    credits: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class CreditEntry(Base):

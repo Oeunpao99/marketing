@@ -989,14 +989,30 @@ function CreditPlanner() {
 }
 
 /** Add-ons as a little shop: the credit packs as stacks of tokens, then brand, seat, setup. */
-function AddonShop() {
+function AddonShop({ riel }) {
   const t = useT()
   const n = (v) => (t.lang === 'km' ? khDigits(v) : v)
-  const packs = [
-    { credits: 500, usd: 6, coins: 1 },
-    { credits: 2000, usd: 20, coins: 2 },
-    { credits: 5000, usd: 45, coins: 3, best: true },
-  ]
+  // the packs on sale (admin portal → Prices → Credit packs); until they load, or when none
+  // are on sale, the standard three as "Coming soon"
+  const [live, setLive] = useState(null)
+  useEffect(() => {
+    let on = true
+    fetch('/api/public/prices')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => on && Array.isArray(d?.packs) && d.packs.length && setLive(d.packs))
+      .catch(() => {})
+    return () => {
+      on = false
+    }
+  }, [])
+  const packsSoon = !live
+  const packs = (live || [{ credits: 500, prices: {} }, { credits: 2000, prices: {} }, { credits: 5000, prices: {} }]).map((pk, i, all) => ({
+    credits: pk.credits,
+    usd: pk.prices.USD,
+    khr: pk.prices.KHR,
+    coins: Math.min(4, i + 1),
+    best: all.length > 1 && i === all.length - 1,
+  }))
   const extras = [
     [FiBriefcase, ['Extra brand', 'ម៉ាកបន្ថែម'], '$10', ['/ month each', '/ ខែ ក្នុងមួយ'], ['Another business, its own logo and pages', 'អាជីវកម្មមួយទៀត មានឡូហ្គោ និងទំព័រផ្ទាល់']],
     [FiUsers, ['Extra seat', 'អ្នកប្រើបន្ថែម'], '$5', ['/ month each', '/ ខែ ក្នុងម្នាក់']  , ['One more teammate with their own login', 'សមាជិកក្រុមម្នាក់ទៀត មានគណនីផ្ទាល់']],
@@ -1029,13 +1045,17 @@ function AddonShop() {
                 </div>
                 <div className="mt-2 text-[20px] font-extrabold tabular-nums text-ink-900">{n(pk.credits.toLocaleString('en-US'))}</div>
                 <div className="text-[11.5px] text-ink-500">{t('credits', 'ក្រេឌីត')}</div>
-                {EXTRAS_SOON ? (
+                {packsSoon ? (
                   <div className="mt-2 text-[13px] font-bold text-brand">{t('Coming soon', 'ឆាប់ៗនេះ')}</div>
-                ) : (
+                ) : riel && pk.khr ? (
+                  <div className="mt-2 text-[18px] font-bold text-brand">{n(Math.round(pk.khr).toLocaleString('en-US'))}៛</div>
+                ) : pk.usd ? (
                   <>
-                    <div className="mt-2 text-[18px] font-bold text-brand">${pk.usd}</div>
-                    <div className="text-[11px] text-ink-400">{t(`${((pk.usd / pk.credits) * 100).toFixed(1)}¢ a credit`, `${((pk.usd / pk.credits) * 100).toFixed(1)}¢ ក្នុងមួយក្រេឌីត`)}</div>
+                    <div className="mt-2 text-[18px] font-bold text-brand">${n(String(pk.usd))}</div>
+                    <div className="text-[11px] text-ink-400">{t(`${((pk.usd / pk.credits) * 100).toFixed(1)}¢ a credit`, `${khDigits(((pk.usd / pk.credits) * 100).toFixed(1))}¢ ក្នុងមួយក្រេឌីត`)}</div>
                   </>
+                ) : (
+                  <div className="mt-2 text-[18px] font-bold text-brand">{n(Math.round(pk.khr).toLocaleString('en-US'))}៛</div>
                 )}
               </div>
             ))}
@@ -1246,7 +1266,7 @@ function Pricing({ onStart }) {
       </div>
 
       <CreditPlanner />
-      <AddonShop />
+      <AddonShop riel={riel} />
     </section>
   )
 }

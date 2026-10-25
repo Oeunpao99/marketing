@@ -224,6 +224,16 @@ def _counted(ws: int, since: datetime, claim_at: datetime | None):
     )
 
 
+def _spend_from(db: Session, ws: int, since: datetime) -> datetime | None:
+    """When this month's spends start to count: the month's first claim — or first credits
+    bought (app/payments.py), else AI used before the claim would never come off them."""
+    return db.scalar(
+        select(func.min(CreditEntry.created_at)).where(
+            CreditEntry.workspace_id == ws, CreditEntry.kind.in_(("monthly", "purchase")), CreditEntry.created_at >= since
+        )
+    )
+
+
 def balance(db: Session, ws: int) -> dict:
     row = db.execute(select(Workspace.plan, Workspace.plan_paid_until).where(Workspace.id == ws)).first()
     plan = (row.plan if row else None) or "free"
@@ -238,7 +248,7 @@ def balance(db: Session, ws: int) -> dict:
     by_kind = {
         kind: float(total or 0)
         for kind, total in db.execute(
-            select(CreditEntry.kind, func.sum(CreditEntry.amount_usd)).where(_counted(ws, since, claim_at)).group_by(CreditEntry.kind)
+            select(CreditEntry.kind, func.sum(CreditEntry.amount_usd)).where(_counted(ws, since, _spend_from(db, ws, since))).group_by(CreditEntry.kind)
         ).all()
     }
     total = sum(by_kind.values())  # claims and grants in, spends (since the claim) out
@@ -411,6 +421,7 @@ _KIND_LABEL = {
     "video": "Videos",
     "grant": "Credit added",
     "monthly": "Monthly credits",
+    "purchase": "Credits bought",
     "transfer_in": "Credits received",
     "transfer_out": "Credits sent",
 }
@@ -422,12 +433,9 @@ def billing_overview(db: Session = Depends(get_db), ws: int = Depends(current_wo
     out = balance(db, ws)
     out["account_no"] = account_no(db, ws)
     since = month_start()
-    claim_at = db.scalar(
-        select(func.min(CreditEntry.created_at)).where(CreditEntry.workspace_id == ws, CreditEntry.kind == "monthly", CreditEntry.created_at >= since)
-    )
     rows = db.execute(
         select(CreditEntry.kind, func.sum(CreditEntry.amount_usd), func.count(), func.sum(CreditEntry.tokens), func.sum(CreditEntry.seconds))
-        .where(_counted(ws, since, claim_at))  # the same entries the balance counts
+        .where(_counted(ws, since, _spend_from(db, ws, since)))  # the same entries the balance counts
         .group_by(CreditEntry.kind)
     ).all()
     out["breakdown"] = [
