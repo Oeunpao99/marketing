@@ -1,0 +1,200 @@
+{
+  "brand": {
+    "name": "CloudHub",
+    "color": "#6366F1",
+    "logo": "ours/smart-marketing.png",
+    "slug": "cloudhub"
+  },
+  "style": "saashub",
+  "frame": 240,
+  "scenes": [
+    {
+      "type": "hook",
+      "text": "Your entire business in ⟦one cloud platform⟧",
+      "badge": "All-in-One Cloud SaaS",
+      "sub": "Connect apps · Automate work · Grow faster",
+      "icon": "Layers",
+      "say": "Tired of juggling 10 different apps and manual spreadsheets every day?"
+    },
+    {
+      "type": "chaos",
+      "text": "The mess of ⟦scattered tools⟧ today",
+      "tools": [
+        "Disconnected spreadsheets",
+        "Scattered Telegram & WhatsApp chats",
+        "Manual paper invoices",
+        "Lost customer inquiries"
+      ],
+      "say": "Without automation, hours are lost every day copying data between tools."
+    },
+    {
+      "type": "hub",
+      "text": "Everything connects in ⟦one unified hub⟧",
+      "apps": [
+        {
+          "name": "Messenger & Telegram",
+          "icon": "MessageSquare",
+          "desc": "Auto-capture all incoming inquiries"
+        },
+        {
+          "name": "Bakong & Stripe",
+          "icon": "CreditCard",
+          "desc": "Instant payment verification"
+        },
+        {
+          "name": "Smart CRM",
+          "icon": "Users",
+          "desc": "Complete customer history & deals"
+        },
+        {
+          "name": "Inventory & Billing",
+          "icon": "Package",
+          "desc": "Real-time stock & tax invoices"
+        }
+      ],
+      "say": "Our cloud platform connects directly into your existing channels and tools."
+    },
+    {
+      "type": "trigger",
+      "text": "From lead to invoice, ⟦fully automated⟧",
+      "event": {
+        "label": "Customer places order in chat",
+        "icon": "ShoppingCart"
+      },
+      "actions": [
+        {
+          "label": "Auto-generate official tax invoice & PDF",
+          "icon": "FileText"
+        },
+        {
+          "label": "Instant Telegram alert sent to sales team",
+          "icon": "Send"
+        },
+        {
+          "label": "Contact profile & order status updated in CRM",
+          "icon": "UserCheck"
+        }
+      ],
+      "say": "The moment an event occurs, your workflows execute in milliseconds without manual errors."
+    },
+    {
+      "type": "metrics",
+      "text": "Real-time results you can ⟦measure⟧",
+      "stats": [
+        {
+          "label": "Time Saved / Week",
+          "value": "25",
+          "suffix": " hrs",
+          "note": "85% repetitive work eliminated"
+        },
+        {
+          "label": "Response Time",
+          "value": "1.2",
+          "suffix": "s",
+          "note": "Immediate customer replies"
+        },
+        {
+          "label": "Platform Uptime",
+          "value": "99.9",
+          "suffix": "%",
+          "note": "Bank-grade cloud reliability"
+        }
+      ],
+      "say": "Cut hours of manual busywork and boost your team's output tenfold."
+    },
+    {
+      "type": "plans",
+      "text": "Simple, ⟦transparent pricing⟧",
+      "pick": 1,
+      "tiers": [
+        {
+          "name": "Starter",
+          "price": "$29/mo",
+          "note": "5 connected channels, 2k tasks/mo"
+        },
+        {
+          "name": "Pro Hub",
+          "price": "$79/mo",
+          "note": "Unlimited channels, live webhooks",
+          "badge": "Most Popular"
+        },
+        {
+          "name": "Enterprise",
+          "price": "$199/mo",
+          "note": "Custom integrations, dedicated SLA"
+        }
+      ],
+      "say": "Pick a plan that fits your current size and scale as you grow."
+    },
+    {
+      "type": "cta",
+      "text": "Ready to ⟦automate your business⟧?",
+      "button": "Start 14-Day Free Trial",
+      "sub": "No credit card required · Setup in 2 minutes",
+      "say": "Start your free 14-day trial today and experience modern cloud automation."
+    }
+  ],
+  "clip": [
+    {
+      "type": "hook",
+      "text": "Your entire business in ⟦one cloud platform⟧",
+      "badge": "All-in-One Cloud SaaS",
+      "sub": "Connect apps · Automate work · Grow faster",
+      "icon": "Layers"
+    },
+    {
+      "type": "hub",
+      "text": "Everything connects in ⟦one unified hub⟧",
+      "apps": [
+        {
+          "name": "Messenger & Telegram",
+          "icon": "MessageSquare",
+          "desc": "Auto-capture inquiries"
+        },
+        {
+          "name": "Bakong & Stripe",
+          "icon": "CreditCard",
+          "desc": "Instant payments"
+        },
+        {
+          "name": "Smart CRM",
+          "icon": "Users",
+          "desc": "Customer history"
+        },
+        {
+          "name": "Inventory & Billing",
+          "icon": "Package",
+          "desc": "Real-time stock"
+        }
+      ]
+    },
+    {
+      "type": "trigger",
+      "text": "From lead to invoice, ⟦fully automated⟧",
+      "event": {
+        "label": "Customer places order",
+        "icon": "ShoppingCart"
+      },
+      "actions": [
+        {
+          "label": "Auto-generate tax invoice",
+          "icon": "FileText"
+        },
+        {
+          "label": "Instant Telegram alert to team",
+          "icon": "Send"
+        },
+        {
+          "label": "Synced to CRM",
+          "icon": "UserCheck"
+        }
+      ]
+    },
+    {
+      "type": "cta",
+      "text": "Ready to ⟦automate your business⟧?",
+      "button": "Start 14-Day Free Trial",
+      "sub": "No credit card required"
+    }
+  ]
+}

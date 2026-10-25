@@ -17,6 +17,7 @@ import { dialogueCues } from './dialogue'
 import { streetCues } from './street3d'
 import { illustratedCues } from './illustrated'
 import { aiteamCues } from './aiteam'
+import { saashubCues } from './saashub'
 import { deckCues } from './deck'
 
 const VOLUME = { whoosh: 0.22, pop: 0.3, blop: 0.32, click: 0.35, ding: 0.28, tick: 0.18, impact: 0.55, riser: 0.3 }
@@ -43,6 +44,10 @@ export function cuesFor(scene, style, frames, first) {
   }
   if (style === 'aiteam') {
     aiteamCues(scene).forEach(([at, s]) => add(at, s)) // aiteam.jsx
+    return cues
+  }
+  if (style === 'saashub') {
+    saashubCues(scene).forEach(([at, s]) => add(at, s)) // saashub.jsx
     return cues
   }
   if (style === 'illustrated') {

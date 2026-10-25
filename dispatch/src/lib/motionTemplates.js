@@ -199,6 +199,16 @@ export const MOTION_TEMPLATES = [
     goals: [],
   },
   {
+    id: 'saashub',
+    story: 'saashub',
+    added: '2026-10-24T01:00:00+07:00',
+    name: 'SaaS Hub · Connect & Automate',
+    look: 'Modern cloud SaaS platform — deep obsidian and electric cyan. Scattered tools and manual chaos, your central cloud hub connecting all apps, real-time workflow triggers, live ROI metrics dashboard, and simple subscription tiers',
+    steps: ['Hook', 'Scattered apps', 'The central hub', 'Auto-trigger', 'Live metrics', 'Plans', 'Call to action'],
+    note: 'Great for cloud platforms, SaaS tools, automation services, and B2B software products',
+    goals: ['solution', 'awareness', 'conversion'],
+  },
+  {
     id: 'aiteam',
     story: 'aiteam',
     added: '2026-10-22T10:20:00+07:00',

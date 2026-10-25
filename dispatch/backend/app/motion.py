@@ -1233,6 +1233,44 @@ DOODLE_PROMPT = (
     + '{"scenes": [{"type": "hook", "text": "...", "icon": "Brain", "draw": "...", "say": "..."}, ...]}'
 )
 
+# "Picture story" (motion/src/picture.jsx) — a long narrated story told over AI pictures: one
+# full-screen picture per scene (app/doodle.py paint_story, in the look the person picked),
+# slow camera moves, crossfades, a short title where a part starts, subtitles. Made for a
+# pasted script (YouTube-style, up to 10 minutes): 10-20 pictures, the WHOLE narration kept
+# word for word so the person's own recording can be matched to it (app/narration.py).
+PICTURE_TYPES = ("shot",)
+PICTURE_MIN, PICTURE_MAX = 10, 20
+PICTURE_PROMPT = (
+    "You are a film editor turning a narrated script into a PICTURE STORY: a video told over "
+    "full-screen AI pictures, one picture per scene, with slow camera moves — like a YouTube "
+    "documentary or a motivational story channel. The narration carries the video; each picture "
+    "shows what the voice is talking about right then.\n"
+    "\n"
+    "EVERY scene is type \"shot\". Fields:\n"
+    "- title (optional, max 7 words): a short on-screen title — ONLY where a new part of the "
+    "story starts (the opening, a new section, a rule, a new person's story, the ending). "
+    "Otherwise \"\". Never repeat the narration as the title.\n"
+    "- draw (ALWAYS in English, 20-45 words): the picture — who is in it, where, what they are "
+    "doing, the mood, the light, the camera (wide shot / close-up / over the shoulder). Concrete "
+    "and filmable, taken from the script's Visual notes when it has them. People who come back "
+    "(the story's characters) are described the SAME way every time and named, e.g. \"David (the "
+    "man described in the cast) slumped at his office desk at night\". Never any text, writing, "
+    "numbers on screens, logos or brand names in the picture. Each picture different from the "
+    "one before (another place, angle or moment).\n"
+    "- say: the narration for this picture — the script's own voice-over, WORD FOR WORD. "
+    "Together the scenes' `say` lines are the WHOLE voice-over in order: nothing left out, "
+    "nothing added, nothing reworded, nothing summarised. Long parts are split over several "
+    "scenes at sentence ends.\n"
+    "\n"
+    "Also return \"cast\": the people who appear in more than one picture — [{name, look}], look = "
+    "20-40 words in English: age, face, hair, build, clothes, so every picture draws them alike. "
+    "[] when there are none.\n"
+    "Return {\"cast\": [...], \"scenes\": [{\"type\": \"shot\", \"title\": \"...\", \"draw\": \"...\", "
+    "\"say\": \"...\"}, ...]}"
+)
+PICTURE_SAY_MAX = 1600  # a long part of the narration under one picture (10 minutes / 20 pictures)
+
+
 # "Story · Characters" (motion/src/cartoon.jsx) — the Khmer cartoon-story Reel: two drawn
 # characters in one AI-drawn place (app/doodle.py draw_place), talking in bubbles, thinking
 # in clouds with an icon, the thing they talk about popping up beside them.
@@ -1998,6 +2036,119 @@ def _aiteam_scene(kind: str, raw: dict, say: str) -> dict | None:
         if _line(raw.get("badge"), 16):
             scene["badge"] = _line(raw.get("badge"), 16)
         return scene
+    return None
+
+
+# ── SaaS Hub · Connect & Automate (motion/src/saashub.jsx) ──────────────────
+# Modern cloud SaaS platform and workflow automation: scattered app chaos,
+# central cloud hub connecting all tools, automated trigger flows, real-time
+# ROI metrics dashboard, subscription plans, and high-converting CTA.
+SAASHUB_TYPES = ("hook", "chaos", "hub", "trigger", "metrics", "plans", "cta")
+SAASHUB_PROMPT = (
+    "You are the top SaaS video director in Cambodia. You plan a REMOTION VIDEO (Reels / "
+    "TikTok / YouTube, 35-60 s) for a MODERN SAAS PLATFORM / CLOUD SERVICE / AUTOMATION SUITE. "
+    "The look: deep obsidian slate, electric cyan and indigo glow, glassmorphism cards and live data lines. "
+    "Story arc: the pain of disconnected tools, the central hub that unites them all, instant automated workflows, "
+    "proven ROI metrics, pricing tiers, and a high-converting call to action. Sharp, modern, and trustworthy.\n"
+    "\n"
+    "THE STORY (5-7 scenes, in this order; skip plans if no pricing in the brief):\n"
+    "1. hook — the big promise or bold question in one crisp line.\n"
+    "2. chaos — the mess of scattered tools and manual work before.\n"
+    "3. hub — the central SaaS platform connecting all apps & channels.\n"
+    "4. trigger — an automated event trigger with sequential action steps.\n"
+    "5. metrics — real-time ROI, time saved, or uptime metrics (ONLY true numbers from brief).\n"
+    "6. plans — subscription tiers (only when brief mentions plans or pricing).\n"
+    "7. cta — the next step (start free trial / get demo).\n"
+    "\n"
+    "SCENE TYPES and their fields:\n"
+    "- hook: text (max 8 words), badge (optional, 1-3 words, e.g. \"Cloud Platform\"), sub (optional, max 5 words), icon.\n"
+    "- chaos: text (max 7 words), tools (2-4 pain points/manual tools, max 4 words each).\n"
+    "- hub: text (max 6 words), apps (2-4 connected apps: {name (max 3 words), icon, desc (max 4 words)}).\n"
+    "- trigger: text (max 6 words), event {label (max 4 words), icon}, actions (2-3 steps: {label (max 5 words), icon}).\n"
+    "- metrics: text (max 6 words), stats (2-3 metrics: {label (max 4 words), value (number or string), prefix?, suffix?, note? (max 4 words)}).\n"
+    "- plans: text (max 6 words), tiers (2-3: {name (1-2 words), price (e.g. \"$29/mo\"), note (max 4 words), badge? (e.g. \"Popular\")}), pick (0-based index).\n"
+    "- cta: text (max 8 words), button (1-3 words, e.g. \"Start Free Trial\"), sub (optional, max 6 words).\n"
+    "Every word on screen is in the video's LANGUAGE; app and tool names stay as written.\n"
+    + _COMMON_RULES
+    + '{"scenes": [{"type": "hook", "text": "...", "badge": "Cloud Hub", "icon": "Layers", "say": "..."}, '
+    '{"type": "chaos", "text": "...", "tools": ["Manual Sheets", "Scattered DMs"], "say": "..."}, '
+    '{"type": "hub", "text": "...", "apps": [{"name": "Smart CRM", "icon": "Users", "desc": "All contacts in one place"}], "say": "..."}, '
+    '{"type": "trigger", "text": "...", "event": {"label": "Order Placed", "icon": "ShoppingCart"}, "actions": [{"label": "Auto-invoice created", "icon": "FileText"}], "say": "..."}, ...]}'
+)
+
+
+def _saashub_scene(kind: str, raw: dict, say: str) -> dict | None:
+    """SaaS Hub · Connect & Automate: scene parser."""
+    text = _line(raw.get("text"), 120)
+    if kind == "hook":
+        return {
+            "type": kind,
+            "text": text,
+            "badge": _line(raw.get("badge"), 24),
+            "sub": _line(raw.get("sub"), 40),
+            "icon": _icon(raw.get("icon"), "Layers"),
+            "say": say,
+        } if text else None
+    if kind == "chaos":
+        tools = [_line(x, 40) for x in (raw.get("tools") if isinstance(raw.get("tools"), list) else []) if _line(x, 40)][:4]
+        return {"type": kind, "text": text, "tools": tools, "say": say} if len(tools) >= 2 else None
+    if kind == "hub":
+        apps = [
+            {"name": _line(a.get("name"), 24), "icon": _icon(a.get("icon"), "CheckCircle"), "desc": _line(a.get("desc"), 40)}
+            for a in (raw.get("apps") if isinstance(raw.get("apps"), list) else [])
+            if isinstance(a, dict) and _line(a.get("name"), 24)
+        ][:4]
+        return {"type": kind, "text": text, "apps": apps, "say": say} if len(apps) >= 2 else None
+    if kind == "trigger":
+        ev = raw.get("event") if isinstance(raw.get("event"), dict) else {}
+        actions = [
+            {"label": _line(a.get("label"), 40), "icon": _icon(a.get("icon"), "Check")}
+            for a in (raw.get("actions") if isinstance(raw.get("actions"), list) else [])
+            if isinstance(a, dict) and _line(a.get("label"), 40)
+        ][:3]
+        if not _line(ev.get("label"), 30) or len(actions) < 2:
+            return None
+        return {
+            "type": kind,
+            "text": text,
+            "event": {"label": _line(ev.get("label"), 30), "icon": _icon(ev.get("icon"), "Zap")},
+            "actions": actions,
+            "say": say,
+        }
+    if kind == "metrics":
+        stats = []
+        for s in raw.get("stats") if isinstance(raw.get("stats"), list) else []:
+            if not isinstance(s, dict) or not _line(s.get("label"), 40):
+                continue
+            stats.append({
+                "label": _line(s.get("label"), 40),
+                "value": str(s.get("value", "")).strip()[:16],
+                "prefix": _line(s.get("prefix"), 4),
+                "suffix": _line(s.get("suffix"), 8),
+                "note": _line(s.get("note"), 40),
+            })
+        return {"type": kind, "text": text, "stats": stats[:3], "say": say} if stats else None
+    if kind == "plans":
+        tiers = [
+            {"name": _line(x.get("name"), 20), "price": _line(x.get("price"), 16), "note": _line(x.get("note"), 40), "badge": _line(x.get("badge"), 16)}
+            for x in (raw.get("tiers") if isinstance(raw.get("tiers"), list) else [])
+            if isinstance(x, dict) and _line(x.get("name"), 20)
+        ][:3]
+        if len(tiers) < 2:
+            return None
+        try:
+            pick = max(0, min(len(tiers) - 1, int(raw.get("pick", 1))))
+        except (TypeError, ValueError):
+            pick = 1
+        return {"type": kind, "text": text, "tiers": tiers, "pick": pick, "say": say}
+    if kind == "cta":
+        return {
+            "type": kind,
+            "text": text,
+            "button": _line(raw.get("button"), 30),
+            "sub": _line(raw.get("sub"), 50),
+            "say": say,
+        } if text else None
     return None
 
 
@@ -2860,6 +3011,7 @@ STYLES = {
     "street3d": (STREET_PROMPT, STREET_TYPES, 5, "shops"),
     "illustrated": (ILL_PROMPT, ILL_TYPES, 10, "wide"),
     "aiteam": (AITEAM_PROMPT, AITEAM_TYPES, 6, "crew"),
+    "saashub": (SAASHUB_PROMPT, SAASHUB_TYPES, 6, "hub"),
     "deck": (DECK_PROMPT, DECK_TYPES, 14, None),
     "clarity": (CLARITY_PROMPT, CLARITY_TYPES, 8, None),
     "countdown": (COUNTDOWN_PROMPT, COUNTDOWN_TYPES, 7, "rank"),
@@ -2876,7 +3028,7 @@ STYLES = {
 # The templates laid out for 16:9 too (motion/src/training.jsx, saas.jsx wide scenes);
 # every other template is always vertical. Scenes drawn only for a tall frame are
 # left out of a wide video.
-WIDE_STYLES = {"deck", "aiteam", "illustrated", "street3d", "dialogue", "parable", "podcast", "presenter", "neural", "paper", "doodle", "cartoon", "lesson", "rise", "training", "custom", "demo", "offer", "spotlight", "trend", "pov", "showcase", "launch", "unveil", "gridcards", "techflow", "canvas", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
+WIDE_STYLES = {"deck", "aiteam", "saashub", "illustrated", "street3d", "dialogue", "parable", "podcast", "presenter", "neural", "paper", "doodle", "cartoon", "lesson", "rise", "training", "custom", "demo", "offer", "spotlight", "trend", "pov", "showcase", "launch", "unveil", "gridcards", "techflow", "canvas", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
 TALL_ONLY_TYPES = {"problem", "chat", "product", "point"}
 
 
@@ -3133,12 +3285,12 @@ def estimate_seconds(script: dict) -> int:
 # random per video, so a week's plan doesn't repeat the same look.
 GOAL_STYLES = {
     "sell": ("tech",),
-    "solution": ("tech", "demo", "custom", "showcase", "clarity", "gridcards", "cartoon", "appdemo", "aiteam"),
-    "conversion": ("offer", "spotlight", "tech", "launch", "reviews", "casestudy", "unveil", "studio", "street3d"),
+    "solution": ("tech", "demo", "custom", "showcase", "clarity", "gridcards", "cartoon", "appdemo", "aiteam", "saashub"),
+    "conversion": ("offer", "spotlight", "tech", "launch", "reviews", "casestudy", "unveil", "studio", "street3d", "saashub"),
     "teach": ("explainer",),
     "education": ("explainer", "training", "custom", "clarity", "tips", "gridcards", "techflow", "neural", "paper", "doodle", "cartoon", "lesson", "presenter", "podcast", "parable", "illustrated"),
     "reach": ("pov", "explainer", "countdown", "thisorthat", "hottake", "doodle", "cartoon", "lesson", "rise", "reaction", "podcast", "parable", "dialogue"),
-    "awareness": ("trend", "custom", "clarity", "showcase", "report", "unveil", "canvas", "studio", "presenter", "illustrated", "aiteam"),
+    "awareness": ("trend", "custom", "clarity", "showcase", "report", "unveil", "canvas", "studio", "presenter", "illustrated", "aiteam", "saashub"),
     "authority": ("versus", "report", "casestudy", "hottake", "clarity", "techflow"),
     "engagement": ("poll", "thisorthat", "faq", "countdown", "hottake", "reaction", "dialogue"),
     "followers": ("quote", "explainer", "tips", "countdown", "hottake", "doodle", "lesson", "rise", "presenter", "podcast", "parable"),
@@ -3363,11 +3515,16 @@ def _clean_scene(raw: dict, names: dict[str, str]) -> dict | None:
 def _clean_one(raw: dict, names: dict[str, str]) -> dict | None:
     kind = raw.get("type")
     say = _line(raw.get("say"), 300)
+    if kind == "shot":  # Picture story: one AI picture under a (long) part of the narration
+        scene = {"type": kind, "title": _line(raw.get("title"), 60), "draw": _line(raw.get("draw"), 400), "say": _line(raw.get("say"), PICTURE_SAY_MAX)}
+        return scene if scene["draw"] and scene["say"] else None
     if kind == "hook":
         text = _line(raw.get("text"), 160)
         hook = {"type": kind, "text": text, "icon": _icon(raw.get("icon"), "Zap"), "say": say}
         if _line(raw.get("sub"), 100):
             hook["sub"] = _line(raw.get("sub"), 100)
+        if _line(raw.get("badge"), 40):
+            hook["badge"] = _line(raw.get("badge"), 40)
         apps = _apps(raw.get("apps"))
         if apps:
             hook["apps"] = apps  # Showcase: the bubbles floating round the line
@@ -3474,6 +3631,8 @@ def _clean_one(raw: dict, names: dict[str, str]) -> dict | None:
         return _deck_scene(kind, raw, say)
     if kind in ("overload", "crew", "pipeline", "approve", "gains", "plans"):  # AI service · Your AI team
         return _aiteam_scene(kind, raw, say)
+    if kind in ("chaos", "hub", "trigger") or (kind == "metrics" and "stats" in raw):  # SaaS Hub · Connect & Automate
+        return _saashub_scene(kind, raw, say)
     if kind == "wide":  # Illustrated: a wide shot of a place, the main person in it
         try:
             crowd = max(0, min(6, int(raw.get("crowd"))))
@@ -3858,6 +4017,8 @@ def _clean_one(raw: dict, names: dict[str, str]) -> dict | None:
     if kind == "cta":
         text = _line(raw.get("text"), 140)
         cta = {"type": kind, "text": text, "button": _line(raw.get("button"), 40), "say": say}
+        if _line(raw.get("sub"), 60):
+            cta["sub"] = _line(raw.get("sub"), 60)
         if _line(raw.get("draw"), 300):
             cta["draw"] = _line(raw.get("draw"), 300)  # Doodle notes
         return cta if text else None
@@ -6528,6 +6689,7 @@ TEMPLATE_GUIDE = {
     "techflow": "explaining HOW a technology works step by step (the internet, email, payments, AI, apps) — devices, data packets travelling, addresses, lookups, the path, a recap",
     "deck": "a slide deck / presentation (a pitch, a lesson, a report, a training, a plan) — clean slides with a cover, an agenda, key points, big numbers, charts, two columns, quotes, a roadmap and a closing slide, to present or download as a PDF",
     "aiteam": "introducing an AI-as-a-service — an AI product people subscribe to instead of hiring (an AI marketing team, assistant, bookkeeper, support agent): the work piling up, AI workers each doing a job, one input becoming finished work, the owner approving with one tap, results, plans and prices",
+    "saashub": "introducing a modern SaaS platform / cloud suite / workflow automation service — scattered tool chaos, the central cloud hub connecting all apps, automated trigger flows, real-time ROI metrics dashboard, and simple subscription plans",
     "illustrated": "a calm documentary story of everyday Cambodian life in a muted hand-drawn look — one person through the market, a street of shophouses, a bank, home, the rice fields; close-ups of them with an ATM, a phone, money, a paper; explainers about money, banking, payments, health, work, a service in people's lives",
     "street3d": "a shop or business shown as the full one on its street, in real 3D — two shophouses side by side at dusk, the rival empty with its shutter half down, the brand's lit up with its name on the sign, people walking in, a number counting, customers' messages; for a café, a restaurant, a shop, a service that wants more customers",
     "dialogue": "two people really talking, each in their own voice — two friends, a seller and a customer, a boss and a worker, a parent and a child — short lines back and forth in an everyday Cambodian place, speech bubbles, a turn and a takeaway; a conversation, a sketch, a Q&A between two people",
