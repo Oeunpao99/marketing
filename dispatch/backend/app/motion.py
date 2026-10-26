@@ -4589,8 +4589,11 @@ def write_script(
         numbered = own_scenes(idea)
         if numbered:  # their own scene list — plus a scene for each moment a scene lists
             count = max(2, min(MAX_STORY_SCENES, numbered + own_moments(idea)))
-        if style == "picture":  # a picture holds ~20-30 s of the narration, not 6
-            count = max(PICTURE_MIN, min(PICTURE_MAX, round(seconds / 25)))
+        if style == "picture":
+            # their own scene list: one picture per scene, none merged or dropped (a 12-scene
+            # script came back as 6 — this count said 6 while the rule below said keep all 12);
+            # else a picture holds ~20-30 s of the narration, not 6
+            count = max(2, min(PICTURE_MAX, numbered)) if numbered else max(PICTURE_MIN, min(PICTURE_MAX, round(seconds / 25)))
         most = count  # the person's story sets the length, not the template
         extra += PICTURE_STORY.format(count=count, seconds=seconds) if style == "picture" else STORY_RULES.format(count=count, seconds=seconds)
         if numbered:
@@ -4848,8 +4851,10 @@ def write_script(
         for (obj, key, n), value in zip(slots, fixed):
             obj[key] = _line(_fix_khmer_punctuation(value), n)
         # every spoken line rewritten to be heard, not read (story mode: a light touch) —
-        # not a dialogue's: each line is that person's own, polished above with the words
-        spoken = [s for s in script["scenes"] if s.get("say")] if style not in DIALOGUE_STYLES else []
+        # not a dialogue's: each line is that person's own, polished above with the words;
+        # nor a script that gives its own Voice lines: those are said word for word (as in
+        # English, below — a pasted script's "ដល់ម៉ោង ៩" came back "ត្រឹមម៉ោង ៩")
+        spoken = [s for s in script["scenes"] if s.get("say")] if style not in DIALOGUE_STYLES and not (story and own_voice(idea)) else []
         if spoken:
             shows = [screen for screen, _ in script_lines({"scenes": spoken})]
             for s, line in zip(
