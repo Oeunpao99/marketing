@@ -1289,6 +1289,28 @@ PICTURE_STORY = (
 )
 
 
+def picture_side(n: int) -> str:
+    """Picture story: the side of scene ``n``'s picture its words sit on — left,
+    right, left… (in a wide video; a tall one puts them at the top)."""
+    return "left" if n % 2 == 0 else "right"
+
+
+def picture_room(n: int, wide: bool) -> str:
+    """What scene ``n``'s picture is asked to leave free for its words (picture.jsx
+    sets them there, two big lines, like a YouTube thumbnail)."""
+    if not wide:
+        return (
+            " Composition: the main subject in the lower two thirds of the frame; the top third is "
+            "calm and simple (sky, a wall, a soft out-of-focus background) — room for a big title."
+        )
+    text = picture_side(n)
+    subject = "right" if text == "left" else "left"
+    return (
+        f" Composition: the main subject on the {subject} half of the frame; the {text} half is calm, "
+        "simple and uncluttered (a wall, sky, soft out-of-focus background) — room for a big title."
+    )
+
+
 def clean_picture_cast(raw) -> list[dict]:
     """Picture story: the people who come back — [{name, look}] (English looks), at most 4."""
     out = []
@@ -5609,8 +5631,9 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
         props["street"] = script.get("street") or {"goods": [], "people": []}
     if script.get("style") == "picture":  # Picture story: the words on every picture, in the colours picked
         ink = clean_ink(script.get("ink"))
-        for sc in scenes:
+        for n, sc in enumerate(scenes):
             sc["ink"] = {"text": ink["text"], "accent": ink["accent"] or f"#{r:02x}{g:02x}{b:02x}"}
+            sc["side"] = picture_side(n)  # where its words go — the picture was painted with room there
     if script.get("style") == "illustrated":  # Illustrated: the main person
         props["cast"] = [{**c, "name": t(c["name"]) if c.get("name") else ""} for c in script.get("cast") or clean_lead(None)]
     if script.get("style") in ("parable", "dialogue"):  # Parable · Two paths / Dialogue: the two people
@@ -6061,7 +6084,9 @@ def _start_doodles(script: dict, job, job_id: int, style: str | None = None, lim
     if len(asks) > limit:  # the first, then evenly spread
         step = (len(asks) - 1) / (limit - 1)
         asks = [asks[round(i * step)] for i in range(limit)]
-    todo = [{"draw": script["scenes"][n]["draw"], "n": n} for n in asks]
+    # Picture story: each picture painted with calm room where its words will sit
+    room = (lambda n: picture_room(n, ratio == "16:9")) if script.get("style") == "picture" else (lambda n: "")
+    todo = [{"draw": script["scenes"][n]["draw"] + room(n), "n": n} for n in asks]
     got: dict[int, str] = {}
     # the making card's rows: which scenes are being painted now (a feather), and
     # each finished picture, small, as soon as it's there

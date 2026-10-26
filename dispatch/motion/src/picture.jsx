@@ -63,22 +63,23 @@ function Title({ text, ink, wide }) {
     })
   }
   const khmer = KHMER_RE.test(text || '')
-  const len = clean(text).length
-  // big for a few words, smaller for a long line — it never covers the picture
-  const size = (wide ? 84 : 92) * (len > 34 ? 0.72 : len > 22 ? 0.85 : 1)
+  // like a YouTube thumbnail: as big as two lines across the free side allow
+  // (Khmer marks stack on their letters, so a Khmer character is narrower)
+  const box = wide ? 800 : 940
+  const len = Math.max(6, [...clean(text)].filter((ch) => !/[ា-៓៝]/.test(ch)).length)
+  const size = Math.max(wide ? 70 : 64, Math.min(wide ? 150 : 140, (box * 2) / (len * (khmer ? 0.62 : 0.68))))
   return (
     <div
       style={{
-        display: 'flex',
-        flexWrap: 'wrap',
         fontFamily: FONT,
         fontWeight: khmer ? 700 : 800,
-        letterSpacing: khmer ? 0 : '-0.012em',
+        letterSpacing: khmer ? 0 : '-0.015em',
         fontSize: size,
-        lineHeight: khmer ? 1.5 : 1.12,
+        lineHeight: khmer ? 1.45 : 1.08,
         color: ink.text,
+        textWrap: 'balance', // two even lines, not one long and one word
         // readable on any picture: a soft dark halo, no box
-        textShadow: '0 3px 18px rgba(0,0,0,0.55), 0 1px 3px rgba(0,0,0,0.6)',
+        textShadow: '0 4px 24px rgba(0,0,0,0.6), 0 2px 4px rgba(0,0,0,0.55)',
       }}
     >
       {pieces.map(({ p, gap, em: hi }, n) => {
@@ -88,10 +89,11 @@ function Title({ text, ink, wide }) {
             key={n}
             style={{
               display: 'inline-block',
-              marginRight: gap ? '0.26em' : 0,
+              marginRight: gap ? '0.24em' : 0,
               opacity: s,
               transform: `translateY(${(1 - s) * 34}px)`,
               color: hi ? ink.accent : undefined,
+              fontSize: hi ? '1.18em' : undefined, // the key word, bigger — the thumbnail look
             }}
           >
             {p}
@@ -105,6 +107,7 @@ function Title({ text, ink, wide }) {
 function Shot({ scene }) {
   const { width, height } = useVideoConfig()
   const wide = width > height
+  const right = scene.side === 'right'
   const ink = { text: '#FFFFFF', accent: '#FFD400', ...(scene.ink || {}) }
   const seed = clean(scene.caption || scene.title || '') || 'picture'
   return (
@@ -115,23 +118,25 @@ function Shot({ scene }) {
         <AbsoluteFill
           style={{
             background: wide
-              ? 'linear-gradient(180deg, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.3) 30%, rgba(0,0,0,0) 50%)'
-              : 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.4) 24%, rgba(0,0,0,0) 46%)',
+              ? `linear-gradient(${right ? 270 : 90}deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.32) 30%, rgba(0,0,0,0) 55%)`
+              : 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.42) 22%, rgba(0,0,0,0) 46%)',
           }}
         />
       )}
-      {scene.title && (
-        <div
-          style={{
-            position: 'absolute',
-            left: wide ? 110 : 72,
-            right: wide ? 520 : 72,
-            top: wide ? 200 : 300, // under the logo chip (shared.jsx chipTop)
-          }}
-        >
-          <Title text={scene.title} ink={ink} wide={wide} />
-        </div>
-      )}
+      {/* the words on the side the picture left calm (app/motion.py picture_room):
+          left or right, in the middle, in a wide video — at the top in a tall one */}
+      {scene.title &&
+        (wide ? (
+          <div style={{ position: 'absolute', top: 150, bottom: 170, [right ? 'right' : 'left']: 100, width: 800, display: 'flex', alignItems: 'center', textAlign: right ? 'right' : 'left' }}>
+            <div style={{ width: '100%' }}>
+              <Title text={scene.title} ink={ink} wide />
+            </div>
+          </div>
+        ) : (
+          <div style={{ position: 'absolute', left: 70, right: 70, top: 280 }}>
+            <Title text={scene.title} ink={ink} wide={false} />
+          </div>
+        ))}
     </AbsoluteFill>
   )
 }
