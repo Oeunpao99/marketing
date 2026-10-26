@@ -2291,6 +2291,8 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary, onPlanChange, onMake,
             onChange={onPlanChange}
             onMake={onMake}
             onRewrite={onRewrite}
+            // about what Make uses — voice + AI pictures — and what's left
+            estimate={(plan) => api.post('/ai/motion/estimate', { brand_id: t.brandId, language: plan?.language || t.language || 'Khmer', voice: t.voice || 'female', script: plan })}
             // one voice line, read exactly as the video will — same voice, same acting
             // (the template's style); the server keeps it, so Make reuses it
             fetchLine={(text) =>

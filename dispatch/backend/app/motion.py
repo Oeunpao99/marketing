@@ -5908,9 +5908,13 @@ def voice_pronunciations(voice: str, says: list[str], pronunciations: list[dict]
     local_voice.transliterate): a Khmer voice reading Latin letters inside a
     Khmer sentence guesses and gets them wrong. English lines stay as they
     are, except for the local Khmer voice, which can't read Latin at all."""
-    from app import local_voice
+    from app import local_voice, speech
 
     rules = list(pronunciations or [])
+    if speech.reads_with_kiri(voice):
+        # KiriTTS reads English inside Khmer itself — Khmer letters for it made it worse
+        # (2026-10-26, by ear); only the brand's own list applies
+        return rules
     local = voice.startswith(local_voice.PREFIX)
     lines = [s for s in says if s and (local or any("ក" <= ch <= "៿" for ch in s))]
     if not lines:
@@ -7209,6 +7213,77 @@ def say_line(
     if not narrator.startswith("local:") and not tally["chars"]:  # the local voice and their own key cost us nothing
         billing.charge(ws, "video", len(payload.text) * speech.price_per_char(narrator), user_id=user.id, model=narrator, note="Voice preview")
     return Response(content=mp3, media_type="audio/mpeg", headers={"Cache-Control": "no-store"})
+
+
+class EstimateIn(BaseModel):
+    brand_id: int
+    language: str = "Khmer"
+    voice: str = "female"
+    script: dict
+
+
+PICTURE_GUESS = 0.02  # one AI picture, before any has been charged here
+_picture_price: list = [0.0, 0.0]  # [price, when measured]
+
+
+def picture_price(db: Session) -> float:
+    """What one AI picture costs now: the average of the last 100 picture charges
+    (any workspace), measured at most every 10 minutes — PICTURE_GUESS before any."""
+    from app.models import CreditEntry
+
+    if time.time() - _picture_price[1] > 600:
+        recent = select(CreditEntry.amount_usd).where(CreditEntry.kind == "image", CreditEntry.amount_usd < 0).order_by(CreditEntry.id.desc()).limit(100)
+        avg = db.scalar(select(func.avg(-recent.subquery().c.amount_usd)))
+        _picture_price[:] = [float(avg) if avg else PICTURE_GUESS, time.time()]
+    return _picture_price[0]
+
+
+def pictures_to_paint(script: dict) -> int:
+    """How many AI pictures making this storyboard paints (_make's doodle steps)."""
+    from app import doodle
+
+    style, scenes = script.get("style"), script.get("scenes") or []
+    asked = sum(1 for sc in scenes if sc.get("draw") and not sc.get("image"))
+    if style == "picture":
+        return min(asked, PICTURE_MAX)
+    if style in ("doodle", "presenter", "deck", "aiteam"):
+        return min(asked, DOODLE_DRAWINGS)
+    if style == "canvas":
+        return min(doodle.MAX_PICTURES, sum(1 for sc in scenes for L in sc.get("layers") or [] if L.get("draw") and not L.get("src")))
+    if style == "reaction":
+        return len(script.get("cast") or []) + min(asked, doodle.MAX_MEME_PHOTOS)
+    if style == "podcast":
+        return len(script.get("places") or [])
+    if style == "cartoon":
+        return 1 if script.get("place") else 0
+    return 0
+
+
+@router.post("/estimate")
+def estimate(payload: EstimateIn, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    """About what "Make the video" will use, before it's pressed: the voice (every
+    spoken line × the voice's price) and the AI pictures it paints — and what the
+    workspace has left. In dollars; the page shows credits."""
+    from app import gemini_keys, speech, voice_clone
+
+    owned(db, Brand, payload.brand_id, ws)  # their own brand only
+    speech.use_workspace_key(gemini_keys.workspace_key(db, ws))
+    style = payload.script.get("style") or None
+    chars = sum(len(str(sc.get("say") or "").strip()) for sc in payload.script.get("scenes") or [])
+    narrator = None
+    if payload.voice != "none" and chars:
+        # the brand's own voice costs what its base voice does (turning it into theirs is free)
+        narrator, _clone = voice_clone.narrator_for(None, payload.language, "female" if payload.voice == "brand" else payload.voice, style)
+    voice_usd = 0.0 if not narrator or narrator.startswith("local:") else chars * speech.price_per_char(narrator)
+    pictures = pictures_to_paint(payload.script)
+    pictures_usd = pictures * picture_price(db)
+    return {
+        "voice": round(voice_usd, 6),
+        "pictures": round(pictures_usd, 6),
+        "picture_count": pictures,
+        "total": round(voice_usd + pictures_usd, 6),
+        "available": billing.balance(db, ws)["available"],
+    }
 
 
 def checked_script(raw: dict, products: list[Product]) -> dict:

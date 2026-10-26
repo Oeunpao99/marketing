@@ -284,17 +284,19 @@ def _kiri_voice(name: str) -> str:
     return {s.gemini_tts_voice_female: s.kiritts_voice_female, s.gemini_tts_voice_male: s.kiritts_voice_male}.get(name, "")
 
 
+def reads_with_kiri(voice: str) -> bool:
+    """A Khmer line for ``voice`` goes to KiriTTS first (picked by name, or Gemini's main voice mapped to it)."""
+    if voice.startswith(KIRI):
+        return kiri_ready()
+    return voice.startswith(GEMINI) and kiri_ready() and bool(_kiri_voice(voice[len(GEMINI) :].split("|")[0]))
+
+
 def _kiri(text: str, voice: str, style: str = "") -> bytes:
-    """KiriTTS reads ``text`` — MP3 bytes. Its notes are short (100 characters
-    at most): the accent first, then as much of the template's acting as fits."""
+    """KiriTTS reads ``text`` — MP3 bytes. No reading notes: measured 2026-10-26, any
+    notes (accent, the template's acting) made it read slower (8.8 s → 10.3 s a line)
+    and the user preferred it plain, as their website reads. ``style`` is unused."""
     s = get_settings()
-    accent = "Native Phnom Penh Khmer, natural and warm."
-    notes = f"{accent} {GEMINI_ACT.get(style, '')}".strip()
-    if len(notes) > 100:  # at the acting's last comma / dash that fits, else a word
-        cut = notes[:100]
-        at = max(cut.rfind(","), cut.rfind(" —"))
-        notes = cut[:at] if at > len(accent) else cut.rsplit(" ", 1)[0]
-    body = {"model": s.kiritts_model, "input": text.replace(ZWSP, "").strip(), "voice": voice, "instructions": notes, "response_format": "mp3"}
+    body = {"model": s.kiritts_model, "input": text.replace(ZWSP, "").strip(), "voice": voice, "response_format": "mp3"}
     for attempt in range(2):
         try:
             resp = httpx.post(
@@ -479,7 +481,9 @@ def speak(text: str, voice: str, kiri_first: bool = True) -> bytes:
 
     if voice.startswith(KIRI):  # a KiriTTS voice picked by name: "kiri:Neary|picture"
         name, _, style = voice[len(KIRI) :].partition("|")
-        if _lang(text) == "km" and kiri_ready():
+        # every line, English ones too — a KiriTTS voice is only ever a Khmer video's
+        # (narrator_for), and one video keeps one voice; KiriTTS reads English well
+        if kiri_ready():
             try:
                 return _kiri(text, name, style)
             except SpeechError as exc:
@@ -495,7 +499,8 @@ def speak(text: str, voice: str, kiri_first: bool = True) -> bytes:
 
     if voice.startswith(GEMINI):  # "gemini:<voice>" or "gemini:<voice>|<template>"
         name, _, style = voice[len(GEMINI) :].partition("|")
-        kiri = _kiri_voice(name) if kiri_first and _lang(text) == "km" and kiri_ready() else ""
+        # Gemini voices are only Khmer videos' (voice_for) — so their English lines go to KiriTTS too
+        kiri = _kiri_voice(name) if kiri_first and kiri_ready() else ""
         if kiri:
             try:
                 return _kiri(text, kiri, style)

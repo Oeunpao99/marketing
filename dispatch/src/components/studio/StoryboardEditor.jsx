@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { FiArrowDown, FiArrowUp, FiBox, FiCamera, FiCheck, FiCopy, FiFeather, FiFilm, FiHeadphones, FiMic, FiPenTool, FiPlay, FiPlus, FiRefreshCw, FiSquare, FiTrash2 } from 'react-icons/fi'
+import { FiArrowDown, FiArrowUp, FiBox, FiCamera, FiCheck, FiCopy, FiFeather, FiFilm, FiHeadphones, FiMic, FiPenTool, FiPlay, FiPlus, FiRefreshCw, FiSquare, FiTrash2, FiZap } from 'react-icons/fi'
 import AutoTextarea from '../ui/AutoTextarea'
+import { fmtCredits } from '../../lib/money'
 import { SCENE_LABELS, STYLE_LABELS } from './MotionBoard'
 
 // The storyboard of a Remotion video made from the person's own story
@@ -463,8 +464,27 @@ function PictureLook({ plan, onChange }) {
   )
 }
 
-export default function StoryboardEditor({ plan, onChange, onMake, onRewrite, voice = true, onHear, fetchLine, onError }) {
+export default function StoryboardEditor({ plan, onChange, onMake, onRewrite, voice = true, onHear, fetchLine, onError, estimate }) {
   const [hearing, setHearing] = useState(null) // the line being played
+  // about what "Make the video" uses (POST /ai/motion/estimate via ``estimate``) —
+  // asked again a moment after the storyboard stops changing
+  const [cost, setCost] = useState(null)
+  const estimateRef = useRef(estimate)
+  estimateRef.current = estimate
+  const planKey = JSON.stringify(plan)
+  useEffect(() => {
+    if (!estimateRef.current) return undefined
+    let alive = true
+    const timer = setTimeout(() => {
+      estimateRef.current(JSON.parse(planKey))
+        .then((c) => alive && setCost(c))
+        .catch(() => alive && setCost(null))
+    }, 700)
+    return () => {
+      alive = false
+      clearTimeout(timer)
+    }
+  }, [planKey])
   // "Listen to the whole voice": every line in order, the next one fetched while
   // this one plays (no gaps); the scene being read is lit. Lines heard here are
   // kept on the server a while, so Make the video reuses them.
@@ -708,6 +728,26 @@ export default function StoryboardEditor({ plan, onChange, onMake, onRewrite, vo
         )}
       </div>
 
+      {cost && (
+        <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 border-t px-4 py-2.5 text-[12px] ${cost.total > cost.available ? 'border-red-200 bg-red-50 text-red-700' : 'border-ink-200/70 bg-ink-50 text-ink-600'}`}>
+          <span className="flex items-center gap-1.5 font-semibold text-ink-900">
+            <FiZap size={13} className="text-brand" /> About {fmtCredits(cost.total)}
+          </span>
+          <span className="text-ink-500">
+            {[cost.voice > 0 && `voice ${fmtCredits(cost.voice, false)}`, cost.picture_count > 0 && `${cost.picture_count} AI picture${cost.picture_count > 1 ? 's' : ''} ${fmtCredits(cost.pictures, false)}`]
+              .filter(Boolean)
+              .join(' · ') || 'no voice or AI pictures'}
+          </span>
+          <span className="ml-auto tabular-nums">
+            {cost.total > cost.available ? (
+              <b>Not enough credits — you have {fmtCredits(Math.max(0, cost.available))}</b>
+            ) : (
+              <>You have {fmtCredits(cost.available)}</>
+            )}
+          </span>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-ink-200/70 px-4 py-3">
         <span className="text-[11px] text-ink-400">Words in [brackets] are highlighted on screen.</span>
         <div className="flex flex-wrap items-center gap-2">
@@ -746,6 +786,7 @@ export default function StoryboardEditor({ plan, onChange, onMake, onRewrite, vo
             className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-[12.5px] font-semibold text-white hover:bg-brand/90 disabled:opacity-50"
           >
             <FiFilm size={14} /> Make the video
+            {cost && <span className="font-normal opacity-80">· ~{fmtCredits(cost.total)}</span>}
           </button>
         </div>
       </div>
