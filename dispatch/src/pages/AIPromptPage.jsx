@@ -1955,6 +1955,9 @@ function DraftCard({ d, onUse }) {
 
 function AskTurn({ t, onRetry, onGenerate, onEdit, onUseDraft }) {
   const [copied, setCopied] = useState(false)
+  // seen while it was being written: the answer streams in when it arrives
+  // (an old chat opened later just shows it)
+  const [fresh] = useState(t.status !== 'done')
   const elapsed = t.startedAt ? (Date.now() - t.startedAt) / 1000 : 0
   const stage = ASK_STAGES.find(([s]) => elapsed < s)[1]
   const khmer = (x) => (/[\u1780-\u17FF]/.test(x || '') ? 'font-khmer' : '')
@@ -2015,9 +2018,11 @@ function AskTurn({ t, onRetry, onGenerate, onEdit, onUseDraft }) {
           {t.status === 'done' && (
             <>
               <div className={`pt-1 ${khmer(t.answer)}`}>
-                <Markdown text={t.answer} />
+                <Markdown text={t.answer} reveal={fresh} />
               </div>
 
+              {/* …and once the answer has come in: what it wrote and suggests, then its buttons */}
+              <div className={fresh ? 'cf-stream-after' : undefined} style={fresh ? { animationDelay: `${revealSeconds(t.answer).toFixed(2)}s` } : undefined}>
               {/* the scripts / prompts it wrote — one press puts one in Create */}
               {t.drafts?.map((d, i) => <DraftCard key={i} d={d} onUse={onUseDraft} />)}
 
@@ -2060,6 +2065,7 @@ function AskTurn({ t, onRetry, onGenerate, onEdit, onUseDraft }) {
                   <span className="ml-1 text-[10.5px]">{t.remaining} questions left today</span>
                 )}
               </div>
+              </div>
             </>
           )}
         </div>
@@ -2082,7 +2088,7 @@ function inline(text) {
   )
 }
 
-function Markdown({ text }) {
+function Markdown({ text, reveal = false }) {
   const blocks = []
   let list = null
   const flush = () => {
@@ -2104,31 +2110,85 @@ function Markdown({ text }) {
   })
   flush()
 
+  // reveal: every line (heading, paragraph, list item) wipes in left to right, one
+  // after another — longer lines a little slower; a long answer is sped up to ~6 s
+  const lines = blocks.flatMap((b) => (b.type === 'list' ? b.items : [b.text]))
+  const timing = []
+  let at = 0
+  lines.forEach((l) => {
+    const dur = Math.min(1.2, Math.max(0.35, l.length * 0.012))
+    timing.push([at, dur])
+    at += dur * 0.7
+  })
+  const squeeze = at > 6 ? 6 / at : 1
+  let n = 0
+  const look = () => {
+    if (!reveal) return {}
+    const [delay, dur] = timing[n++] || [0, 0.4]
+    return { className: 'cf-stream', style: { animationDelay: `${(delay * squeeze).toFixed(2)}s`, animationDuration: `${(dur * Math.max(squeeze, 0.6)).toFixed(2)}s` } }
+  }
+  const lineClass = (base, l) => [base, l.className].filter(Boolean).join(' ') || undefined
+
   return (
     <div className="space-y-2.5 text-[13px] leading-relaxed text-ink-700">
-      {blocks.map((b) =>
-        b.type === 'h' ? (
-          <h3 key={b.key} className="pt-1 text-[13.5px] font-semibold text-ink-900">
-            {inline(b.text)}
-          </h3>
-        ) : b.type === 'p' ? (
-          <p key={b.key}>{inline(b.text)}</p>
-        ) : b.ordered ? (
+      {blocks.map((b) => {
+        if (b.type === 'h') {
+          const l = look()
+          return (
+            <h3 key={b.key} className={lineClass('pt-1 text-[13.5px] font-semibold text-ink-900', l)} style={l.style}>
+              {inline(b.text)}
+            </h3>
+          )
+        }
+        if (b.type === 'p') {
+          const l = look()
+          return (
+            <p key={b.key} className={lineClass('', l)} style={l.style}>
+              {inline(b.text)}
+            </p>
+          )
+        }
+        // a list item: its bullet fades in, its words wipe in (a mask on the <li> would cut its bullet off)
+        const items = b.items.map((item, j) => {
+          const l = look()
+          return l.className ? (
+            <li key={j} className="cf-stream-li" style={{ animationDelay: l.style.animationDelay }}>
+              <div className={l.className} style={l.style}>
+                {inline(item)}
+              </div>
+            </li>
+          ) : (
+            <li key={j}>{inline(item)}</li>
+          )
+        })
+        return b.ordered ? (
           <ol key={b.key} className="list-decimal space-y-1 pl-5 marker:text-ink-400">
-            {b.items.map((item, j) => (
-              <li key={j}>{inline(item)}</li>
-            ))}
+            {items}
           </ol>
         ) : (
           <ul key={b.key} className="list-disc space-y-1 pl-5 marker:text-brand/60">
-            {b.items.map((item, j) => (
-              <li key={j}>{inline(item)}</li>
-            ))}
+            {items}
           </ul>
-        ),
-      )}
+        )
+      })}
     </div>
   )
+}
+
+/** Seconds Markdown's reveal takes for ``text`` — what follows it (drafts, ideas) fades in after. */
+function revealSeconds(text) {
+  const lines = String(text || '')
+    .split('\n')
+    .map((l) => l.replace(/^\s*(?:[-*•]|\d+[.)]|#{1,4})\s+/, '').trim())
+    .filter(Boolean)
+  let at = 0
+  let last = 0
+  lines.forEach((l) => {
+    last = Math.min(1.2, Math.max(0.35, l.length * 0.012))
+    at += last * 0.7
+  })
+  const squeeze = at > 6 ? 6 / at : 1
+  return (at - last * 0.7 + last) * squeeze
 }
 
 function Turn({ t, onUse, onEdit, onRegenerate, onLibrary, onPlanChange, onMake, onRewrite, onStop }) {

@@ -435,13 +435,8 @@ html.dark .cf-halo { background-color: rgb(var(--brand) / .45); }
   0%, 100% { transform: rotate(-7deg) translateY(0); }
   50%      { transform: rotate(6deg) translateY(-4%); }
 }
-@keyframes cf-avatar-dot {
-  0%, 60%, 100% { opacity: .3; transform: translateY(0); }
-  30%           { opacity: 1; transform: translateY(-35%); }
-}
 .cf-avatar-float { animation: cf-avatar-float 3.4s ease-in-out infinite; }
 .cf-avatar-think { animation: cf-avatar-think 1.8s ease-in-out infinite; transform-origin: 50% 80%; }
-.cf-avatar-dots > span { animation: cf-avatar-dot 1s ease-in-out infinite; }
 .cf-avatar-blink { animation: cf-avatar-blink 4.2s ease-in-out infinite; }
 /* the KHQR sand timer (billing/UpgradeDialog Hourglass): the stream keeps falling */
 @keyframes cf-sand-fall { to { stroke-dashoffset: -8; } }
@@ -449,7 +444,30 @@ html.dark .cf-halo { background-color: rgb(var(--brand) / .45); }
 @media (prefers-reduced-motion: reduce) { .cf-hourglass-stream { animation: none; } }
 .cf-avatar-wave  { animation: cf-avatar-wave 2.8s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) {
-  .cf-avatar-float, .cf-avatar-think, .cf-avatar-dots > span, .cf-avatar-blink, .cf-avatar-wave { animation: none !important; }
+  .cf-avatar-float, .cf-avatar-think, .cf-avatar-blink, .cf-avatar-wave { animation: none !important; }
+}
+
+/* Ask's answer arriving (AIPromptPage Markdown reveal): each line wipes in from left
+   to right behind a soft fading edge — the mask is 2.5× the line, black then clear,
+   slid from its clear end to its black end. Delay / length per line come inline. */
+@keyframes cf-stream-in {
+  from { -webkit-mask-position: 100% 0; mask-position: 100% 0; }
+  to   { -webkit-mask-position: 0 0;    mask-position: 0 0; }
+}
+.cf-stream {
+  -webkit-mask-image: linear-gradient(90deg, #000 40%, transparent 60%);
+  mask-image: linear-gradient(90deg, #000 40%, transparent 60%);
+  -webkit-mask-size: 250% 100%;
+  mask-size: 250% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  animation: cf-stream-in .6s ease-out both;
+}
+@keyframes cf-stream-fade { from { opacity: 0; } to { opacity: 1; } }
+.cf-stream-li { animation: cf-stream-fade .3s ease-out both; }
+.cf-stream-after { animation: fadein .35s ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .cf-stream, .cf-stream-li, .cf-stream-after { animation: none !important; -webkit-mask-image: none; mask-image: none; }
 }
 
 /* the credits chip catching the claimed coins (CreditClaimFx) */

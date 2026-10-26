@@ -6,19 +6,12 @@
 
 const SRC = '/brand/avatar'
 
-// thinking: the head tilts side to side and three dots pulse over it (no wave) —
-// while Ask writes its answer
+// thinking: the head tilts side to side (no wave) — while Ask writes its answer.
+// No dots over its head: the "Writing your advice…" line beside it has them.
 export default function LiveAvatar({ size = 120, wave = true, thinking = false, className = '' }) {
   if (thinking) wave = false
   return (
     <div className={`cf-avatar relative flex-none select-none ${className}`} style={{ width: size, height: size }} aria-hidden="true">
-      {thinking && (
-        <span className="cf-avatar-dots absolute -right-[18%] -top-[14%] z-10 flex items-center gap-[2px] rounded-full bg-white px-[3px] py-[2px] shadow-sm ring-1 ring-ink-200/80">
-          {[0, 1, 2].map((i) => (
-            <span key={i} className="block rounded-full bg-brand" style={{ width: Math.max(3, size * 0.09), height: Math.max(3, size * 0.09), animationDelay: `${i * 0.18}s` }} />
-          ))}
-        </span>
-      )}
       <div className={`${thinking ? 'cf-avatar-think' : 'cf-avatar-float'} absolute inset-0`}>
         <img src={`${SRC}/body.webp`} alt="" draggable="false" className="absolute inset-0 h-full w-full" />
         <img src={`${SRC}/eye-l.webp`} alt="" draggable="false" className="cf-avatar-blink absolute inset-0 h-full w-full" style={{ transformOrigin: '35.5% 38%' }} />
