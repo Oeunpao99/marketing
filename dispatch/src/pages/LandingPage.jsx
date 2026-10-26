@@ -28,6 +28,7 @@ import { FaLinkedin } from 'react-icons/fa'
 import { SiFacebook, SiInstagram, SiTelegram, SiTiktok, SiYoutube } from 'react-icons/si'
 import { MOTION_TEMPLATES, previewSrc } from '../lib/motionTemplates'
 import { Course } from './TutorialsPage'
+import Developers from './DevelopersPage'
 import CreditCoin from '../components/layout/CreditCoin'
 import { PhoneFrame, RENDER } from '../components/preview/SocialPreview'
 import PlatformIcon, { PLAT_BRAND_CLASS } from '../components/ui/PlatformIcon'
@@ -1525,6 +1526,20 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
             >
               {t('Tutorials', 'មេរៀន')}
             </a>
+            {/* the developer docs (/developers, DevelopersPage.jsx) — the API, and connecting an AI assistant */}
+            {[
+              ['/developers', 'API', ''],
+              ['/developers#mcp', 'MCP', 'mcp'],
+            ].map(([href, label, hash]) => (
+              <a
+                key={label}
+                href={href}
+                onMouseEnter={() => setMenu(false)}
+                className={`whitespace-nowrap rounded-lg px-2 py-1.5 xl:px-3 transition-colors ${page === 'developers' && (window.location.hash.slice(1) === hash) ? 'bg-ink-100 text-ink-900' : 'text-ink-600 hover:bg-ink-50 hover:text-ink-900'}`}
+              >
+                {label}
+              </a>
+            ))}
           </div>
           <div className="flex flex-none items-center gap-1.5 sm:gap-2">
             <LangSwitch lang={lang} setLang={setLang} />
@@ -1614,6 +1629,8 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
         <div className="pt-20 sm:pt-24">
           <Course openLabel={t('Log in to try it', 'ចូលដើម្បីសាកល្បង')} onOpen={onLogin} />
         </div>
+      ) : page === 'developers' ? (
+        <Developers t={t} me={me} onStart={onStart} />
       ) : (
       <>
       {/* ── hero ── */}
@@ -1981,6 +1998,9 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
           <div className="flex items-center gap-6 text-[13.5px] text-ink-500">
             <a href="/mkt-tutorial" className="hover:text-brand">
               {t('Tutorials', 'មេរៀន')}
+            </a>
+            <a href="/developers" className="hover:text-brand">
+              {t('Developers', 'អ្នកអភិវឌ្ឍន៍')}
             </a>
             <a href="/privacy" className="hover:text-brand">
               {t('Privacy', 'ឯកជនភាព')}

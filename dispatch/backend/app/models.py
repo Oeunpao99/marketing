@@ -901,6 +901,43 @@ class TeamMember(Base, TimestampMixin):
     access: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
 
 
+class ApiKey(Base):
+    """A customer's own key for the API and the MCP connector (app/api_keys.py,
+    app/mcp_server.py): it acts as the person who made it, in their workspace,
+    and spends its credits. Only the key's SHA-256 is kept — the key itself is
+    shown once. Revoking deletes the row."""
+
+    __tablename__ = "api_keys"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("team_members.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(String(60), default="", server_default="")
+    key_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    hint: Mapped[str] = mapped_column(String(8), default="", server_default="")  # its last 4 characters
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class ApiRequest(Base):
+    """One tool call through the connector (app/mcp_server.py) or the API page's
+    Playground — the API page's numbers and Request Logs. Never the arguments
+    (they may hold a customer's story); only which tool, how it went, how long."""
+
+    __tablename__ = "api_requests"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
+    key_id: Mapped[int | None] = mapped_column(ForeignKey("api_keys.id", ondelete="SET NULL"), nullable=True)
+    key_name: Mapped[str] = mapped_column(String(60), default="", server_default="")  # kept after the key is revoked
+    tool: Mapped[str] = mapped_column(String(40))
+    ok: Mapped[bool] = mapped_column(Boolean, default=True)
+    ms: Mapped[int] = mapped_column(Integer, default=0)
+    error: Mapped[str] = mapped_column(String(200), default="", server_default="")
+    job_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # the video / picture it started
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+
+
 class WorkspaceInvite(Base, TimestampMixin):
     """A join link (app/auth.py): whoever opens it sets their own name, email
     and password and joins the workspace with this role and access. Only a

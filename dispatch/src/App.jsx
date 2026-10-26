@@ -25,6 +25,7 @@ import LoginPage from "./pages/LoginPage";
 import LandingPage from "./pages/LandingPage";
 import NewPostPage from "./pages/NewPostPage";
 import UpgradePage from "./pages/UpgradePage";
+import ApiPage from "./pages/ApiPage";
 import PostDetailPage from "./pages/PostDetailPage";
 import ProductsPage from "./pages/ProductsPage";
 import ReviewPage from "./pages/ReviewPage";
@@ -82,6 +83,7 @@ function Portal() {
             <Route path="/leads" element={<LeadsPage />} />
             <Route path="/new" element={<NewPostPage />} />
             <Route path="/upgrade" element={<UpgradePage />} />
+            <Route path="/developer" element={<ApiPage />} />
             <Route path="/review" element={<ReviewPage />} />
             <Route path="/channels" element={<ChannelsPage />} />
             <Route path="/bots" element={<BotSetupPage />} />
@@ -164,6 +166,13 @@ export default function App() {
   if (publicPage) return <Public><LegalPage kind={publicPage} /></Public>;
   // the how-to videos for training sessions — anyone can watch, no sign-in;
   // the landing page's header and footer, "Log in" / "Start free" go to the sign-in
+  // the developer docs for the API and MCP connector (pages/DevelopersPage.jsx) — public, like the tutorials
+  if (path === "/developers")
+    return (
+      <Public>
+        <LandingPage page="developers" onLogin={() => window.location.assign("/?auth=signin")} onStart={() => window.location.assign("/?auth=register")} />
+      </Public>
+    );
   if (path === "/mkt-tutorial")
     return (
       <Public>

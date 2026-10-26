@@ -2,6 +2,7 @@ import {
   FiBarChart2,
   FiCalendar,
   FiClipboard,
+  FiCode,
   FiCreditCard,
   FiFilm,
   FiGlobe,
@@ -66,6 +67,8 @@ export const BOSS = [
   },
   // the plans, extra credits and invoices (pages/UpgradePage.jsx)
   { to: '/upgrade', icon: FiCreditCard, label: 'Plans & credits' },
+  // API keys, Playground, Request Logs, connect an AI assistant (pages/ApiPage.jsx)
+  { to: '/developer', icon: FiCode, label: 'API & MCP' },
   // how-to videos for customers (pages/TutorialsPage.jsx, lib/tutorials.js)
   { to: '/tutorials', icon: FiPlayCircle, label: 'Video tutorials', group: 'Learn' },
 ];
