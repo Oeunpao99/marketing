@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { FiArrowDown, FiArrowUp, FiCopy, FiFilm, FiHeadphones, FiMic, FiPlay, FiPlus, FiRefreshCw, FiSquare, FiTrash2 } from 'react-icons/fi'
+import { FiArrowDown, FiArrowUp, FiBox, FiCamera, FiCheck, FiCopy, FiFeather, FiFilm, FiHeadphones, FiMic, FiPenTool, FiPlay, FiPlus, FiRefreshCw, FiSquare, FiTrash2 } from 'react-icons/fi'
 import AutoTextarea from '../ui/AutoTextarea'
 import { SCENE_LABELS, STYLE_LABELS } from './MotionBoard'
 
@@ -325,12 +325,21 @@ export function estimateSeconds(scenes) {
 const fmtLength = (sec) => (sec >= 60 ? `${Math.floor(sec / 60)} min ${String(sec % 60).padStart(2, '0')} s` : `${sec} s`)
 
 // Picture story (motion/src/picture.jsx): how its pictures are painted and the
-// colours of the words on them (app/motion.py PICTURE_ARTS / clean_ink)
+// colours of the words on them (app/motion.py PICTURE_ARTS / clean_ink) — picked
+// as cards
 const ARTS = [
-  ['film', 'Film still'],
-  ['painted', 'Painted'],
-  ['illustration', 'Illustration'],
-  ['3d', '3D film'],
+  { id: 'film', label: 'Film still', note: 'Real-looking, like a movie', Icon: FiCamera },
+  { id: 'painted', label: 'Painted', note: 'Soft anime film painting', Icon: FiFeather },
+  { id: 'illustration', label: 'Illustration', note: 'Clean flat drawing', Icon: FiPenTool },
+  { id: '3d', label: '3D film', note: 'Like an animated movie', Icon: FiBox },
+]
+// ready-made word colours: [name, text, highlight ('' = the brand's colour)]
+const INKS = [
+  ['Brand', '#FFFFFF', ''],
+  ['Gold', '#FFFFFF', '#FFD400'],
+  ['Ocean', '#FFFFFF', '#22D3EE'],
+  ['Warm', '#FFE8A3', '#F43F5E'],
+  ['Sunny', '#FFD400', '#FFFFFF'],
 ]
 const TEXT_COLORS = ['#FFFFFF', '#FFE8A3', '#FFD400', '#111111']
 const ACCENTS = ['', '#FFD400', '#22D3EE', '#F43F5E', '#22C55E', '#FFFFFF']
@@ -361,41 +370,94 @@ function Swatches({ colors, value, onPick, label }) {
   )
 }
 
+/** A selectable card: a ring and a tick when it's the one picked. */
+function Card({ on, onClick, children, title }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={on}
+      title={title}
+      className={`relative flex min-w-0 flex-col rounded-xl border p-2 text-left transition-colors ${on ? 'border-brand bg-brand-soft ring-2 ring-brand/20' : 'border-ink-200 bg-white hover:border-brand/60'}`}
+    >
+      {on && (
+        <span className="absolute right-1.5 top-1.5 grid h-4 w-4 place-items-center rounded-full bg-brand text-white">
+          <FiCheck size={10} strokeWidth={3} />
+        </span>
+      )}
+      {children}
+    </button>
+  )
+}
+
 function PictureLook({ plan, onChange }) {
   const ink = { text: '#FFFFFF', accent: '', ...(plan.ink || {}) }
   const setInk = (patch) => onChange({ ...plan, ink: { ...ink, ...patch } })
   const art = plan.art || 'film'
+  const preset = INKS.findIndex(([, t, a]) => t === (ink.text || '').toUpperCase() && a === (ink.accent || '').toUpperCase())
+  const [custom, setCustom] = useState(preset < 0)
+  const brand = 'rgb(var(--brand))'
   return (
-    <div className="space-y-3 border-b border-ink-200/70 px-4 py-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="w-24 flex-none text-[11.5px] font-semibold text-ink-600">Picture style</span>
-        <div className="flex flex-wrap gap-1.5">
-          {ARTS.map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => onChange({ ...plan, art: id })}
-              className={`rounded-full border px-3 py-1 text-[12px] font-medium ${art === id ? 'border-brand bg-brand-soft text-brand' : 'border-ink-200 text-ink-700 hover:border-brand'}`}
-            >
-              {label}
-            </button>
+    <div className="space-y-4 border-b border-ink-200/70 px-4 py-4">
+      <div>
+        <div className="mb-2 text-[11.5px] font-semibold text-ink-600">Picture style</div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {ARTS.map(({ id, label, note, Icon }) => (
+            <Card key={id} on={art === id} onClick={() => onChange({ ...plan, art: id })}>
+              <span className={`grid h-8 w-8 place-items-center rounded-lg ${art === id ? 'bg-brand text-white' : 'bg-ink-100 text-ink-600'}`}>
+                <Icon size={16} />
+              </span>
+              <span className="mt-2 text-[12.5px] font-semibold text-ink-900">{label}</span>
+              <span className="text-[11px] leading-snug text-ink-500">{note}</span>
+            </Card>
           ))}
         </div>
       </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="w-24 flex-none text-[11.5px] font-semibold text-ink-600">Text colour</span>
-        <Swatches label="Text colour" colors={TEXT_COLORS} value={ink.text} onPick={(c) => setInk({ text: c })} />
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="w-24 flex-none text-[11.5px] font-semibold text-ink-600">Highlight</span>
-        <Swatches label="Highlight colour" colors={ACCENTS} value={ink.accent} onPick={(c) => setInk({ accent: c })} />
-      </div>
-      {/* how the words will look on a picture */}
-      <div className="flex items-center gap-3 pl-0 sm:pl-[6.5rem]">
-        <span className="rounded-lg bg-night-900 px-3 py-1.5 text-[15px] font-extrabold" style={{ color: ink.text }}>
-          Your words <span style={{ color: ink.accent || 'rgb(var(--brand))' }}>[highlighted]</span>
-        </span>
-        <span className="text-[11px] text-ink-400">Put [brackets] round the words to highlight</span>
+      <div>
+        <div className="mb-2 flex items-baseline justify-between gap-2">
+          <span className="text-[11.5px] font-semibold text-ink-600">Text look</span>
+          <span className="text-[11px] text-ink-400">Put [brackets] round the words to highlight</span>
+        </div>
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+          {INKS.map(([name, t, a], k) => (
+            <Card
+              key={name}
+              on={!custom && preset === k}
+              title={a ? undefined : 'The highlight in your brand colour'}
+              onClick={() => {
+                setCustom(false)
+                onChange({ ...plan, ink: { text: t, accent: a } })
+              }}
+            >
+              {/* the words as they'll look on a picture */}
+              <span className="grid h-10 place-items-center rounded-lg bg-night-900 px-1 text-center text-[13px] font-extrabold leading-tight">
+                <span style={{ color: t }}>
+                  Aa <span style={{ color: a || brand }}>word</span>
+                </span>
+              </span>
+              <span className="mt-1.5 text-center text-[11.5px] font-semibold text-ink-800">{name}</span>
+            </Card>
+          ))}
+          <Card on={custom} onClick={() => setCustom(true)} title="Your own colours">
+            <span className="grid h-10 place-items-center rounded-lg border border-dashed border-ink-300 text-[18px] text-ink-400">+</span>
+            <span className="mt-1.5 text-center text-[11.5px] font-semibold text-ink-800">Custom</span>
+          </Card>
+        </div>
+        {custom && (
+          <div className="mt-3 space-y-2.5 rounded-xl bg-canvas p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="w-20 flex-none text-[11.5px] font-semibold text-ink-600">Text</span>
+              <Swatches label="Text colour" colors={TEXT_COLORS} value={ink.text} onPick={(c) => setInk({ text: c })} />
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="w-20 flex-none text-[11.5px] font-semibold text-ink-600">Highlight</span>
+              <Swatches label="Highlight colour" colors={ACCENTS} value={ink.accent} onPick={(c) => setInk({ accent: c })} />
+            </div>
+            <span className="inline-block rounded-lg bg-night-900 px-3 py-1.5 text-[15px] font-extrabold" style={{ color: ink.text }}>
+              Your words <span style={{ color: ink.accent || brand }}>highlighted</span>
+            </span>
+          </div>
+        )}
       </div>
     </div>
   )
