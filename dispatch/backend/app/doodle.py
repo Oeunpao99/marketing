@@ -10,8 +10,10 @@ template draws the scene's icon in ink instead.
 """
 
 import base64
+import contextvars
 import io
 import logging
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -78,10 +80,12 @@ SOFTER = (
 )
 
 
-def _draw(prompt: str, ratio: str):
+def _draw(prompt: str, ratio: str, busy=None):
     """One drawing from the image service. The image quota (Azure S0) allows only
     a few a minute: a "rate limit" refusal is waited out and tried again —
-    up to three more times — instead of the scene losing its picture."""
+    up to three more times — instead of the scene losing its picture. ``busy``
+    (a threading.Event) is set on such a refusal: painting two at a time
+    (_two_at_a_time) then goes back to one."""
     from app import video as video_gen
 
     softened = False
@@ -99,6 +103,8 @@ def _draw(prompt: str, ratio: str):
                 continue
             if wait is None or "rate limit" not in why:
                 raise
+            if busy is not None:
+                busy.set()
             log.info("image service busy — trying again in %ss", wait)
             time.sleep(wait)
 
@@ -154,7 +160,7 @@ def host_picture_style(accent_hex: str) -> str:
     return HOST_PICTURE_STYLE.format(a=accent_hex)
 
 
-def _flat(prompt: str, style: str, ws: int | None, user_id: int | None, ratio: str = "16:9", side: int = 1200) -> str | None:
+def _flat(prompt: str, style: str, ws: int | None, user_id: int | None, ratio: str = "16:9", side: int = 1200, busy=None) -> str | None:
     """One colour illustration (``style`` + ``prompt``) in ``ratio``, at most
     ``side`` px, as a JPEG data URI — or None."""
     if ws:
@@ -163,7 +169,7 @@ def _flat(prompt: str, style: str, ws: int | None, user_id: int | None, ratio: s
         except billing.OutOfCredit:
             return None
     try:
-        _provider, blob, usage = _draw(style + prompt, ratio)
+        _provider, blob, usage = _draw(style + prompt, ratio, busy)
     except Exception as exc:  # noqa: BLE001 — the scene shows its drawn icon instead
         log.warning("presenter: picture failed (%s)", str(exc)[:200])
         return None
@@ -389,6 +395,35 @@ def draw_pictures(scenes: list[dict], theme: dict, ws: int | None, user_id: int 
     return sum(1 for u in got if u)
 
 
+def _two_at_a_time(todo: list[dict], style: str, ws, user_id, ratio: str, side: int, report) -> list[str | None]:
+    """Picture story's many pictures, two painted at once (about half the
+    wait) — until the image service says it's busy once: from then on the
+    rest go one at a time, so the quota isn't hammered. In order."""
+    busy = threading.Event()
+    single = threading.Lock()
+    done = [0]
+    count = threading.Lock()
+
+    def one(s: dict) -> str | None:
+        if busy.is_set():
+            with single:
+                uri = _flat(s["draw"], style, ws, user_id, ratio, side, busy)
+        else:
+            uri = _flat(s["draw"], style, ws, user_id, ratio, side, busy)
+        with count:
+            done[0] += 1
+            if report:
+                report(done[0], len(todo))
+        return uri
+
+    if report:
+        report(0, len(todo))
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        # each picture runs in a copy of this thread's context (the billing / model settings)
+        jobs = [pool.submit(contextvars.copy_context().run, one, s) for s in todo]
+        return [j.result() for j in jobs]
+
+
 def draw_scenes(
     scenes: list[dict], ws: int | None, user_id: int | None, report=None, style: str | None = None, limit: int = MAX_DRAWINGS, ratio: str = "16:9"
 ) -> int:
@@ -400,12 +435,15 @@ def draw_scenes(
     todo = [s for s in scenes if s.get("draw") and not s.get("image")][:limit]
     if not todo:
         return 0
-    got = []
     side = 1920 if limit > MAX_DRAWINGS else 1200  # Picture story: each picture fills the screen
-    for n, s in enumerate(todo):  # one at a time — the image quota is small
-        if report:
-            report(n, len(todo))
-        got.append(_flat(s["draw"], style, ws, user_id, ratio, side) if style else _one(s["draw"], ws, user_id))
+    if limit > MAX_DRAWINGS and style:
+        got = _two_at_a_time(todo, style, ws, user_id, ratio, side, report)
+    else:
+        got = []
+        for n, s in enumerate(todo):  # one at a time — the image quota is small
+            if report:
+                report(n, len(todo))
+            got.append(_flat(s["draw"], style, ws, user_id, ratio, side) if style else _one(s["draw"], ws, user_id))
     for s, uri in zip(todo, got):
         if uri:
             s["image"] = uri
