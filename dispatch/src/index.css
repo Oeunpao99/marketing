@@ -550,6 +550,18 @@ html.dark .cf-halo { background-color: rgb(var(--brand) / .45); }
   .cf-twinkle { animation: none; opacity: 0.8; transform: none; }
 }
 
+/* The making card (MotionBoard.jsx): the feather of a picture being painted, writing */
+@keyframes cf-feather {
+  0%, 100% { transform: translate(0, 0) rotate(-8deg); }
+  25% { transform: translate(2px, -1px) rotate(6deg); }
+  50% { transform: translate(4px, 1px) rotate(-6deg); }
+  75% { transform: translate(2px, 0) rotate(8deg); }
+}
+.cf-feather { animation: cf-feather 1.1s ease-in-out infinite; transform-origin: 20% 80%; }
+@media (prefers-reduced-motion: reduce) {
+  .cf-feather { animation: none; }
+}
+
 /* CoinFlip (CreditCoin.jsx): a 3D token spins one full turn, then rests */
 @keyframes cf-coin-flip {
   0%   { transform: rotateY(0deg); }

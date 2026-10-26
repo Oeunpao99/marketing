@@ -395,10 +395,11 @@ def draw_pictures(scenes: list[dict], theme: dict, ws: int | None, user_id: int 
     return sum(1 for u in got if u)
 
 
-def _two_at_a_time(todo: list[dict], style: str, ws, user_id, ratio: str, side: int, report) -> list[str | None]:
+def _two_at_a_time(todo: list[dict], paint, report, on_start, on_done) -> list[str | None]:
     """Picture story's many pictures, two painted at once (about half the
     wait) — until the image service says it's busy once: from then on the
-    rest go one at a time, so the quota isn't hammered. In order."""
+    rest go one at a time, so the quota isn't hammered. In order.
+    ``paint(scene, busy)`` paints one."""
     busy = threading.Event()
     single = threading.Lock()
     done = [0]
@@ -407,11 +408,14 @@ def _two_at_a_time(todo: list[dict], style: str, ws, user_id, ratio: str, side: 
     def one(s: dict) -> str | None:
         if busy.is_set():
             with single:
-                uri = _flat(s["draw"], style, ws, user_id, ratio, side, busy)
+                on_start(s)
+                uri = paint(s, busy)
         else:
-            uri = _flat(s["draw"], style, ws, user_id, ratio, side, busy)
+            on_start(s)
+            uri = paint(s, busy)
         with count:
             done[0] += 1
+            on_done(s, uri)
             if report:
                 report(done[0], len(todo))
         return uri
@@ -425,28 +429,45 @@ def _two_at_a_time(todo: list[dict], style: str, ws, user_id, ratio: str, side: 
 
 
 def draw_scenes(
-    scenes: list[dict], ws: int | None, user_id: int | None, report=None, style: str | None = None, limit: int = MAX_DRAWINGS, ratio: str = "16:9"
+    scenes: list[dict],
+    ws: int | None,
+    user_id: int | None,
+    report=None,
+    style: str | None = None,
+    limit: int = MAX_DRAWINGS,
+    ratio: str = "16:9",
+    on_start=None,
+    on_done=None,
 ) -> int:
     """Draw every scene that asks for a drawing (``draw``) and has none yet,
     one at a time (the image service rate-limits hard); the picture goes into
-    ``scene["image"]``. ``report(drawn, total)`` after each, for the progress
-    line. ``style`` = a colour illustration in that style (Presenter), in
-    ``ratio``, instead of Doodle's ink sketch. Returns how many were drawn."""
+    ``scene["image"]`` as soon as it's painted. ``report(drawn, total)`` after
+    each, for the progress line; ``on_start(scene)`` / ``on_done(scene, uri)``
+    around each one (the making card's rows). ``style`` = a colour
+    illustration in that style (Presenter), in ``ratio``, instead of Doodle's
+    ink sketch. Returns how many were drawn."""
     todo = [s for s in scenes if s.get("draw") and not s.get("image")][:limit]
     if not todo:
         return 0
     side = 1920 if limit > MAX_DRAWINGS else 1200  # Picture story: each picture fills the screen
+    started = on_start or (lambda s: None)
+
+    def finished(s: dict, uri: str | None) -> None:
+        if uri:
+            s["image"] = uri
+        if on_done:
+            on_done(s, uri)
+
     if limit > MAX_DRAWINGS and style:
-        got = _two_at_a_time(todo, style, ws, user_id, ratio, side, report)
+        got = _two_at_a_time(todo, lambda s, busy: _flat(s["draw"], style, ws, user_id, ratio, side, busy), report, started, finished)
     else:
         got = []
         for n, s in enumerate(todo):  # one at a time — the image quota is small
             if report:
                 report(n, len(todo))
+            started(s)
             got.append(_flat(s["draw"], style, ws, user_id, ratio, side) if style else _one(s["draw"], ws, user_id))
-    for s, uri in zip(todo, got):
-        if uri:
-            s["image"] = uri
+            finished(s, got[-1])
     return sum(1 for u in got if u)
 
 

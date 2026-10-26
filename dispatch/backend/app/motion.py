@@ -6063,12 +6063,33 @@ def _start_doodles(script: dict, job, job_id: int, style: str | None = None, lim
         asks = [asks[round(i * step)] for i in range(limit)]
     todo = [{"draw": script["scenes"][n]["draw"], "n": n} for n in asks]
     got: dict[int, str] = {}
+    # the making card's rows: which scenes are being painted now (a feather), and
+    # each finished picture, small, as soon as it's there
+    painting: set[int] = set()
+    pictures: list = [None] * len(script["scenes"])
+    lock = threading.Lock()
+
+    def started(t: dict) -> None:
+        with lock:
+            painting.add(t["n"])
+            _report(job_id, painting=sorted(painting))
+
+    def finished(t: dict, uri: str | None) -> None:
+        thumb = _thumb(uri) if uri else None
+        with lock:
+            painting.discard(t["n"])
+            if thumb:
+                pictures[t["n"]] = _keep_picture(job_id, t["n"], len(pictures), thumb)
+            _report(job_id, painting=sorted(painting), pictures=list(pictures))
 
     def work():
-        doodle.draw_scenes(todo, job.workspace_id, job.user_id, report=lambda done, total: _report(job_id, drawn=done, drawings=total), style=style, limit=limit, ratio=ratio)
+        doodle.draw_scenes(
+            todo, job.workspace_id, job.user_id, report=lambda done, total: _report(job_id, drawn=done, drawings=total),
+            style=style, limit=limit, ratio=ratio, on_start=started, on_done=finished,
+        )
         got.update({t["n"]: t["image"] for t in todo if t.get("image")})
 
-    _report(job_id, drawn=0, drawings=len(todo))
+    _report(job_id, drawn=0, drawings=len(todo), waiting=asks)
     thread = threading.Thread(target=contextvars.copy_context().run, args=(work,), daemon=True, name=f"doodle-{job_id}")
     thread.start()
     return thread, got
@@ -6511,6 +6532,44 @@ def _keep_sketches(frames: list) -> list:
     code = secrets.token_urlsafe(18)
     _SKETCHES[code] = (now, frames)
     return [f"/api/ai/motion/sketch/{code}/{i}.jpg" if f else None for i, f in enumerate(frames)]
+
+
+_PICTURE_CODES: dict[int, str] = {}  # a video being made → its painted pictures' code
+
+
+def _keep_picture(job_id: int, n: int, count: int, jpeg: bytes) -> str:
+    """One painted scene picture kept for the making card (one code per video,
+    filled in as the pictures arrive) — its URL."""
+    code = _PICTURE_CODES.get(job_id)
+    if not code or code not in _SKETCHES:
+        for j, c in list(_PICTURE_CODES.items()):  # the codes of pictures already cleared
+            if c not in _SKETCHES:
+                _PICTURE_CODES.pop(j, None)
+        code = secrets.token_urlsafe(18)
+        _SKETCHES[code] = (time.time(), [None] * count)
+        _PICTURE_CODES[job_id] = code
+    frames = _SKETCHES[code][1]
+    if 0 <= n < len(frames):
+        frames[n] = jpeg
+    return f"/api/ai/motion/sketch/{code}/{n}.jpg"
+
+
+def _thumb(uri: str) -> bytes | None:
+    """A painted picture (a data: URI) as a small JPEG for the card — None if it can't be read."""
+    try:
+        im = Image.open(io.BytesIO(base64.b64decode(uri.split(",", 1)[1])))
+        if im.mode in ("RGBA", "LA", "P"):  # Doodle's ink sketches: on white paper
+            im = im.convert("RGBA")
+            paper = Image.new("RGB", im.size, (255, 255, 255))
+            paper.paste(im, mask=im.getchannel("A"))
+            im = paper
+        im = im.convert("RGB")
+        im.thumbnail((360, 360))
+        buf = io.BytesIO()
+        im.save(buf, "JPEG", quality=80)
+        return buf.getvalue()
+    except Exception:  # noqa: BLE001 — the row just shows no picture
+        return None
 
 
 @sketch_router.get("/sketch/{code}/{n}.jpg", include_in_schema=False)

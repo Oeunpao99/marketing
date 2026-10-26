@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { FiCheck, FiChevronDown, FiMic, FiMicOff, FiMonitor } from 'react-icons/fi'
+import { FiCheck, FiChevronDown, FiFeather, FiMic, FiMicOff, FiMonitor } from 'react-icons/fi'
 import { kitSrc } from '../brandkit/BrandKit'
 
 // The live storyboard of a Remotion video while it's made — what the AI is
@@ -149,7 +149,7 @@ export function motionStage(progress) {
     case 'pictures':
       // templates whose pictures the image AI draws (Doodle, AI design, Reaction, Story) count them
       return progress.drawings
-        ? `Drawing the pictures · ${Math.min((progress.drawn || 0) + 1, progress.drawings)} of ${progress.drawings} — about 20 s each`
+        ? `Painting the pictures · ${progress.drawn || 0} of ${progress.drawings} done${(progress.painting || []).length > 1 ? ' — two at a time' : ' — about 20 s each'}`
         : 'Picking your brand photos…'
     case 'check':
       return 'Checking its design — fixing anything that looks off…'
@@ -360,6 +360,11 @@ export function MotionMaking({ progress, pct, stage, elapsed, onStop, request = 
   const scenes = progress?.scenes || []
   const step = stepOf(progress?.stage)
   const rendering = progress?.stage === 'render'
+  // pictures the image AI paints (Picture story, Doodle, Presenter…): each row shows its
+  // picture once painted, a moving feather while it's being painted (app/motion.py _start_doodles)
+  const pics = progress?.pictures || []
+  const painting = new Set(progress?.painting || [])
+  const waiting = new Set(progress?.waiting || [])
   const style = STYLE_LABELS[progress?.style]
   const thinking = scenes.length === 0 && (!progress?.stage || progress.stage === 'story')
   const [view, setView] = useState(null) // 'story' | 'voice' | 'render' | null
@@ -485,6 +490,15 @@ export function MotionMaking({ progress, pct, stage, elapsed, onStop, request = 
                     {s.text || '—'}
                   </span>
                   <span className="flex flex-none items-center gap-1 text-[10.5px] text-ink-400">
+                    {pics[i] ? (
+                      <img src={kitSrc(pics[i])} alt={`Scene ${i + 1}'s picture`} className="mr-1 h-7 w-12 rounded-md object-cover ring-1 ring-ink-200 animate-fadein" />
+                    ) : painting.has(i) ? (
+                      <span className="mr-1 inline-flex items-center gap-1 font-semibold text-brand">
+                        <FiFeather size={13} className="cf-feather" /> Painting
+                      </span>
+                    ) : waiting.has(i) && !rendering ? (
+                      <FiFeather size={12} className="mr-1 text-ink-300" title="Waiting to be painted" aria-label="Waiting to be painted" />
+                    ) : null}
                     {speaking ? (
                       <>
                         <FiMic size={12} className="text-brand" /> <VoiceWave />
@@ -501,6 +515,9 @@ export function MotionMaking({ progress, pct, stage, elapsed, onStop, request = 
                 </button>
                 {(showScreen || showSay) && (
                   <div className="space-y-1.5 pb-2.5 pl-[52px] pr-4 sm:pl-[148px]">
+                    {pics[i] && (opened.has(i) || view === 'story') && (
+                      <img src={kitSrc(pics[i])} alt={`Scene ${i + 1}'s picture`} className="max-h-40 rounded-lg object-contain ring-1 ring-ink-200" />
+                    )}
                     {showScreen && (
                       <p className="flex gap-2 text-[12px] leading-relaxed text-ink-700">
                         <FiMonitor size={13} className="mt-[3px] flex-none text-ink-400" aria-label="On screen" />
