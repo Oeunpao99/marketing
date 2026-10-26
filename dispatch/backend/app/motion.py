@@ -7982,15 +7982,28 @@ def can_edit(job: GenerationJob) -> bool:
         return False
 
 
+def _scene_picture(value, key: str = "") -> str:
+    """A scene's first stored picture (its /media link) — the editor's thumbnail. Not the logo."""
+    if "logo" in key.lower():
+        return ""
+    if isinstance(value, str):
+        return value if re.match(r"^/media/[\w.-]+\.(?:jpe?g|png|webp)$", value) else ""
+    items = value.items() if isinstance(value, dict) else enumerate(value) if isinstance(value, list) else ()
+    for k, v in items:
+        if link := _scene_picture(v, str(k)):
+            return link
+    return ""
+
+
 @router.get("/edit/{job_id}")
 def edit_view(job_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
     """What the editor shows: each scene's words on screen and its spoken line
     (and its voice clip, to listen to), the music and the sound effects."""
     src, video, making = _edit_source(db, job_id, ws)
     try:
-        props = _kept_props(making["remake"])
+        props = _linked_props(making["remake"])  # links, not embedded files: the page only shows them
     except RuntimeError as exc:
-        raise HTTPException(400, str(exc)) from exc
+        raise HTTPException(400, "This video's scenes are no longer stored.") from exc
     clips = making.get("scenes") or []
     scenes = []
     for n, sc in enumerate(props["scenes"]):
@@ -8004,6 +8017,7 @@ def edit_view(job_id: int, db: Session = Depends(get_db), ws: int = Depends(curr
                 "seconds": round(float(sc.get("seconds") or default_seconds(sc)), 1),
                 "voiced": bool(sc.get("audio")),
                 "clip": (clips[n].get("audio") or "") if n < len(clips) else "",
+                "picture": _scene_picture(sc),
             }
         )
     return {

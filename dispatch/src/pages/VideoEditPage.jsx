@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { FiArrowDown, FiArrowLeft, FiArrowUp, FiCheck, FiCopy, FiDownload, FiMic, FiMusic, FiPause, FiPlay, FiRotateCcw, FiSend, FiTrash2, FiUpload, FiVolume2, FiZap } from 'react-icons/fi'
+import { FiArrowLeft, FiArrowRight, FiCheck, FiChevronLeft, FiChevronRight, FiCopy, FiDownload, FiMic, FiMusic, FiPause, FiPlay, FiRotateCcw, FiSend, FiTrash2, FiUpload, FiVolume2, FiZap } from 'react-icons/fi'
 import { api } from '../api/client'
 import AutoTextarea from '../components/ui/AutoTextarea'
 import { FIELDS } from '../components/studio/StoryboardEditor'
@@ -75,7 +75,12 @@ export default function VideoEditPage() {
   const [done, setDone] = useState(null) // the new video: { url, filename, video_id }
   const [playing, setPlaying] = useState(null) // the scene whose voice is playing
   const [hearing, setHearing] = useState(null)
+  const [sel, setSel] = useState(null) // the scene being edited
+  const [tab, setTab] = useState('scene') // scene | sound | voice
+  const [at, setAt] = useState(null) // where the video is: { i, frac } — the scene (as it was made) and how far in
   const audio = useRef(null)
+  const player = useRef(null)
+  const editor = useRef(null)
 
   useEffect(() => {
     let alive = true
@@ -84,7 +89,9 @@ export default function VideoEditPage() {
       .then((v) => {
         if (!alive) return
         setSrc(v)
-        setScenes(v.scenes.map((s) => ({ ...s, key: nextKey++, origSay: s.say, origText: { ...s.text } })))
+        const list = v.scenes.map((s) => ({ ...s, key: nextKey++, origSay: s.say, origText: { ...s.text } }))
+        setScenes(list)
+        setSel(list[0]?.key ?? null)
         setSound({ music: v.music, music_volume: v.music_volume, voice_volume: v.voice_volume, sfx: v.sfx })
       })
       .catch((e) => alive && setError(e.message || 'This video can’t be edited.'))
@@ -129,8 +136,15 @@ export default function VideoEditPage() {
       ;[out[n], out[n + d]] = [out[n + d], out[n]]
       return out
     })
-  const duplicate = (n) => setScenes((xs) => [...xs.slice(0, n + 1), { ...xs[n], key: nextKey++ }, ...xs.slice(n + 1)])
-  const remove = (n) => setScenes((xs) => xs.filter((_, k) => k !== n))
+  const duplicate = (n) => {
+    const key = nextKey++
+    setScenes((xs) => [...xs.slice(0, n + 1), { ...xs[n], key }, ...xs.slice(n + 1)])
+    setSel(key)
+  }
+  const remove = (n) => {
+    setSel(scenes[n + 1]?.key ?? scenes[n - 1]?.key ?? null)
+    setScenes((xs) => xs.filter((_, k) => k !== n))
+  }
   const reset = (k) => setScenes((xs) => xs.map((s) => (s.key === k ? { ...s, say: s.origSay, text: { ...s.origText } } : s)))
 
   const revoiced = scenes.filter((s) => plain(s.say) !== plain(s.origSay) && plain(s.say)).length
@@ -141,6 +155,35 @@ export default function VideoEditPage() {
     const snd = sound.music !== src.music || sound.music_volume !== src.music_volume || sound.voice_volume !== src.voice_volume || sound.sfx !== src.sfx
     return order || words || snd
   }, [scenes, sound, src])
+  const soundChanged = !!src && (sound.music !== src.music || sound.music_volume !== src.music_volume || sound.voice_volume !== src.voice_volume || sound.sfx !== src.sfx)
+
+  // when each scene starts in the video as it was made (scenes overlap by one transition)
+  const starts = useMemo(() => {
+    let t = 0
+    return (src?.scenes || []).map((s) => {
+      const at0 = t
+      t += s.seconds - TRANSITION_S
+      return at0
+    })
+  }, [src])
+  // playing: the timeline follows the video, and so does the editor unless they're typing in it
+  const onTime = () => {
+    const v = player.current
+    if (!v || done || !starts.length) return
+    let i = starts.length - 1
+    while (i > 0 && v.currentTime < starts[i]) i--
+    setAt({ i, frac: Math.min(1, (v.currentTime - starts[i]) / (src.scenes[i].seconds || 1)) })
+    if (!v.paused && !editor.current?.contains(document.activeElement)) {
+      const hit = scenes.find((s) => s.i === i)
+      if (hit && hit.key !== sel) setSel(hit.key)
+    }
+  }
+  const pick = (s) => {
+    setSel(s.key)
+    setTab('scene')
+    const v = player.current
+    if (v && !done && starts[s.i] != null) v.currentTime = starts[s.i] + (s.i ? TRANSITION_S : 0) + 0.05
+  }
 
   const playClip = (s) => {
     audio.current?.pause()
@@ -244,20 +287,53 @@ export default function VideoEditPage() {
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,420px)_1fr] xl:grid-cols-[minmax(0,480px)_1fr]">
-        {/* the video: as it is, or the new one once it's saved */}
-        <div className="lg:sticky lg:top-24 lg:self-start">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] xl:grid-cols-[minmax(0,560px)_1fr]">
+        {/* the video and its scenes on a timeline: click one to jump there and edit it */}
+        <div className="min-w-0 lg:sticky lg:top-24 lg:self-start">
           <div className="overflow-hidden rounded-2xl bg-night-950 p-2">
             <video
+              ref={player}
               key={done?.url || src.url}
               src={abs(done?.url || src.url)}
               controls
               playsInline
               preload="metadata"
+              onTimeUpdate={onTime}
               style={{ aspectRatio: wide ? '16 / 9' : '9 / 16' }}
-              className={`mx-auto w-auto max-w-full rounded-xl bg-black object-contain ${wide ? 'h-auto w-full' : 'h-[calc(62vh/var(--z,1))]'}`}
+              className={`mx-auto w-auto max-w-full rounded-xl bg-black object-contain ${wide ? 'h-auto w-full' : 'h-[calc(50vh/var(--z,1))]'}`}
             />
           </div>
+
+          <div className="mt-3 rounded-2xl border border-ink-200 bg-white p-3">
+            <div className="mb-2 flex items-center justify-between gap-2 px-0.5">
+              <span className="text-[12px] font-bold text-ink-900">
+                {scenes.length} scenes <span className="font-normal text-ink-400">· {src.seconds}s</span>
+              </span>
+              <span className="text-[11px] text-ink-400">Click a scene to edit it</span>
+            </div>
+            <div className="flex h-16 gap-[3px]">
+              {scenes.map((s, n) => {
+                const edited = plain(s.say) !== plain(s.origSay) || Object.keys(s.text).some((k) => plain(s.text[k]) !== plain(s.origText[k]))
+                const here = !done && at && at.i === s.i
+                return (
+                  <button
+                    key={s.key}
+                    type="button"
+                    onClick={() => pick(s)}
+                    title={`Scene ${n + 1} · ${plain(Object.values(s.text)[0] || s.say).slice(0, 60)}`}
+                    style={{ flexGrow: s.seconds, flexBasis: 0, backgroundImage: s.picture ? `url(${abs(s.picture)})` : undefined }}
+                    className={`group relative min-w-[14px] overflow-hidden rounded-lg bg-ink-100 bg-cover bg-center transition ${sel === s.key ? 'ring-2 ring-brand ring-offset-2 ring-offset-white' : 'opacity-80 hover:opacity-100'}`}
+                  >
+                    {s.picture && <span className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />}
+                    <span className={`absolute bottom-1 left-1.5 text-[11px] font-bold tabular-nums ${s.picture ? 'text-white' : 'text-ink-600'}`}>{n + 1}</span>
+                    {edited && <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-amber-400 ring-2 ring-white" title="Edited" />}
+                    {here && <span className="absolute inset-y-0 w-0.5 bg-white shadow-[0_0_0_1px_rgba(0,0,0,.35)]" style={{ left: `${at.frac * 100}%` }} />}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
           {done ? (
             <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
               <div className="flex items-center gap-2 text-[13.5px] font-bold text-emerald-800">
@@ -281,149 +357,196 @@ export default function VideoEditPage() {
           )}
         </div>
 
-        <div className="min-w-0 space-y-5">
-          {/* the sound */}
-          <section className="rounded-2xl border border-ink-200 bg-white p-4 sm:p-5">
-            <h2 className="flex items-center gap-2 text-[14px] font-bold text-ink-900">
-              <FiVolume2 size={15} /> Sound
-            </h2>
-            <div className="mt-3 space-y-3">
-              <div className="flex flex-wrap items-center gap-3">
-                <FiMusic size={14} className="flex-none text-ink-400" />
-                <span className="w-32 flex-none text-[12.5px] font-semibold text-ink-800">
-                  Music{src.music_name ? <span className="block truncate text-[11px] font-normal capitalize text-ink-400">{src.music_name}</span> : null}
-                </span>
-                <Switch on={sound.music} onChange={(v) => setSound((x) => ({ ...x, music: v }))} label="Music on or off" />
-                <Slider value={sound.music_volume} min={0} max={150} disabled={!sound.music || !src.music} onChange={(v) => setSound((x) => ({ ...x, music_volume: v }))} label="Music volume" />
+        <div className="min-w-0">
+          <div className="mb-3 flex gap-1 rounded-xl bg-ink-100 p-1">
+            {[
+              ['scene', 'Scenes', null, scenes.some((s) => plain(s.say) !== plain(s.origSay) || Object.keys(s.text).some((k) => plain(s.text[k]) !== plain(s.origText[k])))],
+              ['sound', 'Sound', FiVolume2, soundChanged],
+              ['voice', 'Your voice', FiMic, false],
+            ].map(([k, label, Icon, dot]) => (
+              <button key={k} type="button" onClick={() => setTab(k)} className={`relative flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-[12.5px] font-semibold transition ${tab === k ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-500 hover:text-ink-800'}`}>
+                {Icon && <Icon size={13} />} {label}
+                {dot && <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />}
+              </button>
+            ))}
+          </div>
+
+          {tab === 'sound' && (
+            <section className="rounded-2xl border border-ink-200 bg-white p-4 sm:p-5">
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  <FiMusic size={14} className="flex-none text-ink-400" />
+                  <span className="w-32 flex-none text-[12.5px] font-semibold text-ink-800">
+                    Music{src.music_name ? <span className="block truncate text-[11px] font-normal capitalize text-ink-400">{src.music_name}</span> : null}
+                  </span>
+                  <Switch on={sound.music} onChange={(v) => setSound((x) => ({ ...x, music: v }))} label="Music on or off" />
+                  <Slider value={sound.music_volume} min={0} max={150} disabled={!sound.music || !src.music} onChange={(v) => setSound((x) => ({ ...x, music_volume: v }))} label="Music volume" />
+                </div>
+                {!src.music && <p className="pl-6 text-[11.5px] text-ink-400">This video was made without music.</p>}
+                <div className="flex flex-wrap items-center gap-3">
+                  <FiMic size={14} className="flex-none text-ink-400" />
+                  <span className="w-32 flex-none text-[12.5px] font-semibold text-ink-800">Voice</span>
+                  <span className="w-11 flex-none" />
+                  <Slider value={sound.voice_volume} min={20} max={100} disabled={src.voice === 'none'} onChange={(v) => setSound((x) => ({ ...x, voice_volume: v }))} label="Voice volume" />
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <FiZap size={14} className="flex-none text-ink-400" />
+                  <span className="w-32 flex-none text-[12.5px] font-semibold text-ink-800">
+                    Sound effects<span className="block text-[11px] font-normal text-ink-400">whoosh, pop, ding</span>
+                  </span>
+                  <Switch on={sound.sfx} onChange={(v) => setSound((x) => ({ ...x, sfx: v }))} label="Sound effects on or off" />
+                </div>
               </div>
-              {!src.music && <p className="pl-6 text-[11.5px] text-ink-400">This video was made without music.</p>}
-              <div className="flex flex-wrap items-center gap-3">
-                <FiMic size={14} className="flex-none text-ink-400" />
-                <span className="w-32 flex-none text-[12.5px] font-semibold text-ink-800">Voice</span>
-                <span className="w-11 flex-none" />
-                <Slider value={sound.voice_volume} min={20} max={100} disabled={src.voice === 'none'} onChange={(v) => setSound((x) => ({ ...x, voice_volume: v }))} label="Voice volume" />
-              </div>
-              <div className="flex flex-wrap items-center gap-3">
-                <FiZap size={14} className="flex-none text-ink-400" />
-                <span className="w-32 flex-none text-[12.5px] font-semibold text-ink-800">
-                  Sound effects<span className="block text-[11px] font-normal text-ink-400">whoosh, pop, ding</span>
-                </span>
-                <Switch on={sound.sfx} onChange={(v) => setSound((x) => ({ ...x, sfx: v }))} label="Sound effects on or off" />
-              </div>
-            </div>
-          </section>
+            </section>
+          )}
 
           {/* their own voice in place of the AI's (POST /ai/motion/edit/{id}/own-voice) */}
-          <section className="rounded-2xl border border-ink-200 bg-white p-4 sm:p-5">
-            <h2 className="flex items-center gap-2 text-[14px] font-bold text-ink-900">
-              <FiMic size={15} /> Replace with your voice
-            </h2>
-            <p className="mt-1.5 text-[12.5px] leading-relaxed text-ink-600">
-              Prefer your own, clearer voice? Download the script, read it all in one recording with a <b className="text-ink-800">short pause (about 1 second) between scenes</b>, then upload it. We cut it scene by scene and fit the video to your pace — the pictures and subtitles follow you. Saved as a new video; no credits.
-            </p>
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <button type="button" onClick={() => saveText(scriptText(src.scenes), 'txt')} disabled={!spokenCount} className="btn-outline disabled:opacity-50">
-                <FiDownload size={13} /> Script (.txt)
-              </button>
-              <button type="button" onClick={() => saveText(srtText(src.scenes), 'srt')} disabled={!spokenCount} className="btn-outline disabled:opacity-50">
-                <FiDownload size={13} /> Subtitles (.srt)
-              </button>
-              <input ref={recInput} type="file" accept="audio/*,.m4a,.mp3,.wav,.aac,.ogg,.webm" className="hidden" onChange={(e) => takeRecording(e.target.files?.[0])} />
-              <button type="button" onClick={() => recInput.current?.click()} disabled={!spokenCount || !!job} className="btn-primary disabled:opacity-50">
-                <FiUpload size={13} /> Upload your recording
-              </button>
-            </div>
-            {!spokenCount && <p className="mt-2 text-[11.5px] text-ink-400">This video has no spoken lines to read.</p>}
-          </section>
+          {tab === 'voice' && (
+            <section className="rounded-2xl border border-ink-200 bg-white p-4 sm:p-5">
+              <ol className="space-y-3">
+                {[
+                  ['Download the script', 'Every spoken line, in order.'],
+                  ['Read it all in one recording', 'With a short pause (about 1 second) between scenes.'],
+                  ['Upload it', 'We cut it scene by scene and fit the video to your pace — the pictures and subtitles follow you. Saved as a new video; no credits.'],
+                ].map(([head, body], n) => (
+                  <li key={head} className="flex gap-3">
+                    <span className="grid h-6 w-6 flex-none place-items-center rounded-full bg-brand-soft text-[11px] font-bold text-brand">{n + 1}</span>
+                    <span className="min-w-0 text-[12.5px] leading-relaxed text-ink-600">
+                      <b className="block text-ink-900">{head}</b>
+                      {body}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <button type="button" onClick={() => saveText(scriptText(src.scenes), 'txt')} disabled={!spokenCount} className="btn-outline disabled:opacity-50">
+                  <FiDownload size={13} /> Script (.txt)
+                </button>
+                <button type="button" onClick={() => saveText(srtText(src.scenes), 'srt')} disabled={!spokenCount} className="btn-outline disabled:opacity-50">
+                  <FiDownload size={13} /> Subtitles (.srt)
+                </button>
+                <input ref={recInput} type="file" accept="audio/*,.m4a,.mp3,.wav,.aac,.ogg,.webm" className="hidden" onChange={(e) => takeRecording(e.target.files?.[0])} />
+                <button type="button" onClick={() => recInput.current?.click()} disabled={!spokenCount || !!job} className="btn-primary disabled:opacity-50">
+                  <FiUpload size={13} /> Upload your recording
+                </button>
+              </div>
+              {!spokenCount && <p className="mt-2 text-[11.5px] text-ink-400">This video has no spoken lines to read.</p>}
+            </section>
+          )}
 
-          {/* the scenes */}
-          <section className="overflow-hidden rounded-2xl border border-ink-200 bg-white">
-            <div className="flex items-center justify-between gap-2 border-b border-ink-200/70 px-4 py-3 sm:px-5">
-              <h2 className="text-[14px] font-bold text-ink-900">Scenes</h2>
-              <span className="text-[11.5px] text-ink-500">{scenes.length} scenes · changed lines get a new voice, the rest keep theirs</span>
-            </div>
-            <ol className="divide-y divide-ink-200/60">
-              {scenes.map((s, n) => {
-                const newVoice = plain(s.say) !== plain(s.origSay)
-                const edited = newVoice || Object.keys(s.text).some((k) => plain(s.text[k]) !== plain(s.origText[k]))
-                const labels = Object.fromEntries(FIELDS[s.type] || [])
-                return (
-                  <li key={s.key} className={`flex gap-3 px-4 py-3.5 sm:px-5 ${playing === s.key ? 'bg-brand-soft/50' : ''}`}>
-                    <span className="mt-0.5 grid h-6 w-6 flex-none place-items-center rounded-lg bg-ink-100 text-[11px] font-bold tabular-nums text-ink-600">{n + 1}</span>
-                    <div className="min-w-0 flex-1 space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="flex min-w-0 items-center gap-2">
-                          <span className="truncate text-[10.5px] font-semibold uppercase tracking-wide text-ink-400">{SCENE_LABELS[s.type] || s.type}</span>
-                          <span className="text-[10.5px] tabular-nums text-ink-400">{s.seconds}s</span>
-                          {edited && <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">Edited</span>}
+          {/* one scene at a time: the one picked on the timeline */}
+          {tab === 'scene' &&
+            (() => {
+              const n = Math.max(0, scenes.findIndex((x) => x.key === sel))
+              const s = scenes[n]
+              if (!s) return null
+              const newVoice = plain(s.say) !== plain(s.origSay)
+              const edited = newVoice || Object.keys(s.text).some((k) => plain(s.text[k]) !== plain(s.origText[k]))
+              const labels = Object.fromEntries(FIELDS[s.type] || [])
+              const prev = scenes[n - 1]
+              const next = scenes[n + 1]
+              return (
+                <section ref={editor} className={`overflow-hidden rounded-2xl border bg-white ${playing === s.key ? 'border-brand' : 'border-ink-200'}`}>
+                  <div className="flex items-center justify-between gap-2 border-b border-ink-200/70 px-4 py-3 sm:px-5">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="grid h-7 w-7 flex-none place-items-center rounded-lg bg-brand text-[12px] font-bold tabular-nums text-white">{n + 1}</span>
+                      <span className="min-w-0">
+                        <span className="block text-[13.5px] font-bold text-ink-900">
+                          Scene {n + 1} <span className="font-normal text-ink-400">of {scenes.length}</span>
                         </span>
-                        <span className="flex flex-none items-center gap-0.5 text-ink-400">
-                          {edited && (
-                            <button type="button" title="Undo this scene's changes" onClick={() => reset(s.key)} className="rounded-md p-1 hover:bg-ink-100 hover:text-ink-700">
-                              <FiRotateCcw size={12} />
-                            </button>
-                          )}
-                          <button type="button" title="Duplicate this scene" onClick={() => duplicate(n)} className="rounded-md p-1 hover:bg-ink-100 hover:text-ink-700">
-                            <FiCopy size={12} />
-                          </button>
-                          <button type="button" title="Move up" disabled={n === 0} onClick={() => move(n, -1)} className="rounded-md p-1 hover:bg-ink-100 hover:text-ink-700 disabled:opacity-30">
-                            <FiArrowUp size={13} />
-                          </button>
-                          <button type="button" title="Move down" disabled={n === scenes.length - 1} onClick={() => move(n, 1)} className="rounded-md p-1 hover:bg-ink-100 hover:text-ink-700 disabled:opacity-30">
-                            <FiArrowDown size={13} />
-                          </button>
-                          <button type="button" title="Remove this scene" disabled={scenes.length <= 1} onClick={() => remove(n)} className="rounded-md p-1 hover:bg-red-50 hover:text-red-600 disabled:opacity-30">
-                            <FiTrash2 size={13} />
-                          </button>
+                        <span className="block truncate text-[10.5px] font-semibold uppercase tracking-wide text-ink-400">
+                          {SCENE_LABELS[s.type] || s.type} · {s.seconds}s
                         </span>
-                      </div>
-                      {Object.keys(s.text).map((key) => (
-                        <label key={key} className="flex items-center gap-2">
-                          <span className="w-20 flex-none text-[11px] text-ink-400">{labels[key] || key}</span>
-                          <input
-                            value={s.text[key]}
-                            onChange={(e) => set(s.key, { text: { ...s.text, [key]: e.target.value } })}
-                            className={`min-w-0 flex-1 rounded-lg border border-ink-200 bg-white px-2.5 py-1.5 text-[12.5px] font-semibold text-ink-900 outline-none focus:border-brand ${isKhmer(s.text[key]) ? 'font-khmer' : ''}`}
-                          />
-                        </label>
-                      ))}
-                      {src.voice !== 'none' && (
-                        <label className="flex items-start gap-2">
-                          <span className="mt-1.5 flex w-20 flex-none items-center gap-1 text-[11px] text-ink-400">
-                            <FiMic size={11} /> Voice
+                      </span>
+                      {edited && <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">Edited</span>}
+                    </span>
+                    <span className="flex flex-none items-center gap-0.5 text-ink-400">
+                      {edited && (
+                        <button type="button" title="Undo this scene's changes" onClick={() => reset(s.key)} className="rounded-md p-1.5 hover:bg-ink-100 hover:text-ink-700">
+                          <FiRotateCcw size={13} />
+                        </button>
+                      )}
+                      <button type="button" title="Duplicate this scene" onClick={() => duplicate(n)} className="rounded-md p-1.5 hover:bg-ink-100 hover:text-ink-700">
+                        <FiCopy size={13} />
+                      </button>
+                      <button type="button" title="Move earlier" disabled={n === 0} onClick={() => move(n, -1)} className="rounded-md p-1.5 hover:bg-ink-100 hover:text-ink-700 disabled:opacity-30">
+                        <FiArrowLeft size={14} />
+                      </button>
+                      <button type="button" title="Move later" disabled={n === scenes.length - 1} onClick={() => move(n, 1)} className="rounded-md p-1.5 hover:bg-ink-100 hover:text-ink-700 disabled:opacity-30">
+                        <FiArrowRight size={14} />
+                      </button>
+                      <button type="button" title="Remove this scene" disabled={scenes.length <= 1} onClick={() => remove(n)} className="rounded-md p-1.5 hover:bg-red-50 hover:text-red-600 disabled:opacity-30">
+                        <FiTrash2 size={14} />
+                      </button>
+                    </span>
+                  </div>
+
+                  <div className="space-y-4 px-4 py-4 sm:px-5">
+                    {s.picture && (
+                      <img src={abs(s.picture)} alt="" className={`mx-auto rounded-xl object-cover ${wide ? 'aspect-video w-full max-w-xs' : 'aspect-[9/16] h-40'}`} />
+                    )}
+                    {Object.keys(s.text).map((key) => (
+                      <label key={key} className="block">
+                        <span className="mb-1 block text-[11.5px] font-semibold text-ink-500">{labels[key] || key}</span>
+                        <input
+                          value={s.text[key]}
+                          onChange={(e) => set(s.key, { text: { ...s.text, [key]: e.target.value } })}
+                          className={`w-full rounded-xl border border-ink-200 bg-white px-3 py-2 text-[14px] font-semibold text-ink-900 outline-none focus:border-brand ${isKhmer(s.text[key]) ? 'font-khmer' : ''}`}
+                        />
+                      </label>
+                    ))}
+                    {src.voice !== 'none' && (
+                      <div>
+                        <span className="mb-1 flex items-center justify-between gap-2">
+                          <span className="flex items-center gap-1 text-[11.5px] font-semibold text-ink-500">
+                            <FiMic size={11} /> What the voice says
                           </span>
-                          <div className="min-w-0 flex-1">
-                            <AutoTextarea
-                              value={s.say}
-                              minRows={1}
-                              maxRows={6}
-                              placeholder="No voice in this scene"
-                              readOnly={src.voice === 'own'}
-                              title={src.voice === 'own' ? 'Your own recording — upload a new one to change what’s said' : undefined}
-                              onChange={(e) => set(s.key, { say: e.target.value })}
-                              className={`w-full rounded-lg border bg-white px-2.5 py-1.5 text-[12.5px] leading-relaxed text-ink-800 outline-none placeholder:text-ink-400 focus:border-brand ${newVoice ? 'border-amber-300' : 'border-ink-200'} ${isKhmer(s.say) ? 'font-khmer' : ''}`}
-                            />
-                            {newVoice && plain(s.say) && <p className="mt-1 text-[11px] text-amber-700">This line will be read again with the video’s voice.</p>}
-                          </div>
                           {newVoice ? (
-                            <button type="button" onClick={() => hear(s)} disabled={hearing != null || !plain(s.say)} title="Hear the new line (uses a few credits)" className="mt-0.5 grid h-8 w-8 flex-none place-items-center rounded-lg text-brand hover:bg-brand-soft disabled:opacity-40">
-                              {hearing === s.key ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand/30 border-t-brand" /> : <FiPlay size={14} />}
+                            <button type="button" onClick={() => hear(s)} disabled={hearing != null || !plain(s.say)} title="Hear the new line (uses a few credits)" className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11.5px] font-semibold text-brand hover:bg-brand-soft disabled:opacity-40">
+                              {hearing === s.key ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-brand/30 border-t-brand" /> : <FiPlay size={12} />} Hear new line
                             </button>
                           ) : (
                             s.clip && (
-                              <button type="button" onClick={() => playClip(s)} title="Listen to this scene's voice" className="mt-0.5 grid h-8 w-8 flex-none place-items-center rounded-lg text-ink-500 hover:bg-ink-100 hover:text-ink-800">
-                                {playing === s.key ? <FiPause size={14} /> : <FiPlay size={14} />}
+                              <button type="button" onClick={() => playClip(s)} className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11.5px] font-semibold text-ink-600 hover:bg-ink-100 hover:text-ink-900">
+                                {playing === s.key ? <FiPause size={12} /> : <FiPlay size={12} />} {playing === s.key ? 'Stop' : 'Listen'}
                               </button>
                             )
                           )}
-                        </label>
-                      )}
-                    </div>
-                  </li>
-                )
-              })}
-            </ol>
-          </section>
+                        </span>
+                        <AutoTextarea
+                          value={s.say}
+                          minRows={3}
+                          maxRows={12}
+                          placeholder="No voice in this scene"
+                          readOnly={src.voice === 'own'}
+                          title={src.voice === 'own' ? 'Your own recording — upload a new one to change what’s said' : undefined}
+                          onChange={(e) => set(s.key, { say: e.target.value })}
+                          className={`w-full rounded-xl border bg-white px-3 py-2 text-[13.5px] leading-relaxed text-ink-800 outline-none placeholder:text-ink-400 focus:border-brand ${newVoice ? 'border-amber-300' : 'border-ink-200'} ${isKhmer(s.say) ? 'font-khmer' : ''}`}
+                        />
+                        {newVoice && plain(s.say) && <p className="mt-1 text-[11px] text-amber-700">This line will be read again with the video’s voice.</p>}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 border-t border-ink-200/70 px-4 py-3 sm:px-5">
+                    <button type="button" disabled={!prev} onClick={() => prev && pick(prev)} className="flex min-w-0 items-center gap-2 rounded-xl px-2 py-1.5 text-left hover:bg-ink-100 disabled:opacity-30">
+                      <FiChevronLeft size={16} className="flex-none text-ink-500" />
+                      <span className="min-w-0">
+                        <span className="block text-[11px] text-ink-400">Scene {n}</span>
+                        <span className="block truncate text-[12px] font-semibold text-ink-800">{prev ? plain(Object.values(prev.text)[0] || prev.say) : '—'}</span>
+                      </span>
+                    </button>
+                    <button type="button" disabled={!next} onClick={() => next && pick(next)} className="flex min-w-0 items-center justify-end gap-2 rounded-xl px-2 py-1.5 text-right hover:bg-ink-100 disabled:opacity-30">
+                      <span className="min-w-0">
+                        <span className="block text-[11px] text-ink-400">Scene {n + 2}</span>
+                        <span className="block truncate text-[12px] font-semibold text-ink-800">{next ? plain(Object.values(next.text)[0] || next.say) : '—'}</span>
+                      </span>
+                      <FiChevronRight size={16} className="flex-none text-ink-500" />
+                    </button>
+                  </div>
+                </section>
+              )
+            })()}
         </div>
       </div>
 
