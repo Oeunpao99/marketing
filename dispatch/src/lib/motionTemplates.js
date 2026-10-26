@@ -201,7 +201,7 @@ export const MOTION_TEMPLATES = [
   {
     id: 'picture',
     story: 'picture',
-    added: '2026-10-26T12:00:00+07:00',
+    added: '2026-10-26T09:58:00+07:00', // when it went live (f0f9938) — a time still to come isn't announced
     name: 'Picture story',
     look: 'A story told over full-screen AI pictures — a cinematic film still, a painted anime film, a modern illustration or a 3D film — a slow camera move on each, soft crossfades, a short line of text on every picture in the colours you pick, subtitles under the voice',
     steps: ['The opening picture', 'The story, picture by picture', 'The turn', 'The ending'],
