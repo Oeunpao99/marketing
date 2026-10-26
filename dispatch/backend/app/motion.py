@@ -7944,7 +7944,7 @@ def edit_view(job_id: int, db: Session = Depends(get_db), ws: int = Depends(curr
 class EditScene(BaseModel):
     i: int = Field(ge=0)
     text: dict[str, str] = Field(default_factory=dict)
-    say: str = Field(default="", max_length=600)
+    say: str = Field(default="", max_length=PICTURE_SAY_MAX)
 
 
 class EditIn(BaseModel):
@@ -7994,6 +7994,88 @@ def edit_video(
     return {"id": job.id}
 
 
+@router.post("/edit/{job_id}/own-voice", status_code=201)
+def own_voice_edit(
+    job_id: int,
+    audio: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    ws: int = Depends(current_workspace_id),
+    user: TeamMember = Depends(get_current_user),
+):
+    """Their own recording of the script in place of the video's voice — a NEW
+    video (the original stays): the recording is cut scene by scene at its
+    pauses and every scene fits its piece (app/own_voice.py). No AI credits."""
+    from app import own_voice
+
+    reason = not_ready()
+    if reason:
+        raise HTTPException(503, f"Motion videos aren't set up on this server yet. {reason}")
+    src, _video, making = _edit_source(db, job_id, ws)
+    try:
+        props = _kept_props(making["remake"])
+    except RuntimeError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    if not any(sc.get("caption") for sc in props["scenes"]):
+        raise HTTPException(400, "This video has no spoken lines to read.")
+    data = audio.file.read(own_voice.MAX_BYTES + 1)
+    if len(data) > own_voice.MAX_BYTES:
+        raise HTTPException(413, "That recording is too large — upload an MP3 or M4A (under 80 MB).")
+    if len(data) < 2_000:
+        raise HTTPException(400, "That recording is empty — record the script, then upload it.")
+    refuse_if_busy(db, "motion")
+    work = Path(tempfile.mkdtemp(prefix="own-voice-"))
+    ext = "." + (audio.filename or "voice.m4a").rsplit(".", 1)[-1].lower()[:5]
+    recording = work / f"upload{ext if len(ext) > 1 else '.m4a'}"
+    recording.write_bytes(data)
+    job = GenerationJob(
+        workspace_id=ws,
+        user_id=user.id,
+        brand_id=src.brand_id,
+        kind="motion",
+        prompt=src.prompt,
+        aspect_ratio=src.aspect_ratio,
+        seconds=0,
+        provider="remotion",
+        status="queued",
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    edit = {
+        "scenes": [{"i": n, "say": _editable_text(sc.get("caption") or "")} for n, sc in enumerate(props["scenes"])],
+        "music": bool(props.get("music") or props.get("musicList")),
+        "music_volume": float(props.get("musicVolume") or 1),
+        "voice_volume": 1.0,
+        "sfx": props.get("sfx", True) is not False,
+        "own_voice": str(recording),
+    }
+    _report(job.id, stage="voice")
+    threading.Thread(target=_edit, args=(job.id, src.id, edit), daemon=True, name=f"own-voice-{job.id}").start()
+    return {"id": job.id}
+
+
+def apply_own_voice(props: dict, recording: Path) -> None:
+    """Their recording in place of every scene's voice (app/own_voice.py):
+    one piece per spoken line, each scene as long as its piece needs — the
+    subtitles change phrase at the pauses in their voice."""
+    from app import own_voice
+
+    spoken = [n for n, sc in enumerate(props["scenes"]) if sc.get("caption")]
+    lines = [_editable_text(props["scenes"][n]["caption"]) for n in spoken]
+    pieces = own_voice.split(recording, lines, recording.parent)
+    for sc in props["scenes"]:
+        for k in ("audio", "voiceWords", "pauses", "voiceSeconds"):
+            sc.pop(k, None)
+    for k, (n, (mp3, seconds)) in enumerate(zip(spoken, pieces)):
+        sc = props["scenes"][n]
+        sc["audio"] = "data:audio/mpeg;base64," + base64.b64encode(mp3).decode()
+        # The line starts once the scene has slid in + 6 frames breathing room (MotionPost.jsx).
+        lead = (TRANSITION_S if n else 0.0) + 0.2 + min(1.5, float(sc.get("pause") or 0))
+        sc["seconds"] = round(max(default_seconds(sc), lead + seconds + VOICE_TAIL), 2)
+        sc["voiceSeconds"] = round(seconds, 2)
+        sc["pauses"] = _pauses(recording.parent / f"line-{k}.mp3")
+
+
 def edited_props(props: dict, edit: dict, khmer: bool) -> tuple[dict, list[tuple[int, str]]]:
     """The kept props with the edit applied, and the scenes whose spoken line
     changed — [(index in the new video, the new line)], to be voiced again."""
@@ -8011,7 +8093,7 @@ def edited_props(props: dict, edit: dict, khmer: bool) -> tuple[dict, list[tuple
             if key in limits and isinstance(value, str) and isinstance(sc.get(key), str):
                 if _plain(value) != _plain(sc[key]):
                     sc[key] = t(_line(value, limits[key]))
-        say = _line(e.get("say") or "", 300)
+        say = _line(e.get("say") or "", PICTURE_SAY_MAX)
         if _plain(say) != _plain(sc.get("caption") or ""):
             for k in ("audio", "voiceWords", "pauses", "voiceSeconds", "seconds"):
                 sc.pop(k, None)
@@ -8050,7 +8132,17 @@ def _edit(job_id: int, src_id: int, edit: dict) -> None:
                 raise RuntimeError("The original video was deleted.")
             props, revoice = edited_props(_kept_props(making["remake"]), edit, khmer)
             setting = making.get("voice") or "none"
-            if revoice and setting != "none":
+            if edit.get("own_voice"):  # their own recording, cut to the scenes
+                from app.own_voice import OwnVoiceError
+
+                db.rollback()
+                try:
+                    apply_own_voice(props, Path(edit["own_voice"]))
+                except OwnVoiceError as exc:
+                    raise RuntimeError(str(exc)) from exc
+            elif revoice and setting == "own":  # their recording can't read a new line
+                raise RuntimeError("This video speaks with your own recording — to change what's said, upload a new recording.")
+            elif revoice and setting != "none":
                 brand = db.get(Brand, job.brand_id) if job.brand_id else None
                 speech.use_workspace_key(gemini_keys.workspace_key(db, job.workspace_id))
                 narrator, clone = voice_clone.narrator_for(brand, language, setting, making.get("style"))
@@ -8085,7 +8177,7 @@ def _edit(job_id: int, src_id: int, edit: dict) -> None:
         video = Video(
             workspace_id=job.workspace_id,
             brand_id=job.brand_id,
-            filename=f"{Path(old.filename or 'video').stem.removesuffix('-edited')}-edited.mp4",
+            filename=f"{Path(old.filename or 'video').stem.removesuffix('-edited').removesuffix('-your-voice')}{'-your-voice' if edit.get('own_voice') else '-edited'}.mp4",
             duration_seconds=int(round(seconds or 0)),
             resolution=old.resolution,
             size_bytes=len(blob),
@@ -8107,6 +8199,8 @@ def _edit(job_id: int, src_id: int, edit: dict) -> None:
             rows.append({"type": sc.get("type") or "", "screen": " — ".join(words), "say": _editable_text(sc.get("caption") or ""), "start": round(start, 2), "seconds": round(secs, 2), "audio": ""})
             start += secs - TRANSITION_S
         made = {**making, "scenes": rows, "music": making.get("music") if props.get("music") or props.get("musicList") else ""}
+        if edit.get("own_voice"):
+            made["voice"] = "own"  # their recording — a later edit keeps it (changed lines can't be re-read)
         try:
             made["remake"] = keep_props(db, props)
         except Exception:  # noqa: BLE001 — the video matters more than a later edit
@@ -8127,6 +8221,8 @@ def _edit(job_id: int, src_id: int, edit: dict) -> None:
             job.status, job.error = "failed", "Something went wrong while saving the edit — try again."
             db.commit()
     finally:
+        if edit.get("own_voice"):  # their recording and its pieces: not kept
+            shutil.rmtree(Path(edit["own_voice"]).parent, ignore_errors=True)
         _stopped.discard(job_id)
         _progress.pop(job_id, None)
         db.close()

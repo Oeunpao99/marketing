@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { FiArrowDown, FiArrowLeft, FiArrowUp, FiCheck, FiCopy, FiDownload, FiMic, FiMusic, FiPause, FiPlay, FiRotateCcw, FiSend, FiTrash2, FiVolume2, FiZap } from 'react-icons/fi'
+import { FiArrowDown, FiArrowLeft, FiArrowUp, FiCheck, FiCopy, FiDownload, FiMic, FiMusic, FiPause, FiPlay, FiRotateCcw, FiSend, FiTrash2, FiUpload, FiVolume2, FiZap } from 'react-icons/fi'
 import { api } from '../api/client'
 import AutoTextarea from '../components/ui/AutoTextarea'
 import { FIELDS } from '../components/studio/StoryboardEditor'
@@ -20,6 +20,30 @@ const mediaBase = window.location.port === '5173' ? 'http://localhost:8000' : ''
 const abs = (u) => (u ? `${mediaBase}${u}` : '')
 const plain = (t) => String(t || '').replace(/[[\]]/g, '').replace(/\s+/g, ' ').trim()
 let nextKey = 1
+
+// The script to read for "Replace with your voice", and its subtitles with the
+// video's timing (scenes overlap by one 14-frame transition; a line starts 0.2 s in)
+const TRANSITION_S = 14 / 30
+function scriptText(scenes) {
+  const lines = scenes.filter((s) => plain(s.say)).map((s, n) => `${n + 1}. ${plain(s.say)}`)
+  return `Read every line in order, with a short pause (about 1 second) between scenes.\n\n${lines.join('\n\n')}\n`
+}
+const stamp = (t) => {
+  const ms = Math.max(0, Math.round(t * 1000))
+  const p = (n, w = 2) => String(n).padStart(w, '0')
+  return `${p(Math.floor(ms / 3600000))}:${p(Math.floor(ms / 60000) % 60)}:${p(Math.floor(ms / 1000) % 60)},${p(ms % 1000, 3)}`
+}
+function srtText(scenes) {
+  let start = 0
+  let n = 0
+  const out = []
+  scenes.forEach((s, i) => {
+    const lead = (i ? TRANSITION_S : 0) + 0.2
+    if (plain(s.say)) out.push(`${++n}\n${stamp(start + lead)} --> ${stamp(start + s.seconds - 0.3)}\n${plain(s.say)}\n`)
+    start += s.seconds - TRANSITION_S
+  })
+  return out.join('\n')
+}
 
 /** On / off, in the app's own style. */
 function Switch({ on, onChange, label }) {
@@ -158,6 +182,30 @@ export default function VideoEditPage() {
     }
   }
 
+  // their own recording of the script — cut to the scenes on the server (app/own_voice.py)
+  const recInput = useRef(null)
+  const spokenCount = (src?.scenes || []).filter((s) => plain(s.say)).length
+  const takeRecording = async (file) => {
+    if (recInput.current) recInput.current.value = ''
+    if (!file) return
+    if (file.size > 80 * 1024 * 1024) return showToast('That recording is too large — upload an MP3 or M4A under 80 MB')
+    try {
+      const fd = new FormData()
+      fd.append('audio', file)
+      const res = await api.upload(`/ai/motion/edit/${id}/own-voice`, fd)
+      setJob({ id: res.id, pct: 0, stage: 'voice', own: true })
+    } catch (e) {
+      showToast(e.message || 'Could not upload the recording — try again')
+    }
+  }
+  const saveText = (text, ext) => {
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }))
+    a.download = `${String(src.filename || 'video').replace(/\.[^.]+$/, '')}-script.${ext}`
+    a.click()
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000)
+  }
+
   const post = () => {
     handoff.set({ name: done.filename, size: 0, kind: 'video', url: abs(done.url), videoId: done.video_id, caption: src.caption || '', source: 'Library' })
     navigate('/new')
@@ -265,6 +313,29 @@ export default function VideoEditPage() {
             </div>
           </section>
 
+          {/* their own voice in place of the AI's (POST /ai/motion/edit/{id}/own-voice) */}
+          <section className="rounded-2xl border border-ink-200 bg-white p-4 sm:p-5">
+            <h2 className="flex items-center gap-2 text-[14px] font-bold text-ink-900">
+              <FiMic size={15} /> Replace with your voice
+            </h2>
+            <p className="mt-1.5 text-[12.5px] leading-relaxed text-ink-600">
+              Prefer your own, clearer voice? Download the script, read it all in one recording with a <b className="text-ink-800">short pause (about 1 second) between scenes</b>, then upload it. We cut it scene by scene and fit the video to your pace — the pictures and subtitles follow you. Saved as a new video; no credits.
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <button type="button" onClick={() => saveText(scriptText(src.scenes), 'txt')} disabled={!spokenCount} className="btn-outline disabled:opacity-50">
+                <FiDownload size={13} /> Script (.txt)
+              </button>
+              <button type="button" onClick={() => saveText(srtText(src.scenes), 'srt')} disabled={!spokenCount} className="btn-outline disabled:opacity-50">
+                <FiDownload size={13} /> Subtitles (.srt)
+              </button>
+              <input ref={recInput} type="file" accept="audio/*,.m4a,.mp3,.wav,.aac,.ogg,.webm" className="hidden" onChange={(e) => takeRecording(e.target.files?.[0])} />
+              <button type="button" onClick={() => recInput.current?.click()} disabled={!spokenCount || !!job} className="btn-primary disabled:opacity-50">
+                <FiUpload size={13} /> Upload your recording
+              </button>
+            </div>
+            {!spokenCount && <p className="mt-2 text-[11.5px] text-ink-400">This video has no spoken lines to read.</p>}
+          </section>
+
           {/* the scenes */}
           <section className="overflow-hidden rounded-2xl border border-ink-200 bg-white">
             <div className="flex items-center justify-between gap-2 border-b border-ink-200/70 px-4 py-3 sm:px-5">
@@ -327,6 +398,8 @@ export default function VideoEditPage() {
                               minRows={1}
                               maxRows={6}
                               placeholder="No voice in this scene"
+                              readOnly={src.voice === 'own'}
+                              title={src.voice === 'own' ? 'Your own recording — upload a new one to change what’s said' : undefined}
                               onChange={(e) => set(s.key, { say: e.target.value })}
                               className={`w-full rounded-lg border bg-white px-2.5 py-1.5 text-[12.5px] leading-relaxed text-ink-800 outline-none placeholder:text-ink-400 focus:border-brand ${newVoice ? 'border-amber-300' : 'border-ink-200'} ${isKhmer(s.say) ? 'font-khmer' : ''}`}
                             />
@@ -361,7 +434,7 @@ export default function VideoEditPage() {
             <span className="min-w-0 flex-1 text-[12.5px] text-ink-600">
               {job ? (
                 <>
-                  <b className="text-ink-900">{job.stage === 'voice' ? 'Recording the new lines…' : `Drawing the video… ${job.pct ? `${job.pct}%` : ''}`}</b> — you can leave this page; it lands in your Library.
+                  <b className="text-ink-900">{job.stage === 'voice' ? (job.own ? 'Fitting your voice to the scenes…' : 'Recording the new lines…') : `Drawing the video… ${job.pct ? `${job.pct}%` : ''}`}</b> — you can leave this page; it lands in your Library.
                 </>
               ) : changed ? (
                 <>
