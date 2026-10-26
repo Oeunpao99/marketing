@@ -13,6 +13,8 @@ Without either, motion videos are simply made silent.
 Khmer lines go to Google Gemini TTS (KHMER_SPEECH_PROVIDER, blank = Gemini when
 GEMINI_API_KEY is set) — voice names "gemini:<voice>" — and fall back to Azure
 when Gemini fails. Gemini gives no word timings: Khmer subtitles use the estimate.
+With KIRITTS_API_KEY set, KiriTTS (a Khmer-first voice) reads those lines before
+Gemini — see _kiri.
 """
 
 from __future__ import annotations
@@ -141,12 +143,13 @@ def gemini_status() -> dict:
     are in the server log."""
     from app import local_voice
 
-    out = gemini_ready() and not gemini_available()
+    available = gemini_available() or kiri_ready()  # KiriTTS reads under the Gemini voice's name
+    out = gemini_ready() and not available
     return {
         # the open-source Khmer voice can be picked ("Native") on this server
         "native": local_voice.ready(),
-        "configured": gemini_ready(),
-        "available": gemini_available(),
+        "configured": gemini_ready() or kiri_ready(),
+        "available": available,
         "back_at": min((_out(k, m)[0] for k in _keys() for m in gemini_models()), default=None) if out else None,
         "own_key": bool(_WS_KEY.get()),
         "backup": {g: VOICES[("km", g)].split("-")[2].removesuffix("Neural") for g in ("female", "male")} if provider() == "azure" else {},
@@ -240,8 +243,86 @@ def gemini_ready() -> bool:
     return bool(_keys())
 
 
+# KiriTTS (kiritts.com): a Khmer-first voice, asked before Gemini for Khmer
+# lines when it's set up. It reads under the Gemini voice's name ("gemini:Kore"
+# → Maly), so a video's backup, its note and its dialogue voices work as they
+# did; only Gemini's main female / male voices map to it (a dialogue's second
+# voice stays on Gemini). ~$0.033 an audio minute (Starter) at ~0.085 s a character.
+PRICE_PER_CHAR_KIRI = 50 / 1_000_000
+_KIRI_OUT = [0.0]  # out until then: a rejected key, or the month's credit used up
+
+
+def kiri_ready() -> bool:
+    return bool(get_settings().kiritts_api_key) and _KIRI_OUT[0] <= time.time()
+
+
+def _kiri_voice(name: str) -> str:
+    """The KiriTTS voice for a Gemini voice name — blank = Gemini reads it."""
+    s = get_settings()
+    return {s.gemini_tts_voice_female: s.kiritts_voice_female, s.gemini_tts_voice_male: s.kiritts_voice_male}.get(name, "")
+
+
+def _kiri(text: str, voice: str, style: str = "") -> bytes:
+    """KiriTTS reads ``text`` — MP3 bytes. Its notes are short (100 characters
+    at most): the accent first, then as much of the template's acting as fits."""
+    s = get_settings()
+    accent = "Native Phnom Penh Khmer, natural and warm."
+    notes = f"{accent} {GEMINI_ACT.get(style, '')}".strip()
+    if len(notes) > 100:  # at the acting's last comma / dash that fits, else a word
+        cut = notes[:100]
+        at = max(cut.rfind(","), cut.rfind(" —"))
+        notes = cut[:at] if at > len(accent) else cut.rsplit(" ", 1)[0]
+    body = {"model": s.kiritts_model, "input": text.replace(ZWSP, "").strip(), "voice": voice, "instructions": notes, "response_format": "mp3"}
+    for attempt in range(2):
+        try:
+            resp = httpx.post(
+                f"{s.kiritts_base_url.rstrip('/')}/audio/speech",
+                headers={"Authorization": f"Bearer {s.kiritts_api_key}"},
+                json=body,
+                timeout=180.0,
+            )
+        except httpx.HTTPError as exc:
+            raise SpeechError(f"Could not reach KiriTTS: {exc}") from exc
+        if resp.status_code == 200 and len(resp.content) > 1000:
+            return _as_mp3(resp.content)
+        try:  # {"error": {"message": …}} (seen), or {"detail": …} (their docs)
+            err = resp.json()
+            detail = str((err.get("error") or {}).get("message") or err.get("detail") or "")[:160]
+        except (ValueError, AttributeError):
+            detail = resp.text[:160]
+        used_up = resp.status_code == 429 and any(w in detail.lower() for w in ("month", "credit"))
+        if resp.status_code == 429 and not used_up and attempt == 0:
+            time.sleep(min(float(resp.headers.get("retry-after") or 3), 15))  # over the per-minute limit: once more
+            continue
+        if resp.status_code in (401, 403) or used_up:
+            _KIRI_OUT[0] = time.time() + (3600 if used_up else 600)
+            log.error("KiriTTS is out for %s min: %s %s", 60 if used_up else 10, resp.status_code, detail)
+        raise SpeechError(f"KiriTTS said {resp.status_code}: {detail or 'no audio'}")
+    raise SpeechError("KiriTTS is busy")
+
+
+def _as_mp3(audio: bytes) -> bytes:
+    """KiriTTS answers "mp3" with a WAV (seen 2026-10-26): made an MP3 here, as the video stores it."""
+    if not audio.startswith(b"RIFF"):
+        return audio
+    import subprocess
+
+    import imageio_ffmpeg
+
+    done = subprocess.run(
+        [imageio_ffmpeg.get_ffmpeg_exe(), "-y", "-loglevel", "error", "-f", "wav", "-i", "pipe:0", "-codec:a", "libmp3lame", "-b:a", "128k", "-f", "mp3", "pipe:1"],
+        input=audio,
+        capture_output=True,
+    )
+    if done.returncode != 0 or not done.stdout:
+        raise SpeechError("Couldn't encode the KiriTTS audio.")
+    return done.stdout
+
+
 def price_per_char(voice: str) -> float:
-    return PRICE_PER_CHAR_GEMINI if voice.startswith(GEMINI) else PRICE_PER_CHAR
+    if voice.startswith(GEMINI):
+        return PRICE_PER_CHAR_KIRI if kiri_ready() else PRICE_PER_CHAR_GEMINI
+    return PRICE_PER_CHAR
 
 
 def voice_for(language: str, gender: str, style: str | None = None) -> str | None:
@@ -252,9 +333,9 @@ def voice_for(language: str, gender: str, style: str | None = None) -> str | Non
     s = get_settings()
     from app import local_voice
 
-    # Khmer → Gemini TTS when it's set up (the most natural Khmer), English → Azure.
-    if "khmer" in (language or "").lower() and gemini_available():
-        name = s.gemini_tts_voice_female if gender == "female" else s.gemini_tts_voice_male
+    # Khmer → KiriTTS / Gemini TTS when set up (the most natural Khmer), English → Azure.
+    name = s.gemini_tts_voice_female if gender == "female" else s.gemini_tts_voice_male
+    if "khmer" in (language or "").lower() and (gemini_available() or (kiri_ready() and _kiri_voice(name))):
         # "gemini:Kore|training" — the template sets how the voice acts (GEMINI_ACT)
         return GEMINI + name + (f"|{style}" if style in GEMINI_ACT else "")
     # Gemini is set up but out for now (daily limit, key): Sreymom / Piseth
@@ -374,6 +455,12 @@ def speak(text: str, voice: str) -> bytes:
 
     if voice.startswith(GEMINI):  # "gemini:<voice>" or "gemini:<voice>|<template>"
         name, _, style = voice[len(GEMINI) :].partition("|")
+        kiri = _kiri_voice(name) if _lang(text) == "km" and kiri_ready() else ""
+        if kiri:
+            try:
+                return _kiri(text, kiri, style)
+            except SpeechError as exc:
+                log.warning("KiriTTS failed (%s) — Gemini reads the line", exc)
         try:
             exc_last: SpeechError | None = None
             for key in _keys():  # ours first, then the workspace's own

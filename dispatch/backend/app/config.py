@@ -117,6 +117,14 @@ class Settings(BaseSettings):
     )
     gemini_tts_voice_female: str = "Kore"
     gemini_tts_voice_male: str = "Charon"
+    # KiriTTS (kiritts.com, a Khmer-first voice): with a key, it reads Khmer lines
+    # before Gemini — Gemini, then Sreymom / Piseth, only when it fails. A voice
+    # left blank keeps that gender on Gemini (names: GET /v1/voices).
+    kiritts_api_key: str = ""
+    kiritts_base_url: str = "https://api.kiritts.com/v1"
+    kiritts_model: str = "kiritts"
+    kiritts_voice_female: str = "Maly"
+    kiritts_voice_male: str = ""
     # Veo output size: "720p", "1080p" or "4k" (4k not on Lite). Google allows
     # 1080p / 4k only for 8-second clips — shorter ones always come at 720p.
     gemini_video_resolution: str = "1080p"
