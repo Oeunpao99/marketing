@@ -44,6 +44,7 @@ import { aiModelStore } from '../api/client'
 import { MOTION_TEMPLATES, previewSrc } from '../lib/motionTemplates'
 import MakingDrawer from '../components/studio/MakingDrawer'
 import { backupName, useVoiceStatus } from '../lib/voiceStatus'
+import KiriVoicePicker, { kiriGender } from '../components/studio/KiriVoicePicker'
 import { useBrandMarks } from '../lib/brandMarks'
 
 // AI Agent — one chat for both asking and creating. A message that reads
@@ -382,10 +383,15 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
   const isMotion = type === 'video' && videoMode === 'motion'
   const motionLang = /english/i.test(voice ?? brandObj?.lang ?? '') && !/khmer/i.test(voice ?? brandObj?.lang ?? '') ? 'English' : 'Khmer'
   // "Native" is the open-source Khmer voice — Khmer only, and only where the server runs it
-  const nativeVoice = useVoiceStatus()?.native
+  const voiceNow = useVoiceStatus()
+  const nativeVoice = voiceNow?.native
   useEffect(() => {
     if (motionVoice === 'native' && (motionLang !== 'Khmer' || nativeVoice === false)) setMotionVoice('female')
   }, [motionVoice, motionLang, nativeVoice])
+  // a KiriTTS voice picked by name: Khmer only, while KiriTTS is set up — else its gender's voice
+  useEffect(() => {
+    if (String(motionVoice).startsWith('kiri:') && voiceNow && (motionLang !== 'Khmer' || !voiceNow.kiri?.length)) setMotionVoice(kiriGender(motionVoice, voiceNow) || 'female')
+  }, [motionVoice, motionLang, voiceNow])
   const storyVoice = voice ?? (VOICES.includes(brandObj?.lang) ? brandObj.lang : 'English')
   const working = turns.some((t) => t.status === 'working')
   const kitTemplates = kitAssets.filter((a) => a.kind === 'template')
@@ -2667,6 +2673,8 @@ function SettingsPopover({
                   ? 'The open-source native Khmer voice (Hugging Face), run on our own server — one voice for all'
                   : motionVoice === 'brand'
                   ? 'The brand’s own recorded voice reads each scene'
+                  : String(motionVoice).startsWith('kiri:')
+                  ? `${motionVoice.slice(5)} (KiriTTS) reads each scene`
                   : brandVoice
                     ? 'A narrator reads each scene · the video follows the voice'
                     : (
@@ -2687,11 +2695,15 @@ function SettingsPopover({
                 ...(voiceStatus?.native && motionLang === 'Khmer' ? [['native', 'Native']] : []),
                 MOTION_VOICES[2],
               ].map(([v, label]) => (
-                <button key={v} type="button" onClick={() => setMotionVoice(v)} className={`${seg(motionVoice === v)} px-0 text-[11.5px]`}>
+                <button key={v} type="button" onClick={() => setMotionVoice(v)} className={`${seg(motionVoice === v || kiriGender(motionVoice, voiceStatus) === v)} px-0 text-[11.5px]`}>
                   {label}
                 </button>
               ))}
             </Segmented>
+            {/* KiriTTS: pick its Khmer voice by name, under Female / Male */}
+            {motionLang === 'Khmer' && (
+              <KiriVoicePicker status={voiceStatus} value={motionVoice} onChange={setMotionVoice} brandId={brands?.find((b) => b.slug === brand)?.id} />
+            )}
             {/* the Gemini voice out for now (its daily limit): who reads instead, before anything is made */}
             {voiceStatus?.configured && !voiceStatus.available && !['none', 'native'].includes(motionVoice) && motionLang === 'Khmer' && (
               <p className="mt-1.5 rounded-lg bg-ink-50 px-2.5 py-1.5 text-[11px] leading-snug text-ink-600">

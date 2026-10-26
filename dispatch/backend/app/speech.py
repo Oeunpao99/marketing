@@ -152,6 +152,9 @@ def gemini_status() -> dict:
         "available": available,
         "back_at": min((_out(k, m)[0] for k in _keys() for m in gemini_models()), default=None) if out else None,
         "own_key": bool(_WS_KEY.get()),
+        # KiriTTS's Khmer voices to pick by name — empty when it isn't set up
+        "kiri": [{"name": n, "gender": g} for n, g in KIRI_VOICES.items()] if kiri_ready() else [],
+        "kiri_default": {"female": get_settings().kiritts_voice_female, "male": get_settings().kiritts_voice_male} if kiri_ready() else {},
         "backup": {g: VOICES[("km", g)].split("-")[2].removesuffix("Neural") for g in ("female", "male")} if provider() == "azure" else {},
     }
 
@@ -175,6 +178,10 @@ AZURE_OTHERS = {"en-US-AvaNeural": "en-US-EmmaNeural", "en-US-AndrewNeural": "en
 
 def other_voice(voice: str, gender: str) -> str | None:
     """Another voice like ``voice`` (the same gender) — None when there is none."""
+    if voice.startswith(KIRI):
+        name, _, act = voice[len(KIRI) :].partition("|")
+        other = next((n for n, g in KIRI_VOICES.items() if g == gender and n != name), None)
+        return KIRI + other + (f"|{act}" if act else "") if other else None
     if voice.startswith(GEMINI):
         name, _, act = voice[len(GEMINI) :].partition("|")
         other = next((n for n in GEMINI_OTHERS.get(gender, ()) if n != name), None)
@@ -250,6 +257,21 @@ def gemini_ready() -> bool:
 # voice stays on Gemini). ~$0.033 an audio minute (Starter) at ~0.085 s a character.
 PRICE_PER_CHAR_KIRI = 50 / 1_000_000
 _KIRI_OUT = [0.0]  # out until then: a rejected key, or the month's credit used up
+# …or picked by name in the composer: "kiri:Neary" (voice_clone.narrator_for adds
+# the template — "kiri:Neary|picture"). Its Khmer voices only: GET /v1/voices also
+# lists other languages' (Wei, Hoa, Emma…).
+KIRI = "kiri:"
+KIRI_VOICES = {
+    "Maly": "female", "Neary": "female", "Mey": "female", "Nita": "female", "Soklin": "female",
+    "Dara": "male", "Sophon": "male", "Seth": "male", "Chanda": "male", "Bora": "male", "Arun": "male",
+}  # fmt: skip
+
+
+def setting_gender(setting: str) -> str:
+    """female / male for a Voice setting — "male" and "kiri:Dara" are male."""
+    if setting.startswith(KIRI):
+        return KIRI_VOICES.get(setting[len(KIRI) :].split("|")[0], "female")
+    return "male" if setting == "male" else "female"
 
 
 def kiri_ready() -> bool:
@@ -320,6 +342,8 @@ def _as_mp3(audio: bytes) -> bytes:
 
 
 def price_per_char(voice: str) -> float:
+    if voice.startswith(KIRI):
+        return PRICE_PER_CHAR_KIRI
     if voice.startswith(GEMINI):
         return PRICE_PER_CHAR_KIRI if kiri_ready() else PRICE_PER_CHAR_GEMINI
     return PRICE_PER_CHAR
@@ -399,7 +423,7 @@ def _speak_timed(text: str, voice: str) -> tuple[bytes, list[dict]]:
     fall back to an estimate. Raises SpeechError."""
     from app import local_voice
 
-    if voice.startswith(local_voice.PREFIX) or voice.startswith(GEMINI):  # no word timings
+    if voice.startswith((local_voice.PREFIX, GEMINI, KIRI)):  # no word timings
         return speak(text, voice), []
     if provider() != "azure":
         return speak(text, voice), []
@@ -449,13 +473,29 @@ def _speak_timed(text: str, voice: str) -> tuple[bytes, list[dict]]:
     return result.audio_data, words
 
 
-def speak(text: str, voice: str) -> bytes:
+def speak(text: str, voice: str, kiri_first: bool = True) -> bytes:
     """``text`` read aloud by ``voice`` — MP3 bytes. Raises SpeechError."""
     from app import local_voice
 
+    if voice.startswith(KIRI):  # a KiriTTS voice picked by name: "kiri:Neary|picture"
+        name, _, style = voice[len(KIRI) :].partition("|")
+        if _lang(text) == "km" and kiri_ready():
+            try:
+                return _kiri(text, name, style)
+            except SpeechError as exc:
+                log.warning("KiriTTS %s failed (%s) — Gemini reads the line", name, exc)
+        # an English line, or KiriTTS out: the voice its gender has (Gemini, else Azure) —
+        # never KiriTTS's default voice, so the line isn't read by another KiriTTS voice
+        s = get_settings()
+        female = KIRI_VOICES.get(name, "female") == "female"
+        backup = GEMINI + (s.gemini_tts_voice_female if female else s.gemini_tts_voice_male) + (f"|{style}" if style else "")
+        if not gemini_ready():
+            backup = VOICES[(_lang(text), "female" if female else "male")]
+        return speak(text, backup, kiri_first=False)
+
     if voice.startswith(GEMINI):  # "gemini:<voice>" or "gemini:<voice>|<template>"
         name, _, style = voice[len(GEMINI) :].partition("|")
-        kiri = _kiri_voice(name) if _lang(text) == "km" and kiri_ready() else ""
+        kiri = _kiri_voice(name) if kiri_first and _lang(text) == "km" and kiri_ready() else ""
         if kiri:
             try:
                 return _kiri(text, kiri, style)

@@ -216,6 +216,14 @@ def narrator_for(brand, language: str, voice: str, style: str | None = None) -> 
         from app import local_voice
 
         return (local_voice.PREFIX + local_voice.model_id() if local_voice.ready() else speech.voice_for(language, "female", style)), None
+    # a KiriTTS voice by name ("kiri:Neary") — Khmer videos only, while KiriTTS
+    # is set up; else the voice its gender has
+    if voice.startswith(speech.KIRI):
+        name = voice[len(speech.KIRI) :]
+        gender = speech.setting_gender(voice)
+        if name in speech.KIRI_VOICES and "khmer" in (language or "").lower() and speech.kiri_ready():
+            return speech.KIRI + name + (f"|{style}" if style in speech.GEMINI_ACT else ""), None
+        return speech.voice_for(language, gender, style), None
     if voice in AZURE_NAMED:
         return (speech.VOICES[("km", AZURE_NAMED[voice])] if speech.provider() == "azure" else None), None
     if voice != "brand":

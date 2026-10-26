@@ -1559,8 +1559,10 @@ def possessive(name: str) -> str:
 def clean_host(raw, khmer: bool, voice: str = "") -> dict:
     """Presenter · Brand host: her name and whether she's a he. The brief may name
     the host; else the default name — a male voice makes a male host."""
+    from app.speech import setting_gender
+
     raw = raw if isinstance(raw, dict) else {}
-    gender = raw.get("gender") if raw.get("gender") in ("female", "male") else ("male" if voice == "male" else "female")
+    gender = raw.get("gender") if raw.get("gender") in ("female", "male") else setting_gender(voice)
     return {"name": _line(raw.get("name"), 30) or HOST_NAMES[(gender, khmer)], "gender": gender}
 
 
@@ -2278,6 +2280,12 @@ def dialogue_voices(script: dict, language: str, narrator: str, setting: str) ->
     own = [speech.voice_for(language, c["gender"], "dialogue") or narrator for c in cast[:2]]
     if setting == "brand":
         own[0] = narrator
+    elif narrator.startswith(speech.KIRI):  # a KiriTTS voice picked by name: the first person of its gender
+        hit = next((k for k, c in enumerate(cast[:2]) if c["gender"] == speech.setting_gender(narrator)), None)
+        if hit is not None:
+            own[hit] = narrator
+            if cast[0]["gender"] == cast[1]["gender"]:  # two of a kind: another KiriTTS voice for the other
+                own[1 - hit] = speech.other_voice(narrator, cast[1 - hit]["gender"]) or own[1 - hit]
     if own[0] == own[1]:
         own[1] = speech.other_voice(own[1], cast[1]["gender"]) or own[1]
     return [own[1] if s.get("speaker") == 2 else own[0] for s in script["scenes"]]
@@ -5952,12 +5960,12 @@ def add_voice(
     ahead: dict = {}
     pool = None
     reader = lambda n: voices[n] if voices and n < len(voices) and voices[n] else voice  # noqa: E731 — who reads scene n
-    if any(reader(n).startswith(speech.GEMINI) for n in range(len(says))):
+    if any(reader(n).startswith((speech.GEMINI, speech.KIRI)) for n in range(len(says))):
         from concurrent.futures import ThreadPoolExecutor
 
         pool = ThreadPoolExecutor(max_workers=4)
         for n, say in enumerate(says):
-            if say and reader(n).startswith(speech.GEMINI):
+            if say and reader(n).startswith((speech.GEMINI, speech.KIRI)):
                 ahead[n] = pool.submit(contextvars.copy_context().run, lambda t, v: (t, speech.speak_timed(t[0], v)), spoken_text(say, pronunciations), reader(n))
 
     spoken = 0
@@ -7484,11 +7492,14 @@ def _make(
             from app import gemini_keys, speech
 
             speech.use_workspace_key(gemini_keys.workspace_key(db, job.workspace_id))  # Khmer: ours, then theirs, then Azure
-            if script.get("style") == "presenter" and voice in ("female", "male") and script.get("host"):  # (Podcast: the host follows the voice)
+            if script.get("style") == "presenter" and script.get("host") and (
+                voice in ("female", "male") or (voice.startswith(speech.KIRI) and speech.setting_gender(voice) != script["host"]["gender"])
+            ):  # (Podcast: the host follows the voice)
                 voice = script["host"]["gender"]  # the host speaks in her own voice (a male host: a male one)
             narrator, clone = voice_clone.narrator_for(brand, language, voice, script.get("style"))
             # Dialogue · Two voices: each person speaks in their own voice
-            voices = dialogue_voices(script, language, narrator, voice) if narrator and script.get("style") in DIALOGUE_STYLES and voice in ("female", "male", "brand") else None
+            two = voice in ("female", "male", "brand") or voice.startswith(speech.KIRI)
+            voices = dialogue_voices(script, language, narrator, voice) if narrator and script.get("style") in DIALOGUE_STYLES and two else None
             if narrator:
                 add_voice(props, script, narrator, job.workspace_id, job.user_id, job_id, brand.pronunciations or [], clone, voices)
             if doodling:
