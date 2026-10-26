@@ -72,6 +72,7 @@ import { STREET } from './street3d'
 import { ILLUSTRATED } from './illustrated'
 import { AITEAM } from './aiteam'
 import { SAASHUB } from './saashub'
+import { PICTURE } from './picture'
 import { DECK } from './deck'
 import { CARTOON } from './cartoon'
 import { SPOTLIGHT } from './spotlight'
@@ -777,6 +778,7 @@ const TEMPLATES = {
   illustrated: { ...ILLUSTRATED, scenes: { ...SCENES, ...ILLUSTRATED.scenes } }, // Illustrated · Everyday Cambodia
   aiteam: { ...AITEAM, scenes: { ...SCENES, ...AITEAM.scenes } }, // AI service · Your AI team
   saashub: { ...SAASHUB, scenes: { ...SCENES, ...SAASHUB.scenes } }, // SaaS Hub · Connect & Automate
+  picture: { ...PICTURE, scenes: { ...SCENES, ...PICTURE.scenes } }, // Picture story
   deck: { ...DECK, scenes: { ...SCENES, ...DECK.scenes } }, // Slides · Presentation
   gridcards: { ...GRIDCARDS, scenes: { ...SCENES, ...GRIDCARDS.scenes } },
   techflow: { ...TECHFLOW, scenes: { ...SCENES, ...TECHFLOW.scenes } },
@@ -834,7 +836,7 @@ export const MotionPost = ({ brand, scenes, music, musicList, style, look, cast,
             out.push(
               <TransitionSeries.Transition
                 key={`t${i}`}
-                presentation={PRESENTATIONS[i % PRESENTATIONS.length]()}
+                presentation={(t.transitions || PRESENTATIONS)[i % (t.transitions || PRESENTATIONS).length]()}
                 timing={springTiming({ config: { damping: 200 }, durationInFrames: TRANSITION })}
               />,
             )

@@ -99,6 +99,8 @@ export function defaultSeconds(s) {
       return 4.6
     case 'plans':
       return 4.8
+    case 'shot': // Picture story — app/motion.py default_seconds says the same
+      return 5.0
     case 'wide': // Illustrated · Everyday Cambodia — app/motion.py default_seconds says the same
       return 4.4
     case 'closeup':

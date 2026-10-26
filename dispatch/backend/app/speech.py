@@ -622,6 +622,7 @@ GEMINI_ACT = {
     "deck": "Clear, confident and warm, like a good presenter walking an audience through their slides — steady pace, a small pause between points.",
     "aiteam": "Confident, clear and modern, like the voice of a good product launch film — upbeat but never pushy, a small pause before each turn.",
     "saashub": "Sharp, energetic and tech-forward, like a keynote presenter unveiling a revolutionary cloud platform — crisp, authoritative, enthusiastic.",
+    "picture": "Warm, clear and storytelling, like the narrator of a good YouTube story channel — unhurried, with feeling, a small pause between moments.",
     "illustrated": "Calm, warm and clear, like the narrator of a short documentary — unhurried, kind, a little pause between thoughts.",
     "street3d": "Warm and confident, a little cinematic, like the voice of a short brand film — unhurried, proud of the shop.",
     "dialogue": "Natural and conversational, like a real person chatting with a friend — relaxed, expressive, never like reading.",

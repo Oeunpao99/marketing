@@ -154,25 +154,26 @@ def host_picture_style(accent_hex: str) -> str:
     return HOST_PICTURE_STYLE.format(a=accent_hex)
 
 
-def _flat(prompt: str, style: str, ws: int | None, user_id: int | None) -> str | None:
-    """One colour illustration (``style`` + ``prompt``), wide, as a JPEG data URI — or None."""
+def _flat(prompt: str, style: str, ws: int | None, user_id: int | None, ratio: str = "16:9", side: int = 1200) -> str | None:
+    """One colour illustration (``style`` + ``prompt``) in ``ratio``, at most
+    ``side`` px, as a JPEG data URI — or None."""
     if ws:
         try:
             billing.require(ws, billing.IMAGE_HOLD)
         except billing.OutOfCredit:
             return None
     try:
-        _provider, blob, usage = _draw(style + prompt, "16:9")
+        _provider, blob, usage = _draw(style + prompt, ratio)
     except Exception as exc:  # noqa: BLE001 — the scene shows its drawn icon instead
         log.warning("presenter: picture failed (%s)", str(exc)[:200])
         return None
     billing.charge(
         ws, "image", billing.image_cost(usage.get("input", 0), usage.get("output", 0)), user_id=user_id,
-        model=get_settings().azure_openai_image_deployment, tokens=usage.get("total", 0), note=f"Presenter picture: {prompt[:150]}",
+        model=get_settings().azure_openai_image_deployment, tokens=usage.get("total", 0), note=f"Picture: {prompt[:150]}",
     )
     try:
         im = Image.open(io.BytesIO(blob)).convert("RGB")
-        im.thumbnail((1200, 1200))
+        im.thumbnail((side, side))
         buf = io.BytesIO()
         im.save(buf, "JPEG", quality=86, optimize=True)
         return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
@@ -207,6 +208,38 @@ def _one(prompt: str, ws: int | None, user_id: int | None) -> str | None:
     except Exception:  # noqa: BLE001
         log.exception("doodle: could not clean a drawing")
         return None
+
+
+# Picture story (motion/src/picture.jsx): every scene one full-screen picture, in
+# the art style picked (app/motion.py PICTURE_ARTS); its words are real text on top.
+PICTURE_ARTS = {
+    "film": "A cinematic film still, photo-real: natural light, real depth of field, rich but "
+    "natural colour, shot like a scene from a well-made drama film.",
+    "painted": "A hand-painted anime film frame: warm natural light, soft painterly detail, rich "
+    "colour, real depth, like a scene from a beloved animated feature film.",
+    "illustration": "A modern flat 2D illustration: clean simple shapes, smooth flat colour fills, "
+    "friendly people with simple faces, a calm composition with one clear subject.",
+    "3d": "A frame from a 3D animated feature film: soft studio lighting, appealing stylised "
+    "characters, gentle colour, cinematic depth.",
+}
+PICTURE_RULES = (
+    " One clear moment, composed for a video frame, with calm space near the top for a line of "
+    "text. Where people or places appear and the story doesn't say otherwise, set it in "
+    "Cambodia. ABSOLUTELY NO text, letters, numbers, words, captions, signs with writing, logos "
+    "or watermarks anywhere in the image.\n\n"
+)
+
+
+def picture_style(art: str, cast: list[dict]) -> str:
+    """The picture brief before each scene's ``draw``: the art style, and how
+    the story's returning people look, so every picture draws them alike."""
+    people = "".join(f"{c['name'] or 'Person'}: {c['look']}. " for c in cast if c.get("look"))
+    return (
+        PICTURE_ARTS.get(art, PICTURE_ARTS["film"])
+        + PICTURE_RULES
+        + (f"The people in this story (draw them EXACTLY like this whenever they appear): {people}\n\n" if people else "")
+        + "The picture: "
+    )
 
 
 PLACE_STYLE = (
@@ -356,20 +389,23 @@ def draw_pictures(scenes: list[dict], theme: dict, ws: int | None, user_id: int 
     return sum(1 for u in got if u)
 
 
-def draw_scenes(scenes: list[dict], ws: int | None, user_id: int | None, report=None, style: str | None = None) -> int:
+def draw_scenes(
+    scenes: list[dict], ws: int | None, user_id: int | None, report=None, style: str | None = None, limit: int = MAX_DRAWINGS, ratio: str = "16:9"
+) -> int:
     """Draw every scene that asks for a drawing (``draw``) and has none yet,
     one at a time (the image service rate-limits hard); the picture goes into
     ``scene["image"]``. ``report(drawn, total)`` after each, for the progress
-    line. ``style`` = a colour illustration in that style (Presenter) instead
-    of Doodle's ink sketch. Returns how many were drawn."""
-    todo = [s for s in scenes if s.get("draw") and not s.get("image")][:MAX_DRAWINGS]
+    line. ``style`` = a colour illustration in that style (Presenter), in
+    ``ratio``, instead of Doodle's ink sketch. Returns how many were drawn."""
+    todo = [s for s in scenes if s.get("draw") and not s.get("image")][:limit]
     if not todo:
         return 0
     got = []
+    side = 1920 if limit > MAX_DRAWINGS else 1200  # Picture story: each picture fills the screen
     for n, s in enumerate(todo):  # one at a time — the image quota is small
         if report:
             report(n, len(todo))
-        got.append(_flat(s["draw"], style, ws, user_id) if style else _one(s["draw"], ws, user_id))
+        got.append(_flat(s["draw"], style, ws, user_id, ratio, side) if style else _one(s["draw"], ws, user_id))
     for s, uri in zip(todo, got):
         if uri:
             s["image"] = uri

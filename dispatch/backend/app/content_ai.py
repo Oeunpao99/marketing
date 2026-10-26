@@ -217,8 +217,9 @@ SYSTEM_PROMPT = (
     "— the post's image is a designed poster for its topic, and this is the text "
     "drawn on it, in the brand's audience language. Poster text is read in a "
     "second: short, plain, no emoji, no hashtags, no full stops at the end of "
-    "points. Khmer poster text: put a zero-width space (\\u200b) between words, "
-    "so lines break between words, not inside one. An object "
+    "points. Khmer poster text: put a zero-width space (\\u200b) between Khmer "
+    "words, so lines break between words, not inside one — English text keeps "
+    "its normal spaces, never a zero-width space. An object "
     '{"headline": "...", "points": ["..."], "left_title": "", "left": [], '
     '"right_title": "", "right": [], "author": "", "scene": "..."}:\n'
     "  - educate: headline = the promise (max 60 chars); points = 3-4 steps or "

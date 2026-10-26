@@ -86,7 +86,9 @@ def poster_photo_prompt(pillar: str, scene: str, headline: str = "") -> str:
         "community": "one person centred in the frame with space around them, looking warm and real — it "
         "is shown cropped to a small circle",
     }.get(pillar, "the subject in the centre to upper part of the frame, the moment clear at a glance")
-    about = f"\nThe post is about: {headline.strip()} — the picture must make that clear at a glance." if headline else ""
+    # a quote's own words make the image model paint them into the photo — its
+    # picture is only a calm backdrop for the text, so it isn't told the words
+    about = f"\nThe post is about: {headline.strip()} — the picture must make that clear at a glance." if headline and pillar != "quote" else ""
     return f"{CAMBODIA_PHOTO}{about}\nThe moment: {scene.strip()}\nFraming: {framing}."
 
 
@@ -429,7 +431,8 @@ def render_poster(
     bottom. Returns a JPEG. Raises ValueError for a pillar without a layout."""
     # Characters the font can't draw (e.g. a non-breaking hyphen) would show as boxes.
     poster = {
-        k: [drawable(t) for t in v] if isinstance(v, list) else drawable(v) if isinstance(v, str) else v
+        # _spaced: a post planned before clean_poster made them spaces
+        k: [drawable(_spaced(t)) for t in v] if isinstance(v, list) else drawable(_spaced(v)) if isinstance(v, str) else v
         for k, v in poster.items()
     }
     brand = drawable(brand)
@@ -467,6 +470,22 @@ def render_poster(
     return out.getvalue()
 
 
+def _spaced(text: str) -> str:
+    """The zero-width spaces the AI is asked to put between KHMER words, made
+    real spaces wherever they sit next to anything else — it sometimes puts them
+    in English text too, and the words were drawn run together
+    ("Ittakes20years…")."""
+    out = []
+    for i, ch in enumerate(text):
+        if ch == "​":
+            prev, nxt = text[i - 1 : i], text[i + 1 : i + 2]
+            khmer = all("ក" <= c <= "៿" for c in prev + nxt) and prev and nxt
+            out.append(ch if khmer else " ")
+        else:
+            out.append(ch)
+    return "".join(out)
+
+
 def clean_poster(pillar: str, raw) -> dict | None:
     """The AI's ``poster`` object, trimmed and checked for what ``pillar``'s
     layout needs — None when it's missing or unusable (the post then gets a
@@ -475,11 +494,11 @@ def clean_poster(pillar: str, raw) -> dict | None:
         return None
 
     def s(key: str, n: int) -> str:
-        return " ".join(str(raw.get(key) or "").split())[:n]
+        return " ".join(_spaced(str(raw.get(key) or "")).split())[:n]
 
     def items(key: str, n: int, size: int) -> list[str]:
         vals = raw.get(key) if isinstance(raw.get(key), list) else []
-        return [t for t in (" ".join(str(v).split())[:size] for v in vals[:n]) if t]
+        return [t for t in (" ".join(_spaced(str(v)).split())[:size] for v in vals[:n]) if t]
 
     p = {
         "headline": s("headline", 220 if pillar == "quote" else 90),

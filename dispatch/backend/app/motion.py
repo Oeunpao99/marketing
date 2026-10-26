@@ -1233,23 +1233,31 @@ DOODLE_PROMPT = (
     + '{"scenes": [{"type": "hook", "text": "...", "icon": "Brain", "draw": "...", "say": "..."}, ...]}'
 )
 
-# "Picture story" (motion/src/picture.jsx) — a long narrated story told over AI pictures: one
-# full-screen picture per scene (app/doodle.py paint_story, in the look the person picked),
-# slow camera moves, crossfades, a short title where a part starts, subtitles. Made for a
-# pasted script (YouTube-style, up to 10 minutes): 10-20 pictures, the WHOLE narration kept
-# word for word so the person's own recording can be matched to it (app/narration.py).
+# "Picture story" (motion/src/picture.jsx) — a narrated story told over AI pictures: one
+# full-screen picture per scene (app/doodle.py PICTURE_ARTS, in the art style picked), slow
+# camera moves, crossfades, a short line of text on every picture in the colours picked
+# (script["ink"]), subtitles. From a brief (the AI writes the story) or a pasted script
+# (YouTube-style, up to 10 minutes): the WHOLE narration kept word for word, so the
+# person's own recording can later be matched to it.
 PICTURE_TYPES = ("shot",)
-PICTURE_MIN, PICTURE_MAX = 10, 20
+PICTURE_MIN, PICTURE_MAX = 6, 20
+PICTURE_ARTS = ("film", "painted", "illustration", "3d")  # app/doodle.py PICTURE_ARTS — the looks
+PICTURE_INK = {"text": "#FFFFFF", "accent": ""}  # "" accent = the brand's colour
 PICTURE_PROMPT = (
-    "You are a film editor turning a narrated script into a PICTURE STORY: a video told over "
-    "full-screen AI pictures, one picture per scene, with slow camera moves — like a YouTube "
-    "documentary or a motivational story channel. The narration carries the video; each picture "
-    "shows what the voice is talking about right then.\n"
+    "You are a film editor turning a story into a PICTURE STORY: a video told over full-screen "
+    "AI pictures, one picture per scene, with slow camera moves — like a YouTube documentary or "
+    "a motivational story channel. The narration carries the video; each picture shows what the "
+    "voice is talking about right then, with a short line of text on it.\n"
+    "\n"
+    "When THE VIDEO IS ABOUT is a short brief (not a written script), write the story yourself: "
+    "6-10 scenes, a gripping opening line, one person or one situation followed through, a real "
+    "turn, a clear ending that pays off the opening — about 60-90 seconds spoken in all.\n"
     "\n"
     "EVERY scene is type \"shot\". Fields:\n"
-    "- title (optional, max 7 words): a short on-screen title — ONLY where a new part of the "
-    "story starts (the opening, a new section, a rule, a new person's story, the ending). "
-    "Otherwise \"\". Never repeat the narration as the title.\n"
+    "- title (max 7 words, in LANGUAGE): the line of text on the picture — the key words of that "
+    "moment (a question, a turn, a rule, a number the story gives, a feeling). Put the ONE most "
+    "important word or two in [brackets] — they are shown in the highlight colour. Never the "
+    "narration repeated word for word.\n"
     "- draw (ALWAYS in English, 20-45 words): the picture — who is in it, where, what they are "
     "doing, the mood, the light, the camera (wide shot / close-up / over the shoulder). Concrete "
     "and filmable, taken from the script's Visual notes when it has them. People who come back "
@@ -1257,18 +1265,44 @@ PICTURE_PROMPT = (
     "man described in the cast) slumped at his office desk at night\". Never any text, writing, "
     "numbers on screens, logos or brand names in the picture. Each picture different from the "
     "one before (another place, angle or moment).\n"
-    "- say: the narration for this picture — the script's own voice-over, WORD FOR WORD. "
-    "Together the scenes' `say` lines are the WHOLE voice-over in order: nothing left out, "
-    "nothing added, nothing reworded, nothing summarised. Long parts are split over several "
-    "scenes at sentence ends.\n"
+    "- say: the narration for this picture. From a written script: its own voice-over, WORD FOR "
+    "WORD — together the scenes' `say` lines are the WHOLE voice-over in order: nothing left "
+    "out, nothing added, nothing reworded, nothing summarised; long parts are split over "
+    "several scenes at sentence ends. From a brief: 1-3 spoken sentences you write.\n"
     "\n"
     "Also return \"cast\": the people who appear in more than one picture — [{name, look}], look = "
     "20-40 words in English: age, face, hair, build, clothes, so every picture draws them alike. "
     "[] when there are none.\n"
-    "Return {\"cast\": [...], \"scenes\": [{\"type\": \"shot\", \"title\": \"...\", \"draw\": \"...\", "
-    "\"say\": \"...\"}, ...]}"
+    "And \"art\": the picture style that suits the story — film (a cinematic photo-real film "
+    "still), painted (a hand-painted anime film), illustration (a flat modern illustration) or "
+    "3d (a 3D animated film). If the brief names a style, use that.\n"
+    "Return {\"cast\": [...], \"art\": \"film\", \"scenes\": [{\"type\": \"shot\", \"title\": \"...\", "
+    "\"draw\": \"...\", \"say\": \"...\"}, ...]}"
 )
 PICTURE_SAY_MAX = 1600  # a long part of the narration under one picture (10 minutes / 20 pictures)
+PICTURE_STORY = (
+    "\n\nTHE PERSON WROTE THEIR OWN SCRIPT — it is under THE VIDEO IS ABOUT. Make about {count} "
+    "pictures for it (the video runs about {seconds} seconds), each under its part of the narration, "
+    "in the script's order. Its narration is in LANGUAGE (the script's own language). FAITHFUL — it is "
+    "THEIR story: names spelled EXACTLY as written, nothing added, nothing left out, never a new "
+    "number, result or ending."
+)
+
+
+def clean_picture_cast(raw) -> list[dict]:
+    """Picture story: the people who come back — [{name, look}] (English looks), at most 4."""
+    out = []
+    for c in raw if isinstance(raw, list) else []:
+        if isinstance(c, dict) and _line(c.get("look"), 300):
+            out.append({"name": _line(c.get("name"), 40), "look": _line(c.get("look"), 300)})
+    return out[:4]
+
+
+def clean_ink(raw) -> dict:
+    """Picture story: the text colour and the highlight colour of the words on
+    the pictures (#RRGGBB; a missing highlight = the brand's colour)."""
+    raw = raw if isinstance(raw, dict) else {}
+    return {"text": (_hex(raw.get("text")) or PICTURE_INK["text"]).upper(), "accent": (_hex(raw.get("accent")) or "").upper()}
 
 
 # "Story · Characters" (motion/src/cartoon.jsx) — the Khmer cartoon-story Reel: two drawn
@@ -3012,6 +3046,7 @@ STYLES = {
     "illustrated": (ILL_PROMPT, ILL_TYPES, 10, "wide"),
     "aiteam": (AITEAM_PROMPT, AITEAM_TYPES, 6, "crew"),
     "saashub": (SAASHUB_PROMPT, SAASHUB_TYPES, 6, "hub"),
+    "picture": (PICTURE_PROMPT, PICTURE_TYPES, PICTURE_MAX, "shot"),
     "deck": (DECK_PROMPT, DECK_TYPES, 14, None),
     "clarity": (CLARITY_PROMPT, CLARITY_TYPES, 8, None),
     "countdown": (COUNTDOWN_PROMPT, COUNTDOWN_TYPES, 7, "rank"),
@@ -3028,7 +3063,7 @@ STYLES = {
 # The templates laid out for 16:9 too (motion/src/training.jsx, saas.jsx wide scenes);
 # every other template is always vertical. Scenes drawn only for a tall frame are
 # left out of a wide video.
-WIDE_STYLES = {"deck", "aiteam", "saashub", "illustrated", "street3d", "dialogue", "parable", "podcast", "presenter", "neural", "paper", "doodle", "cartoon", "lesson", "rise", "training", "custom", "demo", "offer", "spotlight", "trend", "pov", "showcase", "launch", "unveil", "gridcards", "techflow", "canvas", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
+WIDE_STYLES = {"picture", "deck", "aiteam", "saashub", "illustrated", "street3d", "dialogue", "parable", "podcast", "presenter", "neural", "paper", "doodle", "cartoon", "lesson", "rise", "training", "custom", "demo", "offer", "spotlight", "trend", "pov", "showcase", "launch", "unveil", "gridcards", "techflow", "canvas", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
 TALL_ONLY_TYPES = {"problem", "chat", "product", "point"}
 
 
@@ -3042,7 +3077,7 @@ def final_ratio(asked: str, style: str, suggested: str | None = None) -> str:
     if asked == "16:9":
         return "16:9"
     if asked == "auto":
-        return suggested if suggested in ("16:9", "9:16") else ("16:9" if style == "training" else "9:16")
+        return suggested if suggested in ("16:9", "9:16") else ("16:9" if style in ("training", "picture") else "9:16")
     return "9:16"
 SCREEN_STYLES = {"custom", "demo", "appdemo", "showcase", "launch", "unveil", "clarity", "canvas", "reaction"}  # the stories that can show the brand's screenshots
 # The templates that sell (the auto topic picks a product, not a teaching topic).
@@ -3222,7 +3257,7 @@ def _keep_own_voice(script: dict, idea: str) -> None:
     # translations never replace words they wrote themselves
     if len(lines) == len(script["scenes"]):
         for sc, line in zip(script["scenes"], lines):
-            sc["say"] = _line(line, 300)
+            sc["say"] = _line(line, PICTURE_SAY_MAX if sc["type"] == "shot" else 300)
         return
     for sc in script["scenes"]:
         said = _plain(sc.get("say"))
@@ -3335,7 +3370,7 @@ def _number(value) -> float:
 
 
 # The templates told by a narrator to everyone (not a shop talking to its customer, បង).
-NARRATOR_STYLES = {"explainer", "training", "quote", "doodle", "lesson", "rise", "parable", "illustrated", "countdown", "tips", "hottake", "report"}
+NARRATOR_STYLES = {"picture", "explainer", "training", "quote", "doodle", "lesson", "rise", "parable", "illustrated", "countdown", "tips", "hottake", "report"}
 
 
 def story_language(idea: str, picked: str) -> str:
@@ -3517,7 +3552,9 @@ def _clean_one(raw: dict, names: dict[str, str]) -> dict | None:
     say = _line(raw.get("say"), 300)
     if kind == "shot":  # Picture story: one AI picture under a (long) part of the narration
         scene = {"type": kind, "title": _line(raw.get("title"), 60), "draw": _line(raw.get("draw"), 400), "say": _line(raw.get("say"), PICTURE_SAY_MAX)}
-        return scene if scene["draw"] and scene["say"] else None
+        if _line(raw.get("image"), 10).startswith("data:"):  # a reviewed storyboard's picture already painted
+            scene["image"] = str(raw["image"])
+        return scene if scene["draw"] and (scene["say"] or scene["title"]) else None
     if kind == "hook":
         text = _line(raw.get("text"), 160)
         hook = {"type": kind, "text": text, "icon": _icon(raw.get("icon"), "Zap"), "say": say}
@@ -4329,6 +4366,7 @@ _TEXT_FIELDS = {
     "gains": (("text", 120), ("say", 300)),
     "plans": (("text", 120), ("badge", 16), ("say", 300)),
     "wide": (("title", 50), ("say", 300)),
+    "shot": (("title", 60), ("say", PICTURE_SAY_MAX)),  # Picture story
     "closeup": (("text", 60), ("say", 300)),
     "fact": (("title", 40), ("text", 140), ("say", 300)),
     "crowd": (("title", 60), ("label", 40), ("say", 300)),
@@ -4521,8 +4559,10 @@ def write_script(
         numbered = own_scenes(idea)
         if numbered:  # their own scene list — plus a scene for each moment a scene lists
             count = max(2, min(MAX_STORY_SCENES, numbered + own_moments(idea)))
+        if style == "picture":  # a picture holds ~20-30 s of the narration, not 6
+            count = max(PICTURE_MIN, min(PICTURE_MAX, round(seconds / 25)))
         most = count  # the person's story sets the length, not the template
-        extra += STORY_RULES.format(count=count, seconds=seconds)
+        extra += PICTURE_STORY.format(count=count, seconds=seconds) if style == "picture" else STORY_RULES.format(count=count, seconds=seconds)
         if numbered:
             extra += (
                 f"\nTHE SCRIPT IS WRITTEN SCENE BY SCENE ({numbered} numbered scenes): follow them in the same "
@@ -4653,6 +4693,8 @@ def write_script(
                 kept.append(sc)
         middle = kept
     middle = middle[:most]
+    if style == "picture" and len(scenes) >= 2:  # Picture story: its pictures in order, first to last
+        hooks, ctas, middle = [scenes[0]], [scenes[-1]], scenes[1:-1][: max(0, most - 2)]
     if story and len(scenes) >= 2 and not (hooks and ctas):
         # their own script needn't open on a "hook" or end on a "cta" scene
         # type (a grand reveal, a tagline): it is kept as written, in its order
@@ -4678,6 +4720,10 @@ def write_script(
         script["street"] = clean_street(raw)
     if style == "illustrated":
         script["cast"] = clean_lead(raw.get("cast"))
+    if style == "picture":  # its people, its art style, the colours of its words
+        script["cast"] = clean_picture_cast(raw.get("cast"))
+        script["art"] = raw.get("art") if raw.get("art") in PICTURE_ARTS else "film"
+        script["ink"] = clean_ink(None)
     if style == "reaction":
         script["cast"] = clean_animals(raw.get("cast"))
     if style == "presenter":
@@ -5038,6 +5084,8 @@ def script_lines(script: dict) -> list[tuple[str, str]]:
             screen = f"{who} {body}{item}"
         elif s["type"] == "collage":
             screen = (s.get("word") or "Collage") + " — " + " / ".join(x["label"] for x in s.get("tiles") or []) + (f" [{len(s['images'])} photos]" if s.get("images") else "")
+        elif s["type"] == "shot":  # Picture story: its words on the picture, and the picture
+            screen = (s.get("title") or "") + (f" ✎ {s['draw']}" if s.get("draw") else "")
         elif s["type"] == "visit":
             screen = f"(in place {s.get('place', 1)}, {s.get('pose', 'stand')}, {s.get('mood', 'happy')}) " + (s.get("text") or "") + (f" 💭 {s['icon']}" if s.get("icon") else "")
         elif s["type"] == "pedestal":
@@ -5390,7 +5438,7 @@ def pick_pictures(
             if s["type"] in ("approve", "pipeline") and main:
                 s["image"] = main
                 s.pop("draw", None)
-        elif script.get("style") in ("doodle", "cartoon", "lesson", "rise", "podcast", "parable", "dialogue", "illustrated"):
+        elif script.get("style") in ("doodle", "cartoon", "lesson", "rise", "podcast", "parable", "dialogue", "illustrated", "picture"):
             continue  # drawn templates: no product photos (doodle / cartoon draw their own, app/doodle.py)
         elif script.get("style") == "appdemo":  # 3D · App demo: the app's own screenshot on the phone
             if s["type"] in ("hook", "cta") and shots:
@@ -5559,6 +5607,10 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
         props["place"] = {"image": script["place_image"]} if script.get("place_image") else {}
     if script.get("style") == "street3d":  # 3D · Street: what the shop sells, who comes
         props["street"] = script.get("street") or {"goods": [], "people": []}
+    if script.get("style") == "picture":  # Picture story: the words on every picture, in the colours picked
+        ink = clean_ink(script.get("ink"))
+        for sc in scenes:
+            sc["ink"] = {"text": ink["text"], "accent": ink["accent"] or f"#{r:02x}{g:02x}{b:02x}"}
     if script.get("style") == "illustrated":  # Illustrated: the main person
         props["cast"] = [{**c, "name": t(c["name"]) if c.get("name") else ""} for c in script.get("cast") or clean_lead(None)]
     if script.get("style") in ("parable", "dialogue"):  # Parable · Two paths / Dialogue: the two people
@@ -5661,6 +5713,8 @@ def default_seconds(scene: dict) -> float:
         return 4.6
     if kind == "plans":
         return 4.8
+    if kind == "shot":  # Picture story — shared.jsx defaultSeconds says the same
+        return 5.0
     if kind == "wide":  # Illustrated — shared.jsx defaultSeconds says the same
         return 4.4
     if kind == "closeup":
@@ -5997,21 +6051,21 @@ _progress: dict[int, dict] = {}
 DOODLE_DRAWINGS = 3
 
 
-def _start_doodles(script: dict, job, job_id: int, style: str | None = None) -> tuple[threading.Thread, dict]:
+def _start_doodles(script: dict, job, job_id: int, style: str | None = None, limit: int = DOODLE_DRAWINGS, ratio: str = "16:9") -> tuple[threading.Thread, dict]:
     """Start drawing the Doodle sketches in a background thread — on copies of
     the prompts, so nothing shared changes under the rest of the job.
     Returns (thread, {scene index: picture}) for _finish_doodles."""
     from app import doodle
 
     asks = [n for n, sc in enumerate(script["scenes"]) if sc.get("draw") and not sc.get("image")]
-    if len(asks) > DOODLE_DRAWINGS:  # the first, then evenly spread
-        step = (len(asks) - 1) / (DOODLE_DRAWINGS - 1)
-        asks = [asks[round(i * step)] for i in range(DOODLE_DRAWINGS)]
+    if len(asks) > limit:  # the first, then evenly spread
+        step = (len(asks) - 1) / (limit - 1)
+        asks = [asks[round(i * step)] for i in range(limit)]
     todo = [{"draw": script["scenes"][n]["draw"], "n": n} for n in asks]
     got: dict[int, str] = {}
 
     def work():
-        doodle.draw_scenes(todo, job.workspace_id, job.user_id, report=lambda done, total: _report(job_id, drawn=done, drawings=total), style=style)
+        doodle.draw_scenes(todo, job.workspace_id, job.user_id, report=lambda done, total: _report(job_id, drawn=done, drawings=total), style=style, limit=limit, ratio=ratio)
         got.update({t["n"]: t["image"] for t in todo if t.get("image")})
 
     _report(job_id, drawn=0, drawings=len(todo))
@@ -6690,6 +6744,7 @@ TEMPLATE_GUIDE = {
     "deck": "a slide deck / presentation (a pitch, a lesson, a report, a training, a plan) — clean slides with a cover, an agenda, key points, big numbers, charts, two columns, quotes, a roadmap and a closing slide, to present or download as a PDF",
     "aiteam": "introducing an AI-as-a-service — an AI product people subscribe to instead of hiring (an AI marketing team, assistant, bookkeeper, support agent): the work piling up, AI workers each doing a job, one input becoming finished work, the owner approving with one tap, results, plans and prices",
     "saashub": "introducing a modern SaaS platform / cloud suite / workflow automation service — scattered tool chaos, the central cloud hub connecting all apps, automated trigger flows, real-time ROI metrics dashboard, and simple subscription plans",
+    "picture": "a narrated story told over full-screen AI pictures (a cinematic film still, a painted anime film, an illustration or a 3D film) with a short line of text on each — a motivational story, a true story, a documentary, a YouTube-style script read over pictures; long pasted scripts up to 10 minutes",
     "illustrated": "a calm documentary story of everyday Cambodian life in a muted hand-drawn look — one person through the market, a street of shophouses, a bank, home, the rice fields; close-ups of them with an ATM, a phone, money, a paper; explainers about money, banking, payments, health, work, a service in people's lives",
     "street3d": "a shop or business shown as the full one on its street, in real 3D — two shophouses side by side at dusk, the rival empty with its shutter half down, the brand's lit up with its name on the sign, people walking in, a number counting, customers' messages; for a café, a restaurant, a shop, a service that wants more customers",
     "dialogue": "two people really talking, each in their own voice — two friends, a seller and a customer, a boss and a worker, a parent and a child — short lines back and forth in an everyday Cambodian place, speech bubbles, a turn and a takeaway; a conversation, a sketch, a Q&A between two people",
@@ -7022,7 +7077,7 @@ def plan_status(plan_id: str, ws: int = Depends(current_workspace_id)):
 
 class SayIn(BaseModel):
     brand_id: int
-    text: str = Field(min_length=1, max_length=600)
+    text: str = Field(min_length=1, max_length=PICTURE_SAY_MAX)  # a Picture story line can be long
     language: str = "Khmer"
     voice: str = "female"
     # the storyboard's template: Gemini acts the line the way the video will
@@ -7093,6 +7148,10 @@ def checked_script(raw: dict, products: list[Product]) -> dict:
         script["street"] = clean_street(raw.get("street") if isinstance(raw.get("street"), dict) else raw)
     if style == "illustrated":
         script["cast"] = clean_lead(raw.get("cast"))
+    if style == "picture":
+        script["cast"] = clean_picture_cast(raw.get("cast"))
+        script["art"] = raw.get("art") if raw.get("art") in PICTURE_ARTS else "film"
+        script["ink"] = clean_ink(raw.get("ink"))
     if style == "reaction":
         script["cast"] = clean_animals(raw.get("cast"))
     if style in ("presenter", "podcast"):
@@ -7278,6 +7337,13 @@ def _make(
             # the rest of the video is prepared and the voice records — joined just
             # before the render (each drawing ~20 s, and the image quota is small)
             doodling = _start_doodles(script, job, job_id) if script.get("style") == "doodle" else None
+            if script.get("style") == "picture":  # Picture story: every picture, in its art style and the video's shape
+                from app import doodle
+
+                doodling = _start_doodles(
+                    script, job, job_id, style=doodle.picture_style(script.get("art") or "film", script.get("cast") or []),
+                    limit=PICTURE_MAX, ratio="16:9" if script.get("ratio") == "16:9" else "9:16",
+                )
             if script.get("style") == "presenter":  # Presenter: colour pictures over the panel's words
                 from app import doodle
 

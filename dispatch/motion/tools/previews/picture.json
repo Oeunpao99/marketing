@@ -1,0 +1,13 @@
+{
+  "brand": { "name": "Smart Marketing", "color": "#E11D48", "logo": "ours/smart-marketing.png", "slug": "smart-marketing" },
+  "style": "picture",
+  "frame": 75,
+  "scenes": [
+    { "type": "shot", "title": "គំនិត​តូច​មួយ ⟦ផ្លាស់ប្ដូរ​ជីវិត⟧", "image": "decor/podcast/sample-office.jpg", "ink": { "text": "#FFFFFF", "accent": "#FFD400" }, "caption": "គំនិត​តូច​មួយ​បាន​ផ្លាស់ប្ដូរ​អ្វីៗ", "seconds": 5 }
+  ],
+  "clip": [
+    { "type": "shot", "title": "គាត់​គ្មាន​អ្វី ⟦សល់​ទេ⟧", "image": "decor/podcast/sample-park.jpg", "ink": { "text": "#FFFFFF", "accent": "#FFD400" }, "seconds": 3.4 },
+    { "type": "shot", "title": "គំនិត​តូច​មួយ ⟦ផ្លាស់ប្ដូរ​ជីវិត⟧", "image": "decor/podcast/sample-office.jpg", "ink": { "text": "#FFFFFF", "accent": "#FFD400" }, "seconds": 3.4 },
+    { "type": "shot", "title": "ហើយ​ចាប់ផ្ដើម ⟦ពី​សូន្យ⟧", "image": "decor/podcast/studio.jpg", "ink": { "text": "#FFFFFF", "accent": "#FFD400" }, "seconds": 3.4 }
+  ]
+}

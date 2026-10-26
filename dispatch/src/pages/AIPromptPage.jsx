@@ -236,6 +236,7 @@ const MOTION_STORIES = [
   { value: 'launch', label: 'Product launch', hint: 'A cinematic launch film — the one click that does the job, your screens stacking up, “Now live”' },
   { value: 'deck', label: 'Slides · Presentation', hint: 'A slide deck from your prompt or text — present it in the app, download a PDF, or post it as a video' },
   { value: 'aiteam', label: 'AI service · Your AI team', hint: 'Introduce an AI product like hiring a team — AI workers doing the jobs, one input to finished work, approve with one tap, results and plans' },
+  { value: 'picture', label: 'Picture story', hint: 'Your story told over full-screen AI pictures — film, painted, illustration or 3D — with a line of text on each in the colours you pick; paste a long script or just the idea' },
   { value: 'saashub', label: 'SaaS Hub · Connect & Automate', hint: 'Modern cloud SaaS platform — scattered apps and manual chaos, your central cloud hub connecting all tools, automated trigger flows, and live ROI metrics' },
   { value: 'illustrated', label: 'Illustrated · Everyday Cambodia', hint: 'A calm hand-drawn documentary — the market, shophouses, a bank, home, rice fields; one person’s day and close-ups with an ATM, a phone, money' },
   { value: 'street3d', label: '3D · Street', hint: 'Real 3D: your shop lit up on a Cambodian street at dusk next to an empty rival — people walk in, a board counts, messages float up' },

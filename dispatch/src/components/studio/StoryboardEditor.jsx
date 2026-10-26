@@ -43,6 +43,7 @@ export const FIELDS = {
   gains: [['text', 'On screen']],
   plans: [['text', 'On screen'], ['badge', 'Badge']],
   wide: [['title', 'Caption card']],
+  shot: [['title', 'On picture']],
   closeup: [['text', 'Caption card']],
   fact: [
     ['title', 'Title'],
@@ -314,7 +315,7 @@ function extras(s) {
 // Seconds a scene runs — mirrors app/motion.py estimate_seconds.
 const KHMER = /[ក-៿]/g
 const spokenSeconds = (say = '') => (say.match(KHMER) || []).length / 11 + (say.match(/[A-Za-z0-9]+/g) || []).length / 2.6
-const MIN_SECONDS = { chart: 5.2, compare: 4.2, character: 3.8, cta: 3.8, product: 3.6, myth: 5, quote: 5.6, options: 9.8, split: 8, beforeafter: 5.4, result: 4.2, review: 6, customer: 4.4, news: 5, notify: 7, step: 4.8, offer: 5.6, screen: 5, dashboard: 5.2, flow: 6.4, chapter: 3.2, checklist: 5.8, recap: 6, apps: 5, table: 5.1, board: 4.6, roll: 4.8, launch: 4.2, button: 4.6, form: 5.2, word: 4.2, field: 4.8, done: 3.4, tasks: 5.3, fanout: 6.4, canvas: 5, send: 4.2, address: 4.4, lookup: 5.2, hops: 6.2, assemble: 4.6, stack: 4.9, platform: 4.4, orbit: 5, chaos: 5, phones: 5, pair: 3.8, rank: 4.2, tip: 4.6, doodle: 4.2, talk: 3.4, react: 4.2, punch: 3.2, collage: 4, statement: 4.4, pedestal: 4.6, speak: 4.2, onair: 4.2, visit: 4.4, wide: 4.4, closeup: 4.2, fact: 4.6, line: 3.6, shops: 4.6, crowd: 5, chatter: 5, tale: 4.2, tally: 4.6, fork: 4.8, moral: 4.6, note: 4, climb: 4, mirror: 4.8, grow: 4.8, summit: 5.2, whiteboard: 5, example: 6.5, remember: 4.4, choice: 5, reviews: 5.8, logos: 4, save: 3.4, take: 5.2, meme: 4.6, client: 5, metrics: 5.2, timeline: 5.2, qa: 4.5, bars: 5, donut: 4.6 }
+const MIN_SECONDS = { chart: 5.2, compare: 4.2, character: 3.8, cta: 3.8, product: 3.6, myth: 5, quote: 5.6, options: 9.8, split: 8, beforeafter: 5.4, result: 4.2, review: 6, customer: 4.4, news: 5, notify: 7, step: 4.8, offer: 5.6, screen: 5, dashboard: 5.2, flow: 6.4, chapter: 3.2, checklist: 5.8, recap: 6, apps: 5, table: 5.1, board: 4.6, roll: 4.8, launch: 4.2, button: 4.6, form: 5.2, word: 4.2, field: 4.8, done: 3.4, tasks: 5.3, fanout: 6.4, canvas: 5, send: 4.2, address: 4.4, lookup: 5.2, hops: 6.2, assemble: 4.6, stack: 4.9, platform: 4.4, orbit: 5, chaos: 5, phones: 5, pair: 3.8, rank: 4.2, tip: 4.6, doodle: 4.2, talk: 3.4, react: 4.2, punch: 3.2, collage: 4, statement: 4.4, pedestal: 4.6, speak: 4.2, onair: 4.2, visit: 4.4, wide: 4.4, closeup: 4.2, fact: 4.6, line: 3.6, shops: 4.6, crowd: 5, chatter: 5, tale: 4.2, tally: 4.6, fork: 4.8, moral: 4.6, note: 4, climb: 4, mirror: 4.8, grow: 4.8, summit: 5.2, whiteboard: 5, example: 6.5, remember: 4.4, choice: 5, reviews: 5.8, logos: 4, save: 3.4, take: 5.2, meme: 4.6, client: 5, metrics: 5.2, timeline: 5.2, qa: 4.5, bars: 5, donut: 4.6, shot: 5 }
 
 export function estimateSeconds(scenes) {
   const total = scenes.reduce((n, s) => n + Math.max(MIN_SECONDS[s.type] || 3.4, spokenSeconds(s.say) + 1.3), 0)
@@ -322,6 +323,83 @@ export function estimateSeconds(scenes) {
 }
 
 const fmtLength = (sec) => (sec >= 60 ? `${Math.floor(sec / 60)} min ${String(sec % 60).padStart(2, '0')} s` : `${sec} s`)
+
+// Picture story (motion/src/picture.jsx): how its pictures are painted and the
+// colours of the words on them (app/motion.py PICTURE_ARTS / clean_ink)
+const ARTS = [
+  ['film', 'Film still'],
+  ['painted', 'Painted'],
+  ['illustration', 'Illustration'],
+  ['3d', '3D film'],
+]
+const TEXT_COLORS = ['#FFFFFF', '#FFE8A3', '#FFD400', '#111111']
+const ACCENTS = ['', '#FFD400', '#22D3EE', '#F43F5E', '#22C55E', '#FFFFFF']
+
+function Swatches({ colors, value, onPick, label }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={label}>
+      {colors.map((c) => (
+        <button
+          key={c || 'brand'}
+          type="button"
+          onClick={() => onPick(c)}
+          title={c || 'Your brand colour'}
+          className={`grid h-7 min-w-7 place-items-center rounded-full border-2 px-1 text-[10px] font-bold ${
+            (value || '') === c ? 'border-brand ring-2 ring-brand/25' : 'border-ink-200'
+          }`}
+          style={c ? { backgroundColor: c } : undefined}
+        >
+          {!c && <span className="px-1 text-ink-600">Brand</span>}
+        </button>
+      ))}
+      {/* any colour of their own */}
+      <label title="Pick your own colour" className="relative grid h-7 w-7 cursor-pointer place-items-center overflow-hidden rounded-full border-2 border-dashed border-ink-300 text-[13px] text-ink-500 hover:border-brand">
+        +
+        <input type="color" value={value || '#ffffff'} onChange={(e) => onPick(e.target.value.toUpperCase())} className="absolute inset-0 cursor-pointer opacity-0" />
+      </label>
+    </div>
+  )
+}
+
+function PictureLook({ plan, onChange }) {
+  const ink = { text: '#FFFFFF', accent: '', ...(plan.ink || {}) }
+  const setInk = (patch) => onChange({ ...plan, ink: { ...ink, ...patch } })
+  const art = plan.art || 'film'
+  return (
+    <div className="space-y-3 border-b border-ink-200/70 px-4 py-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="w-24 flex-none text-[11.5px] font-semibold text-ink-600">Picture style</span>
+        <div className="flex flex-wrap gap-1.5">
+          {ARTS.map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => onChange({ ...plan, art: id })}
+              className={`rounded-full border px-3 py-1 text-[12px] font-medium ${art === id ? 'border-brand bg-brand-soft text-brand' : 'border-ink-200 text-ink-700 hover:border-brand'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="w-24 flex-none text-[11.5px] font-semibold text-ink-600">Text colour</span>
+        <Swatches label="Text colour" colors={TEXT_COLORS} value={ink.text} onPick={(c) => setInk({ text: c })} />
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="w-24 flex-none text-[11.5px] font-semibold text-ink-600">Highlight</span>
+        <Swatches label="Highlight colour" colors={ACCENTS} value={ink.accent} onPick={(c) => setInk({ accent: c })} />
+      </div>
+      {/* how the words will look on a picture */}
+      <div className="flex items-center gap-3 pl-0 sm:pl-[6.5rem]">
+        <span className="rounded-lg bg-night-900 px-3 py-1.5 text-[15px] font-extrabold" style={{ color: ink.text }}>
+          Your words <span style={{ color: ink.accent || 'rgb(var(--brand))' }}>[highlighted]</span>
+        </span>
+        <span className="text-[11px] text-ink-400">Put [brackets] round the words to highlight</span>
+      </div>
+    </div>
+  )
+}
 
 export default function StoryboardEditor({ plan, onChange, onMake, onRewrite, voice = true, onHear, fetchLine, onError }) {
   const [hearing, setHearing] = useState(null) // the line being played
@@ -460,6 +538,8 @@ export default function StoryboardEditor({ plan, onChange, onMake, onRewrite, vo
           </button>
         </div>
       )}
+
+      {plan?.style === 'picture' && <PictureLook plan={plan} onChange={onChange} />}
 
       <ol className="divide-y divide-ink-200/60">
         {scenes.map((s, i) => {

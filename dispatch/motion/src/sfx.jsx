@@ -25,6 +25,7 @@ const SAAS = new Set(['trend', 'pov', 'demo', 'offer', 'custom', 'showcase', 'la
 
 /** [{ at: frame in the scene, s: sound }] for one scene. */
 export function cuesFor(scene, style, frames, first) {
+  if (style === 'picture') return [] // Picture story: soft crossfades under the voice — no whooshes
   const cues = first ? [] : [{ at: 0, s: 'whoosh' }] // the transition slides in at the scene's frame 0
   const add = (at, s) => at < frames - 4 && cues.push({ at: Math.max(0, Math.round(at)), s })
   const n = (list, max = 4) => Math.min(max, (list || []).length)
