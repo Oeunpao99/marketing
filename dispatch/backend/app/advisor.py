@@ -146,11 +146,12 @@ DRAFT_KINDS = ("motion", "story", "clip", "image", "post")
 
 class HistoryItem(BaseModel):
     role: str  # user | assistant
-    content: str = Field(max_length=6000)
+    content: str = Field(max_length=40000)
 
 
 class AdvisorIn(BaseModel):
-    message: str = Field(min_length=1, max_length=4000)
+    # room for a pasted script or brief (Khmer runs long in characters)
+    message: str = Field(min_length=1, max_length=20000)
     history: list[HistoryItem] = Field(default_factory=list)
     brand_id: int | None = None
     # A "/media/..." image the user attached — the advisor looks at it.
@@ -307,7 +308,7 @@ def advisor(
     ]
     for h in payload.history[-8:]:
         if h.role in ("user", "assistant") and h.content.strip():
-            messages.append({"role": h.role, "content": h.content})
+            messages.append({"role": h.role, "content": h.content[:20000]})
     # the workspace's writing model — the one captions and scripts use (the person's
     # pick, else the platform's writer; Khmer-aware): Ask writes posts and scripts too,
     # and a cheap analysis model made them read flat. A picture still goes to vision.

@@ -113,7 +113,13 @@ async function request(method, path, body) {
       typeof detail === 'string'
         ? detail
         : Array.isArray(detail)
-        ? detail.map((d) => d.msg).join(', ')
+        ? detail
+            .map((d) =>
+              d.type === 'string_too_long'
+                ? `That text is too long — please keep it under ${(d.ctx?.max_length ?? 0).toLocaleString()} characters.`
+                : d.msg,
+            )
+            .join(', ')
         : !data
         ? `Can’t reach the API (${res.status}). Is the dev server / backend running?`
         : `Request failed (${res.status})`

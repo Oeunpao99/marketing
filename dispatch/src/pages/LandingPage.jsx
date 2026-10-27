@@ -1526,20 +1526,15 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
             >
               {t('Tutorials', 'មេរៀន')}
             </a>
-            {/* the developer docs (/developers, DevelopersPage.jsx) — the API, and connecting an AI assistant */}
-            {[
-              ['/developers', 'API', ''],
-              ['/developers#mcp', 'MCP', 'mcp'],
-            ].map(([href, label, hash]) => (
-              <a
-                key={label}
-                href={href}
-                onMouseEnter={() => setMenu(false)}
-                className={`whitespace-nowrap rounded-lg px-2 py-1.5 xl:px-3 transition-colors ${page === 'developers' && (window.location.hash.slice(1) === hash) ? 'bg-ink-100 text-ink-900' : 'text-ink-600 hover:bg-ink-50 hover:text-ink-900'}`}
-              >
-                {label}
-              </a>
-            ))}
+            {/* the developer docs (/developers, DevelopersPage.jsx) — the API, and connecting an AI
+                assistant (MCP). One link: two (API, MCP) made the bar wider than the page */}
+            <a
+              href="/developers"
+              onMouseEnter={() => setMenu(false)}
+              className={`whitespace-nowrap rounded-lg px-2 py-1.5 xl:px-3 transition-colors ${page === 'developers' ? 'bg-ink-100 text-ink-900' : 'text-ink-600 hover:bg-ink-50 hover:text-ink-900'}`}
+            >
+              API
+            </a>
           </div>
           <div className="flex flex-none items-center gap-1.5 sm:gap-2">
             <LangSwitch lang={lang} setLang={setLang} />

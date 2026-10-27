@@ -468,6 +468,47 @@ def _publish_tiktok_direct(target: PostTarget, access_token: str, data: bytes) -
     )
 
 
+TELEGRAM_UPLOAD_LIMIT = 50 * 1024 * 1024  # a bot's upload cap — above it: 413 "Request Entity Too Large"
+TELEGRAM_UPLOAD_AIM = 47 * 1024 * 1024  # what a shrunk video aims for (room for the form around it)
+
+
+def fit_video(data: bytes, aim: int, seconds: float | None = None) -> bytes:
+    """``data`` (an MP4) re-encoded to about ``aim`` bytes: the bitrate its length
+    allows (H.264 + AAC 96k, the same size and length; 720p when that bitrate is
+    low — a long video). Tried once more, smaller, if it's still over. The
+    original is untouched; raises PublishError when it can't be made to fit."""
+    import subprocess
+    import tempfile
+    from pathlib import Path
+
+    import imageio_ffmpeg
+
+    ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+    with tempfile.TemporaryDirectory() as tmp:
+        src, out = Path(tmp) / "in.mp4", Path(tmp) / "out.mp4"
+        src.write_bytes(data)
+        if not seconds:
+            try:
+                seconds = imageio_ffmpeg.count_frames_and_secs(str(src))[1]
+            except Exception:  # noqa: BLE001 — can't tell its length: can't size it
+                seconds = 0
+        if not seconds:
+            raise PublishError("The video is too large for Telegram (50 MB), and its length couldn't be read to shrink it.")
+        for share in (0.92, 0.75):
+            kbps = max(150, int(aim * share * 8 / seconds / 1000) - 96)
+            scale = ["-vf", "scale=-2:'min(720,ih)'"] if kbps < 1500 else []
+            done = subprocess.run(
+                [ffmpeg, "-y", "-loglevel", "error", "-i", str(src), *scale,
+                 "-c:v", "libx264", "-preset", "veryfast", "-b:v", f"{kbps}k", "-maxrate", f"{int(kbps * 1.3)}k", "-bufsize", f"{kbps * 2}k",
+                 "-c:a", "aac", "-b:a", "96k", "-movflags", "+faststart", str(out)],
+                capture_output=True,
+                timeout=900,
+            )
+            if done.returncode == 0 and out.exists() and 0 < out.stat().st_size <= aim:
+                return out.read_bytes()
+    raise PublishError("The video is too large for Telegram (50 MB) and couldn't be made small enough — try a shorter video.")
+
+
 def _publish_telegram(
     target: PostTarget, channel: Channel, video: Video | None
 ) -> PublishResult:
@@ -495,6 +536,13 @@ def _publish_telegram(
     is_remote = asset_url.startswith(("http://", "https://"))
     media_bytes = read_media(asset_url) if asset_url and not is_remote else None
     kind = kind_for(asset_url, None) if asset_url else "video"
+
+    # over a bot's 50 MB upload cap (a long video): sent as a smaller copy — Telegram
+    # refused the original with 413 "Request Entity Too Large"
+    if media_bytes is not None and kind != "image" and len(media_bytes) > TELEGRAM_UPLOAD_AIM:
+        before = len(media_bytes)
+        media_bytes = fit_video(media_bytes, TELEGRAM_UPLOAD_AIM, video.duration_seconds if video else None)
+        log.info("telegram: video %s shrunk %.1f MB → %.1f MB to fit the 50 MB upload cap", asset_url, before / 1e6, len(media_bytes) / 1e6)
 
     send_media = (media_bytes is not None or is_remote) and len(caption) <= TELEGRAM_CAPTION_LIMIT
     if send_media:
