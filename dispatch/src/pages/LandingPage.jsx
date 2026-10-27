@@ -781,8 +781,8 @@ function Faq() {
 // the popular one dark; then the full comparison. Credits: CREDIT_USES.
 // Monthly plan prices are confirmed (2026-10-23, the pricing proposal) and paid
 // in the app with KHQR (Settings → Billing → Upgrade; app/payments.py PLAN_PRICES
-// — keep the two in step). Set true again to show "Coming soon".
-const PRICES_SOON = false
+// — keep the two in step). true = paid prices show "Coming soon" (2026-10-27, owner asked).
+const PRICES_SOON = true
 // What the app can't sell yet: yearly billing, credit packs and add-ons stay
 // "Coming soon" (the Yearly switch is hidden) until checkout supports them.
 const YEARLY_ON = false
