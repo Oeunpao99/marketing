@@ -2962,6 +2962,16 @@ function SettingsPopover({
           )}
         </div>
         </div>
+        {/* every choice applies as it's made and is remembered (saveSettings) —
+            this says so, and gives the drawer a clear way out */}
+        <div className="flex items-center gap-3 border-t border-ink-100 px-5 py-3">
+          <span className="flex flex-1 items-center gap-1.5 text-[12px] text-ink-500">
+            <FiCheck size={13} className="text-emerald-600" /> Saved automatically — used for your next image or video
+          </span>
+          <button type="button" onClick={onClose} className="btn-primary">
+            Done
+          </button>
+        </div>
       </aside>
     </div>,
     document.body,

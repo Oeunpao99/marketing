@@ -636,16 +636,18 @@ function Chrome({ scenes, brand }) {
   const frame = useCurrentFrame()
   const { width, height } = useVideoConfig()
   return (
-    <AbsoluteFill style={{ padding: `${chipTop(width, height)}px 48px 0`, pointerEvents: 'none', opacity: chipOpacity(scenes, frame) }}>
+    // above the scenes' own layers (AI design's z-indexed layers, a full-frame picture)
+    <AbsoluteFill style={{ padding: `${chipTop(width, height)}px 48px 0`, pointerEvents: 'none', opacity: chipOpacity(scenes, frame), zIndex: 20 }}>
       <div
         style={{
           alignSelf: 'flex-start',
           display: 'flex',
           alignItems: 'center',
           gap: 16,
-          background: 'rgba(255,255,255,0.92)',
+          // a light (white) logo vanished on the white chip — it gets a dark one (app/motion.py logo_is_light)
+          background: brand.logoLight ? 'rgba(10,14,22,0.82)' : 'rgba(255,255,255,0.92)',
           borderRadius: 10,
-          border: 0,
+          border: brand.logoLight ? '1px solid rgba(255,255,255,0.14)' : 0,
           padding: brand.logo ? '10px 14px' : '14px 28px',
           boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
         }}

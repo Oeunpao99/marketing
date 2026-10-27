@@ -2345,10 +2345,14 @@ CANVAS_PROMPT = (
     "THE LOOK — return \"theme\": {\"look\": one of: "
     + "; ".join(f"{k} ({v['say']})" for k, v in LOOKS.items())
     + "; brand (the brand's own colour), \"accent\": \"#RRGGBB\" ONLY if the brief names its "
-    "colours, \"backgrounds\": 1-2 of: " + ", ".join(LOOK_BACKGROUNDS) + ", \"pictures\": flat (the "
-    "default — colour illustrations in the look's colours) | sketch (hand-drawn ink sketches that "
-    "draw themselves onto the scene — ONLY when the brief asks for sketches / doodles / hand-drawn)}. "
-    "Each scene picks "
+    "colours, \"backgrounds\": 1-2 of: " + ", ".join(LOOK_BACKGROUNDS) + ", \"pictures\": vector (the "
+    "default — flat vector illustrations drawn as code in the look's colours, the same people in "
+    "every scene) | flat (painted colour illustrations — ONLY when the brief asks for painted / "
+    "realistic pictures) | sketch (hand-drawn ink sketches — ONLY when the brief asks for sketches / "
+    "doodles / hand-drawn), \"cast\": when the pictures show people, ONE line describing each "
+    "recurring person so every picture draws them the same — name, age, skin tone hex, hair, "
+    "clothes colours (e.g. \"Sophea: Cambodian girl ~17, skin #B8794F, black ponytail, pink "
+    "t-shirt #F472B6, jeans\")}. Each scene picks "
     "\"tone\": dark | light (keep runs of the same tone — switch only at a change of act) and "
     "\"bg\": one of the theme's backgrounds.\n"
     "\n"
@@ -2366,7 +2370,7 @@ CANVAS_PROMPT = (
     "words)}), items (2-5 x {icon, text (2-6 words)}), value + prefix + suffix + label (metric — "
     "ONLY a true number), quote + author, steps (3 x {icon, label (max 3 words)}), before / after "
     "({title, lines: 1-3 short rows, icon}), alert ({text (max 6 words), level: info | warn | danger "
-    "| ok}), cta (1-3 words — the end's button). PICTURES: at most 4 in the film, only where "
+    "| ok}), cta (1-3 words — the end's button). PICTURES: at most 6 in the film, only where "
     "seeing the moment beats an icon (people, a place, a feeling); never draw the brand's product "
     "(use product:<name>) or a screen (use shot:N); never ask for words in a picture. hit: true on the scene's big reveal (2-3 a film); "
     "pause: 0.5-1.5 = a quiet near-black breath BEFORE the scene (the brief's \"pause before the "
@@ -2407,6 +2411,9 @@ def clean_theme(raw, brand_hex: str = "#3B82F6") -> dict:
         "b": _hex(t.get("b"), "#22D3EE"),
         "backgrounds": kinds or ["grid", "aurora"],
         "card": "solid" if t.get("card") == "solid" else "glass",
+        # how the pictures are made (app/doodle.py draw_pictures) and who's in them
+        "pictures": t.get("pictures") if t.get("pictures") in ("flat", "sketch") else "vector",
+        "cast": _line(t.get("cast"), 400),
         "radius": int(_num(t.get("radius"), 6, 28, 14)),
     }
 
@@ -5513,6 +5520,24 @@ def logo_prints(logo: str | None) -> bool:
         return False
 
 
+def logo_is_light(logo: str | None) -> bool:
+    """A light logo on a see-through ground (a white logo) — it vanishes on the
+    white brand chip, so the video puts it on a dark one."""
+    if not logo_prints(logo):  # a logo with its own solid ground shows on any chip
+        return False
+    try:
+        from PIL import Image, ImageStat
+
+        im = Image.open(io.BytesIO(base64.b64decode(logo.split(",", 1)[1]))).convert("RGBA")
+        im.thumbnail((200, 200))
+        ink = im.getchannel("A").point(lambda a: 255 if a > 128 else 0)  # its drawn part only
+        if not ink.getbbox():
+            return False
+        return ImageStat.Stat(im.convert("L"), mask=ink).mean[0] > 185
+    except Exception:  # noqa: BLE001 — the usual white chip
+        return False
+
+
 def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> dict:
     """The template's input (motion/sample.json shape)."""
 
@@ -5632,7 +5657,7 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
             scene.pop("image", None)
         scenes.append(scene)
     props = {
-        "brand": {"name": brand.name, "color": f"#{r:02x}{g:02x}{b:02x}", "logo": logo},
+        "brand": {"name": brand.name, "color": f"#{r:02x}{g:02x}{b:02x}", "logo": logo, "logoLight": logo_is_light(logo)},
         "scenes": scenes,
         "style": script.get("style") or "tech",
     }
@@ -6333,7 +6358,7 @@ def _to_files(props: dict, folder: Path, rel: str) -> dict:
         nonlocal count
         if isinstance(value, str) and value.startswith("data:") and "," in value:
             head, data = value.split(",", 1)
-            ext = ".jpg" if "jpeg" in head else ".png" if "png" in head else ".mp3" if "audio" in head else ".bin"
+            ext = ".jpg" if "jpeg" in head else ".png" if "png" in head else ".svg" if "svg" in head else ".mp3" if "audio" in head else ".bin"
             count += 1
             name = f"{count}{ext}"
             (folder / name).write_bytes(base64.b64decode(data))
@@ -7259,8 +7284,9 @@ def pictures_to_paint(script: dict) -> int:
         return min(asked, DOODLE_SKETCHES)
     if style in ("presenter", "deck", "aiteam"):
         return min(asked, DOODLE_DRAWINGS)
-    if style == "canvas":
-        return min(doodle.MAX_PICTURES, sum(1 for sc in scenes for L in sc.get("layers") or [] if L.get("draw") and not L.get("src")))
+    if style == "canvas":  # vector pictures (the default) are priced like a painted one
+        most = doodle.MAX_PICTURES if (script.get("theme") or {}).get("pictures") in ("flat", "sketch") else doodle.MAX_VECTORS
+        return min(most, sum(1 for sc in scenes for L in sc.get("layers") or [] if L.get("draw") and not L.get("src")))
     if style == "reaction":
         return len(script.get("cast") or []) + min(asked, doodle.MAX_MEME_PHOTOS)
     if style == "podcast":
@@ -7542,7 +7568,7 @@ def _make(
 
                 if any(L.get("draw") and not L.get("src") for sc in script["scenes"] for L in sc.get("layers") or []):
                     _report(job_id, stage="pictures")
-                    doodle.draw_pictures(script["scenes"], script.get("theme") or {}, job.workspace_id, job.user_id)
+                    doodle.draw_pictures(script["scenes"], script.get("theme") or {}, job.workspace_id, job.user_id, wide=script.get("ratio") == "16:9")
                     _check(job_id)
             if script.get("style") == "reaction":  # Reaction meme: its animals, and the pictures behind
                 from app import doodle
@@ -7685,7 +7711,7 @@ def keep_props(db: Session, props: dict) -> str:
         if isinstance(value, str) and value.startswith("data:") and "," in value:
             head, data = value.split(",", 1)
             raw = base64.b64decode(data)
-            ext = ".jpg" if "jpeg" in head else ".png" if "png" in head else ".mp3" if "audio" in head else ".bin"
+            ext = ".jpg" if "jpeg" in head else ".png" if "png" in head else ".svg" if "svg" in head else ".mp3" if "audio" in head else ".bin"
             name = f"rm-{hashlib.sha1(raw).hexdigest()}{ext}"
             if db.scalar(select(MediaBlob.id).where(MediaBlob.name == name)) is None:
                 try:

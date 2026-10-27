@@ -325,18 +325,48 @@ PICTURE_STYLE = (
     "watermarks anywhere in the image.\n\nThe picture: "
 )
 MAX_PICTURES = 4
+MAX_VECTORS = 6  # vector pictures are writing, not image quota — a few more a film
 
 
-def draw_pictures(scenes: list[dict], theme: dict, ws: int | None, user_id: int | None) -> int:
+def _full_frame(sc: dict) -> bool:
+    """A scene that is only words (a title, its kicker / sub) and one picture —
+    its vector picture can be the whole frame, the words on its empty corner."""
+    kinds = [L.get("kind") for L in sc.get("layers") or []]
+    return kinds.count("image") == 1 and kinds.count("text") >= 1 and all(k in ("text", "pill", "image") for k in kinds)
+
+
+def _words_on_corner(sc: dict, wide: bool) -> None:
+    """The scene's words as one block on the full-frame picture's empty corner:
+    the kicker, the title (the biggest text) and the sub stacked together —
+    top-left on a wide video, the top on a tall one, below the logo chip."""
+    layers = sc["layers"]
+    texts = [L for L in layers if L.get("kind") == "text"]
+    title = max(texts, key=lambda L: L.get("size") or 0)
+    pills = [L for L in layers if L.get("kind") == "pill"]
+    if pills and not title.get("kicker"):
+        title["kicker"] = pills[0].get("text") or ""
+    subs = [L for L in texts if L is not title]
+    if subs and not title.get("sub"):
+        title["sub"], title["subSize"] = subs[0].get("text") or "", 46 if wide else 48
+    if wide:
+        title.update(x=27, y=35, maxw=42, align="left")
+    else:
+        title.update(x=50, y=27, maxw=88, align="center")
+    sc["layers"] = [L for L in layers if L.get("kind") == "image" or L is title]
+
+
+def draw_pictures(scenes: list[dict], theme: dict, ws: int | None, user_id: int | None, wide: bool = False) -> int:
     """AI design (style "canvas"): every image layer that asks for a drawing
-    (``draw``) gets one, at most MAX_PICTURES a film, one at a time. The look
-    says how (theme["pictures"]): "flat" (the default) = a colour illustration
-    in the look's accents on the scene's background; "sketch" = Doodle notes'
-    ink sketch, made transparent and inked in the scene's text colour — light
-    lines on a dark scene — so it draws itself onto the scene. A
-    picture that can't be drawn (or one over the limit) becomes its icon on a
-    tile. Returns how many were drawn."""
-    sketch = theme.get("pictures") == "sketch"  # else colour pictures (the default)
+    (``draw``) gets one. The look says how (theme["pictures"]): "vector" (the
+    default) = the writing AI draws it as flat vector SVG in the look's colours,
+    the same people every scene (app/vector_art.py), up to MAX_VECTORS, three at
+    a time; "flat" = a colour illustration by the image model; "sketch" =
+    Doodle notes' ink sketch, made transparent and inked in the scene's text
+    colour so it draws itself onto the scene (both up to MAX_PICTURES, one at a
+    time). A vector picture that fails is painted ("flat") instead; one that
+    can't be drawn at all becomes its icon on a tile. Returns how many were drawn."""
+    mode = theme.get("pictures") if theme.get("pictures") in ("flat", "sketch") else "vector"
+    sketch = mode == "sketch"
     todo = [(sc, L) for sc in scenes for L in sc.get("layers") or [] if L.get("kind") == "image" and L.get("draw") and not L.get("src")]
 
     def one(item):
@@ -373,8 +403,33 @@ def draw_pictures(scenes: list[dict], theme: dict, ws: int | None, user_id: int 
             log.exception("ai design: could not read a picture")
             return None
 
+    def vector(item):
+        from app import vector_art
+
+        sc, L = item
+        light = (sc.get("tone") or (sc.get("pal") or {}).get("mode")) == "light"
+        palette = (
+            f"main {theme.get('a', '#4F8CFF')}, second {theme.get('b', '#22D3EE')}, "
+            f"{'light' if light else 'dark'} scene — background around {theme.get('light' if light else 'dark') or ('#F4F6FB' if light else '#0B1020')}, "
+            f"deep shade {theme.get('dark') or '#0B1020'}, light shade {theme.get('light') or '#F4F6FB'}"
+        )
+        tall = (L.get("w") or 0) >= 700  # a phone video's big picture: a taller panel
+        full = ("wide" if wide else "tall") if _full_frame(sc) else ""
+        return vector_art.draw(L["draw"], cast=theme.get("cast") or "", palette=palette, tall=tall, full=full, light=light)
+
     got = []
-    if todo[:MAX_PICTURES]:
+    drew_vector: set[int] = set()
+    if mode == "vector" and todo[:MAX_VECTORS]:
+        # writing calls, three at once; each keeps this job's billing (contextvars)
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            got = list(pool.map(lambda it: contextvars.copy_context().run(vector, it), todo[:MAX_VECTORS]))
+        drew_vector = {k for k, u in enumerate(got) if u}
+        missed = [k for k, u in enumerate(got) if not u][:MAX_PICTURES]
+        if missed:  # painted instead, one at a time
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                for k, uri in zip(missed, pool.map(one, [todo[k] for k in missed])):
+                    got[k] = uri
+    elif todo[:MAX_PICTURES]:
         with ThreadPoolExecutor(max_workers=1) as pool:  # one at a time — the image quota is small
             got = list(pool.map(one, todo[:MAX_PICTURES]))
     for k, (sc, L) in enumerate(todo):
@@ -382,6 +437,13 @@ def draw_pictures(scenes: list[dict], theme: dict, ws: int | None, user_id: int 
         if uri:
             L["src"] = uri
             L.pop("draw", None)
+            if k in drew_vector:
+                L["radius"] = 0  # the SVG has its own rounded panel — or is the whole frame
+                if _full_frame(sc):  # behind everything, edge to edge; the words on its empty corner
+                    L.update(x=50, y=50, w=1920 if wide else 1080, z=0)
+                    L["in"] = "fade"
+                    L.pop("loop", None)
+                    _words_on_corner(sc, wide)
             if sketch:
                 L["sketch"] = True  # canvas.jsx: drawn in with a sweep, then a pen wobble
                 L["in"] = "fade"  # the sweep is its entrance — no zoom on top

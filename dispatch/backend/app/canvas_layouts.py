@@ -145,20 +145,21 @@ def layout_layers(raw: dict, wide: bool) -> list[dict]:
         out.append(L)
     elif lay == "split":
         v = raw.get("visual") if isinstance(raw.get("visual"), dict) else {"kind": "icon", "icon": icon}
+        # kicker, title and sub in one block (like hero): a title that wraps to
+        # three lines pushes them apart instead of running into them
         if wide:
-            if kicker:
-                out.append(_pill(kicker, 22, 28, 0.1))
-            out.append(_text(title, 30, 44, min(96, _head(title)), 0.3, maxw=40, align="left"))
+            L = _text(title, 30, 47, min(108, _head(title)), 0.3, maxw=40, align="left")
             if sub:
-                out.append(_text(sub, 30, 62, 46, 0.8, maxw=40, align="left", weight=500, tin="fade", color="sub"))
+                L["sub"], L["subSize"] = sub, 46
             out += _visual(v, 71, 47, 0.5, wide)
         else:
-            if kicker:
-                out.append(_pill(kicker, 50, 19, 0.1))
-            out.append(_text(title, 50, 27, _head(title), 0.3, maxw=88))
+            L = _text(title, 50, 26, _head(title), 0.3, maxw=88)
             if sub:
-                out.append(_text(sub, 50, 36, 48, 0.8, maxw=84, weight=500, tin="fade", color="sub"))
-            out += _visual(v, 50, 58 if v.get("kind") != "device" or v.get("device") != "phone" else 59, 0.5, wide)
+                L["sub"], L["subSize"] = sub, 48
+            out += _visual(v, 50, 60 if v.get("kind") != "device" or v.get("device") != "phone" else 61, 0.5, wide)
+        if kicker:
+            L["kicker"] = kicker
+        out.append(L)
     elif lay == "picture":
         v = raw.get("visual") if isinstance(raw.get("visual"), dict) else {}
         v = {"kind": "picture", "draw": v.get("draw") or raw.get("draw"), "icon": v.get("icon") or icon}
@@ -325,9 +326,10 @@ def look(raw, brand_hex: str, brand_hex2: str | None = None, brand_default: bool
     if name != "brand" and not re.fullmatch(r"#[0-9a-fA-F]{6}", accent):
         tones = ""  # the designed looks keep both tones, as they were made
     bgs = [b for b in (t.get("backgrounds") or []) if b in LOOK_BACKGROUNDS][:2] if isinstance(t.get("backgrounds"), list) else []
-    # colour pictures unless the brief asked for Doodle notes' ink sketches
-    pictures = "sketch" if t.get("pictures") == "sketch" else "flat"
-    out = {"name": name, "dark": base["dark"], "light": base["light"], "a": base["a"], "b": base["b"], "backgrounds": bgs or base["backgrounds"], "card": base["card"], "radius": base["radius"], "pictures": pictures}
+    # vector pictures drawn as code (app/vector_art.py) unless the brief asked for
+    # painted colour pictures or Doodle notes' ink sketches
+    pictures = t.get("pictures") if t.get("pictures") in ("flat", "sketch") else "vector"
+    out = {"name": name, "dark": base["dark"], "light": base["light"], "a": base["a"], "b": base["b"], "backgrounds": bgs or base["backgrounds"], "card": base["card"], "radius": base["radius"], "pictures": pictures, "cast": _s(t.get("cast"), 400)}
     if tones:
         out["tones"] = tones  # apply_theme: every scene in this tone
     return out
