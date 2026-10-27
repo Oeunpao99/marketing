@@ -112,13 +112,13 @@ function Sketch({ scene, box, delay = 0.35 }) {
   }
   // No drawing: the icon, inked bold inside a hand-drawn circle with an orange
   // swash — clean and on purpose (random strokes round a thin icon looked broken)
-  const d = box * 0.72
+  const d = box * 0.52 // a small mark under the words, not the whole page
   return (
     <div style={{ ...fit, width: d, height: d, display: 'grid', placeItems: 'center', transform: boil(frame, 'sk', u) }}>
       <InkRing size={d} progress={p} />
       {/* stroke-dash props inherit into the icon's paths: they draw themselves */}
       <div style={{ position: 'relative', strokeDasharray: 140, strokeDashoffset: 140 * (1 - interpolate(p, [0.15, 1], [0, 1], clamp)) }}>
-        <Icon name={scene.icon || 'Lightbulb'} size={d * 0.42} color={C.ink} stroke={1.7} />
+        <Icon name={scene.icon || 'Lightbulb'} size={d * 0.36} color={C.ink} stroke={1.8} />
       </div>
     </div>
   )

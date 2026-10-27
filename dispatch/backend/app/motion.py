@@ -2345,9 +2345,10 @@ CANVAS_PROMPT = (
     "THE LOOK — return \"theme\": {\"look\": one of: "
     + "; ".join(f"{k} ({v['say']})" for k, v in LOOKS.items())
     + "; brand (the brand's own colour), \"accent\": \"#RRGGBB\" ONLY if the brief names its "
-    "colours, \"backgrounds\": 1-2 of: " + ", ".join(LOOK_BACKGROUNDS) + ", \"pictures\": sketch (the "
-    "default — hand-drawn ink sketches that draw themselves onto the scene) | flat (colour "
-    "illustrations — ONLY when the brief asks for colourful / colour pictures)}. Each scene picks "
+    "colours, \"backgrounds\": 1-2 of: " + ", ".join(LOOK_BACKGROUNDS) + ", \"pictures\": flat (the "
+    "default — colour illustrations in the look's colours) | sketch (hand-drawn ink sketches that "
+    "draw themselves onto the scene — ONLY when the brief asks for sketches / doodles / hand-drawn)}. "
+    "Each scene picks "
     "\"tone\": dark | light (keep runs of the same tone — switch only at a change of act) and "
     "\"bg\": one of the theme's backgrounds.\n"
     "\n"
@@ -6086,9 +6087,12 @@ _stopped: set[int] = set()
 _progress: dict[int, dict] = {}
 
 
-# Doodle notes: at most this many scenes get an AI sketch (the hook first, the
-# rest spread over the film); the others draw their icon by hand on screen.
+# Presenter / Slides / AI team: at most this many scenes get an AI picture (the
+# first, the rest spread over the film); the others keep their icon.
 DOODLE_DRAWINGS = 3
+# Doodle notes: a sketch for every scene that asks one (a 5-8 scene film asks
+# up to ~6) — 3 left half the film on plain icons. Under doodle.MAX_DRAWINGS.
+DOODLE_SKETCHES = 6
 
 
 def _start_doodles(script: dict, job, job_id: int, style: str | None = None, limit: int = DOODLE_DRAWINGS, ratio: str = "16:9") -> tuple[threading.Thread, dict]:
@@ -7251,7 +7255,9 @@ def pictures_to_paint(script: dict) -> int:
     asked = sum(1 for sc in scenes if sc.get("draw") and not sc.get("image"))
     if style == "picture":
         return min(asked, PICTURE_MAX)
-    if style in ("doodle", "presenter", "deck", "aiteam"):
+    if style == "doodle":
+        return min(asked, DOODLE_SKETCHES)
+    if style in ("presenter", "deck", "aiteam"):
         return min(asked, DOODLE_DRAWINGS)
     if style == "canvas":
         return min(doodle.MAX_PICTURES, sum(1 for sc in scenes for L in sc.get("layers") or [] if L.get("draw") and not L.get("src")))
@@ -7509,7 +7515,7 @@ def _make(
             # Doodle notes: its hand-drawn sketches are drawn in the background while
             # the rest of the video is prepared and the voice records — joined just
             # before the render (each drawing ~20 s, and the image quota is small)
-            doodling = _start_doodles(script, job, job_id) if script.get("style") == "doodle" else None
+            doodling = _start_doodles(script, job, job_id, limit=DOODLE_SKETCHES) if script.get("style") == "doodle" else None
             if script.get("style") == "picture":  # Picture story: every picture, in its art style and the video's shape
                 from app import doodle
 

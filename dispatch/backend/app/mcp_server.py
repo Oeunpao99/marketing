@@ -355,7 +355,7 @@ def _handle(db: Session, user: TeamMember, key: ApiKey, msg: dict) -> dict | Non
 
 def _unauthorized() -> JSONResponse:
     return JSONResponse(
-        _error(None, -32001, "A Smart Marketing API key is needed — make one on the API & MCP page."),
+        _error(None, -32001, "A valid Smart Marketing API key is needed (this one may have expired or been revoked) — make one on the API & MCP page."),
         status_code=401,
         headers={"WWW-Authenticate": 'Bearer realm="smart-marketing"'},
     )

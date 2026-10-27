@@ -330,13 +330,13 @@ MAX_PICTURES = 4
 def draw_pictures(scenes: list[dict], theme: dict, ws: int | None, user_id: int | None) -> int:
     """AI design (style "canvas"): every image layer that asks for a drawing
     (``draw``) gets one, at most MAX_PICTURES a film, one at a time. The look
-    says how (theme["pictures"]): "sketch" (the default) = Doodle notes' ink
-    sketch, made transparent and inked in the scene's text colour — light
-    lines on a dark scene — so it draws itself onto the scene; "flat" = a
-    colour illustration in the look's accents on the scene's background. A
+    says how (theme["pictures"]): "flat" (the default) = a colour illustration
+    in the look's accents on the scene's background; "sketch" = Doodle notes'
+    ink sketch, made transparent and inked in the scene's text colour — light
+    lines on a dark scene — so it draws itself onto the scene. A
     picture that can't be drawn (or one over the limit) becomes its icon on a
     tile. Returns how many were drawn."""
-    sketch = (theme.get("pictures") or "sketch") != "flat"
+    sketch = theme.get("pictures") == "sketch"  # else colour pictures (the default)
     todo = [(sc, L) for sc in scenes for L in sc.get("layers") or [] if L.get("kind") == "image" and L.get("draw") and not L.get("src")]
 
     def one(item):

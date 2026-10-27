@@ -26,14 +26,6 @@ import { AbsoluteFill, Img, interpolate, random, spring, useCurrentFrame, useVid
 import { FONT, Icon, KHMER_RE, Words, clean, srcOf, tint } from './shared'
 
 const clamp = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
-/** `c` mixed towards `into` by `t` (0 = c) — both #hex; anything else comes back as `c`. */
-const blend = (c, into, t) => {
-  const rgb = (h) => (/^#[0-9a-f]{6}$/i.test(h || '') ? [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)) : null)
-  const x = rgb(c)
-  const y = rgb(into)
-  if (!x || !y) return c
-  return `rgb(${x.map((v, i) => Math.round(v + (y[i] - v) * t)).join(', ')})`
-}
 const ease = (t) => 1 - (1 - t) ** 3
 const MONO = "'JetBrains Mono', ui-monospace, Consolas, monospace"
 
@@ -328,18 +320,13 @@ function Layer({ L, pal, brand, u, delay, dy = 0, measure }) {
                 fontSize: size,
                 fontWeight: L.weight || 700,
                 justifyContent: left ? 'flex-start' : 'center',
-                // highlighted lines need air between them (the marker fills the line box, so the gap — not the line height — makes it)
-                lineHeight: khmer ? 1.38 : 1.2,
-                rowGap: 0.16 * size,
+                // two lines close together, like Picture story's titles
+                lineHeight: khmer ? 1.3 : 1.1,
+                rowGap: 0.02 * size,
                 letterSpacing: L.weight && L.weight <= 400 ? '-0.03em' : undefined,
-                // the accent blended into the scene (solid — see-through strips overlapped
-                // where words meet) so the words keep their own colour and stay readable.
-                // English: a highlighter stroke over the lower part of the words. Khmer:
-                // the box fits the words top to bottom (Words' default) — a lower stroke
-                // under Khmer looked like a box dropped below the text
-                ...(L.highlight
-                  ? { '--hl-bg': blend(fill(L.highlight), pal.bg, pal.mode === 'light' ? 0.45 : 0.3), '--hl-text': color, ...(khmer ? null : { '--hl-top': '0.52em' }), '--hl-r': '0.14em' }
-                  : null),
+                // the key words in the accent colour, no box behind them — Picture
+                // story's thumbnail look (a box behind Khmer looked heavy and messy)
+                ...(L.highlight ? { '--hl-bg': 'transparent', '--hl-text': fill(L.highlight) } : null),
               }}
             />
           )}

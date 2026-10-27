@@ -43,7 +43,9 @@ log = logging.getLogger("app.text_overlay")
 
 EXTRACT_PROMPT = (
     "You read an image-generation prompt for a social media poster and return the words "
-    "to PRINT on it — poster-ready: short enough to read at a glance. Use the prompt's own "
+    "to PRINT on it — poster-ready: read in one glance while scrolling. LESS IS MORE: "
+    "the posters that stop people carry one short, bold headline and at most one small "
+    "line — never a paragraph. Use the prompt's own "
     "words and spelling (never translate or reword), but choose and trim:\n"
     "- ONE language: when a line is given in two languages (Khmer / English, or the same "
     "idea twice), keep only the Khmer version; English-only text stays English.\n"
@@ -52,14 +54,16 @@ EXTRACT_PROMPT = (
     "in the headline, subheading or button.\n"
     "Return a JSON object:\n"
     '{"headline": "...", "highlight": "...", "subheading": "...", "points": ["...", ...], "cta": "...", "link": "..."}\n'
-    "- headline: the main title, at most 8 words (if the prompt's is longer, keep its "
+    "- headline: the main title, at most 6 words — punchy (if the prompt's is longer, keep its "
     "strongest part, e.g. the words before a dash). Two stacked lines (a brand name, then a "
     "Khmer line) may be joined with \\n.\n"
     "- highlight: the 1-3 words of the headline that carry its point (the key idea, the "
     "question word, the product), copied EXACTLY as they appear in the headline — they are "
     "printed in the brand colour. \"\" when nothing stands out.\n"
-    "- subheading: ONE short sentence under it (at most ~18 words), or \"\".\n"
-    "- points: short benefit chips of 1-3 words each, at most 4, or [].\n"
+    "- subheading: usually \"\". Only a must-know fact the headline lacks — the offer, "
+    "price, date or place — in at most 10 words.\n"
+    "- points: [] — unless the prompt itself lists short tags to print on the poster; then "
+    "at most 3, 1-3 words each, and only when there is no subheading.\n"
     "- cta: the button, 2-4 words of action (e.g. \"ចុះឈ្មោះឥឡូវ\", \"Order now\") — never a URL; "
     "\"\" when the prompt asks for none.\n"
     "- link: the website (without https://) or phone number to show small under the button, or \"\".\n"
@@ -142,8 +146,9 @@ def extract_text(prompt: str) -> dict | None:
         "headline": headline,
         # only words really in the headline — anything else is dropped, never drawn
         "highlight": key if key and len(key) < len(headline) and key in " ".join(headline.split()) else "",
-        "subheading": s(sub, 160, lines=2),
-        "points": [p for p in (s(v, 28) for v in points[:4]) if p],
+        "subheading": s(sub, 90),
+        # tags only on a poster with no subheading — a headline + one more row at most
+        "points": [] if sub else [p for p in (s(v, 28) for v in points[:3]) if p],
         "cta": s(cta, 32),
         "link": link,
     }
@@ -207,10 +212,12 @@ def _readable(c: tuple[int, int, int], light: bool) -> tuple[int, int, int]:
 
 
 def _layout(head: str, sub: str, points: list[str], w: int, measure: int, scale: float):
-    """Fonts, wrapped lines and chip rows for the top block at ``scale``."""
-    hf, hl, hlh = _fit(head, measure, 4, round(w * 0.072 * scale), round(w * 0.04 * scale), "Bold")
+    """Fonts, wrapped lines and chip rows for the top block at ``scale``. A headline
+    on its own is drawn bigger — it's the whole poster."""
+    big = 0.095 if not sub and not points else 0.08
+    hf, hl, hlh = _fit(head, measure, 3, round(w * big * scale), round(w * 0.045 * scale), "Bold")
     sf, sl, slh = (
-        _fit(sub, measure, 3, round(w * 0.038 * scale), round(w * 0.027 * scale), "Medium") if sub else (None, [], 0)
+        _fit(sub, measure, 2, round(w * 0.038 * scale), round(w * 0.027 * scale), "Medium") if sub else (None, [], 0)
     )
     # Points go as centred rows of chips, so they stay in the top zone.
     pf = _font(round(w * 0.026 * scale), "Medium")

@@ -43,10 +43,8 @@ import { api, tokenStore } from '../api/client'
 // Only true claims — no made-up ratings, customers or logos. The prices
 // (Pricing) are the owner's own plans.
 
-const SERIF_FONT = 'https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap'
 // Khmer in Google Sans's own Khmer letters, like the app (Google Fonts serves a Khmer part of it)
 const km = { fontFamily: '"Google Sans", "Khmer OS Siemreap", sans-serif' }
-const serif = { fontFamily: '"Instrument Serif", "Google Sans", serif', fontWeight: 400, letterSpacing: '-0.01em' }
 
 // English / Khmer — the switch in the header, remembered on this device.
 // t('English', 'ខ្មែរ') or t(['English', 'ខ្មែរ']) gives the text for the language picked.
@@ -401,11 +399,10 @@ function SectionTitle({ eyebrow, title, khmer, sub }) {
   const en = useT().lang !== 'km'
   if (!en) khmer = null
   return (
-    <div className="mx-auto max-w-2xl text-center">
+    <div className="mx-auto max-w-3xl text-center">
       {eyebrow && <Eyebrow>{eyebrow}</Eyebrow>}
       <h2
-        className={`mt-3 leading-[1.12] text-ink-900 ${en ? 'text-[30px] sm:text-[42px]' : 'text-[28px] font-bold leading-tight tracking-tight sm:text-[38px]'}`}
-        style={en ? serif : undefined}
+        className={`mt-3 font-bold leading-tight tracking-tight text-ink-900 ${en ? 'text-[30px] sm:text-[40px]' : 'text-[28px] sm:text-[38px]'}`}
       >
         {title}
       </h2>
@@ -480,8 +477,7 @@ function Feature({ eyebrow, title, khmer, text, points, visual, flip = false }) 
       <Reveal>
         <Eyebrow>{eyebrow}</Eyebrow>
         <h3
-          className={`mt-3 leading-[1.14] text-ink-900 ${en ? 'text-[28px] sm:text-[36px]' : 'text-[26px] font-bold leading-tight tracking-tight sm:text-[32px]'}`}
-          style={en ? serif : undefined}
+          className={`mt-3 font-bold leading-tight tracking-tight text-ink-900 ${en ? 'text-[28px] sm:text-[34px]' : 'text-[26px] sm:text-[32px]'}`}
         >
           {title}
         </h3>
@@ -1438,13 +1434,6 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
     }
   }
   useEffect(() => {
-    for (const href of [SERIF_FONT]) {
-      if (document.querySelector(`link[href="${href}"]`)) continue
-      const l = document.createElement('link')
-      l.rel = 'stylesheet'
-      l.href = href
-      document.head.appendChild(l)
-    }
     const on = () => setScrolled(window.scrollY > 40)
     on()
     window.addEventListener('scroll', on, { passive: true })

@@ -915,6 +915,10 @@ class ApiKey(Base):
     name: Mapped[str] = mapped_column(String(60), default="", server_default="")
     key_hash: Mapped[str] = mapped_column(String(64), unique=True)
     hint: Mapped[str] = mapped_column(String(8), default="", server_default="")  # its last 4 characters
+    # The project it's for (a website, a chatbot…) — groups keys on the API page.
+    project: Mapped[str] = mapped_column(String(60), default="", server_default="")
+    # After this the key stops working (None = never expires).
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 

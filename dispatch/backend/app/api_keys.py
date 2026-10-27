@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -25,6 +25,12 @@ router = APIRouter(prefix="/api-keys", tags=["API keys"])
 
 PREFIX = "sm_"  # Smart Marketing
 MAX_KEYS = 10  # per workspace
+EXPIRY_DAYS = (7, 30, 90, 180, 365)  # the pop-up's choices; None = never
+
+
+def _utc(at: datetime | None) -> datetime | None:
+    """SQLite hands back naive datetimes — they were stored in UTC."""
+    return at.replace(tzinfo=timezone.utc) if at is not None and at.tzinfo is None else at
 
 
 def _hash(key: str) -> str:
@@ -32,28 +38,39 @@ def _hash(key: str) -> str:
 
 
 def resolve_key(db: Session, key: str) -> tuple[TeamMember, ApiKey] | None:
-    """The person a key acts as, and the key — None for an unknown key, a removed /
-    inactive person, or a suspended workspace. Notes when it was last used."""
+    """The person a key acts as, and the key — None for an unknown or expired key,
+    a removed / inactive person, or a suspended workspace. Notes when it was last used."""
     key = (key or "").strip()
     if not key.startswith(PREFIX) or len(key) > 100:
         return None
     row = db.scalar(select(ApiKey).where(ApiKey.key_hash == _hash(key)))
     if row is None:
         return None
+    now = datetime.now(timezone.utc)
+    if row.expires_at is not None and _utc(row.expires_at) <= now:
+        return None
     user = db.get(TeamMember, row.user_id)
     if user is None or not user.is_active or user.workspace_id != row.workspace_id:
         return None
     if db.scalar(select(Workspace.suspended_at).where(Workspace.id == row.workspace_id)):
         return None
-    now = datetime.now(timezone.utc)
-    if row.last_used_at is None or (now - row.last_used_at).total_seconds() > 60:
+    if row.last_used_at is None or (now - _utc(row.last_used_at)).total_seconds() > 60:
         row.last_used_at = now
         db.commit()
     return user, row
 
 
 def _out(row: ApiKey, owner: str = "") -> dict:
-    return {"id": row.id, "name": row.name, "hint": row.hint, "created_by": owner, "created_at": row.created_at, "last_used_at": row.last_used_at}
+    return {
+        "id": row.id,
+        "name": row.name,
+        "project": row.project,
+        "hint": row.hint,
+        "created_by": owner,
+        "created_at": row.created_at,
+        "expires_at": row.expires_at,
+        "last_used_at": row.last_used_at,
+    }
 
 
 @router.get("")
@@ -66,6 +83,9 @@ def list_keys(db: Session = Depends(get_db), ws: int = Depends(current_workspace
 
 class KeyIn(BaseModel):
     name: str = Field(default="", max_length=60)
+    project: str = Field(default="", max_length=60)
+    # days until it stops working — one of EXPIRY_DAYS; None = never
+    expires_days: int | None = None
 
 
 @router.post("", status_code=201)
@@ -73,8 +93,19 @@ def create_key(payload: KeyIn, db: Session = Depends(get_db), user: TeamMember =
     """A new key — returned once, in full; only its hash is kept."""
     if db.scalar(select(func.count(ApiKey.id)).where(ApiKey.workspace_id == user.workspace_id)) >= MAX_KEYS:
         raise HTTPException(400, f"A workspace can have {MAX_KEYS} keys — revoke one you don't use first.")
+    if payload.expires_days is not None and payload.expires_days not in EXPIRY_DAYS:
+        raise HTTPException(400, "Pick when the key expires from the list.")
     key = PREFIX + secrets.token_urlsafe(32)
-    row = ApiKey(workspace_id=user.workspace_id, user_id=user.id, name=payload.name.strip() or "API key", key_hash=_hash(key), hint=key[-4:])
+    expires = datetime.now(timezone.utc) + timedelta(days=payload.expires_days) if payload.expires_days else None
+    row = ApiKey(
+        workspace_id=user.workspace_id,
+        user_id=user.id,
+        name=payload.name.strip() or "API key",
+        project=payload.project.strip(),
+        key_hash=_hash(key),
+        hint=key[-4:],
+        expires_at=expires,
+    )
     db.add(row)
     db.commit()
     db.refresh(row)
@@ -92,12 +123,18 @@ def revoke_key(key_id: int, db: Session = Depends(get_db), user: TeamMember = De
 
 @router.post("/{key_id}/rotate")
 def rotate_key(key_id: int, db: Session = Depends(get_db), user: TeamMember = Depends(require_manager)):
-    """A new secret for the same key (name, logs kept) — the old one stops at once.
-    It now acts as the person who rotated it. Returned once, in full."""
+    """A new secret for the same key (name, project, logs kept) — the old one stops
+    at once. It now acts as the person who rotated it, and a key that expires gets
+    its full time again from now. Returned once, in full."""
     row = db.get(ApiKey, key_id)
     if row is None or row.workspace_id != user.workspace_id:
         raise HTTPException(404, "Key not found")
     key = PREFIX + secrets.token_urlsafe(32)
+    if row.expires_at is not None:  # the same length as it was made with (the nearest choice)
+        now = datetime.now(timezone.utc)
+        made_for = (_utc(row.expires_at) - _utc(row.created_at)).days
+        row.expires_at = now + timedelta(days=min(EXPIRY_DAYS, key=lambda d: abs(d - made_for)))
+        row.created_at = now
     row.key_hash, row.hint, row.user_id, row.last_used_at = _hash(key), key[-4:], user.id, None
     db.commit()
     db.refresh(row)

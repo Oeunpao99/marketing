@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import CodeBlock, { CopyButton as CopyBtn } from '../components/ui/CodeBlock'
 import { FiArrowRight, FiBookOpen, FiCheck, FiCode, FiCopy, FiCpu, FiFilm, FiImage, FiKey, FiLayers, FiLock, FiSearch, FiShield, FiZap } from 'react-icons/fi'
 
 // /developers — the public docs for the API and the MCP connector (app/mcp_server.py,
@@ -7,38 +8,6 @@ import { FiArrowRight, FiBookOpen, FiCheck, FiCode, FiCopy, FiCpu, FiFilm, FiIma
 // example calls the same endpoint: JSON-RPC 2.0 over HTTPS, POST /api/mcp.
 
 const BASE = `${typeof window !== 'undefined' ? window.location.origin : 'https://mkt.chlart.org'}/api/mcp`
-
-function CopyBtn({ text, dark }) {
-  const [done, setDone] = useState(false)
-  return (
-    <button
-      type="button"
-      onClick={() =>
-        navigator.clipboard?.writeText(text).then(() => {
-          setDone(true)
-          setTimeout(() => setDone(false), 1500)
-        })
-      }
-      className={`inline-flex flex-none items-center gap-1 rounded-lg px-2 py-1 text-[11.5px] font-semibold transition-colors ${dark ? 'bg-white/10 text-white/80 hover:bg-white/20' : 'border border-ink-200 bg-white text-ink-700 hover:bg-ink-50'}`}
-    >
-      {done ? <FiCheck size={12} /> : <FiCopy size={12} />} {done ? 'Copied' : 'Copy'}
-    </button>
-  )
-}
-
-function CodeBlock({ code, label }) {
-  return (
-    <div className="overflow-hidden rounded-2xl bg-night-950 shadow-card">
-      <div className="flex items-center justify-between gap-2 border-b border-white/10 px-4 py-2">
-        <span className="font-mono text-[11.5px] text-white/50">{label}</span>
-        <CopyBtn text={code} dark />
-      </div>
-      <pre className="overflow-x-auto px-4 py-3.5 font-mono text-[12px] leading-relaxed text-white/90">
-        <code>{code}</code>
-      </pre>
-    </div>
-  )
-}
 
 // ── the examples: storyboard → (show the estimate) → video → wait → link ──
 

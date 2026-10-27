@@ -60,9 +60,9 @@ def _plain_len(text: str) -> int:
 def _head(text: str, big: bool = False) -> int:
     """A headline size that fits its length (px of a 1080 frame)."""
     n = _plain_len(text)
-    if big:
-        return 130 if n <= 16 else 112 if n <= 28 else 96 if n <= 48 else 80
-    return 104 if n <= 20 else 92 if n <= 36 else 78 if n <= 60 else 66
+    if big:  # the thumbnail look (Picture story): big words in two lines
+        return 146 if n <= 16 else 126 if n <= 28 else 106 if n <= 48 else 88
+    return 116 if n <= 20 else 102 if n <= 36 else 86 if n <= 60 else 72
 
 
 def _text(text, x, y, size, at, *, maxw, align="center", weight=800, tin="rise", color=None, hit=False, highlight=None):
@@ -325,7 +325,8 @@ def look(raw, brand_hex: str, brand_hex2: str | None = None, brand_default: bool
     if name != "brand" and not re.fullmatch(r"#[0-9a-fA-F]{6}", accent):
         tones = ""  # the designed looks keep both tones, as they were made
     bgs = [b for b in (t.get("backgrounds") or []) if b in LOOK_BACKGROUNDS][:2] if isinstance(t.get("backgrounds"), list) else []
-    pictures = "flat" if t.get("pictures") == "flat" else "sketch"  # sketch: Doodle notes' ink drawing
+    # colour pictures unless the brief asked for Doodle notes' ink sketches
+    pictures = "sketch" if t.get("pictures") == "sketch" else "flat"
     out = {"name": name, "dark": base["dark"], "light": base["light"], "a": base["a"], "b": base["b"], "backgrounds": bgs or base["backgrounds"], "card": base["card"], "radius": base["radius"], "pictures": pictures}
     if tones:
         out["tones"] = tones  # apply_theme: every scene in this tone

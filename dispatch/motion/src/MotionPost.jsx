@@ -664,6 +664,11 @@ function Chrome({ scenes, brand }) {
   )
 }
 
+// The music's level under the voice-over and between lines (tracks are levelled
+// to -19 dB, tools/make_music.py) — lowered ~4 dB on 2026-10-27 (was 0.22 / 0.5).
+const MUSIC_UNDER_VOICE = 0.14
+const MUSIC_ALONE = 0.32
+
 /** The background track (props.music, a file under public/music/<mood>/):
  * ducked under the voice-over, louder between lines, faded in and out, looped
  * if the video is longer than the track. */
@@ -678,7 +683,7 @@ function BackgroundMusic({ src, scenes, gain = 1 }) {
   })
   const volume = (f) => {
     const span = spans.find((x) => f >= x.from && f < x.to)
-    const level = f < span?.hush ? 0.06 : span?.voiced ? 0.22 : 0.5 // tracks are levelled to -19 dB (tools/make_music.py); a scene's pause dips it
+    const level = f < span?.hush ? 0.06 : span?.voiced ? MUSIC_UNDER_VOICE : MUSIC_ALONE // a scene's pause dips it
     const fadeIn = interpolate(f, [0, 30], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })
     const fadeOut = interpolate(f, [durationInFrames - 45, durationInFrames], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })
     return level * fadeIn * fadeOut * gain
@@ -705,7 +710,7 @@ function ChapterMusic({ list, scenes, gain = 1 }) {
   const level = (f) => {
     const span = spans.find((x) => f >= x.from && f < x.to)
     const fadeOut = interpolate(f, [durationInFrames - 45, durationInFrames], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })
-    return (span?.voiced ? 0.22 : 0.5) * fadeOut * gain
+    return (span?.voiced ? MUSIC_UNDER_VOICE : MUSIC_ALONE) * fadeOut * gain
   }
   return cuts.map((from, k) => {
     const to = k < cuts.length - 1 ? cuts[k + 1] : durationInFrames
