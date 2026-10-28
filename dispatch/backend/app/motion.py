@@ -656,7 +656,11 @@ PRODUCTFX_PROMPT = (
     "was (the old price, or \"\"), badge (1-3 words, e.g. \"New\", or \"\"), features: 3 x short phrases (2-5 words).\n"
     "- stat: value, prefix, suffix, label (max 6 words), icon — only a TRUE number.\n"
     "- cta: text (max 9 words — key words in [brackets]), button (2-4 words).\n"
-    "The product's own photo is put in every scene for you — never describe or ask for pictures.\n"
+    "The product's own photo is put in every scene for you — never describe or ask for pictures. "
+    "SOFTWARE (an app, a website, a SaaS): its screenshot shows on a laptop or phone instead — "
+    "the list items are what the screen does (\"Live sales dashboard\", \"Auto reports\"), the offer "
+    "is the plan (plan = the plan's name, price + period like \"$29\" \"/month\" ONLY if given, "
+    "else badge \"Free trial\" only if true).\n"
     "OFFER HONESTY: price, old price, discount and deadline ONLY when the brief or the product "
     "information gives them — otherwise leave price/was \"\" and let the badge say what it is "
     "(\"New\", \"Best seller\" only if true). Never invent a discount, a deadline or a number.\n"
@@ -3152,7 +3156,7 @@ def final_ratio(asked: str, style: str, suggested: str | None = None) -> str:
     if asked == "auto":
         return suggested if suggested in ("16:9", "9:16") else ("16:9" if style in ("training", "picture") else "9:16")
     return "9:16"
-SCREEN_STYLES = {"custom", "demo", "appdemo", "showcase", "launch", "unveil", "clarity", "canvas", "reaction"}  # the stories that can show the brand's screenshots
+SCREEN_STYLES = {"custom", "demo", "appdemo", "showcase", "launch", "unveil", "clarity", "canvas", "reaction", "productfx"}  # the stories that can show the brand's screenshots
 # The templates that sell (the auto topic picks a product, not a teaching topic).
 SELLING_STYLES = {"tech", "demo", "offer", "spotlight", "productfx", "street3d", "appdemo", "showcase", "launch", "unveil", "gridcards"}
 
@@ -5527,7 +5531,8 @@ def pick_pictures(
             if s["type"] in ("hook", "list", "offer", "cta"):
                 s["image"] = by_product.get(ids.get(s.get("product") or "")) or main
         elif script.get("style") == "productfx":  # Product showcase: the product in every scene (cut out later)
-            s["image"] = by_product.get(ids.get(s.get("product") or "")) or main
+            # a software brand with no product photo: its app's screen (a device frame later)
+            s["image"] = by_product.get(ids.get(s.get("product") or "")) or main or (shots[0]["uri"] if shots else None)
         elif s["type"] in ("hook", "cta", "offer") or script.get("style") == "quote":
             s["image"] = main
 
@@ -7591,10 +7596,15 @@ def _make(
 
                 _report(job_id, stage="pictures")
                 for sc in script["scenes"]:
-                    if sc.get("image"):
-                        cut = cutout.cut(sc["image"])
-                        if cut:
-                            sc["image"], sc["cut"] = cut, True
+                    if not sc.get("image"):
+                        continue
+                    screen = cutout.screen_kind(sc["image"])
+                    if screen:  # an app's screenshot: shown in a laptop / phone, never cut out
+                        sc["screen"] = screen
+                        continue
+                    cut = cutout.cut(sc["image"])
+                    if cut:
+                        sc["image"], sc["cut"] = cut, True
                 _check(job_id)
             # Doodle notes: its hand-drawn sketches are drawn in the background while
             # the rest of the video is prepared and the voice records — joined just

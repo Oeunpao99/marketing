@@ -116,8 +116,41 @@ function Burst({ cx, cy, r, color, at = 0.35 }) {
   )
 }
 
+/** A software product's screenshot (app/cutout.py screen_kind) in a device:
+ * "laptop" for a wide screen, "phone" for a tall one — the screen shows its top. */
+function Device({ kind, src, size, tallest }) {
+  const { W, u, wide } = useStage()
+  if (kind === 'phone') {
+    const h = Math.min(tallest, size * 1.35)
+    const w = h * 0.49
+    return (
+      <div style={{ position: 'relative', width: w, height: h, borderRadius: w * 0.14, background: '#0B0D12', padding: w * 0.035, boxShadow: `0 ${30 * u}px ${70 * u}px rgba(0,0,0,0.5), inset 0 0 0 ${2 * u}px rgba(255,255,255,0.14)` }}>
+        <div style={{ width: '100%', height: '100%', borderRadius: w * 0.11, overflow: 'hidden', background: 'white' }}>
+          <Img src={srcOf(src)} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }} />
+        </div>
+        <div style={{ position: 'absolute', top: w * 0.06, left: '50%', width: w * 0.3, height: w * 0.07, marginLeft: -w * 0.15, borderRadius: 99, background: '#0B0D12' }} />
+      </div>
+    )
+  }
+  const w = Math.min(size * 1.5, wide ? W * 0.52 : W * 0.86)
+  const sw = w * 0.86 // the screen inside its bezel
+  const sh = sw * 0.625 // 16:10
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', filter: `drop-shadow(0 ${30 * u}px ${40 * u}px rgba(0,0,0,0.45))` }}>
+      <div style={{ width: sw + w * 0.04, padding: w * 0.02, paddingBottom: w * 0.028, borderRadius: `${w * 0.03}px ${w * 0.03}px ${w * 0.008}px ${w * 0.008}px`, background: '#0B0D12', boxShadow: `inset 0 0 0 ${2 * u}px rgba(255,255,255,0.12)` }}>
+        <div style={{ width: sw, height: sh, borderRadius: w * 0.008, overflow: 'hidden', background: 'white' }}>
+          <Img src={srcOf(src)} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }} />
+        </div>
+      </div>
+      {/* the keyboard deck, seen from the front */}
+      <div style={{ width: w, height: w * 0.035, borderRadius: `0 0 ${w * 0.04}px ${w * 0.04}px`, background: 'linear-gradient(#D7DBE2, #9AA1AD)' }} />
+    </div>
+  )
+}
+
 /** The real product: drops in with a bounce and a soft shadow, then floats
- * and tilts a little. A photo that couldn't be cut out sits on a white card. */
+ * and tilts a little. A photo that couldn't be cut out sits on a white card;
+ * an app's screenshot sits in a laptop or a phone. */
 function Product({ scene, brand, cx, cy, size, at = 0.1 }) {
   const frame = useCurrentFrame()
   const { fps, u, H, wide } = useStage()
@@ -127,8 +160,10 @@ function Product({ scene, brand, cx, cy, size, at = 0.1 }) {
   const src = scene.image || brand.logo
   const land = spring({ frame: frame - at * fps, fps, config: { damping: 11, mass: 0.9 } })
   const float = Math.sin(frame / 22) * 10 * u
-  const tilt = Math.sin(frame / 34) * 3 + (1 - land) * -14
-  const card = src && !scene.cut
+  // a device turns a little in 3D instead of rocking like a can
+  const tilt = scene.screen ? 0 : Math.sin(frame / 34) * 3 + (1 - land) * -14
+  const turn = scene.screen ? `perspective(${2400 * u}px) rotateY(${-10 + Math.sin(frame / 40) * 4 + (1 - land) * -20}deg) ` : ''
+  const card = src && !scene.cut && !scene.screen
   return (
     <>
       <div style={{ position: 'absolute', left: cx - size * 0.34, top: cy + size * 0.64, width: size * 0.68, height: size * 0.09, borderRadius: '50%', background: 'rgba(0,0,0,0.45)', filter: `blur(${14 * u}px)`, opacity: land * (0.8 - float / (40 * u)), transform: `scale(${0.7 + land * 0.3})` }} />
@@ -142,10 +177,12 @@ function Product({ scene, brand, cx, cy, size, at = 0.1 }) {
           display: 'grid',
           placeItems: 'center',
           opacity: Math.min(1, land * 2),
-          transform: `translateY(${(1 - land) * -size * 0.7 + float}px) scale(${0.75 + land * 0.25}) rotate(${tilt}deg)`,
+          transform: `${turn}translateY(${(1 - land) * -size * 0.7 + float}px) scale(${0.75 + land * 0.25}) rotate(${tilt}deg)`,
         }}
       >
-        {src ? (
+        {src && scene.screen ? (
+          <Device kind={scene.screen} src={src} size={size} tallest={tallest} />
+        ) : src ? (
           <Img
             src={srcOf(src)}
             style={{

@@ -162,6 +162,32 @@ def _ai_cut(raw: bytes) -> Image.Image | None:
         return None
 
 
+def screen_kind(src: str) -> str | None:
+    """A screenshot of an app or a website — "phone" (tall, about 1:2) or
+    "laptop" (wide, 4:3 to 16:9) — which goes into a device frame instead of
+    being cut out (a software product has nothing to cut). None: a product photo.
+    Told by its shape: product photos are square-ish or 3:4, screens aren't."""
+    im = _decode(src) if isinstance(src, str) and src.startswith("data:image/") else None
+    if im is None or see_through(im.convert("RGBA")):
+        return None
+    ratio = im.width / max(1, im.height)
+    kind = "phone" if ratio <= 0.62 else "laptop" if ratio >= 1.28 else None
+    if kind:
+        # a tightly cropped photo of a tall bottle has a phone's shape too. One
+        # solid object on a plain background is a product: across each row it's
+        # one stretch — a screen on a white page is many (words, buttons, cards)
+        small = im.copy()
+        small.thumbnail((360, 360))
+        alone = plain_cut(small)
+        if alone is not None:
+            solid = np.asarray(alone.getchannel("A")) > 128
+            rows = solid[solid.any(axis=1)]
+            stretches = (np.diff(rows.astype(np.int8), axis=1) == 1).sum(axis=1) + rows[:, 0]
+            if len(rows) and stretches.mean() < 1.6:
+                return None
+    return kind
+
+
 def cut(src: str) -> str | None:
     """``src`` (a data URI) with its background taken away, as a PNG data URI."""
     if not isinstance(src, str) or not src.startswith("data:image/"):
