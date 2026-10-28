@@ -13,6 +13,7 @@ told), so a batch isn't the same generic caption N times.
 from __future__ import annotations
 
 import json
+import logging
 import re
 import unicodedata
 from datetime import date
@@ -23,6 +24,8 @@ from app import billing
 from app.config import get_settings
 from app.models import Product
 from app.poster import clean_poster
+
+log = logging.getLogger(__name__)
 
 # Content pillars — WHAT a post is about — key → (label, recipe). A feed of
 # nothing but product pitches bores people, so most pillars give the reader
@@ -657,6 +660,34 @@ def _endpoint_for(model: str) -> tuple[str, str]:
     return cfg.azure_openai_endpoint, cfg.azure_openai_api_key
 
 
+# Azure deployments that answered "Resource not found" (the deployment is gone —
+# gpt-5-mini was removed from the resource, 2026-10-28): later calls go straight
+# to the writer model instead of failing every time.
+_missing_models: set[str] = set()
+
+
+def stand_in(model: str) -> str:
+    """``model``, or the platform's writer when that Azure deployment is gone."""
+    if model in _missing_models:
+        return get_settings().azure_openai_writer_deployment or "gpt-5"
+    return model
+
+
+def gone(resp: httpx.Response, model: str) -> bool:
+    """This answer says the deployment doesn't exist — remembered, and True when
+    the writer can take the call instead."""
+    text = resp.text[:400]
+    if resp.status_code != 404 or not any(k in text for k in ("Resource not found", "DeploymentNotFound", "does not exist")):
+        return False
+    writer = get_settings().azure_openai_writer_deployment or "gpt-5"
+    if model == writer:
+        return False
+    if model not in _missing_models:
+        log.warning("Azure model %s is gone (%s) — using %s instead from now on", model, resp.status_code, writer)
+        _missing_models.add(model)
+    return True
+
+
 def _chat(messages: list[dict], model: str, max_tokens: int = 4000, effort: str = "") -> dict:
     """One JSON-mode chat completion; returns the parsed JSON object the model
     replied with. Azure OpenAI, or Claude / Gemini for those catalog models
@@ -682,6 +713,7 @@ def _chat(messages: list[dict], model: str, max_tokens: int = 4000, effort: str 
         billing.require_current()
     except billing.OutOfCredit as exc:
         raise ContentAIError(str(exc)) from exc
+    model = stand_in(model)
     endpoint, key = _endpoint_for(model)
     url = f"{endpoint.rstrip('/')}/chat/completions"
     try:
@@ -703,6 +735,8 @@ def _chat(messages: list[dict], model: str, max_tokens: int = 4000, effort: str 
         )
     except httpx.HTTPError as exc:
         raise ContentAIError(f"Could not reach the AI service: {exc}") from exc
+    if gone(resp, model):  # that deployment no longer exists: the writer answers
+        return _chat(messages, stand_in(model), max_tokens, effort)
     if resp.status_code >= 400:
         detail = resp.text[:300]
         try:

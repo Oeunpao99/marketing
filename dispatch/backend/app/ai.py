@@ -281,14 +281,17 @@ def build_prompt(req: PromptRequest, db: Session = Depends(get_db), ws: int = De
     billing.require(ws)
     base = cfg.azure_openai_endpoint.rstrip("/")
     url = f"{base}/chat/completions"
+    from app.content_ai import gone, stand_in
+
     body = {
-        "model": cfg.azure_openai_deployment,
+        "model": stand_in(cfg.azure_openai_deployment),
         "messages": _messages(req, list(products)),
         # Long, sectioned prompts — gpt-5-mini also spends tokens on reasoning.
         "max_completion_tokens": 6000,
     }
-    try:
-        resp = httpx.post(
+
+    def post():
+        return httpx.post(
             url,
             headers={
                 "api-key": cfg.azure_openai_api_key,
@@ -298,6 +301,12 @@ def build_prompt(req: PromptRequest, db: Session = Depends(get_db), ws: int = De
             json=body,
             timeout=120.0,
         )
+
+    try:
+        resp = post()
+        if gone(resp, body["model"]):  # that deployment no longer exists: the writer answers
+            body["model"] = stand_in(body["model"])
+            resp = post()
     except httpx.HTTPError as exc:
         raise HTTPException(503, f"Could not reach the AI service: {exc}") from exc
 

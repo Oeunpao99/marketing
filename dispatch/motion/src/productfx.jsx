@@ -120,7 +120,10 @@ function Burst({ cx, cy, r, color, at = 0.35 }) {
  * and tilts a little. A photo that couldn't be cut out sits on a white card. */
 function Product({ scene, brand, cx, cy, size, at = 0.1 }) {
   const frame = useCurrentFrame()
-  const { fps, u } = useStage()
+  const { fps, u, H, wide } = useStage()
+  // a tall product gets more height than width — but never into the subtitles'
+  // band at the bottom (a bottle on a wide video reached it)
+  const tallest = Math.min(size * 1.4, wide ? H * 0.68 : H * 0.46)
   const src = scene.image || brand.logo
   const land = spring({ frame: frame - at * fps, fps, config: { damping: 11, mass: 0.9 } })
   const float = Math.sin(frame / 22) * 10 * u
@@ -149,7 +152,7 @@ function Product({ scene, brand, cx, cy, size, at = 0.1 }) {
               // pixels (a percentage didn't hold): a tall product — a can, a bottle — gets
               // more height than width, a wide one is held by its width
               maxWidth: size,
-              maxHeight: size * 1.4,
+              maxHeight: tallest,
               objectFit: 'contain',
               filter: card ? undefined : `drop-shadow(0 ${24 * u}px ${30 * u}px rgba(0,0,0,0.35))`,
               ...(card ? { background: 'white', padding: size * 0.06, borderRadius: 32 * u, boxShadow: `0 ${24 * u}px ${60 * u}px rgba(0,0,0,0.4)`, maxWidth: size * 0.86, maxHeight: size * 0.86 } : null),
@@ -262,9 +265,10 @@ function List({ scene, brand }) {
   const { W, H, wide } = useStage()
   const items = (scene.items || []).slice(0, 3)
   const cx = wide ? W * 0.3 : W / 2
-  const cy = wide ? H * 0.56 : H * 0.4
-  const size = wide ? H * 0.56 : W * 0.5
-  const rows = items.map((_, i) => (wide ? H * (0.34 + i * 0.2) : H * (0.66 + i * 0.09)))
+  const cy = wide ? H * 0.55 : H * 0.37
+  const size = wide ? H * 0.52 : W * 0.42
+  // both clear of the subtitles' band at the bottom
+  const rows = items.map((_, i) => (wide ? H * (0.3 + i * 0.17) : H * (0.6 + i * 0.08)))
   return (
     <AbsoluteFill>
       <Backdrop color={brand.color} gx={cx / W} gy={cy / H} />
@@ -385,14 +389,15 @@ function Stat({ scene, brand }) {
 function Cta({ scene, brand }) {
   const frame = useCurrentFrame()
   const { W, H, fps, wide, u } = useStage()
-  const cx = W / 2
-  const cy = wide ? H * 0.4 : H * 0.36
-  const size = wide ? H * 0.5 : W * 0.56
+  // wide: the product left, the words and button right — under it they sat on the subtitles
+  const cx = wide ? W * 0.31 : W / 2
+  const cy = wide ? H * 0.45 : H * 0.36
+  const size = wide ? H * 0.52 : W * 0.56
   const btn = spring({ frame: frame - 0.8 * fps, fps, config: { damping: 11 } })
   const beat = 1 + Math.max(0, Math.sin(frame / 7)) * 0.04
   return (
     <AbsoluteFill>
-      <Backdrop color={brand.color} gx={0.5} gy={cy / H} />
+      <Backdrop color={brand.color} gx={cx / W} gy={cy / H} />
       <Shapes>
         {[0, 1, 2].map((i) => {
           const p = ((frame / fps + i * 0.7) % 2.1) / 2.1
@@ -401,8 +406,8 @@ function Cta({ scene, brand }) {
         <Blob cx={cx} cy={cy} r={size * 0.4} color={brand.color} />
       </Shapes>
       <Product scene={scene} brand={brand} cx={cx} cy={cy} size={size} at={0} />
-      <div style={{ position: 'absolute', left: W * 0.08, width: W * 0.84, top: wide ? H * 0.7 : H * 0.66, textAlign: 'center', fontFamily: FONT, color: 'white' }}>
-        <Headline text={scene.text} size={wide ? 66 : 76} align="center" color={brand.color} delay={4} />
+      <div style={{ position: 'absolute', ...(wide ? { left: W * 0.56, width: W * 0.38, top: H * 0.26, textAlign: 'left' } : { left: W * 0.08, width: W * 0.84, top: H * 0.64, textAlign: 'center' }), fontFamily: FONT, color: 'white' }}>
+        <Headline text={scene.text} size={wide ? 72 : 76} align={wide ? 'left' : 'center'} color={brand.color} delay={4} />
         {scene.button && (
           <div
             style={{
