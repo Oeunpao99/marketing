@@ -59,7 +59,7 @@ export default function KiriVoicePicker({ status, value, onChange, brandId, styl
         type="button"
         onClick={listen}
         disabled={loading}
-        title="Hear this voice (a few credits)"
+        title="Hear this voice"
         className="grid h-8 w-8 flex-none place-items-center rounded-lg border border-ink-200 text-ink-600 hover:bg-ink-100 hover:text-ink-900 disabled:opacity-50"
       >
         {loading ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand/30 border-t-brand" /> : playing ? <FiPause size={13} /> : <FiPlay size={13} />}

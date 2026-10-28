@@ -55,7 +55,7 @@ board = call("make_storyboard", story="ហាងកាហ្វេរបស់�
 while board["status"] == "writing":
     time.sleep(15)
     board = call("get_storyboard", storyboard_id=board["storyboard_id"])
-print("About", board["estimate"]["credits"], "credits")
+print("Uses", board["estimate"]["uses_videos"], "of your", board["estimate"]["videos_left"], "videos left")
 
 # 2 · make it, exactly as the storyboard says
 job = call("make_video", storyboard=board["storyboard"])
@@ -194,12 +194,12 @@ const ASSISTANTS = [
 const TOOLS = [
   ['list_brands', '—', 'brands: id, name, language'],
   ['list_templates', '—', 'every video template, what it is good for, its shapes'],
-  ['my_credits', '—', 'credits_left, plan, refills_at'],
-  ['make_storyboard', 'story*, template, language, voice, length, shape, brand_id', 'storyboard (scenes), estimate (credits), storyboard_id — waits up to ~45 s'],
+  ['my_usage', '—', 'videos_left, images_left, longest_video_seconds, plan, refills_at'],
+  ['make_storyboard', 'story*, template, language, voice, length, shape, brand_id', 'storyboard (scenes), estimate (uses_videos, videos_left), storyboard_id — waits up to ~45 s'],
   ['get_storyboard', 'storyboard_id*', 'the same, once it is written'],
   ['make_video', 'storyboard or idea*, template, language, voice, shape, music, brand_id', 'job_id'],
   ['make_image', 'prompt*, shape, logo, brand_id', 'job_id'],
-  ['check_job', 'job_id*', 'status, stage, percent — then url (MP4 / image), caption, credits_used'],
+  ['check_job', 'job_id*', 'status, stage, percent — then url (MP4 / image), caption, videos_used'],
 ]
 
 // Everything on this page as one Markdown file — "Copy skill": hand it to an AI agent
@@ -210,7 +210,7 @@ function skillText() {
 Make Khmer / English marketing videos and posters for a business, from code or an AI assistant.
 Endpoint: POST ${BASE} — JSON-RPC 2.0 over HTTPS (MCP Streamable HTTP; answered as JSON).
 Auth: header "Authorization: Bearer <key>" (keys start with sm_), or the key in the link: ${BASE}/<key>.
-Keys: made on the API & MCP page in the app. A key acts as its maker and spends the workspace's credits.
+Keys: made on the API & MCP page in the app. A key acts as its maker and uses the workspace's videos and images.
 
 ## Calling a tool
 POST {"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"<tool>","arguments":{...}}}
@@ -223,7 +223,7 @@ ${TOOLS.map(([n, a, r]) => `- ${n}(${a === '—' ? '' : a}) → ${r}`).join('\n'
 ## The usual flow
 1. list_templates (or template "auto").
 2. make_storyboard(story, language, template, shape) → if status is "writing", get_storyboard(storyboard_id) every ~15 s.
-3. Show the person the scenes and estimate.credits. Edit scene "say" (spoken) or on-screen text if they ask.
+3. Show the person the scenes and estimate.uses_videos (of their videos left). Edit scene "say" (spoken) or on-screen text if they ask.
 4. make_video(storyboard) → job_id. (Or make_video(idea) to skip the storyboard.)
 5. check_job(job_id) every ~20 s until status is "succeeded" (url = the MP4, caption) or "failed" (error). Videos take 2-6 minutes.
 Pictures: make_image(prompt, shape, logo) → check_job. Khmer words on a picture are drawn correctly.
@@ -231,8 +231,8 @@ Pictures: make_image(prompt, shape, logo) → check_job. Khmer words on a pictur
 ## Limits & errors
 - 60 calls a minute per key (HTTP 429). Videos are made one at a time per workspace.
 - HTTP 401 = a wrong or revoked key.
-- Out of credits, busy, a missing field → isError: true with a friendly reason.
-- my_credits → credits_left, plan, refills_at.
+- No videos left, too long for the plan, busy, a missing field → isError: true with a friendly reason.
+- my_usage → videos_left, images_left, longest_video_seconds, plan, refills_at.
 
 ## Python example
 \`\`\`python
@@ -244,7 +244,7 @@ ${PYTHON}
 const SECTIONS = [
   ['Getting started', [['intro', 'Introduction', FiBookOpen], ['quick', 'Quick start', FiZap], ['auth', 'Authentication', FiLock]]],
   ['Connect', [['mcp', 'AI assistants (MCP)', FiCpu]]],
-  ['Reference', [['tools', 'Tools', FiLayers], ['flow', 'Storyboard → video', FiFilm], ['limits', 'Errors & limits', FiShield], ['credits', 'Credits', FiKey]]],
+  ['Reference', [['tools', 'Tools', FiLayers], ['flow', 'Storyboard → video', FiFilm], ['limits', 'Errors & limits', FiShield], ['usage', 'Videos & images', FiKey]]],
   ['Examples', [['code', 'Python · Next.js · Java · PHP · cURL', FiCode]]],
 ]
 
@@ -369,7 +369,7 @@ export default function Developers({ t, me, onStart }) {
               {[
                 [FiFilm, t('Template videos', 'វីដេអូតាមគំរូ'), t('47 templates — Picture story, Presenter, Slides, Podcast…', 'គំរូ ៤៧ — Picture story, Presenter, Slides, Podcast…')],
                 [FiImage, t('Khmer posters', 'ប៉ូស្ទ័រខ្មែរ'), t('Khmer words drawn correctly on every picture', 'អក្សរខ្មែរត្រឹមត្រូវលើរូបភាពគ្រប់សន្លឹក')],
-                [FiLayers, t('Storyboard first', 'Storyboard មុន'), t('See and edit the scenes — and the credits — before it’s made', 'មើល និងកែឈុត — និងក្រេឌីត — មុនពេលធ្វើ')],
+                [FiLayers, t('Storyboard first', 'Storyboard មុន'), t('See and edit the scenes — and how many videos it uses — before it’s made', 'មើល និងកែឈុត — និងចំនួនវីដេអូដែលវាប្រើ — មុនពេលធ្វើ')],
                 [FiCpu, t('MCP connector', 'MCP Connector'), t('Claude, ChatGPT and Cursor call it directly', 'Claude, ChatGPT និង Cursor ហៅវាផ្ទាល់')],
               ].map(([Icon, head, body]) => (
                 <div key={head} className="flex gap-3 rounded-2xl bg-ink-50 p-4">
@@ -408,7 +408,7 @@ export default function Developers({ t, me, onStart }) {
 
           {/* ── authentication ── */}
           <Section id="auth" title={t('Authentication', 'ការផ្ទៀងផ្ទាត់')}>
-            <p>{t('Send your key as a Bearer token. Keys start with sm_. A key acts as the person who made it, in their workspace, and spends its credits.', 'ផ្ញើ Key ជា Bearer token។ Key ចាប់ផ្ដើមដោយ sm_។ Key ធ្វើការជាអ្នកបង្កើតវា ក្នុង Workspace របស់គេ ហើយប្រើក្រេឌីតរបស់វា។')}</p>
+            <p>{t('Send your key as a Bearer token. Keys start with sm_. A key acts as the person who made it, in their workspace, and uses its videos and images.', 'ផ្ញើ Key ជា Bearer token។ Key ចាប់ផ្ដើមដោយ sm_។ Key ធ្វើការជាអ្នកបង្កើតវា ក្នុង Workspace របស់គេ ហើយប្រើវីដេអូ និងរូបភាពរបស់វា។')}</p>
             <CodeBlock code={'Authorization: Bearer sm_YOUR_KEY'} label="Header" />
             <p>{t('Apps that only take a URL (Claude, ChatGPT connectors) can put the key in the link instead. That link is a password — don’t share it.', 'កម្មវិធីដែលទទួលតែ URL (Claude, ChatGPT) អាចដាក់ Key ក្នុងតំណ។ តំណនោះគឺដូចពាក្យសម្ងាត់ — កុំចែករំលែក។')}</p>
             <CodeBlock code={`${BASE}/sm_YOUR_KEY`} label="Key in the link" />
@@ -417,7 +417,7 @@ export default function Developers({ t, me, onStart }) {
 
           {/* ── MCP ── */}
           <Section id="mcp" title={t('AI assistants (MCP)', 'AI Assistants (MCP)')}>
-            <p>{t('Smart Marketing is an MCP server, so Claude, ChatGPT, Cursor and other AI apps can use it as a tool. Then just ask: “Make a 1-minute Khmer Picture story video about our new iced coffee.” It writes the storyboard, tells you the credits, makes the video and gives you the link.', 'Smart Marketing គឺជា MCP server ដូច្នេះ Claude, ChatGPT, Cursor អាចប្រើវាជា Tool។ បន្ទាប់មកគ្រាន់តែសួរ៖ «ធ្វើវីដេអូ Picture story ១ នាទី ជាភាសាខ្មែរ អំពីកាហ្វេទឹកកកថ្មីរបស់យើង»។')}</p>
+            <p>{t('Smart Marketing is an MCP server, so Claude, ChatGPT, Cursor and other AI apps can use it as a tool. Then just ask: “Make a 1-minute Khmer Picture story video about our new iced coffee.” It writes the storyboard, tells you how many videos it uses, makes the video and gives you the link.', 'Smart Marketing គឺជា MCP server ដូច្នេះ Claude, ChatGPT, Cursor អាចប្រើវាជា Tool។ បន្ទាប់មកគ្រាន់តែសួរ៖ «ធ្វើវីដេអូ Picture story ១ នាទី ជាភាសាខ្មែរ អំពីកាហ្វេទឹកកកថ្មីរបស់យើង»។')}</p>
             <div className="flex flex-wrap gap-1 rounded-xl bg-ink-100 p-1 sm:inline-flex">
               {ASSISTANTS.map(([name]) => (
                 <button key={name} type="button" onClick={() => setAssistant(name)} className={`rounded-lg px-3.5 py-1.5 text-[13px] font-semibold transition ${assistant === name ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-500 hover:text-ink-800'}`}>
@@ -460,8 +460,8 @@ export default function Developers({ t, me, onStart }) {
             <ol className="space-y-2">
               {[
                 ['list_templates', t('pick a template, or use “auto” and the AI picks', 'ជ្រើសគំរូ ឬប្រើ “auto” ឱ្យ AI ជ្រើស')],
-                ['make_storyboard', t('the scenes and the credit estimate (if status is “writing”, call get_storyboard every ~15 s)', 'ឈុត និងការប៉ាន់ស្មានក្រេឌីត (បើ status “writing” ហៅ get_storyboard រៀងរាល់ ~15 វិនាទី)')],
-                ['', t('show the person the scenes and credits; edit any line they want', 'បង្ហាញឈុត និងក្រេឌីត កែបន្ទាត់ណាដែលគេចង់')],
+                ['make_storyboard', t('the scenes and how many videos it uses (if status is “writing”, call get_storyboard every ~15 s)', 'ឈុត និងចំនួនវីដេអូដែលវាប្រើ (បើ status “writing” ហៅ get_storyboard រៀងរាល់ ~15 វិនាទី)')],
+                ['', t('show the person the scenes and how many videos it uses; edit any line they want', 'បង្ហាញឈុត និងចំនួនវីដេអូ កែបន្ទាត់ណាដែលគេចង់')],
                 ['make_video', t('with that storyboard — made exactly as it is', 'ជាមួយ Storyboard នោះ — ធ្វើតាមវាទាំងស្រុង')],
                 ['check_job', t('every ~20 s until “succeeded” (the MP4 url and caption) — videos take 2-6 minutes', 'រៀងរាល់ ~20 វិនាទី រហូតដល់ “succeeded” — វីដេអូចំណាយ ២-៦ នាទី')],
               ].map(([tool, what], i) => (
@@ -481,16 +481,16 @@ export default function Developers({ t, me, onStart }) {
             <ul className="list-disc space-y-1.5 pl-5">
               <li>{t('60 calls a minute per key — more answers HTTP 429. Videos are made one at a time per workspace.', '៦០ ដងក្នុងមួយនាទី សម្រាប់ Key នីមួយៗ — លើសនេះឆ្លើយ HTTP 429។ វីដេអូធ្វើម្តងមួយៗ ក្នុង Workspace នីមួយៗ។')}</li>
               <li>{t('HTTP 401 — a wrong, rotated or revoked key.', 'HTTP 401 — Key ខុស ត្រូវ Rotate ឬត្រូវលុប។')}</li>
-              <li>{t('A tool that can’t run answers isError: true with a reason to show the person — out of credits, busy, a missing field.', 'Tool ដែលមិនអាចដំណើរការ ឆ្លើយ isError: true ជាមួយហេតុផល — អស់ក្រេឌីត រវល់ ឬខ្វះទិន្នន័យ។')}</li>
+              <li>{t('A tool that can’t run answers isError: true with a reason to show the person — no videos left, too long for the plan, busy, a missing field.', 'Tool ដែលមិនអាចដំណើរការ ឆ្លើយ isError: true ជាមួយហេតុផល — អស់វីដេអូ វែងពេកសម្រាប់គម្រោង រវល់ ឬខ្វះទិន្នន័យ។')}</li>
               <li>{t('Every call is in Request Logs on the API & MCP page (the tool, OK or error, how long — never your text).', 'ការហៅទាំងអស់នៅក្នុង Request Logs (Tool, OK ឬ Error, រយៈពេល — មិនដែលរក្សាអត្ថបទរបស់បងទេ)។')}</li>
             </ul>
           </Section>
 
-          {/* ── credits ── */}
-          <Section id="credits" title={t('Credits', 'ក្រេឌីត')}>
-            <p>{t('The API uses your workspace’s credits, the same as the app: a video’s voice and its AI pictures. make_storyboard gives the estimate before anything is made; check_job says what it used; my_credits shows what’s left.', 'API ប្រើក្រេឌីត Workspace ដូចក្នុងកម្មវិធី៖ សំឡេង និងរូបភាព AI។ make_storyboard ផ្ដល់ការប៉ាន់ស្មានមុន check_job ប្រាប់ចំនួនដែលបានប្រើ my_credits បង្ហាញអ្វីដែលនៅសល់។')}</p>
+          {/* ── videos & images ── */}
+          <Section id="usage" title={t('Videos & images', 'វីដេអូ និងរូបភាព')}>
+            <p>{t('The API uses your plan’s videos and images for the month, the same as the app: a video up to 1 min uses 1, up to 3 min 2, longer 1 per 3 min; an AI-filmed clip 3. make_storyboard says how many before anything is made; check_job says what it used; my_usage shows what’s left.', 'API ប្រើវីដេអូ និងរូបភាពប្រចាំខែនៃគម្រោងបង ដូចក្នុងកម្មវិធី៖ វីដេអូរហូតដល់ ១ នាទី ប្រើ ១ រហូតដល់ ៣ នាទី ប្រើ ២ វែងជាងនេះ ១ ក្នុង ៣ នាទី។ make_storyboard ប្រាប់មុនពេលធ្វើ check_job ប្រាប់ចំនួនដែលបានប្រើ my_usage បង្ហាញអ្វីដែលនៅសល់។')}</p>
             <a href="/upgrade" className="inline-flex items-center gap-1.5 font-semibold text-brand hover:underline">
-              {t('Plans & credits', 'គម្រោង និងក្រេឌីត')} <FiArrowRight size={14} />
+              {t('Plans & usage', 'គម្រោង និងការប្រើ')} <FiArrowRight size={14} />
             </a>
           </Section>
 

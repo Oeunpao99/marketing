@@ -272,7 +272,7 @@ function KeysTab({ canManage, showToast, onFresh, fresh, onQuickStart }) {
           <h2 className="text-[16px] font-bold text-ink-900">
             Your keys <span className="ml-1 text-[13px] font-medium text-ink-400">{keys ? `${keys.length} of ${MAX_KEYS}` : ''}</span>
           </h2>
-          <p className="mt-0.5 text-[12.5px] text-ink-500">A key acts as the person who made it and spends this workspace’s credits.</p>
+          <p className="mt-0.5 text-[12.5px] text-ink-500">A key acts as the person who made it and uses this workspace’s videos and images.</p>
         </div>
         {canManage && (
           <button type="button" onClick={openNew} disabled={!room} title={room ? '' : `A workspace can have ${MAX_KEYS} keys — revoke one first`} className="btn-primary disabled:opacity-50">
@@ -580,7 +580,7 @@ const ASK_IDEAS = [
   'Make a 1-minute Khmer Picture story video about our new iced coffee.',
   'Show me the video templates, then make a Top 5 countdown of tips for our customers.',
   'Make a 4:5 poster for our weekend promotion, with our logo.',
-  'How many credits do I have left?',
+  'How many videos do I have left this month?',
 ]
 
 function QuickStartTab({ fresh }) {
@@ -714,7 +714,7 @@ export default function ApiPage() {
               <FiCpu size={12} /> For developers
             </span>
             <h1 className="mt-3 text-[28px] font-bold leading-tight sm:text-[32px]">API & MCP</h1>
-            <p className="mt-1 max-w-xl text-[13.5px] text-ink-500">Let your app, chatbot or AI assistant make videos and pictures in this workspace — with your templates, brand and credits.</p>
+            <p className="mt-1 max-w-xl text-[13.5px] text-ink-500">Let your app, chatbot or AI assistant make videos and pictures in this workspace — with your templates, brand and plan.</p>
           </div>
           <a href="/developers" target="_blank" rel="noreferrer" className="btn-outline">
             <FiBookOpen size={13} /> Developer docs

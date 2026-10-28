@@ -44,7 +44,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app import bakong, billing, khqr
+from app import bakong, billing, khqr, usage
 from app.config import get_settings
 from app.database import SessionLocal, get_db
 from app.models import CreditEntry, CreditPack, Payment, PlanPrice, TeamMember, Workspace
@@ -150,9 +150,15 @@ def _pack_prices(row: CreditPack) -> dict[str, float]:
 
 
 def packs(db: Session) -> list[dict]:
-    """The credit packs on sale, smallest first: [{id, credits, prices: {USD, KHR}}]."""
-    rows = db.scalars(select(CreditPack).where(CreditPack.active.is_(True)).order_by(CreditPack.credits)).all()
-    return [{"id": r.id, "credits": r.credits, "prices": _pack_prices(r)} for r in rows if _pack_prices(r)]
+    """The packs on sale, smallest first: [{id, videos, images, prices: {USD, KHR}}].
+    Customers buy videos / images, so a credits-only pack isn't offered (a pack's
+    credits ride along unseen)."""
+    rows = db.scalars(select(CreditPack).where(CreditPack.active.is_(True)).order_by(CreditPack.videos, CreditPack.images, CreditPack.credits)).all()
+    return [
+        {"id": r.id, "videos": r.videos or 0, "images": r.images or 0, "prices": _pack_prices(r)}
+        for r in rows
+        if _pack_prices(r) and (r.videos or r.images)
+    ]
 
 
 # A top-up of the customer's own amount: the admin portal sets a price per 100 credits (kept as
@@ -208,10 +214,16 @@ def can_top_up(w: Workspace | None) -> bool:
     return bool(w) and w.plan != "free" and billing.PLAN_CREDITS.get(w.plan, 0) > 0
 
 
+def bought(videos: int, images: int) -> str:
+    """ "10 videos", "50 images", "10 videos + 50 images" — a pack, as customers see it."""
+    parts = [f"{n:,} {w}{'' if n == 1 else 's'}" for n, w in ((videos, "video"), (images, "image")) if n]
+    return " + ".join(parts) or "Extra pack"
+
+
 def _label(p: Payment) -> str:
-    """What a payment bought: "Starter" or "2,000 credits"."""
+    """What a payment bought: "Starter" or "10 videos"."""
     if p.plan == TOP_UP:
-        return f"{p.credits or 0:,} credits"
+        return bought(p.videos or 0, p.images or 0)
     return billing.PLAN_LABEL.get(p.plan, p.plan.title())
 
 
@@ -228,7 +240,8 @@ def _out(p: Payment) -> dict:
         "id": p.id,
         "plan": p.plan,
         "plan_label": _label(p),
-        "credits": p.credits,  # a top-up: the credits it buys (None for a plan)
+        "videos": p.videos or 0,  # a pack: the extra videos / images it adds this month
+        "images": p.images or 0,
         "currency": p.currency,
         "amount": float(p.amount),
         "amount_text": khqr.amount_text(float(p.amount), p.currency),
@@ -311,7 +324,9 @@ def reset_admin_price(db: Session, plan: str) -> list[dict]:
 
 class PackRow(BaseModel):
     id: int | None = None  # None = a new pack
-    credits: int
+    credits: int  # the hidden AI allowance that rides along
+    videos: int = 0
+    images: int = 0
     usd: float | None = None
     khr: float | None = None
     active: bool = True
@@ -319,7 +334,7 @@ class PackRow(BaseModel):
 
 def admin_packs(db: Session) -> list[dict]:
     return [
-        {"id": r.id, "credits": r.credits, "usd": float(r.usd) if r.usd is not None else None, "khr": float(r.khr) if r.khr is not None else None, "active": r.active}
+        {"id": r.id, "credits": r.credits, "videos": r.videos or 0, "images": r.images or 0, "usd": float(r.usd) if r.usd is not None else None, "khr": float(r.khr) if r.khr is not None else None, "active": r.active}
         for r in db.scalars(select(CreditPack).order_by(CreditPack.credits))
     ]
 
@@ -330,6 +345,8 @@ def save_admin_packs(db: Session, rows: list[PackRow]) -> list[dict]:
     for r in rows:
         if not (10 <= r.credits <= 1_000_000):
             raise HTTPException(422, "A pack has between 10 and 1,000,000 credits.")
+        if not (0 <= r.videos <= 1000 and 0 <= r.images <= 10000):
+            raise HTTPException(422, "A pack adds 0–1,000 videos and 0–10,000 images.")
         if r.usd is not None and not (0 < r.usd <= 10000):
             raise HTTPException(422, f"{r.credits:,} credits: the dollar price must be between $0.01 and $10,000.")
         if r.khr is not None and not (100 <= r.khr <= 40_000_000):
@@ -343,12 +360,14 @@ def save_admin_packs(db: Session, rows: list[PackRow]) -> list[dict]:
     for r in rows:
         rec = (db.get(CreditPack, r.id) if r.id else None) or CreditPack()
         rec.credits = r.credits
+        rec.videos = r.videos
+        rec.images = r.images
         rec.usd = round(r.usd, 2) if r.usd is not None else None
         rec.khr = round(r.khr) if r.khr is not None else None
         rec.active = r.active
         db.add(rec)
     db.commit()
-    log.warning("admin portal: credit packs set — %s", [(r.credits, r.usd, r.khr, r.active) for r in rows])
+    log.warning("admin portal: credit packs set — %s", [(r.videos, r.images, r.credits, r.usd, r.khr, r.active) for r in rows])
     return admin_packs(db)
 
 
@@ -367,13 +386,16 @@ def plans(db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)
                 "label": billing.PLAN_LABEL[p],
                 "monthly_credits": billing.PLAN_CREDITS[p],
                 "prices": table.get(p, {}),
+                **{k: lim[k] for k in ("videos", "images", "longest")},
             }
             for p in FOR_SALE
+            for lim in [usage.limits(db, p)]
         ],
         # extra credits: on sale with KHQR, for a paid plan
         "packs": packs(db) if bakong.configured() else [],
         "can_top_up": can_top_up(w),
-        "custom": _custom_out(db) if bakong.configured() else None,
+        # customers buy videos / images, not credits: no "your own amount of credits"
+        "custom": None,
     }
 
 
@@ -398,13 +420,15 @@ def start_payment(
     if w is None or w.suspended_at:
         raise HTTPException(403, "This account is suspended — contact us to pay.")
     credits = None
+    videos = images = 0
     if (payload.pack is not None or payload.credits is not None) and not can_top_up(w):
-        raise HTTPException(409, "Extra credits are for paid plans — choose a plan first.")
+        raise HTTPException(409, "Packs are for paid plans — choose a plan first.")
     if payload.pack is not None:  # a credit top-up
         pack = db.get(CreditPack, payload.pack)
-        if pack is None or not pack.active:
-            raise HTTPException(404, "That credit pack isn't on sale any more.")
+        if pack is None or not pack.active or not (pack.videos or pack.images):
+            raise HTTPException(404, "That pack isn't on sale any more.")
         plan, credits = TOP_UP, pack.credits
+        videos, images = pack.videos or 0, pack.images or 0
         amount = _pack_prices(pack).get(currency)
     elif payload.credits is not None:  # a top-up of the customer's own amount
         n = payload.credits
@@ -427,6 +451,8 @@ def start_payment(
             Payment.status == "pending",
             Payment.plan == plan,
             Payment.credits.is_(None) if credits is None else Payment.credits == credits,
+            Payment.videos == videos,
+            Payment.images == images,
             Payment.amount == amount,
             Payment.currency == currency,
             Payment.expires_at > _now() + timedelta(minutes=2),
@@ -457,6 +483,8 @@ def start_payment(
         user_id=user.id,
         plan=plan,
         credits=credits,
+        videos=videos,
+        images=images,
         currency=currency,
         amount=amount,
         bill_number=bill,
@@ -522,7 +550,7 @@ def payment_invoice(payment_id: int, db: Session = Depends(get_db), ws: int = De
     pdf = invoice.render(
         payment_id=p.id,
         plan_label=billing.PLAN_LABEL.get(p.plan, p.plan.title()),
-        top_up_credits=p.credits if p.plan == TOP_UP else None,
+        top_up=_label(p) if p.plan == TOP_UP else None,
         amount=float(p.amount),
         currency=p.currency,
         paid_at=_aware(p.paid_at),
@@ -711,11 +739,11 @@ def _add_bought(db: Session, p: Payment, w: Workspace, tx: dict, now: datetime) 
         )
     )
     db.commit()
-    log.warning("payment %s PAID: workspace %s +%s credits (top-up)", p.id, w.id, credits)
+    log.warning("payment %s PAID: workspace %s +%s credits (top-up: %s)", p.id, w.id, credits, _label(p))
     try:
         from app import push
 
-        push.notify_workspace(w.id, "credits", "Payment received — thank you!", f"{credits:,} credits added to your balance.", url="/?settings=billing", tag="payment")
+        push.notify_workspace(w.id, "credits", "Payment received — thank you!", f"{_label(p)} added to this month — thank you!", url="/?settings=billing", tag="payment")
     except Exception:  # noqa: BLE001 - a notification never undoes a payment
         log.exception("payment %s: notification failed", p.id)
 

@@ -205,7 +205,7 @@ export const MOTION_TEMPLATES = [
     name: 'Picture story',
     look: 'A story told over full-screen AI pictures — a cinematic film still, a painted anime film, a modern illustration or a 3D film — a slow camera move on each, soft crossfades, a short line of text on every picture in the colours you pick, subtitles under the voice',
     steps: ['The opening picture', 'The story, picture by picture', 'The turn', 'The ending'],
-    note: 'Paste your whole script (up to 10 minutes) or just the idea. Pick the picture style and the text colours on the storyboard. Each picture is an AI image, so it uses image credits',
+    note: 'Paste your whole script (up to 10 minutes) or just the idea. Pick the picture style and the text colours on the storyboard. Each picture is an AI image, painted for the video',
     goals: ['education', 'awareness', 'followers', 'reach'],
   },
   {

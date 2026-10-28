@@ -3,14 +3,14 @@
 //   2. a KHQR card (any Cambodian bank app scans it) with the amount and a
 //      countdown; the page asks every few seconds whether it's paid
 //   3. paid → the robot says thank you, the plan's end date, done
-// Also "Top up credits": a credit pack (admin portal) paid the same way, for a paid plan.
+// Also "Extra videos & images": a pack (admin portal) paid the same way, for a paid plan.
+// Customers see videos and images, never credits (app/usage.py).
 // Expired → make a new code; "mismatch" (paid, but not what we asked) → the
 // team checks it. Closing while unpaid cancels the code (the server checks once
 // more first, so a payment made just before closing still counts).
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { FiArrowLeft, FiBriefcase, FiCheck, FiDownload, FiStar, FiX, FiZap } from 'react-icons/fi'
-import CreditCoin, { CoinFlip, Twinkle } from '../layout/CreditCoin'
+import { FiArrowLeft, FiBriefcase, FiCheck, FiDownload, FiFilm, FiImage, FiStar, FiX, FiZap } from 'react-icons/fi'
 
 // each plan's mark on its card
 const PLAN_ICONS = { starter: FiZap, pro: FiStar, business: FiBriefcase }
@@ -60,7 +60,6 @@ function Hourglass({ left, total, urgent }) {
   )
 }
 import { api } from '../../api/client'
-import { loadCredits } from '../../lib/credits'
 import LiveAvatar from '../ui/LiveAvatar'
 import { PLANS } from '../../lib/plans'
 
@@ -68,56 +67,14 @@ const POLL_MS = 3000
 const money = (amount, currency) =>
   currency === 'KHR' ? `${Math.round(amount).toLocaleString('en-US')} ៛` : `$${Number(amount).toLocaleString('en-US', { minimumFractionDigits: amount % 1 ? 2 : 0, maximumFractionDigits: 2 })}`
 const day = (iso) => (iso ? new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '')
-// bought credits: period_end is when the month resets (the 1st, midnight) — the day before it
+// a pack: period_end is when the month resets (the 1st, midnight) — the day before it
 const lastDay = (iso) => (iso ? day(new Date(Date.parse(iso) - 1000).toISOString()) : '')
-
-/** "Your own amount": type the credits (in steps), see the price, Buy. The price is worked
- * out as the server does (app/payments.py custom_price) — the server's is the one charged. */
-function CustomAmount({ custom, currency, disabled, going, onBuy }) {
-  const { min, max, step } = custom
-  const [text, setText] = useState(String(Math.max(min, 1000)))
-  const n = Number(text) || 0
-  const valid = n >= min && n <= max && n % step === 0
-  const per100 = custom.per_100[currency]
-  const price = !per100 || !valid ? null : currency === 'USD' ? Math.round(per100 * n) / 100 : Math.max(100, Math.round((per100 * n) / 100 / 100) * 100)
-  const nudge = (d) => setText(String(Math.min(max, Math.max(min, Math.round((n || 0) / step) * step + d))))
-  return (
-    <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-dashed border-ink-200 p-4">
-      <div className="min-w-[160px] flex-1">
-        <div className="text-[13.5px] font-bold text-ink-900">Your own amount</div>
-        <div className="text-[11.5px] text-ink-500">
-          {min.toLocaleString('en-US')}–{max.toLocaleString('en-US')} credits, in hundreds
-          {per100 ? ` · ${money(per100, currency)} per 100` : ''}
-        </div>
-      </div>
-      <div className="flex items-center rounded-xl border border-ink-200 bg-white">
-        <button type="button" onClick={() => nudge(-step)} aria-label="Fewer credits" className="h-10 w-10 text-[18px] font-bold text-ink-500 hover:text-ink-900">
-          −
-        </button>
-        <input
-          inputMode="numeric"
-          aria-label="Credits"
-          value={text}
-          onChange={(e) => setText(e.target.value.replace(/[^\d]/g, '').slice(0, 6))}
-          className="h-10 w-24 bg-transparent text-center text-[15px] font-bold tabular-nums text-ink-900 focus:outline-none"
-        />
-        <button type="button" onClick={() => nudge(step)} aria-label="More credits" className="h-10 w-10 text-[18px] font-bold text-ink-500 hover:text-ink-900">
-          +
-        </button>
-      </div>
-      <div className="w-24 text-right text-[17px] font-bold tabular-nums text-brand">{price ? money(price, currency) : '—'}</div>
-      <button type="button" disabled={disabled || !price} onClick={() => onBuy(n)} className="h-10 rounded-xl bg-brand px-5 text-[13px] font-bold text-white hover:bg-brand-dark disabled:opacity-50">
-        {going ? 'Making your code…' : 'Buy'}
-      </button>
-      {!valid && text !== '' && (
-        <div className="w-full text-[11.5px] text-red-600">
-          Choose {min.toLocaleString('en-US')} to {max.toLocaleString('en-US')} credits, in hundreds.
-        </div>
-      )}
-      {valid && !per100 && <div className="w-full text-[11.5px] text-ink-500">Not sold in {currency === 'KHR' ? 'riel' : 'dollars'} — switch the currency above.</div>}
-    </div>
-  )
-}
+// "8 videos · 150 images" — a plan's month, or what a pack adds
+const counts = (videos, images) =>
+  [videos ? `${videos.toLocaleString('en-US')} video${videos === 1 ? '' : 's'}` : '', images ? `${images.toLocaleString('en-US')} image${images === 1 ? '' : 's'}` : '']
+    .filter(Boolean)
+    .join(' · ')
+const longestText = (s) => (s >= 60 ? `${Math.round(s / 60)} min` : `${s} s`)
 
 // page: shown as its own page (/upgrade, UpgradePage) instead of a pop-up — always open
 export default function UpgradeDialog({ open: shown, onClose, onPaid, page = false }) {
@@ -164,6 +121,11 @@ export default function UpgradeDialog({ open: shown, onClose, onPaid, page = fal
       .catch((e) => setError(e.message))
   }, [open])
 
+  // /upgrade#top-up ("Get more videos"): straight to the packs once they're on the page
+  useEffect(() => {
+    if (page && info && window.location.hash === '#top-up') document.getElementById('top-up')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [page, info])
+
   // the KHQR picture
   useEffect(() => {
     if (!pay?.qr) return setSvg('')
@@ -187,7 +149,7 @@ export default function UpgradeDialog({ open: shown, onClose, onPaid, page = fal
         .then((p) => {
           setPay((cur) => (cur && cur.id === p.id ? { ...p, qr: p.qr || cur.qr } : cur))
           if (p.status === 'paid') {
-            receive(p) // "Receiving your payment…", then the credits fly in
+            receive(p) // "Receiving your payment…", its steps ticking in
             onPaid?.(p)
           }
         })
@@ -200,48 +162,37 @@ export default function UpgradeDialog({ open: shown, onClose, onPaid, page = fal
   }, [pay?.id, pay?.status, onPaid])
 
   // a plan card's Choose: its KHQR straight away
-  // Paid: a short "Receiving your payment…" with its steps ticking in, then the credits
-  // scene (CreditClaimFx — the piggy bank, the coins flying into the chip) with the credits
-  // the payment really added (the balance now − the balance when the code was made)
+  // Paid: a short "Receiving your payment…" with its steps ticking in; then the top bar
+  // reads the month's videos / images again (dispatch:usage-changed)
   const [receiving, setReceiving] = useState(0) // 0 = no · 1-3 = steps done · 4 = finished
-  const [added, setAdded] = useState(0)
-  const before = useRef(null)
   const received = useRef(new Set())
-  const receive = async (p) => {
+  const receive = (p) => {
     if (received.current.has(p.id)) return
     received.current.add(p.id)
     setReceiving(1)
-    let got = 0
-    try {
-      const now = await loadCredits()
-      got = Math.max(0, Math.round((now?.available_credits ?? 0) - (before.current ?? 0)))
-    } catch {
-      /* the plan's credits below */
-    }
-    if (!got) got = p.credits || info?.plans.find((x) => x.plan === p.plan)?.monthly_credits || 0
-    setAdded(got)
     setTimeout(() => setReceiving(2), 700)
     setTimeout(() => setReceiving(3), 1400)
     setTimeout(() => {
       setReceiving(4)
-      if (got > 0 && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
-        window.dispatchEvent(new CustomEvent('dispatch:credits-claimed', { detail: { amount: got } }))
-      }
+      window.dispatchEvent(new Event('dispatch:usage-changed'))
     }, 2300)
   }
+  // what the paid plan makes a month: "8 videos · 150 images"
+  const planMonth = (plan) => {
+    const p = info?.plans.find((x) => x.plan === plan)
+    return p ? counts(p.videos, p.images) : ''
+  }
 
-  // a plan ("starter") or a credit pack ({ pack: id })
+  // a plan ("starter") or a pack ({ pack: id })
   const start = async (what) => {
     if (!what) return
     const pack = what.pack ?? null
-    const own = what.credits ?? null // the customer's own amount
-    setPick(pack ? `pack:${pack}` : own ? 'custom' : what)
+    setPick(pack ? `pack:${pack}` : what)
     setBusy(true)
     setError('')
     setReceiving(0)
     try {
-      before.current = (await loadCredits())?.available_credits ?? 0 // to tell what the payment adds
-      setPay(await api.post('/billing/pay', pack ? { pack, currency } : own ? { credits: own, currency } : { plan: what, currency }))
+      setPay(await api.post('/billing/pay', pack ? { pack, currency } : { plan: what, currency }))
     } catch (e) {
       setError(e.message)
     } finally {
@@ -275,7 +226,7 @@ export default function UpgradeDialog({ open: shown, onClose, onPaid, page = fal
   const left = pay ? Math.max(0, Math.round((Date.parse(pay.expires_at) - now) / 1000)) : 0
   const has = (p) => Object.keys(p.prices || {}).length > 0
   const currencies = ['USD', 'KHR'].filter((c) => [...(info?.plans || []), ...(info?.packs || [])].some((p) => p.prices?.[c]))
-  const topUp = pay?.plan === 'credits' // the payment is for extra credits, not a plan
+  const topUp = pay?.plan === 'credits' // the payment is for a pack (extra videos / images), not a plan
 
   // part: 'all' (the pop-up from elsewhere) · 'plans' (the /upgrade page itself) · 'pay' (the
   // page's KHQR pop-up: the code, then paid / expired)
@@ -309,7 +260,7 @@ export default function UpgradeDialog({ open: shown, onClose, onPaid, page = fal
                       {info?.current && info.current !== 'free' ? 'Renew or grow your plan' : 'Grow faster with more AI'}
                     </h1>
                     <p className="mt-2 max-w-xl text-[14px] leading-relaxed text-white/80">
-                      More credits for posts, posters and videos every month. Pay once with KHQR from any Cambodian bank app — no card, no automatic charges.
+                      More videos, images and longer videos every month. Pay once with KHQR from any Cambodian bank app — no card, no automatic charges.
                     </p>
                   </div>
                   <div className="relative flex-none">
@@ -329,7 +280,7 @@ export default function UpgradeDialog({ open: shown, onClose, onPaid, page = fal
             {!info && !error && <div className="mt-6 text-[13px] text-ink-500">Loading…</div>}
             {info && !info.on_sale && (
               <div className="mt-5 rounded-2xl bg-canvas p-4 text-[13px] text-ink-700">
-                <b>Coming soon.</b> Paid plans open shortly — contact us if you need more credits now.
+                <b>Coming soon.</b> Paid plans open shortly — contact us if you need more videos now.
               </div>
             )}
             {info?.on_sale && (
@@ -383,7 +334,7 @@ export default function UpgradeDialog({ open: shown, onClose, onPaid, page = fal
                           <div className="min-w-0">
                             <div className="text-[18px] font-bold leading-tight text-ink-900">{card ? card.name[0] : p.label}</div>
                             <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-canvas px-2 py-0.5 text-[11px] font-semibold text-ink-600">
-                              <CreditCoin size={13} /> {p.monthly_credits.toLocaleString('en-US')} credits / mo
+                              <FiFilm size={12} className="text-brand" /> {counts(p.videos, p.images)} / mo
                             </span>
                           </div>
                         </div>
@@ -402,7 +353,7 @@ export default function UpgradeDialog({ open: shown, onClose, onPaid, page = fal
                         </button>
                         <div className="mt-4 text-[11px] font-semibold uppercase tracking-wide text-ink-400">Includes</div>
                         <ul className="mt-2 space-y-2">
-                          {(card?.points || [[`${p.monthly_credits.toLocaleString('en-US')} AI credits a month`]]).map((pt) => (
+                          {(card?.points || [[`${counts(p.videos, p.images)} a month`], [`Videos up to ${longestText(p.longest)}`]]).map((pt) => (
                             <li key={pt[0]} className="flex gap-2 text-[12.5px] leading-snug text-ink-700">
                               <FiCheck size={14} className="mt-0.5 flex-none text-brand" strokeWidth={3} />
                               {pt[0]}
@@ -421,16 +372,19 @@ export default function UpgradeDialog({ open: shown, onClose, onPaid, page = fal
                     Payment terms
                   </a>
                 </p>
-                {/* extra credits on top of the plan's (packs set in the admin portal) */}
-                {(info.packs?.length > 0 || info.custom) && (
+                {/* extra videos / images on top of the plan's (packs set in the admin portal) */}
+                {info.packs?.length > 0 && (
                   <section id="top-up" className="mt-8 scroll-mt-6 rounded-3xl border border-ink-200 bg-white p-5 sm:p-6">
                     <div className="flex flex-wrap items-start gap-3">
                       <div className="min-w-0 flex-1">
                         <h2 className="flex items-center gap-2 text-[17px] font-bold text-ink-900">
-                          <CreditCoin size={22} /> Top up credits
+                          <span className="grid h-8 w-8 place-items-center rounded-xl bg-brand-soft text-brand">
+                            <FiFilm size={16} />
+                          </span>
+                          Extra videos &amp; images
                         </h2>
                         <p className="mt-1 text-[12.5px] text-ink-500">
-                          Ran short this month? Add credits on top of your plan&apos;s — they&apos;re yours until the month ends.
+                          Ran short this month? Add more on top of your plan&apos;s — they&apos;re yours until the month ends.
                         </p>
                       </div>
                       {!info.can_top_up && (
@@ -442,24 +396,21 @@ export default function UpgradeDialog({ open: shown, onClose, onPaid, page = fal
                         const price = pk.prices[currency]
                         const going = busy && pick === `pack:${pk.id}`
                         const best = info.packs.length > 1 && i === info.packs.length - 1
+                        // the pack's headline: its videos (or, an image-only pack, its images)
+                        const [n, what, Icon] = pk.videos ? [pk.videos, pk.videos === 1 ? 'video' : 'videos', FiFilm] : [pk.images, pk.images === 1 ? 'image' : 'images', FiImage]
                         return (
                           <div key={pk.id} className={`relative flex flex-col items-center rounded-2xl border p-4 text-center ${best ? 'border-brand bg-brand-soft' : 'border-ink-200'}`}>
                             {best && <span className="absolute -top-2.5 whitespace-nowrap rounded-full bg-brand px-2.5 py-0.5 text-[10.5px] font-bold text-white">Best value</span>}
-                            {/* a stack of 3D coins flipping one after another, sparkles blinking around it: taller for a bigger pack */}
-                            <div className="relative h-10 w-12 text-brand dark:text-brand-light">
-                              {Array.from({ length: Math.min(4, i + 1) }).map((_, k) => (
-                                <span key={k} className="absolute left-1/2 flex" style={{ bottom: k * 7, transform: `translateX(calc(-50% + ${k % 2 ? 5 : -3}px))` }}>
-                                  <CoinFlip size={28} delay={`${k * 0.18 + i * 0.4}s`} />
-                                </span>
-                              ))}
-                              <Twinkle size={13} className="-left-3 top-0" delay={`${i * 0.3}s`} />
-                              <Twinkle size={9} className="-right-3 top-3" delay={`${i * 0.3 + 0.6}s`} />
-                              <Twinkle size={7} className="-left-1 bottom-0" delay={`${i * 0.3 + 1.2}s`} />
+                            <span className="grid h-11 w-11 place-items-center rounded-2xl bg-brand text-white">
+                              <Icon size={20} />
+                            </span>
+                            <div className="mt-2 text-[22px] font-extrabold leading-none tabular-nums text-ink-900">{n.toLocaleString('en-US')}</div>
+                            <div className="text-[11.5px] text-ink-500">
+                              {what}
+                              {pk.videos && pk.images ? ` + ${counts(0, pk.images)}` : ''}
                             </div>
-                            <div className="mt-2 text-[22px] font-extrabold leading-none tabular-nums text-ink-900">{pk.credits.toLocaleString('en-US')}</div>
-                            <div className="text-[11.5px] text-ink-500">credits</div>
                             <div className="mt-2 text-[17px] font-bold text-brand">{price ? money(price, currency) : '—'}</div>
-                            {price && currency === 'USD' && <div className="text-[11px] text-ink-400">{((price / pk.credits) * 100).toFixed(1)}¢ a credit</div>}
+                            {price && currency === 'USD' && n > 1 && <div className="text-[11px] text-ink-400">{money(Math.round((price / n) * 100) / 100, 'USD')} a{what.startsWith('i') ? 'n' : ''} {what.replace(/s$/, '')}</div>}
                             <button
                               type="button"
                               disabled={!price || busy || !info.can_top_up}
@@ -472,7 +423,6 @@ export default function UpgradeDialog({ open: shown, onClose, onPaid, page = fal
                         )
                       })}
                     </div>
-                    {info.custom && <CustomAmount custom={info.custom} currency={currency} disabled={busy || !info.can_top_up} going={busy && pick === 'custom'} onBuy={(n) => start({ credits: n })} />}
                   </section>
                 )}
                 {/* the page: every paid month, its invoice a click away */}
@@ -559,7 +509,7 @@ export default function UpgradeDialog({ open: shown, onClose, onPaid, page = fal
             <div className="relative mx-auto h-20 w-20">
               <span className="absolute inset-0 animate-spin rounded-full border-[5px] border-brand-soft border-t-brand" />
               <span className="absolute inset-0 grid place-items-center">
-                <CreditCoin size={34} />
+                <FiFilm size={30} className="text-brand" />
               </span>
             </div>
             <h2 className="mt-4 text-[18px] font-bold text-ink-900">Receiving your payment…</h2>
@@ -567,13 +517,13 @@ export default function UpgradeDialog({ open: shown, onClose, onPaid, page = fal
               {(topUp
                 ? [
                     `Payment received from your bank · ${money(pay.amount, pay.currency)}`,
-                    `${added.toLocaleString('en-US')} credits added to your balance`,
+                    `${pay.plan_label} added to this month`,
                     `Yours to use until ${lastDay(pay.period_end)}`,
                   ]
                 : [
                     `Payment received from your bank · ${money(pay.amount, pay.currency)}`,
                     `${pay.plan_label} plan activated`,
-                    `${added.toLocaleString('en-US')} credits added to your balance`,
+                    planMonth(pay.plan) ? `${planMonth(pay.plan)} ready for this month` : 'This month is ready',
                   ]
               ).map((label, i) => {
                 const done = receiving > i
@@ -598,11 +548,19 @@ export default function UpgradeDialog({ open: shown, onClose, onPaid, page = fal
             <p className="mt-1.5 text-[13px] text-ink-600">
               {topUp ? (
                 <>
-                  <b>{pay.plan_label}</b> are in your balance — use them by <b>{lastDay(pay.period_end)}</b>.
+                  <b>{pay.plan_label}</b> added to this month — use them by <b>{lastDay(pay.period_end)}</b>.
                 </>
               ) : (
                 <>
-                  Your <b>{pay.plan_label}</b> plan is on until <b>{day(pay.period_end)}</b>, and this month&apos;s credits are in your balance.
+                  Your <b>{pay.plan_label}</b> plan is on until <b>{day(pay.period_end)}</b>
+                  {planMonth(pay.plan) ? (
+                    <>
+                      {' '}
+                      — <b>{planMonth(pay.plan)}</b> this month.
+                    </>
+                  ) : (
+                    '.'
+                  )}
                 </>
               )}
             </p>

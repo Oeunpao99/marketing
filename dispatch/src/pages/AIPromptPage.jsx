@@ -35,7 +35,7 @@ import StoryboardEditor from '../components/studio/StoryboardEditor'
 import StoryEditor from '../components/story/StoryEditor'
 import { handoff } from '../lib/handoff'
 import { trackJob, untrackJob } from '../lib/genJobs'
-import { fmtCredits } from '../lib/money'
+import { usageChanged } from '../lib/usage'
 import { PILLAR_LABELS, pillarChipClass } from '../lib/angles'
 import { kitSrc, TemplatePicker } from '../components/brandkit/BrandKit'
 import { MOTION_OFF_TIP, useMotionReady } from '../lib/motionStatus'
@@ -786,6 +786,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
           product_id: turn.kit?.productId ?? null,
           use_logo: !!turn.kit?.logo,
         })
+        usageChanged() // the top bar: one image fewer this month
         if (res.video) {
           update(turn.id, { status: 'done', video: res.video, tokens: res.total_tokens, cost: res.cost_usd })
           addTokens(res.total_tokens)
@@ -837,6 +838,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
           ref_url: turn.refUrl || '',
           ref_urls: turn.refUrls || [],
         })
+        usageChanged() // the top bar: this month's videos left
         trackJob(res.id, 'video')
         update(turn.id, { jobId: res.id })
       } else if (turn.kind === 'story') {
@@ -860,6 +862,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
           reference_url: turn.refUrl || '',
           product_id: turn.refUrl ? null : (turn.kit?.productId ?? null),
         })
+        usageChanged()
         trackJob(res.id, 'video')
         update(turn.id, { jobId: res.id })
       }
@@ -2353,7 +2356,6 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary, onPlanChange, onMake,
             onMake={onMake}
             onRewrite={onRewrite}
             // about what Make uses — voice + AI pictures — and what's left
-            estimate={(plan) => api.post('/ai/motion/estimate', { brand_id: t.brandId, language: plan?.language || t.language || 'Khmer', voice: t.voice || 'female', script: plan })}
             // one voice line, read exactly as the video will — same voice, same acting
             // (the template's style); the server keeps it, so Make reuses it
             fetchLine={(text) =>
@@ -2459,7 +2461,7 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary, onPlanChange, onMake,
               <button type="button" onClick={onLibrary} className="ml-1 text-[11px] text-ink-400 hover:text-brand">
                 Saved to Library
                 {t.tokens ? ` · ${fmtTok(t.tokens)} tok` : ''}
-                {t.cost ? ` · ~${fmtCredits(t.cost)}` : ''}
+
               </button>
             </div>
           </>

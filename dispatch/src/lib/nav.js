@@ -65,8 +65,8 @@ export const BOSS = [
       { to: '/products', icon: FiPackage, label: 'Products & brand kit' },
     ],
   },
-  // the plans, extra credits and invoices (pages/UpgradePage.jsx)
-  { to: '/upgrade', icon: FiCreditCard, label: 'Plans & credits' },
+  // the plans, extra videos and invoices (pages/UpgradePage.jsx)
+  { to: '/upgrade', icon: FiCreditCard, label: 'Plans & usage' },
   // API keys, Request Logs, connect an AI assistant (pages/ApiPage.jsx)
   { to: '/developer', icon: FiCode, label: 'API & MCP' },
   // how-to videos for customers (pages/TutorialsPage.jsx, lib/tutorials.js)

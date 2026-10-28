@@ -153,7 +153,7 @@ export default function Topbar({ onToggleSidebar }) {
       </Link>
 
       <span className="hidden sm:block h-6 w-px bg-ink-200" />
-      {/* the credits left and the account — one panel (AccountMenu.jsx) */}
+      {/* this month's videos left and the account — one panel (AccountMenu.jsx) */}
       <AccountMenu />
     </header>
   );

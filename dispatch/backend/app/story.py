@@ -399,6 +399,9 @@ def render_story(
         raise HTTPException(409, "These clips are already being made.")
     provider = get_settings().video_provider
     billing.require(ws, sum(billing.video_cost(provider, s["seconds"]) for s in story.scenes), db)
+    from app import usage
+
+    usage.require_video(db, ws, usage.FILMED_UNITS)  # the finished film: 3 of the month's videos
     story.scenes = [{**s, "state": "pending", "job_id": None, "error": ""} for s in story.scenes]
     story.status = "rendering"
     story.user_id = story.user_id or user.id  # a plan's storyboard has no author yet
@@ -704,6 +707,8 @@ def _combine(story_id: int) -> None:
                 provider="story",
                 status="succeeded",
                 video_id=video.id,
+                # counted once: joining the clips again after a re-done scene is free
+                units=0 if story.final_video_id else 3,
             )
         )
         story.final_video_id = video.id

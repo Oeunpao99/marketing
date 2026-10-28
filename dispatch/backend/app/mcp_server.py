@@ -23,7 +23,7 @@ from fastapi.responses import JSONResponse, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import billing
+from app import billing, usage
 from app.api_keys import resolve_key
 from app.config import get_settings
 from app.database import get_db
@@ -41,9 +41,9 @@ INSTRUCTIONS = (
     "Smart Marketing makes marketing videos and pictures for small businesses, in Khmer or English. "
     "Typical flow: list_templates → make_storyboard (the scenes, to show the person and edit) → "
     "make_video with that storyboard → check_job every ~20 s until it's done (videos take 2-6 minutes; "
-    "a long one more). make_video with just an idea skips the storyboard. Everything uses the "
-    "workspace's credits — get_storyboard / make_storyboard give an estimate; my_credits shows what's left. "
-    "Tell the person the estimate before making a long video."
+    "a long one more). make_video with just an idea skips the storyboard. Each plan makes a number of videos and "
+    "images a month: a video up to 1 min uses 1, up to 3 min 2, longer 1 per 3 min. get_storyboard / "
+    "make_storyboard say how many it uses; my_usage shows what's left. Tell the person before making a long video."
 )
 
 
@@ -58,10 +58,6 @@ def _abs(url: str | None) -> str:
         return url
     s = get_settings()
     return (s.public_base_url or s.frontend_url).rstrip("/") + url
-
-
-def _credits(usd: float) -> int:
-    return round((usd or 0) * billing.CREDITS_PER_USD)
 
 
 def _brand(db: Session, user: TeamMember, brand_id) -> Brand:
@@ -93,16 +89,32 @@ def t_list_templates(db: Session, user: TeamMember, args: dict) -> dict:
     }
 
 
-def t_my_credits(db: Session, user: TeamMember, args: dict) -> dict:
-    b = billing.balance(db, user.workspace_id)
-    return {"credits_left": round(b["available_credits"]), "plan": b["plan_label"], "refills_at": b["resets_at"]}
+def t_my_usage(db: Session, user: TeamMember, args: dict) -> dict:
+    u = usage.summary(db, user.workspace_id)
+    return {
+        "plan": u["plan_label"],
+        "videos_left": u["videos"]["left"],
+        "videos_this_month": u["videos"]["limit"],
+        "images_left": u["images"]["left"],
+        "images_this_month": u["images"]["limit"],
+        "longest_video_seconds": u["longest_seconds"],
+        "refills_at": u["refills_at"],
+    }
 
 
 def _estimate(db: Session, user: TeamMember, brand: Brand, script: dict, language: str, voice: str) -> dict:
-    from app.motion import EstimateIn, estimate
+    """What making this storyboard uses of the month: its videos (by length), and what's left."""
+    from app.motion import estimate_seconds
 
-    e = estimate(EstimateIn(brand_id=brand.id, language=language, voice=voice, script=script), db=db, ws=user.workspace_id)
-    return {"credits": _credits(e["total"]), "voice_credits": _credits(e["voice"]), "ai_pictures": e["picture_count"], "credits_left": _credits(e["available"])}
+    seconds = estimate_seconds(script)
+    u = usage.summary(db, user.workspace_id)
+    return {
+        "seconds": seconds,
+        "uses_videos": usage.video_units(seconds),
+        "videos_left": u["videos"]["left"],
+        "longest_video_seconds": u["longest_seconds"],
+        "too_long": seconds > u["longest_seconds"] + 5,
+    }
 
 
 def _board(db: Session, user: TeamMember, plan_id: str, brand: Brand, language: str, voice: str) -> dict:
@@ -207,7 +219,7 @@ def t_check_job(db: Session, user: TeamMember, args: dict) -> dict:
         out["next"] = "check again in ~20 s"
     elif j.status == "succeeded" and j.video:
         video = db.get(Video, j.video.id)
-        out.update(url=_abs(j.video.url), filename=j.video.filename, caption=(video.caption if video else "") or "", credits_used=_credits(j.cost_usd))
+        out.update(url=_abs(j.video.url), filename=j.video.filename, caption=(video.caption if video else "") or "", videos_used=j.units or 0)
         out["note"] = "It's also in the person's Library in the app, ready to post."
     elif j.status == "failed":
         out["error"] = j.error or "It couldn't be made — try again."
@@ -221,11 +233,11 @@ VOICE = {"type": "string", "description": "female (default), male, none (silent)
 TOOLS = [
     ("list_brands", "The brands (businesses) in this workspace — their ids for the other tools.", {}, [], t_list_brands),
     ("list_templates", "The video templates, what each is good for, and the shapes it can make.", {}, [], t_list_templates),
-    ("my_credits", "Credits left in this workspace, its plan, and when credits refill.", {}, [], t_my_credits),
+    ("my_usage", "What this workspace can still make this month — videos and images left, the longest video, its plan, and when they refill.", {}, [], t_my_usage),
     (
         "make_storyboard",
         "Write a video's storyboard (scenes with on-screen words and the spoken line) from a story, script or topic — to "
-        "check and edit before anything is made. Waits up to ~45 s; includes the credit estimate.",
+        "check and edit before anything is made. Waits up to ~45 s; says how many of the month's videos it uses.",
         {
             "story": {**S, "description": "The story, script or topic, in the person's words — pasted stories are followed faithfully."},
             "brand_id": BRAND, "language": LANG, "voice": VOICE,
@@ -238,7 +250,7 @@ TOOLS = [
     ),
     (
         "get_storyboard",
-        "A storyboard from make_storyboard that was still being written — the scenes and the credit estimate once ready.",
+        "A storyboard from make_storyboard that was still being written — the scenes and how many videos it uses, once ready.",
         {"storyboard_id": S, "brand_id": BRAND, "language": LANG, "voice": VOICE},
         ["storyboard_id"],
         t_get_storyboard,
@@ -272,13 +284,15 @@ TOOLS = [
     ),
     (
         "check_job",
-        "How a video or picture is coming along — and once done, its link (MP4 / image), caption and the credits it used.",
+        "How a video or picture is coming along — and once done, its link (MP4 / image), caption and how many of the month's videos it used.",
         {"job_id": {"type": "integer"}},
         ["job_id"],
         t_check_job,
     ),
 ]
 BY_NAME = {t[0]: t for t in TOOLS}
+# connectors made before videos were counted still call my_credits: answered the new way, not listed
+BY_NAME["my_credits"] = ("my_credits", "", {}, [], t_my_usage)
 
 
 def _tool_list() -> list[dict]:
@@ -310,7 +324,7 @@ def run_tool(db: Session, user: TeamMember, name: str, args: dict, key: ApiKey |
             out = tool[4](db, user, args or {})
         except (ToolError, billing.OutOfCredit) as exc:
             text = str(exc)
-        except HTTPException as exc:  # the app's own refusals: out of credit, busy, not set up
+        except HTTPException as exc:  # the app's own refusals: no videos left, busy, not set up
             text = str(exc.detail)
         except Exception:  # noqa: BLE001 — the reason is in the log, never in the answer
             log.exception("MCP tool %s failed (workspace %s)", name, user.workspace_id)

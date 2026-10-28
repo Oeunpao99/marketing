@@ -1407,7 +1407,7 @@ function DetailPanel({ it, busy, folders, onClose, onUse, onDelete, onRewrite, o
                     disabled={writingNow}
                     onClick={() => onRewrite({ angle, goal })}
                     className="btn-outline mt-2 w-full justify-center text-[11.5px]"
-                    title="Uses a little AI credit · replaces the caption"
+                    title="Writes a new caption · replaces this one"
                   >
                     <FiRefreshCw size={12} className={writingNow ? 'animate-spin' : ''} />
                     {writingNow ? 'Writing…' : it.caption ? 'Rewrite caption' : 'Write caption'}

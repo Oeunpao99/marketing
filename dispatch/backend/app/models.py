@@ -129,6 +129,18 @@ class PlanPrice(Base, TimestampMixin):
     khr: Mapped[float | None] = mapped_column(Numeric(12, 0), nullable=True)
 
 
+class PlanLimit(Base, TimestampMixin):
+    """What a plan makes a month, set in the admin portal (Plans): AI videos, AI
+    images and the longest video. A plan with no row uses app/usage.py DEFAULTS."""
+
+    __tablename__ = "plan_limits"
+
+    plan: Mapped[str] = mapped_column(String(20), primary_key=True)
+    videos: Mapped[int] = mapped_column(Integer)
+    images: Mapped[int] = mapped_column(Integer)
+    longest_seconds: Mapped[int] = mapped_column(Integer)
+
+
 class CreditPack(Base, TimestampMixin):
     """A pack of extra AI credits a customer on a paid plan can buy with KHQR
     (app/payments.py; the Upgrade page's "Top up credits"). Set in the admin
@@ -139,6 +151,10 @@ class CreditPack(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     credits: Mapped[int] = mapped_column(Integer)
+    # what the customer sees and gets: extra videos / images this month (app/usage.py);
+    # the credits stay underneath as the hidden fair-use allowance
+    videos: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    images: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     usd: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
     khr: Mapped[float | None] = mapped_column(Numeric(12, 0), nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
@@ -174,6 +190,9 @@ class Payment(Base, TimestampMixin):
     period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # a credit top-up (plan = "credits"): how many credits it buys; None for a plan
     credits: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # a pack's extra videos / images for the month it's paid in (app/usage.py)
+    videos: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    images: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
 
 class CreditEntry(Base):
@@ -547,6 +566,11 @@ class GenerationJob(Base, TimestampMixin):
     # the template, voice and each scene's words, spoken line, start time and
     # narration clip. "" for everything else and for videos made before it.
     making: Mapped[str] = mapped_column(Text, default="", server_default="")
+    # How many of the month's videos (or images) this job uses (app/usage.py): a
+    # template video by its length, an AI-filmed clip 3, a picture 1; 0 for a
+    # re-shape, an edit, an editor export, a Story's single scenes, and jobs made
+    # before counting began.
+    units: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     video_id: Mapped[int | None] = mapped_column(
         ForeignKey("videos.id", ondelete="SET NULL"), nullable=True, index=True
     )

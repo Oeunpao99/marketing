@@ -92,7 +92,7 @@ def render(
     customer_name: str,
     customer_email: str,
     customer_workspace: str = "",
-    top_up_credits: int | None = None,
+    top_up: str | None = None,  # a pack: "10 videos"
 ) -> bytes:
     """The invoice as PDF bytes."""
     s = get_settings()
@@ -151,11 +151,11 @@ def render(
     y += 64
     d.line((M, y, W - M, y), fill=DARK_LINE, width=4)
     y += 34
-    if top_up_credits:  # extra credits: they last until the month ends (period_end = the 1st after)
-        item = f"Smart Marketing — {top_up_credits:,} AI credits"
+    if top_up:  # a pack: it lasts until the month ends (period_end = the 1st after)
+        item = f"Smart Marketing — {top_up}"
         # the month ends at midnight Phnom Penh time — its last day, as a date there
         last = (period_end.astimezone(timezone(timedelta(hours=7))) - timedelta(days=1)) if period_end else None
-        detail = f"Credit top-up · use by {f'{last:%b} {last.day}, {last.year}' if last else '—'}"
+        detail = f"Extra pack · use by {f'{last:%b} {last.day}, {last.year}' if last else '—'}"
     else:
         item = f"Smart Marketing — {plan_label} plan"
         detail = f"{_short((period_end - timedelta(days=30)) if period_end else paid_at)} – {_short(period_end)}"

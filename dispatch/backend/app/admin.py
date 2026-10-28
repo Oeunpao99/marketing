@@ -269,6 +269,25 @@ def admin_reset_price(plan: str, db: Session = Depends(get_db)):
     return payments.reset_admin_price(db, plan)
 
 
+@router.get("/plan-limits", dependencies=[Depends(require_admin)])
+def admin_get_limits(db: Session = Depends(get_db)):
+    """What each plan makes a month — videos, images, the longest video (app/usage.py)."""
+    from app import usage
+
+    return usage.admin_limits(db)
+
+
+class LimitsIn(BaseModel):
+    plans: dict[str, dict[str, int]]
+
+
+@router.put("/plan-limits", dependencies=[Depends(require_admin)])
+def admin_set_limits(payload: LimitsIn, db: Session = Depends(get_db)):
+    from app import usage
+
+    return usage.save_admin_limits(db, payload.plans)
+
+
 @router.get("/credit-packs", dependencies=[Depends(require_admin)])
 def admin_get_packs(db: Session = Depends(get_db)):
     """The credit packs customers on a paid plan can buy (credits, USD, KHR, on sale)."""

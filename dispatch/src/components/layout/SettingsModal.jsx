@@ -1,14 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   FiAlertTriangle,
-  FiCamera,
-  FiGrid,
-  FiSend,
-  FiArchive,
-  FiArrowUpRight,
-  FiArrowDownLeft,
-  FiGift,
   FiBell,
   FiBriefcase,
   FiCalendar,
@@ -17,8 +10,6 @@ import {
   FiCreditCard,
   FiDroplet,
   FiVideo,
-  FiImage,
-  FiEdit3,
   FiCopy,
   FiLink,
   FiLock,
@@ -43,12 +34,8 @@ import { APP_VERSION, applyUpdate, latestVersion } from '../../lib/update'
 import { openTour } from '../../lib/tour'
 import { TZ } from '../../lib/tz'
 import Select from '../ui/Select'
-import DateRangePicker from '../ui/DateRangePicker'
 import HowItWorks from './HowItWorks'
-import { fmtCredits } from '../../lib/money'
-import CreditCoin from './CreditCoin'
-import { CreditReceipt, fmtAccount, SendingAnimation } from './CreditReceipt'
-import { claimCredits } from '../../lib/credits'
+import { lengthText, useUsage } from '../../lib/usage'
 import ModelLogo from '../ui/ModelLogo'
 import { useNavigate } from 'react-router-dom'
 import { DISPLAY_SIZES, displaySize, setDisplaySize } from '../../lib/zoom'
@@ -1024,7 +1011,7 @@ function WorkspaceTab({ showToast }) {
 
 // ── AI model ──────────────────────────────────────────────────────────────
 // Which AI writes for this workspace (backend app/ai_models.py): the models the
-// platform lets it use, each with what 1M tokens costs its credit; the default
+// platform lets it use; the default
 // (owner / admin); and the last 30 days of AI writing by model and person.
 function AiModelSection({ canManage, showToast }) {
   const [data, setData] = useState(null)
@@ -1084,11 +1071,6 @@ function AiModelSection({ canManage, showToast }) {
                 <span className="text-[11px] font-bold text-ink-400">{saving === (m.key || 'default') ? 'Saving…' : on ? 'Default' : m.tier}</span>
               </div>
               <div className="mt-0.5 text-[11.5px] text-ink-500">{m.blurb}</div>
-              {m.key && (
-                <div className="mt-1 text-[11px] tabular-nums text-ink-400">
-                  ≈ {fmtCredits((2000 * m.price_in + 700 * m.price_out) / 1_000_000)} per caption
-                </div>
-              )}
             </button>
           )
         })}
@@ -1102,8 +1084,7 @@ function AiModelSection({ canManage, showToast }) {
                 <th className="px-3.5 py-1.5 font-medium">Who</th>
                 <th className="px-2 py-1.5 font-medium">Model</th>
                 <th className="px-2 py-1.5 text-right font-medium">Calls</th>
-                <th className="px-2 py-1.5 text-right font-medium">Tokens</th>
-                <th className="px-3.5 py-1.5 text-right font-medium">Credits</th>
+                <th className="px-3.5 py-1.5 text-right font-medium">Words (tokens)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-ink-100">
@@ -1117,8 +1098,7 @@ function AiModelSection({ canManage, showToast }) {
                     </span>
                   </td>
                   <td className="px-2 py-1.5 text-right tabular-nums">{r.calls}</td>
-                  <td className="px-2 py-1.5 text-right tabular-nums">{r.tokens.toLocaleString()}</td>
-                  <td className="px-3.5 py-1.5 text-right tabular-nums">{fmtCredits(r.charged, false)}</td>
+                  <td className="px-3.5 py-1.5 text-right tabular-nums">{r.tokens.toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>
@@ -1130,760 +1110,32 @@ function AiModelSection({ canManage, showToast }) {
 }
 
 // ── Billing ───────────────────────────────────────────────────────────────
-// The workspace's monthly AI credit (app/billing.py): what's left, where it
-// went, and every recent spend. Costs are estimates of the providers' prices.
-const KIND_ORDER = [
-  { kind: 'video', label: 'Videos' },
-  { kind: 'image', label: 'Images' },
-  { kind: 'text', label: 'AI writing' },
-]
-
-function usageDetail(e) {
-  if (e.kind === 'video' && e.seconds) return `${e.seconds}s clip`
-  if (e.tokens) return `${e.tokens.toLocaleString()} tokens`
-  return ''
-}
-
-// What an "AI writing" request was for — recognised from the start of the
-// instruction it ran with (app/billing.py stores that as the note).
-const WRITING_PURPOSE = [
-  [/content strategist/i, 'Wrote post ideas'],
-  [/fact-check/i, 'Fact-checked captions'],
-  [/copy editor/i, 'Polished captions'],
-  [/prompt for an image|prompt engineer/i, 'Wrote an image / video prompt'],
-  [/marketing advisor/i, 'Answered a question'],
-  [/social media editor/i, 'Suggested post improvements'],
-  [/storyboard|creative director/i, 'Wrote a storyboard'],
-]
-
-function activityTitle(e) {
-  const note = e.note || ''
-  if (e.kind === 'text') return WRITING_PURPOSE.find(([re]) => re.test(note))?.[1] || 'AI writing'
-  if (e.kind === 'image') return 'Image'
-  if (e.kind === 'video') return `${/^Story scene/i.test(note) ? 'Storyboard scene' : 'Video'}${e.seconds ? ` · ${e.seconds}s` : ''}`
-  return e.label || 'Credit added'
-}
-
-// A short hint of what an image / video showed: the prompt's first phrase
-// (up to its first comma, colon or full stop), at most ~60 characters.
-function activitySnippet(e) {
-  if (e.kind === 'transfer_in' || e.kind === 'transfer_out') return e.note || ''
-  if (e.kind !== 'image' && e.kind !== 'video') return ''
-  const text = (e.note || '')
-    .replace(/^(Video|Image|Story scene):\s*/i, '')
-    .replace(/^SUBJECT\b[:\s]*/i, '')
-    .replace(/[#*>_`]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-  // Auto-generated media briefs open with boilerplate ("An 8-second, vertical
-  // 9:16…", "Create a photorealistic…"); their "Post topic:" line says more.
-  const topic = text.match(/Post topic:\s*([^.]+)/i)?.[1]?.trim()
-  if (topic) return topic.length <= 60 ? topic : `${topic.slice(0, 60).replace(/\s+\S*$/, '')}…`
-  const phrase = text.split(/[,:.;(—]/)[0].trim() || text
-  if (phrase.length <= 60) return phrase.length < text.length ? `${phrase}…` : phrase
-  return `${phrase.slice(0, 60).replace(/\s+\S*$/, '')}…`
-}
-
-const shortModel = (m) => (m || '').replace(/-\d{4}-\d{2}-\d{2}$/, '').replace(/-generate(-preview)?$/, '')
-
-function dayLabel(iso) {
-  const d = new Date(iso)
-  const today = new Date()
-  const yesterday = new Date(today)
-  yesterday.setDate(today.getDate() - 1)
-  if (d.toDateString() === today.toDateString()) return 'Today'
-  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday'
-  return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
-}
-
-const ACTIVITY_ICON = {
-  text: { icon: FiEdit3, tone: 'bg-sky-50 text-sky-600' },
-  image: { icon: FiImage, tone: 'bg-violet-50 text-violet-600' },
-  video: { icon: FiVideo, tone: 'bg-brand-soft text-brand' },
-  // credits in — a claim or credit added
-  added: { icon: FiGift, tone: 'bg-emerald-50 text-emerald-600' },
-  transfer_in: { icon: FiUserPlus, tone: 'bg-emerald-50 text-emerald-600' },
-  transfer_out: { icon: FiSend, tone: 'bg-red-50 text-red-600' },
-}
-
-
-/** A Receive QR's text → the account number in it ("…?transfer=1400307275" or the bare digits). */
-function accountFromQr(text) {
-  const t = String(text || '')
-  const m = t.match(/[?&]transfer=(\d{10})(?!\d)/) || t.replace(/[\s-]/g, '').match(/^(\d{10})$/)
-  return m ? m[1] : ''
-}
-
-/**
- * Billing → Transfer → Scan: the phone's back camera reads a Receive QR
- * (jsQR on video frames — works in iPhone Safari and Android Chrome; needs
- * https and the camera permission). Calls onFound(accountNo) once.
- */
-function QrScanner({ onFound, onClose }) {
-  const video = useRef(null)
-  const [err, setErr] = useState('')
-  useEffect(() => {
-    let stream = null
-    let timer = null
-    let done = false
-    const canvas = document.createElement('canvas')
-    const ctx = canvas.getContext('2d', { willReadFrequently: true })
-    Promise.all([
-      navigator.mediaDevices?.getUserMedia
-        ? navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false })
-        : Promise.reject(new Error('no camera')),
-      import('jsqr'),
-    ])
-      .then(([s, mod]) => {
-        stream = s
-        if (done) return s.getTracks().forEach((t) => t.stop())
-        const jsQR = mod.default
-        const v = video.current
-        v.srcObject = s
-        v.play().catch(() => {})
-        const tick = () => {
-          if (done) return
-          if (v.readyState >= 2 && v.videoWidth) {
-            // a centred square, scaled down — fast enough on any phone
-            const side = Math.min(v.videoWidth, v.videoHeight)
-            const size = Math.min(side, 640)
-            canvas.width = canvas.height = size
-            ctx.drawImage(v, (v.videoWidth - side) / 2, (v.videoHeight - side) / 2, side, side, 0, 0, size, size)
-            const code = jsQR(ctx.getImageData(0, 0, size, size).data, size, size, { inversionAttempts: 'dontInvert' })
-            const no = code && accountFromQr(code.data)
-            if (no) {
-              done = true
-              navigator.vibrate?.(60)
-              onFound(no)
-              return
-            }
-            if (code) setErr('That QR isn’t a Smart Marketing account.')
-          }
-          timer = setTimeout(tick, 200)
-        }
-        tick()
-      })
-      .catch(() => setErr('Can’t open the camera — allow camera access, or type the account ID.'))
-    return () => {
-      done = true
-      clearTimeout(timer)
-      stream?.getTracks().forEach((t) => t.stop())
-    }
-  }, [onFound])
-  return (
-    <div className="space-y-3">
-      <div className="relative mx-auto aspect-square w-full max-w-[300px] overflow-hidden rounded-2xl bg-night-900">
-        <video ref={video} playsInline muted className="h-full w-full object-cover" />
-        {/* the aiming frame */}
-        <div
-          className="pointer-events-none absolute inset-[14%] rounded-2xl"
-          style={{ border: '3px solid rgba(255, 255, 255, 0.95)', boxShadow: '0 0 0 999px rgba(0, 0, 0, 0.35)' }}
-        />
-      </div>
-      <p className={`text-center text-[12px] ${err ? 'text-red-600' : 'text-ink-500'}`}>{err || 'Point the camera at your friend’s Receive QR.'}</p>
-      <button type="button" onClick={onClose} className="btn-outline h-10 w-full rounded-xl">
-        Type the account ID instead
-      </button>
-    </div>
-  )
-}
-
-/**
- * Billing → Receive: this account's QR code, like a bank's "receive money" QR.
- * It holds a link (…/?transfer=<account ID>) — any phone camera opens it, and
- * the app starts a transfer to this account with the number filled in.
- */
-/**
- * A small pop-up for Billing's money moments (Transfer, Receive, PIN), like a
- * bank app: a phone-width card in the middle of the screen (phones too).
- * Plain dim backdrop, solid panel, above Settings.
- */
-function Sheet({ id, onClose, children }) {
-  useEffect(() => {
-    const onKey = (e) => e.key === 'Escape' && onClose()
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
-  return createPortal(
-    <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-night-950/55" onClick={onClose} />
-      <section
-        id={id}
-        role="dialog"
-        aria-modal="true"
-        className="cf-pop-in relative max-h-[calc(90vh/var(--z,1))] w-full max-w-[420px] overflow-y-auto overscroll-contain rounded-3xl bg-white p-5 shadow-2xl"
-      >
-        {children}
-      </section>
-    </div>,
-    document.body,
-  )
-}
-
-function ReceivePanel({ accountNo, onClose }) {
-  const { user } = useAuth()
-  const [svg, setSvg] = useState('')
-  const [copied, setCopied] = useState(false)
-  const link = `${window.location.origin}/?transfer=${accountNo}`
-  useEffect(() => {
-    let live = true
-    import('qrcode')
-      .then((QR) => QR.toString(link, { type: 'svg', margin: 1, errorCorrectionLevel: 'M', color: { dark: '#111827', light: '#ffffff' } }))
-      .then((s) => live && setSvg(s))
-      .catch(() => {})
-    return () => {
-      live = false
-    }
-  }, [link])
-  const share = () => {
-    if (navigator.share) navigator.share({ title: 'Send me credits', text: `My Smart Marketing account ID: ${fmtAccount(accountNo)}`, url: link }).catch(() => {})
-    else {
-      navigator.clipboard?.writeText(link)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    }
-  }
-  return (
-    <Sheet onClose={onClose}>
-      <div className="flex items-center justify-between">
-        <h3 className="flex items-center gap-2 text-[15px] font-bold text-ink-900">
-          <FiGrid size={15} className="text-brand" /> Receive credits
-        </h3>
-        <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-ink-400 hover:bg-ink-100 hover:text-ink-800" aria-label="Close">
-          <FiX size={15} />
-        </button>
-      </div>
-      <div className="mt-4 flex flex-col items-center text-center">
-        {/* the code stays black on white in dark mode too, so every camera reads it */}
-        <div className="rounded-2xl p-3 shadow-sm ring-1 ring-ink-200" style={{ background: 'rgb(255, 255, 255)' }}>
-          {svg ? (
-            <div className="h-52 w-52 [&>svg]:h-full [&>svg]:w-full" dangerouslySetInnerHTML={{ __html: svg }} />
-          ) : (
-            <div className="h-52 w-52 rounded-xl skeleton" />
-          )}
-        </div>
-        <div className="mt-3 text-[13.5px] font-semibold text-ink-900">{user?.workspace_name || user?.name}</div>
-        <div className="text-[18px] font-bold tabular-nums tracking-wide text-ink-900">{fmtAccount(accountNo)}</div>
-        <p className="mt-1 max-w-xs text-[12px] text-ink-500">Scan with a phone camera to send credits to this account.</p>
-        <button type="button" onClick={share} className="btn-outline mt-3 h-10 rounded-xl px-5">
-          {copied ? <FiCheck size={14} /> : navigator.share ? <FiSend size={14} /> : <FiLink size={14} />}
-          {copied ? 'Link copied' : navigator.share ? 'Share' : 'Copy link'}
-        </button>
-      </div>
-    </Sheet>
-  )
-}
-
-/**
- * Billing → Transfer credits, like a bank transfer: the other account's ID →
- * whose it is (name, owner, plan) → how many credits (+ a note) → review →
- * receipt. Calls GET /billing/account/{id} and POST /billing/transfer.
- */
-/**
- * A 6-digit PIN entry: six boxes (dots as you type) over one hidden number
- * input, so the phone shows its number pad and paste works.
- */
-/** A "Credits sent" line → what to send again: { to, credits, note } (note: "To X · 630 772 4735 — thanks"). */
-function sentAgain(e) {
-  const m = /^To .* · (\d{3} \d{3} \d{4})(?: — ([\s\S]*))?$/.exec(e.note || '')
-  if (!m) return null
-  return { to: m[1].replace(/ /g, ''), credits: Math.round(Math.abs(e.credits || 0)), note: m[2] || '' }
-}
-
-function PinField({ value, onChange, autoFocus = false, onDone }) {
-  const ref = useRef(null)
-  return (
-    <div className="relative mx-auto w-fit" onClick={() => ref.current?.focus()}>
-      <input
-        ref={ref}
-        autoFocus={autoFocus}
-        type="password"
-        inputMode="numeric"
-        autoComplete="off"
-        maxLength={6}
-        value={value}
-        onChange={(e) => {
-          const v = e.target.value.replace(/\D/g, '').slice(0, 6)
-          onChange(v)
-          if (v.length === 6) onDone?.(v)
-        }}
-        className="absolute inset-0 h-full w-full opacity-0"
-        aria-label="6-digit PIN"
-      />
-      <div className="pointer-events-none flex gap-2">
-        {Array.from({ length: 6 }, (_, i) => (
-          <span
-            key={i}
-            className={`grid h-12 w-10 place-items-center rounded-xl border-2 text-[20px] ${
-              i === value.length ? 'border-brand' : value.length > i ? 'border-ink-300' : 'border-ink-200'
-            } bg-white`}
-          >
-            {value.length > i ? <span className="h-2.5 w-2.5 rounded-full bg-ink-900" /> : null}
-          </span>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-/**
- * Set or change the transfer PIN: new PIN twice, confirmed with the account
- * password (accounts without one — Google sign-in — confirm with the old PIN).
- */
-function PinSetup({ info, onDone, onCancel }) {
-  const [pin, setPin] = useState('')
-  const [again, setAgain] = useState('')
-  const [password, setPassword] = useState('')
-  const [current, setCurrent] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState('')
-  const mismatch = again.length === 6 && pin !== again
-  const save = () => {
-    setBusy(true)
-    setErr('')
-    api
-      .post('/billing/pin', { pin, password, current_pin: current })
-      .then(onDone)
-      .catch((e) => setErr(e.message))
-      .finally(() => setBusy(false))
-  }
-  return (
-    <div className="mt-4 space-y-4">
-      <div className="flex items-start gap-3 rounded-2xl bg-brand-soft p-3 text-[12.5px] text-ink-700">
-        <FiLock size={16} className="mt-0.5 flex-none text-brand" />
-        <span>
-          {info?.set ? 'Choose a new 6-digit PIN.' : 'To keep your credits safe, set a 6-digit PIN.'} You’ll enter it every time you send credits.
-        </span>
-      </div>
-      <div className="space-y-1.5 text-center">
-        <div className="text-[12px] font-semibold text-ink-700">New PIN</div>
-        <PinField value={pin} onChange={setPin} autoFocus />
-      </div>
-      <div className="space-y-1.5 text-center">
-        <div className="text-[12px] font-semibold text-ink-700">Type it again</div>
-        <PinField value={again} onChange={setAgain} />
-        {mismatch && <p className="text-[12px] text-red-600">The two PINs don’t match.</p>}
-      </div>
-      {info?.needs_password ? (
-        <label className="block text-[12px] font-semibold text-ink-700">
-          Your account password
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="input mt-1.5" autoComplete="current-password" />
-        </label>
-      ) : info?.set ? (
-        <div className="space-y-1.5 text-center">
-          <div className="text-[12px] font-semibold text-ink-700">Current PIN</div>
-          <PinField value={current} onChange={setCurrent} />
-        </div>
-      ) : null}
-      {err && <p className="text-[12px] text-red-600">{err}</p>}
-      <div className="flex gap-2">
-        {onCancel && (
-          <button type="button" onClick={onCancel} className="btn-outline h-10 flex-1 rounded-xl">
-            Cancel
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={save}
-          disabled={busy || pin.length !== 6 || pin !== again || (info?.needs_password ? !password : info?.set && current.length !== 6)}
-          className="btn-primary h-10 flex-1 rounded-xl disabled:opacity-40"
-        >
-          {busy ? 'Saving…' : 'Save PIN'}
-        </button>
-      </div>
-    </div>
-  )
-}
-
-function TransferPanel({ available, initialNumber = '', initialCredits = 0, initialNote = '', onClose, onSent }) {
-  const [step, setStep] = useState('to') // setpin | to | amount | review | pin | sending | done
-  const [number, setNumber] = useState(initialNumber)
-  const [who, setWho] = useState(null)
-  const [amount, setAmount] = useState(initialCredits ? String(initialCredits) : '')
-  const [note, setNote] = useState(initialNote)
-  const [pinInfo, setPinInfo] = useState(null) // { set, needs_password }
-  const [pin, setPin] = useState('')
-  const [afterPin, setAfterPin] = useState('to') // where setting the PIN returns to
-  // no PIN yet → set it up first
-  useEffect(() => {
-    api
-      .get('/billing/pin')
-      .then((p) => {
-        setPinInfo(p)
-        if (!p.set) setStep('setpin')
-      })
-      .catch(() => {})
-  }, [])
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState('')
-  const [receipt, setReceipt] = useState(null)
-  const [scanning, setScanning] = useState(false)
-  const found = useCallback((no) => {
-    setNumber(no)
-    setScanning(false)
-  }, [])
-  const digits = number.replace(/\D/g, '')
-  const credits = parseInt(amount.replace(/\D/g, '') || '0', 10)
-  const have = Math.floor(available)
-
-  // the 10th digit typed → look the account up
-  useEffect(() => {
-    setWho(null)
-    setErr('')
-    if (digits.length !== 10) return
-    let live = true
-    setBusy(true)
-    api
-      .get(`/billing/account/${digits}`)
-      .then((w) => live && setWho(w))
-      .catch((e) => live && setErr(e.message))
-      .finally(() => live && setBusy(false))
-    return () => {
-      live = false
-    }
-  }, [digits])
-
-  // "Sending…" plays for at least a moment (a transfer that flashes by feels
-  // unreal), then the receipt pops up over everything
-  const send = (code = pin) => {
-    setBusy(true)
-    setErr('')
-    setStep('sending')
-    const minWait = new Promise((r) => setTimeout(r, 1400))
-    Promise.all([api.post('/billing/transfer', { to: digits, credits, note, pin: code }), minWait])
-      .then(([r]) => {
-        setReceipt(r)
-        setStep('done')
-        onSent()
-      })
-      .catch((e) => {
-        setErr(e.message)
-        setPin('')
-        // wrong / locked PIN → ask again; no PIN → set one; anything else → review
-        if (e.status === 428) {
-          setAfterPin('review')
-          setStep('setpin')
-        } else setStep(e.status === 403 || e.status === 423 ? 'pin' : 'review')
-      })
-      .finally(() => setBusy(false))
-  }
-
-  const amountErr = credits > have ? `You have ${have.toLocaleString('en-US')} credits.` : credits > 0 && credits < 10 ? 'Send at least 10 credits.' : ''
-  const Recipient = () =>
-    who ? (
-      <div className="flex items-center gap-3 rounded-2xl border border-ink-200 bg-canvas p-3">
-        <span className="grid h-10 w-10 flex-none place-items-center rounded-full bg-brand text-[13px] font-bold text-white">{who.initials}</span>
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-[13.5px] font-semibold text-ink-900">{who.name}</div>
-          <div className="truncate text-[11.5px] text-ink-500">
-            {who.owner ? `${who.owner} · ` : ''}
-            {who.plan_label} plan · {fmtAccount(who.account_no)}
-          </div>
-        </div>
-        <FiCheck className="flex-none text-emerald-600" size={16} />
-      </div>
-    ) : null
-
-  return (
-    <Sheet id="cf-transfer" onClose={onClose}>
-      <div className="flex items-center justify-between">
-        <h3 className="flex items-center gap-2 text-[15px] font-bold text-ink-900">
-          {step === 'setpin' ? <FiLock size={15} className="text-brand" /> : <FiSend size={15} className="text-brand" />}
-          {step === 'setpin' ? (pinInfo?.set ? 'Change transfer PIN' : 'Set up transfer PIN') : 'Transfer credits'}
-        </h3>
-        <div className="flex items-center gap-1">
-          {pinInfo?.set && (step === 'to' || step === 'amount') && (
-            <button
-              type="button"
-              onClick={() => {
-                setAfterPin(step)
-                setStep('setpin')
-              }}
-              className="rounded-lg px-2 py-1 text-[11.5px] font-semibold text-ink-500 hover:bg-ink-100 hover:text-ink-800"
-            >
-              Change PIN
-            </button>
-          )}
-          <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-ink-400 hover:bg-ink-100 hover:text-ink-800" aria-label="Close">
-            <FiX size={15} />
-          </button>
-        </div>
-      </div>
-
-      {step === 'setpin' && (
-        <PinSetup
-          info={pinInfo}
-          onDone={() => {
-            setPinInfo((p) => ({ ...p, set: true }))
-            setErr('')
-            setStep(afterPin)
-          }}
-          onCancel={pinInfo?.set ? () => setStep(afterPin) : onClose}
-        />
-      )}
-
-      {step === 'pin' && (
-        <div className="mt-4 space-y-4 text-center">
-          <div>
-            <div className="text-[14px] font-bold text-ink-900">Enter your transfer PIN</div>
-            <div className="text-[12px] text-ink-500">
-              to send {credits.toLocaleString('en-US')} credits to {who?.name}
-            </div>
-          </div>
-          <PinField value={pin} onChange={setPin} autoFocus onDone={(v) => send(v)} />
-          {err && <p className="text-[12px] text-red-600">{err}</p>}
-          <button type="button" onClick={() => setStep('review')} className="btn-outline h-10 w-full rounded-xl">
-            Back
-          </button>
-        </div>
-      )}
-
-      {step === 'to' && scanning && (
-        <div className="mt-4">
-          <QrScanner onFound={found} onClose={() => setScanning(false)} />
-        </div>
-      )}
-
-      {step === 'to' && !scanning && (
-        <div className="mt-4 space-y-3">
-          <button
-            type="button"
-            onClick={() => setScanning(true)}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-brand/50 bg-brand-soft py-3 text-[13px] font-semibold text-brand hover:border-brand"
-          >
-            <FiCamera size={15} /> Scan QR code
-          </button>
-          <div className="flex items-center gap-2 text-[11px] text-ink-400">
-            <span className="h-px flex-1 bg-ink-200" /> or type it <span className="h-px flex-1 bg-ink-200" />
-          </div>
-          <label className="block text-[12px] font-semibold text-ink-700">
-            Account ID
-            <input
-              autoFocus
-              inputMode="numeric"
-              value={fmtAccount(digits) || digits}
-              onChange={(e) => setNumber(e.target.value.replace(/\D/g, '').slice(0, 10))}
-              placeholder="000 000 0000"
-              className="input mt-1.5 text-[16px] font-semibold tabular-nums tracking-wider"
-            />
-          </label>
-          {busy && <div className="h-16 rounded-2xl skeleton" />}
-          <Recipient />
-          {err && <p className="text-[12px] text-red-600">{err}</p>}
-          <button type="button" disabled={!who} onClick={() => setStep('amount')} className="btn-primary h-10 w-full rounded-xl disabled:opacity-40">
-            Next
-          </button>
-        </div>
-      )}
-
-      {step === 'amount' && (
-        <div className="mt-4 space-y-3">
-          <Recipient />
-          <label className="block text-[12px] font-semibold text-ink-700">
-            Amount
-            <div className="relative mt-1.5">
-              <input
-                autoFocus
-                inputMode="numeric"
-                value={credits ? credits.toLocaleString('en-US') : ''}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="0"
-                className="input pr-20 text-[22px] font-bold tabular-nums"
-              />
-              <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[12px] text-ink-400">credits</span>
-            </div>
-          </label>
-          <div className="flex flex-wrap items-center gap-1.5">
-            {[100, 500, 1000].filter((n) => n <= have).map((n) => (
-              <button key={n} type="button" onClick={() => setAmount(String(n))} className="rounded-full border border-ink-200 px-3 py-1 text-[12px] font-semibold text-ink-700 hover:border-brand hover:text-brand">
-                {n.toLocaleString('en-US')}
-              </button>
-            ))}
-            <span className="ml-auto text-[11.5px] text-ink-500">Available {have.toLocaleString('en-US')}</span>
-          </div>
-          {amountErr && <p className="text-[12px] text-red-600">{amountErr}</p>}
-          <label className="block text-[12px] font-semibold text-ink-700">
-            Note <span className="font-normal text-ink-400">(optional)</span>
-            <input value={note} onChange={(e) => setNote(e.target.value.slice(0, 120))} placeholder="What it's for" className="input mt-1.5" />
-          </label>
-          <div className="flex gap-2">
-            <button type="button" onClick={() => setStep('to')} className="btn-outline h-10 flex-1 rounded-xl">
-              Back
-            </button>
-            <button type="button" disabled={credits < 10 || !!amountErr} onClick={() => setStep('review')} className="btn-primary h-10 flex-1 rounded-xl disabled:opacity-40">
-              Review
-            </button>
-          </div>
-        </div>
-      )}
-
-      {step === 'review' && (
-        <div className="mt-4 space-y-3">
-          <div className="rounded-2xl bg-canvas p-4 text-center">
-            <div className="text-[12px] text-ink-500">You're sending</div>
-            <div className="mt-1 flex items-baseline justify-center gap-2">
-              <span className="text-[30px] font-bold tabular-nums text-red-600">−{credits.toLocaleString('en-US')}</span>
-              <span className="text-[17px] font-semibold text-ink-600">credits</span>
-            </div>
-          </div>
-          <Recipient />
-          <dl className="space-y-1.5 text-[12.5px]">
-            {[
-              ['Balance after', `${(have - credits).toLocaleString('en-US')} credits`],
-              note && ['Note', note],
-            ]
-              .filter(Boolean)
-              .map(([k, v]) => (
-                <div key={k} className="flex justify-between gap-3">
-                  <dt className="text-ink-500">{k}</dt>
-                  <dd className="truncate font-semibold text-ink-900">{v}</dd>
-                </div>
-              ))}
-          </dl>
-          <p className="text-[11.5px] text-ink-500">Transfers can’t be undone. Credits received are used like your own and end with the month.</p>
-          {err && <p className="text-[12px] text-red-600">{err}</p>}
-          <div className="flex gap-2">
-            <button type="button" onClick={() => setStep('amount')} className="btn-outline h-10 flex-1 rounded-xl">
-              Back
-            </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => {
-                setErr('')
-                setPin('')
-                setStep('pin')
-              }}
-              className="btn-primary h-10 flex-1 rounded-xl disabled:opacity-50"
-            >
-              <FiLock size={13} /> Send {credits.toLocaleString('en-US')} credits
-            </button>
-          </div>
-        </div>
-      )}
-
-      {step === 'sending' && <SendingAnimation credits={credits} />}
-
-      {step === 'done' && receipt && (
-        <CreditReceipt
-          kind="sent"
-          credits={receipt.sent}
-          name={receipt.to?.name}
-          owner={receipt.to?.owner}
-          account={receipt.to?.account_no}
-          note={receipt.note}
-          at={receipt.at}
-          refNo={receipt.ref}
-          onClose={onClose}
-        />
-      )}
-    </Sheet>
-  )
-}
-
-// White on the accent-coloured balance card — fixed, not the theme's "white"
-// (bg-white turns dark in dark mode).
+// The plan and this month's videos / images (app/usage.py — GET /usage): what's
+// left, the longest video, when it refills, Upgrade / Get more videos (the /upgrade
+// page — KHQR, the invoices). Customers see videos and images, never credits.
 const ON_CARD = (alpha) => ({ background: `rgba(255, 255, 255, ${alpha})` })
 
-/** The activity rows as days: [{ day: 'Today', date: '21 Oct', rows }], newest first. */
-function groupByDay(rows) {
-  const out = []
-  for (const e of rows) {
-    const day = dayLabel(e.created_at)
-    if (!out.length || out[out.length - 1].day !== day) {
-      const d = new Date(e.created_at)
-      out.push({ day, date: day === 'Today' || day === 'Yesterday' ? d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : '', rows: [] })
-    }
-    out[out.length - 1].rows.push(e)
-  }
-  return out
-}
-
 function BillingTab() {
-  const { user } = useAuth()
-  // a scanned Receive QR (/?transfer=…, see Sidebar) opens Transfer filled in
-  const [scannedTo] = useState(() => {
-    try {
-      const to = sessionStorage.getItem('cf_transfer_to') || ''
-      sessionStorage.removeItem('cf_transfer_to')
-      return to
-    } catch {
-      return ''
-    }
-  })
-  const [transferOpen, setTransferOpen] = useState(!!scannedTo)
-  const [receiveOpen, setReceiveOpen] = useState(false)
-  // "Send again" from a Credits sent line: { to, credits, note } fills Transfer in
-  const [repeat, setRepeat] = useState(null)
-  const repeatTransfer = (r) => {
-    setRepeat({ ...r, key: Date.now() })
-    setReceiveOpen(false)
-    setTransferOpen(true)
-  }
-  const [copied, setCopied] = useState(false)
-  const navigate = useNavigate() // Upgrade / Renew → the /upgrade page (KHQR)
-  const [data, setData] = useState(null)
+  const navigate = useNavigate()
+  const { usage: u, reload } = useUsage()
+  const [plan, setPlan] = useState(null) // GET /billing: the plan and until when it's paid
   const [error, setError] = useState('')
-
-  const load = () =>
+  useEffect(() => {
+    reload()
     api
       .get('/billing')
-      .then((d) => {
-        setData(d)
-        setRange(null) // a fresh load is page 1, unfiltered
-        setFlow('')
-        setError('')
-      })
+      .then(setPlan)
       .catch((e) => setError(e.message))
-  useEffect(() => {
-    load()
-  }, [])
-
-  // Recent activity, a page at a time (GET /billing/activity), filtered by days
-  // (range: { from, to } "YYYY-MM-DD" or null) and credits in / out (flow).
-  const [pageBusy, setPageBusy] = useState(false)
-  const [range, setRange] = useState(null)
-  const [flow, setFlow] = useState('')
-  const goPage = (page, r = range, f = flow) => {
-    setPageBusy(true)
-    const q = new URLSearchParams({ page: String(page) })
-    if (r) {
-      q.set('start', r.from)
-      if (r.to < '9999') q.set('end', r.to)
-    }
-    if (f) q.set('flow', f)
-    api
-      .get(`/billing/activity?${q}`)
-      .then((p) => setData((d) => ({ ...d, ...p })))
-      .catch(() => {})
-      .finally(() => setPageBusy(false))
-  }
-  const pickRange = (r) => {
-    setRange(r)
-    goPage(1, r, flow)
-  }
-  const pickFlow = (f) => {
-    setFlow(f)
-    goPage(1, range, f)
-  }
-  const canManage = user?.role === 'owner' || user?.role === 'admin'
-  const clearOld = () => {
-    if (!window.confirm(`Hide credit activity older than ${Math.round((data.recent_keep_days || 90) / 30)} months? Your balance doesn’t change.`)) return
-    setPageBusy(true)
-    api
-      .post('/billing/activity/clear-old')
-      .then((p) => {
-        setRange(null)
-        setFlow('')
-        setData((d) => ({ ...d, ...p }))
-      })
-      .catch((e) => setError(e.message))
-      .finally(() => setPageBusy(false))
+  }, [reload])
+  // the plans have their own page (/upgrade): Settings closes, the page opens
+  const toPlans = (hash = '') => {
+    window.dispatchEvent(new Event('dispatch:close-settings'))
+    navigate(`/upgrade${hash}`)
   }
 
-  if (!data) {
+  if (!u) {
     return error ? (
-      <div className="rounded-xl bg-red-50 px-4 py-3 text-[12.5px] text-red-700">Couldn’t load billing — {error}</div>
+      <div className="rounded-xl bg-red-50 px-4 py-3 text-[12.5px] text-red-700">Couldn’t load your plan — {error}</div>
     ) : (
       <div className="space-y-3">
         <div className="h-16 rounded-xl skeleton" />
@@ -1892,72 +1144,47 @@ function BillingTab() {
     )
   }
 
-  const credit = data.monthly_credit || 0
-  const left = Math.max(0, data.available)
-  const usedPct = credit > 0 ? Math.round(((credit - left) / credit) * 100) : 0
-  const tone = left <= 0 ? 'danger' : usedPct >= 80 ? 'warn' : 'brand'
-  const reset = new Date(data.resets_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-  const byKind = Object.fromEntries(data.breakdown.map((b) => [b.kind, b]))
-  const totalSpent = data.breakdown.reduce((sum, b) => sum + Math.max(0, b.amount), 0)
+  const v = u.videos
+  const usedPct = v.limit ? Math.min(100, Math.round((v.used / v.limit) * 100)) : 0
+  const low = v.limit > 0 && v.left <= Math.max(1, Math.round(v.limit * 0.2))
+  const refill = new Date(u.refills_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  const paidUntil = plan?.plan_paid_until
 
   return (
     <div className="space-y-7">
-      {/* this month's credits wait to be claimed */}
-      {data.claim_available && (
-        <section className="flex flex-wrap items-center gap-3 rounded-2xl border border-brand/30 bg-brand-soft p-4">
-          <CreditCoin size={34} />
-          <div className="min-w-0 flex-1">
-            <div className="text-[14px] font-bold text-ink-900">Your monthly credits are ready</div>
-            <div className="text-[12.5px] text-ink-600">{(data.claim_credits ?? data.monthly_credits ?? 0).toLocaleString('en-US')} credits for this month — claim them to use AI.</div>
-          </div>
-          <button
-            type="button"
-            onClick={() => claimCredits().then(load).catch((e) => setError(e.message))}
-            className="rounded-xl bg-brand px-4 py-2.5 text-[13px] font-bold text-white hover:bg-brand-dark"
-          >
-            Claim {(data.claim_credits ?? data.monthly_credits ?? 0).toLocaleString('en-US')} credits
-          </button>
-        </section>
-      )}
-
       {/* the plan: until when it's paid, and Upgrade / Renew (the /upgrade page — KHQR) */}
       <section className="flex flex-wrap items-center gap-3 rounded-2xl border border-ink-200 bg-white p-4">
         <div className="min-w-0 flex-1">
-          <div className="text-[13.5px] font-bold text-ink-900">{data.plan_label} plan</div>
+          <div className="text-[13.5px] font-bold text-ink-900">{u.plan_label} plan</div>
           <div className="text-[12px] text-ink-500">
-            {data.plan_paid_until
-              ? `Paid until ${new Date(data.plan_paid_until).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })} — then back to Free unless you renew`
-              : `${(data.monthly_credits ?? 0).toLocaleString('en-US')} AI credits a month`}
+            {paidUntil
+              ? `Paid until ${new Date(paidUntil).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })} — then back to Free unless you renew`
+              : `${v.limit - v.extra} videos and ${u.images.limit - u.images.extra} images a month · videos up to ${lengthText(u.longest_seconds)}`}
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            // the plans have their own page (/upgrade): Settings closes, the page opens
-            window.dispatchEvent(new Event('dispatch:close-settings'))
-            navigate('/upgrade')
-          }}
-          className="btn-primary h-9 px-4 text-[12.5px]"
-        >
-          {data.plan_paid_until ? 'Renew or change' : 'Upgrade'}
+        <button type="button" onClick={() => toPlans()} className="btn-primary h-9 px-4 text-[12.5px]">
+          {paidUntil ? 'Renew or change' : 'Upgrade'}
         </button>
       </section>
 
-      {/* the balance, like a bank card: one big number, the rest small */}
+      {/* this month, like a bank card: the videos left big, the rest small */}
       <section className="relative overflow-hidden rounded-3xl bg-brand p-5 text-white shadow-sm">
         <span className="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full" style={ON_CARD(0.1)} />
         <span className="pointer-events-none absolute -bottom-16 right-16 h-36 w-36 rounded-full" style={ON_CARD(0.1)} />
         <div className="relative flex items-center justify-between gap-3">
-          <span className="text-[12.5px] font-medium text-white/80">Available credits</span>
-          <span className="rounded-full px-2.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wide" style={ON_CARD(0.2)}>{data.plan_label} plan</span>
-        </div>
-        <div className="relative mt-1 flex items-center gap-2">
-          <span className="grid place-items-center rounded-full p-0.5" style={ON_CARD(1)}>
-            <CreditCoin size={26} sparkle sparkleClass="text-white" />
+          <span className="text-[12.5px] font-medium text-white/80">Videos left this month</span>
+          <span className="rounded-full px-2.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wide" style={ON_CARD(0.2)}>
+            {u.plan_label} plan
           </span>
-          <span className="text-[34px] font-bold leading-none tabular-nums tracking-tight">{fmtCredits(left, false)}</span>
-          {tone !== 'brand' && (
-            <span className="rounded-full px-2 py-0.5 text-[10.5px] font-bold text-red-600" style={ON_CARD(1)}>{left <= 0 ? 'Empty' : 'Low'}</span>
+        </div>
+        <div className="relative mt-1 flex items-end gap-2">
+          <FiVideo size={26} className="mb-1 opacity-90" />
+          <span className="text-[34px] font-bold leading-none tabular-nums tracking-tight">{v.left}</span>
+          <span className="pb-0.5 text-[15px] font-semibold text-white/70">of {v.limit}</span>
+          {low && (
+            <span className="mb-1 rounded-full px-2 py-0.5 text-[10.5px] font-bold text-red-600" style={ON_CARD(1)}>
+              {v.left <= 0 ? 'Used up' : 'Low'}
+            </span>
           )}
         </div>
         <div className="relative mt-4 h-1.5 overflow-hidden rounded-full" style={ON_CARD(0.25)}>
@@ -1965,279 +1192,51 @@ function BillingTab() {
         </div>
         <div className="relative mt-3 grid grid-cols-3 gap-2 text-[11px] text-white/75">
           <div>
-            Monthly
-            <div className="text-[14px] font-bold tabular-nums text-white">{fmtCredits(credit, false)}</div>
+            Images left
+            <div className="text-[14px] font-bold tabular-nums text-white">
+              {u.images.left} <span className="text-[11px] font-semibold text-white/70">of {u.images.limit}</span>
+            </div>
           </div>
           <div>
-            Used
-            <div className="text-[14px] font-bold tabular-nums text-white">{fmtCredits(data.spent, false)}</div>
+            Longest video
+            <div className="text-[14px] font-bold text-white">{lengthText(u.longest_seconds)}</div>
           </div>
           <div className="text-right">
-            Next claim
-            <div className="text-[14px] font-bold text-white">{reset}</div>
+            Refills on
+            <div className="text-[14px] font-bold text-white">{refill}</div>
           </div>
         </div>
-        {/* the account's number (to receive credits) and Transfer */}
-        <div className="relative mt-4 flex flex-wrap items-center gap-x-2 gap-y-3 border-t pt-3" style={{ borderColor: 'rgba(255, 255, 255, 0.2)' }}>
-          <div className="flex-none whitespace-nowrap text-[11px] text-white/75">
-            Account ID
-            <button
-              type="button"
-              onClick={() => {
-                navigator.clipboard?.writeText(data.account_no || '')
-                setCopied(true)
-                setTimeout(() => setCopied(false), 1500)
-              }}
-              className="flex items-center gap-1.5 text-[14px] font-bold tabular-nums tracking-wide text-white"
-              title="Copy"
-            >
-              {fmtAccount(data.account_no)}
-              {copied ? <FiCheck size={12} /> : <FiCopy size={12} className="opacity-70" />}
-            </button>
+        {(v.extra > 0 || u.images.extra > 0) && (
+          <div className="relative mt-3 text-[11.5px] text-white/80">
+            Includes {[v.extra && `${v.extra} extra video${v.extra === 1 ? '' : 's'}`, u.images.extra && `${u.images.extra} extra image${u.images.extra === 1 ? '' : 's'}`].filter(Boolean).join(' and ')} you added this month.
           </div>
-          <div className="ml-auto flex gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              setReceiveOpen((v) => !v)
-              setTransferOpen(false)
-            }}
-            className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[12.5px] font-bold text-white ring-1 ring-inset ring-white/40 hover:opacity-90"
-            style={ON_CARD(0.18)}
-            title="Your QR code — scan it to send credits here"
-            aria-label="Receive credits — show your QR code"
-          >
-            <FiGrid size={13} /> Receive
+        )}
+      </section>
+
+      {/* how a video counts, and more */}
+      <section className="rounded-2xl border border-ink-200 bg-white p-4">
+        <h3 className="text-[13px] font-semibold text-ink-900">How videos count</h3>
+        <ul className="mt-2 space-y-1.5 text-[12.5px] text-ink-600">
+          <li className="flex gap-2">
+            <FiCheck size={14} className="mt-0.5 flex-none text-brand" strokeWidth={3} />A video up to 1 minute is 1 video; up to 3 minutes, 2; longer, 1 for every 3 minutes.
+          </li>
+          <li className="flex gap-2">
+            <FiCheck size={14} className="mt-0.5 flex-none text-brand" strokeWidth={3} />
+            An AI-filmed clip counts as 3. Editing, re-sizing and exporting a video you made is free.
+          </li>
+          <li className="flex gap-2">
+            <FiCheck size={14} className="mt-0.5 flex-none text-brand" strokeWidth={3} />A video or image that fails doesn’t count. Posting and scheduling are always free.
+          </li>
+        </ul>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button type="button" onClick={() => toPlans('#top-up')} className="btn-ghost h-9 px-4 text-[12.5px]">
+            <FiVideo size={14} /> Get more videos
           </button>
-          {canManage && (
-            <button
-              type="button"
-              onClick={() => {
-                setTransferOpen(true)
-                setReceiveOpen(false)
-              }}
-              className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[12.5px] font-bold text-white ring-1 ring-inset ring-white/40 hover:opacity-90"
-              style={ON_CARD(0.18)}
-            >
-              <FiSend size={13} /> Transfer
-            </button>
-          )}
-          </div>
+          <button type="button" onClick={() => toPlans()} className="btn-ghost h-9 px-4 text-[12.5px]">
+            <FiCreditCard size={14} /> Payments &amp; invoices
+          </button>
         </div>
       </section>
-      {data.pending > 0 && (
-        <p className="-mt-5 text-[12px] text-ink-500">{fmtCredits(data.pending)} are held for renders in progress.</p>
-      )}
-      {transferOpen && (
-        <TransferPanel
-          key={repeat?.key || 'new'}
-          available={data.available_credits ?? 0}
-          initialNumber={repeat?.to || scannedTo}
-          initialCredits={repeat?.credits || 0}
-          initialNote={repeat?.note || ''}
-          onClose={() => {
-            setTransferOpen(false)
-            setRepeat(null)
-          }}
-          onSent={load}
-        />
-      )}
-      {receiveOpen && <ReceivePanel accountNo={data.account_no} onClose={() => setReceiveOpen(false)} />}
-
-      {/* by type — three small cards */}
-      <section>
-        <h3 className="text-[15px] font-bold text-ink-900">Used this month</h3>
-        <div className="mt-2 grid grid-cols-3 gap-2">
-          {KIND_ORDER.map(({ kind, label }) => {
-            const b = byKind[kind]
-            const used = b ? Math.max(0, b.amount) : 0
-            const share = totalSpent > 0 ? Math.round((used / totalSpent) * 100) : 0
-            const { icon: Icon, tone: iconTone } = ACTIVITY_ICON[kind]
-            return (
-              <div key={kind} className="rounded-2xl border border-ink-200 bg-white p-3">
-                <div className="flex items-center justify-between">
-                  <span className={`grid h-8 w-8 place-items-center rounded-full ${iconTone}`}>
-                    <Icon size={14} />
-                  </span>
-                  <span className="text-[11px] font-semibold tabular-nums text-ink-400">{share}%</span>
-                </div>
-                <div className="mt-2 text-[18px] font-bold leading-tight tabular-nums text-ink-900">{fmtCredits(used, false)}</div>
-                <div className="text-[11.5px] text-ink-500">{label}</div>
-              </div>
-            )
-          })}
-        </div>
-      </section>
-
-      {/* recent spends */}
-      <section>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="flex items-center gap-1 text-[15px] font-bold text-ink-900">
-            Recent activity
-            <button type="button" onClick={load} className="rounded p-1 text-ink-400 hover:text-ink-900" title="Refresh" aria-label="Refresh">
-              <FiRefreshCw size={13} />
-            </button>
-          </h3>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex rounded-xl bg-ink-100 p-0.5 text-[12px] font-semibold">
-              {[
-                ['', 'All'],
-                ['in', 'In'],
-                ['out', 'Out'],
-              ].map(([f, label]) => (
-                <button
-                  key={f}
-                  type="button"
-                  onClick={() => pickFlow(f)}
-                  className={`rounded-lg px-3 py-1.5 ${flow === f ? 'bg-white text-ink-900 shadow-sm dark:bg-ink-200 dark:ring-1 dark:ring-inset dark:ring-ink-300' : 'text-ink-500 hover:text-ink-800'}`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <DateRangePicker value={range} onChange={pickRange} align="right" unit={null} />
-          </div>
-        </div>
-
-        {/* a long list → suggest hiding what's past 3 months */}
-        {data.recent_older > 0 && canManage && (
-          <div className="mt-3 flex flex-wrap items-center gap-3 rounded-2xl border border-ink-200 bg-canvas px-4 py-3">
-            <span className="grid h-8 w-8 flex-none place-items-center rounded-full bg-white text-ink-500">
-              <FiArchive size={14} />
-            </span>
-            <div className="min-w-0 flex-1 text-[12.5px] text-ink-600">
-              <span className="font-semibold text-ink-900">{data.recent_older.toLocaleString('en-US')} records are older than 3 months.</span>{' '}
-              Clear them to keep this list short — your balance stays the same.
-            </div>
-            <button
-              type="button"
-              onClick={clearOld}
-              disabled={pageBusy}
-              className="rounded-xl border border-ink-200 bg-white px-3 py-2 text-[12.5px] font-semibold text-ink-800 hover:bg-ink-50 disabled:opacity-50"
-            >
-              Clear older history
-            </button>
-          </div>
-        )}
-
-        {data.recent.length === 0 ? (
-          <p className="mt-3 rounded-2xl border border-dashed border-ink-200 px-4 py-6 text-center text-[12.5px] text-ink-500">
-            {range || flow ? 'Nothing in these dates.' : 'No AI used yet this month.'}
-          </p>
-        ) : (
-          // like a bank statement: a card per day (its net on the right), money in
-          // green "+", money out red "−", the amount big with "credits" under it
-          <div className="mt-3 space-y-4">
-            {groupByDay(data.recent).map(({ day, date, rows }) => {
-              const net = rows.reduce((sum, e) => sum - e.amount, 0) // e.amount: + spent, − added
-              return (
-                <div key={day} className="overflow-hidden rounded-2xl border border-ink-200 bg-white">
-                  <div className="flex items-center justify-between bg-canvas px-4 py-2.5">
-                    <span className="text-[12px] font-semibold text-ink-700">
-                      {day}
-                      {date && <span className="font-normal text-ink-400"> · {date}</span>}
-                    </span>
-                    <span className={`text-[12px] font-semibold tabular-nums ${net >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                      {net >= 0 ? '+' : '−'}
-                      {fmtCredits(Math.abs(net))}
-                    </span>
-                  </div>
-                  <div className="divide-y divide-ink-100">
-                    {rows.map((e) => {
-                      const added = e.amount < 0
-                      const meta = [
-                        new Date(e.created_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }),
-                        shortModel(e.model),
-                        e.kind === 'video' ? '' : usageDetail(e),
-                        e.user,
-                      ]
-                        .filter(Boolean)
-                        .join(' · ')
-                      const snippet = activitySnippet(e)
-                      const { icon: Icon, tone } = e.kind?.startsWith('transfer')
-                        ? ACTIVITY_ICON[e.kind]
-                        : added
-                          ? ACTIVITY_ICON.added
-                          : ACTIVITY_ICON[e.kind] || ACTIVITY_ICON.text
-                      // credits sent → tap the line to send the same again
-                      const again = canManage && e.kind === 'transfer_out' ? sentAgain(e) : null
-                      return (
-                        <div
-                          key={e.id}
-                          className={`flex items-center gap-3 px-4 py-3 ${again ? 'cursor-pointer transition-colors hover:bg-canvas' : ''}`}
-                          {...(again && {
-                            role: 'button',
-                            tabIndex: 0,
-                            title: 'Send again',
-                            onClick: () => repeatTransfer(again),
-                            onKeyDown: (ev) => ev.key === 'Enter' && repeatTransfer(again),
-                          })}
-                        >
-                          <span className={`relative grid h-10 w-10 flex-none place-items-center rounded-full ${tone}`}>
-                            <Icon size={16} />
-                            {/* the direction, like a bank app: in ↙ green, out ↗ red */}
-                            <span className={`absolute -bottom-0.5 -right-0.5 grid h-4 w-4 place-items-center rounded-full ring-2 ring-white ${added ? 'bg-emerald-500' : 'bg-red-500'} text-white`}>
-                              {added ? <FiArrowDownLeft size={10} strokeWidth={3} /> : <FiArrowUpRight size={10} strokeWidth={3} />}
-                            </span>
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <div className="truncate text-[13.5px] font-semibold text-ink-900">{activityTitle(e)}</div>
-                            {snippet && <div className="truncate text-[12px] text-ink-500">{snippet}</div>}
-                            <div className="truncate text-[11px] text-ink-400">{meta}</div>
-                          </div>
-                          <div className="flex-none text-right">
-                            <div className={`text-[15px] font-bold tabular-nums ${added ? 'text-emerald-600' : 'text-red-600'}`}>
-                              {added ? '+' : '−'}
-                              {fmtCredits(Math.abs(e.amount), false)}
-                            </div>
-                            {again ? (
-                              <div className="flex items-center justify-end gap-1 text-[10.5px] font-semibold text-brand">
-                                <FiRefreshCw size={10} /> Send again
-                              </div>
-                            ) : (
-                              <div className="text-[10.5px] text-ink-400">credits</div>
-                            )}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
-        {data.recent_pages > 1 && (
-          <div className={`mt-3 flex items-center justify-between gap-3 ${pageBusy ? 'opacity-60' : ''}`}>
-            <span className="text-[11.5px] text-ink-400">
-              Showing {(data.recent_page - 1) * data.recent_per_page + 1}–
-              {Math.min(data.recent_page * data.recent_per_page, data.recent_total)} of {data.recent_total}
-            </span>
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => goPage(data.recent_page - 1)}
-                disabled={pageBusy || data.recent_page <= 1}
-                className="h-8 rounded-lg border border-ink-200 px-3 text-[12px] font-medium text-ink-700 hover:bg-ink-50 disabled:opacity-40"
-              >
-                ‹ Previous
-              </button>
-              <span className="px-1.5 text-[12px] tabular-nums text-ink-500">
-                Page {data.recent_page} of {data.recent_pages}
-              </span>
-              <button
-                type="button"
-                onClick={() => goPage(data.recent_page + 1)}
-                disabled={pageBusy || data.recent_page >= data.recent_pages}
-                className="h-8 rounded-lg border border-ink-200 px-3 text-[12px] font-medium text-ink-700 hover:bg-ink-50 disabled:opacity-40"
-              >
-                Next ›
-              </button>
-            </div>
-          </div>
-        )}
-      </section>
-
     </div>
   )
 }

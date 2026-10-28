@@ -38,6 +38,7 @@ from app.activity import router as activity_router
 from app.command import router as command_router
 from app.admin import router as admin_router
 from app.api_keys import router as api_keys_router
+from app.usage import router as usage_router
 from app.mcp_server import router as mcp_router
 from app.leads import intake_router as leads_intake_router
 from app.leads import router as leads_router
@@ -144,6 +145,7 @@ for resource in REGISTRY:
 api.include_router(auth_router)
 api.include_router(google_login_router)  # public: "Continue with Google" on the login page
 api.include_router(billing.router, dependencies=authed)
+api.include_router(usage_router, dependencies=authed)  # the plan's videos / images left (app/usage.py)
 api.include_router(payments_router, dependencies=authed)  # plans paid by KHQR (Bakong)
 api.include_router(sessions.router, dependencies=authed)
 api.include_router(ai_router, dependencies=authed)

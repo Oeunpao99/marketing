@@ -1,70 +1,49 @@
 import { useEffect, useRef, useState } from "react";
-import { FiChevronRight, FiCreditCard, FiGift, FiLogOut, FiSettings, FiUserPlus } from "react-icons/fi";
+import { FiChevronRight, FiCreditCard, FiFilm, FiImage, FiLogOut, FiPlusCircle, FiSettings, FiUserPlus } from "react-icons/fi";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../auth";
-import { useCredits, useCreditsRefresh } from "../../lib/credits";
-import CreditCoin from "./CreditCoin";
-import { IncomingCredits } from "./CreditReceipt";
+import { lengthText, useUsage, useUsageRefresh } from "../../lib/usage";
 
-// The top bar's right end: the credits chip and the account avatar. Either
-// opens one panel — who you are, the credits left this month (app/billing.py,
-// lib/credits.js), claiming this month's credits, the plan, Settings, inviting
-// the team, signing out.
+// The top bar's right end: this month's videos left and the account avatar. Either
+// opens one panel — who you are, the month's videos and images (app/usage.py,
+// lib/usage.js), the plan, extra videos, Settings, inviting the team, signing out.
+// Customers see videos and images, never credits.
 
 const openSettings = (tab) => window.dispatchEvent(new CustomEvent("dispatch:open-settings", { detail: { tab } }));
 const fmt = (n) => Math.max(0, Math.round(Number(n) || 0)).toLocaleString("en-US");
+const toneOf = (c) => (!c || !c.limit ? "ok" : c.left <= 0 ? "danger" : c.left <= Math.max(1, Math.round(c.limit * 0.2)) ? "warn" : "ok");
+const TEXT = { danger: "text-red-600", warn: "text-amber-600", ok: "text-ink-900" };
+const BAR = { danger: "bg-red-500", warn: "bg-amber-500", ok: "bg-brand" };
 
-/** The ring round the "% used" — brand, amber when low, red when used up. */
-function Ring({ pct, tone }) {
-  const r = 26;
-  const c = 2 * Math.PI * r;
-  const stroke = { danger: "text-red-500", warn: "text-amber-500", ok: "text-brand" }[tone];
+/** One line of the month: "Videos · 3 of 8 left", a bar of what's used. */
+function Meter({ icon: Icon, label, count }) {
+  const tone = toneOf(count);
+  const usedPct = count?.limit ? Math.min(100, Math.round((count.used / count.limit) * 100)) : 0;
   return (
-    <div className="relative h-16 w-16 flex-none">
-      <svg viewBox="0 0 64 64" className="h-16 w-16 -rotate-90">
-        <circle cx="32" cy="32" r={r} fill="none" strokeWidth="6" className="stroke-current text-ink-200" />
-        <circle
-          cx="32"
-          cy="32"
-          r={r}
-          fill="none"
-          strokeWidth="6"
-          strokeLinecap="round"
-          strokeDasharray={c}
-          strokeDashoffset={c * (1 - Math.min(100, Math.max(0, pct)) / 100)}
-          className={`stroke-current transition-[stroke-dashoffset] duration-700 ${stroke}`}
-        />
-      </svg>
-      <span className="absolute inset-0 grid place-items-center text-[12.5px] font-bold tabular-nums text-ink-900">{pct}%</span>
+    <div>
+      <div className="flex items-center gap-2 text-[12.5px]">
+        <Icon size={14} className="text-ink-500" />
+        <span className="flex-1 text-ink-600">{label}</span>
+        <span className={`font-bold tabular-nums ${TEXT[tone]}`}>{count ? fmt(count.left) : "—"}</span>
+        <span className="tabular-nums text-ink-400">of {count ? fmt(count.limit) : "—"} left</span>
+      </div>
+      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-ink-200">
+        <div className={`h-full rounded-full transition-[width] duration-700 ${BAR[tone]}`} style={{ width: `${usedPct}%` }} />
+      </div>
     </div>
   );
 }
 
 export default function AccountMenu() {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  useCreditsRefresh();
-  const { credits: b, reload, claim } = useCredits();
-  const [claiming, setClaiming] = useState(false);
-  const [claimError, setClaimError] = useState("");
+  useUsageRefresh();
+  const { usage: u, reload } = useUsage();
   const box = useRef(null);
   useEffect(() => {
     if (open) reload();
   }, [open, reload]);
-  // a push "tap to claim" opens the app at /?claim=credits — open the panel
-  useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("claim") === "credits") setOpen(true);
-  }, []);
-  const doClaim = async () => {
-    setClaiming(true);
-    setClaimError("");
-    try {
-      await claim();
-    } catch (e) {
-      setClaimError(e.message || "Couldn’t claim just now — try again.");
-    } finally {
-      setClaiming(false);
-    }
-  };
 
   // close on a click outside and on Esc
   useEffect(() => {
@@ -88,13 +67,9 @@ export default function AccountMenu() {
       .slice(0, 2)
       .toUpperCase() ||
     "U";
-  const monthly = b?.monthly_credits || 0;
-  const left = b ? Math.max(0, b.available_credits ?? 0) : null;
-  const used = b ? Math.max(0, b.spent_credits ?? 0) : 0;
-  const usedPct = monthly > 0 && left != null ? Math.min(100, Math.round(((monthly - Math.min(left, monthly)) / monthly) * 100)) : 0;
-  const tone = left != null && left <= 0 ? "danger" : monthly > 0 && left != null && left <= monthly * 0.2 ? "warn" : "ok";
-  const numTone = { danger: "text-red-600", warn: "text-amber-600", ok: "text-ink-900" }[tone];
-  const refill = b?.resets_at ? new Date(b.resets_at).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
+  const videos = u?.videos;
+  const tone = toneOf(videos);
+  const refill = u?.refills_at ? new Date(u.refills_at).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
   const go = (fn) => () => {
     setOpen(false);
     fn();
@@ -102,23 +77,23 @@ export default function AccountMenu() {
 
   return (
     <div ref={box} className="relative flex items-center gap-2">
-      {/* credits someone sent this account pop up here, wherever you are */}
-      <IncomingCredits />
-      {/* the credits chip */}
+      {/* this month's videos left */}
       <button
         type="button"
         data-credit-chip
         onClick={() => setOpen((v) => !v)}
-        className="flex h-9 items-center gap-1.5 rounded-full border border-ink-200 bg-white pl-1.5 pr-1.5 transition-colors hover:border-ink-300 sm:pr-2"
-        aria-label={left != null ? `${fmt(left)} AI credits left` : "AI credits"}
-        title="AI credits left this month"
+        className="flex h-9 items-center gap-1.5 rounded-full border border-ink-200 bg-white pl-2 pr-2 transition-colors hover:border-ink-300"
+        aria-label={videos ? `${fmt(videos.left)} of ${fmt(videos.limit)} videos left this month` : "Videos this month"}
+        title="Videos left this month"
       >
-        <span className="relative">
-          <CreditCoin size={22} sparkle />
-          {b?.claim_available && <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" aria-hidden="true" />}
+        <span className={`grid h-6 w-6 place-items-center rounded-full ${tone === "ok" ? "bg-brand-soft text-brand" : tone === "warn" ? "bg-amber-100 text-amber-600" : "bg-red-100 text-red-600"}`}>
+          <FiFilm size={13} />
         </span>
-        <span className={`text-[13px] font-bold tabular-nums ${numTone}`}>{left != null ? fmt(left) : "—"}</span>
-        {b?.plan_label && <span className="hidden rounded-full bg-ink-100 px-2 py-0.5 text-[10.5px] font-semibold text-ink-600 sm:inline">{b.plan_label}</span>}
+        <span className={`text-[13px] font-bold tabular-nums ${TEXT[tone]}`}>
+          {videos ? fmt(videos.left) : "—"}
+          <span className="font-semibold text-ink-400">/{videos ? fmt(videos.limit) : "—"}</span>
+        </span>
+        {u?.plan_label && <span className="hidden rounded-full bg-ink-100 px-2 py-0.5 text-[10.5px] font-semibold text-ink-600 sm:inline">{u.plan_label}</span>}
       </button>
 
       {/* the avatar */}
@@ -145,68 +120,33 @@ export default function AccountMenu() {
             {user?.role && <span className="flex-none rounded-full bg-brand-soft px-2.5 py-0.5 text-[11px] font-semibold capitalize text-brand">{user.role}</span>}
           </div>
 
-          {/* this month's credits are waiting to be claimed */}
-          {b?.claim_available && (
-            <div className="mb-2 rounded-2xl border border-brand/30 bg-brand-soft p-3.5">
-              <div className="flex items-center gap-3">
-                <span className="grid h-10 w-10 flex-none place-items-center rounded-xl bg-white text-brand">
-                  <FiGift size={18} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[13px] font-bold text-ink-900">Your monthly credits are ready</div>
-                  <div className="flex items-center gap-1 text-[12px] text-ink-600">
-                    <CreditCoin size={14} /> {fmt(b.claim_credits ?? b.monthly_credits)} credits for this month
-                  </div>
-                </div>
-              </div>
+          {/* this month */}
+          <div className="rounded-2xl bg-canvas p-3.5">
+            <div className="text-[12px] font-semibold text-ink-500">This month</div>
+            <div className="mt-2.5 space-y-3">
+              <Meter icon={FiFilm} label="Videos" count={videos} />
+              <Meter icon={FiImage} label="Images" count={u?.images} />
+            </div>
+            <div className="mt-3 text-[11.5px] text-ink-400">
+              {u?.longest_seconds ? `Videos up to ${lengthText(u.longest_seconds)}` : ""}
+              {refill ? `${u?.longest_seconds ? " · " : ""}refills on ${refill}` : ""} · posting is always free
+            </div>
+            {tone !== "ok" && (
               <button
                 type="button"
-                onClick={doClaim}
-                disabled={claiming}
-                className="mt-3 w-full rounded-xl bg-brand py-2.5 text-[13px] font-bold text-white transition-colors hover:bg-brand-dark disabled:opacity-60"
+                onClick={go(() => navigate("/upgrade#top-up"))}
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-2.5 text-[13px] font-bold text-white transition-colors hover:bg-brand-dark"
               >
-                {claiming ? "Claiming…" : `Claim ${fmt(b.claim_credits ?? b.monthly_credits)} credits`}
+                <FiPlusCircle size={15} /> Get more videos
               </button>
-              {claimError && <div className="mt-2 text-[11.5px] text-red-600">{claimError}</div>}
-            </div>
-          )}
-
-          {/* this month's credits */}
-          <div className="rounded-2xl bg-canvas p-3.5">
-            <div className="flex items-center gap-3.5">
-              <Ring pct={usedPct} tone={tone} />
-              <div className="min-w-0">
-                <div className="text-[12px] text-ink-500">Credits left</div>
-                <div className="mt-0.5 flex items-center gap-1.5">
-                  <CreditCoin size={22} />
-                  <span className={`text-[24px] font-bold leading-none tabular-nums ${numTone}`}>{left != null ? fmt(left) : "—"}</span>
-                </div>
-              </div>
-            </div>
-            <dl className="mt-3.5 space-y-1.5 text-[12.5px]">
-              <div className="flex justify-between">
-                <dt className="text-ink-500">Each month</dt>
-                <dd className="font-semibold tabular-nums text-ink-900">{fmt(monthly)}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-ink-500">Used this month</dt>
-                <dd className="font-semibold tabular-nums text-ink-900">{fmt(used)}</dd>
-              </div>
-              {b?.pending_credits > 0 && (
-                <div className="flex justify-between">
-                  <dt className="text-ink-500">Held for videos in progress</dt>
-                  <dd className="font-semibold tabular-nums text-ink-900">{fmt(b.pending_credits)}</dd>
-                </div>
-              )}
-            </dl>
-            {refill && <div className="mt-2 text-[11.5px] text-ink-400">Next month’s credits to claim on {refill} · posting never uses credits</div>}
+            )}
             <button
               type="button"
-              onClick={go(() => openSettings("billing"))}
+              onClick={go(() => navigate("/upgrade"))}
               className="mt-3 flex w-full items-center gap-2.5 rounded-xl bg-white px-3 py-2.5 text-left transition-colors hover:bg-ink-50"
             >
               <FiCreditCard size={15} className="text-ink-500" />
-              <span className="flex-1 text-[13px] font-semibold text-ink-900">{b?.plan_label || "Plan"} plan</span>
+              <span className="flex-1 text-[13px] font-semibold text-ink-900">{u?.plan_label || "Plan"} plan</span>
               <span className="flex items-center text-[12px] text-ink-500">
                 Manage <FiChevronRight size={14} />
               </span>

@@ -374,21 +374,92 @@ function Prices() {
         {fail && <span className="text-[12.5px] text-red-600">{fail}</span>}
       </div>
       <p className="text-[11.5px] text-ink-400">Leave a box empty to stop selling that plan in that currency. Customers who already paid keep their month at the old price.</p>
+      <PlanLimits />
       <CreditPacks />
     </div>
   )
 }
 
-// ── credit packs: extra credits customers on a paid plan buy with KHQR ────
+// ── plan limits: what each plan makes a month (app/usage.py) ────────────────
+function PlanLimits() {
+  const { data, error, setData } = useLoad('/plan-limits')
+  const [edit, setEdit] = useState({})
+  const [busy, setBusy] = useState(false)
+  const [note, setNote] = useState('')
+  const [fail, setFail] = useState('')
+  const fromData = (d) => Object.fromEntries(d.map((p) => [p.plan, { videos: String(p.videos), images: String(p.images), longest: String(p.longest) }]))
+  useEffect(() => {
+    if (data) setEdit(fromData(data))
+  }, [data])
+  const changed = data && JSON.stringify(edit) !== JSON.stringify(fromData(data))
+  const save = async () => {
+    setBusy(true)
+    setFail('')
+    setNote('')
+    try {
+      const plans = Object.fromEntries(Object.entries(edit).map(([p, v]) => [p, { videos: Number(v.videos) || 0, images: Number(v.images) || 0, longest: Number(v.longest) || 0 }]))
+      setData(await adminApi('PUT', '/plan-limits', { plans }))
+      setNote('Saved — customers see the new numbers straight away.')
+    } catch (e) {
+      setFail(e.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  if (error) return <div className="text-[13px] text-red-600">{error}</div>
+  if (!data) return null
+  const input = 'h-10 w-full rounded-xl border border-ink-200 bg-white px-3 text-[14px] tabular-nums text-ink-900 focus:border-brand focus:outline-none'
+  const field = (plan, key, label) => (
+    <label className="block">
+      <span className="mb-1 block text-[11.5px] font-semibold text-ink-600">{label}</span>
+      <input inputMode="numeric" className={input} value={edit[plan]?.[key] ?? ''} onChange={(e) => setEdit((x) => ({ ...x, [plan]: { ...x[plan], [key]: e.target.value.replace(/[^\d]/g, '') } }))} />
+    </label>
+  )
+  return (
+    <div className="space-y-4 pt-4">
+      <div>
+        <h2 className="text-[18px] font-bold tracking-tight text-ink-900">What each plan makes</h2>
+        <p className="mt-1 text-[13px] text-ink-500">
+          Videos and images a month, and the longest video — what customers see and are held to. A video up to 1 min uses 1, up to 3 min 2, longer 1 per 3 min; an AI-filmed clip 3.
+        </p>
+      </div>
+      <section className={`${card} divide-y divide-ink-100`}>
+        {data.map((p) => (
+          <div key={p.plan} className="grid gap-3 p-5 sm:grid-cols-[180px_1fr_1fr_1fr] sm:items-end">
+            <div>
+              <div className="text-[15px] font-bold text-ink-900">{p.label}</div>
+              <div className="text-[11px] text-ink-400">{p.custom ? 'Set here' : 'Built-in numbers'}</div>
+            </div>
+            {field(p.plan, 'videos', 'Videos / month')}
+            {field(p.plan, 'images', 'Images / month')}
+            {field(p.plan, 'longest', 'Longest video (seconds)')}
+          </div>
+        ))}
+      </section>
+      <div className="flex flex-wrap items-center gap-3">
+        <button type="button" onClick={save} disabled={busy || !changed} className="btn-primary h-10 px-5 text-[13px] disabled:opacity-50">
+          {busy ? 'Saving…' : 'Save plan numbers'}
+        </button>
+        {note && <span className="text-[12.5px] text-emerald-600">{note}</span>}
+        {fail && <span className="text-[12.5px] text-red-600">{fail}</span>}
+      </div>
+    </div>
+  )
+}
+
+// the hidden AI allowance a pack brings when the box is left empty (a video ~300, an image ~20)
+const packCredits = (videos, images) => Math.max(10, (Number(videos) || 0) * 300 + (Number(images) || 0) * 20)
+
+// ── packs: extra videos / images customers on a paid plan buy with KHQR ────
 function CreditPacks() {
   const { data, error, setData } = useLoad('/credit-packs')
-  const [rows, setRows] = useState([]) // as typed: { id?, key, credits, usd, khr, active }
+  const [rows, setRows] = useState([]) // as typed: { id?, key, videos, images, credits, usd, khr, active }
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState('')
   const [fail, setFail] = useState('')
   const fresh = useRef(0)
 
-  const fromData = (d) => d.map((p) => ({ ...p, key: `p${p.id}`, credits: String(p.credits), usd: p.usd ?? '', khr: p.khr ?? '' }))
+  const fromData = (d) => d.map((p) => ({ ...p, key: `p${p.id}`, videos: String(p.videos || ''), images: String(p.images || ''), credits: String(p.credits), usd: p.usd ?? '', khr: p.khr ?? '' }))
   useEffect(() => {
     if (data) setRows(fromData(data))
   }, [data])
@@ -402,7 +473,15 @@ function CreditPacks() {
     setFail('')
     setNote('')
     try {
-      const packs = rows.map((r) => ({ id: r.id ?? null, credits: num(r.credits) ?? 0, usd: num(r.usd), khr: num(r.khr), active: r.active }))
+      const packs = rows.map((r) => ({
+        id: r.id ?? null,
+        videos: num(r.videos) ?? 0,
+        images: num(r.images) ?? 0,
+        credits: num(r.credits) ?? packCredits(r.videos, r.images),
+        usd: num(r.usd),
+        khr: num(r.khr),
+        active: r.active,
+      }))
       setData(await adminApi('PUT', '/credit-packs', { packs }))
       setNote('Saved — customers see the new packs straight away.')
     } catch (e) {
@@ -418,19 +497,30 @@ function CreditPacks() {
   return (
     <div className="space-y-4 pt-4">
       <div>
-        <h2 className="text-[18px] font-bold tracking-tight text-ink-900">Credit packs</h2>
-        <p className="mt-1 text-[13px] text-ink-500">Extra credits a customer on a paid plan can buy (Upgrade page → Top up credits). They last until the month ends.</p>
+        <h2 className="text-[18px] font-bold tracking-tight text-ink-900">Video &amp; image packs</h2>
+        <p className="mt-1 text-[13px] text-ink-500">
+          Extra videos / images a customer on a paid plan can buy (Plans page → Extra videos &amp; images), on top of the plan&apos;s, until the month ends. A pack with no videos or images isn&apos;t shown to
+          customers.
+        </p>
       </div>
       <section className={`${card} divide-y divide-ink-100`}>
-        {rows.length === 0 && <div className="p-5 text-[13px] text-ink-500">No packs — customers can&apos;t buy extra credits.</div>}
+        {rows.length === 0 && <div className="p-5 text-[13px] text-ink-500">No packs — customers can&apos;t buy extra videos.</div>}
         {rows.map((r) => {
           const usd = num(r.usd)
-          const credits = num(r.credits)
+          const videos = num(r.videos)
           return (
-            <div key={r.key} className="grid gap-3 p-5 sm:grid-cols-[1fr_1fr_1fr_auto_auto] sm:items-end">
+            <div key={r.key} className="grid gap-3 p-5 sm:grid-cols-[1fr_1fr_1fr_1fr_1fr_auto_auto] sm:items-end">
               <label className="block">
-                <span className="mb-1 block text-[11.5px] font-semibold text-ink-600">Credits</span>
-                <input inputMode="numeric" className={input} value={r.credits} placeholder="e.g. 1000" onChange={(e) => set(r.key, 'credits', e.target.value.replace(/[^\d]/g, ''))} />
+                <span className="mb-1 block text-[11.5px] font-semibold text-ink-600">Videos</span>
+                <input inputMode="numeric" className={input} value={r.videos} placeholder="e.g. 10" onChange={(e) => set(r.key, 'videos', e.target.value.replace(/[^\d]/g, ''))} />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-[11.5px] font-semibold text-ink-600">Images</span>
+                <input inputMode="numeric" className={input} value={r.images} placeholder="0" onChange={(e) => set(r.key, 'images', e.target.value.replace(/[^\d]/g, ''))} />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-[11.5px] font-semibold text-ink-600">Hidden AI allowance</span>
+                <input inputMode="numeric" className={input} value={r.credits} placeholder={String(packCredits(r.videos, r.images))} onChange={(e) => set(r.key, 'credits', e.target.value.replace(/[^\d]/g, ''))} />
               </label>
               <label className="block">
                 <span className="mb-1 block text-[11.5px] font-semibold text-ink-600">US dollars ($)</span>
@@ -447,11 +537,7 @@ function CreditPacks() {
               <button type="button" disabled={busy} onClick={() => setRows((rs) => rs.filter((x) => x.key !== r.key))} className="h-10 rounded-xl px-3 text-[12.5px] font-semibold text-ink-500 hover:bg-ink-50 hover:text-red-600">
                 Remove
               </button>
-              {usd > 0 && credits > 0 && (
-                <div className="text-[11.5px] text-ink-400 sm:col-span-5">
-                  {((usd / credits) * 100).toFixed(2)}¢ a credit
-                </div>
-              )}
+              {usd > 0 && videos > 0 && <div className="text-[11.5px] text-ink-400 sm:col-span-7">${(usd / videos).toFixed(2)} a video</div>}
             </div>
           )
         })}
@@ -460,80 +546,13 @@ function CreditPacks() {
         <button
           type="button"
           disabled={busy}
-          onClick={() => setRows((rs) => [...rs, { key: `n${++fresh.current}`, credits: '', usd: '', khr: '', active: true }])}
+          onClick={() => setRows((rs) => [...rs, { key: `n${++fresh.current}`, videos: '', images: '', credits: '', usd: '', khr: '', active: true }])}
           className="btn-ghost h-10 px-4 text-[13px]"
         >
           + Add a pack
         </button>
         <button type="button" onClick={save} disabled={busy || !changed} className="btn-primary h-10 px-5 text-[13px] disabled:opacity-50">
           {busy ? 'Saving…' : 'Save packs'}
-        </button>
-        {note && <span className="text-[12.5px] text-emerald-600">{note}</span>}
-        {fail && <span className="text-[12.5px] text-red-600">{fail}</span>}
-      </div>
-      <CustomCredits />
-    </div>
-  )
-}
-
-// ── custom amount: the customer types how many credits; the price is per 100 ──
-function CustomCredits() {
-  const { data, error, setData } = useLoad('/credit-custom')
-  const [usd, setUsd] = useState('')
-  const [khr, setKhr] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [note, setNote] = useState('')
-  const [fail, setFail] = useState('')
-
-  useEffect(() => {
-    if (!data) return
-    setUsd(data.custom?.per_100?.USD ?? '')
-    setKhr(data.custom?.per_100?.KHR ?? '')
-  }, [data])
-
-  const num = (v) => (v === '' || v == null ? null : Number(String(v).replace(/,/g, '')))
-  const changed = data && (num(usd) !== (data.custom?.per_100?.USD ?? null) || num(khr) !== (data.custom?.per_100?.KHR ?? null))
-
-  const save = async () => {
-    setBusy(true)
-    setFail('')
-    setNote('')
-    try {
-      setData(await adminApi('PUT', '/credit-custom', { usd: num(usd), khr: num(khr) }))
-      setNote(num(usd) || num(khr) ? 'Saved — customers can type their own amount.' : 'Custom amounts are off.')
-    } catch (e) {
-      setFail(e.message)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  if (error) return <div className="text-[13px] text-red-600">{error}</div>
-  if (!data) return null
-  const input = 'h-10 w-full rounded-xl border border-ink-200 bg-white px-3 text-[14px] tabular-nums text-ink-900 focus:border-brand focus:outline-none'
-  const example = num(usd) ? `1,000 credits = ${money(num(usd) * 10)}` : ''
-  return (
-    <div className="space-y-4 pt-4">
-      <div>
-        <h2 className="text-[18px] font-bold tracking-tight text-ink-900">Custom amount</h2>
-        <p className="mt-1 text-[13px] text-ink-500">
-          Customers type how many credits they want (100 to 100,000, in hundreds) and pay this price per 100. Leave both empty to turn it off.
-        </p>
-      </div>
-      <section className={`${card} grid gap-3 p-5 sm:grid-cols-2`}>
-        <label className="block">
-          <span className="mb-1 block text-[11.5px] font-semibold text-ink-600">100 credits in US dollars ($)</span>
-          <input inputMode="decimal" className={input} value={usd} placeholder="e.g. 1.20 — empty: not sold in USD" onChange={(e) => setUsd(e.target.value.replace(/[^\d.]/g, ''))} />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-[11.5px] font-semibold text-ink-600">100 credits in riel (៛)</span>
-          <input inputMode="numeric" className={input} value={khr} placeholder="e.g. 5000 — empty: not sold in KHR" onChange={(e) => setKhr(e.target.value.replace(/[^\d]/g, ''))} />
-        </label>
-        {example && <div className="text-[11.5px] text-ink-400 sm:col-span-2">{example} · {(num(usd)).toFixed(2)}¢ a credit</div>}
-      </section>
-      <div className="flex flex-wrap items-center gap-3">
-        <button type="button" onClick={save} disabled={busy || !changed} className="btn-primary h-10 px-5 text-[13px] disabled:opacity-50">
-          {busy ? 'Saving…' : 'Save custom price'}
         </button>
         {note && <span className="text-[12.5px] text-emerald-600">{note}</span>}
         {fail && <span className="text-[12.5px] text-red-600">{fail}</span>}

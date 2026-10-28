@@ -543,7 +543,7 @@ function Compare({ brand, readers, base, showToast }) {
           )
         })}
       </div>
-      <p className="mt-2 text-[10.5px] text-ink-400">Each ▶ makes the line once (a little AI credit); change the line to compare another.</p>
+      <p className="mt-2 text-[10.5px] text-ink-400">Each ▶ makes the line once; change the line to compare another.</p>
       <audio ref={audio} onEnded={() => setPlaying('')} className="hidden" />
     </div>
   )

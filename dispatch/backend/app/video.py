@@ -663,6 +663,9 @@ def create_video(
     seconds = max(3, min(payload.seconds, s.video_max_seconds))
     ratio = payload.aspect_ratio if payload.aspect_ratio in _DIMS else "9:16"
     billing.require(ws, billing.video_cost(s.video_provider, seconds), db)
+    from app import usage
+
+    usage.require_video(db, ws, usage.FILMED_UNITS)  # an AI-filmed clip: 3 of the month's videos
     reference: bytes | None = None
     if payload.reference_url:
         reference = read_media(payload.reference_url)
@@ -691,6 +694,7 @@ def create_video(
         provider_job_id=provider_job_id,
         model=billing.video_model(provider),
         status="running",
+        units=usage.FILMED_UNITS,
     )
     db.add(job)
     db.commit()
@@ -773,6 +777,9 @@ def create_image(
         raise HTTPException(503, "Image generation is turned off (IMAGE_GENERATION_ENABLED=false).")
 
     billing.require(ws, billing.IMAGE_HOLD, db)
+    from app import usage
+
+    usage.require_image(db, ws)
     refuse_if_busy(db, "image")
     own: list[bytes] = []
     for url in [u for u in dict.fromkeys([payload.reference_url, *payload.reference_urls]) if u][:4]:
@@ -806,6 +813,7 @@ def create_image(
         seconds=0,
         provider=s.image_provider,
         status="queued",
+        units=1,
     )
     db.add(job)
     db.commit()

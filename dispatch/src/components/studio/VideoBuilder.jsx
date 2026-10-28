@@ -214,7 +214,7 @@ export default function VideoBuilder() {
           {busy ? 'Writing the clips…' : 'Write the clips'}
         </button>
         <p className="mt-2 text-[10.5px] leading-relaxed text-ink-400">
-          Writing the clips costs a little AI credit. Making the video costs more — you see the price before anything is made.
+          Writing the clips is included. Making the video counts as 3 of your month’s videos — you see it before anything is made.
         </p>
       </section>
 

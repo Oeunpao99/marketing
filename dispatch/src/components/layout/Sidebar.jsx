@@ -489,7 +489,7 @@ export default function Sidebar({ collapsed = false }) {
             { icon: FiSearch, label: "Search (Ctrl K)", onClick: () => setSearchOpen(true) },
             {
               icon: FiCreditCard,
-              label: "Billing & credits",
+              label: "Plans & billing",
               onClick: () => {
                 setSettingsTab("billing");
                 setSettingsOpen(true);

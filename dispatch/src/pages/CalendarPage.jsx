@@ -804,7 +804,7 @@ function PreviewModal({ item, busy, onClose, onApprove, onReject, onUseIdea, onM
                   disabled={busy}
                   onClick={() => onMakeMedia(item, 'video')}
                   className="btn-outline disabled:opacity-50"
-                  title="An 8-second video — about $1.20 of AI credit"
+                  title="An 8-second AI-filmed video — counts as 3 of your videos"
                 >
                   <FiVideo size={13} /> Generate video
                 </button>

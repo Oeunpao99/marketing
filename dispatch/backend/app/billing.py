@@ -288,8 +288,8 @@ def _out_of_credit_message() -> str:
     when = next_reset()
     reset = f"{when:%b} {when.day}"
     return (
-        f"Your workspace is out of AI credits for this month — they refill on {reset}. "
-        "See Settings → Billing."
+        f"Your workspace has used this month's AI allowance — it refills on {reset}. "
+        "Add a video pack or upgrade on the Plans page for more."
     )
 
 
@@ -303,15 +303,18 @@ def require(ws: int | None, needed: float = 0.0, db: Session | None = None) -> N
         if db.scalar(select(Workspace.suspended_at).where(Workspace.id == ws)):
             raise OutOfCredit("This account is suspended — no AI can be used.")
         now = balance(db, ws)
+        if now["available"] - needed <= 0 and now["claim_available"]:
+            # customers count videos / images (app/usage.py), not credits: the month's
+            # credits underneath are added by themselves the first time they're needed
+            w = db.scalar(select(Workspace).where(Workspace.id == ws).with_for_update())
+            if grant_month(db, w, payer()[1] if payer()[0] == ws else None):
+                db.commit()
+                log.info("workspace %s: this month's credits added on first use", ws)
+            now = balance(db, ws)
     finally:
         if own:
             db.close()
     if now["available"] - needed <= 0:
-        if now["claim_available"]:
-            raise OutOfCredit(
-                f"This month's {now['claim_credits']:,} AI credits are ready — claim them from the bell or your "
-                "account menu (top right), then try again."
-            )
         raise OutOfCredit(_out_of_credit_message())
 
 
@@ -517,13 +520,15 @@ def remind_claims() -> int:
         for w in due:
             w.credit_notice_month = month
             if balance(db, w.id)["claim_available"]:
-                credits = PLAN_CREDITS.get(w.plan, 0)
+                from app import usage
+
+                lim = usage.limits(db, w.plan)
                 push.notify_workspace(
                     w.id,
                     "credits",
-                    "Your monthly AI credits are ready",
-                    f"{credits:,} credits for {month_start():%B} — open Smart Marketing and tap Claim.",
-                    url="/?claim=credits",
+                    f"Your videos for {month_start():%B} are ready",
+                    f"{lim['videos']} videos and {lim['images']} images this month — open Smart Marketing to make them.",
+                    url="/",
                     tag="credits",
                 )
                 sent += 1

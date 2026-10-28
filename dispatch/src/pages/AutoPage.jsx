@@ -602,7 +602,7 @@ function SettingsDrawer({ a, channels, onUpdate, onBrandUpdate, onOpenPlan, onCl
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className="text-[12px] font-semibold text-ink-800">Make a picture for each post</div>
-                <div className="text-[11px] text-ink-500">The AI designs an image for every approved post and schedules it — uses AI credit</div>
+                <div className="text-[11px] text-ink-500">The AI designs an image for every approved post and schedules it — each counts as one of your images</div>
               </div>
               <Toggle on={a.auto_media} onChange={(v) => onUpdate({ auto_media: v })} />
             </div>

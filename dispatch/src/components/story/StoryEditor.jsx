@@ -278,7 +278,7 @@ export default function StoryEditor({ storyId, compact = false, onDeleted, onSto
         {renderConfirm && (
           <ConfirmDialog
             title="Approve this storyboard?"
-            text={`The video service will render ${story.scenes.length} clips for “${story.title}”${story.estimated_cost != null ? ` — about $${Number(story.estimated_cost).toFixed(2)} of AI credit` : ''}. You can leave this page while it runs.`}
+            text={`The video service will render ${story.scenes.length} clips for “${story.title}” — the finished film counts as 3 of your videos. You can leave this page while it runs.`}
             confirm="Approve & render"
             onCancel={() => setRenderConfirm(false)}
             onConfirm={startRender}
@@ -465,7 +465,7 @@ export default function StoryEditor({ storyId, compact = false, onDeleted, onSto
             {story.estimated_cost != null && (
               <>
                 <dt className="text-ink-500">Clips cost</dt>
-                <dd className="text-right font-semibold text-ink-800">≈ ${Number(story.estimated_cost).toFixed(2)} AI credit</dd>
+                <dd className="text-right font-semibold text-ink-800">3 of your videos</dd>
               </>
             )}
           </dl>

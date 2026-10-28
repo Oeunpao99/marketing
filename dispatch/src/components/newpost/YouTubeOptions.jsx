@@ -193,7 +193,7 @@ export default function YouTubeOptions({ value, onChange, brandId, title, captio
           </div>
           {err && <p className="mt-1.5 text-[11.5px] text-red-600">{err}</p>}
           <p className="mt-1.5 text-[10.5px] text-ink-400">
-            1280×720 is best. AI thumbnails use credits like an image. YouTube shows custom thumbnails only on channels with a verified phone number.
+            1280×720 is best. An AI thumbnail counts as one of your images. YouTube shows custom thumbnails only on channels with a verified phone number.
           </p>
         </div>
       )}

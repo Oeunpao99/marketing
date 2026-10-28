@@ -28,15 +28,14 @@ export const TOUR_STEPS = [
     body: 'It plans your posts, makes the pictures and videos, and publishes them to your social accounts. Here are the places you will use most — it takes about thirty seconds.',
   },
   {
-    // the first thing to do: the credits pay for every AI picture, video and caption.
-    // The card has its own Claim button (OnboardingTour: action "claim") and our robot.
+    // what the plan makes this month: the videos left, up here (OnboardingTour: action "month" — our robot and the numbers)
     id: 'credits',
     route: '/',
-    title: 'First, claim your free credits',
-    body: 'Credits pay for the AI — captions, posters and videos. Your first ones are waiting in the coin up here. Claim them now and you are ready to create.',
+    title: 'Your videos for the month',
+    body: 'This shows how many videos you can still make this month. Images are counted the same way, captions are included, and posting is always free. It refills on the 1st.',
     targets: ['[data-credit-chip]'],
     place: 'bottom',
-    action: 'claim',
+    action: 'month',
   },
   {
     id: 'command',

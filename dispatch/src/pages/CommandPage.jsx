@@ -5,7 +5,6 @@ import { api } from '../api/client'
 import { useStore } from '../store'
 import Select from '../components/ui/Select'
 import { useBrandMarks } from '../lib/brandMarks'
-import CreditUsageCard from '../components/billing/CreditUsageCard'
 
 // Command center (backend app/command.py): what the AI is doing, and the few
 // things that need a person. One read, refreshed every minute; rows link to
@@ -110,9 +109,6 @@ export default function CommandPage() {
             <Today rows={data.today} showBrand={showBrand} acting={acting} onAct={act} />
           </div>
 
-          {/* AI credits: added, used, left, and the credits used each day */}
-          <CreditUsageCard />
-
           <AgentLog log={data.log} />
         </div>
       )}
@@ -177,10 +173,11 @@ function Kpis({ k }) {
           note: `of ${k.channels.total} connected`,
         },
     {
-      label: 'AI credits left',
-      value: Math.max(0, Math.round(k.credit.available_credits ?? 0)).toLocaleString('en-US'),
-      note: k.credit.monthly_credits ? `of ${k.credit.monthly_credits.toLocaleString('en-US')} this month` : 'This month',
-      warn: k.credit.monthly && k.credit.available <= k.credit.monthly * 0.15,
+      // this month's videos (app/usage.py) — customers count videos, not credits
+      label: 'Videos left',
+      value: k.month ? `${k.month.videos.left}` : '—',
+      note: k.month ? `of ${k.month.videos.limit} this month · ${k.month.images.left} images` : 'This month',
+      warn: !!k.month && k.month.videos.left <= Math.max(1, Math.round(k.month.videos.limit * 0.15)),
     },
   ]
   return (

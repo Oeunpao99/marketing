@@ -407,7 +407,7 @@ export default function VideoEditPage() {
                 {[
                   ['Download the script', 'Every spoken line, in order.'],
                   ['Read it all in one recording', 'With a short pause (about 1 second) between scenes.'],
-                  ['Upload it', 'We cut it scene by scene and fit the video to your pace — the pictures and subtitles follow you. Saved as a new video; no credits.'],
+                  ['Upload it', 'We cut it scene by scene and fit the video to your pace — the pictures and subtitles follow you. Saved as a new video; it doesn’t use one of your videos.'],
                 ].map(([head, body], n) => (
                   <li key={head} className="flex gap-3">
                     <span className="grid h-6 w-6 flex-none place-items-center rounded-full bg-brand-soft text-[11px] font-bold text-brand">{n + 1}</span>
@@ -502,7 +502,7 @@ export default function VideoEditPage() {
                             <FiMic size={11} /> What the voice says
                           </span>
                           {newVoice ? (
-                            <button type="button" onClick={() => hear(s)} disabled={hearing != null || !plain(s.say)} title="Hear the new line (uses a few credits)" className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11.5px] font-semibold text-brand hover:bg-brand-soft disabled:opacity-40">
+                            <button type="button" onClick={() => hear(s)} disabled={hearing != null || !plain(s.say)} title="Hear the new line" className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11.5px] font-semibold text-brand hover:bg-brand-soft disabled:opacity-40">
                               {hearing === s.key ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-brand/30 border-t-brand" /> : <FiPlay size={12} />} Hear new line
                             </button>
                           ) : (
@@ -562,7 +562,7 @@ export default function VideoEditPage() {
               ) : changed ? (
                 <>
                   Saved as a <b className="text-ink-900">new video</b> in your Library — the original stays.
-                  {revoiced ? ` ${revoiced} line${revoiced > 1 ? 's' : ''} will be read again (a few credits).` : ' No new voice needed.'}
+                  {revoiced ? ` ${revoiced} line${revoiced > 1 ? 's' : ''} will be read again.` : ' No new voice needed.'}
                 </>
               ) : (
                 'Change something above, then save it as a new video.'

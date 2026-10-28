@@ -2,17 +2,17 @@
 // Topbar / Sidebar counts, filtered by Settings → Notifications. (Phone and
 // desktop pop-ups are server-sent Web Push — see lib/push.js, app/push.py.)
 import { useEffect, useMemo } from 'react'
-import { FiAlertTriangle, FiCheckCircle, FiGift, FiInbox, FiShield } from 'react-icons/fi'
+import { FiAlertTriangle, FiCheckCircle, FiFilm, FiInbox, FiShield } from 'react-icons/fi'
 import { useAuth } from '../auth'
 import { PLAT } from '../data/brands'
 import { useStore } from '../store'
-import { useCredits } from './credits'
+import { useUsage } from './usage'
 import { useSecurityAlerts } from './securityAlerts'
 import PlatformIcon from '../components/ui/PlatformIcon'
 
 export const NOTIFY_KINDS = [
   { id: 'security', label: 'A new device signed in to your account', desc: 'So you can sign it out if it wasn’t you.', pushOnly: true },
-  { id: 'credits', label: 'Monthly AI credits are ready', desc: 'Once a month, when your new credits can be claimed.' },
+  { id: 'credits', label: 'Your videos for the month', desc: 'When a new month’s videos are ready, and when they’re running low.' },
   { id: 'review', label: 'Ideas waiting for review', desc: 'New AI-written ideas that need your approval.' },
   { id: 'failed', label: 'A post failed to publish', desc: 'So you can fix it and send it again.' },
   { id: 'channel', label: 'A channel needs reconnecting', desc: 'Its login is about to expire.' },
@@ -30,8 +30,10 @@ export function useNotifications() {
   const { user } = useAuth()
   const prefs = notifyPrefs(user)
   const key = JSON.stringify(prefs)
-  const { credits } = useCredits()
-  const claimable = credits?.claim_available ? credits.claim_credits ?? credits.monthly_credits : 0
+  const { usage } = useUsage()
+  // this month's videos running low: how many are left (null = plenty)
+  const v = usage?.videos
+  const lowVideos = v?.limit && v.left <= Math.max(1, Math.round(v.limit * 0.2)) ? v.left : null
   const devices = useSecurityAlerts()
 
   return useMemo(() => {
@@ -52,18 +54,18 @@ export function useNotifications() {
         urgent: true,
       })
     })
-    // this month's credits wait to be claimed — first, with its own Claim button (Notifications.jsx)
-    if (claimable && prefs.credits) {
+    // this month's videos running low — a link to more (the Plans page's packs)
+    if (lowVideos != null && prefs.credits) {
       out.push({
-        id: 'credits-claim',
+        id: 'videos-low',
         kind: 'credits',
-        icon: <FiGift size={14} className="text-brand" />,
-        tag: 'Monthly credits',
-        dot: 'bg-brand',
-        title: 'Your monthly AI credits are ready',
-        body: `${claimable.toLocaleString('en-US')} credits for this month — claim them to keep using AI`,
-        action: 'claim',
-        urgent: true,
+        icon: <FiFilm size={14} className={lowVideos <= 0 ? 'text-red-500' : 'text-amber-500'} />,
+        tag: 'Videos this month',
+        dot: lowVideos <= 0 ? 'bg-red-500' : 'bg-amber-400',
+        title: lowVideos <= 0 ? 'This month’s videos are used up' : `${lowVideos} video${lowVideos === 1 ? '' : 's'} left this month`,
+        body: `${v.used} of ${v.limit} made — add a video pack or upgrade for more`,
+        to: '/upgrade#top-up',
+        urgent: lowVideos <= 0,
       })
     }
     if (prefs.failed) {
@@ -133,7 +135,7 @@ export function useNotifications() {
     const items = out.slice(0, 12)
     return { items, count: out.filter((i) => i.urgent).length }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [review, queue, channels, key, claimable, devices])
+  }, [review, queue, channels, key, lowVideos, devices])
 }
 
 /** Keeps the installed app's icon badge equal to the bell's count while the

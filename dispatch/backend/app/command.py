@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app import billing
+from app import billing, usage
 from app.content_scheduler import PHNOM_PENH
 from app.database import get_db
 from app.models import (
@@ -295,27 +295,19 @@ def command_center(brand_id: int | None = None, db: Session = Depends(get_db), w
             }
         )
 
-    if credit.get("claim_available"):
+    # the month's videos running out (customers count videos, not credits — app/usage.py)
+    month = usage.summary(db, ws)
+    vids = month["videos"]
+    if vids["limit"] and vids["left"] <= max(1, round(vids["limit"] * LOW_CREDIT_SHARE)):
+        refill = datetime.fromisoformat(month["refills_at"])
         needs.append(
             {
                 "key": "credit",
-                "tone": "warning",
+                "tone": "critical" if vids["left"] <= 0 else "warning",
                 "count": None,
-                "title": "Your monthly AI credits are ready to claim",
-                "detail": f"{credit['claim_credits']:,} credits — claim them from the bell or your account menu (top right)",
-                "to": None,
-                "brands": [],
-            }
-        )
-    elif credit["monthly_credit"] and credit["available"] <= credit["monthly_credit"] * LOW_CREDIT_SHARE:
-        needs.append(
-            {
-                "key": "credit",
-                "tone": "critical" if credit["available"] <= 0 else "warning",
-                "count": None,
-                "title": "AI credit is running low" if credit["available"] > 0 else "AI credit used up",
-                "detail": f"{max(credit['available_credits'], 0):,.0f} credits left this month — AI stops at 0",
-                "to": None,
+                "title": "This month's videos are used up" if vids["left"] <= 0 else f"{vids['left']} video{'' if vids['left'] == 1 else 's'} left this month",
+                "detail": f"{vids['used']} of {vids['limit']} made — they refill on {refill:%b} {refill.day}. Add a video pack or upgrade for more.",
+                "to": "/upgrade",
                 "brands": [],
             }
         )
@@ -508,6 +500,7 @@ def command_center(brand_id: int | None = None, db: Session = Depends(get_db), w
             "audience": audience,
             "channels": {"live": len(live), "total": len(channels)},
             "credit": {"available": credit["available"], "monthly": credit["monthly_credit"], "available_credits": credit["available_credits"], "monthly_credits": credit["monthly_credits"]},
+            "month": {"videos": month["videos"], "images": month["images"], "refills_at": month["refills_at"]},
         },
         "needs": needs,
         "today": rows,

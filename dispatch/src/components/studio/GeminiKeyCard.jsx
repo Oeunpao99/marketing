@@ -217,7 +217,7 @@ function KeyDrawer({ state, setState, onClose, showToast }) {
             {/* billing and safety */}
             <div className="space-y-2 rounded-xl bg-ink-50 px-3.5 py-3 text-[12px] leading-relaxed text-ink-600">
               <p>
-                <b className="text-ink-800">Your credit:</b> lines read with your key aren't taken from your credit — Google bills your key. Its free tier reads about 100
+                <b className="text-ink-800">Your plan:</b> lines read with your key don't use your plan's AI allowance — Google bills your key. Its free tier reads about 100
                 lines a day; turn on billing in AI Studio for more.
               </p>
               <p className="flex gap-1.5">

@@ -7153,7 +7153,10 @@ def _build_plan(payload: "PlanIn", ws: int, user_id: int, on_style=None) -> dict
         if on_style:
             on_style(style, why)
         shape = final_ratio(payload.ratio, style, suggested)
-        seconds = story_seconds(payload.idea, payload.length, STORY_MAX_S)  # every template: up to 10 minutes
+        from app import usage
+
+        # every template goes to 10 minutes — the plan's longest video caps it (app/usage.py)
+        seconds = story_seconds(payload.idea, payload.length, min(STORY_MAX_S, usage.longest(db, ws)))
         r, g, b = brand_rgb(brand)
         ref, design = reference_shot(db, payload.ref_url, f"#{r:02x}{g:02x}{b:02x}")
         more = attached_shots(payload.ref_url, payload.ref_urls) if ref else []
@@ -7203,6 +7206,9 @@ def plan_motion(
     if payload.product_id is not None:
         owned(db, Product, payload.product_id, ws)
     billing.require(ws, 0.0, db)
+    from app import usage
+
+    usage.check_length(db, ws, payload.length, story_seconds(payload.idea, "auto", STORY_MAX_S))
     now = time.time()
     for k in [k for k, v in _plans.items() if now - v["at"] > _PLAN_KEEP]:
         _plans.pop(k, None)
@@ -7443,6 +7449,12 @@ def create_motion(
     if payload.product_id is not None:
         owned(db, Product, payload.product_id, ws)
     billing.require(ws, 0.0, db)
+    from app import usage
+
+    # how long it will run: the reviewed storyboard's estimate, else the brief's
+    plan_s = estimate_seconds(payload.script) if payload.script and payload.script.get("scenes") else min(story_seconds(payload.idea or "", "auto", STORY_MAX_S), usage.longest(db, ws))
+    units = usage.video_units(plan_s)
+    usage.require_video(db, ws, units, plan_s if payload.script else None)
     refuse_if_busy(db, "motion")
     job = GenerationJob(
         workspace_id=ws,
@@ -7454,6 +7466,7 @@ def create_motion(
         seconds=0,
         provider="remotion",
         status="queued",
+        units=units,
     )
     db.add(job)
     db.commit()
@@ -7486,6 +7499,14 @@ def make_motion(
     db = SessionLocal()
     try:
         brand = db.get(Brand, brand_id)
+        from app import usage
+
+        # the plan's videos this month: used up → the post goes out without its video
+        try:
+            usage.require_video(db, brand.workspace_id, 1)
+        except HTTPException as exc:
+            log.info("weekly plan video skipped for workspace %s: %s", brand.workspace_id, exc.detail)
+            return None
         job = GenerationJob(
             workspace_id=brand.workspace_id,
             brand_id=brand_id,
@@ -7495,6 +7516,7 @@ def make_motion(
             seconds=0,
             provider="remotion",
             status="queued",
+            units=1,
         )
         db.add(job)
         db.commit()
@@ -7735,6 +7757,10 @@ def _make(
             log.exception("motion %s: making-of not saved", job_id)
         job.video_id = video.id
         job.seconds = seconds
+        if job.units:  # a counted video (not a re-shape or an edit): by its real length
+            from app import usage
+
+            job.units = usage.video_units(seconds)
         job.status = "succeeded"
         job.error = ""
         if caption:

@@ -118,6 +118,27 @@ def _pick_video_idea(ideas: list[dict]) -> int:
     )
 
 
+def _plan_allows(ws: int, what: str) -> bool:
+    """The plan has a video (an AI-filmed clip: 3) / an image left this month (app/usage.py)."""
+    from fastapi import HTTPException
+
+    from app import usage as plan_usage
+    from app.database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        if what == "video":
+            plan_usage.require_video(db, ws, plan_usage.FILMED_UNITS)
+        else:
+            plan_usage.require_image(db, ws)
+        return True
+    except HTTPException as exc:
+        log.info("auto %s skipped for workspace %s: %s", what, ws, exc.detail)
+        return False
+    finally:
+        db.close()
+
+
 def _generate_video_for(
     brand: Brand | _AutoBrand,
     idea: dict,
@@ -145,6 +166,8 @@ def _generate_video_for(
     except billing.OutOfCredit:
         log.info("auto video skipped for brand %s: out of AI credit", brand.id)
         return None
+    if not _plan_allows(brand.workspace_id, "video"):
+        return None
     prompt = video_prompt_for_idea(brand.name, brand.lang, idea, products, first_frame=first_frame is not None)
     try:
         provider, provider_job_id = video_gen.start_job(prompt, "9:16", 8, first_frame, model=model)
@@ -165,6 +188,7 @@ def _generate_video_for(
             provider_job_id=provider_job_id,
             model=model or billing.video_model(provider),
             status="running",
+            units=3,  # an AI-filmed clip (app/usage.py FILMED_UNITS)
         )
         db.add(job)
         db.commit()
@@ -281,6 +305,8 @@ def _generate_media_for(
     except billing.OutOfCredit:
         log.info("auto-media skipped for brand %s: out of AI credit", brand.id)
         return None
+    if not _plan_allows(brand.workspace_id, "image"):
+        return None
     try:
         with video_gen.image_slot():
             provider, blob, usage = video_gen.generate_image(guide + prompt, ratio, refs or None)
@@ -338,6 +364,7 @@ def _generate_media_for(
             input_tokens=usage.get("input", 0),
             output_tokens=usage.get("output", 0),
             total_tokens=usage.get("total", 0),
+            units=1,
         )
         db.add(job)
         db.flush()
