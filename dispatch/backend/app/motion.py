@@ -6793,6 +6793,7 @@ def review_design(brand: Brand, script: dict, logo: str | None, khmer: bool, job
             continue
         old = scenes[n]
         pictures = [L.get("src") for L in old.get("layers") or [] if L.get("src")]
+        moving = {L["src"]: L["svg"] for L in old.get("layers") or [] if L.get("src") and L.get("svg")}  # vector pictures keep their moves
         cand = {"type": "canvas", "seconds": old.get("seconds"), "pause": old.get("pause"), "tone": fx.get("tone") or old.get("tone"), "req": old.get("req"), "pal": fx.get("pal") or old.get("pal"), "bg": fx.get("bg") or old.get("bg"), "layers": fx["layers"]}
         # the pictures were sent as "<picture>": they keep the brand kit's own
         for L in cand["layers"]:
@@ -6800,6 +6801,9 @@ def review_design(brand: Brand, script: dict, logo: str | None, khmer: bool, job
                 L["src"] = pictures.pop(0) if pictures else None
         clean = _clean_canvas(cand, old.get("say") or "")
         if clean:
+            for L in clean.get("layers") or []:
+                if L.get("src") in moving:
+                    L["svg"] = moving[L["src"]]
             scenes[n] = apply_theme(clean, script.get("theme") or clean_theme({}))
             fixed += 1
     log.info("motion %s: design check fixed %s scene(s) — %s", job_id, fixed, _line(out.get("note"), 80))
@@ -7569,7 +7573,10 @@ def _make(
 
                 if any(L.get("draw") and not L.get("src") for sc in script["scenes"] for L in sc.get("layers") or []):
                     _report(job_id, stage="pictures")
-                    doodle.draw_pictures(script["scenes"], script.get("theme") or {}, job.workspace_id, job.user_id, wide=script.get("ratio") == "16:9")
+                    doodle.draw_pictures(
+                        script["scenes"], script.get("theme") or {}, job.workspace_id, job.user_id,
+                        wide=script.get("ratio") == "16:9", language=script.get("language") or "English",
+                    )
                     _check(job_id)
             if script.get("style") == "reaction":  # Reaction meme: its animals, and the pictures behind
                 from app import doodle

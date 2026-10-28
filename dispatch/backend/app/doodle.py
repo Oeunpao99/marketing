@@ -355,7 +355,7 @@ def _words_on_corner(sc: dict, wide: bool) -> None:
     sc["layers"] = [L for L in layers if L.get("kind") == "image" or L is title]
 
 
-def draw_pictures(scenes: list[dict], theme: dict, ws: int | None, user_id: int | None, wide: bool = False) -> int:
+def draw_pictures(scenes: list[dict], theme: dict, ws: int | None, user_id: int | None, wide: bool = False, language: str = "English") -> int:
     """AI design (style "canvas"): every image layer that asks for a drawing
     (``draw``) gets one. The look says how (theme["pictures"]): "vector" (the
     default) = the writing AI draws it as flat vector SVG in the look's colours,
@@ -403,7 +403,9 @@ def draw_pictures(scenes: list[dict], theme: dict, ws: int | None, user_id: int 
             log.exception("ai design: could not read a picture")
             return None
 
-    def vector(item):
+    def vector(item, reference: str = ""):
+        """The picture drawn as SVG: its text kept on the layer (canvas.jsx VectorArt
+        plays its moves), a data URI returned for the rest (thumbnails, previews)."""
         from app import vector_art
 
         sc, L = item
@@ -415,14 +417,25 @@ def draw_pictures(scenes: list[dict], theme: dict, ws: int | None, user_id: int 
         )
         tall = (L.get("w") or 0) >= 700  # a phone video's big picture: a taller panel
         full = ("wide" if wide else "tall") if _full_frame(sc) else ""
-        return vector_art.draw(L["draw"], cast=theme.get("cast") or "", palette=palette, tall=tall, full=full, light=light)
+        svg = vector_art.draw(
+            L["draw"], cast=theme.get("cast") or "", palette=palette, tall=tall, full=full, light=light,
+            seconds=float(sc.get("seconds") or 5), language=language, reference=reference,
+        )
+        if not svg:
+            return None
+        L["svg"] = svg
+        return "data:image/svg+xml;base64," + base64.b64encode(svg.encode()).decode()
 
     got = []
     drew_vector: set[int] = set()
     if mode == "vector" and todo[:MAX_VECTORS]:
-        # writing calls, three at once; each keeps this job's billing (contextvars)
+        # the first picture alone, then the rest — three at once — drawing its people
+        # the same way; writing calls, each keeping this job's billing (contextvars)
+        first = vector(todo[0])
+        reference = todo[0][1].get("svg") or ""
         with ThreadPoolExecutor(max_workers=3) as pool:
-            got = list(pool.map(lambda it: contextvars.copy_context().run(vector, it), todo[:MAX_VECTORS]))
+            rest = list(pool.map(lambda it: contextvars.copy_context().run(vector, it, reference), todo[1:MAX_VECTORS]))
+        got = [first, *rest]
         drew_vector = {k for k, u in enumerate(got) if u}
         missed = [k for k, u in enumerate(got) if not u][:MAX_PICTURES]
         if missed:  # painted instead, one at a time
@@ -440,7 +453,7 @@ def draw_pictures(scenes: list[dict], theme: dict, ws: int | None, user_id: int 
             if k in drew_vector:
                 L["radius"] = 0  # the SVG has its own rounded panel — or is the whole frame
                 if _full_frame(sc):  # behind everything, edge to edge; the words on its empty corner
-                    L.update(x=50, y=50, w=1920 if wide else 1080, z=0)
+                    L.update(x=50, y=50, w=1920 if wide else 1080, z=0, at=0)  # the background: there from the first frame
                     L["in"] = "fade"
                     L.pop("loop", None)
                     _words_on_corner(sc, wide)

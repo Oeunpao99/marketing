@@ -45,22 +45,13 @@ function Background({ bg = {}, pal }) {
   const a = col(pal, bg.accent, pal.a)
   const b = col(pal, bg.color2, pal.b)
   const dark = pal.mode !== 'light'
-  // strong enough to survive the video's compression (at 0.07 it vanished on a dark scene)
-  const line = dark ? 'rgba(255,255,255,0.1)' : 'rgba(15,23,42,0.085)'
   const kind = bg.kind || 'solid'
   return (
     <AbsoluteFill style={{ background: kind === 'gradient' ? `linear-gradient(${bg.angle ?? 160}deg, ${base}, ${b})` : base, overflow: 'hidden' }}>
-      {/* every AI design scene keeps the grid underneath — the look's own
-          pattern (network, waves, rings…) is drawn over it */}
-      <AbsoluteFill
-        style={{
-          backgroundImage: `linear-gradient(${line} 2px, transparent 2px), linear-gradient(90deg, ${line} 2px, transparent 2px)`,
-          backgroundSize: '64px 64px',
-          backgroundPosition: `center ${-((frame * 0.4) % 64)}px`,
-          maskImage: 'radial-gradient(ellipse 95% 80% at 50% 45%, black 45%, transparent 100%)',
-          WebkitMaskImage: 'radial-gradient(ellipse 95% 80% at 50% 45%, black 45%, transparent 100%)',
-        }}
-      />
+      {/* a soft glow of the accent, slowly breathing — no grid any more (the owner
+          found it busy; Claude's own promo used plain colour + a glow). The look's
+          pattern (waves, rings…) is drawn over it */}
+      <AbsoluteFill style={{ background: `radial-gradient(ellipse 62% 55% at ${60 + Math.sin(frame / 90) * 3}% 48%, ${tint(a, dark ? 0.2 : 0.16)}, transparent 72%)` }} />
       {kind === 'spotlight' && <AbsoluteFill style={{ background: `radial-gradient(ellipse 55% 45% at 50% ${40 + Math.sin(frame / 60) * 4}%, ${tint(a, 0.28)}, transparent 70%)` }} />}
       {kind === 'rings' &&
         [0.3, 0.5, 0.72].map((r, i) => (
@@ -446,6 +437,9 @@ function Layer({ L, pal, brand, u, delay, dy = 0, measure }) {
         const k = Math.floor(frame / 5)
         const boil = `translate(${(random(`bx${k}`) - 0.5) * 3 * u}px, ${(random(`by${k}`) - 0.5) * 3 * u}px) rotate(${(random(`br${k}`) - 0.5) * 0.7}deg)`
         body = <Img src={srcOf(src)} style={{ width: w || 360 * u, height: h, objectFit: 'contain', maskImage: mask, WebkitMaskImage: mask, transform: boil }} />
+      } else if (L.kind === 'image' && L.svg) {
+        // a vector picture the AI drew (app/vector_art.py): inline, so its tagged parts move
+        body = <VectorArt svg={L.svg} t={Math.max(0, (frame - delay) / fps)} style={{ width: w || 360 * u, height: h }} />
       } else if (L.kind === 'logo' && brand?.logoSolid) {
         // a logo with its own solid ground (a white JPEG square) looked pasted on the
         // scene: it becomes a rounded tile with a soft shadow, on purpose on any background
@@ -581,6 +575,88 @@ function Layer({ L, pal, brand, u, delay, dy = 0, measure }) {
       </div>
     </div>
   )
+}
+
+// ── vector pictures that move ──────────────────────────────────────────────
+// The AI tags parts of its SVG with one of these moves (app/vector_art.py MOVES:
+// class="…", data-delay / data-until seconds, data-pivot "x y" in the drawing's
+// units). Each is a pure function of the scene's time, so every frame renders the
+// same way — no CSS animation, which a frame-by-frame render can't follow.
+const TAU = Math.PI * 2
+const backOut = (e) => 1 + 2.2 * (e - 1) ** 3 + 1.2 * (e - 1) ** 2
+function move(kind, t, el, i) {
+  const at = parseFloat(el.getAttribute('data-delay')) || 0
+  const ph = i * 0.73 // neighbours out of step, like real stars
+  const sin = (period, off = 0) => Math.sin(TAU * (t / period) + ph + off)
+  switch (kind) {
+    case 'twinkle':
+      return { opacity: 0.35 + 0.65 * (0.5 + 0.5 * sin(2.2)) }
+    case 'blink': // eyes close for a moment every few seconds
+      return { transform: `scaleY(${(t + ph) % 3.4 > 3.24 ? 0.1 : 1})` }
+    case 'wave':
+      return { transform: `rotate(${12 * sin(1.1)}deg)`, origin: 'pivot' }
+    case 'float':
+      return { transform: `translateY(${-14 * sin(3.2)}px) rotate(${4 * sin(4.4)}deg)` }
+    case 'bob':
+      return { transform: `translateY(${-8 * sin(1.8)}px)` }
+    case 'glow':
+      return { opacity: 0.6 + 0.4 * (0.5 + 0.5 * sin(1.8)) }
+    case 'sway':
+      return { transform: `rotate(${3 * sin(3.6)}deg)`, origin: 'bottom' }
+    case 'spin':
+      return { transform: `rotate(${(360 * t) / 24}deg)` }
+    case 'pop': {
+      if (t < at) return { opacity: 0 }
+      const e = Math.min(1, (t - at) / 0.45)
+      return { opacity: Math.min(1, e * 1.6), transform: `translateY(${(1 - e) * 16}px) scale(${0.9 + 0.1 * backOut(e)})`, origin: 'bottom' }
+    }
+    case 'typing': {
+      const until = parseFloat(el.getAttribute('data-until')) || at + 1.2
+      return { opacity: t >= at && t < until ? 1 : 0, dots: true }
+    }
+    default:
+      return {}
+  }
+}
+
+function VectorArt({ svg, t, style }) {
+  const ref = useRef(null)
+  // set once: React keeps the same markup, the moves below only change styles
+  const [html] = useState(() => ({ __html: svg }))
+  useLayoutEffect(() => {
+    const root = ref.current
+    if (!root) return
+    const pic = root.querySelector('svg')
+    if (pic) {
+      pic.setAttribute('width', '100%')
+      pic.removeAttribute('height')
+      pic.style.display = 'block'
+      pic.style.overflow = 'visible'
+    }
+    root.querySelectorAll('[class]').forEach((el, i) => {
+      const m = move(el.getAttribute('class'), t, el, i)
+      if (m.opacity !== undefined) el.style.opacity = String(m.opacity)
+      if (m.transform) {
+        el.style.transform = m.transform
+        const pivot = (el.getAttribute('data-pivot') || '').split(' ').map(Number)
+        if (m.origin === 'pivot' && pivot.length === 2 && pivot.every((n) => !Number.isNaN(n))) {
+          el.style.transformBox = 'view-box'
+          el.style.transformOrigin = `${pivot[0]}px ${pivot[1]}px`
+        } else {
+          el.style.transformBox = 'fill-box'
+          el.style.transformOrigin = m.origin === 'bottom' || m.origin === 'pivot' ? 'center bottom' : 'center'
+        }
+      }
+      if (m.dots) {
+        // the typing dots hop one after another
+        el.querySelectorAll('circle').forEach((c, k) => {
+          c.style.transform = `translateY(${-6 * Math.max(0, Math.sin(TAU * t * 1.6 - k * 0.9))}px)`
+        })
+      }
+    })
+  })
+  // the picture's words inherit the video's font (Khmer-ready); the SVG sets none
+  return <div ref={ref} style={{ ...style, fontFamily: FONT }} dangerouslySetInnerHTML={html} />
 }
 
 /** "logo", or a picture the server already put in (app/motion.py resolves
