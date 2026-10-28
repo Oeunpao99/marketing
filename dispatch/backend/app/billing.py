@@ -54,9 +54,11 @@ PHNOM_PENH = timezone(timedelta(hours=7))
 CREDITS_PER_USD = 200
 
 # Monthly AI credits per plan (the pricing page, 2026-10-21) — and in dollars.
-PLAN_CREDITS = {"free": 100, "starter": 1000, "pro": 3000, "business": 9000, "enterprise": 30000}
+# Starter 1,500 (was 1,000): its package (4 videos, 60 images, a post a day, 2026-10-28) needs ~1,060
+PLAN_CREDITS = {"free": 100, "starter": 1500, "pro": 3000, "business": 9000, "enterprise": 30000}
 PLAN_CREDIT = {plan: credits / CREDITS_PER_USD for plan, credits in PLAN_CREDITS.items()}
-PLAN_LABEL = {"free": "Free", "starter": "Starter", "pro": "Pro", "business": "Business", "enterprise": "Enterprise"}
+# "pro" is sold as Growth (the packages of 2026-10-28) — the id stays, only the name changed
+PLAN_LABEL = {"free": "Free", "starter": "Starter", "pro": "Growth", "business": "Business", "enterprise": "Enterprise"}
 
 
 def to_credits(usd: float) -> float:

@@ -160,6 +160,46 @@ function Expires({ k }) {
   )
 }
 
+/** "Rotate / revoke this key?" — the app's pop-up (a plain dim backdrop, a solid
+ * panel, Esc or a tap outside cancels), in place of the browser's confirm box. */
+function ConfirmKey({ ask, onCancel, onConfirm }) {
+  const revoking = ask.kind === 'revoke'
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onCancel()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onCancel])
+  return createPortal(
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4" onMouseDown={(e) => e.target === e.currentTarget && onCancel()}>
+      <div role="alertdialog" aria-modal="true" className="w-full max-w-md rounded-2xl bg-white p-5 shadow-pop animate-fadein">
+        <span className={`grid h-10 w-10 place-items-center rounded-full ${revoking ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>
+          {revoking ? <FiTrash2 size={17} /> : <FiRefreshCw size={17} />}
+        </span>
+        <h3 className="mt-3 text-[16px] font-bold text-ink-900">{revoking ? `Revoke “${ask.key.name}”?` : `Make a new secret for “${ask.key.name}”?`}</h3>
+        <p className="mt-1.5 text-[13px] leading-relaxed text-ink-600">
+          {revoking
+            ? 'Anything using this key stops working right away. This can’t be undone.'
+            : 'The old secret stops working right away — put the new one wherever this key is used. Its name and project stay.'}
+        </p>
+        <div className="mt-5 flex justify-end gap-2">
+          <button type="button" onClick={onCancel} className="btn-outline">
+            Cancel
+          </button>
+          <button
+            type="button"
+            autoFocus
+            onClick={onConfirm}
+            className={revoking ? 'inline-flex items-center gap-1.5 rounded-xl bg-red-600 px-4 py-2 text-[13px] font-semibold text-white hover:bg-red-700' : 'btn-primary'}
+          >
+            {revoking ? <FiTrash2 size={13} /> : <FiRefreshCw size={13} />} {revoking ? 'Revoke key' : 'Make new secret'}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  )
+}
+
 function KeysTab({ canManage, showToast, onFresh, fresh, onQuickStart }) {
   const [keys, setKeys] = useState(null)
   const [name, setName] = useState('')
@@ -191,8 +231,9 @@ function KeysTab({ canManage, showToast, onFresh, fresh, onQuickStart }) {
       setBusy(false)
     }
   }
+  // rotate / revoke ask first, in the app's own pop-up (ConfirmKey below)
+  const [asking, setAsking] = useState(null) // { kind: 'rotate' | 'revoke', key }
   const rotate = async (k) => {
-    if (!window.confirm(`Make a new secret for “${k.name}”? The old one stops working right away — update it wherever it's used.`)) return
     try {
       onFresh(await api.post(`/api-keys/${k.id}/rotate`))
       setAdding(true) // the pop-up shows the new secret
@@ -209,7 +250,6 @@ function KeysTab({ canManage, showToast, onFresh, fresh, onQuickStart }) {
     setAdding(true)
   }
   const revoke = async (k) => {
-    if (!window.confirm(`Revoke “${k.name}”? Anything using it stops working right away.`)) return
     try {
       await api.del(`/api-keys/${k.id}`)
       if (fresh?.id === k.id) onFresh(null)
@@ -240,6 +280,18 @@ function KeysTab({ canManage, showToast, onFresh, fresh, onQuickStart }) {
           </button>
         )}
       </div>
+
+      {asking && (
+        <ConfirmKey
+          ask={asking}
+          onCancel={() => setAsking(null)}
+          onConfirm={async () => {
+            const { kind, key } = asking
+            setAsking(null)
+            await (kind === 'rotate' ? rotate(key) : revoke(key))
+          }}
+        />
+      )}
 
       {/* the pop-up: name the key — then the key itself, shown this once */}
       {adding &&
@@ -440,10 +492,10 @@ function KeysTab({ canManage, showToast, onFresh, fresh, onQuickStart }) {
 
                 {canManage && (
                   <div className="mt-4 flex gap-2 border-t border-ink-100 pt-3">
-                    <button type="button" onClick={() => rotate(k)} title="A new secret — the old one stops" className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-ink-100 px-3 py-1.5 text-[12px] font-semibold text-ink-700 hover:bg-ink-200">
+                    <button type="button" onClick={() => setAsking({ kind: 'rotate', key: k })} title="A new secret — the old one stops" className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-ink-100 px-3 py-1.5 text-[12px] font-semibold text-ink-700 hover:bg-ink-200">
                       <FiRefreshCw size={12} /> {live ? 'Rotate' : 'Renew'}
                     </button>
-                    <button type="button" onClick={() => revoke(k)} className="inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-semibold text-ink-500 hover:bg-red-50 hover:text-red-600">
+                    <button type="button" onClick={() => setAsking({ kind: 'revoke', key: k })} className="inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-semibold text-ink-500 hover:bg-red-50 hover:text-red-600">
                       <FiTrash2 size={12} /> Revoke
                     </button>
                   </div>

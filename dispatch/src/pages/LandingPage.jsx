@@ -794,28 +794,28 @@ const CREDIT_USES = [
   [FiPlayCircle, ['AI film clip, 8 s', 'ឈុតវីដេអូ AI ៨ វិនាទី'], 160],
 ]
 
-// The full comparison. A value per plan (Free, Starter, Pro, Business): true ✓, false —, or text.
+// The full comparison — the packages of 2026-10-28. A value per plan (Free, Starter,
+// Growth, Business): true ✓, false —, or text; a feature not built yet = "Coming soon".
+const SOON = ['Coming soon', 'ឆាប់ៗនេះ']
 const COMPARE = [
-  [['Monthly AI credits', 'ក្រេឌីត AI ប្រចាំខែ'], ['100', '1,000', '3,000', '9,000']],
-  [['Brands', 'ម៉ាក'], ['1', '1', '3', '10']],
-  [['Connected pages', 'ទំព័រដែលភ្ជាប់'], ['2', '5', '15', ['No limit', 'គ្មានដែនកំណត់']]],
-  [['Team seats', 'អ្នកប្រើក្នុងក្រុម'], ['1', '1', '3', '10']],
+  [['AI posts', 'ប្រកាស AI'], [['~10 a month', '~១០ ក្នុងមួយខែ'], ['1 a day', '១ ក្នុងមួយថ្ងៃ'], ['Up to 2 a day', 'រហូតដល់ ២ ក្នុងមួយថ្ងៃ'], ['Up to 3 a day per brand', 'រហូតដល់ ៣ ក្នុងមួយថ្ងៃ ក្នុងមួយម៉ាក']]],
+  [['AI videos a month', 'វីដេអូ AI ក្នុងមួយខែ'], ['1', '4', '8', '20']],
+  [['AI images a month', 'រូបភាព AI ក្នុងមួយខែ'], ['2', '60', '150', '400']],
+  [['Brands / channels', 'ម៉ាក / ឆានែល'], [['1 / 2', '១ / ២'], ['1 / 3', '១ / ៣'], ['1 / all 5', '១ / ទាំង ៥'], ['3 / all 5 each', '៣ / ទាំង ៥ ក្នុងមួយ']]],
+  [['Khmer + English captions, images, memes', 'ចំណងជើង រូបភាព មីម ខ្មែរ និងអង់គ្លេស'], [true, true, true, true]],
   [['Scheduling & auto-posting', 'កំណត់ពេល និងបង្ហោះស្វ័យប្រវត្តិ'], [true, true, true, true]],
-  [['Khmer captions & voice', 'ចំណងជើង និងសំឡេងខ្មែរ'], [true, true, true, true]],
-  [['Posters with real Khmer text', 'ប៉ូស្ទ័រមានអក្សរខ្មែរត្រឹមត្រូវ'], [true, true, true, true]],
   [['Motion video templates', 'គំរូវីដេអូចលនា'], [['3 basic', '៣ មូលដ្ឋាន'], ['All', 'ទាំងអស់'], ['All', 'ទាំងអស់'], ['All', 'ទាំងអស់']]],
-  [['Slides · Presentation, Video editor', 'ស្លាយបទបង្ហាញ កម្មវិធីកែវីដេអូ'], [false, true, true, true]],
-  [['Weekly AI plan', 'ផែនការ AI ប្រចាំសប្តាហ៍'], [false, true, true, true]],
-  [['Your logo on videos', 'ឡូហ្គោរបស់បងលើវីដេអូ'], [false, true, true, true]],
-  [['Analytics history', 'ប្រវត្តិស្ថិតិ'], [['7 days', '៧ ថ្ងៃ'], ['30 days', '៣០ ថ្ងៃ'], ['12 months', '១២ ខែ'], ['12 months', '១២ ខែ']]],
-  [['Website check', 'ពិនិត្យគេហទំព័រ'], [false, ['Monthly', 'ប្រចាំខែ'], ['Weekly', 'ប្រចាំសប្តាហ៍'], ['Weekly', 'ប្រចាំសប្តាហ៍']]],
+  [['Weekly AI plan + best time', 'ផែនការ AI ប្រចាំសប្តាហ៍ + ម៉ោងល្អបំផុត'], [false, true, true, true]],
+  [['Weekly website check', 'ពិនិត្យគេហទំព័រ ប្រចាំសប្តាហ៍'], [false, true, true, true]],
+  [['Mode', 'របៀប'], [['Review first', 'ពិនិត្យមុន'], ['Review first', 'ពិនិត្យមុន'], ['Review or Auto', 'ពិនិត្យ ឬស្វ័យប្រវត្តិ'], ['Review or Auto', 'ពិនិត្យ ឬស្វ័យប្រវត្តិ']]],
+  [['Leads & hand-off', 'អតិថិជនសក្តានុពល និងបញ្ជូន'], [false, false, ['3 reps', 'អ្នកលក់ ៣'], ['10 reps', 'អ្នកលក់ ១០']]],
+  [['Telegram lead alerts', 'ជូនដំណឹងអតិថិជនតាម Telegram'], [false, false, SOON, SOON]],
+  [['Insights', 'ស្ថិតិ'], [['7 days', '៧ ថ្ងៃ'], ['Basic', 'មូលដ្ឋាន'], ['Leads, deals, revenue', 'អតិថិជន ការលក់ ចំណូល'], ['+ Excel / CSV export', '+ នាំចេញ Excel / CSV']]],
+  [['Boost / ROI planner', 'ផែនការ Boost / ROI'], [false, false, ['Suggestions', 'ការណែនាំ'], ['Full planner — coming soon', 'ផែនការពេញ — ឆាប់ៗនេះ']]],
+  [['CRM link (Dynamics 365)', 'ភ្ជាប់ CRM (Dynamics 365)'], [false, false, false, SOON]],
   [['Your own voice (clone)', 'សំឡេងផ្ទាល់ខ្លួន'], [false, false, false, true]],
-  [['Leads & hand-off', 'អតិថិជនសក្តានុពល'], [false, false, false, true]],
-  [['API access', 'API'], [false, false, ['Read-only', 'អានប៉ុណ្ណោះ'], ['Full', 'ពេញលេញ']]],
-  [['Webhooks', 'Webhooks'], [false, false, false, true]],
-  [['MCP (Claude, ChatGPT)', 'MCP (Claude, ChatGPT)'], [false, false, false, true]],
-  [['Onboarding with our team', 'ណែនាំការប្រើប្រាស់'], [false, false, false, true]],
-  [['Support', 'ជំនួយ'], [['Help center', 'មជ្ឈមណ្ឌលជំនួយ'], ['Chat', 'ឆាត'], ['Priority chat', 'ឆាតអាទិភាព'], ['Telegram group', 'ក្រុម Telegram']]],
+  [['API & MCP (Claude, ChatGPT)', 'API និង MCP (Claude, ChatGPT)'], [false, false, false, true]],
+  [['Support', 'ជំនួយ'], [['Help center', 'មជ្ឈមណ្ឌលជំនួយ'], ['Telegram group', 'ក្រុម Telegram'], ['+ monthly review', '+ ពិនិត្យប្រចាំខែ'], ['Success manager', 'អ្នកគ្រប់គ្រងភាពជោគជ័យ']]],
 ]
 
 const KH_DIGITS = '០១២៣៤៥៦៧៨៩'
@@ -897,9 +897,9 @@ const CREDIT_MIX = [
 ]
 const SAMPLE_MONTH = {
   free: { posts: 10, images: 2, videos: 1 },
-  starter: { posts: 30, images: 15, plans: 4, videos: 8 },
-  pro: { posts: 90, images: 45, plans: 4, videos: 25, films: 4 },
-  business: { posts: 270, images: 135, plans: 16, videos: 75, films: 12 },
+  starter: { posts: 30, images: 60, plans: 4, videos: 4 },
+  pro: { posts: 60, images: 150, plans: 4, videos: 8 },
+  business: { posts: 270, images: 400, plans: 12, videos: 20 },
 }
 
 /** Pick a plan; a bar fills with a sample month of what its credits make. */
@@ -908,7 +908,7 @@ function CreditPlanner() {
   const n = (v) => (t.lang === 'km' ? khDigits(v) : v)
   const [pick, setPick] = useState('pro')
   const plan = PLANS.find((p) => p.id === pick)
-  const total = { free: 100, starter: 1000, pro: 3000, business: 9000 }[pick]
+  const total = { free: 100, starter: 1500, pro: 3000, business: 9000 }[pick] // app/billing.py PLAN_CREDITS
   const mix = CREDIT_MIX.map((m) => ({ ...m, count: SAMPLE_MONTH[pick][m.key] || 0 })).filter((m) => m.count)
   const used = mix.reduce((sum, m) => sum + m.count * m.each, 0)
   return (
@@ -934,7 +934,7 @@ function CreditPlanner() {
               >
                 <div className="text-[14px] font-bold">{t(p.name)}</div>
                 <div className={`text-[12px] ${pick === p.id ? 'text-white/80' : 'text-ink-500'}`}>
-                  {n({ free: '100', starter: '1,000', pro: '3,000', business: '9,000' }[p.id])} {t('credits', 'ក្រេឌីត')}
+                  {n({ free: '100', starter: '1,500', pro: '3,000', business: '9,000' }[p.id])} {t('credits', 'ក្រេឌីត')}
                 </div>
               </button>
             ))}
@@ -1216,12 +1216,15 @@ function Pricing({ onStart }) {
         <div className="flex flex-col items-start justify-between gap-4 rounded-3xl bg-white p-7 shadow-card sm:flex-row sm:items-center">
           <div className="min-w-0 flex-1">
             <div className="text-[18px] font-bold text-ink-900">
-              Enterprise <span className="ml-1 text-[14px] font-medium text-ink-500">· {t('big brands, resellers and partners', 'ម៉ាកធំ អ្នកលក់បន្ត និងដៃគូ')}</span>
+              Enterprise / Agency{' '}
+              <span className="ml-1 text-[14px] font-medium text-ink-500">· {t('banks, groups and agencies', 'ធនាគារ ក្រុមហ៊ុន និងភ្នាក់ងារ')}</span>
+              {/* "from $499" once the prices are out of "Coming soon" */}
+              {!PRICES_SOON && <span className="ml-2 text-[14px] font-semibold text-ink-900">{t('from $499 / month', 'ចាប់ពី $499 / ខែ')}</span>}
             </div>
             <p className="mt-1 max-w-3xl text-[14px] leading-relaxed text-ink-500">
               {t(
-                'Unlimited brands, pages and seats, the credits you need, a video template made for your brand, CRM connection, an account manager and a service agreement.',
-                'ម៉ាក ទំព័រ និងអ្នកប្រើ គ្មានដែនកំណត់ ក្រេឌីតតាមតម្រូវការ គំរូវីដេអូធ្វើសម្រាប់ម៉ាកបង ភ្ជាប់ CRM អ្នកគ្រប់គ្រងគណនី និងកិច្ចព្រមព្រៀងសេវាកម្ម។',
+                '10+ brands, unlimited channels and sales reps, AI posts and 50+ videos a month as you need, approval steps, custom reports and a CRM link (coming soon), an SLA and on-site training.',
+                'ម៉ាក ១០+ ឆានែល និងអ្នកលក់ គ្មានដែនកំណត់ ប្រកាស AI និងវីដេអូ ៥០+ ក្នុងមួយខែ តាមតម្រូវការ ជំហានអនុម័ត របាយការណ៍តាមតម្រូវការ និងភ្ជាប់ CRM (ឆាប់ៗនេះ) កិច្ចព្រមព្រៀងសេវាកម្ម និងការបណ្តុះបណ្តាលនៅទីតាំង។',
               )}
             </p>
           </div>

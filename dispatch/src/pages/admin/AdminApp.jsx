@@ -740,8 +740,8 @@ function Accounts({ onOpen }) {
 // app/billing.py PLAN_CREDITS — the pricing page's plans
 const PLAN_OPTIONS = [
   { value: 'free', label: 'Free · 100 credits / month' },
-  { value: 'starter', label: 'Starter · 1,000 credits / month' },
-  { value: 'pro', label: 'Pro · 3,000 credits / month' },
+  { value: 'starter', label: 'Starter · 1,500 credits / month' },
+  { value: 'pro', label: 'Growth · 3,000 credits / month' },
   { value: 'business', label: 'Business · 9,000 credits / month' },
   { value: 'enterprise', label: 'Enterprise · 30,000 credits / month' },
 ]
