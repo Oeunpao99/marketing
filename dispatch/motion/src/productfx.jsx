@@ -132,7 +132,8 @@ function Device({ kind, src, size, tallest }) {
       </div>
     )
   }
-  const w = Math.min(size * 1.5, wide ? W * 0.52 : W * 0.86)
+  // wide: under half the frame — the words beside it start at 0.56 of the width (0.52 covered them)
+  const w = Math.min(size * 1.5, wide ? W * 0.42 : W * 0.86)
   const sw = w * 0.86 // the screen inside its bezel
   const sh = sw * 0.625 // 16:10
   return (
@@ -345,7 +346,8 @@ function PriceBadge({ cx, cy, r, color, scene }) {
   return (
     <div style={{ position: 'absolute', left: cx - r, top: cy - r, width: 2 * r, height: 2 * r, transform: `scale(${pop}) rotate(${(1 - pop) * -40}deg)` }}>
       <svg width={2 * r} height={2 * r} viewBox={`${-r} ${-r} ${2 * r} ${2 * r}`} style={{ position: 'absolute', inset: 0, transform: `rotate(${frame * 0.6}deg)` }}>
-        <polygon points={pts} fill={mix(color, '#FFD166', 0.55)} />
+        {/* gold, a touch of the brand: the brand mixed half with yellow went grey for a blue brand */}
+        <polygon points={pts} fill={mix('#FFC93C', color, 0.12)} />
       </svg>
       <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', textAlign: 'center', fontFamily: FONT, color: '#1A1205' }}>
         <div>
@@ -443,7 +445,7 @@ function Cta({ scene, brand }) {
         <Blob cx={cx} cy={cy} r={size * 0.4} color={brand.color} />
       </Shapes>
       <Product scene={scene} brand={brand} cx={cx} cy={cy} size={size} at={0} />
-      <div style={{ position: 'absolute', ...(wide ? { left: W * 0.56, width: W * 0.38, top: H * 0.26, textAlign: 'left' } : { left: W * 0.08, width: W * 0.84, top: H * 0.64, textAlign: 'center' }), fontFamily: FONT, color: 'white' }}>
+      <div style={{ position: 'absolute', ...(wide ? { left: W * 0.59, width: W * 0.35, top: H * 0.26, textAlign: 'left' } : { left: W * 0.08, width: W * 0.84, top: H * 0.64, textAlign: 'center' }), fontFamily: FONT, color: 'white' }}>
         <Headline text={scene.text} size={wide ? 72 : 76} align={wide ? 'left' : 'center'} color={brand.color} delay={4} />
         {scene.button && (
           <div
