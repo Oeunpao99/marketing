@@ -60,7 +60,7 @@ class Settings(BaseSettings):
     azure_claude_api_key: str = ""
 
     # In-portal video generation (AI agent → "Generate video").
-    # Provider: "azure_sora" or "gemini_veo".
+    # Provider: "azure_sora" or "gemini_omni" ("gemini_veo" goes to gemini_omni now).
     video_generation_enabled: bool = True
     video_provider: str = "azure_sora"
     # Safety cap on a single render, in seconds.
@@ -84,7 +84,9 @@ class Settings(BaseSettings):
     # (the prod VM is in Hong Kong), so prod points this at a proxy running in a
     # supported region (dispatch/gemini-proxy/worker.js). Blank = Google directly.
     gemini_base_url: str = ""
-    gemini_video_model: str = "veo-3.1-fast-generate-preview"
+    gemini_video_model: str = "veo-3.1-fast-generate-preview"  # old: Veo 3.1 preview was shut down 2026-10-22
+    # gemini_omni (and gemini_veo, which now goes to it): Google's video model after Veo 3.1 preview
+    gemini_omni_model: str = "gemini-omni-1.1-flash"
     # Azure Speech — Khmer / English voice-over for motion videos (app/speech.py).
     azure_speech_key: str = ""
     azure_speech_region: str = ""

@@ -46,7 +46,7 @@ from app.database import SessionLocal, get_db
 from app.media import read_media, store_blob
 from app.models import Brand, GenerationJob, Product, TeamMember, Video, VideoStory
 from app.tenancy import current_workspace_id, get_current_user, owned
-from app.video import _DIMS, VideoGenError, advance_video, start_job
+from app.video import _DIMS, VideoGenError, advance_video, friendly_error, start_job
 
 log = logging.getLogger("app.story")
 
@@ -533,7 +533,7 @@ def _advance(db: Session, story_id: int) -> None:
         except VideoGenError as exc:
             if _BUSY.search(str(exc)):
                 break  # the video service is busy — try again next tick
-            s["state"], s["error"] = "failed", str(exc)
+            s["state"], s["error"] = "failed", friendly_error(exc)
             continue
         job = GenerationJob(
             workspace_id=story.workspace_id,

@@ -265,10 +265,107 @@ def _gemini_fetch(ref: str) -> bytes:
     return resp.content
 
 
+# ── Google Gemini Omni Flash (Interactions API) ──────────────────────────
+# Veo 3.1 preview was shut down on 2026-10-22; Google's video model is now
+# gemini-omni-1.1-flash, called through /v1beta/interactions (not
+# predictLongRunning). Run in the background (background: true) and polled by
+# its interaction id; the finished step "model_output" holds the MP4 — inline
+# base64, or a uri for big files. Clips are 3–10 s; there's no duration field,
+# so the length is asked for in the prompt. ~$0.10/s at 720p (5,792 output
+# tokens a second).
+OMNI_TOKENS_PER_SECOND = 5792
+
+
+def _omni_model(model: str | None) -> str:
+    # an old Veo id (the AI Agent's auto_video_model) doesn't run here
+    return model if model and model.startswith("gemini-omni") else get_settings().gemini_omni_model
+
+
+def _omni_start(
+    prompt: str, aspect_ratio: str, seconds: int, reference: bytes | None = None, model: str | None = None
+) -> str:
+    key = _gemini_key()
+    ratio = aspect_ratio if aspect_ratio in {"16:9", "9:16"} else "9:16"
+    length = max(3, min(10, int(seconds or 8)))
+    text = f"{prompt.strip()}\n\nThe video lasts about {length} seconds."
+    resolution = get_settings().gemini_video_resolution.strip().lower()
+    body = {
+        "model": _omni_model(model),
+        "input": text,
+        "response_format": {"type": "video", "aspect_ratio": ratio, "resolution": resolution if resolution in ("360p", "720p", "1080p", "4k") else "1080p"},
+        "background": True,
+    }
+    if reference is not None:
+        # Image-to-video: the picture is the first frame
+        frame = _first_frame(reference, ratio)
+        body["input"] = [{"type": "image", "data": base64.b64encode(frame).decode(), "mime_type": "image/png"}, {"type": "text", "text": text}]
+        body["generation_config"] = {"video_config": {"task": "image_to_video"}}
+    try:
+        resp = httpx.post(f"{_gemini_base()}/interactions", headers={"x-goog-api-key": key}, json=body, timeout=90.0)
+    except httpx.HTTPError as exc:
+        raise VideoGenError(f"Could not reach the video service: {exc}") from exc
+    if resp.status_code >= 400:
+        raise VideoGenError(f"Video service rejected the request: {_explain(resp)}")
+    interaction = resp.json().get("id")
+    if not interaction:
+        raise VideoGenError("Video service did not return an interaction id.")
+    return interaction
+
+
+def _omni_get(interaction: str, timeout: float = 60.0) -> dict:
+    try:
+        resp = httpx.get(f"{_gemini_base()}/interactions/{interaction}", headers={"x-goog-api-key": _gemini_key()}, timeout=timeout)
+    except httpx.HTTPError as exc:
+        raise VideoGenError(f"Could not reach the video service: {exc}") from exc
+    if resp.status_code >= 400:
+        raise VideoGenError(f"Video service error: {_explain(resp)}")
+    return resp.json()
+
+
+def _omni_video(data: dict) -> dict | None:
+    """The finished video item ({data | uri, mime_type}) in an interaction."""
+    for step in data.get("steps") or data.get("outputs") or []:
+        if step.get("type") not in (None, "model_output"):
+            continue
+        for item in step.get("content") or [step]:
+            if item.get("type") == "video" and (item.get("data") or item.get("uri")):
+                return item
+    return None
+
+
+def _omni_poll(interaction: str) -> dict:
+    data = _omni_get(interaction)
+    status = data.get("status") or ""
+    if status in ("in_progress", "requires_action", ""):
+        return {"status": "running", "ref": None, "error": None}
+    if status in ("failed", "cancelled"):
+        err = data.get("error") or {}
+        msg = err.get("message") if isinstance(err, dict) else str(err)
+        return {"status": "failed", "ref": None, "error": msg or "Render failed."}
+    if _omni_video(data) is None:
+        return {"status": "failed", "ref": None, "error": "Render returned no video."}
+    u = data.get("usage") or {}
+    out = int(u.get("total_output_tokens") or u.get("output_tokens") or 0)
+    usage = {"input": int(u.get("total_input_tokens") or u.get("input_tokens") or 0), "output": out}
+    if out:
+        usage["seconds"] = round(out / OMNI_TOKENS_PER_SECOND)
+    return {"status": "succeeded", "ref": interaction, "error": None, "usage": usage}
+
+
+def _omni_fetch(interaction: str) -> bytes:
+    item = _omni_video(_omni_get(interaction, timeout=180.0))
+    if item is None:
+        raise VideoGenError("Render returned no video.")
+    if item.get("data"):
+        return base64.b64decode(item["data"])
+    return _gemini_fetch(item["uri"])
+
+
 # ── provider dispatch ────────────────────────────────────────────────────
 _PROVIDERS = {
     "azure_sora": (_azure_start, _azure_poll, _azure_fetch),
-    "gemini_veo": (_gemini_start, _gemini_poll, _gemini_fetch),
+    "gemini_veo": (_gemini_start, _gemini_poll, _gemini_fetch),  # old jobs only — Veo 3.1 preview is shut down
+    "gemini_omni": (_omni_start, _omni_poll, _omni_fetch),
 }
 
 
@@ -276,10 +373,26 @@ def _provider():
     s = get_settings()
     if not s.video_generation_enabled:
         raise VideoGenError("Video generation is turned off (VIDEO_GENERATION_ENABLED=false).")
-    impl = _PROVIDERS.get(s.video_provider)
+    name = s.video_provider
+    if name == "gemini_veo":
+        name = "gemini_omni"  # Google shut Veo 3.1 preview down (2026-10-22): its successor
+    impl = _PROVIDERS.get(name)
     if impl is None:
         raise VideoGenError(f"Unknown VIDEO_PROVIDER '{s.video_provider}'.")
-    return s.video_provider, impl
+    return name, impl
+
+
+def friendly_error(exc: Exception | str, job_id: int | None = None) -> str:
+    """What a customer sees when a filmed video can't be made — never the provider's
+    own words (keys, model names, API links); those go to the log."""
+    raw = str(exc)
+    log.warning("video %s: %s", job_id or "-", raw)
+    low = raw.lower()
+    if any(w in low for w in ("safety", "policy", "blocked", "violat", "prohibited", "responsible ai")):
+        return "The video service won't make this one — try describing it differently."
+    if any(w in low for w in ("429", "quota", "rate limit", "resource exhausted", "busy", "overloaded")):
+        return "The video service is busy right now — please try again in a few minutes."
+    return "The video couldn't be made just now — please try again in a few minutes. If it keeps happening, contact us."
 
 
 def start_job(
@@ -595,7 +708,7 @@ def advance_video(db: Session, job_id: int) -> GenerationJob | None:
     try:
         state = poll_job(job.provider, job.provider_job_id)
     except VideoGenError as exc:
-        job.error = str(exc)  # transient — keep the job open
+        job.error = friendly_error(exc, job.id)  # transient — keep the job open
         db.commit()
         return job
 
@@ -606,7 +719,7 @@ def advance_video(db: Session, job_id: int) -> GenerationJob | None:
 
     if state["status"] == "failed":
         job.status = "failed"
-        job.error = state["error"] or "Render failed."
+        job.error = friendly_error(state["error"] or "Render failed.", job.id)
         db.commit()
         _ready_push(job)
         return job
@@ -614,7 +727,7 @@ def advance_video(db: Session, job_id: int) -> GenerationJob | None:
     try:
         blob = fetch_video(job.provider, state["ref"])
     except VideoGenError as exc:
-        job.error = str(exc)
+        job.error = friendly_error(exc, job.id)
         db.commit()
         return job
 
@@ -680,7 +793,7 @@ def create_video(
     try:
         provider, provider_job_id = start_job(payload.prompt, ratio, seconds, reference)
     except VideoGenError as exc:
-        raise HTTPException(503, str(exc)) from exc
+        raise HTTPException(503, friendly_error(exc)) from exc
 
     job = GenerationJob(
         workspace_id=ws,
@@ -862,7 +975,7 @@ def _render_image(job_id: int, reference: bytes | list[bytes] | None, guide: str
                 provider, blob, usage = generate_image(prompt, ratio, reference)
             job = db.get(GenerationJob, job_id)
         except VideoGenError as exc:
-            job.status, job.error = "failed", str(exc)
+            job.status, job.error = "failed", friendly_error(exc, job.id)
             db.commit()
             _ready_push(job)
             return

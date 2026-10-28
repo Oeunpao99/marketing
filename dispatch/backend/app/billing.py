@@ -92,6 +92,7 @@ IMAGE_HOLD = 0.08
 VIDEO_PRICES = [
     ("sora-2-pro", 0.30),
     ("sora", 0.10),
+    ("gemini-omni", 0.15),  # $17.50 / 1M output tokens: ~$0.10/s at 720p, ~$0.15/s at 1080p (measured 2026-10-28)
     ("veo-3.1-lite", 0.05),
     ("veo-3.1-fast", 0.15),
     ("veo", 0.40),
@@ -163,13 +164,15 @@ def image_cost(input_tokens: int, output_tokens: int) -> float:
 
 def video_model(provider: str) -> str:
     s = get_settings()
-    return s.gemini_video_model if provider == "gemini_veo" else s.azure_openai_video_deployment
+    if provider in ("gemini_omni", "gemini_veo"):
+        return s.gemini_omni_model  # Veo 3.1 preview is shut down — gemini_veo renders on Omni
+    return s.azure_openai_video_deployment
 
 
 def billed_seconds(provider: str, seconds: int) -> int:
     """The clip length the provider actually renders (and bills)."""
-    if provider == "gemini_veo":
-        return 8 if seconds >= 7 else (6 if seconds >= 5 else 4)
+    if provider in ("gemini_omni", "gemini_veo"):
+        return max(3, min(10, int(seconds or 8)))  # Omni clips are 3–10 s
     return 12 if seconds >= 10 else (8 if seconds >= 6 else 4)
 
 
