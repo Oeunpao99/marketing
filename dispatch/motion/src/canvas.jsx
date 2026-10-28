@@ -446,6 +446,11 @@ function Layer({ L, pal, brand, u, delay, dy = 0, measure }) {
         const k = Math.floor(frame / 5)
         const boil = `translate(${(random(`bx${k}`) - 0.5) * 3 * u}px, ${(random(`by${k}`) - 0.5) * 3 * u}px) rotate(${(random(`br${k}`) - 0.5) * 0.7}deg)`
         body = <Img src={srcOf(src)} style={{ width: w || 360 * u, height: h, objectFit: 'contain', maskImage: mask, WebkitMaskImage: mask, transform: boil }} />
+      } else if (L.kind === 'logo' && brand?.logoSolid) {
+        // a logo with its own solid ground (a white JPEG square) looked pasted on the
+        // scene: it becomes a rounded tile with a soft shadow, on purpose on any background
+        // (a little smaller than a see-through logo: its square ground reads bigger, and crowded the name under it)
+        body = <Img src={srcOf(src)} style={{ width: (w || 360 * u) * 0.7, height: h ? h * 0.7 : undefined, objectFit: 'contain', borderRadius: 28 * u, boxShadow: `0 ${18 * u}px ${48 * u}px rgba(0,0,0,0.35), 0 0 0 ${2 * u}px rgba(255,255,255,0.12)` }} />
       } else {
         body = <Img src={srcOf(src)} style={{ width: w || 360 * u, height: h, objectFit: 'contain', borderRadius: L.kind === 'image' ? (L.radius ?? 24) * u : 0 }} />
       }

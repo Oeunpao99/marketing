@@ -5657,7 +5657,8 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
             scene.pop("image", None)
         scenes.append(scene)
     props = {
-        "brand": {"name": brand.name, "color": f"#{r:02x}{g:02x}{b:02x}", "logo": logo, "logoLight": logo_is_light(logo)},
+        # logoLight: a white logo → a dark corner chip; logoSolid: a logo with its own ground → a rounded tile (canvas.jsx)
+        "brand": {"name": brand.name, "color": f"#{r:02x}{g:02x}{b:02x}", "logo": logo, "logoLight": logo_is_light(logo), "logoSolid": bool(logo) and not logo_prints(logo)},
         "scenes": scenes,
         "style": script.get("style") or "tech",
     }
