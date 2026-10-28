@@ -1,16 +1,26 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import {
   FiArrowRight,
+  FiAward,
   FiBriefcase,
   FiBarChart2,
   FiCalendar,
   FiCheck,
+  FiCheckCircle,
   FiChevronDown,
   FiClock,
+  FiCode,
   FiCpu,
+  FiCreditCard,
+  FiDownload,
+  FiEdit3,
+  FiEye,
+  FiFilm,
+  FiGift,
   FiGlobe,
   FiImage,
   FiKey,
+  FiLayers,
   FiMessageCircle,
   FiMic,
   FiMoon,
@@ -18,8 +28,12 @@ import {
   FiMousePointer,
   FiPlay,
   FiPlayCircle,
+  FiRepeat,
+  FiSend,
   FiShield,
   FiSun,
+  FiTrendingUp,
+  FiType,
   FiUsers,
   FiZap,
 } from 'react-icons/fi'
@@ -29,7 +43,6 @@ import { SiFacebook, SiInstagram, SiTelegram, SiTiktok, SiYoutube } from 'react-
 import { MOTION_TEMPLATES, previewSrc } from '../lib/motionTemplates'
 import { Course } from './TutorialsPage'
 import Developers from './DevelopersPage'
-import CreditCoin from '../components/layout/CreditCoin'
 import { PhoneFrame, RENDER } from '../components/preview/SocialPreview'
 import PlatformIcon, { PLAT_BRAND_CLASS } from '../components/ui/PlatformIcon'
 import LiveAvatar from '../components/ui/LiveAvatar'
@@ -725,10 +738,10 @@ const FAQ = [
     ],
   ],
   [
-    ['How do the AI costs work?', 'តើថ្លៃ AI គិតយ៉ាងដូចម្តេច?'],
+    ['What does each plan include?', 'តើគម្រោងនីមួយៗមានអ្វីខ្លះ?'],
     [
-      'Every workspace has AI credit for writing, pictures, voices and videos. You see what each thing costs, and nothing runs once the credit is used up.',
-      'កន្លែងធ្វើការនីមួយៗមានឥណទាន AI សម្រាប់ការសរសេរ រូបភាព សំឡេង និងវីដេអូ។ បងឃើញតម្លៃនៃការងារនីមួយៗ ហើយគ្មានអ្វីដំណើរការទេ ពេលឥណទានអស់។',
+      'Each plan has a number of AI videos (24–40 seconds each) and images a month. AI posts, the weekly plan, scheduling and the website check are included. You always see how many are left; they refill every month, and you can add more.',
+      'គម្រោងនីមួយៗមានចំនួនវីដេអូ AI (២៤–៤០ វិនាទី) និងរូបភាព AI ក្នុងមួយខែ។ ប្រកាស AI ផែនការប្រចាំសប្តាហ៍ ការកំណត់ពេល និងការពិនិត្យគេហទំព័រ មានរួចជាស្រេច។ បងឃើញចំនួនដែលនៅសល់ជានិច្ច វាបន្ថែមឡើងវិញរៀងរាល់ខែ ហើយបងអាចទិញបន្ថែមបាន។',
     ],
   ],
   [
@@ -774,32 +787,24 @@ function Faq() {
 // ── pricing ──────────────────────────────────────────────────────────────
 // The plans (the owner's decision, 2026-10-21). usd / khr = a month; a year =
 // 10 months (2 free). Free is the wide card on top; the paid plans under it,
-// the popular one dark; then the full comparison. Credits: CREDIT_USES.
+// the popular one dark; then the full comparison. Visitors never see the word credit
+// (the owner, 2026-10-28): plans say videos and images; credits stay in the app's ledger.
 // Monthly plan prices are confirmed (2026-10-23, the pricing proposal) and paid
 // in the app with KHQR (Settings → Billing → Upgrade; app/payments.py PLAN_PRICES
-// — keep the two in step). true = paid prices show "Coming soon" (2026-10-27, owner asked).
-const PRICES_SOON = true
-// What the app can't sell yet: yearly billing, credit packs and add-ons stay
+// — keep the two in step). true = paid prices show "Coming soon"; false since 2026-10-28 (the packages are out).
+const PRICES_SOON = false
+// What the app can't sell yet: yearly billing and add-ons stay
 // "Coming soon" (the Yearly switch is hidden) until checkout supports them.
 const YEARLY_ON = false
 const EXTRAS_SOON = true
 
-
-// What a credit buys — the same on every plan.
-const CREDIT_USES = [
-  [FiMessageCircle, ['Caption or post text', 'ចំណងជើង ឬអត្ថបទប្រកាស'], 2],
-  [FiImage, ['AI image or poster', 'រូបភាព ឬប៉ូស្ទ័រ AI'], 10],
-  [FiCalendar, ['Weekly plan (7 posts)', 'ផែនការសប្តាហ៍ (៧ ប្រកាស)'], 40],
-  [FiPlay, ['Motion video with voice', 'វីដេអូចលនា មានសំឡេង'], 60],
-  [FiPlayCircle, ['AI film clip, 8 s', 'ឈុតវីដេអូ AI ៨ វិនាទី'], 160],
-]
 
 // The full comparison — the packages of 2026-10-28. A value per plan (Free, Starter,
 // Growth, Business): true ✓, false —, or text; a feature not built yet = "Coming soon".
 const SOON = ['Coming soon', 'ឆាប់ៗនេះ']
 const COMPARE = [
   [['AI posts', 'ប្រកាស AI'], [['~10 a month', '~១០ ក្នុងមួយខែ'], ['1 a day', '១ ក្នុងមួយថ្ងៃ'], ['Up to 2 a day', 'រហូតដល់ ២ ក្នុងមួយថ្ងៃ'], ['Up to 3 a day per brand', 'រហូតដល់ ៣ ក្នុងមួយថ្ងៃ ក្នុងមួយម៉ាក']]],
-  [['AI videos a month', 'វីដេអូ AI ក្នុងមួយខែ'], ['1', '4', '8', '20']],
+  [['AI videos (24–40 s)', 'វីដេអូ AI (២៤–៤០ វិនាទី)'], [['1 to try', '១ សាកល្បង'], ['2 / month', '២ / ខែ'], ['8 / month', '៨ / ខែ'], ['20 / month', '២០ / ខែ']]],
   [['AI images a month', 'រូបភាព AI ក្នុងមួយខែ'], ['2', '60', '150', '400']],
   [['Brands / channels', 'ម៉ាក / ឆានែល'], [['1 / 2', '១ / ២'], ['1 / 3', '១ / ៣'], ['1 / all 5', '១ / ទាំង ៥'], ['3 / all 5 each', '៣ / ទាំង ៥ ក្នុងមួយ']]],
   [['Khmer + English captions, images, memes', 'ចំណងជើង រូបភាព មីម ខ្មែរ និងអង់គ្លេស'], [true, true, true, true]],
@@ -848,6 +853,24 @@ function Toggle({ value, onChange, options }) {
   )
 }
 
+// A plan card's point icons, by the name in lib/plans.js (a point's third item).
+const POINT_ICONS = {
+  gift: FiGift, clock: FiClock, type: FiType, film: FiFilm, card: FiCreditCard, edit: FiEdit3, image: FiImage,
+  layers: FiLayers, calendar: FiCalendar, eye: FiEye, globe: FiGlobe, chart: FiBarChart2, send: FiSend,
+  check: FiCheckCircle, repeat: FiRepeat, users: FiUsers, trend: FiTrendingUp, chat: FiMessageCircle,
+  download: FiDownload, mic: FiMic, code: FiCode, award: FiAward,
+}
+
+/** A plan point's icon in a small round badge — the brand colour, white on the dark (popular) card. */
+function PointIcon({ name, dark = false }) {
+  const Icon = POINT_ICONS[name] || FiCheck
+  return (
+    <span className={`grid h-[22px] w-[22px] flex-none place-items-center rounded-full ${dark ? 'bg-white/15 text-white' : 'bg-brand-soft text-brand'}`}>
+      <Icon size={12} strokeWidth={2.4} />
+    </span>
+  )
+}
+
 /** The small round tick of the lists and the table — filled dark on the popular plan. */
 function Tick({ dark = false, filled = false }) {
   return (
@@ -884,140 +907,17 @@ function Price({ plan, yearly, riel, dark = false }) {
   )
 }
 
-// ── what credits make: a planner and the add-on shop ─────────────────────
-// A sample month per plan — the counts the plan cards promise, plus weekly
-// plans and film clips — in credits (CREDIT_USES). Colours are the bar's
-// segments (saturated, so the same in both themes).
-const CREDIT_MIX = [
-  { key: 'posts', Icon: FiMessageCircle, label: ['posts', 'ប្រកាស'], each: 2, color: 'bg-sky-500' },
-  { key: 'images', Icon: FiImage, label: ['images', 'រូបភាព'], each: 10, color: 'bg-violet-500' },
-  { key: 'plans', Icon: FiCalendar, label: ['weekly plans', 'ផែនការសប្តាហ៍'], each: 40, color: 'bg-amber-400' },
-  { key: 'videos', Icon: FiPlay, label: ['motion videos', 'វីដេអូចលនា'], each: 60, color: 'bg-brand' },
-  { key: 'films', Icon: FiPlayCircle, label: ['film clips', 'ឈុតវីដេអូ AI'], each: 160, color: 'bg-emerald-500' },
-]
-const SAMPLE_MONTH = {
-  free: { posts: 10, images: 2, videos: 1 },
-  starter: { posts: 30, images: 60, plans: 4, videos: 4 },
-  pro: { posts: 60, images: 150, plans: 4, videos: 8 },
-  business: { posts: 270, images: 400, plans: 12, videos: 20 },
-}
-
-/** Pick a plan; a bar fills with a sample month of what its credits make. */
-function CreditPlanner() {
+/** Add-ons as a little shop: more videos and images for the month, then brand, seat, setup. */
+function AddonShop() {
   const t = useT()
   const n = (v) => (t.lang === 'km' ? khDigits(v) : v)
-  const [pick, setPick] = useState('pro')
-  const plan = PLANS.find((p) => p.id === pick)
-  const total = { free: 100, starter: 1500, pro: 3000, business: 9000 }[pick] // app/billing.py PLAN_CREDITS
-  const mix = CREDIT_MIX.map((m) => ({ ...m, count: SAMPLE_MONTH[pick][m.key] || 0 })).filter((m) => m.count)
-  const used = mix.reduce((sum, m) => sum + m.count * m.each, 0)
-  return (
-    <div className="mx-auto mt-16 max-w-6xl overflow-hidden rounded-3xl bg-white shadow-card">
-      <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
-        {/* the question and the picker */}
-        <div className="border-b border-ink-100 p-7 sm:p-9 lg:border-b-0 lg:border-r">
-          <div className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.12em] text-brand">
-            <CreditCoin size={18} /> {t('Credit planner', 'គណនាក្រេឌីត')}
-          </div>
-          <h3 className="mt-3 text-[24px] font-bold leading-tight text-ink-900 sm:text-[28px]">{t('What can a month of credits make?', 'ក្រេឌីតមួយខែ បង្កើតបានអ្វីខ្លះ?')}</h3>
-          <p className="mt-2 text-[14px] leading-relaxed text-ink-500">
-            {t('Pick a plan to see a typical month. Posting and scheduling never use credits.', 'ជ្រើសគម្រោង ដើម្បីមើលខែធម្មតាមួយ។ ការបង្ហោះ និងកំណត់ពេល មិនប្រើក្រេឌីតទេ។')}
-          </p>
-          <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-2">
-            {PLANS.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => setPick(p.id)}
-                aria-pressed={pick === p.id}
-                className={`rounded-2xl border px-4 py-3 text-left transition-all ${pick === p.id ? 'border-brand bg-brand text-white shadow-[0_10px_24px_-10px_rgb(var(--brand)/0.7)]' : 'border-ink-200 text-ink-800 hover:border-brand/50'}`}
-              >
-                <div className="text-[14px] font-bold">{t(p.name)}</div>
-                <div className={`text-[12px] ${pick === p.id ? 'text-white/80' : 'text-ink-500'}`}>
-                  {n({ free: '100', starter: '1,500', pro: '3,000', business: '9,000' }[p.id])} {t('credits', 'ក្រេឌីត')}
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* the month */}
-        <div className="p-7 sm:p-9">
-          <div className="flex items-baseline justify-between gap-3">
-            <div className="text-[15px] font-bold text-ink-900">{t(`A month on ${plan.name[0]}`, `មួយខែលើ ${plan.name[1]}`)}</div>
-            <div className="text-[13px] text-ink-500">
-              <span className="font-bold text-ink-900">{n(used.toLocaleString('en-US'))}</span> / {n(total.toLocaleString('en-US'))} {t('credits', 'ក្រេឌីត')}
-            </div>
-          </div>
-          {/* the bar: one segment per kind, sized by the credits it uses */}
-          <div className="mt-3 flex h-4 overflow-hidden rounded-full bg-ink-100">
-            {mix.map((m) => (
-              <div key={m.key} className={`${m.color} h-full transition-all duration-700 first:rounded-l-full`} style={{ width: `${((m.count * m.each) / total) * 100}%` }} title={`${m.count} ${m.label[0]}`} />
-            ))}
-          </div>
-          <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {mix.map((m) => (
-              <div key={m.key} className="rounded-2xl bg-canvas p-3.5">
-                <div className="flex items-center gap-2">
-                  <span className={`h-2.5 w-2.5 rounded-full ${m.color}`} />
-                  <m.Icon size={14} className="text-ink-500" />
-                </div>
-                <div className="mt-2 text-[26px] font-extrabold leading-none tabular-nums text-ink-900">{n(m.count)}</div>
-                <div className="mt-1 text-[12.5px] text-ink-500">{t(m.label)}</div>
-              </div>
-            ))}
-            {total - used > 0 && (
-              <div className="grid place-items-center rounded-2xl border-2 border-dashed border-ink-200 p-3.5 text-center text-[12.5px] text-ink-500">
-                <span>
-                  <span className="block text-[18px] font-bold text-ink-700">+{n((total - used).toLocaleString('en-US'))}</span>
-                  {t('to spare', 'នៅសល់')}
-                </span>
-              </div>
-            )}
-          </div>
-          {/* what each thing costs */}
-          <div className="mt-6 flex flex-wrap gap-2">
-            {CREDIT_USES.map(([Icon, label, credits]) => (
-              <span key={label[0]} className="inline-flex items-center gap-2 rounded-full border border-ink-200 py-1 pl-1 pr-3 text-[12px] text-ink-600">
-                <span className="inline-flex items-center gap-1 rounded-full bg-ink-900 px-2 py-0.5 text-[11.5px] font-bold text-ink-50">
-                  <CreditCoin size={13} /> {n(credits)}
-                </span>
-                <Icon size={13} className="text-ink-400" />
-                {t(label)}
-              </span>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-/** Add-ons as a little shop: the credit packs as stacks of tokens, then brand, seat, setup. */
-function AddonShop({ riel }) {
-  const t = useT()
-  const n = (v) => (t.lang === 'km' ? khDigits(v) : v)
-  // the packs on sale (admin portal → Prices → Credit packs); until they load, or when none
-  // are on sale, the standard three as "Coming soon"
-  const [live, setLive] = useState(null)
-  useEffect(() => {
-    let on = true
-    fetch('/api/public/prices')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => on && Array.isArray(d?.packs) && d.packs.length && setLive(d.packs))
-      .catch(() => {})
-    return () => {
-      on = false
-    }
-  }, [])
-  const packsSoon = !live
-  const packs = (live || [{ credits: 500, prices: {} }, { credits: 2000, prices: {} }, { credits: 5000, prices: {} }]).map((pk, i, all) => ({
-    credits: pk.credits,
-    usd: pk.prices.USD,
-    khr: pk.prices.KHR,
-    coins: Math.min(4, i + 1),
-    best: all.length > 1 && i === all.length - 1,
-  }))
+  // more of the month's videos / images — "Coming soon" until checkout sells them (EXTRAS_SOON)
+  const more = [
+    { Icon: FiPlay, count: 5, name: ['more videos', 'វីដេអូបន្ថែម'], price: '$9' },
+    { Icon: FiPlay, count: 10, name: ['more videos', 'វីដេអូបន្ថែម'], price: '$16' },
+    { Icon: FiImage, count: 50, name: ['more images', 'រូបភាពបន្ថែម'], price: '$7' },
+    { Icon: FiImage, count: 100, name: ['more images', 'រូបភាពបន្ថែម'], price: '$12' },
+  ]
   const extras = [
     [FiBriefcase, ['Extra brand', 'ម៉ាកបន្ថែម'], '$10', ['/ month each', '/ ខែ ក្នុងមួយ'], ['Another business, its own logo and pages', 'អាជីវកម្មមួយទៀត មានឡូហ្គោ និងទំព័រផ្ទាល់']],
     [FiUsers, ['Extra seat', 'អ្នកប្រើបន្ថែម'], '$5', ['/ month each', '/ ខែ ក្នុងម្នាក់']  , ['One more teammate with their own login', 'សមាជិកក្រុមម្នាក់ទៀត មានគណនីផ្ទាល់']],
@@ -1030,38 +930,19 @@ function AddonShop({ riel }) {
         <p className="mt-1 text-[13.5px] text-ink-500">{t('Add-ons for any paid plan.', 'សម្រាប់គ្រប់គម្រោងបង់ប្រាក់។')}</p>
       </div>
       <div className="mt-7 grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
-        {/* credit packs */}
+        {/* more videos and images this month */}
         <div className="rounded-3xl bg-white p-6 shadow-card">
-          <div className="flex items-center gap-2 text-[15px] font-bold text-ink-900">
-            <CreditCoin size={20} /> {t('Top up credits', 'បញ្ចូលក្រេឌីតបន្ថែម')}
-          </div>
-          <p className="mt-1 text-[12.5px] text-ink-500">{t('They stay for the month you buy them, on top of your plan’s.', 'ប្រើបានក្នុងខែដែលបងទិញ បន្ថែមលើក្រេឌីតគម្រោង។')}</p>
-          <div className="mt-5 grid grid-cols-3 gap-3">
-            {packs.map((pk) => (
-              <div key={pk.credits} className={`relative rounded-2xl border p-4 text-center ${pk.best ? 'border-brand bg-brand-soft' : 'border-ink-200'}`}>
-                {pk.best && <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-brand px-2.5 py-0.5 text-[10.5px] font-bold text-white">{t('Best value', 'តម្លៃល្អបំផុត')}</span>}
-                {/* a stack of tokens: more for a bigger pack */}
-                <div className="relative mx-auto h-10 w-12">
-                  {Array.from({ length: pk.coins }).map((_, k) => (
-                    <span key={k} className="absolute left-1/2" style={{ bottom: k * 7, transform: `translateX(calc(-50% + ${(k % 2 ? 5 : -3)}px))` }}>
-                      <CreditCoin size={28} />
-                    </span>
-                  ))}
-                </div>
-                <div className="mt-2 text-[20px] font-extrabold tabular-nums text-ink-900">{n(pk.credits.toLocaleString('en-US'))}</div>
-                <div className="text-[11.5px] text-ink-500">{t('credits', 'ក្រេឌីត')}</div>
-                {packsSoon ? (
-                  <div className="mt-2 text-[13px] font-bold text-brand">{t('Coming soon', 'ឆាប់ៗនេះ')}</div>
-                ) : riel && pk.khr ? (
-                  <div className="mt-2 text-[18px] font-bold text-brand">{n(Math.round(pk.khr).toLocaleString('en-US'))}៛</div>
-                ) : pk.usd ? (
-                  <>
-                    <div className="mt-2 text-[18px] font-bold text-brand">${n(String(pk.usd))}</div>
-                    <div className="text-[11px] text-ink-400">{t(`${((pk.usd / pk.credits) * 100).toFixed(1)}¢ a credit`, `${khDigits(((pk.usd / pk.credits) * 100).toFixed(1))}¢ ក្នុងមួយក្រេឌីត`)}</div>
-                  </>
-                ) : (
-                  <div className="mt-2 text-[18px] font-bold text-brand">{n(Math.round(pk.khr).toLocaleString('en-US'))}៛</div>
-                )}
+          <div className="text-[15px] font-bold text-ink-900">{t('Made all of this month’s?', 'ប្រើអស់សម្រាប់ខែនេះហើយ?')}</div>
+          <p className="mt-1 text-[12.5px] text-ink-500">{t('Add more for the month you buy them, on top of your plan’s.', 'បន្ថែមសម្រាប់ខែដែលបងទិញ លើសពីចំនួនក្នុងគម្រោង។')}</p>
+          <div className="mt-5 grid grid-cols-2 gap-3">
+            {more.map((m) => (
+              <div key={m.count} className="rounded-2xl border border-ink-200 p-4 text-center">
+                <span className="mx-auto grid h-11 w-11 place-items-center rounded-2xl bg-brand-soft text-brand">
+                  <m.Icon size={20} />
+                </span>
+                <div className="mt-2 text-[22px] font-extrabold tabular-nums text-ink-900">+{n(m.count)}</div>
+                <div className="text-[12px] text-ink-500">{t(m.name)}</div>
+                <div className="mt-2 text-[15px] font-bold text-brand">{EXTRAS_SOON ? t('Coming soon', 'ឆាប់ៗនេះ') : m.price}</div>
               </div>
             ))}
           </div>
@@ -1141,7 +1022,7 @@ function Pricing({ onStart }) {
         eyebrow={t('Pricing', 'តម្លៃ')}
         title={t('Simple plans that grow with you', 'គម្រោងសាមញ្ញ រីកចម្រើនជាមួយបង')}
         khmer="ចាប់ផ្តើមឥតគិតថ្លៃ ដំឡើងពេលបងត្រៀមរួច"
-        sub={t('Start free. Every plan includes AI credits each month — posting and scheduling never use them.', 'ចាប់ផ្តើមឥតគិតថ្លៃ។ គ្រប់គម្រោងមានក្រេឌីត AI រៀងរាល់ខែ — ការបង្ហោះ និងកំណត់ពេល មិនប្រើក្រេឌីតទេ។')}
+        sub={t('Start free. Every plan comes with its AI videos and images each month — posting and scheduling are always included.', 'ចាប់ផ្តើមឥតគិតថ្លៃ។ គ្រប់គម្រោងមានក្រេឌីត AI រៀងរាល់ខែ — ការបង្ហោះ និងកំណត់ពេល មិនប្រើក្រេឌីតទេ។')}
       />
 
       <div className={`mt-10 flex flex-wrap items-center justify-center gap-3 ${PRICES_SOON ? 'hidden' : ''}`}>
@@ -1165,8 +1046,8 @@ function Pricing({ onStart }) {
             <ul className="mt-4 grid gap-x-8 gap-y-3.5 sm:grid-cols-2">
               {free.points.map((pt) => (
                 <li key={pt[0]} className="flex items-start gap-3 text-[14.5px] text-ink-700">
-                  <span className="mt-0.5">
-                    <Tick />
+                  <span className="mt-px">
+                    <PointIcon name={pt[2]} />
                   </span>
                   {t(pt)}
                 </li>
@@ -1198,8 +1079,8 @@ function Pricing({ onStart }) {
                 <ul className="mt-4 space-y-3.5">
                   {p.points.map((pt) => (
                     <li key={pt[0]} className={`flex items-start gap-3 text-[14.5px] leading-snug ${dark ? 'text-white/90' : 'text-ink-700'}`}>
-                      <span className="mt-0.5">
-                        <Tick dark={dark} />
+                      <span className="mt-px">
+                        <PointIcon name={pt[2]} dark={dark} />
                       </span>
                       {t(pt)}
                     </li>
@@ -1273,8 +1154,7 @@ function Pricing({ onStart }) {
         </div>
       </div>
 
-      <CreditPlanner />
-      <AddonShop riel={riel} />
+      <AddonShop />
     </section>
   )
 }
@@ -1369,7 +1249,7 @@ function HeroTitle() {
 // page "tutorials" = /mkt-tutorial: the same header and footer around the course
 // (TutorialsPage.jsx Course) instead of the landing sections.
 /** Someone who already has an account and is signed in on this browser (the tutorials page,
- * which anyone can open): their credits and plan, so the header offers Dashboard instead of
+ * which anyone can open): their plan, so the header offers Dashboard instead of
  * Log in / Start free. null while unknown or signed out — an expired sign-in shows the usual buttons. */
 function useSignedIn() {
   const [me, setMe] = useState(null)
@@ -1378,7 +1258,7 @@ function useSignedIn() {
     let live = true
     api
       .get('/billing/summary')
-      .then((b) => live && setMe({ credits: Math.floor(b.available_credits ?? 0), plan: b.plan_label || '' }))
+      .then((b) => live && setMe({ plan: b.plan_label || '' }))
       .catch(() => {}) // signed out or offline: the usual buttons
     return () => {
       live = false
@@ -1403,7 +1283,7 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
   // this component sits above the language provider, so it reads `lang` itself
   const t = (en, kh) => (Array.isArray(en) ? en[lang === 'km' ? 1 : 0] : lang === 'km' ? kh : en)
   const n = (v) => (lang === 'km' ? khDigits(v) : v)
-  const me = useSignedIn() // already has an account: credits + Dashboard in the header
+  const me = useSignedIn() // already has an account: their plan + Dashboard in the header
   const [scrolled, setScrolled] = useState(false)
   // the menu item for the section in view gets the soft "selected" highlight
   const [section, setSection] = useState('')
@@ -1541,16 +1421,17 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
             </button>
             {me ? (
               <>
-                {/* already has an account: their credits, and the way back in — kept as narrow as
-                    Log in / Start free so the bar never grows past the page width (plan in the tooltip) */}
-                <a
-                  href="/upgrade"
-                  title={`${me.plan ? `${me.plan} · ` : ''}${t('Your credits — get more', 'ក្រេឌីតរបស់បង — ទិញបន្ថែម')}`}
-                  className="hidden items-center gap-1 whitespace-nowrap rounded-full border border-ink-200 py-1 pl-1 pr-2.5 text-[13px] font-semibold tabular-nums text-ink-900 transition-colors hover:bg-ink-50 sm:inline-flex"
-                >
-                  <CreditCoin size={18} />
-                  {n(me.credits.toLocaleString('en-US'))}
-                </a>
+                {/* already has an account: their plan, and the way back in — kept as narrow as
+                    Log in / Start free so the bar never grows past the page width */}
+                {me.plan && (
+                  <a
+                    href="/upgrade"
+                    title={t('Your plan — see what’s left, or upgrade', 'គម្រោងរបស់បង — មើលចំនួននៅសល់ ឬដំឡើង')}
+                    className="hidden items-center whitespace-nowrap rounded-full border border-ink-200 px-3 py-1 text-[13px] font-semibold text-ink-900 transition-colors hover:bg-ink-50 sm:inline-flex"
+                  >
+                    {me.plan}
+                  </a>
+                )}
                 <a href="/command" className="whitespace-nowrap rounded-xl bg-brand px-3.5 py-1.5 text-[14px] font-semibold text-white shadow-glow-lg transition-transform hover:-translate-y-px">
                   {t('Dashboard', 'ផ្ទាំងគ្រប់គ្រង')}
                 </a>
