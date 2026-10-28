@@ -32,7 +32,7 @@ export const PLANS = [
     cta: ['Get started', 'ចាប់ផ្តើម'],
     points: [
       ['1 AI post a day', 'ប្រកាស AI ១ ក្នុងមួយថ្ងៃ', 'edit'],
-      ['2 AI videos a month (24–40 s)', 'វីដេអូ AI ២ ក្នុងមួយខែ (២៤–៤០ វិនាទី)', 'film'],
+      ['2 AI videos a month (24–40 s, up to 1 min)', 'វីដេអូ AI ២ ក្នុងមួយខែ (២៤–៤០ វិនាទី រហូតដល់ ១ នាទី)', 'film'],
       ['60 AI images a month', 'រូបភាព AI ៦០ ក្នុងមួយខែ', 'image'],
       ['1 brand · 3 channels', 'ម៉ាក ១ · ឆានែល ៣', 'layers'],
       ['Weekly AI plan + best time to post', 'ផែនការ AI ប្រចាំសប្តាហ៍ + ម៉ោងល្អបំផុត', 'calendar'],
@@ -52,7 +52,7 @@ export const PLANS = [
     cta: ['Get started', 'ចាប់ផ្តើម'],
     points: [
       ['Up to 2 AI posts a day', 'ប្រកាស AI រហូតដល់ ២ ក្នុងមួយថ្ងៃ', 'edit'],
-      ['8 AI videos a month (24–40 s)', 'វីដេអូ AI ៨ ក្នុងមួយខែ (២៤–៤០ វិនាទី)', 'film'],
+      ['8 AI videos a month (24–40 s; up to 3 min, a longer one counts as 2)', 'វីដេអូ AI ៨ ក្នុងមួយខែ (២៤–៤០ វិនាទី រហូតដល់ ៣ នាទី វីដេអូវែងជាងរាប់ជា ២)', 'film'],
       ['150 AI images a month', 'រូបភាព AI ១៥០ ក្នុងមួយខែ', 'image'],
       ['1 brand · all 5 channels', 'ម៉ាក ១ · ឆានែលទាំង ៥', 'layers'],
       ['Everything in Starter', 'គ្រប់យ៉ាងក្នុង Starter', 'check'],
@@ -72,7 +72,7 @@ export const PLANS = [
     cta: ['Get started', 'ចាប់ផ្តើម'],
     points: [
       ['Up to 3 AI posts a day per brand', 'ប្រកាស AI រហូតដល់ ៣ ក្នុងមួយថ្ងៃ ក្នុងមួយម៉ាក', 'edit'],
-      ['20 AI videos a month (24–40 s)', 'វីដេអូ AI ២០ ក្នុងមួយខែ (២៤–៤០ វិនាទី)', 'film'],
+      ['20 AI videos a month (24–40 s; up to 10 min, 1 per 3 min)', 'វីដេអូ AI ២០ ក្នុងមួយខែ (២៤–៤០ វិនាទី រហូតដល់ ១០ នាទី រាប់ ១ ក្នុង ៣ នាទី)', 'film'],
       ['400 AI images a month', 'រូបភាព AI ៤០០ ក្នុងមួយខែ', 'image'],
       ['3 brands · all 5 channels each', 'ម៉ាក ៣ · ឆានែលទាំង ៥ ក្នុងមួយម៉ាក', 'layers'],
       ['Everything in Growth', 'គ្រប់យ៉ាងក្នុង Growth', 'check'],

@@ -5,7 +5,7 @@
 // collecting or sharing something new, update the matching section and UPDATED.
 import { useEffect } from 'react'
 
-const UPDATED = '15 October 2026'
+const UPDATED = '28 October 2026'
 const COMPANY = 'Proseth Solutions Co., Ltd'
 const CONTACT = 'opao@prosethsolutions.com'
 const SITE = 'https://mkt.chlart.org'
@@ -343,10 +343,24 @@ const TERMS = [
     id: 'fees',
     title: 'Plans and fees',
     body: (
-      <p>
-        Marketing ឆ្លាតវៃ is currently free to use and may include usage limits (for example on AI video). If we introduce
-        paid plans we’ll tell you the prices in advance, and nothing is charged without your agreement.
-      </p>
+      <>
+        <p>
+          You can start on the Free plan. Paid plans (Starter, Growth, Business) are paid a month at a time with KHQR from
+          any Cambodian bank app. A plan runs 30 days from payment and is never charged automatically — you renew it
+          yourself. Enterprise / Agency plans are agreed with our team.
+        </p>
+        <p>
+          Each plan includes a number of AI videos and images and a longest video length, shown on the pricing page; they
+          refill when the plan renews and do not carry over. A longer video counts as more than one. Add-ons (an extra
+          brand, a video pack, sales rep seats, setup, done-for-you approval) are added by our team at the listed prices.
+        </p>
+        <p>
+          Advertising and boost budgets are not included: you pay them directly to Facebook, TikTok or the platform you
+          advertise on. Paying yearly (2 months free) and a 14-day free trial on Starter and Growth apply once we offer
+          them in checkout. We’ll tell you about price
+          changes in advance; they apply from your next renewal.
+        </p>
+      </>
     ),
   },
   {

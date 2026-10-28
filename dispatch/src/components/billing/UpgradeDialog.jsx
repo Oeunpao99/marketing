@@ -414,6 +414,13 @@ export default function UpgradeDialog({ open: shown, onClose, onPaid, page = fal
                   })}
                 </div>
                 <p className="mt-4 text-[11.5px] text-ink-400">Pay once with KHQR from any Cambodian bank app · the plan runs 30 days · no automatic charges.</p>
+                {/* the payment terms, where people are about to pay (in full: Terms of Service → Plans and fees) */}
+                <p className="mt-1 text-[11.5px] text-ink-400">
+                  Ad / boost budget isn’t included — you pay it directly to Facebook or TikTok.{' '}
+                  <a href="/terms#fees" target="_blank" rel="noreferrer" className="font-semibold text-ink-500 underline hover:text-ink-700">
+                    Payment terms
+                  </a>
+                </p>
                 {/* extra credits on top of the plan's (packs set in the admin portal) */}
                 {(info.packs?.length > 0 || info.custom) && (
                   <section id="top-up" className="mt-8 scroll-mt-6 rounded-3xl border border-ink-200 bg-white p-5 sm:p-6">

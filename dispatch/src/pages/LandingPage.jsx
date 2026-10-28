@@ -740,8 +740,8 @@ const FAQ = [
   [
     ['What does each plan include?', 'តើគម្រោងនីមួយៗមានអ្វីខ្លះ?'],
     [
-      'Each plan has a number of AI videos (24–40 seconds each) and images a month. AI posts, the weekly plan, scheduling and the website check are included. You always see how many are left; they refill every month, and you can add more.',
-      'គម្រោងនីមួយៗមានចំនួនវីដេអូ AI (២៤–៤០ វិនាទី) និងរូបភាព AI ក្នុងមួយខែ។ ប្រកាស AI ផែនការប្រចាំសប្តាហ៍ ការកំណត់ពេល និងការពិនិត្យគេហទំព័រ មានរួចជាស្រេច។ បងឃើញចំនួនដែលនៅសល់ជានិច្ច វាបន្ថែមឡើងវិញរៀងរាល់ខែ ហើយបងអាចទិញបន្ថែមបាន។',
+      'Each plan has a number of AI videos (24–40 seconds each) and images a month. Growth and Business can also make longer videos — up to 3 and 10 minutes — and a longer one counts as more than one video. AI posts, the weekly plan, scheduling and the website check are included. You always see how many are left; they refill every month, and you can add more.',
+      'គម្រោងនីមួយៗមានចំនួនវីដេអូ AI (២៤–៤០ វិនាទី) និងរូបភាព AI ក្នុងមួយខែ។ Growth និង Business អាចធ្វើវីដេអូវែងជាងនេះផងដែរ — រហូតដល់ ៣ និង ១០ នាទី — ហើយវីដេអូវែងរាប់លើសពីមួយ។ ប្រកាស AI ផែនការប្រចាំសប្តាហ៍ ការកំណត់ពេល និងការពិនិត្យគេហទំព័រ មានរួចជាស្រេច។ បងឃើញចំនួនដែលនៅសល់ជានិច្ច វាបន្ថែមឡើងវិញរៀងរាល់ខែ ហើយបងអាចទិញបន្ថែមបាន។',
     ],
   ],
   [
@@ -793,10 +793,9 @@ function Faq() {
 // in the app with KHQR (Settings → Billing → Upgrade; app/payments.py PLAN_PRICES
 // — keep the two in step). true = paid prices show "Coming soon"; false since 2026-10-28 (the packages are out).
 const PRICES_SOON = false
-// What the app can't sell yet: yearly billing and add-ons stay
-// "Coming soon" (the Yearly switch is hidden) until checkout supports them.
+// What the app can't sell yet: yearly billing (the Yearly switch is hidden) until
+// checkout supports it. Add-ons are added by our team (AddonShop).
 const YEARLY_ON = false
-const EXTRAS_SOON = true
 
 
 // The full comparison — the packages of 2026-10-28. A value per plan (Free, Starter,
@@ -805,6 +804,8 @@ const SOON = ['Coming soon', 'ឆាប់ៗនេះ']
 const COMPARE = [
   [['AI posts', 'ប្រកាស AI'], [['~10 a month', '~១០ ក្នុងមួយខែ'], ['1 a day', '១ ក្នុងមួយថ្ងៃ'], ['Up to 2 a day', 'រហូតដល់ ២ ក្នុងមួយថ្ងៃ'], ['Up to 3 a day per brand', 'រហូតដល់ ៣ ក្នុងមួយថ្ងៃ ក្នុងមួយម៉ាក']]],
   [['AI videos (24–40 s)', 'វីដេអូ AI (២៤–៤០ វិនាទី)'], [['1 to try', '១ សាកល្បង'], ['2 / month', '២ / ខែ'], ['8 / month', '៨ / ខែ'], ['20 / month', '២០ / ខែ']]],
+  // a longer video is allowed up to the plan's longest, and counts as more than one
+  [['Longest video', 'វីដេអូវែងបំផុត'], [['40 s', '៤០ វិនាទី'], ['1 min', '១ នាទី'], ['3 min (counts as 2)', '៣ នាទី (រាប់ជា ២)'], ['10 min (1 per 3 min)', '១០ នាទី (១ ក្នុង ៣ នាទី)']]],
   [['AI images a month', 'រូបភាព AI ក្នុងមួយខែ'], ['2', '60', '150', '400']],
   [['Brands / channels', 'ម៉ាក / ឆានែល'], [['1 / 2', '១ / ២'], ['1 / 3', '១ / ៣'], ['1 / all 5', '១ / ទាំង ៥'], ['3 / all 5 each', '៣ / ទាំង ៥ ក្នុងមួយ']]],
   [['Khmer + English captions, images, memes', 'ចំណងជើង រូបភាព មីម ខ្មែរ និងអង់គ្លេស'], [true, true, true, true]],
@@ -907,70 +908,37 @@ function Price({ plan, yearly, riel, dark = false }) {
   )
 }
 
-/** Add-ons as a little shop: more videos and images for the month, then brand, seat, setup. */
+/** Add-ons — the sales sheet of 2026-10-28. Added by our team for now (no checkout
+ * for them yet). The payment terms are in Terms of Service and at the payment step. */
+const ADDONS = [
+  [FiBriefcase, ['Extra brand', 'ម៉ាកបន្ថែម'], ['$25 / month on Growth · $49 / month on Business (5 channels)', '$25 / ខែ លើ Growth · $49 / ខែ លើ Business (ឆានែល ៥)'], ['Another business with its own logo, pages and posts', 'អាជីវកម្មមួយទៀត មានឡូហ្គោ ទំព័រ និងប្រកាសផ្ទាល់']],
+  [FiFilm, ['Extra AI video pack', 'កញ្ចប់វីដេអូ AI បន្ថែម'], ['10 videos for $30', 'វីដេអូ ១០ ក្នុងតម្លៃ $30'], ['On top of your plan’s videos, for the month you buy it', 'បន្ថែមលើវីដេអូក្នុងគម្រោង សម្រាប់ខែដែលបងទិញ']],
+  [FiUsers, ['Extra sales rep seat', 'អ្នកលក់បន្ថែម'], ['$5 / rep / month', '$5 / អ្នកលក់ / ខែ'], ['One more rep who gets leads handed over', 'អ្នកលក់ម្នាក់ទៀត ដែលទទួលអតិថិជនសក្តានុពល']],
+  [FiPenTool, ['Setup & onboarding', 'រៀបចំ និងណែនាំការប្រើ'], ['$99 one-time — free on yearly plans', '$99 តែម្តង — ឥតគិតថ្លៃ លើគម្រោងប្រចាំឆ្នាំ'], ['Brand kit, channels and your first plan, set up by our team', 'កញ្ចប់ម៉ាក ឆានែល និងផែនការដំបូង រៀបចំដោយក្រុមយើង']],
+  [FiCheckCircle, ['Done-for-you approval', 'យើងពិនិត្យ និងអនុម័តជូន'], ['$150 / month per brand', '$150 / ខែ ក្នុងមួយម៉ាក'], ['Our team checks and approves every post for you', 'ក្រុមយើងពិនិត្យ និងអនុម័តរាល់ប្រកាសជូនបង']],
+  [FiGift, ['Bundle with Chumnouykar AI', 'ទិញរួមជាមួយ Chumnouykar AI'], ['20% off both', 'បញ្ចុះ ២០% ទាំងពីរ'], ['Our AI chatbot answers your customers 24/7', 'Chatbot AI របស់យើង ឆ្លើយអតិថិជនបង ២៤/៧']],
+]
 function AddonShop() {
   const t = useT()
-  const n = (v) => (t.lang === 'km' ? khDigits(v) : v)
-  // more of the month's videos / images — "Coming soon" until checkout sells them (EXTRAS_SOON)
-  const more = [
-    { Icon: FiPlay, count: 5, name: ['more videos', 'វីដេអូបន្ថែម'], price: '$9' },
-    { Icon: FiPlay, count: 10, name: ['more videos', 'វីដេអូបន្ថែម'], price: '$16' },
-    { Icon: FiImage, count: 50, name: ['more images', 'រូបភាពបន្ថែម'], price: '$7' },
-    { Icon: FiImage, count: 100, name: ['more images', 'រូបភាពបន្ថែម'], price: '$12' },
-  ]
-  const extras = [
-    [FiBriefcase, ['Extra brand', 'ម៉ាកបន្ថែម'], '$10', ['/ month each', '/ ខែ ក្នុងមួយ'], ['Another business, its own logo and pages', 'អាជីវកម្មមួយទៀត មានឡូហ្គោ និងទំព័រផ្ទាល់']],
-    [FiUsers, ['Extra seat', 'អ្នកប្រើបន្ថែម'], '$5', ['/ month each', '/ ខែ ក្នុងម្នាក់']  , ['One more teammate with their own login', 'សមាជិកក្រុមម្នាក់ទៀត មានគណនីផ្ទាល់']],
-    [FiPenTool, ['Done-for-you setup', 'រៀបចំជូនទាំងអស់'], '$99', ['once', 'តែម្តង'], ['Brand kit, voice and your first month of posts — by our team', 'កញ្ចប់ម៉ាក សំឡេង និងប្រកាសខែដំបូង — ដោយក្រុមយើង']],
-  ]
   return (
     <div className="mx-auto mt-16 max-w-6xl">
       <div className="text-center">
-        <div className="text-[20px] font-bold text-ink-900">{t('Need a little more?', 'ត្រូវការបន្ថែមបន្តិច?')}</div>
-        <p className="mt-1 text-[13.5px] text-ink-500">{t('Add-ons for any paid plan.', 'សម្រាប់គ្រប់គម្រោងបង់ប្រាក់។')}</p>
+        <div className="text-[20px] font-bold text-ink-900">{t('Add-ons', 'សេវាបន្ថែម')}</div>
+        <p className="mt-1 text-[13.5px] text-ink-500">{t('For any paid plan — ask us and our team adds them.', 'សម្រាប់គ្រប់គម្រោងបង់ប្រាក់ — ប្រាប់យើង ក្រុមយើងបន្ថែមជូន។')}</p>
       </div>
-      <div className="mt-7 grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
-        {/* more videos and images this month */}
-        <div className="rounded-3xl bg-white p-6 shadow-card">
-          <div className="text-[15px] font-bold text-ink-900">{t('Made all of this month’s?', 'ប្រើអស់សម្រាប់ខែនេះហើយ?')}</div>
-          <p className="mt-1 text-[12.5px] text-ink-500">{t('Add more for the month you buy them, on top of your plan’s.', 'បន្ថែមសម្រាប់ខែដែលបងទិញ លើសពីចំនួនក្នុងគម្រោង។')}</p>
-          <div className="mt-5 grid grid-cols-2 gap-3">
-            {more.map((m) => (
-              <div key={m.count} className="rounded-2xl border border-ink-200 p-4 text-center">
-                <span className="mx-auto grid h-11 w-11 place-items-center rounded-2xl bg-brand-soft text-brand">
-                  <m.Icon size={20} />
-                </span>
-                <div className="mt-2 text-[22px] font-extrabold tabular-nums text-ink-900">+{n(m.count)}</div>
-                <div className="text-[12px] text-ink-500">{t(m.name)}</div>
-                <div className="mt-2 text-[15px] font-bold text-brand">{EXTRAS_SOON ? t('Coming soon', 'ឆាប់ៗនេះ') : m.price}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-        {/* brand, seat, setup */}
-        <div className="grid gap-3">
-          {extras.map(([Icon, name, price, per, text]) => (
-            <div key={name[0]} className="flex items-center gap-4 rounded-3xl bg-white p-4 shadow-card">
-              <span className="grid h-12 w-12 flex-none place-items-center rounded-2xl bg-brand-soft text-brand">
-                <Icon size={20} />
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="text-[14px] font-bold text-ink-900">{t(name)}</div>
-                <div className="text-[12.5px] leading-snug text-ink-500">{t(text)}</div>
-              </div>
-              <div className="flex-none text-right">
-                {EXTRAS_SOON ? (
-                  <div className="text-[13px] font-bold text-brand">{t('Coming soon', 'ឆាប់ៗនេះ')}</div>
-                ) : (
-                  <>
-                    <div className="text-[20px] font-extrabold text-ink-900">{price}</div>
-                    <div className="text-[11px] text-ink-500">{t(per)}</div>
-                  </>
-                )}
-              </div>
+      <div className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {ADDONS.map(([Icon, name, price, text]) => (
+          <div key={name[0]} className="flex gap-4 rounded-3xl bg-white p-5 shadow-card">
+            <span className="grid h-11 w-11 flex-none place-items-center rounded-2xl bg-brand-soft text-brand">
+              <Icon size={19} />
+            </span>
+            <div className="min-w-0">
+              <div className="text-[14.5px] font-bold text-ink-900">{t(name)}</div>
+              <div className="mt-0.5 text-[13.5px] font-semibold text-brand">{t(price)}</div>
+              <div className="mt-1 text-[12.5px] leading-snug text-ink-500">{t(text)}</div>
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
       </div>
     </div>
   )
@@ -1063,16 +1031,18 @@ function Pricing({ onStart }) {
           const dark = !!p.popular
           return (
             <Reveal key={p.id} delay={i * 90} className={dark ? 'md:-mt-4' : ''}>
-              <div className={`relative flex flex-col rounded-3xl p-7 sm:p-8 ${dark ? 'bg-night-900 text-white shadow-[0_24px_60px_rgba(15,23,42,0.28)] ring-1 ring-white/10' : 'bg-white shadow-card'}`}>
+              {/* dark theme: the other cards are near-black too, so the popular one gets the brand's
+                  ring and a lighter ground; "white" (the badge, the button) is dark there — brand instead */}
+              <div className={`relative flex flex-col rounded-3xl p-7 sm:p-8 ${dark ? 'bg-night-900 text-white shadow-[0_24px_60px_rgba(15,23,42,0.28)] ring-1 ring-white/10 dark:bg-night-800 dark:ring-2 dark:ring-brand/70' : 'bg-white shadow-card'}`}>
                 {dark && (
-                  <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-white px-3.5 py-1 text-[12px] font-semibold text-night-900 shadow-sm ring-1 ring-black/5">
+                  <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-white px-3.5 py-1 text-[12px] font-semibold text-night-900 shadow-sm ring-1 ring-black/5 dark:bg-brand dark:text-white dark:ring-0">
                     {t('Most popular', 'ពេញនិយមបំផុត')}
                   </span>
                 )}
                 <div className={`text-[24px] font-bold ${dark ? 'text-white' : 'text-ink-900'}`}>{t(p.name)}</div>
                 <div className={`mt-1.5 min-h-[42px] text-[14.5px] leading-snug ${dark ? 'text-white/70' : 'text-ink-500'}`}>{t(p.for)}</div>
                 <Price plan={p} yearly={yearly} riel={riel} dark={dark} />
-                <button type="button" onClick={onStart} className={`${pill} mt-4 ${dark ? 'bg-white text-night-900 hover:bg-white/90' : 'bg-ink-100 text-ink-900 hover:bg-ink-200'}`}>
+                <button type="button" onClick={onStart} className={`${pill} mt-4 ${dark ? 'bg-white text-night-900 hover:bg-white/90 dark:bg-brand dark:text-white dark:hover:bg-brand/90' : 'bg-ink-100 text-ink-900 hover:bg-ink-200'}`}>
                   {t(p.cta)}
                 </button>
                 <div className={`mt-8 text-[13px] ${dark ? 'text-white/60' : 'text-ink-500'}`}>{t('Includes', 'រួមមាន')}</div>
@@ -1104,8 +1074,8 @@ function Pricing({ onStart }) {
             </div>
             <p className="mt-1 max-w-3xl text-[14px] leading-relaxed text-ink-500">
               {t(
-                '10+ brands, unlimited channels and sales reps, AI posts and 50+ videos a month as you need, approval steps, custom reports and a CRM link (coming soon), an SLA and on-site training.',
-                'ម៉ាក ១០+ ឆានែល និងអ្នកលក់ គ្មានដែនកំណត់ ប្រកាស AI និងវីដេអូ ៥០+ ក្នុងមួយខែ តាមតម្រូវការ ជំហានអនុម័ត របាយការណ៍តាមតម្រូវការ និងភ្ជាប់ CRM (ឆាប់ៗនេះ) កិច្ចព្រមព្រៀងសេវាកម្ម និងការបណ្តុះបណ្តាលនៅទីតាំង។',
+                '10+ brands, unlimited channels and sales reps, AI posts and 50+ videos a month (up to 10 min each) as you need, approval steps, custom reports and a CRM link (coming soon), an SLA and on-site training.',
+                'ម៉ាក ១០+ ឆានែល និងអ្នកលក់ គ្មានដែនកំណត់ ប្រកាស AI និងវីដេអូ ៥០+ ក្នុងមួយខែ (រហូតដល់ ១០ នាទី) តាមតម្រូវការ ជំហានអនុម័ត របាយការណ៍តាមតម្រូវការ និងភ្ជាប់ CRM (ឆាប់ៗនេះ) កិច្ចព្រមព្រៀងសេវាកម្ម និងការបណ្តុះបណ្តាលនៅទីតាំង។',
               )}
             </p>
           </div>
