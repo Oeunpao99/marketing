@@ -405,7 +405,7 @@ export const MOTION_TEMPLATES = [
   {
     id: 'productfx',
     story: 'productfx',
-    added: '2026-10-28T12:00:00+07:00',
+    added: '2026-10-28T10:00:00+07:00',
     name: 'Product showcase',
     look: 'Your real product photo, its background taken away, dropping in over a colour blob with a burst of rings and paint-like splashes — callout lines draw out to its features, a price badge spins in',
     steps: ['The product lands', 'What makes it special', 'Name and price badge', 'Call to action'],
