@@ -403,6 +403,16 @@ export const MOTION_TEMPLATES = [
     goals: ['conversion'],
   },
   {
+    id: 'productfx',
+    story: 'productfx',
+    added: '2026-10-28T12:00:00+07:00',
+    name: 'Product showcase',
+    look: 'Your real product photo, its background taken away, dropping in over a colour blob with a burst of rings and paint-like splashes — callout lines draw out to its features, a price badge spins in',
+    steps: ['The product lands', 'What makes it special', 'Name and price badge', 'Call to action'],
+    note: 'Uses your brand kit product photo — or attach a photo in the chat. Plain backgrounds are removed free; busy ones by the image AI',
+    goals: ['conversion'],
+  },
+  {
     id: 'spotlight',
     story: 'spotlight',
     added: '2026-10-21T17:07:00+07:00',
@@ -445,7 +455,7 @@ export const GOAL_TEMPLATES = {
   trust: ['testimonial', 'reviews', 'casestudy', 'faq', 'report'],
   authority: ['versus', 'report', 'casestudy', 'hottake', 'clarity'],
   solution: ['sell', 'demo', 'custom', 'showcase', 'clarity', 'appdemo'],
-  conversion: ['offer', 'spotlight', 'sell', 'launch', 'reviews', 'casestudy'],
+  conversion: ['offer', 'productfx', 'spotlight', 'sell', 'launch', 'reviews', 'casestudy'],
 }
 
 export const templateById = (id) => MOTION_TEMPLATES.find((t) => t.id === id)

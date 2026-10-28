@@ -1,0 +1,14 @@
+{
+  "brand": { "name": "PaintPro", "color": "#E11D48", "slug": "paintpro" },
+  "style": "productfx",
+  "frame": 30,
+  "scenes": [
+    { "type": "hook", "text": "ថ្នាំបាញ់ ⟦ពណ៌ភ្លឺ⟧ ជាប់យូរ", "icon": "SprayCan", "image": "ours/productfx-product.png", "cut": true, "seconds": 3.6 }
+  ],
+  "clip": [
+    { "type": "hook", "text": "ថ្នាំបាញ់ ⟦ពណ៌ភ្លឺ⟧ ជាប់យូរ", "icon": "SprayCan", "image": "ours/productfx-product.png", "cut": true, "seconds": 3.2 },
+    { "type": "list", "title": "ហេតុអ្វីជ្រើសយើង", "items": [{ "icon": "Sun", "text": "ធន់នឹងកម្ដៅថ្ងៃ" }, { "icon": "Droplets", "text": "ស្ងួតលឿន" }, { "icon": "Palette", "text": "ពណ៌ច្រើនជម្រើស" }], "image": "ours/productfx-product.png", "cut": true, "seconds": 4.2 },
+    { "type": "offer", "plan": "Spray Paint 400ml", "price": "$4.50", "period": "", "was": "", "badge": "New", "features": ["Metal & wood", "Quick dry", "Glossy finish"], "image": "ours/productfx-product.png", "cut": true, "seconds": 3.8 },
+    { "type": "cta", "text": "កុម្ម៉ង់ ⟦ថ្ងៃនេះ⟧", "button": "កុម្ម៉ង់ឥឡូវ", "image": "ours/productfx-product.png", "cut": true, "seconds": 3.2 }
+  ]
+}

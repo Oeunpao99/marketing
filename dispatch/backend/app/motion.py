@@ -630,6 +630,40 @@ SPOTLIGHT_PROMPT = (
     + '{"scenes": [{"type": "hook", "text": "...", "icon": "Sparkles", "say": "..."}, ...]}'
 )
 
+# ── Product showcase (motion/src/productfx.jsx) ────────────────────────────
+# The customer's real product photo, its background taken away (app/cutout.py),
+# floating over shape effects in the brand's colours. Same scene types and
+# fields as Offer; the product's photo is put in for them.
+PRODUCTFX_TYPES = OFFER_TYPES
+PRODUCTFX_PROMPT = (
+    "You are the best short-form product storyteller in Cambodia. You plan a REMOTION VIDEO "
+    "(TikTok / Facebook Reels, about 25-40 s) that SHOWS ONE REAL PRODUCT: its own photo, cut "
+    "out, drops in over a colour blob with a burst of rings and splashes, callout lines draw out "
+    "to what makes it special, a spinning price badge, and one clear action. Bold, bright, "
+    "confident.\n"
+    "\n"
+    "THE STORY (5-6 scenes):\n"
+    "1. hook — the product's promise in a few words as it lands (\"Paint that [lasts 5 years]\").\n"
+    "2. list — 3 things that make it special: the callouts round the product.\n"
+    "3. offer — the product card: its name, the price badge, what comes with it.\n"
+    "4. stat — one TRUE number that proves it (optional).\n"
+    "last. cta — exactly how to get it (\"Order today\", \"Message us 'PAINT'\").\n"
+    "\n"
+    "SCENE TYPES and their fields:\n"
+    "- hook: text (max 9 words — key words in [brackets]), icon.\n"
+    "- list: title (max 6 words), items: 3 x {\"icon\", \"text\": 2-5 words}.\n"
+    "- offer: plan (the product name, 1-4 words), price (e.g. \"$12\", or \"\"), period (or \"\"), "
+    "was (the old price, or \"\"), badge (1-3 words, e.g. \"New\", or \"\"), features: 3 x short phrases (2-5 words).\n"
+    "- stat: value, prefix, suffix, label (max 6 words), icon — only a TRUE number.\n"
+    "- cta: text (max 9 words — key words in [brackets]), button (2-4 words).\n"
+    "The product's own photo is put in every scene for you — never describe or ask for pictures.\n"
+    "OFFER HONESTY: price, old price, discount and deadline ONLY when the brief or the product "
+    "information gives them — otherwise leave price/was \"\" and let the badge say what it is "
+    "(\"New\", \"Best seller\" only if true). Never invent a discount, a deadline or a number.\n"
+    + _COMMON_RULES
+    + '{"scenes": [{"type": "hook", "text": "...", "icon": "Sparkles", "say": "..."}, ...]}'
+)
+
 # ── 3D · App demo (motion/src/appdemo.jsx) ─────────────────────────────────
 # A mobile-app promo in soft glassy 3D: the app's screens as cards fanned in
 # space, a tilted phone floating with the app's screenshot on it. Scene types
@@ -3061,6 +3095,7 @@ STYLES = {
     "demo": (DEMO_PROMPT, DEMO_TYPES, 7, "step"),
     "offer": (OFFER_PROMPT, OFFER_TYPES, 5, "offer"),
     "spotlight": (SPOTLIGHT_PROMPT, SPOTLIGHT_TYPES, 5, "offer"),
+    "productfx": (PRODUCTFX_PROMPT, PRODUCTFX_TYPES, 5, "offer"),
     "appdemo": (APPDEMO_PROMPT, APPDEMO_TYPES, 4, None),
     "showcase": (SHOWCASE_PROMPT, SHOWCASE_TYPES, 7, None),
     "launch": (LAUNCH_PROMPT, LAUNCH_TYPES, 7, None),
@@ -3101,7 +3136,7 @@ STYLES = {
 # The templates laid out for 16:9 too (motion/src/training.jsx, saas.jsx wide scenes);
 # every other template is always vertical. Scenes drawn only for a tall frame are
 # left out of a wide video.
-WIDE_STYLES = {"picture", "deck", "aiteam", "saashub", "illustrated", "street3d", "dialogue", "parable", "podcast", "presenter", "neural", "paper", "doodle", "cartoon", "lesson", "rise", "training", "custom", "demo", "offer", "spotlight", "trend", "pov", "showcase", "launch", "unveil", "gridcards", "techflow", "canvas", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
+WIDE_STYLES = {"picture", "deck", "aiteam", "saashub", "illustrated", "street3d", "dialogue", "parable", "podcast", "presenter", "neural", "paper", "doodle", "cartoon", "lesson", "rise", "training", "custom", "demo", "offer", "spotlight", "productfx", "trend", "pov", "showcase", "launch", "unveil", "gridcards", "techflow", "canvas", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
 TALL_ONLY_TYPES = {"problem", "chat", "product", "point"}
 
 
@@ -3119,7 +3154,7 @@ def final_ratio(asked: str, style: str, suggested: str | None = None) -> str:
     return "9:16"
 SCREEN_STYLES = {"custom", "demo", "appdemo", "showcase", "launch", "unveil", "clarity", "canvas", "reaction"}  # the stories that can show the brand's screenshots
 # The templates that sell (the auto topic picks a product, not a teaching topic).
-SELLING_STYLES = {"tech", "demo", "offer", "spotlight", "street3d", "appdemo", "showcase", "launch", "unveil", "gridcards"}
+SELLING_STYLES = {"tech", "demo", "offer", "spotlight", "productfx", "street3d", "appdemo", "showcase", "launch", "unveil", "gridcards"}
 
 # Story mode (write_script ``seconds``): the person pasted their own story.
 # Every template may run to ~10 minutes (2026-10-24 — it was 2, Training only went long).
@@ -3359,7 +3394,7 @@ def estimate_seconds(script: dict) -> int:
 GOAL_STYLES = {
     "sell": ("tech",),
     "solution": ("tech", "demo", "custom", "showcase", "clarity", "gridcards", "cartoon", "appdemo", "aiteam", "saashub"),
-    "conversion": ("offer", "spotlight", "tech", "launch", "reviews", "casestudy", "unveil", "studio", "street3d", "saashub"),
+    "conversion": ("offer", "spotlight", "productfx", "tech", "launch", "reviews", "casestudy", "unveil", "studio", "street3d", "saashub"),
     "teach": ("explainer",),
     "education": ("explainer", "training", "custom", "clarity", "tips", "gridcards", "techflow", "neural", "paper", "doodle", "cartoon", "lesson", "presenter", "podcast", "parable", "illustrated"),
     "reach": ("pov", "explainer", "countdown", "thisorthat", "hottake", "doodle", "cartoon", "lesson", "rise", "reaction", "podcast", "parable", "dialogue"),
@@ -5491,6 +5526,8 @@ def pick_pictures(
         elif script.get("style") == "spotlight":  # 3D · Spotlight: the product's photo on the 3D box
             if s["type"] in ("hook", "list", "offer", "cta"):
                 s["image"] = by_product.get(ids.get(s.get("product") or "")) or main
+        elif script.get("style") == "productfx":  # Product showcase: the product in every scene (cut out later)
+            s["image"] = by_product.get(ids.get(s.get("product") or "")) or main
         elif s["type"] in ("hook", "cta", "offer") or script.get("style") == "quote":
             s["image"] = main
 
@@ -6902,6 +6939,7 @@ TEMPLATE_GUIDE = {
     "tech": "selling a product or service of a shop / business — the problem, the product working, proof, buy now",
     "offer": "a promotion, a price, a discount, a package — one clear offer and action",
     "appdemo": "a mobile app shown like a bank / fintech launch film — soft glassy 3D, its screens as cards fanned in space, a tilted phone floating with the app's own screenshot on it, a big warm headline; for an app, a wallet, a booking or delivery app",
+    "productfx": "one physical product, its real photo cut out and floating over bold shape effects — a colour blob, a burst of rings and splashes, callouts to 3 features, a spinning price badge, one action; for paint, a drink, cosmetics, a gadget, any product with a photo (brand kit or attached)",
     "spotlight": "a physical product shown like a launch film — its photo on a real 3D box turning under a spotlight, 3 reasons to want it, its price card, one action; for a drink, snack, cosmetic, gadget or any product with a photo in the brand kit",
     "versus": "a comparison — old way vs new way, option A vs B, myths vs facts",
     "poll": "a quiz or questions for the audience to answer in the comments",
@@ -7542,7 +7580,22 @@ def _make(
             ref_shot = _shot_from_blob(read_media(ref_url) or b"", "reference") if ref_url else None  # screenshot 1, as planned
             more_now = attached_shots(ref_url, ref_urls) if ref_shot else []  # screenshots 2, 3… as planned
             shots_now = ([ref_shot] if ref_shot else []) + more_now + (brand_screens(db, brand.id) if script.get("style") in SCREEN_STYLES and branded else [])
+            if script.get("style") == "productfx" and ref_url:  # Product showcase: the photo they attached IS the product
+                attached = _data_uri(read_media(ref_url) or b"", 1280, keep_alpha=True)
+                if attached:
+                    order = [attached, *order]
+                    product_id = None
             pick_pictures(script, all_products, by_product, order, product_id, shots_now)
+            if script.get("style") == "productfx":
+                from app import cutout
+
+                _report(job_id, stage="pictures")
+                for sc in script["scenes"]:
+                    if sc.get("image"):
+                        cut = cutout.cut(sc["image"])
+                        if cut:
+                            sc["image"], sc["cut"] = cut, True
+                _check(job_id)
             # Doodle notes: its hand-drawn sketches are drawn in the background while
             # the rest of the video is prepared and the voice records — joined just
             # before the render (each drawing ~20 s, and the image quota is small)

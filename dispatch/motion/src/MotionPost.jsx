@@ -76,6 +76,7 @@ import { PICTURE } from './picture'
 import { DECK } from './deck'
 import { CARTOON } from './cartoon'
 import { SPOTLIGHT } from './spotlight'
+import { PRODUCTFX } from './productfx'
 import { APPDEMO } from './appdemo'
 import { LESSON } from './lesson'
 import { RISE } from './rise'
@@ -765,6 +766,7 @@ const TEMPLATES = {
   demo: { ...DEMO, scenes: { ...SCENES, ...DEMO.scenes } },
   offer: { ...OFFER, scenes: { ...SCENES, ...OFFER.scenes } },
   spotlight: { ...SPOTLIGHT, scenes: { ...SCENES, ...SPOTLIGHT.scenes } }, // 3D · Spotlight (three.js)
+  productfx: { ...PRODUCTFX, scenes: { ...SCENES, ...PRODUCTFX.scenes } }, // Product showcase — the real product cut out, shape effects
   appdemo: { ...APPDEMO, scenes: { ...SCENES, ...APPDEMO.scenes } }, // 3D · App demo (CSS 3D)
   showcase: { ...SHOWCASE, scenes: { ...SCENES, ...SHOWCASE.scenes } },
   launch: { ...LAUNCH, scenes: { ...SCENES, ...LAUNCH.scenes } },

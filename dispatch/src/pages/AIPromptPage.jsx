@@ -260,6 +260,7 @@ const MOTION_STORIES = [
   { value: 'showcase', label: 'Showcase · SaaS promo', hint: 'Bright launch-video look — the apps it joins, its table and board views, a rolling word' },
   { value: 'demo', label: 'Product demo', hint: 'Your product in an app window, step by step — shows the solution' },
   { value: 'offer', label: 'Offer · Pricing', hint: 'A glowing pricing card and one clear action — conversion (prices only from your brief)' },
+  { value: 'productfx', label: 'Product showcase', hint: 'Your real product photo, cut out, floating over bold shape effects — a colour blob, a splash burst, callouts to its features, a spinning price badge. Pick the product, or attach its photo' },
   { value: 'spotlight', label: '3D · Spotlight', hint: 'Your product photo on a real 3D box turning under a spotlight, then its price card — a little slower to make' },
   { value: 'appdemo', label: '3D · App demo', hint: 'Your mobile app in soft glassy 3D — a tilted phone with your screenshot, features as glass cards fanned in space' },
 ]

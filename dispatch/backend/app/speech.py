@@ -555,6 +555,11 @@ def too_long(said: str) -> float:
     return TAKE_PAD_S + len(said) * SLOWEST_S_PER_CHAR
 
 
+# Gemini's voices read a little slower than people talk (the user heard it next to
+# KiriTTS, 2026-10-28): every take is sped up this much, the pitch kept.
+GEMINI_TEMPO = 1.1
+
+
 def _gemini(text: str, voice: str, style: str = "", plain: bool = False, key: str | None = None, attempt: int = 0) -> bytes:
     """Gemini TTS: 24 kHz 16-bit PCM back, made an MP3 here. The director's
     notes (HOW + the template's ACT) say how to read it, kept apart from the
@@ -648,7 +653,7 @@ def _gemini(text: str, voice: str, style: str = "", plain: bool = False, key: st
         [imageio_ffmpeg.get_ffmpeg_exe(), "-y", "-loglevel", "error", "-f", "s16le", "-ar", "24000", "-ac", "1", "-i", "pipe:0",
          # skip Gemini's click at the very start, lower its background hiss, and
          # fade each end so lines never pop (as the Chumnouykar video script does)
-         "-af", "atrim=start=0.06,asetpts=PTS-STARTPTS,afftdn=nf=-45,afade=in:d=0.03,areverse,afade=in:d=0.08,areverse",
+         "-af", f"atrim=start=0.06,asetpts=PTS-STARTPTS,atempo={GEMINI_TEMPO},afftdn=nf=-45,afade=in:d=0.03,areverse,afade=in:d=0.08,areverse",
          "-codec:a", "libmp3lame", "-b:a", "128k", "-f", "mp3", "pipe:1"],
         input=pcm,
         capture_output=True,
@@ -717,50 +722,51 @@ def _gemini_retry_after(resp: httpx.Response) -> float | None:
 GEMINI_HOW = {
     "km": (
         "Natural, fluent Cambodian Khmer with a native Phnom Penh accent — warm and friendly, like "
-        "a young Cambodian seller talking to one customer, with natural pauses and rising and "
-        "falling intonation. Brand and product names as written."
+        "a young Cambodian seller talking to one customer, with rising and falling intonation, at a "
+        "lively, natural speaking pace — like real conversation, never slow or drawn out. Brand and "
+        "product names as written."
     ),
-    "en": "A warm, friendly, natural voice, like a small-business owner talking to one customer.",
+    "en": "A warm, friendly, natural voice, like a small-business owner talking to one customer — a lively, natural pace, never slow.",
 }
 # …and how to act it, by the video's template (app/motion.py STYLES).
 GEMINI_ACT = {
     "tech": "Energetic and confident, like a seller who believes in the product.",
     "offer": "Excited and punchy — lift the voice on prices and offers, short pause before each price.",
     "training": "Clear, calm and professional, like a good trainer presenting to a team — steady pace, pauses between ideas.",
-    "explainer": "Warm and gentle, like telling a short story to a friend — slow down on the important moments.",
+    "explainer": "Warm and gentle, like telling a short story to a friend — lean on the important moments.",
     "testimonial": "Warm and heartfelt, like telling a friend what happened to a real person.",
     "custom": "Confident and friendly, like a product presenter showing something they love using.",
     "hottake": "Bold and confident, like someone sharing an opinion they stand behind — a beat of pause before the take.",
     "casestudy": "Warm and credible, like telling a real customer's success story — let the numbers land.",
     "faq": "Friendly and helpful, like the best support person answering a customer's question.",
-    "report": "Clear and calm, like a presenter walking through findings — slow down on each number.",
+    "report": "Clear and calm, like a presenter walking through findings — lean on each number.",
     "countdown": "Upbeat and punchy, like a creator counting down a top 5 — build a little excitement towards number one.",
     "thisorthat": "Playful and quick, like a friend asking you to pick a side.",
     "reviews": "Warm and sincere, like sharing what real customers said — let their words land.",
     "tips": "Friendly and practical, like a helpful teacher giving tips you can use today.",
-    "clarity": "Calm, clear and warm, like a premium product explainer — unhurried, every sentence landing.",
+    "clarity": "Calm, clear and warm, like a premium product explainer — every sentence landing.",
     "launch": "Confident and cinematic, like the voice of a premium product launch film — calm power, a small pause before the big moment.",
     "showcase": "Bright and upbeat, like a polished app launch video — confident, a little excited, quick pace.",
     "demo": "Clear and friendly, like showing a friend how to use an app, step by step.",
     "poll": "Playful and lively, like a game-show host.",
-    "quote": "Calm and slow, with weight on every word.",
+    "quote": "Calm, with weight on every word.",
     "pov": "Relaxed and funny, like telling a friend a moment they know too well.",
     "trend": "Like a sharp news presenter — clear, upbeat, informative.",
     "versus": "Confident and fair, like an expert comparing two options.",
     "canvas": "Confident and clear, like the narrator of a polished brand film — a small pause before each big moment.",
-    "doodle": "Calm and warm, like an older sibling sharing a life lesson — gentle pauses, never rushed.",
+    "doodle": "Calm and warm, like an older sibling sharing a life lesson.",
     "cartoon": "Lively and natural, like telling a funny everyday story to a friend.",
-    "lesson": "Friendly and clear, like a favourite teacher explaining at the board — slow down on each number.",
+    "lesson": "Friendly and clear, like a favourite teacher explaining at the board — lean on each number.",
     "deck": "Clear, confident and warm, like a good presenter walking an audience through their slides — steady pace, a small pause between points.",
     "aiteam": "Confident, clear and modern, like the voice of a good product launch film — upbeat but never pushy, a small pause before each turn.",
     "saashub": "Sharp, energetic and tech-forward, like a keynote presenter unveiling a revolutionary cloud platform — crisp, authoritative, enthusiastic.",
-    "picture": "Warm, clear and storytelling, like the narrator of a good YouTube story channel — unhurried, with feeling, a small pause between moments.",
-    "illustrated": "Calm, warm and clear, like the narrator of a short documentary — unhurried, kind, a little pause between thoughts.",
-    "street3d": "Warm and confident, a little cinematic, like the voice of a short brand film — unhurried, proud of the shop.",
+    "picture": "Warm, clear and storytelling, like the narrator of a good YouTube story channel — with feeling.",
+    "illustrated": "Calm, warm and clear, like the narrator of a short documentary — kind.",
+    "street3d": "Warm and confident, a little cinematic, like the voice of a short brand film — proud of the shop.",
     "dialogue": "Natural and conversational, like a real person chatting with a friend — relaxed, expressive, never like reading.",
     "parable": "Warm and lively, like a grandparent telling a fable with a twinkle — a little playful, a small pause before the turn and the lesson.",
     "rise": "Warm and encouraging, building gently towards the end — like someone who believes in the listener.",
-    "studio": "Calm, warm and elegant, like a premium brand film — unhurried, confident, inviting.",
+    "studio": "Calm, warm and elegant, like a premium brand film — confident, inviting.",
     "podcast": "Relaxed, honest and warm, like a podcast host telling a personal story to a friend — natural pauses, a little smile in the voice.",
     "presenter": "Bright, warm and confident, like a favourite content creator talking to camera — friendly, lively, clear.",
     "reaction": "Deadpan and playful, like a meme page admin — short, dry, a little dramatic on the punchline.",
