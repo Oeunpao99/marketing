@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { FiArrowRight, FiFilm, FiX, FiZap } from 'react-icons/fi'
+import { FiArrowRight, FiFilm, FiStar, FiX, FiZap } from 'react-icons/fi'
 import { useAuth } from '../../auth'
 import { markTemplatesSeen, unseenTemplates } from '../../lib/announce'
 import { previewSrc } from '../../lib/motionTemplates'
@@ -46,9 +46,19 @@ export function Sparkles() {
 // preview pictures are) — never a crop of it.
 function Preview({ t }) {
   const [broken, setBroken] = useState(false)
+  const [wide, setWide] = useState(false) // a landscape preview (Slides): shown whole, not cropped
   return (
     <div className="relative aspect-[9/16] w-[148px] flex-none overflow-hidden rounded-2xl bg-night-950 shadow-lg ring-1 ring-ink-200 sm:w-[210px]">
-      {!broken && <img src={previewSrc(t.id)} alt="" onError={() => setBroken(true)} className="absolute inset-0 h-full w-full object-cover" />}
+      {!broken && wide && <img src={previewSrc(t.id)} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full scale-110 object-cover opacity-50 blur-xl" />}
+      {!broken && (
+        <img
+          src={previewSrc(t.id)}
+          alt=""
+          onError={() => setBroken(true)}
+          onLoad={(e) => setWide(e.currentTarget.naturalWidth > e.currentTarget.naturalHeight)}
+          className={`absolute inset-0 h-full w-full ${wide ? 'object-contain' : 'object-cover'}`}
+        />
+      )}
       {broken && (
         <div className="absolute inset-0 grid place-items-center bg-brand-soft text-brand">
           <FiFilm size={42} />
@@ -121,6 +131,12 @@ export default function NewTemplates() {
               <h2 id="new-template-title" className="mt-0.5 pr-8 text-[22px] font-bold leading-tight tracking-tight text-ink-900">
                 {t.name}
               </h2>
+              {/* what it's made for, in a line — "Best for YouTube storytelling…" */}
+              {t.bestFor && (
+                <div className="mt-2 inline-flex items-start gap-1.5 rounded-xl bg-brand-soft px-3 py-1.5 text-[12.5px] font-semibold leading-snug text-brand">
+                  <FiStar size={13} className="mt-0.5 flex-none" /> Best for {t.bestFor}
+                </div>
+              )}
               <p className="mt-2 text-[13.5px] leading-relaxed text-ink-600">{t.look}</p>
               {t.steps?.length > 0 && (
                 <div className="mt-3 flex flex-wrap gap-1.5">

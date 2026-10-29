@@ -22,7 +22,7 @@ const MOVES = [
   [1.04, 1.14, 0, -2.5], // push in, rising
 ]
 
-function Picture({ src, seed }) {
+function Picture({ src, seed, page = false }) {
   const frame = useCurrentFrame()
   const { durationInFrames } = useVideoConfig()
   const [s0, s1, dx, dy] = MOVES[Math.floor(random(seed) * MOVES.length)]
@@ -37,7 +37,9 @@ function Picture({ src, seed }) {
             width: '100%',
             height: '100%',
             objectFit: 'cover',
-            transform: `scale(${scale}) translate(${dx * (t - 0.5)}%, ${dy * (t - 0.5)}%)`,
+            transform: `scale(${scale}) translate(${dx * (t - 0.5)}%, ${(page ? 0 : dy) * (t - 0.5)}%)`,
+            // a stick-figure page grows from its top edge: the drawing never rises into the title
+            transformOrigin: page ? '50% 0%' : undefined,
           }}
         />
       )}
@@ -46,7 +48,7 @@ function Picture({ src, seed }) {
 }
 
 /** The line on the picture, word by word; ⟦marked⟧ words in the highlight colour. */
-function Title({ text, ink, wide }) {
+function Title({ text, ink, wide, page = false }) {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
   const pieces = []
@@ -65,9 +67,13 @@ function Title({ text, ink, wide }) {
   const khmer = KHMER_RE.test(text || '')
   // like a YouTube thumbnail: as big as two lines across the free side allow
   // (Khmer marks stack on their letters, so a Khmer character is narrower)
-  const box = wide ? 800 : 940
+  const box = page && wide ? 1640 : wide ? 800 : 940 // a stick-figure page: one centred title across the top
   const len = Math.max(6, [...clean(text)].filter((ch) => !/[ា-៓៝]/.test(ch)).length)
-  const size = Math.max(wide ? 70 : 64, Math.min(wide ? 150 : 140, (box * 2) / (len * (khmer ? 0.62 : 0.68))))
+  // a tall video's two lines stay inside the picture's calm top (y 250–610 of 1920),
+  // off the person below: 112 px tops (two Khmer lines with the bigger key word ≈ 355 px)
+  // (a tall video: a Khmer letter ≈ 0.9 em with its marks, gaps and the bigger key word, measured — 0.62
+  // let long titles wrap to three over the person; a wide one has the side free, three big lines are fine)
+  const size = Math.max(wide ? 70 : 64, Math.min(wide ? 150 : 112, (box * 2) / (len * (khmer ? (wide ? 0.62 : 0.9) : 0.68))))
   return (
     <div
       style={{
@@ -78,8 +84,9 @@ function Title({ text, ink, wide }) {
         lineHeight: khmer ? 1.45 : 1.08,
         color: ink.text,
         textWrap: 'balance', // two even lines, not one long and one word
-        // readable on any picture: a soft dark halo, no box
-        textShadow: '0 4px 24px rgba(0,0,0,0.6), 0 2px 4px rgba(0,0,0,0.55)',
+        // readable on any picture: a soft dark halo, no box (none on a white stick-figure page)
+        textShadow: page ? 'none' : '0 4px 24px rgba(0,0,0,0.6), 0 2px 4px rgba(0,0,0,0.55)',
+        textAlign: page ? 'center' : undefined,
       }}
     >
       {pieces.map(({ p, gap, em: hi }, n) => {
@@ -110,6 +117,19 @@ function Shot({ scene }) {
   const right = scene.side === 'right'
   const ink = { text: '#FFFFFF', accent: '#FFD400', ...(scene.ink || {}) }
   const seed = clean(scene.caption || scene.title || '') || 'picture'
+  if (scene.art === 'stickman') {
+    // Stick figures: black-ink drawings on a white page, the title centred across the white top
+    return (
+      <AbsoluteFill style={{ backgroundColor: '#FFFFFF' }}>
+        <Picture src={scene.image} seed={seed} page />
+        {scene.title && (
+          <div style={{ position: 'absolute', left: wide ? 140 : 60, right: wide ? 140 : 60, top: wide ? 70 : 250 }}>
+            <Title text={scene.title} ink={ink} wide={wide} page />
+          </div>
+        )}
+      </AbsoluteFill>
+    )
+  }
   return (
     <AbsoluteFill>
       <Picture src={scene.image} seed={seed} />
@@ -133,7 +153,7 @@ function Shot({ scene }) {
             </div>
           </div>
         ) : (
-          <div style={{ position: 'absolute', left: 70, right: 70, top: 280 }}>
+          <div style={{ position: 'absolute', left: 70, right: 70, top: 250 }}>
             <Title text={scene.title} ink={ink} wide={false} />
           </div>
         ))}

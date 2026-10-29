@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react'
-import { FiArrowRight, FiChevronRight, FiSearch, FiX } from 'react-icons/fi'
+import { FiArrowRight, FiChevronRight, FiFilm, FiSearch, FiX } from 'react-icons/fi'
 import { useNavigate } from 'react-router-dom'
 import { GOALS, STAGES } from '../../lib/goals'
 import { GOAL_TEMPLATES, MOTION_TEMPLATES, previewSrc, templateById } from '../../lib/motionTemplates'
@@ -55,6 +55,8 @@ function GoalTabs({ value, onPick, counts }) {
 function TemplateCard({ t, onUse }) {
   const video = useRef(null)
   const [playing, setPlaying] = useState(false)
+  const [wide, setWide] = useState(false) // the preview is landscape (read from the picture itself)
+  const [broken, setBroken] = useState(false)
   const start = () => {
     const v = video.current
     if (!v) return
@@ -77,7 +79,23 @@ function TemplateCard({ t, onUse }) {
       aria-label={`Use the ${t.name} template`}
       className="group relative block aspect-[9/16] w-full overflow-hidden rounded-2xl bg-night-950 text-left transition-shadow hover:shadow-card-hover"
     >
-      <img src={previewSrc(t.id)} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover object-top" />
+      {/* a wide preview (Slides) is shown whole, centred over a soft enlarged copy of itself — never cropped */}
+      {wide && <img src={previewSrc(t.id)} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full scale-110 object-cover opacity-50 blur-xl" />}
+      {/* no preview (yet): a film mark, not a broken picture */}
+      {broken && (
+        <span className="absolute inset-0 grid place-items-center text-white/40">
+          <FiFilm size={40} />
+        </span>
+      )}
+      <img
+        src={previewSrc(t.id)}
+        alt=""
+        loading="lazy"
+        onError={() => setBroken(true)}
+        onLoad={(e) => setWide(e.currentTarget.naturalWidth > e.currentTarget.naturalHeight)}
+        style={broken ? { display: 'none' } : undefined}
+        className={`absolute inset-0 h-full w-full ${wide ? 'object-contain object-[50%_35%]' : 'object-cover object-top'}`}
+      />
       <video
         ref={video}
         src={previewSrc(t.id, 'mp4')}
@@ -86,7 +104,7 @@ function TemplateCard({ t, onUse }) {
         playsInline
         preload="none"
         onPlaying={() => setPlaying(true)}
-        className={`absolute inset-0 h-full w-full object-cover object-top transition-opacity duration-300 ${playing ? 'opacity-100' : 'opacity-0'}`}
+        className={`absolute inset-0 h-full w-full transition-opacity duration-300 ${wide ? 'object-contain object-[50%_35%]' : 'object-cover object-top'} ${playing ? 'opacity-100' : 'opacity-0'}`}
       />
       <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-3 pb-3 pt-16">
         {/* the goals sit with the name — at the top they covered the preview's own brand pill */}

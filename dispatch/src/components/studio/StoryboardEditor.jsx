@@ -333,6 +333,7 @@ const ARTS = [
   { id: 'painted', label: 'Painted', note: 'Soft anime film painting', Icon: FiFeather },
   { id: 'illustration', label: 'Illustration', note: 'Clean flat drawing', Icon: FiPenTool },
   { id: '3d', label: '3D film', note: 'Like an animated movie', Icon: FiBox },
+  { id: 'stickman', label: 'Stick figures', note: 'Black ink on a white page', Icon: FiFeather },
 ]
 // ready-made word colours: [name, text, highlight ('' = the brand's colour)]
 const INKS = [
@@ -341,6 +342,7 @@ const INKS = [
   ['Ocean', '#FFFFFF', '#22D3EE'],
   ['Warm', '#FFE8A3', '#F43F5E'],
   ['Sunny', '#FFD400', '#FFFFFF'],
+  ['Ink', '#111111', '#E11D2E'], // for a white page — Stick figures
 ]
 const TEXT_COLORS = ['#FFFFFF', '#FFE8A3', '#FFD400', '#111111']
 const ACCENTS = ['', '#FFD400', '#22D3EE', '#F43F5E', '#22C55E', '#FFFFFF']

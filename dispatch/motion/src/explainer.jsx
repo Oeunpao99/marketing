@@ -276,13 +276,19 @@ function fromText(text, seconds, fps, max, pauses = []) {
   let cur = ''
   for (const { p, gap } of pieces) {
     const next = cur + p + (gap ? ' ' : '')
-    if (clean(next).trim().length > max && cur) {
+    const ends = /[.!?។៕]$/.test(clean(p)) // a sentence's last word
+    // a short last word ("ផង។") stays with its sentence a little past the line,
+    // never spilling to the start of the next one
+    if (clean(next).trim().length > max + (ends && clean(p).length <= 6 ? 6 : 0) && cur) {
       chunks.push(cur.trim())
       cur = p + (gap ? ' ' : '')
     } else cur = next
-    // a comma or full stop ends the phrase, so a break falls where the voice breathes
-    if (/[,.!?។៕]$/.test(clean(p)) && clean(cur).trim().length >= 8) {
-      chunks.push(cur.trim())
+    // a full stop always ends the phrase; a comma too once there's a few words, so
+    // a break falls where the voice breathes
+    if ((ends || /,$/.test(clean(p))) && (ends || clean(cur).trim().length >= 8)) {
+      if (ends && clean(cur).trim().length < 8 && chunks.length && clean(chunks[chunks.length - 1]).length + clean(cur).length <= max + 6) {
+        chunks[chunks.length - 1] += ` ${cur.trim()}` // too short alone: back onto its own sentence
+      } else chunks.push(cur.trim())
       cur = ''
     }
   }

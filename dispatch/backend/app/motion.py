@@ -1033,6 +1033,51 @@ LAUNCH_PROMPT = (
     + '{"scenes": [{"type": "hook", "text": "...", "icon": "Rocket", "say": "..."}, ...]}'
 )
 
+# ── SaaS launch · Sky (motion/src/skylaunch.jsx) — the real screen, the pointer clicks ──
+SKYLAUNCH_TYPES = ("hook", "field", "screen", "list", "button", "done", "stat", "cta")
+SKYLAUNCH_PROMPT = (
+    "You are the director of SaaS launch films in Cambodia. You plan a REMOTION VIDEO (about "
+    "30-50 s) that LAUNCHES a software product, an app or a website the way the AI app builders do: "
+    "a bright stage of white light with sky-blue glow, \"Introducing\" sharpening out of a blur, "
+    "a big prompt box typing what the user asks for, the product's REAL screen in a browser window "
+    "with the camera flying in on the part that matters and a pointer clicking it, then a close-up "
+    "of the Publish (or Send, Book, Pay…) button being pressed. Few words on screen — the product is "
+    "the hero.\n"
+    "\n"
+    "THE STORY (6-8 scenes):\n"
+    "1. hook — the promise in one line; shown after a big \"Introducing\".\n"
+    "2. field — what a user types or asks the product for (the prompt box).\n"
+    "3-5. the product at work, 2-3 of: `screen` (the real screens — only with THE BRAND'S "
+    "SCREENSHOTS; the best one first), `list` (what you get, 3-4 items), `stat` (one TRUE number).\n"
+    "then. button — the one click that makes it real (Publish, Send, Book…), and its result.\n"
+    "optional. done — the result in 2-4 words.\n"
+    "last. cta — try it / it's live today.\n"
+    "\n"
+    "SCENE TYPES and their fields:\n"
+    "- hook: text (max 9 words; ⟦mark⟧ the 1-2 key words), badge (2-3 words, optional, e.g. "
+    "\"Now live\").\n"
+    "- field: label (what the box is for, 2-4 words, e.g. \"Describe your store\"), value (what the "
+    "user types, max 6 words, sample data, e.g. \"A storefront for my coffee shop\"), button (a "
+    "small mode word, 1 word, optional, e.g. \"Plan\").\n"
+    "- screen: shot (the screenshot's number — only from THE BRAND'S SCREENSHOTS), title (max 7 "
+    "words), target (in ENGLISH: the ONE element the pointer clicks, e.g. \"the Add to cart "
+    "button\"), action (\"click\" | \"highlight\"), result (max 5 words, what the click did, optional).\n"
+    "- list: title (max 6 words, e.g. \"Here's what you get\"), items: 3-4 x {\"icon\", \"text\": 2-6 words}.\n"
+    "- button: title (max 7 words; ⟦mark⟧ the key words), text (one short line, optional), button "
+    "(1-2 words — the product's real main action), result (max 5 words, e.g. \"Your site is live\").\n"
+    "- done: text (the result, 2-4 words), icon (optional).\n"
+    "- stat: value, prefix, suffix, label (max 6 words), icon — only a TRUE number from the product "
+    "information.\n"
+    "- cta: text (max 9 words), button (2-4 words).\n"
+    "Only features the product information supports — never invent one. Typed values are sample "
+    "data, never a real customer's.\n"
+    "\n"
+    + _SAAS_CRAFT
+    + "\n"
+    + _COMMON_RULES
+    + '{"scenes": [{"type": "hook", "text": "...", "badge": "Now live", "say": "..."}, ...]}'
+)
+
 # ── Unveil (motion/src/unveil.jsx) — a light, airy product launch ──────────
 UNVEIL_TYPES = ("hook", "word", "field", "done", "screen", "flow", "dashboard", "reveal", "list", "stat", "cta")
 UNVEIL_PROMPT = (
@@ -1279,7 +1324,33 @@ DOODLE_PROMPT = (
 # person's own recording can later be matched to it.
 PICTURE_TYPES = ("shot",)
 PICTURE_MIN, PICTURE_MAX = 6, 20
-PICTURE_ARTS = ("film", "painted", "illustration", "3d")  # app/doodle.py PICTURE_ARTS — the looks
+PICTURE_ARTS = ("film", "painted", "illustration", "3d", "stickman")  # app/doodle.py PICTURE_ARTS — the looks
+# a template name that is another template in a set look: "stickman" (Stick figures) = a Picture
+# story drawn as black-ink stick figures, its words black with red key words
+STYLE_ALIASES = {"stickman": ("picture", {"art": "stickman", "ink": {"text": "#111111", "accent": "#E11D2E"}})}
+
+
+# Stick figures: each picture is a simple drawing, so its description is one moment — never film language
+STICK_DRAWS = (
+    "\n\nTHE PICTURES ARE BLACK-INK STICK-FIGURE DRAWINGS on a white page (art \"stickman\"). Each "
+    "`draw` is ONE simple moment: who is in it (1-3 stick figures), their pose and face (worried, "
+    "proud, confused, laughing…), what they do, and 1-3 simple props (a desk, a phone, a thought "
+    "bubble with a question mark or a light bulb, a chart, coins…). Whole figures, seen plainly — no "
+    "close-ups, camera angles, lighting, colours, weather or detailed scenery.\n"
+)
+
+
+def alias_art(goal: str) -> str:
+    """The art an alias sets ("stickman"), else ""."""
+    return (STYLE_ALIASES.get((goal or "").lower()) or ("", {}))[1].get("art", "")
+
+
+def apply_alias(script: dict, goal: str) -> dict:
+    """Give a storyboard written for an alias (STYLE_ALIASES) its set look."""
+    alias = STYLE_ALIASES.get((goal or "").lower())
+    if alias:
+        script.update(alias[1])
+    return script
 PICTURE_INK = {"text": "#FFFFFF", "accent": ""}  # "" accent = the brand's colour
 PICTURE_PROMPT = (
     "You are a film editor turning a story into a PICTURE STORY: a video told over full-screen "
@@ -1312,9 +1383,11 @@ PICTURE_PROMPT = (
     "20-40 words in English: age, face, hair, build, clothes, so every picture draws them alike. "
     "[] when there are none.\n"
     "And \"art\": the picture style that suits the story — film (a cinematic photo-real film "
-    "still), painted (a hand-painted anime film), illustration (a flat modern illustration) or "
-    "3d (a 3D animated film). If the brief names a style, use that.\n"
-    "Return {\"cast\": [...], \"art\": \"film\", \"scenes\": [{\"type\": \"shot\", \"title\": \"...\", "
+    "still), painted (a hand-painted anime film), illustration (a flat modern illustration), "
+    "3d (a 3D animated film) or stickman (black-ink stick figures on a white page — explainers, "
+    "lessons, YouTube storytelling). If the brief names a style, use that.\n"
+    # the word JSON: the AI service refuses a JSON reply when the messages never say it
+    "Return JSON: {\"cast\": [...], \"art\": \"film\", \"scenes\": [{\"type\": \"shot\", \"title\": \"...\", "
     "\"draw\": \"...\", \"say\": \"...\"}, ...]}"
 )
 PICTURE_SAY_MAX = 1600  # a long part of the narration under one picture (10 minutes / 20 pictures)
@@ -1338,8 +1411,9 @@ def picture_room(n: int, wide: bool) -> str:
     sets them there, two big lines, like a YouTube thumbnail)."""
     if not wide:
         return (
-            " Composition: the main subject in the lower two thirds of the frame; the top third is "
-            "calm and simple (sky, a wall, a soft out-of-focus background) — room for a big title."
+            " Composition: the main subject in the lower 60% of the frame — a person's head well below "
+            "the top third, never near the top; the top 35% is calm and simple (sky, a wall, a soft "
+            "out-of-focus background) — room for a big title."
         )
     text = picture_side(n)
     subject = "right" if text == "left" else "left"
@@ -3104,6 +3178,7 @@ STYLES = {
     "showcase": (SHOWCASE_PROMPT, SHOWCASE_TYPES, 7, None),
     "launch": (LAUNCH_PROMPT, LAUNCH_TYPES, 7, None),
     "unveil": (UNVEIL_PROMPT, UNVEIL_TYPES, 6, None),
+    "skylaunch": (SKYLAUNCH_PROMPT, SKYLAUNCH_TYPES, 6, None),
     "gridcards": (GRID_PROMPT, GRID_TYPES, 5, "fanout"),
     "techflow": (TECHFLOW_PROMPT, TECHFLOW_TYPES, 6, None),
     "canvas": (CANVAS_PROMPT, CANVAS_TYPES, 12, "canvas"),
@@ -3140,7 +3215,7 @@ STYLES = {
 # The templates laid out for 16:9 too (motion/src/training.jsx, saas.jsx wide scenes);
 # every other template is always vertical. Scenes drawn only for a tall frame are
 # left out of a wide video.
-WIDE_STYLES = {"picture", "deck", "aiteam", "saashub", "illustrated", "street3d", "dialogue", "parable", "podcast", "presenter", "neural", "paper", "doodle", "cartoon", "lesson", "rise", "training", "custom", "demo", "offer", "spotlight", "productfx", "trend", "pov", "showcase", "launch", "unveil", "gridcards", "techflow", "canvas", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
+WIDE_STYLES = {"picture", "deck", "aiteam", "saashub", "illustrated", "street3d", "dialogue", "parable", "podcast", "presenter", "neural", "paper", "doodle", "cartoon", "lesson", "rise", "training", "custom", "demo", "offer", "spotlight", "productfx", "trend", "pov", "showcase", "launch", "unveil", "skylaunch", "gridcards", "techflow", "canvas", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
 TALL_ONLY_TYPES = {"problem", "chat", "product", "point"}
 
 
@@ -3156,9 +3231,9 @@ def final_ratio(asked: str, style: str, suggested: str | None = None) -> str:
     if asked == "auto":
         return suggested if suggested in ("16:9", "9:16") else ("16:9" if style in ("training", "picture") else "9:16")
     return "9:16"
-SCREEN_STYLES = {"custom", "demo", "appdemo", "showcase", "launch", "unveil", "clarity", "canvas", "reaction", "productfx"}  # the stories that can show the brand's screenshots
+SCREEN_STYLES = {"custom", "demo", "appdemo", "showcase", "launch", "unveil", "skylaunch", "clarity", "canvas", "reaction", "productfx"}  # the stories that can show the brand's screenshots
 # The templates that sell (the auto topic picks a product, not a teaching topic).
-SELLING_STYLES = {"tech", "demo", "offer", "spotlight", "productfx", "street3d", "appdemo", "showcase", "launch", "unveil", "gridcards"}
+SELLING_STYLES = {"tech", "demo", "offer", "spotlight", "productfx", "street3d", "appdemo", "showcase", "launch", "unveil", "skylaunch", "gridcards"}
 
 # Story mode (write_script ``seconds``): the person pasted their own story.
 # Every template may run to ~10 minutes (2026-10-24 — it was 2, Training only went long).
@@ -3397,8 +3472,8 @@ def estimate_seconds(script: dict) -> int:
 # random per video, so a week's plan doesn't repeat the same look.
 GOAL_STYLES = {
     "sell": ("tech",),
-    "solution": ("tech", "demo", "custom", "showcase", "clarity", "gridcards", "cartoon", "appdemo", "aiteam", "saashub"),
-    "conversion": ("offer", "spotlight", "productfx", "tech", "launch", "reviews", "casestudy", "unveil", "studio", "street3d", "saashub"),
+    "solution": ("tech", "demo", "custom", "showcase", "clarity", "gridcards", "cartoon", "appdemo", "aiteam", "saashub", "skylaunch"),
+    "conversion": ("offer", "spotlight", "productfx", "tech", "launch", "skylaunch", "reviews", "casestudy", "unveil", "studio", "street3d", "saashub"),
     "teach": ("explainer",),
     "education": ("explainer", "training", "custom", "clarity", "tips", "gridcards", "techflow", "neural", "paper", "doodle", "cartoon", "lesson", "presenter", "podcast", "parable", "illustrated"),
     "reach": ("pov", "explainer", "countdown", "thisorthat", "hottake", "doodle", "cartoon", "lesson", "rise", "reaction", "podcast", "parable", "dialogue"),
@@ -3415,6 +3490,8 @@ def style_for(goal: str) -> str:
     the brief is clearly a sale (the caller decides that with a product
     chosen). A template name itself ("versus", "poll", …) is taken as is."""
     goal = (goal or "").lower()
+    if goal in STYLE_ALIASES:
+        return STYLE_ALIASES[goal][0]
     return goal if goal in STYLES else random.choice(GOAL_STYLES.get(goal, ("explainer",)))
 
 
@@ -4567,6 +4644,7 @@ def write_script(
     design: dict | None = None,
     wide: bool = False,
     voice: str = "",
+    art: str = "",
 ) -> dict:
     """The video's storyboard: one AI call, then for Khmer the same
     native-editor pass the captions get. {"scenes": [...]} — always starting
@@ -4583,7 +4661,7 @@ def write_script(
         f"- {p.name}: {p.description or ''}" + (f" | highlights: {p.highlights}" if p.highlights else "")
         for p in products
     ) or "(no product details — keep it about the topic, no specific claims)"
-    extra = ""
+    extra = STICK_DRAWS if art == "stickman" else ""
     if (brand.voice_examples or "").strip():
         extra += (
             "\n\nTHE BRAND'S VOICE — its real posts, for tone and word choice only (never copy "
@@ -5716,6 +5794,7 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
         for n, sc in enumerate(scenes):
             sc["ink"] = {"text": ink["text"], "accent": ink["accent"] or f"#{r:02x}{g:02x}{b:02x}"}
             sc["side"] = picture_side(n)  # where its words go — the picture was painted with room there
+            sc["art"] = script.get("art") or "film"
     if script.get("style") == "illustrated":  # Illustrated: the main person
         props["cast"] = [{**c, "name": t(c["name"]) if c.get("name") else ""} for c in script.get("cast") or clean_lead(None)]
     if script.get("style") in ("parable", "dialogue"):  # Parable · Two paths / Dialogue: the two people
@@ -6175,6 +6254,8 @@ def _start_doodles(script: dict, job, job_id: int, style: str | None = None, lim
         asks = [asks[round(i * step)] for i in range(limit)]
     # Picture story: each picture painted with calm room where its words will sit
     room = (lambda n: picture_room(n, ratio == "16:9")) if script.get("style") == "picture" else (lambda n: "")
+    if script.get("art") == "stickman":  # Stick figures: the words centred on the white top, any shape
+        room = lambda n: " Composition: the figures in the lower middle, the top third of the frame plain white — room for a title."  # noqa: E731
     todo = [{"draw": script["scenes"][n]["draw"] + room(n), "n": n} for n in asks]
     got: dict[int, str] = {}
     # the making card's rows: which scenes are being painted now (a feather), and
@@ -6915,6 +6996,7 @@ TEMPLATE_GUIDE = {
     "tips": "practical tips people save — 3-5 numbered tip cards and a \"save this\" ask",
     "clarity": "explaining what a software product does and why it matters — calm, white and light blue: the mess of tools today, the product, how it works",
     "launch": "launching a product or a new feature — a cinematic launch film: the one click that does the job, the product's screens, \"now live\"",
+    "skylaunch": "launching a SaaS, app or website with its REAL screen — a prompt box typing the request, the screen in a browser window with the camera flying in, a pointer clicking Publish, on bright sky-blue light",
     "unveil": "unveiling a product or a new feature in a light, elegant way — one big word, the app card coming into focus, a field typing itself, a check with confetti",
     "gridcards": "how a product or service solves an everyday problem — the repetitive work today, then one input becoming several results (a post, a price poster, a caption), clear and friendly",
     "techflow": "explaining HOW a technology works step by step (the internet, email, payments, AI, apps) — devices, data packets travelling, addresses, lookups, the path, a recap",
@@ -7166,8 +7248,9 @@ def _build_plan(payload: "PlanIn", ws: int, user_id: int, on_style=None) -> dict
         db.rollback()  # no transaction held open through the AI calls
         script = write_script(
             brand, products, payload.idea, payload.language, "", list(music_tracks()) if payload.music else [], style,
-            seconds=seconds, shots=shots, design=design, wide=shape == "16:9",
+            seconds=seconds, shots=shots, design=design, wide=shape == "16:9", art=alias_art(payload.goal),
         )
+        apply_alias(script, payload.goal)
         script["ratio"] = shape
         # a script that designs its own film, put in a fixed template: the page offers AI design
         # Picture story paints each scene from the script's own visuals — never "use AI design" for it
@@ -7594,8 +7677,9 @@ def _make(
                     shot["note"] = describe_screen(base64.b64decode(shot["uri"].split(",", 1)[1]))
                 shots = ([ref] if ref else []) + more + (brand_screens(db, brand.id) if style in SCREEN_STYLES and branded else [])
                 script = write_script(
-                    brand, products, job.prompt, language, learned, moods, style, job_id=job_id, shots=shots, design=design, wide=shape == "16:9", voice=voice
+                    brand, products, job.prompt, language, learned, moods, style, job_id=job_id, shots=shots, design=design, wide=shape == "16:9", voice=voice, art=alias_art(goal)
                 )
+                apply_alias(script, goal)
                 script["ratio"] = shape
             _check(job_id)
             # a reviewed storyboard keeps the shape it was planned in

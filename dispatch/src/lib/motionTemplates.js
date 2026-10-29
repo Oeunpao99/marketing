@@ -199,6 +199,18 @@ export const MOTION_TEMPLATES = [
     goals: [],
   },
   {
+    // a Picture story drawn as black-ink stick figures (app/motion.py STYLE_ALIASES "stickman")
+    id: 'stickman',
+    story: 'stickman',
+    added: '2026-10-29T16:00:00+07:00',
+    name: 'Stick figures',
+    bestFor: 'YouTube storytelling, explainers and life lessons — a story told scene by scene',
+    look: 'A hand-drawn stick-figure drawing for every scene, black ink on a clean white page — a bold title across the top with the key words in red, read out by the voice-over, like the whiteboard story channels on YouTube',
+    steps: ['The hook', 'The story, drawing by drawing', 'The lesson', 'The ending'],
+    note: 'Paste your whole script (up to 10 minutes) or just the idea. Every drawing is made by the image AI for its part of the story',
+    goals: ['education', 'awareness', 'followers', 'reach'],
+  },
+  {
     id: 'picture',
     story: 'picture',
     added: '2026-10-26T09:58:00+07:00', // when it went live (f0f9938) — a time still to come isn't announced
@@ -351,6 +363,17 @@ export const MOTION_TEMPLATES = [
     goals: ['education', 'authority'],
   },
   {
+    id: 'skylaunch',
+    story: 'skylaunch',
+    added: '2026-10-29T15:00:00+07:00',
+    name: 'SaaS launch · Sky',
+    bestFor: 'launching a SaaS, an app or a website — show your real screens being used',
+    look: 'Bright white light with sky-blue glow — “Introducing” comes into focus, a prompt box types the request, your real screen in a browser window with the camera flying in and a pointer clicking, then the Publish button pressed',
+    steps: ['Introducing', 'The prompt', 'Your real screen', 'What you get', 'The click', 'Call to action'],
+    note: 'For a SaaS, app or website — add screenshots in your brand kit (Products → Brand kit) so it shows your real screens',
+    goals: ['conversion', 'solution'],
+  },
+  {
     id: 'unveil',
     story: 'unveil',
     name: 'Unveil',
@@ -451,11 +474,11 @@ export const GOAL_TEMPLATES = {
   followers: ['quote', 'teach', 'tips', 'countdown', 'hottake'],
   awareness: ['trend', 'custom', 'clarity', 'showcase', 'report'],
   engagement: ['poll', 'thisorthat', 'faq', 'countdown', 'hottake'],
-  education: ['teach', 'training', 'custom', 'clarity', 'tips'],
+  education: ['teach', 'training', 'custom', 'clarity', 'tips', 'stickman'],
   trust: ['testimonial', 'reviews', 'casestudy', 'faq', 'report'],
   authority: ['versus', 'report', 'casestudy', 'hottake', 'clarity'],
-  solution: ['sell', 'demo', 'custom', 'showcase', 'clarity', 'appdemo'],
-  conversion: ['offer', 'productfx', 'spotlight', 'sell', 'launch', 'reviews', 'casestudy'],
+  solution: ['sell', 'demo', 'custom', 'showcase', 'clarity', 'appdemo', 'skylaunch'],
+  conversion: ['offer', 'productfx', 'spotlight', 'sell', 'launch', 'skylaunch', 'reviews', 'casestudy'],
 }
 
 export const templateById = (id) => MOTION_TEMPLATES.find((t) => t.id === id)

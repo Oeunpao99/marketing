@@ -227,6 +227,13 @@ PICTURE_ARTS = {
     "friendly people with simple faces, a calm composition with one clear subject.",
     "3d": "A frame from a 3D animated feature film: soft studio lighting, appealing stylised "
     "characters, gentle colour, cinematic depth.",
+    # the Stick figures template (app/motion.py STYLE_ALIASES): a whiteboard explainer's drawings
+    "stickman": "A hand-drawn black ink stick-figure cartoon on a PURE WHITE background, like a "
+    "whiteboard explainer video: a round head with simple expressive eyes, eyebrows and mouth, "
+    "thin black line arms and legs, a few simple props and furniture drawn in the same clean black "
+    "line (a desk, a chair, a thought bubble, a light bulb, a phone…). Black lines only — no colour, "
+    "no grey shading, no background scenery, lots of white space. The figure fills the lower 70% of "
+    "the frame; the top 30% is plain white.",
 }
 PICTURE_RULES = (
     " One clear moment, composed for a video frame, with calm space near the top for a line of "
@@ -234,6 +241,24 @@ PICTURE_RULES = (
     "Cambodia. ABSOLUTELY NO text, letters, numbers, words, captions, signs with writing, logos "
     "or watermarks anywhere in the image.\n\n"
 )
+
+
+def white_page(uri: str) -> str:
+    """A stick-figure drawing on a truly white page: the image AI leaves faint grey
+    ghosts (letters, smudges) in the white, so everything nearly white turns pure
+    white and only the ink stays — the page then matches the template's white."""
+    try:
+        import numpy as np
+
+        im = Image.open(io.BytesIO(base64.b64decode(uri.split(",", 1)[1]))).convert("RGB")
+        px = np.asarray(im).copy()
+        px[px.mean(axis=2) > 205] = 255
+        buf = io.BytesIO()
+        Image.fromarray(px).save(buf, "JPEG", quality=90)
+        return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
+    except Exception:  # noqa: BLE001 — the drawing as it came is still fine
+        log.warning("stick figures: could not whiten a page")
+        return uri
 
 
 def picture_style(art: str, cast: list[dict]) -> str:
@@ -527,7 +552,11 @@ def draw_scenes(
     side = 1920 if limit > MAX_DRAWINGS else 1200  # Picture story: each picture fills the screen
     started = on_start or (lambda s: None)
 
+    stick = bool(style) and style.startswith(PICTURE_ARTS["stickman"])
+
     def finished(s: dict, uri: str | None) -> None:
+        if uri and stick:
+            uri = white_page(uri)
         if uri:
             s["image"] = uri
         if on_done:
