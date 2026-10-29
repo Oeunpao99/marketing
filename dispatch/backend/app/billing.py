@@ -530,7 +530,7 @@ def remind_claims() -> int:
                     w.id,
                     "credits",
                     f"Your videos for {month_start():%B} are ready",
-                    f"{lim['videos']} videos and {lim['images']} images this month — open Smart Marketing to make them.",
+                    f"{lim['videos']} videos this month, and AI images with no limit — open Smart Marketing to make them.",
                     url="/",
                     tag="credits",
                 )

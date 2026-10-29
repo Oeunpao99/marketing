@@ -141,7 +141,8 @@ def summary(db: Session, ws: int) -> dict:
         "plan": plan,
         "plan_label": billing.PLAN_LABEL.get(plan, plan.title()),
         "videos": {"used": v, "limit": lim["videos"], "left": max(0, lim["videos"] - v), "extra": lim["extra_videos"]},
-        "images": {"used": i, "limit": lim["images"], "left": max(0, lim["images"] - i), "extra": lim["extra_images"]},
+        # images have no monthly limit (require_image) — only how many were made is shown
+        "images": {"used": i, "limit": None, "left": None, "extra": 0, "unlimited": True},
         "longest_seconds": lim["longest"],
         "refills_at": when.isoformat(),
         # what else the plan unlocks (app/plan_features.py) — the app locks what isn't in it
@@ -182,15 +183,9 @@ def require_video(db: Session, ws: int, units: int = 1, seconds: float | None = 
 
 
 def require_image(db: Session, ws: int, count: int = 1) -> None:
-    """Refuse a new image when the month's images are used up (HTTP 402)."""
-    lim = _month(db, ws, _plan(db, ws))
-    left = lim["images"] - used(db, ws, IMAGE_KINDS)
-    if count > left:
-        raise HTTPException(
-            402,
-            f"You've made all {lim['images']} images this month — they refill on {_refill_day()}. "
-            "Add an image pack or upgrade for more.",
-        )
+    """No monthly image limit (the owner's boss, 2026-10-29): only videos are counted. Kept so
+    callers needn't change; the hidden fair-use allowance (billing.require) still stands behind it."""
+    return None
 
 
 def admin_limits(db: Session) -> list[dict]:

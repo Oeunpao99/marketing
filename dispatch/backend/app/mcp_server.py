@@ -95,8 +95,7 @@ def t_my_usage(db: Session, user: TeamMember, args: dict) -> dict:
         "plan": u["plan_label"],
         "videos_left": u["videos"]["left"],
         "videos_this_month": u["videos"]["limit"],
-        "images_left": u["images"]["left"],
-        "images_this_month": u["images"]["limit"],
+        "images": "no monthly limit",
         "longest_video_seconds": u["longest_seconds"],
         "refills_at": u["refills_at"],
     }

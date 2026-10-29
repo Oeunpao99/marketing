@@ -372,7 +372,7 @@ function Prices() {
         </div>
         <div className={`${card} overflow-x-auto`}>
           <table className="w-full min-w-[720px] text-[13px]">
-            <TableHead cols={[{ label: 'Plan' }, { label: 'Price / month' }, { label: 'Videos', right: true }, { label: 'Images', right: true }, { label: 'Longest video', right: true }, { label: '' }]} />
+            <TableHead cols={[{ label: 'Plan' }, { label: 'Price / month' }, { label: 'Videos', right: true }, { label: 'Longest video', right: true }, { label: '' }]} />
             <tbody className="divide-y divide-ink-100">
               {rows.map((r) => (
                 <tr key={r.plan} className="hover:bg-canvas/60">
@@ -382,7 +382,6 @@ function Prices() {
                   </td>
                   <td className="px-5 py-3.5 tabular-nums text-ink-800">{r.usd == null && r.khr == null ? <span className="text-ink-400">Not sold</span> : priceText(r.usd, r.khr)}</td>
                   <td className="px-5 py-3.5 text-right tabular-nums text-ink-800">{r.limit.videos ?? '—'}</td>
-                  <td className="px-5 py-3.5 text-right tabular-nums text-ink-800">{r.limit.images ?? '—'}</td>
                   <td className="px-5 py-3.5 text-right tabular-nums text-ink-800">{lengthLabel(r.limit.longest)}</td>
                   <td className="px-5 py-3.5 text-right">
                     <button type="button" onClick={() => (setEditing(r.plan), setNote(''))} className="rounded-lg border border-ink-200 px-3 py-1.5 text-[12px] font-semibold text-ink-700 hover:border-brand hover:text-brand">
@@ -417,13 +416,13 @@ function PlanModal({ row, prices, limits, onClose, onSaved }) {
   const [usd, setUsd] = useState(row.usd ?? '')
   const [khr, setKhr] = useState(row.khr ?? '')
   const [videos, setVideos] = useState(String(row.limit.videos ?? ''))
-  const [images, setImages] = useState(String(row.limit.images ?? ''))
+  const images = String(row.limit.images ?? '') // no image limit any more — sent back as it is
   const [longest, setLongest] = useState(String(row.limit.longest ?? ''))
   const [busy, setBusy] = useState(false)
   const [fail, setFail] = useState('')
 
   const priceChanged = numOrNull(usd) !== (row.usd ?? null) || numOrNull(khr) !== (row.khr ?? null)
-  const limitChanged = String(row.limit.videos) !== videos || String(row.limit.images) !== images || String(row.limit.longest) !== longest
+  const limitChanged = String(row.limit.videos) !== videos || String(row.limit.longest) !== longest
 
   const save = async () => {
     setBusy(true)
@@ -491,11 +490,11 @@ function PlanModal({ row, prices, limits, onClose, onSaved }) {
       </div>
       <div>
         <div className="mb-2 text-[12px] font-bold uppercase tracking-wide text-ink-400">What it makes a month</div>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           <NumField label="Videos" value={videos} onChange={setVideos} />
-          <NumField label="Images" value={images} onChange={setImages} />
           <NumField label="Longest video (s)" value={longest} onChange={setLongest} hint={lengthLabel(Number(longest))} />
         </div>
+        <p className="mt-1.5 text-[11px] text-ink-400">Images have no monthly limit.</p>
       </div>
     </Modal>
   )
@@ -627,7 +626,7 @@ function Packs() {
 /** One pack in a pop-up: what's in it, its price, on sale or not (and its hidden AI allowance, folded away). */
 function PackModal({ pack, busy, fail, onClose, onSave }) {
   const [videos, setVideos] = useState(pack.videos ? String(pack.videos) : '')
-  const [images, setImages] = useState(pack.images ? String(pack.images) : '')
+  const images = pack.images ? String(pack.images) : '' // packs sell videos only now
   const [usd, setUsd] = useState(pack.usd ?? '')
   const [khr, setKhr] = useState(pack.khr ?? '')
   const [credits, setCredits] = useState(pack.id ? String(pack.credits ?? '') : '')
@@ -662,10 +661,7 @@ function PackModal({ pack, busy, fail, onClose, onSave }) {
     >
       <div>
         <div className="mb-2 text-[12px] font-bold uppercase tracking-wide text-ink-400">What's in it</div>
-        <div className="grid grid-cols-2 gap-3">
-          <NumField label="Videos" value={videos} onChange={setVideos} placeholder="e.g. 10" />
-          <NumField label="Images" value={images} onChange={setImages} placeholder="0" />
-        </div>
+        <NumField label="Videos" value={videos} onChange={setVideos} placeholder="e.g. 10" />
       </div>
       <div>
         <div className="mb-2 text-[12px] font-bold uppercase tracking-wide text-ink-400">Price</div>
@@ -906,13 +902,13 @@ const PLAN_OPTIONS = [
 /** "Give extra videos & images": a pop-up over the account panel — free, for this month only. */
 function GiveExtra({ name, busy, onClose, onGive }) {
   const [videos, setVideos] = useState('')
-  const [images, setImages] = useState('')
+  const images = '' // images have no monthly limit — only videos are given
   const [why, setWhy] = useState('')
   const v = Number(videos) || 0
   const im = Number(images) || 0
   return (
     <Modal
-      title="Give extra videos & images"
+      title="Give extra videos"
       sub={`For ${name} — free, on top of their plan, until the month ends.`}
       onClose={onClose}
       footer={
@@ -926,10 +922,7 @@ function GiveExtra({ name, busy, onClose, onGive }) {
         </>
       }
     >
-      <div className="grid grid-cols-2 gap-3">
-        <NumField label="Videos" value={videos} onChange={setVideos} placeholder="e.g. 3" />
-        <NumField label="Images" value={images} onChange={setImages} placeholder="0" />
-      </div>
+      <NumField label="Videos" value={videos} onChange={setVideos} placeholder="e.g. 3" />
       <label className="block">
         <span className="mb-1 block text-[12px] font-semibold text-ink-700">Note (optional)</span>
         <input value={why} maxLength={200} onChange={(e) => setWhy(e.target.value)} placeholder="e.g. Sorry for the failed render" className={inputCls} />
@@ -1014,7 +1007,7 @@ function AccountDrawer({ id, onClose, onChanged }) {
               <section className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
                 {[
                   ['Videos this month', u ? `${u.videos.used} of ${u.videos.limit}` : '—'],
-                  ['Images this month', u ? `${u.images.used} of ${u.images.limit}` : '—'],
+                  ['Images this month', u ? `${u.images.used} made` : '—'],
                   ['Posts 30d', w.posts_30d],
                   ['Last active', ago(w.last_active)],
                 ].map(([label, value]) => (
@@ -1035,10 +1028,7 @@ function AccountDrawer({ id, onClose, onChanged }) {
                 />
                 {u && (
                   <div className="mt-3 space-y-2.5">
-                    {[
-                      ['Videos', u.videos],
-                      ['Images', u.images],
-                    ].map(([label, c]) => (
+                    {[['Videos', u.videos]].map(([label, c]) => (
                       <div key={label}>
                         <div className="flex justify-between text-[11.5px] text-ink-500">
                           <span>
@@ -1059,7 +1049,7 @@ function AccountDrawer({ id, onClose, onChanged }) {
                 )}
                 <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-ink-100 px-3.5 py-3">
                   <div className="min-w-0">
-                    <div className="text-[13px] font-semibold text-ink-900">Give extra videos &amp; images</div>
+                    <div className="text-[13px] font-semibold text-ink-900">Give extra videos</div>
                     <div className="text-[11.5px] text-ink-500">Free, on top of the plan — for this month only.</div>
                   </div>
                   <button type="button" onClick={() => setGiving(true)} className="btn-primary flex-none py-2">

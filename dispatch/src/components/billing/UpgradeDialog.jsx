@@ -71,7 +71,8 @@ const day = (iso) => (iso ? new Date(iso).toLocaleDateString(undefined, { day: '
 const lastDay = (iso) => (iso ? day(new Date(Date.parse(iso) - 1000).toISOString()) : '')
 // "8 videos · 150 images" — a plan's month, or what a pack adds
 const counts = (videos, images) =>
-  [videos ? `${videos.toLocaleString('en-US')} video${videos === 1 ? '' : 's'}` : '', images ? `${images.toLocaleString('en-US')} image${images === 1 ? '' : 's'}` : '']
+  // images have no monthly limit — only videos are counted
+  [videos ? `${videos.toLocaleString('en-US')} video${videos === 1 ? '' : 's'}` : '', videos ? 'unlimited images' : '']
     .filter(Boolean)
     .join(' · ')
 const longestText = (s) => (s >= 60 ? `${Math.round(s / 60)} min` : `${s} s`)
@@ -309,7 +310,7 @@ export default function UpgradeDialog({ open: shown, onClose, onPaid, page = fal
                 {/* "Get more videos" with no packs on sale (none set in the admin portal): the way to more is a bigger plan — say so, here */}
                 {page && !info.packs?.length && wantsTopUp && (
                   <div id="top-up" className="mt-4 scroll-mt-6 rounded-2xl border border-brand-line bg-brand-soft px-4 py-3 text-[13px] text-ink-700">
-                    <b className="text-ink-900">Need more videos or images?</b> Choose a bigger plan below — it starts today, with its full month of videos and images.
+                    <b className="text-ink-900">Need more videos?</b> Choose a bigger plan below — it starts today, with its full month of videos.
                   </div>
                 )}
                 {/* the plans as on the website (lib/plans.js): price, what's in it, Choose */}

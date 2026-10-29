@@ -1159,7 +1159,7 @@ function BillingTab() {
           <div className="text-[12px] text-ink-500">
             {paidUntil
               ? `Paid until ${new Date(paidUntil).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })} — then back to Free unless you renew`
-              : `${v.limit - v.extra} videos and ${u.images.limit - u.images.extra} images a month · videos up to ${lengthText(u.longest_seconds)}`}
+              : `${v.limit - v.extra} videos a month · videos up to ${lengthText(u.longest_seconds)} · unlimited images`}
           </div>
         </div>
         <button type="button" onClick={() => toPlans()} className="btn-primary h-9 px-4 text-[12.5px]">
@@ -1192,10 +1192,8 @@ function BillingTab() {
         </div>
         <div className="relative mt-3 grid grid-cols-3 gap-2 text-[11px] text-white/75">
           <div>
-            Images left
-            <div className="text-[14px] font-bold tabular-nums text-white">
-              {u.images.left} <span className="text-[11px] font-semibold text-white/70">of {u.images.limit}</span>
-            </div>
+            Images
+            <div className="text-[14px] font-bold text-white">Unlimited</div>
           </div>
           <div>
             Longest video
@@ -1206,9 +1204,9 @@ function BillingTab() {
             <div className="text-[14px] font-bold text-white">{refill}</div>
           </div>
         </div>
-        {(v.extra > 0 || u.images.extra > 0) && (
+        {v.extra > 0 && (
           <div className="relative mt-3 text-[11.5px] text-white/80">
-            Includes {[v.extra && `${v.extra} extra video${v.extra === 1 ? '' : 's'}`, u.images.extra && `${u.images.extra} extra image${u.images.extra === 1 ? '' : 's'}`].filter(Boolean).join(' and ')} you added this month.
+            Includes {v.extra} extra video{v.extra === 1 ? '' : 's'} you added this month.
           </div>
         )}
       </section>

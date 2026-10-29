@@ -15,7 +15,7 @@ export const PLANS = [
     khr: 0,
     cta: ['Get started free', 'ចាប់ផ្តើមឥតគិតថ្លៃ'],
     points: [
-      ['1 video, 2 AI images and 10 posts to try', 'វីដេអូ ១ រូបភាព AI ២ និងប្រកាស ១០ សម្រាប់សាកល្បង', 'gift'],
+      ['1 video, AI images and 10 posts to try', 'វីដេអូ ១ រូបភាព AI និងប្រកាស ១០ សម្រាប់សាកល្បង', 'gift'],
       ['1 brand · 2 connected pages', 'ម៉ាក ១ · ទំព័រ ២', 'check'],
       ['Scheduling & auto-posting', 'កំណត់ពេល និងបង្ហោះស្វ័យប្រវត្តិ', 'clock'],
       ['Khmer + English captions', 'ចំណងជើងខ្មែរ និងអង់គ្លេស', 'type'],
@@ -33,7 +33,7 @@ export const PLANS = [
     points: [
       ['1 AI post a day', 'ប្រកាស AI ១ ក្នុងមួយថ្ងៃ', 'edit'],
       ['2 AI videos a month (24–40 s, up to 1 min)', 'វីដេអូ AI ២ ក្នុងមួយខែ (២៤–៤០ វិនាទី រហូតដល់ ១ នាទី)', 'film'],
-      ['60 AI images a month', 'រូបភាព AI ៦០ ក្នុងមួយខែ', 'image'],
+      ['Unlimited AI images', 'រូបភាព AI មិនកំណត់', 'image'],
       ['1 brand · 3 channels', 'ម៉ាក ១ · ឆានែល ៣', 'layers'],
       ['Weekly AI plan + best time to post', 'ផែនការ AI ប្រចាំសប្តាហ៍ + ម៉ោងល្អបំផុត', 'calendar'],
       ['You review every post first', 'បងពិនិត្យរាល់ប្រកាសមុន', 'eye'],
@@ -53,7 +53,7 @@ export const PLANS = [
     points: [
       ['Up to 2 AI posts a day', 'ប្រកាស AI រហូតដល់ ២ ក្នុងមួយថ្ងៃ', 'edit'],
       ['8 AI videos a month (24–40 s; up to 3 min, a longer one counts as 2)', 'វីដេអូ AI ៨ ក្នុងមួយខែ (២៤–៤០ វិនាទី រហូតដល់ ៣ នាទី វីដេអូវែងជាងរាប់ជា ២)', 'film'],
-      ['150 AI images a month', 'រូបភាព AI ១៥០ ក្នុងមួយខែ', 'image'],
+      ['Unlimited AI images', 'រូបភាព AI មិនកំណត់', 'image'],
       ['1 brand · all 5 channels', 'ម៉ាក ១ · ឆានែលទាំង ៥', 'layers'],
       ['Everything in Starter', 'គ្រប់យ៉ាងក្នុង Starter', 'check'],
       ['Review first, or post automatically', 'ពិនិត្យមុន ឬបង្ហោះស្វ័យប្រវត្តិ', 'repeat'],
@@ -73,7 +73,7 @@ export const PLANS = [
     points: [
       ['Up to 3 AI posts a day per brand', 'ប្រកាស AI រហូតដល់ ៣ ក្នុងមួយថ្ងៃ ក្នុងមួយម៉ាក', 'edit'],
       ['20 AI videos a month (24–40 s; up to 10 min, 1 per 3 min)', 'វីដេអូ AI ២០ ក្នុងមួយខែ (២៤–៤០ វិនាទី រហូតដល់ ១០ នាទី រាប់ ១ ក្នុង ៣ នាទី)', 'film'],
-      ['400 AI images a month', 'រូបភាព AI ៤០០ ក្នុងមួយខែ', 'image'],
+      ['Unlimited AI images', 'រូបភាព AI មិនកំណត់', 'image'],
       ['3 brands · all 5 channels each', 'ម៉ាក ៣ · ឆានែលទាំង ៥ ក្នុងមួយម៉ាក', 'layers'],
       ['Everything in Growth', 'គ្រប់យ៉ាងក្នុង Growth', 'check'],
       ['Leads & hand-off for 10 sales reps', 'អតិថិជនសក្តានុពល និងបញ្ជូនទៅអ្នកលក់ ១០', 'users'],

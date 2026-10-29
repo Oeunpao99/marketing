@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { FiChevronRight, FiCreditCard, FiFilm, FiImage, FiLogOut, FiPlusCircle, FiSettings, FiUserPlus } from "react-icons/fi";
+import { FiChevronRight, FiCreditCard, FiFilm, FiLogOut, FiPlusCircle, FiSettings, FiUserPlus } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../auth";
 import { lengthText, useUsage, useUsageRefresh } from "../../lib/usage";
@@ -125,11 +125,10 @@ export default function AccountMenu() {
             <div className="text-[12px] font-semibold text-ink-500">This month</div>
             <div className="mt-2.5 space-y-3">
               <Meter icon={FiFilm} label="Videos" count={videos} />
-              <Meter icon={FiImage} label="Images" count={u?.images} />
             </div>
             <div className="mt-3 text-[11.5px] text-ink-400">
               {u?.longest_seconds ? `Videos up to ${lengthText(u.longest_seconds)}` : ""}
-              {refill ? `${u?.longest_seconds ? " · " : ""}refills on ${refill}` : ""} · posting is always free
+              {refill ? `${u?.longest_seconds ? " · " : ""}refills on ${refill}` : ""} · images and posting have no limit
             </div>
             {tone !== "ok" && (
               <button

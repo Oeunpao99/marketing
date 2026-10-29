@@ -274,7 +274,7 @@ export default function OnboardingTour() {
 
         {step.action === 'month' && usage?.videos && (
           <div className="mt-3 flex items-center gap-2 rounded-xl bg-brand-soft px-3 py-2 text-[12.5px] font-semibold text-brand">
-            <FiCheck size={14} /> This month: {usage.videos.left} video{usage.videos.left === 1 ? '' : 's'} and {usage.images.left} images, videos up to {lengthText(usage.longest_seconds)}
+            <FiCheck size={14} /> This month: {usage.videos.left} video{usage.videos.left === 1 ? '' : 's'}, up to {lengthText(usage.longest_seconds)} each · unlimited images
           </div>
         )}
 

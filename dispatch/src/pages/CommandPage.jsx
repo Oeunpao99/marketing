@@ -176,7 +176,7 @@ function Kpis({ k }) {
       // this month's videos (app/usage.py) — customers count videos, not credits
       label: 'Videos left',
       value: k.month ? `${k.month.videos.left}` : '—',
-      note: k.month ? `of ${k.month.videos.limit} this month · ${k.month.images.left} images` : 'This month',
+      note: k.month ? `of ${k.month.videos.limit} this month · unlimited images` : 'This month',
       warn: !!k.month && k.month.videos.left <= Math.max(1, Math.round(k.month.videos.limit * 0.15)),
     },
   ]
