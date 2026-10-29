@@ -363,6 +363,17 @@ export const MOTION_TEMPLATES = [
     goals: ['education', 'authority'],
   },
   {
+    id: 'fintech',
+    story: 'fintech',
+    added: '2026-10-29T18:00:00+07:00',
+    name: 'Fintech · Wallet & Card',
+    bestFor: 'a wallet, payment or banking app, a card, crypto or savings — money products',
+    look: 'A black card with your logo floating in a burst of orange, pink and purple light with gold coins spinning round it, a dark 3D wallet with the balances rising out, the points on tilted white cards over a white-and-black stage',
+    steps: ['The card in the light', 'The wallet and balances', 'What it does', 'Call to action'],
+    note: 'Balances are sample numbers; a rate, fee or reward only if your brief or product details give it',
+    goals: ['conversion', 'awareness'],
+  },
+  {
     id: 'skylaunch',
     story: 'skylaunch',
     added: '2026-10-29T15:00:00+07:00',
@@ -478,7 +489,7 @@ export const GOAL_TEMPLATES = {
   trust: ['testimonial', 'reviews', 'casestudy', 'faq', 'report'],
   authority: ['versus', 'report', 'casestudy', 'hottake', 'clarity'],
   solution: ['sell', 'demo', 'custom', 'showcase', 'clarity', 'appdemo', 'skylaunch'],
-  conversion: ['offer', 'productfx', 'spotlight', 'sell', 'launch', 'skylaunch', 'reviews', 'casestudy'],
+  conversion: ['offer', 'productfx', 'spotlight', 'sell', 'launch', 'skylaunch', 'fintech', 'reviews', 'casestudy'],
 }
 
 export const templateById = (id) => MOTION_TEMPLATES.find((t) => t.id === id)

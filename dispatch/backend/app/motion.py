@@ -1033,6 +1033,42 @@ LAUNCH_PROMPT = (
     + '{"scenes": [{"type": "hook", "text": "...", "icon": "Rocket", "say": "..."}, ...]}'
 )
 
+# ── Fintech · Wallet & Card (motion/src/fintech.jsx) — the 3D wallet, the card in a burst of light ──
+FINTECH_TYPES = ("hook", "dashboard", "list", "stat", "reveal", "cta")
+FINTECH_PROMPT = (
+    "You are the director of fintech product films in Cambodia. You plan a REMOTION VIDEO (about "
+    "25-45 s) for a money product — a wallet or payment app, a bank or card, crypto, savings, "
+    "remittance, a POS or a loyalty card — the way the big fintech brands launch them: a black "
+    "card with the brand's mark floating in a burst of orange, pink and purple light with gold "
+    "coins round it; a dark 3D wallet on a white stage with the balances rising out of it; the "
+    "points as tilted white cards over a stage split white and black. Premium, bold, few words.\n"
+    "\n"
+    "THE STORY (5-7 scenes):\n"
+    "1. hook — the promise in one line (the card in the light).\n"
+    "2. dashboard — the wallet: what you hold / send / earn, as 2-3 balances.\n"
+    "3-5. 1-2 of: list (what it does, 3-4 short points), stat (one TRUE number), reveal (one bold line).\n"
+    "last. cta — get the card / open the app / start today.\n"
+    "\n"
+    "SCENE TYPES and their fields:\n"
+    "- hook: text (max 8 words; ⟦mark⟧ the 1-2 key words), badge (2-3 words, optional, e.g. "
+    "\"Now in Cambodia\").\n"
+    "- dashboard: title (max 6 words, optional), metrics: 2-3 x {\"label\": the balance's name with "
+    "its currency (\"USD wallet\", \"BTC\", \"KHR savings\", \"Cashback\"), \"value\": a number, "
+    "\"prefix\" (\"$\" or \"\"), \"suffix\" (\"BTC\", \"៛\"… or \"\"), \"delta\" (\"+2.4%\" or \"\")} — small, "
+    "believable SAMPLE balances, never a real customer's.\n"
+    "- list: title (max 6 words, optional), items: 3-4 x {\"icon\", \"text\": 2-6 words}.\n"
+    "- stat: value, prefix, suffix, label (max 6 words) — only a TRUE number from the product information.\n"
+    "- reveal: text (max 10 words), icon.\n"
+    "- cta: text (max 8 words), button (2-4 words).\n"
+    "Only features the product information supports — never invent a rate, a fee, a reward or a "
+    "licence.\n"
+    "\n"
+    + _SAAS_CRAFT
+    + "\n"
+    + _COMMON_RULES
+    + '{"scenes": [{"type": "hook", "text": "...", "say": "..."}, ...]}'
+)
+
 # ── SaaS launch · Sky (motion/src/skylaunch.jsx) — the real screen, the pointer clicks ──
 SKYLAUNCH_TYPES = ("hook", "field", "screen", "list", "button", "done", "stat", "cta")
 SKYLAUNCH_PROMPT = (
@@ -3179,6 +3215,7 @@ STYLES = {
     "launch": (LAUNCH_PROMPT, LAUNCH_TYPES, 7, None),
     "unveil": (UNVEIL_PROMPT, UNVEIL_TYPES, 6, None),
     "skylaunch": (SKYLAUNCH_PROMPT, SKYLAUNCH_TYPES, 6, None),
+    "fintech": (FINTECH_PROMPT, FINTECH_TYPES, 5, None),
     "gridcards": (GRID_PROMPT, GRID_TYPES, 5, "fanout"),
     "techflow": (TECHFLOW_PROMPT, TECHFLOW_TYPES, 6, None),
     "canvas": (CANVAS_PROMPT, CANVAS_TYPES, 12, "canvas"),
@@ -3215,7 +3252,7 @@ STYLES = {
 # The templates laid out for 16:9 too (motion/src/training.jsx, saas.jsx wide scenes);
 # every other template is always vertical. Scenes drawn only for a tall frame are
 # left out of a wide video.
-WIDE_STYLES = {"picture", "deck", "aiteam", "saashub", "illustrated", "street3d", "dialogue", "parable", "podcast", "presenter", "neural", "paper", "doodle", "cartoon", "lesson", "rise", "training", "custom", "demo", "offer", "spotlight", "productfx", "trend", "pov", "showcase", "launch", "unveil", "skylaunch", "gridcards", "techflow", "canvas", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
+WIDE_STYLES = {"picture", "deck", "aiteam", "saashub", "illustrated", "street3d", "dialogue", "parable", "podcast", "presenter", "neural", "paper", "doodle", "cartoon", "lesson", "rise", "training", "custom", "demo", "offer", "spotlight", "productfx", "trend", "pov", "showcase", "launch", "unveil", "skylaunch", "fintech", "gridcards", "techflow", "canvas", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
 TALL_ONLY_TYPES = {"problem", "chat", "product", "point"}
 
 
@@ -3233,7 +3270,7 @@ def final_ratio(asked: str, style: str, suggested: str | None = None) -> str:
     return "9:16"
 SCREEN_STYLES = {"custom", "demo", "appdemo", "showcase", "launch", "unveil", "skylaunch", "clarity", "canvas", "reaction", "productfx"}  # the stories that can show the brand's screenshots
 # The templates that sell (the auto topic picks a product, not a teaching topic).
-SELLING_STYLES = {"tech", "demo", "offer", "spotlight", "productfx", "street3d", "appdemo", "showcase", "launch", "unveil", "skylaunch", "gridcards"}
+SELLING_STYLES = {"tech", "demo", "offer", "spotlight", "productfx", "street3d", "appdemo", "showcase", "launch", "unveil", "skylaunch", "fintech", "gridcards"}
 
 # Story mode (write_script ``seconds``): the person pasted their own story.
 # Every template may run to ~10 minutes (2026-10-24 — it was 2, Training only went long).
@@ -3473,7 +3510,7 @@ def estimate_seconds(script: dict) -> int:
 GOAL_STYLES = {
     "sell": ("tech",),
     "solution": ("tech", "demo", "custom", "showcase", "clarity", "gridcards", "cartoon", "appdemo", "aiteam", "saashub", "skylaunch"),
-    "conversion": ("offer", "spotlight", "productfx", "tech", "launch", "skylaunch", "reviews", "casestudy", "unveil", "studio", "street3d", "saashub"),
+    "conversion": ("offer", "spotlight", "productfx", "tech", "launch", "skylaunch", "fintech", "reviews", "casestudy", "unveil", "studio", "street3d", "saashub"),
     "teach": ("explainer",),
     "education": ("explainer", "training", "custom", "clarity", "tips", "gridcards", "techflow", "neural", "paper", "doodle", "cartoon", "lesson", "presenter", "podcast", "parable", "illustrated"),
     "reach": ("pov", "explainer", "countdown", "thisorthat", "hottake", "doodle", "cartoon", "lesson", "rise", "reaction", "podcast", "parable", "dialogue"),
@@ -6302,6 +6339,16 @@ def _finish_doodles(doodling: tuple[threading.Thread, dict], props: dict, job_id
     for n, uri in got.items():
         if n < len(props["scenes"]):
             props["scenes"][n]["image"] = uri
+    # Picture story: a picture that couldn't be painted (even on its second try) shows the
+    # nearest scene's picture — its own camera move makes it read as another shot — never a dark frame
+    if props.get("style") == "picture":
+        shots = props["scenes"]
+        have = [i for i, s in enumerate(shots) if s.get("type") == "shot" and s.get("image")]
+        for i, s in enumerate(shots):
+            if s.get("type") == "shot" and not s.get("image") and have:
+                near = min(have, key=lambda k: (abs(k - i), k > i))  # the one before it, on a tie
+                s["image"] = shots[near]["image"]
+                log.warning("job %s: picture %s missing — showing picture %s", job_id, i + 1, near + 1)
 
 
 def share_post_picture(props: dict) -> None:
@@ -6996,6 +7043,7 @@ TEMPLATE_GUIDE = {
     "tips": "practical tips people save — 3-5 numbered tip cards and a \"save this\" ask",
     "clarity": "explaining what a software product does and why it matters — calm, white and light blue: the mess of tools today, the product, how it works",
     "launch": "launching a product or a new feature — a cinematic launch film: the one click that does the job, the product's screens, \"now live\"",
+    "fintech": "a money product — a wallet or payment app, a bank card, crypto, savings, remittance — a black card in a burst of light with gold coins, a 3D wallet with its balances rising out",
     "skylaunch": "launching a SaaS, app or website with its REAL screen — a prompt box typing the request, the screen in a browser window with the camera flying in, a pointer clicking Publish, on bright sky-blue light",
     "unveil": "unveiling a product or a new feature in a light, elegant way — one big word, the app card coming into focus, a field typing itself, a check with confetti",
     "gridcards": "how a product or service solves an everyday problem — the repetitive work today, then one input becoming several results (a post, a price poster, a caption), clear and friendly",

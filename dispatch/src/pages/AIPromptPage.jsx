@@ -257,6 +257,7 @@ const MOTION_STORIES = [
   { value: 'canvas', label: 'AI design (new)', hint: 'The AI designs every scene for your brief — its own colours, backgrounds, layout and motion; best for a brief with its own look, an event screen or a cinematic launch' },
   { value: 'techflow', label: 'Tech explainer', hint: 'How a technology works — devices, data packets travelling, an address, a lookup, the path, a checklist' },
   { value: 'gridcards', label: 'How it works · Grid', hint: 'Grid paper, navy and lime — the repetitive work, then one photo becoming a post, a price poster, a caption' },
+  { value: 'fintech', label: 'Fintech · Wallet & Card', hint: 'A black card in a burst of light with gold coins, a 3D wallet with its balances rising out — for money products' },
   { value: 'skylaunch', label: 'SaaS launch · Sky', hint: 'Your real screen in a browser window — a prompt typing, the camera flying in, a pointer clicking Publish, on bright sky-blue light' },
   { value: 'unveil', label: 'Unveil · Launch (light)', hint: 'A light, elegant launch — one big word, the app card coming into focus, typing, a check with confetti' },
   { value: 'showcase', label: 'Showcase · SaaS promo', hint: 'Bright launch-video look — the apps it joins, its table and board views, a rolling word' },

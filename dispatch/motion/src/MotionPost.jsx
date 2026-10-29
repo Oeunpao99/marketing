@@ -78,6 +78,7 @@ import { CARTOON } from './cartoon'
 import { SPOTLIGHT } from './spotlight'
 import { PRODUCTFX } from './productfx'
 import { SKYLAUNCH } from './skylaunch'
+import { FINTECH } from './fintech'
 import { APPDEMO } from './appdemo'
 import { LESSON } from './lesson'
 import { RISE } from './rise'
@@ -768,6 +769,7 @@ const TEMPLATES = {
   offer: { ...OFFER, scenes: { ...SCENES, ...OFFER.scenes } },
   spotlight: { ...SPOTLIGHT, scenes: { ...SCENES, ...SPOTLIGHT.scenes } }, // 3D · Spotlight (three.js)
   productfx: { ...PRODUCTFX, scenes: { ...SCENES, ...PRODUCTFX.scenes } }, // Product showcase — the real product cut out, shape effects
+  fintech: { ...FINTECH, scenes: { ...SCENES, ...FINTECH.scenes } }, // Fintech · Wallet & Card — the 3D wallet, the card in a burst of light
   skylaunch: { ...SKYLAUNCH, scenes: { ...SCENES, ...SKYLAUNCH.scenes } }, // SaaS launch · Sky — the real screen in a browser window, the pointer clicks
   appdemo: { ...APPDEMO, scenes: { ...SCENES, ...APPDEMO.scenes } }, // 3D · App demo (CSS 3D)
   showcase: { ...SHOWCASE, scenes: { ...SCENES, ...SHOWCASE.scenes } },

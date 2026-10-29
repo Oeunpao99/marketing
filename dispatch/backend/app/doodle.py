@@ -562,8 +562,18 @@ def draw_scenes(
         if on_done:
             on_done(s, uri)
 
+    def paint(s: dict, busy) -> str | None:
+        """Picture story: a picture that fails is tried once more — with its first
+        sentence only (a refusal is usually one detail of a long description)."""
+        uri = _flat(s["draw"], style, ws, user_id, ratio, side, busy)
+        if uri is None:
+            short = s["draw"].split(". ")[0].rstrip(".") + "."
+            log.info("picture story: a picture failed — trying again%s", " with its first sentence" if short != s["draw"] else "")
+            uri = _flat(short, style, ws, user_id, ratio, side, busy)
+        return uri
+
     if limit > MAX_DRAWINGS and style:
-        got = _two_at_a_time(todo, lambda s, busy: _flat(s["draw"], style, ws, user_id, ratio, side, busy), report, started, finished)
+        got = _two_at_a_time(todo, paint, report, started, finished)
     else:
         got = []
         for n, s in enumerate(todo):  # one at a time — the image quota is small
