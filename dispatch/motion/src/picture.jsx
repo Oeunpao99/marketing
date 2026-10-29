@@ -22,7 +22,7 @@ const MOVES = [
   [1.04, 1.14, 0, -2.5], // push in, rising
 ]
 
-const WIDE_PAGE_TOP = '32%' // a wide stick-figure page: the title's white band (two lines of up to 92 px)
+const WIDE_PAGE_TOP = '40%' // a wide stick-figure page: the title's white band — under the logo, two lines of up to 76 px
 
 function Picture({ src, seed, page = false }) {
   const frame = useCurrentFrame()
@@ -76,7 +76,7 @@ function Title({ text, ink, wide, page = false }) {
   const khmer = KHMER_RE.test(text || '')
   // like a YouTube thumbnail: as big as two lines across the free side allow
   // (Khmer marks stack on their letters, so a Khmer character is narrower)
-  const box = page && wide ? 1200 : wide ? 800 : 940 // a stick-figure page: one centred title across the top, clear of the logo
+  const box = page && wide ? 1600 : wide ? 800 : 940 // a stick-figure page: one centred title across the top, under the logo
   const len = Math.max(6, [...clean(text)].filter((ch) => !/[ា-៓៝]/.test(ch)).length)
   // a tall video's two lines stay inside the picture's calm top (y 250–610 of 1920),
   // off the person below: 112 px tops (two Khmer lines with the bigger key word ≈ 355 px)
@@ -84,8 +84,9 @@ function Title({ text, ink, wide, page = false }) {
   // let long titles wrap to three over the person; a wide one has the side free, three big lines are fine)
   // a wide stick-figure page: two lines in its white top band (WIDE_PAGE_TOP), measured like a tall one
   const per = khmer ? (wide && !page ? 0.62 : 0.9) : 0.68
-  const most = page && wide ? 92 : wide ? 150 : 112
-  const size = Math.max(page && wide ? 52 : wide ? 70 : 64, Math.min(most, (box * 2) / (len * per)))
+  // a stick-figure page's title a little smaller than a photo's: it reads under the logo, the drawing is the hero
+  const most = page ? (wide ? 76 : 100) : wide ? 150 : 112
+  const size = Math.max(page ? (wide ? 48 : 58) : wide ? 70 : 64, Math.min(most, (box * 2) / (len * per)))
   return (
     <div
       style={{
@@ -136,8 +137,9 @@ function Shot({ scene }) {
     return (
       <AbsoluteFill style={{ backgroundColor: '#FFFFFF' }}>
         <Picture src={scene.image} seed={seed} page />
+        {/* the title under the logo chip (it ends ~y 165 wide / ~240 tall), never beside it */}
         {scene.title && (
-          <div style={{ position: 'absolute', left: wide ? 360 : 60, right: wide ? 360 : 60, top: wide ? 44 : 250 }}>
+          <div style={{ position: 'absolute', left: wide ? 160 : 60, right: wide ? 160 : 60, top: wide ? 185 : 265 }}>
             <Title text={scene.title} ink={ink} wide={wide} page />
           </div>
         )}
