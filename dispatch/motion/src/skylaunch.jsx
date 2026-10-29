@@ -19,8 +19,7 @@
  *   cta    the logo, the line, the button             {text, button}
  * 9:16 and 16:9; nothing in the subtitle band (captionTop).
  */
-import { AbsoluteFill, Img, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion'
-import { fade } from '@remotion/transitions/fade'
+import { AbsoluteFill, Img, interpolate, random, spring, useCurrentFrame, useVideoConfig } from 'remotion'
 import { FONT, Icon, KHMER_RE, Words, clean, fitSize, srcOf, tint } from './shared'
 
 const clamp = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
@@ -118,6 +117,161 @@ function Ripple({ x, y, at, size, color }) {
   )
 }
 
+/** Sparks flying out of a click (the brand's colour, gold, sky), gone in ~0.7 s. */
+function Burst({ x, y, at, color, n = 14, size = 1 }) {
+  const frame = useCurrentFrame()
+  const t = (frame - at) / 22
+  if (t < 0 || t > 1) return null
+  return (
+    <>
+      {Array.from({ length: n }).map((_, i) => {
+        const ang = (i / n) * Math.PI * 2 + random(`ba${at}${i}`) * 0.6
+        const dist = (60 + random(`bd${at}${i}`) * 110) * size * ease(t)
+        const d = (8 + random(`bs${at}${i}`) * 12) * size * (1 - t * 0.7)
+        const col = i % 3 === 0 ? '#FFC93C' : i % 3 === 1 ? color : SKY
+        return (
+          <div
+            key={i}
+            style={{
+              position: 'absolute',
+              left: x + Math.cos(ang) * dist - d / 2,
+              top: y + Math.sin(ang) * dist - d / 2 + t * t * 40 * size, // a little gravity
+              width: d,
+              height: i % 2 ? d : d * 0.45,
+              borderRadius: i % 2 ? '50%' : 3,
+              background: col,
+              opacity: 1 - t,
+              transform: `rotate(${t * 260 + i * 30}deg)`,
+              zIndex: 32,
+            }}
+          />
+        )
+      })}
+    </>
+  )
+}
+
+/** Out-of-focus app cards floating at different depths, drifting at their own speed —
+ * the stage is never still (parallax: the nearer, the bigger, blurrier and faster). */
+function Depth({ brand }) {
+  const frame = useCurrentFrame()
+  const { width, height } = useVideoConfig()
+  const a = accent(brand)
+  const u = Math.min(width, height)
+  const cards = [
+    { x: 0.04, y: 0.14, w: 0.3, z: 0.5, b: 9, r: -9 },
+    { x: 0.8, y: 0.09, w: 0.24, z: 0.3, b: 14, r: 7 },
+    { x: 0.84, y: 0.6, w: 0.34, z: 0.8, b: 6, r: -5 },
+    { x: -0.04, y: 0.66, w: 0.26, z: 0.6, b: 12, r: 10 },
+  ]
+  return (
+    <AbsoluteFill style={{ pointerEvents: 'none' }}>
+      {cards.map((c, i) => {
+        const w = u * c.w
+        return (
+          <div
+            key={i}
+            style={{
+              position: 'absolute',
+              left: c.x * width + Math.sin(frame / 60 + i) * 30 * c.z - frame * 0.35 * c.z,
+              top: c.y * height + Math.cos(frame / 45 + i * 2) * 24 * c.z,
+              width: w,
+              height: w * 0.62,
+              borderRadius: w * 0.08,
+              background: 'rgba(255,255,255,0.78)',
+              boxShadow: '0 20px 50px rgba(30,64,120,0.12)',
+              transform: `rotate(${c.r + Math.sin(frame / 80 + i) * 3}deg)`,
+              filter: `blur(${c.b}px)`,
+              opacity: 0.75,
+              padding: w * 0.08,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: w * 0.05,
+            }}
+          >
+            <div style={{ width: w * 0.16, height: w * 0.16, borderRadius: '50%', background: i % 2 ? tint(a, 0.55) : tint(SKY, 0.8) }} />
+            <div style={{ width: '80%', height: w * 0.05, borderRadius: 99, background: '#DCE6F2' }} />
+            <div style={{ width: '55%', height: w * 0.05, borderRadius: 99, background: '#E7EEF6' }} />
+          </div>
+        )
+      })}
+    </AbsoluteFill>
+  )
+}
+
+/** Every scene's stage: the sky, the floating depth, and a camera that keeps drifting in. */
+function Stage({ brand, children }) {
+  const frame = useCurrentFrame()
+  const { durationInFrames } = useVideoConfig()
+  const t = Math.min(1, frame / Math.max(1, durationInFrames))
+  return (
+    <AbsoluteFill>
+      <Sky brand={brand} />
+      <Depth brand={brand} />
+      <AbsoluteFill style={{ transform: `scale(${1 + 0.04 * t}) rotate(${-0.3 + 0.6 * t}deg)` }}>{children}</AbsoluteFill>
+    </AbsoluteFill>
+  )
+}
+
+/** The transition: the old scene pushes into the camera and blurs, the new one comes up out of it. */
+function ZoomThrough({ children, presentationDirection, presentationProgress }) {
+  const p = presentationProgress
+  const entering = presentationDirection === 'entering'
+  return (
+    <AbsoluteFill
+      style={{
+        transform: `scale(${entering ? 0.84 + 0.16 * ease(p) : 1 + 0.22 * p})`,
+        filter: `blur(${entering ? (1 - p) * 16 : p * 20}px)`,
+        opacity: entering ? Math.min(1, p * 1.8) : 1 - p,
+      }}
+    >
+      {children}
+    </AbsoluteFill>
+  )
+}
+const zoomThrough = () => ({ component: ZoomThrough, props: {} })
+
+/** A check mark that draws itself (a stroke), from ``at``. */
+function DrawCheck({ size, color, at, width = 3.2 }) {
+  const frame = useCurrentFrame()
+  const draw = interpolate(frame, [at, at + 12], [0, 1], { ...clamp, easing: ease })
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size}>
+      <path d="M4 12.5l5 5L20 6.5" fill="none" stroke={color} strokeWidth={width} strokeLinecap="round" strokeLinejoin="round" strokeDasharray="24" strokeDashoffset={24 * (1 - draw)} />
+    </svg>
+  )
+}
+
+/** A number that rolls up like an odometer: each digit a column of 0-9, the left ones settling last. */
+function Odometer({ text, size, color, at }) {
+  const frame = useCurrentFrame()
+  const chars = [...text]
+  const digits = chars.filter((c) => /\d/.test(c)).length
+  let k = 0
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'flex-start', lineHeight: 1, color }}>
+      {chars.map((c, i) => {
+        if (!/\d/.test(c)) return <span key={i}>{c}</span>
+        const order = digits - 1 - k++ // the rightmost rolls first
+        const t = interpolate(frame, [at + order * 4, at + 30 + order * 4], [0, 1], { ...clamp, easing: ease })
+        const target = Number(c) + 10 * (1 + order) // a few turns before it lands
+        const pos = target * t
+        return (
+          <span key={i} style={{ display: 'inline-block', height: size, overflow: 'hidden' }}>
+            <span style={{ display: 'flex', flexDirection: 'column', transform: `translateY(${-(pos % 10) * size}px)` }}>
+              {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map((d, j) => (
+                <span key={j} style={{ height: size, lineHeight: `${size}px` }}>
+                  {d}
+                </span>
+              ))}
+            </span>
+          </span>
+        )
+      })}
+    </span>
+  )
+}
+
 /** A browser window: the bar (dots, the brand, Share + the main button) and the page. */
 function Window({ brand, w, h, image, imgW, imgH, button = 'Publish', pressed = false, children, bar = 1 }) {
   const a = accent(brand)
@@ -194,8 +348,7 @@ function Hook({ scene, brand }) {
   const lift = spring({ frame: frame - 34, fps, config: { damping: 200 } })
   const unit = wide ? 1 : 0.9
   return (
-    <AbsoluteFill>
-      <Sky brand={brand} />
+    <Stage brand={brand}>
       <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center', padding: wide ? '0 160px' : '0 80px' }}>
         <div style={{ transform: `translateY(${wide ? -40 : -120}px)`, textAlign: 'center', width: '100%' }}>
           <div
@@ -205,15 +358,21 @@ function Hook({ scene, brand }) {
               fontSize: (wide ? 110 : 120) * (1.12 - 0.12 * focus) * (1 - 0.35 * lift),
               color: tint('#334155', 0.9),
               letterSpacing: khmer ? 0 : '-0.01em',
-              filter: `blur(${(1 - focus) * 18}px)`,
-              opacity: 0.25 + 0.75 * focus,
+              opacity: 0.4 + 0.6 * focus,
               transform: `translateY(${-lift * (wide ? 70 : 90)}px)`,
             }}
           >
-            {intro}
+            {letters(intro).map((ch, i) => {
+              const f = interpolate(frame, [i * 1.6, i * 1.6 + 16], [0, 1], { ...clamp, easing: ease })
+              return (
+                <span key={i} style={{ display: 'inline-block', whiteSpace: 'pre', filter: `blur(${(1 - f) * 14}px)`, opacity: f, transform: `translateY(${(1 - f) * 24}px) scale(${1.25 - 0.25 * f})` }}>
+                  {ch}
+                </span>
+              )
+            })}
           </div>
           {lift > 0.02 && (
-            <div style={{ marginTop: wide ? 10 : 20, opacity: lift }}>
+            <div style={{ marginTop: wide ? 10 : 20, opacity: lift, transform: `scale(${1 + 0.35 * (1 - spring({ frame: frame - 36, fps, config: { damping: 12, mass: 0.8 } }))})` }}>
               <Headline text={scene.text} size={fitSize(scene.text, (wide ? 104 : 96) * unit)} brand={brand} delay={36} />
             </div>
           )}
@@ -225,7 +384,7 @@ function Hook({ scene, brand }) {
           )}
         </div>
       </AbsoluteFill>
-    </AbsoluteFill>
+    </Stage>
   )
 }
 
@@ -250,17 +409,17 @@ function Prompt({ scene, brand }) {
   const glow = 0.55 + 0.25 * Math.sin(frame / 12)
   const name = clean(brand?.name || 'AI')
   return (
-    <AbsoluteFill>
-      <Sky brand={brand} />
+    <Stage brand={brand}>
       <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ width: w, transform: `translateY(${(1 - enter) * 80 + (wide ? 0 : -140)}px) scale(${push})`, opacity: enter }}>
+        <div style={{ width: w, transform: `perspective(1600px) translateY(${(1 - enter) * 120 + (wide ? 0 : -140)}px) rotateX(${(1 - enter) * 38}deg) scale(${push})`, opacity: Math.min(1, enter * 1.4) }}>
           {scene.label && <div style={{ fontFamily: FONT, fontWeight: 600, fontSize: unit * 0.85, color: SUB, margin: `0 0 22px 10px` }}>{clean(scene.label)}</div>}
+          {/* a light running round the box while it types */}
+          <div style={{ borderRadius: unit * 0.9 + 5, padding: 5, background: `conic-gradient(from ${frame * 5}deg, ${tint(SKY, 0.35)}, ${a}, #FFFFFF, ${SKY}, ${tint(SKY, 0.35)})`, boxShadow: `0 0 60px ${tint(SKY, glow * 0.9)}, 0 30px 70px rgba(30,64,120,0.18)` }}>
           <div
             style={{
               borderRadius: unit * 0.9,
               background: '#FFFFFF',
               padding: `${unit * 0.9}px ${unit * 0.9}px ${unit * 0.6}px`,
-              boxShadow: `0 0 0 3px ${tint(SKY, glow)}, 0 0 60px ${tint(SKY, glow * 0.9)}, 0 30px 70px rgba(30,64,120,0.18)`,
             }}
           >
             <div style={{ minHeight: unit * 3.2, fontFamily: FONT, fontWeight: 500, fontSize: unit * 1.02, lineHeight: KHMER_RE.test(scene.value || '') ? 1.6 : 1.35, color: INK }}>
@@ -286,18 +445,23 @@ function Prompt({ scene, brand }) {
                   borderRadius: '50%',
                   display: 'grid',
                   placeItems: 'center',
+                  position: 'relative',
                   background: shown >= chars.length ? a : '#E2E8F0',
                   transform: `scale(${frame >= sendAt && frame < sendAt + 6 ? 0.85 : 1})`,
                   boxShadow: shown >= chars.length ? `0 8px 20px ${tint(a, 0.4)}` : 'none',
                 }}
               >
                 <Icon name={sent ? 'Check' : 'ArrowUp'} size={unit * 0.8} color="#FFFFFF" stroke={3} />
+                <span style={{ position: 'absolute', left: 0, top: 0 }}>
+                  <Burst x={unit * 0.72} y={unit * 0.72} at={sendAt} color={a} n={12} size={0.9} />
+                </span>
               </span>
             </div>
           </div>
+          </div>
         </div>
       </AbsoluteFill>
-    </AbsoluteFill>
+    </Stage>
   )
 }
 
@@ -342,14 +506,13 @@ function Screen({ scene, brand }) {
   } else {
     dy = -interpolate(frame, [20, durationInFrames], [0, Math.max(0, h - (wide ? 760 : 900))], clamp) * 0.6
   }
-  const tilt = (1 - enter) * 14
+  const tilt = (1 - enter) * 22
   const clickAt = 82
   const reach = interpolate(frame, [54, clickAt], [0, 1], { ...clamp, easing: ease })
   const showResult = scene.result && frame >= clickAt + 6
   const csize = wide ? 70 : 84
   return (
-    <AbsoluteFill>
-      <Sky brand={brand} />
+    <Stage brand={brand}>
       {scene.title && (
         <div style={{ position: 'absolute', left: wide ? 120 : 70, right: wide ? 120 : 70, top: wide ? 50 : 250, zIndex: 10, opacity: interpolate(frame, [4, 16], [0, 1], clamp) }}>
           <Headline text={scene.title} size={fitSize(scene.title, wide ? 64 : 76)} brand={brand} delay={4} />
@@ -371,7 +534,7 @@ function Screen({ scene, brand }) {
         <div
           style={{
             transformOrigin: box ? `${((box[0] + box[2] / 2) * 100).toFixed(1)}% ${(((box[1] + box[3] / 2) * w * ratio + barH) / h * 100).toFixed(1)}%` : '50% 0%',
-            transform: `perspective(2400px) rotateX(${tilt}deg) scale(${zoom})`,
+            transform: `perspective(2400px) rotateX(${tilt}deg) rotateY(${(1 - enter) * -26}deg) scale(${zoom})`,
           }}
         >
           <Window brand={brand} w={w} h={h} image={scene.image} imgW={scene.imgW} imgH={scene.imgH}>
@@ -397,6 +560,7 @@ function Screen({ scene, brand }) {
         <>
           <Cursor x={cx + (1 - reach) * width * 0.4} y={cy + (1 - reach) * height * 0.25} size={csize} pressed={frame >= clickAt && frame < clickAt + 6} opacity={reach} color={a} />
           <Ripple x={cx} y={cy} at={clickAt} size={csize * 2.2} color={a} />
+          <Burst x={cx} y={cy} at={clickAt} color={a} />
         </>
       )}
       {showResult && (
@@ -425,7 +589,7 @@ function Screen({ scene, brand }) {
           {clean(scene.result)}
         </div>
       )}
-    </AbsoluteFill>
+    </Stage>
   )
 }
 
@@ -440,10 +604,9 @@ function Features({ scene, brand }) {
   const w = wide ? 1100 : width - 110
   const unit = wide ? 40 : 56
   return (
-    <AbsoluteFill>
-      <Sky brand={brand} />
+    <Stage brand={brand}>
       <AbsoluteFill style={{ alignItems: 'center', justifyContent: wide ? 'center' : 'flex-start', paddingTop: wide ? 0 : 400 }}>
-        <div style={{ width: w, transform: `translateY(${(1 - enter) * 70}px)`, opacity: enter, borderRadius: unit * 0.8, background: '#FFFFFF', padding: `${unit * 1.1}px ${unit * 1.2}px`, boxShadow: '0 30px 80px rgba(30,64,120,0.18), 0 0 0 1.5px rgba(15,23,42,0.05)' }}>
+        <div style={{ width: w, transform: `perspective(1600px) translateY(${(1 - enter) * 90}px) rotateX(${(1 - enter) * 28}deg)`, opacity: Math.min(1, enter * 1.4), borderRadius: unit * 0.8, background: '#FFFFFF', padding: `${unit * 1.1}px ${unit * 1.2}px`, boxShadow: '0 30px 80px rgba(30,64,120,0.18), 0 0 0 1.5px rgba(15,23,42,0.05)' }}>
           {/* who's speaking: the product, like an AI assistant's answer */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontFamily: FONT, fontWeight: 700, fontSize: unit * 0.7, color: SUB, marginBottom: unit * 0.6 }}>
             <span style={{ width: unit * 1.1, height: unit * 1.1, borderRadius: '50%', background: a, display: 'grid', placeItems: 'center' }}>
@@ -457,20 +620,20 @@ function Features({ scene, brand }) {
               const at = 16 + i * 14
               const s = spring({ frame: frame - at, fps, config: { damping: 18 } })
               return (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: unit * 0.5, opacity: s, transform: `translateX(${(1 - s) * 40}px)` }}>
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: unit * 0.5, opacity: s, transform: `perspective(1200px) translateZ(${(1 - s) * -520}px) translateY(${(1 - s) * 40}px) rotateX(${(1 - s) * 30}deg)` }}>
                   <span style={{ width: unit * 1.15, height: unit * 1.15, borderRadius: unit * 0.32, background: tint(a, 0.12), display: 'grid', placeItems: 'center', flex: 'none' }}>
                     <Icon name={it.icon || 'Check'} size={unit * 0.66} color={a} stroke={2.4} />
                   </span>
                   <span style={{ fontFamily: FONT, fontWeight: 600, fontSize: unit * 0.88, lineHeight: KHMER_RE.test(it.text || '') ? 1.5 : 1.25, color: INK }}>{clean(it.text)}</span>
                   <span style={{ flex: 1 }} />
-                  <Icon name="Check" size={unit * 0.7} color="#22C55E" stroke={3} />
+                  <DrawCheck size={unit * 0.7} color="#22C55E" at={at + 10} />
                 </div>
               )
             })}
           </div>
         </div>
       </AbsoluteFill>
-    </AbsoluteFill>
+    </Stage>
   )
 }
 
@@ -491,8 +654,7 @@ function Press({ scene, brand }) {
   const btn = { x: width * (wide ? 0.66 : 0.6), y: height * (wide ? 0.4 : 0.36) }
   const toast = spring({ frame: frame - clickAt - 10, fps, config: { damping: 15 } })
   return (
-    <AbsoluteFill>
-      <Sky brand={brand} />
+    <Stage brand={brand}>
       {scene.title && (
         <div style={{ position: 'absolute', left: wide ? 120 : 70, right: wide ? 120 : 70, top: wide ? 60 : 250, zIndex: 10 }}>
           <Headline text={scene.title} size={fitSize(scene.title, wide ? 64 : 76)} brand={brand} delay={2} />
@@ -507,14 +669,16 @@ function Press({ scene, brand }) {
           left: btn.x - (bw - 72),
           top: btn.y - Math.max(44, bw * 0.045) / 2,
           transformOrigin: `${bw - 72}px ${Math.max(44, bw * 0.045) / 2}px`,
-          transform: `scale(${barScale * (0.94 + 0.06 * enter)})`,
-          opacity: enter,
+          transform: `scale(${barScale * (0.72 + 0.28 * enter)})`,
+          filter: `blur(${(1 - enter) * 10}px)`,
+          opacity: Math.min(1, enter * 1.5),
         }}
       >
         <Window brand={brand} w={bw} h={420} button={scene.button} pressed={pressed} />
       </div>
       <Cursor x={btn.x + (1 - reach) * width * 0.35 - 10} y={btn.y + (1 - reach) * height * 0.22 + 6} size={wide ? 80 : 96} pressed={pressed} opacity={reach} color={a} />
       <Ripple x={btn.x} y={btn.y + 10} at={clickAt} size={wide ? 190 : 230} color={a} />
+      <Burst x={btn.x} y={btn.y + 10} at={clickAt} color={a} n={16} size={1.3} />
       {done && scene.result && (
         <div
           style={{
@@ -544,7 +708,7 @@ function Press({ scene, brand }) {
           {clean(scene.result)}
         </div>
       )}
-    </AbsoluteFill>
+    </Stage>
   )
 }
 
@@ -557,8 +721,7 @@ function Done({ scene, brand }) {
   const pop = spring({ frame: frame - 4, fps, config: { damping: 11, mass: 0.7 } })
   const d = wide ? 230 : 280
   return (
-    <AbsoluteFill>
-      <Sky brand={brand} />
+    <Stage brand={brand}>
       <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ transform: `translateY(${wide ? -40 : -160}px)`, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: wide ? 40 : 56 }}>
           <div style={{ position: 'relative', width: d, height: d }}>
@@ -569,13 +732,14 @@ function Done({ scene, brand }) {
               ) : null
             })}
             <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: `radial-gradient(circle at 35% 30%, ${tint('#FFFFFF', 0.9)}, ${a} 55%)`, boxShadow: `0 30px 60px ${tint(a, 0.4)}`, display: 'grid', placeItems: 'center', transform: `scale(${pop})` }}>
-              <Icon name="Check" size={d * 0.5} color="#FFFFFF" stroke={3.4} />
+              <DrawCheck size={d * 0.52} color="#FFFFFF" at={10} width={3.4} />
             </div>
+            <Burst x={d / 2} y={d / 2} at={12} color={a} n={26} size={2.2} />
           </div>
           <Headline text={scene.text} size={fitSize(scene.text, wide ? 88 : 92)} brand={brand} delay={14} />
         </div>
       </AbsoluteFill>
-    </AbsoluteFill>
+    </Stage>
   )
 }
 
@@ -586,23 +750,18 @@ function Stat({ scene, brand }) {
   const wide = width > height
   const a = accent(brand)
   const value = Number(scene.value) || 0
-  const t = interpolate(frame, [8, 44], [0, 1], { ...clamp, easing: ease })
-  const shown = value % 1 ? (value * t).toFixed(1) : Math.round(value * t).toLocaleString('en-US')
   const enter = spring({ frame, fps, config: { damping: 18 } })
   return (
-    <AbsoluteFill>
-      <Sky brand={brand} />
+    <Stage brand={brand}>
       <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ transform: `translateY(${(1 - enter) * 60 + (wide ? -30 : -160)}px)`, opacity: enter, textAlign: 'center', padding: wide ? '50px 90px' : '60px 70px', borderRadius: 48, background: 'rgba(255,255,255,0.75)', boxShadow: '0 30px 80px rgba(30,64,120,0.16)' }}>
-          <div style={{ fontFamily: FONT, fontWeight: 800, fontSize: wide ? 190 : 200, lineHeight: 1, letterSpacing: '-0.04em', color: a }}>
-            {clean(scene.prefix)}
-            {shown}
-            {clean(scene.suffix)}
+          <div style={{ fontFamily: FONT, fontWeight: 800, fontSize: wide ? 190 : 200, lineHeight: 1, letterSpacing: '-0.04em', color: a, transform: `scale(${1 + (frame > 50 ? 0.025 * Math.sin((frame - 50) / 8) : 0)})` }}>
+            <Odometer text={`${clean(scene.prefix)}${value % 1 ? value.toFixed(1) : value.toLocaleString('en-US')}${clean(scene.suffix)}`} size={wide ? 190 : 200} color={a} at={8} />
           </div>
           <div style={{ marginTop: 22, fontFamily: FONT, fontWeight: 600, fontSize: fitSize(scene.label, wide ? 48 : 52), lineHeight: KHMER_RE.test(scene.label || '') ? 1.5 : 1.2, color: INK, maxWidth: wide ? 1100 : 860 }}>{clean(scene.label)}</div>
         </div>
       </AbsoluteFill>
-    </AbsoluteFill>
+    </Stage>
   )
 }
 
@@ -618,13 +777,14 @@ function Cta({ scene, brand }) {
   const pressed = frame >= clickAt && frame < clickAt + 7
   const btnY = wide ? height * 0.62 : height * 0.58
   return (
-    <AbsoluteFill>
-      <Sky brand={brand} />
+    <Stage brand={brand}>
       <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'flex-start', paddingTop: wide ? height * 0.14 : height * 0.2 }}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: wide ? 34 : 46, opacity: enter, transform: `translateY(${(1 - enter) * 50}px)`, padding: wide ? '0 160px' : '0 70px' }}>
           {brand?.logo ? (
-            <div style={{ padding: wide ? '18px 30px' : '22px 36px', borderRadius: 30, background: '#FFFFFF', boxShadow: '0 18px 44px rgba(30,64,120,0.14)' }}>
+            <div style={{ position: 'relative', overflow: 'hidden', padding: wide ? '18px 30px' : '22px 36px', borderRadius: 30, background: '#FFFFFF', boxShadow: '0 18px 44px rgba(30,64,120,0.14)', transform: `perspective(1400px) rotateY(${(1 - spring({ frame, fps, config: { damping: 14 } })) * 80}deg)` }}>
               <Img src={srcOf(brand.logo)} style={{ height: wide ? 90 : 110, maxWidth: wide ? 420 : 520, objectFit: 'contain' }} />
+              {/* a light sweeping across the logo */}
+              <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(105deg, transparent ${interpolate(frame, [18, 44], [-40, 120], clamp)}%, rgba(255,255,255,0.85) ${interpolate(frame, [18, 44], [-30, 130], clamp)}%, transparent ${interpolate(frame, [18, 44], [-20, 140], clamp)}%)` }} />
             </div>
           ) : (
             brand?.name && <div style={{ fontFamily: FONT, fontWeight: 800, fontSize: wide ? 70 : 80, color: INK }}>{clean(brand.name)}</div>
@@ -634,7 +794,7 @@ function Cta({ scene, brand }) {
       </AbsoluteFill>
       {scene.button && (
         <div style={{ position: 'absolute', left: 0, right: 0, top: btnY, display: 'flex', justifyContent: 'center', opacity: interpolate(frame, [18, 30], [0, 1], clamp) }}>
-          <div style={{ position: 'relative', padding: wide ? '26px 64px' : '30px 72px', borderRadius: 999, background: a, color: '#FFFFFF', fontFamily: FONT, fontWeight: 800, fontSize: wide ? 46 : 52, boxShadow: `0 20px 44px ${tint(a, 0.4)}`, transform: `scale(${pressed ? 0.93 : 1})`, whiteSpace: 'nowrap' }}>
+          <div style={{ position: 'relative', padding: wide ? '26px 64px' : '30px 72px', borderRadius: 999, background: a, color: '#FFFFFF', fontFamily: FONT, fontWeight: 800, fontSize: wide ? 46 : 52, boxShadow: `0 20px 44px ${tint(a, 0.4)}, 0 0 0 ${((frame % 36) / 36) * 34}px ${tint(a, 0.3 * (1 - (frame % 36) / 36))}`, transform: `scale(${pressed ? 0.93 : 1 + 0.03 * Math.sin(frame / 6)})`, whiteSpace: 'nowrap' }}>
             {clean(scene.button)}
           </div>
         </div>
@@ -643,9 +803,10 @@ function Cta({ scene, brand }) {
         <>
           <Cursor x={width / 2 + (wide ? 120 : 110) + (1 - reach) * width * 0.3} y={btnY + (wide ? 40 : 50) + (1 - reach) * height * 0.2} size={wide ? 74 : 88} pressed={pressed} opacity={reach} color={a} />
           <Ripple x={width / 2 + (wide ? 120 : 110)} y={btnY + (wide ? 44 : 54)} at={clickAt} size={wide ? 170 : 210} color={a} />
+          <Burst x={width / 2 + (wide ? 120 : 110)} y={btnY + (wide ? 44 : 54)} at={clickAt} color={a} n={16} size={1.2} />
         </>
       )}
-    </AbsoluteFill>
+    </Stage>
   )
 }
 
@@ -653,6 +814,6 @@ export const SKYLAUNCH = {
   scenes: { hook: Hook, field: Prompt, screen: Screen, list: Features, button: Press, done: Done, stat: Stat, cta: Cta },
   root: { backgroundColor: '#F4FAFF' },
   light: true, // the light corner chip (ExplainerChrome)
-  transitions: [() => fade()],
+  transitions: [zoomThrough],
   captionTop: (h) => (h < 1200 ? h - 150 : 1560),
 }
