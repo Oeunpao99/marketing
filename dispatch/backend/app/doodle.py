@@ -232,8 +232,7 @@ PICTURE_ARTS = {
     "whiteboard explainer video: a round head with simple expressive eyes, eyebrows and mouth, "
     "thin black line arms and legs, a few simple props and furniture drawn in the same clean black "
     "line (a desk, a chair, a thought bubble, a light bulb, a phone…). Black lines only — no colour, "
-    "no grey shading, no background scenery, lots of white space. The figure fills the lower 70% of "
-    "the frame; the top 30% is plain white.",
+    "no grey shading, no background scenery, a clean white background.",
 }
 PICTURE_RULES = (
     " One clear moment, composed for a video frame, with calm space near the top for a line of "

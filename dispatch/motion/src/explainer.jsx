@@ -222,7 +222,7 @@ export function Caption({ text, seconds, words, pauses, top = 1225, look }) {
           color: 'white',
           fontFamily: FONT,
           fontWeight: 700,
-          fontSize: 50,
+          fontSize: look?.size || 50, // a template may set its own (Picture story: 46)
           lineHeight: 1.4,
           padding: '20px 40px',
           borderRadius: 26,

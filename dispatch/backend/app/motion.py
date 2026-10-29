@@ -6293,7 +6293,8 @@ def _start_doodles(script: dict, job, job_id: int, style: str | None = None, lim
     # Picture story: each picture painted with calm room where its words will sit
     room = (lambda n: picture_room(n, ratio == "16:9")) if script.get("style") == "picture" else (lambda n: "")
     if script.get("art") == "stickman":  # Stick figures: the words centred on the white top, any shape
-        room = lambda n: " Composition: the figures in the lower middle, the top third of the frame plain white — room for a title."  # noqa: E731
+        # the title sits above the drawing and the subtitles below it (picture.jsx PAGE_BOX): the figures fill it
+        room = lambda n: " Composition: the figures centred and filling most of the frame, a little white margin all round."  # noqa: E731
     todo = [{"draw": script["scenes"][n]["draw"] + room(n), "n": n} for n in asks]
     got: dict[int, str] = {}
     # the making card's rows: which scenes are being painted now (a feather), and
@@ -7771,7 +7772,9 @@ def _make(
 
                 doodling = _start_doodles(
                     script, job, job_id, style=doodle.picture_style(script.get("art") or "film", script.get("cast") or []),
-                    limit=PICTURE_MAX, ratio="16:9" if script.get("ratio") == "16:9" else "9:16",
+                    # a tall stick-figure page paints square: it fills the box between the title and the
+                    # subtitles (picture.jsx PAGE_BOX) — a 2:3 drawing would shrink to a narrow strip
+                    limit=PICTURE_MAX, ratio="16:9" if script.get("ratio") == "16:9" else "1:1" if script.get("art") == "stickman" else "9:16",
                 )
             if script.get("style") == "presenter":  # Presenter: colour pictures over the panel's words
                 from app import doodle

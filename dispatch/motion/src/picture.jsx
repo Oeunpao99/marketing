@@ -22,13 +22,14 @@ const MOVES = [
   [1.04, 1.14, 0, -2.5], // push in, rising
 ]
 
-const WIDE_PAGE_TOP = '40%' // a wide stick-figure page: the title's white band — under the logo, two lines of up to 76 px
+// a stick-figure page's drawing sits between the title and the subtitles — never under them:
+// [top, bottom] of its box (the drawing fitted inside, centred)
+const PAGE_BOX = { wide: ['36%', '15%'], tall: ['28%', '23.5%'] } // tall: under a two-line title (ends ~y 530)
 
 function Picture({ src, seed, page = false }) {
   const frame = useCurrentFrame()
   const { durationInFrames, width, height } = useVideoConfig()
-  // a wide stick-figure page keeps its top band for the title, the drawing fitted below it
-  const below = page && width > height ? WIDE_PAGE_TOP : 0
+  const [boxTop, boxBottom] = page ? PAGE_BOX[width > height ? 'wide' : 'tall'] : [0, 0]
   const [s0, s1, dx, dy] = MOVES[Math.floor(random(seed) * MOVES.length)]
   const t = interpolate(frame, [0, durationInFrames], [0, 1], { extrapolateRight: 'clamp' })
   // a stick-figure page: the whole drawing fits (painted 2:3, the video 9:16 — cover cut its sides),
@@ -42,13 +43,13 @@ function Picture({ src, seed, page = false }) {
           style={{
             position: 'absolute',
             left: 0,
-            top: below,
+            top: boxTop,
             width: '100%',
-            height: below ? `calc(100% - ${below})` : '100%',
+            height: page ? `calc(100% - ${boxTop} - ${boxBottom})` : '100%',
             objectFit: page ? 'contain' : 'cover',
-            objectPosition: page ? '50% 100%' : undefined,
+            objectPosition: page ? '50% 50%' : undefined,
             transform: page ? `scale(${scale})` : `scale(${scale}) translate(${dx * (t - 0.5)}%, ${dy * (t - 0.5)}%)`,
-            transformOrigin: page ? '50% 100%' : undefined,
+            transformOrigin: page ? '50% 50%' : undefined,
           }}
         />
       )}
@@ -182,4 +183,5 @@ export const PICTURE = {
   root: { backgroundColor: '#0d0f14' },
   transitions: [() => fade()], // a soft crossfade every time — never a slide over a picture
   captionTop: (h) => (h < 1200 ? h - 150 : 1560),
+  caption: { size: 46 }, // the subtitles a little smaller than other templates'
 }
