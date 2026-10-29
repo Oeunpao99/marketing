@@ -208,7 +208,7 @@ function Stage({ brand, children }) {
     <AbsoluteFill>
       <Sky brand={brand} />
       <Depth brand={brand} />
-      <AbsoluteFill style={{ transform: `scale(${1 + 0.04 * t}) rotate(${-0.3 + 0.6 * t}deg)` }}>{children}</AbsoluteFill>
+      <AbsoluteFill style={{ transform: `scale(${1 + 0.04 * t})` }}>{children}</AbsoluteFill>
     </AbsoluteFill>
   )
 }
