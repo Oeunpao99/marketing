@@ -351,6 +351,7 @@ PICTURE_STYLE = (
 )
 MAX_PICTURES = 4
 MAX_VECTORS = 6  # vector pictures are writing, not image quota — a few more a film
+MAX_PAINTED = 6  # AI design's painted pictures (the default since 2026-10-29) — as many as vector
 
 
 def _full_frame(sc: dict) -> bool:
@@ -467,9 +468,11 @@ def draw_pictures(scenes: list[dict], theme: dict, ws: int | None, user_id: int 
             with ThreadPoolExecutor(max_workers=1) as pool:
                 for k, uri in zip(missed, pool.map(one, [todo[k] for k in missed])):
                     got[k] = uri
-    elif todo[:MAX_PICTURES]:
-        with ThreadPoolExecutor(max_workers=1) as pool:  # one at a time — the image quota is small
-            got = list(pool.map(one, todo[:MAX_PICTURES]))
+    elif todo:
+        # painted: two at a time (image_slot caps the whole app); sketches one at a time, as before
+        most, workers = (MAX_PICTURES, 1) if sketch else (MAX_PAINTED, 2)
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            got = list(pool.map(lambda it: contextvars.copy_context().run(one, it), todo[:most]))
     for k, (sc, L) in enumerate(todo):
         uri = got[k] if k < len(got) else None
         if uri:

@@ -326,9 +326,9 @@ def look(raw, brand_hex: str, brand_hex2: str | None = None, brand_default: bool
     if name != "brand" and not re.fullmatch(r"#[0-9a-fA-F]{6}", accent):
         tones = ""  # the designed looks keep both tones, as they were made
     bgs = [b for b in (t.get("backgrounds") or []) if b in LOOK_BACKGROUNDS][:2] if isinstance(t.get("backgrounds"), list) else []
-    # vector pictures drawn as code (app/vector_art.py) unless the brief asked for
-    # painted colour pictures or Doodle notes' ink sketches
-    pictures = t.get("pictures") if t.get("pictures") in ("flat", "sketch") else "vector"
+    # painted colour pictures (gpt-image) unless vector drawings as code (app/vector_art.py —
+    # Claude, ~10-30x the cost) or Doodle notes' ink sketches were picked
+    pictures = t.get("pictures") if t.get("pictures") in ("vector", "sketch") else "flat"
     out = {"name": name, "dark": base["dark"], "light": base["light"], "a": base["a"], "b": base["b"], "backgrounds": bgs or base["backgrounds"], "card": base["card"], "radius": base["radius"], "pictures": pictures, "cast": _s(t.get("cast"), 400)}
     if tones:
         out["tones"] = tones  # apply_theme: every scene in this tone

@@ -393,6 +393,36 @@ function Card({ on, onClick, children, title }) {
   )
 }
 
+// AI design (motion/src/canvas.jsx): how its pictures are made — painted by the image AI
+// (the default, a few cents a video) or drawn as vector code by Claude (moving parts, the
+// same people every scene, real words in them — costs more)
+const CANVAS_PICTURES = [
+  { id: 'flat', label: 'Painted', note: 'Colourful illustrations — quick and light', Icon: FiFeather },
+  { id: 'vector', label: 'Vector', note: 'Clean drawings with moving parts', Icon: FiPenTool },
+]
+
+function CanvasPictures({ plan, onChange }) {
+  const theme = plan.theme || {}
+  if (theme.pictures === 'sketch') return null // Doodle notes' ink sketches — its own look
+  const on = theme.pictures === 'vector' ? 'vector' : 'flat'
+  return (
+    <div className="border-b border-ink-200/70 px-4 py-4">
+      <div className="mb-2 text-[11.5px] font-semibold text-ink-600">Pictures</div>
+      <div className="grid grid-cols-2 gap-2">
+        {CANVAS_PICTURES.map(({ id, label, note, Icon }) => (
+          <Card key={id} on={on === id} onClick={() => onChange({ ...plan, theme: { ...theme, pictures: id } })}>
+            <span className={`grid h-8 w-8 place-items-center rounded-lg ${on === id ? 'bg-brand text-white' : 'bg-ink-100 text-ink-600'}`}>
+              <Icon size={16} />
+            </span>
+            <span className="mt-2 text-[12.5px] font-semibold text-ink-900">{label}</span>
+            <span className="text-[11px] leading-snug text-ink-500">{note}</span>
+          </Card>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function PictureLook({ plan, onChange }) {
   const ink = { text: '#FFFFFF', accent: '', ...(plan.ink || {}) }
   const setInk = (patch) => onChange({ ...plan, ink: { ...ink, ...patch } })
@@ -610,6 +640,7 @@ export default function StoryboardEditor({ plan, onChange, onMake, onRewrite, vo
       )}
 
       {plan?.style === 'picture' && <PictureLook plan={plan} onChange={onChange} />}
+      {plan?.style === 'canvas' && <CanvasPictures plan={plan} onChange={onChange} />}
 
       <ol className="divide-y divide-ink-200/60">
         {scenes.map((s, i) => {

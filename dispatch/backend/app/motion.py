@@ -2493,10 +2493,10 @@ CANVAS_PROMPT = (
     "THE LOOK — return \"theme\": {\"look\": one of: "
     + "; ".join(f"{k} ({v['say']})" for k, v in LOOKS.items())
     + "; brand (the brand's own colour), \"accent\": \"#RRGGBB\" ONLY if the brief names its "
-    "colours, \"backgrounds\": 1-2 of: " + ", ".join(LOOK_BACKGROUNDS) + ", \"pictures\": vector (the "
-    "default — flat vector illustrations drawn as code in the look's colours, the same people in "
-    "every scene) | flat (painted colour illustrations — ONLY when the brief asks for painted / "
-    "realistic pictures) | sketch (hand-drawn ink sketches — ONLY when the brief asks for sketches / "
+    "colours, \"backgrounds\": 1-2 of: " + ", ".join(LOOK_BACKGROUNDS) + ", \"pictures\": flat (the "
+    "default — painted colour illustrations in the look's colours) | vector (flat vector "
+    "illustrations drawn as code with moving parts — ONLY when the brief asks for vector / flat "
+    "drawings or animated illustrations) | sketch (hand-drawn ink sketches — ONLY when the brief asks for sketches / "
     "doodles / hand-drawn), \"cast\": when the pictures show people, ONE line describing each "
     "recurring person so every picture draws them the same — name, age, skin tone hex, hair, "
     "clothes colours (e.g. \"Sophea: Cambodian girl ~17, skin #B8794F, black ponytail, pink "
@@ -2560,7 +2560,8 @@ def clean_theme(raw, brand_hex: str = "#3B82F6") -> dict:
         "backgrounds": kinds or ["grid", "aurora"],
         "card": "solid" if t.get("card") == "solid" else "glass",
         # how the pictures are made (app/doodle.py draw_pictures) and who's in them
-        "pictures": t.get("pictures") if t.get("pictures") in ("flat", "sketch") else "vector",
+        # painted (gpt-image) unless vector drawings (Claude, ~10-30x the cost) or sketches were picked
+        "pictures": t.get("pictures") if t.get("pictures") in ("vector", "sketch") else "flat",
         "cast": _line(t.get("cast"), 400),
         "radius": int(_num(t.get("radius"), 6, 28, 14)),
     }
@@ -7470,7 +7471,8 @@ def pictures_to_paint(script: dict) -> int:
     if style in ("presenter", "deck", "aiteam"):
         return min(asked, DOODLE_DRAWINGS)
     if style == "canvas":  # vector pictures (the default) are priced like a painted one
-        most = doodle.MAX_PICTURES if (script.get("theme") or {}).get("pictures") in ("flat", "sketch") else doodle.MAX_VECTORS
+        pics = (script.get("theme") or {}).get("pictures")
+        most = doodle.MAX_PICTURES if pics == "sketch" else doodle.MAX_PAINTED if pics == "flat" else doodle.MAX_VECTORS
         return min(most, sum(1 for sc in scenes for L in sc.get("layers") or [] if L.get("draw") and not L.get("src")))
     if style == "reaction":
         return len(script.get("cast") or []) + min(asked, doodle.MAX_MEME_PHOTOS)
