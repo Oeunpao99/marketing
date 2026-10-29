@@ -238,8 +238,14 @@ export const showsLogo = (s) => LOGO_SCENES.has(s.type) || (s.type === 'canvas' 
 
 /** Where the corner logo chip sits: on a tall video below the phone's status bar and
  * TikTok / Reels' own top bar (LIVE · Following | For You), which cover the top
- * ~150 px of 1920; a wide video keeps it in the corner. */
+ * ~150 px of 1920; a wide video keeps it in the corner. (Not inside the Facebook feed's
+ * 4:5 crop — the templates' titles start right under it; the feed shows the page's own
+ * name and logo above the video anyway.) */
 export const chipTop = (width, height) => (height > width ? 150 : 64)
+
+/** The Facebook feed shows a tall video cropped to 4:5 — y 285–1635 of 1920. The subtitles
+ * stay above FEED_BOTTOM (MotionPost). */
+export const FEED_BOTTOM = 1635
 export const chipLogo = (width, height) => (height > width ? 62 : 84)
 
 /** The corner logo chip's opacity at ``frame``: it fades out over a scene that shows the logo itself. */

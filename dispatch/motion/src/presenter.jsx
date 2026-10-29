@@ -424,9 +424,10 @@ function Hook({ scene, brand, host, voiceAt }) {
         </div>
         <Words text={scene.text} delay={22} color="#FFFFFF" style={{ fontSize: fitSize(scene.text, wide ? 70 : 78), fontWeight: 800, lineHeight: 1.4 }} />
       </Panel>
-      {/* the name strap: who she is */}
+      {/* the name strap: who she is — on a tall video it sits on the desk line, above the subtitles
+          (they stay inside the Facebook feed's 4:5 crop now, where the strap used to be) */}
       {host?.name && (
-        <div style={{ position: 'absolute', left: wide ? 70 : 60, top: ground + (wide ? 22 : 36), opacity: strap, transform: `translateX(${(1 - strap) * -60}px)`, display: 'flex', alignItems: 'stretch', borderRadius: 18, overflow: 'hidden', boxShadow: '0 12px 30px rgba(0,0,0,0.3)' }}>
+        <div style={{ position: 'absolute', left: wide ? 70 : 60, top: wide ? ground + 22 : ground - 150, opacity: strap, transform: `translateX(${(1 - strap) * -60}px)`, display: 'flex', alignItems: 'stretch', borderRadius: 18, overflow: 'hidden', boxShadow: '0 12px 30px rgba(0,0,0,0.3)' }}>
           <div style={{ width: 12, background: pal.accent }} />
           <div style={{ background: '#FFFFFF', padding: '10px 26px 12px' }}>
             <div style={{ fontFamily: FONT, fontWeight: 800, fontSize: wide ? 40 : 46, color: '#0B1020', lineHeight: 1.35 }}>{clean(host.name)}</div>

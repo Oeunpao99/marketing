@@ -37,6 +37,7 @@ import { slide } from '@remotion/transitions/slide'
 import { wipe } from '@remotion/transitions/wipe'
 import {
   FONT,
+  FEED_BOTTOM,
   FPS,
   INK,
   TRANSITION,
@@ -816,8 +817,10 @@ export const MotionPost = ({ brand, scenes, music, musicList, style, look, cast,
   const noCaption = ['chat', ...(t.noCaption || [])]
   // Story · Characters: its two people, its place and the question kept on top (cartoon.jsx)
   const story = useMemo(() => ({ title: scenes.find((s) => s.type === 'hook')?.text }), [scenes])
-  const { height } = useVideoConfig()
-  const captionTop = typeof t.captionTop === 'function' ? t.captionTop(height) : t.captionTop
+  const { width, height } = useVideoConfig()
+  const wanted = typeof t.captionTop === 'function' ? t.captionTop(height) : t.captionTop
+  // a tall video's subtitles stay inside the Facebook feed's 4:5 crop (the box ends by ~1600 of 1920)
+  const captionTop = height > width ? Math.min(wanted ?? 1225, FEED_BOTTOM - 145) : wanted
   return (
     <AbsoluteFill style={{ ...t.root, '--brand': brand.color }}>
       {/* the video editor (app/motion.py edit_video) may turn the music and the voice up or down */}

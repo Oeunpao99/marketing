@@ -298,7 +298,7 @@ function Offer({ scene, brand }) {
   const spin = 0.5 + Math.sin(frame / 26) * 0.35
   const cardW = wide ? W * 0.4 : W * 0.84
   const cardLeft = wide ? W * 0.55 : (W - cardW) / 2
-  const cardTop = wide ? H * 0.16 : H * 0.5
+  const cardTop = wide ? H * 0.16 : H * 0.495 // tall: the card ends by ~1480 — clear of the subtitles in the Facebook feed's crop
   return (
     <Studio color={brand.color} fx={fx} fy={fy}>
       <Stage3D color={brand.color} image={scene.image} logo={brand.logo}>
@@ -315,7 +315,7 @@ function Offer({ scene, brand }) {
           left: cardLeft,
           top: cardTop,
           width: cardW,
-          padding: `${40 * u}px ${44 * u}px`,
+          padding: wide ? `${40 * u}px ${44 * u}px` : `${30 * u}px ${44 * u}px`,
           borderRadius: 40 * u,
           background: 'linear-gradient(160deg, rgba(255,255,255,0.12), rgba(255,255,255,0.04))',
           border: `${2 * u}px solid rgba(255,255,255,0.18)`,
@@ -332,7 +332,7 @@ function Offer({ scene, brand }) {
         {scene.plan && <div style={{ marginTop: 18 * u, fontWeight: 700, fontSize: fitSize(scene.plan, 46 * u), lineHeight: 1.45, opacity: 0.9 }}>{clean(scene.plan)}</div>}
         {scene.price && (
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 * u, marginTop: 6 * u }}>
-            <span style={{ fontWeight: 900, fontSize: (wide ? 120 : 130) * u, lineHeight: 1.1, letterSpacing: '-0.03em', textShadow: `0 0 ${30 * u}px ${tint(brand.color, 0.7)}` }}>{clean(scene.price)}</span>
+            <span style={{ fontWeight: 900, fontSize: (wide ? 120 : 112) * u, lineHeight: 1.1, letterSpacing: '-0.03em', textShadow: `0 0 ${30 * u}px ${tint(brand.color, 0.7)}` }}>{clean(scene.price)}</span>
             {scene.period && <span style={{ fontSize: 38 * u, opacity: 0.7 }}>{clean(scene.period)}</span>}
             {scene.was && <span style={{ fontSize: 40 * u, opacity: 0.55, textDecoration: 'line-through' }}>{clean(scene.was)}</span>}
           </div>
