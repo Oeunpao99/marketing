@@ -22,11 +22,13 @@ const MOVES = [
   [1.04, 1.14, 0, -2.5], // push in, rising
 ]
 
+const WIDE_PAGE_TOP = '32%' // a wide stick-figure page: the title's white band (two lines of up to 92 px)
+
 function Picture({ src, seed, page = false }) {
   const frame = useCurrentFrame()
   const { durationInFrames, width, height } = useVideoConfig()
-  // a wide stick-figure page keeps its top quarter for the title, the drawing fitted below it
-  const below = page && width > height ? '24%' : 0
+  // a wide stick-figure page keeps its top band for the title, the drawing fitted below it
+  const below = page && width > height ? WIDE_PAGE_TOP : 0
   const [s0, s1, dx, dy] = MOVES[Math.floor(random(seed) * MOVES.length)]
   const t = interpolate(frame, [0, durationInFrames], [0, 1], { extrapolateRight: 'clamp' })
   // a stick-figure page: the whole drawing fits (painted 2:3, the video 9:16 — cover cut its sides),
@@ -74,13 +76,16 @@ function Title({ text, ink, wide, page = false }) {
   const khmer = KHMER_RE.test(text || '')
   // like a YouTube thumbnail: as big as two lines across the free side allow
   // (Khmer marks stack on their letters, so a Khmer character is narrower)
-  const box = page && wide ? 1640 : wide ? 800 : 940 // a stick-figure page: one centred title across the top
+  const box = page && wide ? 1200 : wide ? 800 : 940 // a stick-figure page: one centred title across the top, clear of the logo
   const len = Math.max(6, [...clean(text)].filter((ch) => !/[ា-៓៝]/.test(ch)).length)
   // a tall video's two lines stay inside the picture's calm top (y 250–610 of 1920),
   // off the person below: 112 px tops (two Khmer lines with the bigger key word ≈ 355 px)
   // (a tall video: a Khmer letter ≈ 0.9 em with its marks, gaps and the bigger key word, measured — 0.62
   // let long titles wrap to three over the person; a wide one has the side free, three big lines are fine)
-  const size = Math.max(wide ? 70 : 64, Math.min(wide ? 150 : 112, (box * 2) / (len * (khmer ? (wide ? 0.62 : 0.9) : 0.68))))
+  // a wide stick-figure page: two lines in its white top band (WIDE_PAGE_TOP), measured like a tall one
+  const per = khmer ? (wide && !page ? 0.62 : 0.9) : 0.68
+  const most = page && wide ? 92 : wide ? 150 : 112
+  const size = Math.max(page && wide ? 52 : wide ? 70 : 64, Math.min(most, (box * 2) / (len * per)))
   return (
     <div
       style={{
@@ -94,6 +99,8 @@ function Title({ text, ink, wide, page = false }) {
         // readable on any picture: a soft dark halo, no box (none on a white stick-figure page)
         textShadow: page ? 'none' : '0 4px 24px rgba(0,0,0,0.6), 0 2px 4px rgba(0,0,0,0.55)',
         textAlign: page ? 'center' : undefined,
+        // a page's title always wraps between its words — a long Khmer line never runs off the edges
+        ...(page ? { display: 'flex', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'baseline' } : {}),
       }}
     >
       {pieces.map(({ p, gap, em: hi }, n) => {
@@ -130,7 +137,7 @@ function Shot({ scene }) {
       <AbsoluteFill style={{ backgroundColor: '#FFFFFF' }}>
         <Picture src={scene.image} seed={seed} page />
         {scene.title && (
-          <div style={{ position: 'absolute', left: wide ? 140 : 60, right: wide ? 140 : 60, top: wide ? 70 : 250 }}>
+          <div style={{ position: 'absolute', left: wide ? 360 : 60, right: wide ? 360 : 60, top: wide ? 44 : 250 }}>
             <Title text={scene.title} ink={ink} wide={wide} page />
           </div>
         )}
