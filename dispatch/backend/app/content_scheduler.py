@@ -22,6 +22,7 @@ from typing import NamedTuple
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app import plan_features
 from app.config import get_settings
 from app.content_ai import (
     SELLING_PILLARS,
@@ -534,7 +535,8 @@ def _write_batch(
     products = db.scalars(
         select(Product).where(Product.brand_id == brand.id).order_by(Product.name)
     ).all()
-    count = max(1, min(automation.videos_per_day, 10))
+    # the automation's daily number, held to the plan's posts a day (app/plan_features.py)
+    count = plan_features.posts_per_day(db, brand.workspace_id, max(1, min(automation.videos_per_day, 10)))
     # Images dominate the run time when auto-media is on, so they get the
     # biggest share of the bar; otherwise writing the ideas does.
     media = automation.auto_media
@@ -643,11 +645,13 @@ def _write_batch(
         finally:
             pool.shutdown(wait=False, cancel_futures=True)
 
+    auto_ok = plan_features.allows(db, brand.workspace_id, "auto_post")
     for n, draft in enumerate(drafts):
         if automation.auto_media:
             draft.video_id = media_ids[n]
 
-        if automation.require_approval or draft.fact_issues:
+        # a plan without auto-posting: every post waits for a yes, whatever the setting says
+        if automation.require_approval or draft.fact_issues or not auto_ok:
             draft.status = "waiting"
             continue
 

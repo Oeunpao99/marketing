@@ -4,6 +4,8 @@ import { FiX } from "react-icons/fi";
 import { api } from "../../api/client";
 import AutoTextarea from "../ui/AutoTextarea";
 import { useStore } from "../../store";
+import { usePlanFeatures } from "../../lib/planFeatures";
+import { useUsage } from "../../lib/usage";
 
 export const openCreateBrand = () => window.dispatchEvent(new Event("dispatch:create-brand"));
 
@@ -24,6 +26,10 @@ const inputClass =
  * openCreateBrand(), so it never takes you off the page you're on. */
 export default function CreateBrandDrawer() {
   const { brands, setBrands, switchBrand, refreshChannels, refreshAuto, showToast } = useStore();
+  // the plan's brands (app/plan_features.py): full = say so here, not a refusal on save
+  const features = usePlanFeatures();
+  const { usage } = useUsage();
+  const full = features?.brands != null && brands.length >= features.brands;
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(EMPTY);
   const [error, setError] = useState(null);
@@ -109,6 +115,17 @@ export default function CreateBrandDrawer() {
 
         <form onSubmit={submit} className="flex-1 flex flex-col min-h-0">
           <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+            {full && (
+              <div className="rounded-xl border border-brand-line bg-brand-soft px-4 py-3 text-[12.5px] leading-relaxed text-ink-700">
+                <b className="text-ink-900">
+                  Your {usage?.plan_label || "current"} plan has {features.brands} brand{features.brands === 1 ? "" : "s"}.
+                </b>{" "}
+                Upgrade to Business for 3 brands, or Enterprise for more.{" "}
+                <a href="/upgrade" className="font-semibold text-brand underline">
+                  See plans
+                </a>
+              </div>
+            )}
             <Field label="Brand name" required>
               <input
                 required
@@ -151,7 +168,7 @@ export default function CreateBrandDrawer() {
             <button type="button" onClick={() => setOpen(false)} className="btn-outline">
               Cancel
             </button>
-            <button type="submit" disabled={busy} className="btn-primary">
+            <button type="submit" disabled={busy || full} className="btn-primary disabled:opacity-50">
               {busy ? "Creating…" : "Create brand"}
             </button>
           </footer>

@@ -222,6 +222,10 @@ class CreditEntry(Base):
     output_tokens: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     cost_usd: Mapped[float] = mapped_column(Numeric(12, 6), default=0, server_default="0")
     seconds: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # a "grant" from the team (admin portal): the extra videos / images it gives for its month
+    # (app/usage.py extra) — its amount is the hidden allowance behind them
+    videos: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    images: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     note: Mapped[str] = mapped_column(String(300), default="", server_default="")
     job_id: Mapped[int | None] = mapped_column(
         ForeignKey("generation_jobs.id", ondelete="SET NULL"), nullable=True

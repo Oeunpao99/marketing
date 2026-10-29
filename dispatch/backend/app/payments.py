@@ -112,8 +112,9 @@ def clear_prices_cache() -> None:
     _cache.update(at=0.0, prices=None)
 
 
-# The standard prices (the pricing proposal, 2026-10-23 — the website's PLANS too).
-BUILT_IN_PRICES = {"starter": {"USD": 19.0, "KHR": 79000.0}, "pro": {"USD": 49.0, "KHR": 199000.0}, "business": {"USD": 129.0, "KHR": 529000.0}}
+# The standard prices (the packages proposal, 2026-10-28 — src/lib/plans.js too): Starter $29,
+# Growth $79, Business $199; Enterprise (from $499) is quoted by our team, not sold by KHQR.
+BUILT_IN_PRICES = {"starter": {"USD": 29.0, "KHR": 119000.0}, "pro": {"USD": 79.0, "KHR": 325000.0}, "business": {"USD": 199.0, "KHR": 819000.0}}
 
 
 def _env_prices() -> dict[str, dict[str, float]]:

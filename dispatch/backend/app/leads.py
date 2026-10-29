@@ -32,7 +32,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app import sales_alerts
+from app import plan_features, sales_alerts
 from app.config import get_settings
 from app.database import get_db
 from app.models import Brand, Lead, LeadAccount, Post, PostTarget, SalesRep, TeamMember, Workspace, WorkspaceInvite
@@ -386,6 +386,7 @@ def rep_invite(rep_id: int, db: Session = Depends(get_db), user: TeamMember = De
 
 @router.post("/reps", status_code=201)
 def rep_create(payload: RepIn, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    plan_features.check_reps(db, ws)  # the plan's sales reps (Growth 3, Business 10)
     rep = SalesRep(
         workspace_id=ws,
         name=payload.name.strip(),

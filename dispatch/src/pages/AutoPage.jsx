@@ -14,6 +14,7 @@ import { kitSrc, TemplatePicker } from '../components/brandkit/BrandKit'
 import ModelLogo from '../components/ui/ModelLogo'
 import { forgetWriterModels, writerHint } from '../components/studio/WriterModelSelect'
 import { unzoom, viewW } from '../lib/zoom'
+import { has, NEEDS, usePlanFeatures } from '../lib/planFeatures'
 
 // `value` is what's stored (Automation.topic_source) — only the wording shown changed.
 const TOPIC_SOURCES = [
@@ -129,6 +130,9 @@ const PLAN_EVERY = [
   { v: 'week', l: 'Weekly' },
   { v: 'day', l: 'Daily' },
 ]
+
+// the posts a day the plan allows (app/plan_features.py; a weekly plan holds 3 at most)
+const dayCap = (features) => Math.max(1, Math.min(3, features?.posts_per_day ?? 2))
 
 export default function AutoPage() {
   const { auto, setAuto, refreshAuto, channels, showToast, switchBrand } = useStore()
@@ -381,6 +385,9 @@ const readDrawerWidth = () => {
 }
 
 function SettingsDrawer({ a, channels, onUpdate, onBrandUpdate, onOpenPlan, onClose }) {
+  const features = usePlanFeatures()
+  const canAuto = has(features, 'auto_post') // posting without a review: Growth and up
+  const perDay = dayCap(features)
   const [width, setWidth] = useState(readDrawerWidth)
   const startDrag = (e) => {
     e.preventDefault()
@@ -544,11 +551,12 @@ function SettingsDrawer({ a, channels, onUpdate, onBrandUpdate, onOpenPlan, onCl
                 <input
                   type="number"
                   min={1}
-                  max={2}
-                  value={Math.min(a.videos_per_day, 2)}
+                  max={perDay}
+                  value={Math.min(a.videos_per_day, perDay)}
                   className={input}
-                  onChange={(e) => onUpdate({ videos_per_day: Math.max(1, Math.min(2, +e.target.value || 1)) })}
+                  onChange={(e) => onUpdate({ videos_per_day: Math.max(1, Math.min(perDay, +e.target.value || 1)) })}
                 />
+                {perDay < 3 && <span className="mt-1 block text-[11px] text-ink-400">Up to {perDay} a day on your plan</span>}
               </Field>
             </div>
             <p className="-mt-1 text-[11px] leading-snug text-ink-400">
@@ -583,12 +591,15 @@ function SettingsDrawer({ a, channels, onUpdate, onBrandUpdate, onOpenPlan, onCl
                   <button
                     key={o.l}
                     type="button"
+                    disabled={o.v === false && !canAuto}
+                    title={o.v === false && !canAuto ? `On the ${NEEDS.auto_post} plan and up` : undefined}
                     onClick={() => onUpdate({ require_approval: o.v })}
-                    className={`py-1.5 rounded-[10px] text-[12px] font-medium transition-colors ${
+                    className={`py-1.5 rounded-[10px] text-[12px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                       a.require_approval === o.v ? 'bg-brand-soft text-brand' : 'text-ink-600 hover:bg-ink-50'
                     }`}
                   >
                     {o.l}
+                    {o.v === false && !canAuto && <span className="ml-1 text-[10.5px] font-semibold">· {NEEDS.auto_post}</span>}
                   </button>
                 ))}
               </div>

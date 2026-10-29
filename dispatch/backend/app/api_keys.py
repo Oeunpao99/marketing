@@ -13,6 +13,8 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
+
+from app import plan_features
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -91,6 +93,7 @@ class KeyIn(BaseModel):
 @router.post("", status_code=201)
 def create_key(payload: KeyIn, db: Session = Depends(get_db), user: TeamMember = Depends(require_manager)):
     """A new key — returned once, in full; only its hash is kept."""
+    plan_features.require(db, user.workspace_id, "api")  # Business and up
     if db.scalar(select(func.count(ApiKey.id)).where(ApiKey.workspace_id == user.workspace_id)) >= MAX_KEYS:
         raise HTTPException(400, f"A workspace can have {MAX_KEYS} keys — revoke one you don't use first.")
     if payload.expires_days is not None and payload.expires_days not in EXPIRY_DAYS:

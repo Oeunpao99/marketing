@@ -42,7 +42,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import billing, goals
+from app import billing, goals, plan_features
 from app.content_ai import SELLING_PILLARS, ContentAIError, fact_check, generate_ideas, pick_subjects, selling_days
 from app.content_scheduler import (
     NEEDS_MEDIA,
@@ -589,7 +589,7 @@ def build_plan(
     learnings = brand_learnings(db, brand_id)
     report = build_report(db, brand_id, learnings)
     products = db.scalars(select(Product).where(Product.brand_id == brand_id).order_by(Product.name)).all()
-    per_day = max(1, min(automation.videos_per_day, 2))
+    per_day = plan_features.posts_per_day(db, brand.workspace_id, max(1, min(automation.videos_per_day, 3)))  # the plan's posts a day
     count = min(len(days) * per_day, MAX_ITEMS)
     # The brand's content-goal mix → how many posts of each goal this week.
     need = goals.targets(automation.goal_mix, count)

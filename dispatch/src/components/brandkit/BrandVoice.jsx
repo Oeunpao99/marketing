@@ -3,6 +3,8 @@ import { FiCheck, FiMic, FiPause, FiPlay, FiRefreshCw, FiSquare, FiTrash2, FiUpl
 import { api } from '../../api/client'
 import { useStore } from '../../store'
 import AutoTextarea from '../ui/AutoTextarea'
+import PlanLock from '../billing/PlanLock'
+import { has, usePlanFeatures } from '../../lib/planFeatures'
 
 // The brand's own voice (Content studio → Voice, and Products → Brand kit):
 // the owner records in the browser — or drops / picks a recording — of about a
@@ -31,6 +33,7 @@ const clock = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 
 export default function BrandVoice({ brand, showToast }) {
   const { refreshChannels } = useStore()
+  const features = usePlanFeatures()
   const [voice, setVoice] = useState(null) // GET /brands/{id}/voice
   const [take, setTake] = useState(null) // { blob, url, name, seconds } — recorded or dropped, not sent yet
   const [recording, setRecording] = useState(false)
@@ -183,6 +186,15 @@ export default function BrandVoice({ brand, showToast }) {
   const status = voice?.status
   const tooShort = take?.seconds != null && take.seconds < MIN_SECONDS
   const ring = Math.min(1, secs / GOOD_SECONDS)
+
+  // the brand's own voice: Business and up — a voice already made stays, so it can be removed
+  if (!has(features, 'own_voice') && !status) {
+    return (
+      <section className="lg:col-span-2">
+        <PlanLock feature="own_voice" text="Record a minute of your own voice, and your videos speak in it — in Khmer or English." />
+      </section>
+    )
+  }
 
   return (
     <section className="card overflow-hidden lg:col-span-2">

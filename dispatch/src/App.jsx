@@ -40,6 +40,7 @@ import ActivityPage from "./pages/ActivityPage";
 import AdminApp from "./pages/admin/AdminApp";
 import { StoreProvider, useStore } from "./store";
 import { canOpen } from "./lib/access";
+import { PlanGate } from "./components/billing/PlanLock";
 
 function ToastHost() {
   const { toast } = useStore();
@@ -80,10 +81,10 @@ function Portal() {
           <Routes>
             <Route path="/" element={<TodayPage />} />
             <Route path="/command" element={<CommandPage />} />
-            <Route path="/leads" element={<LeadsPage />} />
+            <Route path="/leads" element={<PlanGate feature="leads"><LeadsPage /></PlanGate>} />
             <Route path="/new" element={<NewPostPage />} />
             <Route path="/upgrade" element={<UpgradePage />} />
-            <Route path="/developer" element={<ApiPage />} />
+            <Route path="/developer" element={<PlanGate feature="api"><ApiPage /></PlanGate>} />
             <Route path="/review" element={<ReviewPage />} />
             <Route path="/channels" element={<ChannelsPage />} />
             <Route path="/bots" element={<BotSetupPage />} />

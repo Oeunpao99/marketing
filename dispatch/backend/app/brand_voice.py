@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.database import SessionLocal, get_db
 from app.media import delete_media, store_blob
+from app import plan_features
 from app.models import Brand, TeamMember
 from app.tenancy import current_workspace_id, get_current_user, owned
 
@@ -135,6 +136,7 @@ async def set_voice(
 ):
     """A recording of the voice to use — replaces the brand's voice, if any."""
     brand = owned(db, Brand, brand_id, ws)
+    plan_features.require(db, ws, "own_voice")  # Business and up
     if not consent:
         raise HTTPException(400, "Confirm it's your own voice, or that you have the speaker's permission.")
     data = await audio.read()

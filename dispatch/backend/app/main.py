@@ -10,7 +10,7 @@ from app.advisor import router as advisor_router
 from app.ai import router as ai_router
 from app.auth import router as auth_router
 from app.google_login import router as google_login_router
-from app import billing, sessions
+from app import billing, plan_features, sessions
 from app.payments import public_router as payments_public_router
 from app.payments import router as payments_router
 from app.brand_kit import router as brand_kit_router
@@ -166,7 +166,7 @@ api.include_router(weekly_router, dependencies=authed)
 api.include_router(website_router, dependencies=authed)
 api.include_router(activity_router, dependencies=authed)
 api.include_router(command_router, dependencies=authed)
-api.include_router(leads_router, dependencies=authed)
+api.include_router(leads_router, dependencies=[*authed, Depends(plan_features.needs("leads"))])  # Growth and up
 api.include_router(sales_alerts_router, dependencies=authed)
 api.include_router(ai_models_router, dependencies=authed)
 api.include_router(views_public_router)

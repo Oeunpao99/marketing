@@ -20,6 +20,8 @@ import {
 import { api } from '../../api/client'
 import { useStore } from '../../store'
 import Select from '../ui/Select'
+import PlanLock from '../billing/PlanLock'
+import { has, NEEDS, usePlanFeatures } from '../../lib/planFeatures'
 import { downloadCsv, insightsCsv } from '../../lib/insightsCsv'
 import { useBrandMarks } from '../../lib/brandMarks'
 
@@ -121,6 +123,7 @@ export default function InsightsSalesView({
 }) {
   const markOf = useBrandMarks()
   const { brands, showToast } = useStore()
+  const features = usePlanFeatures() // boost picks: Growth and up · the CSV export: Business and up
   const [rangeId, setRangeId] = useState('today')
   const [brandId, setBrandId] = useState(0) // 0 = all brands
   const [realData, setRealData] = useState(null)
@@ -230,6 +233,7 @@ export default function InsightsSalesView({
   // page for the chosen period and brand.
   const exportCsv = () => {
     if (!realData) return
+    if (!has(features, 'export')) return showToast(`The Excel / CSV export is on the ${NEEDS.export} plan and up — see Plans & usage.`)
     const brand = brands.find((b) => b.id === brandId)
     const period = TIME_RANGES.find((r) => r.id === rangeId)?.label || rangeId
     const csv = insightsCsv(realData, { brand: brand?.name || 'All brands', period, goals: GOAL_SPECS })
@@ -485,6 +489,7 @@ export default function InsightsSalesView({
         >
           <FiDownload size={14} className="text-ink-400" />
           Export insight report (Excel / CSV)
+          {!has(features, 'export') && <span className="rounded-full bg-brand-soft px-1.5 py-0.5 text-[10px] font-bold text-brand">{NEEDS.export}</span>}
         </button>
       </div>
 
@@ -710,6 +715,10 @@ export default function InsightsSalesView({
             the post, not just likes. Every boost needs your yes.
           </p>
         </div>
+        {!has(features, 'boost') ? (
+          <PlanLock feature="boost" text="See which of your posts brought leads — not just likes — and what to spend boosting them." />
+        ) : (
+        <>
         <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-[12px] text-amber-800">
           The picks below come from your own posts and leads. Ad accounts aren’t connected yet, so approving can’t send a boost.
         </div>
@@ -843,6 +852,8 @@ export default function InsightsSalesView({
               )
             })}
           </div>
+        )}
+        </>
         )}
       </div>
 

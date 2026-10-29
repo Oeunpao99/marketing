@@ -16,7 +16,8 @@ from sqlalchemy.exc import DataError, IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Brand, TeamMember
+from app import plan_features
+from app.models import Automation, Brand, Channel, TeamMember
 from app.registry import Resource
 from app.tenancy import (
     MANAGER_ROLES,
@@ -35,6 +36,19 @@ def build_router(r: Resource) -> APIRouter:
     CreateSchema = r.create_schema
     UpdateSchema = r.update_schema
     order_col = getattr(Model, r.order_by, Model.id)
+
+    def _plan_rules(db: Session, ws: int, data: dict, obj=None) -> None:
+        """What the plan allows (app/plan_features.py), on a write through this generic API:
+        posting without a review, the posts a day, a channel switched on."""
+        if Model is Automation:
+            if data.get("require_approval") is False:
+                plan_features.require(db, ws, "auto_post")
+            if data.get("videos_per_day") is not None:
+                data["videos_per_day"] = plan_features.posts_per_day(db, ws, int(data["videos_per_day"]))
+        if Model is Channel and data.get("status", "off" if obj is None else obj.status) != "off":
+            brand = db.get(Brand, data.get("brand_id") or (obj.brand_id if obj is not None else None))
+            if brand is not None and (obj is None or obj.status == "off"):
+                plan_features.check_channel(db, brand, keep=obj.id if obj is not None else None)
 
     def can_write(user: TeamMember) -> None:
         if r.read_only:
@@ -74,7 +88,9 @@ def build_router(r: Resource) -> APIRouter:
         can_write(user)
         data = payload.model_dump(exclude_unset=True)
         check_refs(db, data, user.workspace_id)
+        _plan_rules(db, user.workspace_id, data)
         if Model is Brand:
+            plan_features.check_brand(db, user.workspace_id)  # the plan has room for one more
             data["slug"] = unique_brand_slug(db, data.get("slug", ""))
         if hasattr(Model, "workspace_id"):
             data["workspace_id"] = user.workspace_id
@@ -106,6 +122,7 @@ def build_router(r: Resource) -> APIRouter:
         check_refs(db, data, user.workspace_id)
         if Model is TeamMember and obj.id == user.id and data.get("role", user.role) != user.role:
             raise HTTPException(400, "You can't change your own role.")
+        _plan_rules(db, user.workspace_id, data, obj)
         for key, value in data.items():
             setattr(obj, key, value)
         try:

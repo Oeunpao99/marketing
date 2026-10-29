@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { api } from '../../api/client'
 import { useStore } from '../../store'
 import Select from '../ui/Select'
+import { has, NEEDS, usePlanFeatures } from '../../lib/planFeatures'
 
 // "Autopilot by task" — what the AI may do by itself, per brand. Every row maps
 // to a real Automation field; tasks that aren't built yet say so instead of
@@ -24,6 +25,8 @@ const dailyOf = (a) => (!a.enabled ? 'off' : a.require_approval ? 'ask' : 'auto'
 
 export default function AutopilotCard({ brandSlug }) {
   const { auto, setAuto, refreshAuto, brands, showToast } = useStore()
+  const features = usePlanFeatures()
+  const canAuto = has(features, 'auto_post') // posting without a review: Growth and up
   const brand = brands.find((b) => b.slug === brandSlug)
   const a = (auto || []).find((x) => x.brand_id === brand?.id)
   if (!brand || !a) return null
@@ -38,11 +41,14 @@ export default function AutopilotCard({ brandSlug }) {
     }
   }
 
-  const setDaily = (v) =>
+  const setDaily = (v) => {
+    if (v === 'auto' && !canAuto) return showToast(`Posting by itself is on the ${NEEDS.auto_post} plan and up — see Plans & usage.`)
     update({ enabled: v !== 'off', ...(v === 'off' ? {} : { require_approval: v === 'ask' }) })
+  }
+  const daily = canAuto ? DAILY : DAILY.map((o) => (o.value === 'auto' ? { ...o, label: `Auto · ${NEEDS.auto_post}`, hint: `On the ${NEEDS.auto_post} plan and up` } : o))
 
   const rows = [
-    { label: 'Daily posts', value: dailyOf(a), options: DAILY, onChange: setDaily },
+    { label: 'Daily posts', value: dailyOf(a), options: daily, onChange: setDaily },
     { label: 'Images', value: a.auto_media ? 'auto' : 'off', options: IMAGES, onChange: (v) => update({ auto_media: v === 'auto' }) },
     { label: 'Learn from results', value: a.learn_from_results ? 'on' : 'off', options: LEARN, onChange: (v) => update({ learn_from_results: v === 'on' }) },
   ]

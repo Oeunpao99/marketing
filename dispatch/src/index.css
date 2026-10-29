@@ -30,7 +30,15 @@
   --edge: 255 255 255;
   --canvas: 244 246 249;
   --canvas-soft: 250 251 252;
+  /* each AI's own colour on charts (admin AI usage) — checked for colour-blind separation, light and dark */
+  --ai-gpt-5: #10a37f;
+  --ai-gemini: #4f7df3;
+  --ai-claude: #d97757;
+  --ai-gpt-5-mini: #c25bb5;
   color-scheme: light;
+}
+html.dark {
+  --ai-claude: #d0704f; /* the light one is too bright on the dark surface */
 }
 
 /* Dark theme (src/lib/theme.js puts `dark` on <html>): the grey scale flips —

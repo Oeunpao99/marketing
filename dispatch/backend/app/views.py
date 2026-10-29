@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
-from app import content_ai, linkedin, meta, post_tags, tiktok, youtube
+from app import content_ai, linkedin, meta, plan_features, post_tags, tiktok, youtube
 from app.config import get_settings
 from app.database import get_db
 from app.media import local_path_for
@@ -1804,6 +1804,7 @@ def insights_boosts(brand_id: int | None = None, db: Session = Depends(get_db), 
     numbers, no AI guesswork. A post qualifies when it beats its channel's average
     engagement by a clear margin AND has leads linked to it (likes alone don't
     sell). Nothing is sent to an ad account; this only recommends."""
+    plan_features.require(db, ws, "boost")  # Growth and up
     if brand_id is not None:
         owned(db, Brand, brand_id, ws)
         brand_ids = [brand_id]
@@ -2172,6 +2173,8 @@ def connect_channel(
     ws: int = Depends(current_workspace_id),
 ):
     ch = owned(db, Channel, channel_id, ws)
+    if ch.status == "off":  # a new connection — the plan has room for it
+        plan_features.check_channel(db, db.get(Brand, ch.brand_id), keep=ch.id)
     merged_config = {**(ch.config or {}), **(payload.config if payload and payload.config else {})}
     verified = _verify_channel_config(ch.platform.slug if ch.platform else "", merged_config)
 
@@ -2850,7 +2853,7 @@ def create_channel_for_brand(payload: AddChannelIn, db: Session = Depends(get_db
     (the ``@channelusername`` or numeric id). The bot must be an admin of the
     channel.
     """
-    owned(db, Brand, payload.brand_id, ws)
+    brand = owned(db, Brand, payload.brand_id, ws)
     plat = db.scalar(select(Platform).where(Platform.slug == payload.platform_slug))
     if plat is None:
         raise HTTPException(404, f"Unknown platform '{payload.platform_slug}'.")
@@ -2868,6 +2871,8 @@ def create_channel_for_brand(payload: AddChannelIn, db: Session = Depends(get_db
         if ch is None:
             ch = Channel(brand_id=payload.brand_id, platform_id=plat.id)
             db.add(ch)
+    if ch.status == "off" or ch.id is None:  # a new connection — the plan has room for it
+        plan_features.check_channel(db, brand, keep=ch.id)
     verified = _verify_channel_config(plat.slug, config)
     ch.handle = (verified or {}).get("chat_title") or payload.handle or chat_id
     ch.status = "live"
@@ -2888,9 +2893,22 @@ def create_channel_for_brand(payload: AddChannelIn, db: Session = Depends(get_db
 _TIKTOK_STATE_TTL_SECONDS = 600
 
 
+def _room_to_connect(db: Session, brand: Brand, platform_slug: str) -> None:
+    """Before a sign-in: the plan has room for one more channel on this brand (402 if not) —
+    unless the brand already has this platform, which may be a reconnect."""
+    has = db.scalar(
+        select(Channel.id)
+        .join(Platform, Platform.id == Channel.platform_id)
+        .where(Channel.brand_id == brand.id, Platform.slug == platform_slug, Channel.status != "off")
+        .limit(1)
+    )
+    if has is None:
+        plan_features.check_channel(db, brand)
+
+
 @router.get("/oauth/tiktok/start")
 def tiktok_oauth_start(brand_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
-    owned(db, Brand, brand_id, ws)
+    _room_to_connect(db, owned(db, Brand, brand_id, ws), "tiktok")
     state = sign_payload({"brand_id": brand_id}, _TIKTOK_STATE_TTL_SECONDS)
     try:
         return {"url": tiktok.authorize_url(state)}
@@ -2933,6 +2951,11 @@ def tiktok_oauth_callback(
     channel = db.scalar(
         select(Channel).where(Channel.brand_id == brand.id, Channel.platform_id == plat.id)
     )
+    try:  # a new connection — the plan has room for it
+        if channel is None or channel.status == "off":
+            plan_features.check_channel(db, brand, keep=channel.id if channel is not None else None)
+    except HTTPException as exc:
+        return back(False, str(exc.detail))
     if channel is None:
         channel = Channel(brand_id=brand.id, platform_id=plat.id)
         db.add(channel)
@@ -2956,7 +2979,7 @@ _YOUTUBE_STATE_TTL_SECONDS = 600
 
 @router.get("/oauth/youtube/start")
 def youtube_oauth_start(brand_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
-    owned(db, Brand, brand_id, ws)
+    _room_to_connect(db, owned(db, Brand, brand_id, ws), "youtube")
     state = sign_payload({"brand_id": brand_id}, _YOUTUBE_STATE_TTL_SECONDS)
     try:
         return {"url": youtube.authorize_url(state)}
@@ -3000,6 +3023,11 @@ def youtube_oauth_callback(code: str = "", state: str = "", error: str = "", db:
     channel = next((c for c in rows if (c.config or {}).get("channel_id") == info["channel_id"]), None) or next(
         (c for c in rows if not (c.config or {}).get("channel_id") and not (c.config or {}).get("access_token")), None
     )
+    try:  # a new connection — the plan has room for it
+        if channel is None or channel.status == "off":
+            plan_features.check_channel(db, brand, keep=channel.id if channel is not None else None)
+    except HTTPException as exc:
+        return back(False, str(exc.detail))
     if channel is None:
         channel = Channel(brand_id=brand.id, platform_id=plat.id)
         db.add(channel)
@@ -3053,7 +3081,7 @@ _META_STATE_TTL_SECONDS = 600
 def meta_oauth_start(
     brand_id: int, intent: str = "facebook", db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)
 ):
-    owned(db, Brand, brand_id, ws)
+    _room_to_connect(db, owned(db, Brand, brand_id, ws), "instagram" if intent == "instagram" else "facebook")
     state = sign_payload({"brand_id": brand_id, "intent": intent}, _META_STATE_TTL_SECONDS)
     try:
         return {"url": meta.authorize_url(state)}
@@ -3174,6 +3202,9 @@ def meta_pending_confirm(
         if plat is None:
             return
         ch = _claim_channel(db, brand_id, plat.id, *identity)
+        if ch.status == "off" or ch.id is None:  # a new connection — the plan has room for it
+            db.flush()
+            plan_features.check_channel(db, db.get(Brand, brand_id), keep=ch.id)
         ch.status = "live"
         ch.handle = handle
         ch.token_note = "Connected via Facebook login"
@@ -3222,7 +3253,7 @@ _LINKEDIN_STATE_TTL_SECONDS = 600
 
 @router.get("/oauth/linkedin/start")
 def linkedin_oauth_start(brand_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
-    owned(db, Brand, brand_id, ws)
+    _room_to_connect(db, owned(db, Brand, brand_id, ws), "linkedin")
     state = sign_payload({"brand_id": brand_id}, _LINKEDIN_STATE_TTL_SECONDS)
     try:
         return {"url": linkedin.authorize_url(state)}
@@ -3276,6 +3307,11 @@ def linkedin_oauth_callback(
     channel = db.scalar(
         select(Channel).where(Channel.brand_id == brand.id, Channel.platform_id == plat.id)
     )
+    try:  # a new connection — the plan has room for it
+        if channel is None or channel.status == "off":
+            plan_features.check_channel(db, brand, keep=channel.id if channel is not None else None)
+    except HTTPException as exc:
+        return back(False, str(exc.detail))
     if channel is None:
         channel = Channel(brand_id=brand.id, platform_id=plat.id)
         db.add(channel)

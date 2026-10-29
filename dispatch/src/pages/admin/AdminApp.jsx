@@ -17,7 +17,7 @@ import {
   FiX,
 } from 'react-icons/fi'
 import Select from '../../components/ui/Select'
-import { CREDITS_PER_USD, fmtCredits } from '../../lib/money'
+import { lengthText } from '../../lib/usage'
 import { hideSplash } from '../../lib/splash'
 import PlatformIcon, { PLAT_BRAND_CLASS } from '../../components/ui/PlatformIcon'
 import AiUsage, { AccountAiSection } from './AdminAI'
@@ -274,216 +274,257 @@ function useLoad(path) {
   return { data, error, load, setData }
 }
 
-// ── prices ────────────────────────────────────────────────────────────────
-// Each plan's monthly price in USD and KHR (app/payments.py): what KHQR checkout
-// charges and what the website's pricing shows (GET /api/public/prices). An empty
-// box = not sold in that currency; "Use built-in" = back to the standard price.
-function Prices() {
-  const { data, error, setData } = useLoad('/prices')
-  const [edit, setEdit] = useState({}) // plan → { usd, khr } as typed
-  const [busy, setBusy] = useState(false)
-  const [note, setNote] = useState('')
-  const [fail, setFail] = useState('')
+// ── prices: the plans and the packs, a table each — a row's Edit opens a pop-up ──
+// A plan row joins two settings: its monthly price in USD and KHR (GET/PUT /prices — what
+// KHQR checkout charges and the website shows; empty = not sold in that currency, "Use
+// built-in" = back to the standard price) and what it makes a month (GET/PUT /plan-limits,
+// app/usage.py). Packs (GET/PUT /credit-packs) are extra videos / images a customer on a paid
+// plan buys, on top of the plan's, until the month ends.
+const inputCls = 'h-10 w-full rounded-xl border border-ink-200 bg-white px-3 text-[14px] tabular-nums text-ink-900 focus:border-brand focus:outline-none'
+const numOrNull = (v) => (v === '' || v == null ? null : Number(String(v).replace(/,/g, '')))
+const priceText = (usd, khr) =>
+  [usd != null ? `$${Number(usd).toLocaleString('en-US', { maximumFractionDigits: 2 })}` : null, khr != null ? `${Number(khr).toLocaleString('en-US')} ៛` : null].filter(Boolean).join(' · ') || '—'
+const lengthLabel = (s) => (!s ? '—' : s < 60 ? `${s} s` : s % 60 ? `${Math.floor(s / 60)} min ${s % 60} s` : `${s / 60} min`)
 
+/** A centred pop-up: a plain dim backdrop, a solid panel, Esc / the backdrop / × close it. */
+function Modal({ title, sub, onClose, children, footer }) {
   useEffect(() => {
-    if (data) setEdit(Object.fromEntries(data.map((p) => [p.plan, { usd: p.usd ?? '', khr: p.khr ?? '' }])))
-  }, [data])
+    const onKey = (e) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+  return createPortal(
+    <div className="fixed inset-0 z-[100] grid place-items-center overflow-y-auto bg-night-950/40 p-4 animate-fadein" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div role="dialog" aria-modal="true" aria-label={title} className="my-6 w-full max-w-[520px] rounded-3xl glass-panel">
+        <header className="flex items-start justify-between gap-3 border-b border-ink-100 px-6 pb-4 pt-5">
+          <div className="min-w-0">
+            <h2 className="text-[17px] font-bold tracking-tight text-ink-900">{title}</h2>
+            {sub && <p className="mt-0.5 text-[12.5px] text-ink-500">{sub}</p>}
+          </div>
+          <button type="button" onClick={onClose} className="grid h-9 w-9 flex-none place-items-center rounded-lg text-ink-500 hover:bg-ink-100" aria-label="Close">
+            <FiX size={18} />
+          </button>
+        </header>
+        <div className="space-y-4 px-6 py-5">{children}</div>
+        <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-ink-100 px-6 py-4">{footer}</footer>
+      </div>
+    </div>,
+    document.body,
+  )
+}
 
-  const num = (v) => (v === '' || v == null ? null : Number(String(v).replace(/,/g, '')))
-  const changed = data?.some((p) => num(edit[p.plan]?.usd) !== (p.usd ?? null) || num(edit[p.plan]?.khr) !== (p.khr ?? null))
-
-  const save = async () => {
-    setBusy(true)
-    setFail('')
-    setNote('')
-    try {
-      const plans = Object.fromEntries(data.map((p) => [p.plan, { usd: num(edit[p.plan]?.usd), khr: num(edit[p.plan]?.khr) }]))
-      setData(await adminApi('PUT', '/prices', { plans }))
-      setNote('Saved — checkout and the website use the new prices within a minute.')
-    } catch (e) {
-      setFail(e.message)
-    } finally {
-      setBusy(false)
-    }
-  }
-  const reset = async (plan) => {
-    setBusy(true)
-    setFail('')
-    try {
-      setData(await adminApi('DELETE', `/prices/${plan}`))
-      setNote('Back to the built-in price.')
-    } catch (e) {
-      setFail(e.message)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  if (error) return <div className="text-[13px] text-red-600">{error}</div>
-  if (!data) return <div className="text-[13px] text-ink-500">Loading…</div>
-  const input = 'h-10 w-full rounded-xl border border-ink-200 bg-white px-3 text-[14px] tabular-nums text-ink-900 focus:border-brand focus:outline-none'
+function NumField({ label, hint, value, onChange, placeholder, decimal = false }) {
   return (
-    <div className="space-y-5">
+    <label className="block">
+      <span className="mb-1 block text-[12px] font-semibold text-ink-700">{label}</span>
+      <input
+        inputMode={decimal ? 'decimal' : 'numeric'}
+        className={inputCls}
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value.replace(decimal ? /[^\d.]/g : /[^\d]/g, ''))}
+      />
+      {hint && <span className="mt-1 block text-[11px] text-ink-400">{hint}</span>}
+    </label>
+  )
+}
+
+function TableHead({ cols }) {
+  return (
+    <thead>
+      <tr className="border-b border-ink-100 text-left text-[11px] font-semibold uppercase tracking-wide text-ink-400">
+        {cols.map((c, i) => (
+          <th key={i} className={`px-5 py-3 font-semibold ${c.right ? 'text-right' : ''}`}>
+            {c.label}
+          </th>
+        ))}
+      </tr>
+    </thead>
+  )
+}
+
+function Prices() {
+  const prices = useLoad('/prices')
+  const limits = useLoad('/plan-limits')
+  const [editing, setEditing] = useState(null) // a plan id
+  const [note, setNote] = useState('')
+
+  const error = prices.error || limits.error
+  if (error) return <div className="text-[13px] text-red-600">{error}</div>
+  if (!prices.data || !limits.data) return <div className="text-[13px] text-ink-500">Loading…</div>
+  const rows = prices.data.map((p) => ({ ...p, limit: limits.data.find((l) => l.plan === p.plan) || {} }))
+  const open = rows.find((r) => r.plan === editing)
+
+  return (
+    <div className="space-y-8">
       <div>
         <h1 className="text-[24px] font-bold tracking-tight text-ink-900">Prices</h1>
-        <p className="mt-1 text-[13px] text-ink-500">What each plan costs a month — KHQR checkout charges this, and the website shows it.</p>
+        <p className="mt-1 text-[13px] text-ink-500">Your plans and the extra packs customers can buy — KHQR checkout charges these, and the website shows them.</p>
       </div>
-      <section className={`${card} divide-y divide-ink-100`}>
-        {data.map((p) => (
-          <div key={p.plan} className="grid gap-3 p-5 sm:grid-cols-[180px_1fr_1fr_auto] sm:items-end">
-            <div>
-              <div className="text-[15px] font-bold text-ink-900">{p.label}</div>
-              <div className="text-[12px] text-ink-500">{p.monthly_credits.toLocaleString('en-US')} credits / month</div>
-              <div className="mt-1 text-[11px] text-ink-400">{p.set_here ? `Set here${p.updated_at ? ` · ${day(p.updated_at)}` : ''}` : 'Built-in price'}</div>
-            </div>
-            <label className="block">
-              <span className="mb-1 block text-[11.5px] font-semibold text-ink-600">US dollars ($)</span>
-              <input
-                inputMode="decimal"
-                className={input}
-                value={edit[p.plan]?.usd ?? ''}
-                placeholder={p.default_usd != null ? String(p.default_usd) : 'not sold in USD'}
-                onChange={(e) => setEdit((x) => ({ ...x, [p.plan]: { ...x[p.plan], usd: e.target.value.replace(/[^\d.]/g, '') } }))}
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-[11.5px] font-semibold text-ink-600">Riel (៛)</span>
-              <input
-                inputMode="numeric"
-                className={input}
-                value={edit[p.plan]?.khr ?? ''}
-                placeholder={p.default_khr != null ? String(p.default_khr) : 'not sold in KHR'}
-                onChange={(e) => setEdit((x) => ({ ...x, [p.plan]: { ...x[p.plan], khr: e.target.value.replace(/[^\d]/g, '') } }))}
-              />
-            </label>
-            {p.set_here ? (
-              <button type="button" disabled={busy} onClick={() => reset(p.plan)} className="h-10 rounded-xl px-3 text-[12.5px] font-semibold text-ink-500 hover:bg-ink-50 hover:text-ink-800">
-                Use built-in
-              </button>
-            ) : (
-              <span />
-            )}
+
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h2 className="text-[17px] font-bold tracking-tight text-ink-900">Plans</h2>
+            <p className="mt-0.5 text-[12.5px] text-ink-500">Price a month, and what each plan makes. A video up to 1 min uses 1, up to 3 min 2, longer 1 per 3 min; an AI-filmed clip 3.</p>
           </div>
-        ))}
+          {note && <span className="text-[12.5px] text-emerald-600">{note}</span>}
+        </div>
+        <div className={`${card} overflow-x-auto`}>
+          <table className="w-full min-w-[720px] text-[13px]">
+            <TableHead cols={[{ label: 'Plan' }, { label: 'Price / month' }, { label: 'Videos', right: true }, { label: 'Images', right: true }, { label: 'Longest video', right: true }, { label: '' }]} />
+            <tbody className="divide-y divide-ink-100">
+              {rows.map((r) => (
+                <tr key={r.plan} className="hover:bg-canvas/60">
+                  <td className="px-5 py-3.5">
+                    <div className="font-bold text-ink-900">{r.label}</div>
+                    <div className="text-[11px] text-ink-400">{r.set_here || r.limit.custom ? `Set here${r.updated_at ? ` · ${day(r.updated_at)}` : ''}` : 'Built-in'}</div>
+                  </td>
+                  <td className="px-5 py-3.5 tabular-nums text-ink-800">{r.usd == null && r.khr == null ? <span className="text-ink-400">Not sold</span> : priceText(r.usd, r.khr)}</td>
+                  <td className="px-5 py-3.5 text-right tabular-nums text-ink-800">{r.limit.videos ?? '—'}</td>
+                  <td className="px-5 py-3.5 text-right tabular-nums text-ink-800">{r.limit.images ?? '—'}</td>
+                  <td className="px-5 py-3.5 text-right tabular-nums text-ink-800">{lengthLabel(r.limit.longest)}</td>
+                  <td className="px-5 py-3.5 text-right">
+                    <button type="button" onClick={() => (setEditing(r.plan), setNote(''))} className="rounded-lg border border-ink-200 px-3 py-1.5 text-[12px] font-semibold text-ink-700 hover:border-brand hover:text-brand">
+                      Edit
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-[11.5px] text-ink-400">Customers who already paid keep their month at the old price.</p>
       </section>
-      <div className="flex flex-wrap items-center gap-3">
-        <button type="button" onClick={save} disabled={busy || !changed} className="btn-primary h-10 px-5 text-[13px] disabled:opacity-50">
-          {busy ? 'Saving…' : 'Save prices'}
-        </button>
-        {note && <span className="text-[12.5px] text-emerald-600">{note}</span>}
-        {fail && <span className="text-[12.5px] text-red-600">{fail}</span>}
-      </div>
-      <p className="text-[11.5px] text-ink-400">Leave a box empty to stop selling that plan in that currency. Customers who already paid keep their month at the old price.</p>
-      <PlanLimits />
-      <CreditPacks />
+
+      <Packs />
+
+      {open && (
+        <PlanModal
+          row={open}
+          prices={prices.data}
+          limits={limits.data}
+          onClose={() => setEditing(null)}
+          onSaved={(p, l, msg) => (p && prices.setData(p), l && limits.setData(l), setEditing(null), setNote(msg))}
+        />
+      )}
     </div>
   )
 }
 
-// ── plan limits: what each plan makes a month (app/usage.py) ────────────────
-function PlanLimits() {
-  const { data, error, setData } = useLoad('/plan-limits')
-  const [edit, setEdit] = useState({})
+/** One plan in a pop-up: its price (USD, KHR) and what it makes a month. */
+function PlanModal({ row, prices, limits, onClose, onSaved }) {
+  const [usd, setUsd] = useState(row.usd ?? '')
+  const [khr, setKhr] = useState(row.khr ?? '')
+  const [videos, setVideos] = useState(String(row.limit.videos ?? ''))
+  const [images, setImages] = useState(String(row.limit.images ?? ''))
+  const [longest, setLongest] = useState(String(row.limit.longest ?? ''))
   const [busy, setBusy] = useState(false)
-  const [note, setNote] = useState('')
   const [fail, setFail] = useState('')
-  const fromData = (d) => Object.fromEntries(d.map((p) => [p.plan, { videos: String(p.videos), images: String(p.images), longest: String(p.longest) }]))
-  useEffect(() => {
-    if (data) setEdit(fromData(data))
-  }, [data])
-  const changed = data && JSON.stringify(edit) !== JSON.stringify(fromData(data))
+
+  const priceChanged = numOrNull(usd) !== (row.usd ?? null) || numOrNull(khr) !== (row.khr ?? null)
+  const limitChanged = String(row.limit.videos) !== videos || String(row.limit.images) !== images || String(row.limit.longest) !== longest
+
   const save = async () => {
     setBusy(true)
     setFail('')
-    setNote('')
     try {
-      const plans = Object.fromEntries(Object.entries(edit).map(([p, v]) => [p, { videos: Number(v.videos) || 0, images: Number(v.images) || 0, longest: Number(v.longest) || 0 }]))
-      setData(await adminApi('PUT', '/plan-limits', { plans }))
-      setNote('Saved — customers see the new numbers straight away.')
+      // both endpoints take every plan: the others as they are, this one as typed
+      const p = priceChanged
+        ? await adminApi('PUT', '/prices', {
+            plans: Object.fromEntries(prices.map((x) => [x.plan, x.plan === row.plan ? { usd: numOrNull(usd), khr: numOrNull(khr) } : { usd: x.usd ?? null, khr: x.khr ?? null }])),
+          })
+        : null
+      const l = limitChanged
+        ? await adminApi('PUT', '/plan-limits', {
+            plans: Object.fromEntries(
+              limits.map((x) => [x.plan, x.plan === row.plan ? { videos: Number(videos) || 0, images: Number(images) || 0, longest: Number(longest) || 0 } : { videos: x.videos, images: x.images, longest: x.longest }]),
+            ),
+          })
+        : null
+      onSaved(p, l, `${row.label} saved — customers see it within a minute.`)
     } catch (e) {
       setFail(e.message)
-    } finally {
       setBusy(false)
     }
   }
-  if (error) return <div className="text-[13px] text-red-600">{error}</div>
-  if (!data) return null
-  const input = 'h-10 w-full rounded-xl border border-ink-200 bg-white px-3 text-[14px] tabular-nums text-ink-900 focus:border-brand focus:outline-none'
-  const field = (plan, key, label) => (
-    <label className="block">
-      <span className="mb-1 block text-[11.5px] font-semibold text-ink-600">{label}</span>
-      <input inputMode="numeric" className={input} value={edit[plan]?.[key] ?? ''} onChange={(e) => setEdit((x) => ({ ...x, [plan]: { ...x[plan], [key]: e.target.value.replace(/[^\d]/g, '') } }))} />
-    </label>
-  )
+  const builtIn = async () => {
+    setBusy(true)
+    setFail('')
+    try {
+      onSaved(await adminApi('DELETE', `/prices/${row.plan}`), null, `${row.label} is back to its built-in price.`)
+    } catch (e) {
+      setFail(e.message)
+      setBusy(false)
+    }
+  }
+
   return (
-    <div className="space-y-4 pt-4">
+    <Modal
+      title={`Edit ${row.label}`}
+      sub={row.set_here ? `Price set here${row.updated_at ? ` · ${day(row.updated_at)}` : ''}` : 'Built-in price'}
+      onClose={() => !busy && onClose()}
+      footer={
+        <>
+          {fail && <span className="mr-auto text-[12px] text-red-600">{fail}</span>}
+          {row.set_here && (
+            <button type="button" disabled={busy} onClick={builtIn} className="mr-auto rounded-xl px-3 py-2 text-[12.5px] font-semibold text-ink-500 hover:bg-ink-50 hover:text-ink-800">
+              Use built-in price
+            </button>
+          )}
+          <button type="button" disabled={busy} onClick={onClose} className="btn-ghost h-10 px-4 text-[13px]">
+            Cancel
+          </button>
+          <button type="button" disabled={busy || (!priceChanged && !limitChanged)} onClick={save} className="btn-primary h-10 px-5 text-[13px] disabled:opacity-50">
+            {busy ? 'Saving…' : 'Save'}
+          </button>
+        </>
+      }
+    >
       <div>
-        <h2 className="text-[18px] font-bold tracking-tight text-ink-900">What each plan makes</h2>
-        <p className="mt-1 text-[13px] text-ink-500">
-          Videos and images a month, and the longest video — what customers see and are held to. A video up to 1 min uses 1, up to 3 min 2, longer 1 per 3 min; an AI-filmed clip 3.
-        </p>
+        <div className="mb-2 text-[12px] font-bold uppercase tracking-wide text-ink-400">Price a month</div>
+        <div className="grid grid-cols-2 gap-3">
+          <NumField decimal label="US dollars ($)" value={usd} onChange={setUsd} placeholder={row.default_usd != null ? String(row.default_usd) : 'not sold in USD'} />
+          <NumField label="Riel (៛)" value={khr} onChange={setKhr} placeholder={row.default_khr != null ? String(row.default_khr) : 'not sold in KHR'} />
+        </div>
+        <p className="mt-1.5 text-[11px] text-ink-400">Leave one empty to stop selling the plan in that currency.</p>
       </div>
-      <section className={`${card} divide-y divide-ink-100`}>
-        {data.map((p) => (
-          <div key={p.plan} className="grid gap-3 p-5 sm:grid-cols-[180px_1fr_1fr_1fr] sm:items-end">
-            <div>
-              <div className="text-[15px] font-bold text-ink-900">{p.label}</div>
-              <div className="text-[11px] text-ink-400">{p.custom ? 'Set here' : 'Built-in numbers'}</div>
-            </div>
-            {field(p.plan, 'videos', 'Videos / month')}
-            {field(p.plan, 'images', 'Images / month')}
-            {field(p.plan, 'longest', 'Longest video (seconds)')}
-          </div>
-        ))}
-      </section>
-      <div className="flex flex-wrap items-center gap-3">
-        <button type="button" onClick={save} disabled={busy || !changed} className="btn-primary h-10 px-5 text-[13px] disabled:opacity-50">
-          {busy ? 'Saving…' : 'Save plan numbers'}
-        </button>
-        {note && <span className="text-[12.5px] text-emerald-600">{note}</span>}
-        {fail && <span className="text-[12.5px] text-red-600">{fail}</span>}
+      <div>
+        <div className="mb-2 text-[12px] font-bold uppercase tracking-wide text-ink-400">What it makes a month</div>
+        <div className="grid grid-cols-3 gap-3">
+          <NumField label="Videos" value={videos} onChange={setVideos} />
+          <NumField label="Images" value={images} onChange={setImages} />
+          <NumField label="Longest video (s)" value={longest} onChange={setLongest} hint={lengthLabel(Number(longest))} />
+        </div>
       </div>
-    </div>
+    </Modal>
   )
 }
 
 // the hidden AI allowance a pack brings when the box is left empty (a video ~300, an image ~20)
 const packCredits = (videos, images) => Math.max(10, (Number(videos) || 0) * 300 + (Number(images) || 0) * 20)
+const packName = (p) =>
+  [p.videos ? `${p.videos} video${p.videos === 1 ? '' : 's'}` : null, p.images ? `${p.images} image${p.images === 1 ? '' : 's'}` : null].filter(Boolean).join(' + ') || `Old credit pack (${Number(p.credits || 0).toLocaleString('en-US')} credits)`
 
-// ── packs: extra videos / images customers on a paid plan buy with KHQR ────
-function CreditPacks() {
+/** Extra videos / images customers on a paid plan buy with KHQR. */
+function Packs() {
   const { data, error, setData } = useLoad('/credit-packs')
-  const [rows, setRows] = useState([]) // as typed: { id?, key, videos, images, credits, usd, khr, active }
+  const [editing, setEditing] = useState(null) // a pack, or {} for a new one
+  const [removing, setRemoving] = useState(null)
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState('')
   const [fail, setFail] = useState('')
-  const fresh = useRef(0)
 
-  const fromData = (d) => d.map((p) => ({ ...p, key: `p${p.id}`, videos: String(p.videos || ''), images: String(p.images || ''), credits: String(p.credits), usd: p.usd ?? '', khr: p.khr ?? '' }))
-  useEffect(() => {
-    if (data) setRows(fromData(data))
-  }, [data])
-
-  const num = (v) => (v === '' || v == null ? null : Number(String(v).replace(/,/g, '')))
-  const set = (key, field, value) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, [field]: value } : r)))
-  const changed = data && JSON.stringify(rows.map(({ key, ...r }) => r)) !== JSON.stringify(fromData(data).map(({ key, ...r }) => r))
-
-  const save = async () => {
+  // PUT takes the whole list: every pack as it is, with this one changed / added / left out
+  const asSent = (p) => ({ id: p.id ?? null, videos: p.videos || 0, images: p.images || 0, credits: p.credits, usd: p.usd ?? null, khr: p.khr ?? null, active: p.active })
+  const put = async (list, msg) => {
     setBusy(true)
     setFail('')
-    setNote('')
     try {
-      const packs = rows.map((r) => ({
-        id: r.id ?? null,
-        videos: num(r.videos) ?? 0,
-        images: num(r.images) ?? 0,
-        credits: num(r.credits) ?? packCredits(r.videos, r.images),
-        usd: num(r.usd),
-        khr: num(r.khr),
-        active: r.active,
-      }))
-      setData(await adminApi('PUT', '/credit-packs', { packs }))
-      setNote('Saved — customers see the new packs straight away.')
+      setData(await adminApi('PUT', '/credit-packs', { packs: list.map(asSent) }))
+      setNote(msg)
+      setEditing(null)
+      setRemoving(null)
     } catch (e) {
       setFail(e.message)
     } finally {
@@ -493,71 +534,168 @@ function CreditPacks() {
 
   if (error) return <div className="text-[13px] text-red-600">{error}</div>
   if (!data) return null
-  const input = 'h-10 w-full rounded-xl border border-ink-200 bg-white px-3 text-[14px] tabular-nums text-ink-900 focus:border-brand focus:outline-none'
+  const sold = (p) => p.active && (p.videos || p.images) && (p.usd != null || p.khr != null)
+
   return (
-    <div className="space-y-4 pt-4">
-      <div>
-        <h2 className="text-[18px] font-bold tracking-tight text-ink-900">Video &amp; image packs</h2>
-        <p className="mt-1 text-[13px] text-ink-500">
-          Extra videos / images a customer on a paid plan can buy (Plans page → Extra videos &amp; images), on top of the plan&apos;s, until the month ends. A pack with no videos or images isn&apos;t shown to
-          customers.
-        </p>
+    <section className="space-y-3">
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <h2 className="text-[17px] font-bold tracking-tight text-ink-900">Video &amp; image packs</h2>
+          <p className="mt-0.5 text-[12.5px] text-ink-500">Extra videos / images on top of the plan&apos;s, until the month ends — on the customer&apos;s Plans page under &quot;Extra videos &amp; images&quot;.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          {note && <span className="text-[12.5px] text-emerald-600">{note}</span>}
+          <button type="button" onClick={() => (setEditing({ active: true }), setNote(''), setFail(''))} className="btn-primary h-10 px-4 text-[13px]">
+            <FiPlus size={14} className="mr-1 inline" /> Add a pack
+          </button>
+        </div>
       </div>
-      <section className={`${card} divide-y divide-ink-100`}>
-        {rows.length === 0 && <div className="p-5 text-[13px] text-ink-500">No packs — customers can&apos;t buy extra videos.</div>}
-        {rows.map((r) => {
-          const usd = num(r.usd)
-          const videos = num(r.videos)
-          return (
-            <div key={r.key} className="grid gap-3 p-5 sm:grid-cols-[1fr_1fr_1fr_1fr_1fr_auto_auto] sm:items-end">
-              <label className="block">
-                <span className="mb-1 block text-[11.5px] font-semibold text-ink-600">Videos</span>
-                <input inputMode="numeric" className={input} value={r.videos} placeholder="e.g. 10" onChange={(e) => set(r.key, 'videos', e.target.value.replace(/[^\d]/g, ''))} />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-[11.5px] font-semibold text-ink-600">Images</span>
-                <input inputMode="numeric" className={input} value={r.images} placeholder="0" onChange={(e) => set(r.key, 'images', e.target.value.replace(/[^\d]/g, ''))} />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-[11.5px] font-semibold text-ink-600">Hidden AI allowance</span>
-                <input inputMode="numeric" className={input} value={r.credits} placeholder={String(packCredits(r.videos, r.images))} onChange={(e) => set(r.key, 'credits', e.target.value.replace(/[^\d]/g, ''))} />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-[11.5px] font-semibold text-ink-600">US dollars ($)</span>
-                <input inputMode="decimal" className={input} value={r.usd} placeholder="not sold in USD" onChange={(e) => set(r.key, 'usd', e.target.value.replace(/[^\d.]/g, ''))} />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-[11.5px] font-semibold text-ink-600">Riel (៛)</span>
-                <input inputMode="numeric" className={input} value={r.khr} placeholder="not sold in KHR" onChange={(e) => set(r.key, 'khr', e.target.value.replace(/[^\d]/g, ''))} />
-              </label>
-              <label className="flex h-10 items-center gap-2 text-[12.5px] font-semibold text-ink-700">
-                <input type="checkbox" checked={r.active} onChange={(e) => set(r.key, 'active', e.target.checked)} className="h-4 w-4 accent-[rgb(var(--brand))]" />
-                On sale
-              </label>
-              <button type="button" disabled={busy} onClick={() => setRows((rs) => rs.filter((x) => x.key !== r.key))} className="h-10 rounded-xl px-3 text-[12.5px] font-semibold text-ink-500 hover:bg-ink-50 hover:text-red-600">
-                Remove
+      <div className={`${card} overflow-x-auto`}>
+        {data.length === 0 ? (
+          <div className="px-5 py-10 text-center text-[13px] text-ink-500">No packs yet — customers can&apos;t buy extra videos. Add one, e.g. 10 videos for $30.</div>
+        ) : (
+          <table className="w-full min-w-[640px] text-[13px]">
+            <TableHead cols={[{ label: 'Pack' }, { label: 'Price' }, { label: 'Per video', right: true }, { label: 'Status' }, { label: '' }]} />
+            <tbody className="divide-y divide-ink-100">
+              {data.map((p) => (
+                <tr key={p.id} className="hover:bg-canvas/60">
+                  <td className="px-5 py-3.5 font-bold text-ink-900">{packName(p)}</td>
+                  <td className="px-5 py-3.5 tabular-nums text-ink-800">{priceText(p.usd, p.khr)}</td>
+                  <td className="px-5 py-3.5 text-right tabular-nums text-ink-600">{p.usd > 0 && p.videos > 0 ? `$${(p.usd / p.videos).toFixed(2)}` : '—'}</td>
+                  <td className="px-5 py-3.5">
+                    {sold(p) ? (
+                      <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11.5px] font-semibold text-emerald-700">On sale</span>
+                    ) : !p.videos && !p.images ? (
+                      <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11.5px] font-semibold text-amber-700" title="An old credit pack — set its videos or images, or remove it">
+                        Not shown — set its videos
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-ink-100 px-2.5 py-1 text-[11.5px] font-semibold text-ink-600">Hidden</span>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap px-5 py-3.5 text-right">
+                    <button type="button" onClick={() => (setEditing(p), setNote(''), setFail(''))} className="rounded-lg border border-ink-200 px-3 py-1.5 text-[12px] font-semibold text-ink-700 hover:border-brand hover:text-brand">
+                      Edit
+                    </button>
+                    <button type="button" onClick={() => (setRemoving(p), setFail(''))} className="ml-1.5 rounded-lg px-3 py-1.5 text-[12px] font-semibold text-ink-500 hover:bg-red-50 hover:text-red-600">
+                      Remove
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+      {fail && !editing && !removing && <div className="text-[12.5px] text-red-600">{fail}</div>}
+
+      {editing && (
+        <PackModal
+          pack={editing}
+          busy={busy}
+          fail={fail}
+          onClose={() => !busy && setEditing(null)}
+          onSave={(pk) => put(pk.id ? data.map((x) => (x.id === pk.id ? pk : x)) : [...data, pk], pk.id ? `${packName(pk)} saved.` : `${packName(pk)} added.`)}
+        />
+      )}
+      {removing && (
+        <Modal
+          title={`Remove ${packName(removing)}?`}
+          sub="Customers can't buy it any more. Packs already bought keep their videos and images."
+          onClose={() => !busy && setRemoving(null)}
+          footer={
+            <>
+              {fail && <span className="mr-auto text-[12px] text-red-600">{fail}</span>}
+              <button type="button" disabled={busy} onClick={() => setRemoving(null)} className="btn-ghost h-10 px-4 text-[13px]">
+                Cancel
               </button>
-              {usd > 0 && videos > 0 && <div className="text-[11.5px] text-ink-400 sm:col-span-7">${(usd / videos).toFixed(2)} a video</div>}
-            </div>
-          )
-        })}
-      </section>
-      <div className="flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => setRows((rs) => [...rs, { key: `n${++fresh.current}`, videos: '', images: '', credits: '', usd: '', khr: '', active: true }])}
-          className="btn-ghost h-10 px-4 text-[13px]"
+              <button type="button" disabled={busy} onClick={() => put(data.filter((x) => x.id !== removing.id), `${packName(removing)} removed.`)} className="h-10 rounded-xl bg-red-600 px-5 text-[13px] font-semibold text-white hover:bg-red-700 disabled:opacity-50">
+                {busy ? 'Removing…' : 'Remove pack'}
+              </button>
+            </>
+          }
         >
-          + Add a pack
-        </button>
-        <button type="button" onClick={save} disabled={busy || !changed} className="btn-primary h-10 px-5 text-[13px] disabled:opacity-50">
-          {busy ? 'Saving…' : 'Save packs'}
-        </button>
-        {note && <span className="text-[12.5px] text-emerald-600">{note}</span>}
-        {fail && <span className="text-[12.5px] text-red-600">{fail}</span>}
+          <p className="text-[13px] text-ink-600">
+            {packName(removing)} · {priceText(removing.usd, removing.khr)}
+          </p>
+        </Modal>
+      )}
+    </section>
+  )
+}
+
+/** One pack in a pop-up: what's in it, its price, on sale or not (and its hidden AI allowance, folded away). */
+function PackModal({ pack, busy, fail, onClose, onSave }) {
+  const [videos, setVideos] = useState(pack.videos ? String(pack.videos) : '')
+  const [images, setImages] = useState(pack.images ? String(pack.images) : '')
+  const [usd, setUsd] = useState(pack.usd ?? '')
+  const [khr, setKhr] = useState(pack.khr ?? '')
+  const [credits, setCredits] = useState(pack.id ? String(pack.credits ?? '') : '')
+  const [active, setActive] = useState(pack.active ?? true)
+  const [more, setMore] = useState(false)
+  const v = Number(videos) || 0
+  const im = Number(images) || 0
+  const ok = (v > 0 || im > 0) && (numOrNull(usd) != null || numOrNull(khr) != null)
+
+  return (
+    <Modal
+      title={pack.id ? `Edit ${packName(pack)}` : 'Add a pack'}
+      sub="Extra videos and images a customer on a paid plan can buy for this month."
+      onClose={onClose}
+      footer={
+        <>
+          {fail && <span className="mr-auto text-[12px] text-red-600">{fail}</span>}
+          <button type="button" disabled={busy} onClick={onClose} className="btn-ghost h-10 px-4 text-[13px]">
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={busy || !ok}
+            title={ok ? '' : 'Give it videos or images, and a price'}
+            onClick={() => onSave({ ...pack, videos: v, images: im, usd: numOrNull(usd), khr: numOrNull(khr), credits: numOrNull(credits) ?? packCredits(v, im), active })}
+            className="btn-primary h-10 px-5 text-[13px] disabled:opacity-50"
+          >
+            {busy ? 'Saving…' : pack.id ? 'Save' : 'Add pack'}
+          </button>
+        </>
+      }
+    >
+      <div>
+        <div className="mb-2 text-[12px] font-bold uppercase tracking-wide text-ink-400">What's in it</div>
+        <div className="grid grid-cols-2 gap-3">
+          <NumField label="Videos" value={videos} onChange={setVideos} placeholder="e.g. 10" />
+          <NumField label="Images" value={images} onChange={setImages} placeholder="0" />
+        </div>
       </div>
-    </div>
+      <div>
+        <div className="mb-2 text-[12px] font-bold uppercase tracking-wide text-ink-400">Price</div>
+        <div className="grid grid-cols-2 gap-3">
+          <NumField decimal label="US dollars ($)" value={usd} onChange={setUsd} placeholder="e.g. 30" hint={numOrNull(usd) > 0 && v > 0 ? `$${(numOrNull(usd) / v).toFixed(2)} a video` : ''} />
+          <NumField label="Riel (៛)" value={khr} onChange={setKhr} placeholder="e.g. 123000" />
+        </div>
+      </div>
+      <label className="flex items-center gap-2.5 rounded-xl border border-ink-200 px-3.5 py-3 text-[13px] font-semibold text-ink-800">
+        <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} className="h-4 w-4 accent-[rgb(var(--brand))]" />
+        On sale
+        <span className="font-normal text-ink-500">— customers can buy it now</span>
+      </label>
+      <div>
+        <button type="button" onClick={() => setMore((m) => !m)} className="text-[12px] font-semibold text-ink-500 hover:text-ink-800">
+          {more ? '▾' : '▸'} Advanced
+        </button>
+        {more && (
+          <div className="mt-2">
+            <NumField
+              label="Hidden AI allowance"
+              value={credits}
+              onChange={setCredits}
+              placeholder={String(packCredits(v, im))}
+              hint="The fair-use cap behind the counts — customers never see it. Empty = worked out from the videos and images."
+            />
+          </div>
+        )}
+      </div>
+    </Modal>
   )
 }
 
@@ -758,21 +896,54 @@ function Accounts({ onOpen }) {
 // ── one account: details + controls (right slide-over) ────────────────────
 // app/billing.py PLAN_CREDITS — the pricing page's plans
 const PLAN_OPTIONS = [
-  { value: 'free', label: 'Free · 100 credits / month' },
-  { value: 'starter', label: 'Starter · 1,500 credits / month' },
-  { value: 'pro', label: 'Growth · 3,000 credits / month' },
-  { value: 'business', label: 'Business · 9,000 credits / month' },
-  { value: 'enterprise', label: 'Enterprise · 30,000 credits / month' },
+  { value: 'free', label: 'Free' },
+  { value: 'starter', label: 'Starter' },
+  { value: 'pro', label: 'Growth' },
+  { value: 'business', label: 'Business' },
+  { value: 'enterprise', label: 'Enterprise' },
 ]
-// what the customer sees, and the dollars behind it
-const both = (n) => `${fmtCredits(n)} · ${money(n)}`
+
+/** "Give extra videos & images": a pop-up over the account panel — free, for this month only. */
+function GiveExtra({ name, busy, onClose, onGive }) {
+  const [videos, setVideos] = useState('')
+  const [images, setImages] = useState('')
+  const [why, setWhy] = useState('')
+  const v = Number(videos) || 0
+  const im = Number(images) || 0
+  return (
+    <Modal
+      title="Give extra videos & images"
+      sub={`For ${name} — free, on top of their plan, until the month ends.`}
+      onClose={onClose}
+      footer={
+        <>
+          <button type="button" disabled={busy} onClick={onClose} className="btn-ghost h-10 px-4 text-[13px]">
+            Cancel
+          </button>
+          <button type="button" disabled={busy || !(v > 0 || im > 0)} onClick={() => onGive(v, im, why.trim())} className="btn-primary h-10 px-5 text-[13px] disabled:opacity-50">
+            {busy ? 'Giving…' : 'Give'}
+          </button>
+        </>
+      }
+    >
+      <div className="grid grid-cols-2 gap-3">
+        <NumField label="Videos" value={videos} onChange={setVideos} placeholder="e.g. 3" />
+        <NumField label="Images" value={images} onChange={setImages} placeholder="0" />
+      </div>
+      <label className="block">
+        <span className="mb-1 block text-[12px] font-semibold text-ink-700">Note (optional)</span>
+        <input value={why} maxLength={200} onChange={(e) => setWhy(e.target.value)} placeholder="e.g. Sorry for the failed render" className={inputCls} />
+        <span className="mt-1 block text-[11px] text-ink-400">Only the team sees it, in the account&apos;s AI activity.</span>
+      </label>
+    </Modal>
+  )
+}
 
 function AccountDrawer({ id, onClose, onChanged }) {
   const { data: w, error, load } = useLoad(`/workspaces/${id}`)
   const [busy, setBusy] = useState('')
   const [note, setNote] = useState('')
-  const [amount, setAmount] = useState('')
-  const [creditNote, setCreditNote] = useState('')
+  const [giving, setGiving] = useState(false) // the "Give extra videos & images" pop-up
   const [reason, setReason] = useState('')
   const [confirmSuspend, setConfirmSuspend] = useState(false)
 
@@ -797,10 +968,7 @@ function AccountDrawer({ id, onClose, onChanged }) {
     }
   }
 
-  const bal = w?.balance
-  // this month: AI used vs what it had (plan credit + any extra credit added)
-  const used = w?.ai_month || 0
-  const total = bal ? Math.max(bal.balance + used, 0.01) : 1
+  const u = w?.usage // this month's videos / images (app/usage.py summary)
 
   return createPortal(
     <div className="fixed inset-0 z-[95]">
@@ -842,11 +1010,11 @@ function AccountDrawer({ id, onClose, onChanged }) {
                 </div>
               )}
 
-              {/* usage */}
+              {/* usage — what the customer sees: videos / images this month */}
               <section className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
                 {[
-                  ['AI this month', fmtCredits(w.ai_month)],
-                  ['Credits left', fmtCredits(bal?.available)],
+                  ['Videos this month', u ? `${u.videos.used} of ${u.videos.limit}` : '—'],
+                  ['Images this month', u ? `${u.images.used} of ${u.images.limit}` : '—'],
                   ['Posts 30d', w.posts_30d],
                   ['Last active', ago(w.last_active)],
                 ].map(([label, value]) => (
@@ -857,60 +1025,65 @@ function AccountDrawer({ id, onClose, onChanged }) {
                 ))}
               </section>
 
-              {/* plan + credit */}
-              <Section title="Plan & AI credit">
-                <div className="flex items-center gap-3">
-                  <div className="flex-1">
-                    <Select
-                      value={w.plan}
-                      onChange={(plan) => act('plan', 'POST', `/workspaces/${id}/plan`, { plan }, 'Plan changed')}
-                      options={PLAN_OPTIONS}
-                      buttonClassName="w-full"
-                    />
-                  </div>
-                </div>
-                {bal && (
-                  <div className="mt-3">
-                    <div className="flex justify-between text-[11.5px] text-ink-500">
-                      <span>
-                        {both(used)} used of {fmtCredits(total)} this month
-                      </span>
-                      <span>resets {day(bal.resets_at)}</span>
-                    </div>
-                    <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-ink-100">
-                      <div className="h-full rounded-full bg-brand" style={{ width: `${Math.min(100, (used / total) * 100)}%` }} />
-                    </div>
+              {/* plan + this month's videos / images, and extra ones the team gives */}
+              <Section title="Plan & this month">
+                <Select
+                  value={w.plan}
+                  onChange={(plan) => act('plan', 'POST', `/workspaces/${id}/plan`, { plan }, 'Plan changed')}
+                  options={PLAN_OPTIONS}
+                  buttonClassName="w-full"
+                />
+                {u && (
+                  <div className="mt-3 space-y-2.5">
+                    {[
+                      ['Videos', u.videos],
+                      ['Images', u.images],
+                    ].map(([label, c]) => (
+                      <div key={label}>
+                        <div className="flex justify-between text-[11.5px] text-ink-500">
+                          <span>
+                            <b className="text-ink-800">{label}</b> · {c.used} made of {c.limit}
+                            {c.extra ? ` (${c.extra} extra this month)` : ''}
+                          </span>
+                          <span className="font-semibold text-ink-700">{c.left} left</span>
+                        </div>
+                        <div className="mt-1 h-2 overflow-hidden rounded-full bg-ink-100">
+                          <div className={`h-full rounded-full ${c.left ? 'bg-brand' : 'bg-red-500'}`} style={{ width: `${c.limit ? Math.min(100, (c.used / c.limit) * 100) : 100}%` }} />
+                        </div>
+                      </div>
+                    ))}
+                    <p className="text-[11px] text-ink-400">
+                      Videos up to {lengthText(u.longest_seconds)} · refills {day(u.refills_at)}
+                    </p>
                   </div>
                 )}
-                <form
-                  className="mt-3 flex flex-wrap items-center gap-2"
-                  onSubmit={(e) => {
-                    e.preventDefault()
-                    const n = Number(amount) / CREDITS_PER_USD // typed in credits; the ledger keeps dollars
-                    if (n > 0)
-                      act('credit', 'POST', `/workspaces/${id}/credit`, { amount_usd: n, note: creditNote }, `Added ${both(n)} for this month`).then(() => {
-                        setAmount('')
-                        setCreditNote('')
-                      })
-                  }}
-                >
-                  <input
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value.replace(/[^\d]/g, ''))}
-                    inputMode="numeric"
-                    placeholder="Credits"
-                    className={`${input} w-28 py-2`}
-                    aria-label="Credits to add"
-                  />
-                  <input value={creditNote} onChange={(e) => setCreditNote(e.target.value)} maxLength={200} placeholder="Note (optional)" className={`${input} min-w-0 flex-1 py-2`} />
-                  <button type="submit" disabled={!(Number(amount) > 0) || busy === 'credit'} className="btn-primary py-2">
-                    <FiPlus size={14} /> Add credit
+                <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-ink-100 px-3.5 py-3">
+                  <div className="min-w-0">
+                    <div className="text-[13px] font-semibold text-ink-900">Give extra videos &amp; images</div>
+                    <div className="text-[11.5px] text-ink-500">Free, on top of the plan — for this month only.</div>
+                  </div>
+                  <button type="button" onClick={() => setGiving(true)} className="btn-primary flex-none py-2">
+                    <FiPlus size={14} /> Give extra
                   </button>
-                </form>
-                <p className="mt-1.5 text-[11px] text-ink-400">
-                  Extra credits count for this month, like the plan’s own. {Number(amount) > 0 && `${Number(amount).toLocaleString('en-US')} credits = ${money(Number(amount) / CREDITS_PER_USD)} of AI.`}
-                </p>
+                </div>
               </Section>
+
+              {giving && (
+                <GiveExtra
+                  name={w.name}
+                  busy={busy === 'extra'}
+                  onClose={() => busy !== 'extra' && setGiving(false)}
+                  onGive={(videos, images, why) =>
+                    act(
+                      'extra',
+                      'POST',
+                      `/workspaces/${id}/extra`,
+                      { videos, images, note: why },
+                      `Gave ${[videos && `${videos} video${videos === 1 ? '' : 's'}`, images && `${images} image${images === 1 ? '' : 's'}`].filter(Boolean).join(' and ')} for this month`,
+                    ).then(() => setGiving(false))
+                  }
+                />
+              )}
 
               {/* members */}
               <Section title={`Users (${w.member_list.length})`}>
@@ -995,7 +1168,8 @@ function AccountDrawer({ id, onClose, onChanged }) {
                 <AccountAiSection id={id} api={adminApi} />
               </Section>
 
-              <Section title="AI credit activity">
+              {/* the ledger behind the counts: AI cost in dollars (team only), gifts as the videos / images they gave */}
+              <Section title="AI activity">
                 {w.credit.length === 0 ? (
                   <p className="text-[12.5px] text-ink-400">No AI used yet.</p>
                 ) : (
@@ -1004,8 +1178,9 @@ function AccountDrawer({ id, onClose, onChanged }) {
                       <li key={n} className="flex items-center gap-3">
                         <span className="min-w-0 flex-1 truncate text-ink-700">{c.note || c.kind}</span>
                         <span className={`flex-none font-semibold tabular-nums ${c.amount > 0 ? 'text-emerald-700' : 'text-ink-800'}`}>
-                          {c.amount > 0 ? '+' : '−'}
-                          {money(Math.abs(c.amount))}
+                          {c.videos || c.images
+                            ? `+${[c.videos && `${c.videos} video${c.videos === 1 ? '' : 's'}`, c.images && `${c.images} image${c.images === 1 ? '' : 's'}`].filter(Boolean).join(', ')}`
+                            : `${c.amount > 0 ? '+' : '−'}${money(Math.abs(c.amount))}`}
                         </span>
                         <span className="w-20 flex-none text-right text-ink-400">{ago(c.at)}</span>
                       </li>

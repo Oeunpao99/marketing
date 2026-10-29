@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { FiCheck, FiRefreshCw } from 'react-icons/fi'
 import ModelLogo from '../../components/ui/ModelLogo'
+import { AccountBars, ModelDonut, SpendLine } from './AdminCharts'
 
 // Admin portal → AI usage (backend app/admin.py /ai/*): every writing model's
 // price per 1M tokens, markup and on/off; what each model and each tenant used
@@ -74,6 +75,26 @@ export default function AiUsage({ api, onOpen }) {
           </div>
         ))}
       </div>
+
+      {/* the charts: over time, by model, by account — the tables below have every number */}
+      {u && (
+        <>
+          <section className={`${card} px-5 py-4`}>
+            <h2 className="mb-3 text-[13.5px] font-semibold text-ink-900">Per day, by model</h2>
+            <SpendLine daily={u.daily || []} keys={u.models.map((m) => m.model)} label={label} />
+          </section>
+          <div className="grid gap-6 lg:grid-cols-2">
+            <section className={`${card} px-5 py-4`}>
+              <h2 className="mb-3 text-[13.5px] font-semibold text-ink-900">Share by model</h2>
+              <ModelDonut models={u.models} label={label} />
+            </section>
+            <section className={`${card} px-5 py-4`}>
+              <h2 className="mb-3 text-[13.5px] font-semibold text-ink-900">Top accounts</h2>
+              <AccountBars tenants={u.tenants} onOpen={onOpen} />
+            </section>
+          </div>
+        </>
+      )}
 
       {/* by model */}
       <section className={card}>

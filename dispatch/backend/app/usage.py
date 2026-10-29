@@ -21,9 +21,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app import billing
+from app import billing, plan_features
 from app.database import get_db
-from app.models import GenerationJob, Payment, PlanLimit, Workspace
+from app.models import CreditEntry, GenerationJob, Payment, PlanLimit, Workspace
 from app.tenancy import current_workspace_id
 
 VIDEO_KINDS = ("motion", "video", "scene")
@@ -61,7 +61,8 @@ def limits(db: Session, plan: str) -> dict:
 
 
 def extra(db: Session, ws: int) -> tuple[int, int]:
-    """(videos, images) the packs paid this month add."""
+    """(videos, images) the packs paid this month add — and what the team gave this month
+    (the admin portal's grants)."""
     v, i = db.execute(
         select(func.coalesce(func.sum(Payment.videos), 0), func.coalesce(func.sum(Payment.images), 0)).where(
             Payment.workspace_id == ws,
@@ -70,7 +71,14 @@ def extra(db: Session, ws: int) -> tuple[int, int]:
             Payment.paid_at >= billing.month_start(),
         )
     ).one()
-    return int(v or 0), int(i or 0)
+    gv, gi = db.execute(
+        select(func.coalesce(func.sum(CreditEntry.videos), 0), func.coalesce(func.sum(CreditEntry.images), 0)).where(
+            CreditEntry.workspace_id == ws,
+            CreditEntry.kind == "grant",
+            CreditEntry.created_at >= billing.month_start(),
+        )
+    ).one()
+    return int(v or 0) + int(gv or 0), int(i or 0) + int(gi or 0)
 
 
 def _month(db: Session, ws: int, plan: str) -> dict:
@@ -136,6 +144,8 @@ def summary(db: Session, ws: int) -> dict:
         "images": {"used": i, "limit": lim["images"], "left": max(0, lim["images"] - i), "extra": lim["extra_images"]},
         "longest_seconds": lim["longest"],
         "refills_at": when.isoformat(),
+        # what else the plan unlocks (app/plan_features.py) — the app locks what isn't in it
+        "features": plan_features.features(db, ws),
     }
 
 

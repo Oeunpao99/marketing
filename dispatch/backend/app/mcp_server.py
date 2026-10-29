@@ -23,7 +23,7 @@ from fastapi.responses import JSONResponse, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import billing, usage
+from app import billing, plan_features, usage
 from app.api_keys import resolve_key
 from app.config import get_settings
 from app.database import get_db
@@ -380,6 +380,11 @@ async def _serve(request: Request, key: str, db: Session):
     if found is None:
         return _unauthorized()
     user, key_row = found
+    if not plan_features.allows(db, user.workspace_id, "api"):  # Business and up (a key kept after a downgrade)
+        return JSONResponse(
+            _error(None, -32003, "API & MCP is on the Business plan and up — upgrade on the Plans page to use this key again."),
+            status_code=402,
+        )
     now = time.time()
     seen = _calls[user.id]
     while seen and now - seen[0] > 60:

@@ -371,6 +371,8 @@ def _workspace(db: Session, ws_id: int) -> Workspace:
 
 @router.get("/workspaces/{ws_id}", dependencies=[Depends(require_admin)])
 def admin_workspace(ws_id: int, db: Session = Depends(get_db)):
+    from app import usage
+
     w = _workspace(db, ws_id)
     st = _stats(db)
     last_seen = dict(
@@ -397,6 +399,8 @@ def admin_workspace(ws_id: int, db: Session = Depends(get_db)):
     return {
         **_ws_row(w, owner, st),
         "balance": billing.balance(db, ws_id),
+        # what the customer sees: this month's videos / images, made and left (app/usage.py)
+        "usage": usage.summary(db, ws_id),
         "member_list": [
             {
                 "id": m.id,
@@ -418,7 +422,7 @@ def admin_workspace(ws_id: int, db: Session = Depends(get_db)):
             for b in brands
         ],
         "credit": [
-            {"at": c.created_at, "kind": c.kind, "amount": round(float(c.amount_usd), 4), "note": c.note}
+            {"at": c.created_at, "kind": c.kind, "amount": round(float(c.amount_usd), 4), "note": c.note, "videos": c.videos, "images": c.images}
             for c in credit
         ],
         "logins": [
@@ -475,6 +479,38 @@ def admin_add_credit(ws_id: int, payload: CreditIn, db: Session = Depends(get_db
     db.commit()
     log.warning("admin portal: +%.0f credits ($%.2f) to workspace %s", payload.amount_usd * billing.CREDITS_PER_USD, payload.amount_usd, ws_id)
     return billing.balance(db, ws_id)
+
+
+class ExtraIn(BaseModel):
+    videos: int = Field(default=0, ge=0, le=1000)
+    images: int = Field(default=0, ge=0, le=10000)
+    note: str = Field(default="", max_length=200)
+
+
+@router.post("/workspaces/{ws_id}/extra", dependencies=[Depends(require_admin)])
+def admin_add_extra(ws_id: int, payload: ExtraIn, db: Session = Depends(get_db)):
+    """Give extra videos / images for this month — what customers see — as a "grant" entry
+    carrying them (app/usage.py extra), with the hidden AI allowance behind them as its amount
+    (a video ~300 credits, an image ~20 — like a pack's). Lasts the month, like the plan's own."""
+    from app import usage
+
+    if not payload.videos and not payload.images:
+        raise HTTPException(422, "Give at least one video or image.")
+    _workspace(db, ws_id)
+    credits = max(10, payload.videos * 300 + payload.images * 20)
+    db.add(
+        CreditEntry(
+            workspace_id=ws_id,
+            kind="grant",
+            amount_usd=round(credits / billing.CREDITS_PER_USD, 4),
+            videos=payload.videos,
+            images=payload.images,
+            note=(payload.note.strip() or "Added by Marketing ឆ្លាតវៃ")[:300],
+        )
+    )
+    db.commit()
+    log.warning("admin portal: +%d videos, +%d images to workspace %s", payload.videos, payload.images, ws_id)
+    return usage.summary(db, ws_id)
 
 
 class PlanIn(BaseModel):
@@ -589,7 +625,34 @@ def admin_ai_usage(days: int = 30, db: Session = Depends(get_db)):
         "days": days,
         "tenants": sorted(tenants.values(), key=lambda t: -t["charged"]),
         "models": sorted(by_model.values(), key=lambda m: -m["charged"]),
+        "daily": _ai_daily(db, since),
     }
+
+
+def _ai_daily(db: Session, since: datetime) -> list[dict]:
+    """Every day since ``since`` (UTC, quiet days too): each model's calls, our cost and what
+    was charged — the AI usage page's line chart. [{"day": "2026-10-29", "models": {key: {...}}}]"""
+    from app import ai_models
+
+    day = func.date(CreditEntry.created_at)
+    q = (
+        select(day, CreditEntry.model, func.count(), func.coalesce(func.sum(CreditEntry.cost_usd), 0), func.coalesce(-func.sum(CreditEntry.amount_usd), 0))
+        .where(CreditEntry.kind == "text", CreditEntry.created_at >= since)
+        .group_by(day, CreditEntry.model)
+    )
+    found: dict[str, dict] = {}
+    for d, model, n, cost, charged in db.execute(q).all():
+        key = ai_models.canonical(model or "")
+        m = found.setdefault(str(d)[:10], {}).setdefault(key, {"calls": 0, "cost": 0.0, "charged": 0.0})
+        m["calls"] += n
+        m["cost"] = round(m["cost"] + float(cost), 4)
+        m["charged"] = round(m["charged"] + float(charged), 4)
+    first, last = since.date(), datetime.now(UTC).date()
+    out = []
+    while first <= last:
+        out.append({"day": first.isoformat(), "models": found.get(first.isoformat(), {})})
+        first += timedelta(days=1)
+    return out
 
 
 @router.get("/workspaces/{ws_id}/ai", dependencies=[Depends(require_admin)])
