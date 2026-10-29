@@ -120,8 +120,49 @@
         pointer-events: none;
       }
       #splash.cf-hide .sp-head,
-      #splash.cf-hide .sp-flow {
+      #splash.cf-hide .sp-flow,
+      #splash.cf-hide .sp-load {
         animation: sp-out 0.4s ease forwards;
+      }
+
+      /* our robot (public/brand/avatar), popping in and floating; the name big under it;
+         a slim bar that fills in the 3 seconds the screen shows (src/lib/splash.js) */
+      .sp-bot {
+        width: 150px;
+        height: 150px;
+        object-fit: contain;
+        filter: drop-shadow(0 16px 26px rgba(16, 24, 40, 0.18));
+        animation: sp-pop 0.7s cubic-bezier(0.2, 0.9, 0.25, 1.25) both, sp-float 3s ease-in-out 0.7s infinite;
+      }
+      .sp-name.sp-big {
+        margin-top: 18px;
+        font-size: 40px;
+        line-height: 1.1;
+        color: var(--sp-ink);
+      }
+      .sp-load {
+        position: relative;
+        z-index: 1;
+        width: 200px;
+        height: 4px;
+        margin-top: 34px;
+        overflow: hidden;
+        border-radius: 99px;
+        background: var(--sp-line);
+      }
+      .sp-load i {
+        display: block;
+        width: 0;
+        height: 100%;
+        border-radius: 99px;
+        background: var(--sp-accent);
+        animation: sp-bar 2.6s cubic-bezier(0.4, 0, 0.2, 1) 0.2s forwards;
+      }
+      @keyframes sp-bar { to { width: 100%; } }
+      @keyframes sp-float { 50% { transform: translateY(-8px); } }
+      @media (max-width: 480px) {
+        .sp-name.sp-big { font-size: 32px; }
+        .sp-bot { width: 124px; height: 124px; }
       }
 
       /* the logo: pops in, a dashed ring turning round it */
@@ -520,7 +561,7 @@
     </style>
   </head>
   <body>
-    <div id="splash" role="status" aria-label="Loading Marketing ឆ្លាតវៃ">
+    <div id="splash" role="status" aria-label="Loading Smart Marketing">
       <script>window.__splashAt = performance.now()</script>
       <div class="sp-feed" aria-hidden="true">
         <div class="sp-col sp-col-l"><div class="sp-track"></div></div>
@@ -543,33 +584,11 @@
         })();
       </script>
       <div class="sp-head">
-        <div class="sp-mark"><img src="/brand/logo-mark.png" alt="" /></div>
-        <div class="sp-name">Marketing <span>ឆ្លាតវៃ</span></div>
+        <img class="sp-bot" src="/brand/avatar/avatar.webp" alt="" />
+        <div class="sp-name sp-big">Smart Marketing</div>
         <div class="sp-tag">Your AI marketing team — you just approve</div>
       </div>
-      <ol class="sp-flow">
-        <li class="sp-step" style="--i: 0">
-          <div class="sp-dot"><svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4" /></svg></div>
-          <div class="sp-label">Connect your pages<div class="sp-apps"><i></i><i></i><i></i><i></i><i></i></div></div>
-        </li>
-        <li class="sp-step" style="--i: 1">
-          <div class="sp-dot"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01" /></svg><span class="sp-ai">AI</span></div>
-          <div class="sp-label">Plans your week</div>
-        </li>
-        <li class="sp-step" style="--i: 2">
-          <div class="sp-dot"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21" /></svg><span class="sp-ai">AI</span></div>
-          <div class="sp-label">Designs the posts</div>
-        </li>
-        <li class="sp-step" style="--i: 3">
-          <div class="sp-dot"><svg viewBox="0 0 24 24"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg><span class="sp-ai">AI</span></div>
-          <div class="sp-label">Writes the captions</div>
-        </li>
-        <li class="sp-step" style="--i: 4">
-          <div class="sp-dot"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><path d="m9 12 2 2 4-4" /></svg></div>
-          <div class="sp-label">You approve ✓</div>
-        </li>
-        <span class="sp-shine"></span>
-      </ol>
+      <div class="sp-load" aria-hidden="true"><i></i></div>
     </div>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>

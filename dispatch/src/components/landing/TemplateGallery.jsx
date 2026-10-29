@@ -5,7 +5,7 @@ import { previewSrc } from '../../lib/motionTemplates'
 
 // The website's template gallery — every template, newest first: the clips themselves (no
 // phone frame) in a masonry (tall 9:16 and wide 16:9, each its clip's own shape), playing while on screen. A row of category
-// buttons filters them; hover shows "Preview" and how many businesses use it now; a click
+// buttons filters them; hover shows "Preview" and how many videos were made with it; a click
 // opens a preview (the clip big, what it's for, its scenes) with "Use this template".
 
 const FOLDED = 1040 // px of the gallery shown before "See more templates"
@@ -63,7 +63,7 @@ function useCols() {
 
 function UsedBy({ n, fresh, t, num }) {
   return n > 0
-    ? t(`${n} business${n === 1 ? '' : 'es'} use it`, `អាជីវកម្ម ${num(n)} កំពុងប្រើ`)
+    ? t(`${n.toLocaleString('en-US')} video${n === 1 ? '' : 's'} made`, `វីដេអូ ${num(n)} ត្រូវបានធ្វើ`)
     : fresh
       ? t('Just released — be the first', 'ទើបចេញ — ក្លាយជាអ្នកដំបូង')
       : t('Ready to use', 'ត្រៀមប្រើ')
@@ -140,7 +140,7 @@ function Preview({ list, at, setAt, usedBy, isNew, t, num, onUse }) {
   )
 }
 
-/** ``items``: every template, in the order to show · ``usedBy(id)`` → businesses ·
+/** ``items``: every template, in the order to show · ``usedBy(id)`` → videos made with it ·
  *  ``isNew(item)`` · ``t`` the page's i18n · ``num`` a number in the page's digits. */
 export default function TemplateGallery({ items, usedBy, isNew, t, num = String, onStart }) {
   const [cat, setCat] = useState('all')
@@ -150,7 +150,7 @@ export default function TemplateGallery({ items, usedBy, isNew, t, num = String,
   const ids = CATEGORIES.find(([k]) => k === cat)?.[2]
   const shown = ids ? items.filter((tp) => ids.includes(tp.id)) : items
   const cols = useCols()
-  // "Most used": the 3 templates the most businesses have made a video with (real counts, none with 0)
+  // "Most used": the 3 templates with the most videos made (real counts, none with 0)
   const top3 = new Set(
     [...items]
       .filter((tp) => usedBy(tp.id) > 0)

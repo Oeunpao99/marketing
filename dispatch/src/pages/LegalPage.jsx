@@ -7,7 +7,7 @@ import { useEffect } from 'react'
 
 const UPDATED = '28 October 2026'
 const COMPANY = 'Proseth Solutions Co., Ltd'
-const CONTACT = 'opao@prosethsolutions.com'
+const CONTACT = 'info@prosethsolutions.com'
 const SITE = 'https://mkt.chlart.org'
 
 const mail = <a href={`mailto:${CONTACT}`}>{CONTACT}</a>

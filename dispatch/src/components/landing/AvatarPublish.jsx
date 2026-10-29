@@ -20,12 +20,12 @@ const STEPS = [
   ['Done', 'រួចរាល់'],
 ]
 const PAGES = [
-  { Icon: SiFacebook, color: '#1877F2', name: 'Facebook', x: -236, y: -96 },
-  { Icon: SiTiktok, color: '#111827', name: 'TikTok', x: -206, y: -160 },
-  { Icon: SiYoutube, color: '#FF0000', name: 'YouTube', x: -148, y: -212 },
-  { Icon: SiInstagram, color: '#E4405F', name: 'Instagram', x: -76, y: -238 },
-  { Icon: SiTelegram, color: '#229ED9', name: 'Telegram', x: 4, y: -244 },
-  { Icon: FaLinkedin, color: '#0A66C2', name: 'LinkedIn', x: 74, y: -206 },
+  { Icon: SiFacebook, color: '#1877F2', name: 'Facebook', x: -232, y: -40 },
+  { Icon: SiTiktok, color: '#111827', name: 'TikTok', x: -204, y: -108 },
+  { Icon: SiYoutube, color: '#FF0000', name: 'YouTube', x: -150, y: -158 },
+  { Icon: SiInstagram, color: '#E4405F', name: 'Instagram', x: -80, y: -186 },
+  { Icon: SiTelegram, color: '#229ED9', name: 'Telegram', x: -2, y: -194 },
+  { Icon: FaLinkedin, color: '#0A66C2', name: 'LinkedIn', x: 70, y: -168 },
 ]
 const DAYS = [['Mon', 'ច'], ['Tue', 'អ'], ['Wed', 'ពុ'], ['Thu', 'ព្រ'], ['Fri', 'សុ'], ['Sat', 'ស'], ['Sun', 'អា']]
 const KINDS = ['video', 'image', 'video', 'text', 'video', 'image', 'video']
@@ -66,7 +66,7 @@ export default function AvatarPublish({ t }) {
   ]
 
   return (
-    <div className="relative mx-auto mt-10 max-w-6xl overflow-hidden rounded-3xl bg-white p-6 shadow-card sm:p-10">
+    <div className="relative mx-auto mt-10 max-w-6xl rounded-3xl bg-white p-6 shadow-card sm:p-10">
       <div className="grid items-center gap-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         <div>
           <div className="text-[12px] font-bold uppercase tracking-[0.14em] text-brand">{t('From your brand to real results', 'ពីម៉ាករបស់បង ដល់លទ្ធផលពិត')}</div>

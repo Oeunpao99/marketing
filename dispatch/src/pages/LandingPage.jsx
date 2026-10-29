@@ -209,7 +209,8 @@ const isNew = (tp) => !!tp?.added && Date.now() - Date.parse(tp.added) < NEW_DAY
 // a template's id → the style its videos are recorded under (app/motion.py STYLES)
 const STYLE_OF = { sell: 'tech', teach: 'explainer', stickman: 'picture' }
 
-/** How many businesses made a video with each template (GET /api/public/template-usage). */
+/** How many videos were made with each template (GET /api/public/template-usage) — not businesses:
+ * one business can make many (the owner, 2026-10-29). */
 function useTemplateUsage() {
   const [use, setUse] = useState({})
   useEffect(() => {
@@ -222,7 +223,7 @@ function useTemplateUsage() {
       live = false
     }
   }, [])
-  return (id) => use[STYLE_OF[id] || id]?.businesses || 0
+  return (id) => use[STYLE_OF[id] || id]?.videos || 0
 }
 
 /** A phone playing one of our template preview clips (public/templates/<id>.mp4). */
