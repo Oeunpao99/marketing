@@ -92,15 +92,20 @@ const PLATFORM_META = {
   },
 };
 
-export default function AddChannelPage() {
+export default function AddChannelPage({ embedded = false, initial = null, onClose = null }) {
   const logos = useBrandLogos();
   const { brands, channels, setChannels, refreshChannels, showToast } = useStore();
   const location = useLocation();
   const navigate = useNavigate();
+  // ``embedded``: inside the Channels page's panel (ConnectPanel) — its close (×) ends the flow,
+  // not a trip back to /channels. Sign-ins that leave the app (Facebook, TikTok…) still come back
+  // to this page's own route.
+  const close = embedded && onClose ? onClose : () => navigate("/channels");
+  const pad = embedded ? "px-6 py-6" : "px-5 lg:px-10 py-8 lg:py-10";
 
   const [selectedPlatform, setSelectedPlatform] = useState(null);
   const [selectedBrand, setSelectedBrand] = useState(
-    location.state?.brandSlug || null,
+    (initial || location.state)?.brandSlug || null,
   );
   const [step, setStep] = useState("pick"); // pick | connect | credentials | success
   const [creds, setCreds] = useState({});
@@ -307,7 +312,7 @@ export default function AddChannelPage() {
   // Deep link from a specific row's "Connect" button on the Channels page
   // (brand + platform already known) — skip straight past both picker steps.
   useEffect(() => {
-    const { brandSlug, platformSlug } = location.state || {};
+    const { brandSlug, platformSlug } = initial || location.state || {};
     if (!brandSlug || !platformSlug) return;
     const platformMeta = PLATFORM_META[platformSlug];
     if (!platformMeta) return;
@@ -364,7 +369,7 @@ export default function AddChannelPage() {
           : `${n} accounts connected for ${pending.brand_name}`,
       );
       await refreshChannels();
-      navigate("/channels");
+      close();
     } catch (e) {
       setError(e.message);
       setBusy(false);
@@ -374,7 +379,7 @@ export default function AddChannelPage() {
   /* ═══════════ SUCCESS ═══════════ */
   if (step === "success") {
     return (
-      <div className="w-full px-5 lg:px-10 py-8 lg:py-10 animate-fadein">
+      <div className={`w-full ${pad} animate-fadein`}>
         <div className="max-w-lg mx-auto text-center py-16">
           <div className="w-16 h-16 rounded-2xl gradient-brand flex items-center justify-center mx-auto mb-4 shadow-glow-lg">
             <span className="text-2xl text-white">✓</span>
@@ -416,10 +421,10 @@ export default function AddChannelPage() {
               Add another
             </button>
             <button
-              onClick={() => navigate("/channels")}
+              onClick={() => close()}
               className="btn-primary"
             >
-              Back to Channels
+              {embedded ? "Done" : "Back to Channels"}
             </button>
           </div>
         </div>
@@ -430,7 +435,7 @@ export default function AddChannelPage() {
   /* ═══════════ PICK A PAGE (Facebook/Instagram) ═══════════ */
   if (step === "meta-pages") {
     return (
-      <div className="w-full px-5 lg:px-10 py-8 lg:py-10 animate-fadein">
+      <div className={`w-full ${pad} animate-fadein`}>
         <button
           onClick={resetFlow}
           className="text-sm text-ink-500 hover:text-ink-700 mb-4 transition-all duration-150"
@@ -523,7 +528,7 @@ export default function AddChannelPage() {
   if (step === "credentials" && meta?.fields) {
     const brand = brands.find((b) => b.slug === selectedBrand);
     return (
-      <div className="w-full px-5 lg:px-10 py-8 lg:py-10 animate-fadein">
+      <div className={`w-full ${pad} animate-fadein`}>
         <button
           onClick={() => {
             setStep("connect");
@@ -605,7 +610,7 @@ export default function AddChannelPage() {
       channels.some((c) => c.b === brandId && c.p === selectedPlatform && c.s === "live");
 
     return (
-      <div className="w-full px-5 lg:px-10 py-8 lg:py-10 animate-fadein">
+      <div className={`w-full ${pad} animate-fadein`}>
         <button
           onClick={() => setStep("pick")}
           className="text-sm text-ink-500 hover:text-ink-700 mb-4 transition-all duration-150"
@@ -704,7 +709,7 @@ export default function AddChannelPage() {
   };
 
   return (
-    <div className="w-full px-5 lg:px-8 py-7 animate-fadein">
+    <div className={`w-full ${pad} animate-fadein`}>
       <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-[24px] font-bold text-ink-900 tracking-tight leading-tight">Add a platform</h1>
@@ -722,12 +727,14 @@ export default function AddChannelPage() {
             )}
           </p>
         </div>
-        <button type="button" onClick={() => navigate("/channels")} className="btn-outline">
-          Back to Platforms
-        </button>
+        {!embedded && (
+          <button type="button" onClick={close} className="btn-outline">
+            Back to Platforms
+          </button>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <div className={`grid grid-cols-1 gap-4 ${embedded ? "sm:grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-3"}`}>
         {Object.entries(PLATFORM_META).map(([id, m]) => {
           // Only channels that are actually connected — every brand has an
           // "off" placeholder row per platform, which isn't a connection.

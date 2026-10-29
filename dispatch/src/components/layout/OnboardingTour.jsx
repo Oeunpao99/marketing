@@ -6,6 +6,7 @@ import LiveAvatar from '../ui/LiveAvatar'
 import { lengthText, useUsage } from '../../lib/usage'
 import { markTourSeen, shouldAutoStart, tourStepsFor } from '../../lib/tour'
 import { helloOpen } from '../../lib/hello'
+import { SETUP_SETTLED, setupSettled } from '../setup/SetupWizard'
 import { rectOf, viewH, viewW } from '../../lib/zoom'
 
 // The spotlight: a full-screen dim with a rounded hole cut over one piece of
@@ -103,6 +104,13 @@ export default function OnboardingTour() {
   useEffect(() => {
     if (started.current || !shouldAutoStart(user)) return
     started.current = true
+    // the setup window (SetupWizard) first: the tour once it has closed, or decided not to open
+    if (!setupSettled()) {
+      const go = () => setTimeout(() => show(0), 400)
+      const after = () => (helloOpen() ? window.addEventListener('dispatch:hello-done', go, { once: true }) : go())
+      window.addEventListener(SETUP_SETTLED, after, { once: true })
+      return () => window.removeEventListener(SETUP_SETTLED, after)
+    }
     // just signed up: the hello comes first, the tour when it closes
     if (helloOpen()) {
       const after = () => setTimeout(() => show(0), 350)

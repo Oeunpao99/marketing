@@ -8,6 +8,7 @@ import AIAssistant from '../ai/AIAssistant'
 import CreateBrandDrawer from './CreateBrandDrawer'
 import AppUpdate from './AppUpdate'
 import OnboardingTour from './OnboardingTour'
+import SetupWizard from '../setup/SetupWizard'
 import WelcomeHello from './WelcomeHello'
 import NewTemplates from './NewTemplates'
 import NewFeature from './NewFeature'
@@ -180,6 +181,7 @@ export default function Shell({ children }) {
       <CreateBrandDrawer />
       <AppUpdate />
       <WelcomeHello />
+      <SetupWizard />
       <OnboardingTour />
       <NewTemplates />
       <NewFeature />

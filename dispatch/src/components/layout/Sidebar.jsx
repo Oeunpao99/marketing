@@ -20,7 +20,7 @@ import { BOSS, onPath } from "../../lib/nav";
 import { kitSrc } from "../brandkit/BrandKit";
 
 /** A brand's badge: its own logo (Brand kit) on a white tile, else its first letter in its colour. */
-function BrandBadge({ brand, className = "", tone }) {
+export function BrandBadge({ brand, className = "", tone }) {
   const [broken, setBroken] = useState(false);
   useEffect(() => setBroken(false), [brand?.logoUrl]);
   if (brand?.logoUrl && !broken) {

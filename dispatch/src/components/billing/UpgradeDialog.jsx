@@ -122,6 +122,8 @@ export default function UpgradeDialog({ open: shown, onClose, onPaid, page = fal
   }, [open])
 
   // /upgrade#top-up ("Get more videos"): straight to the packs once they're on the page
+  // (no packs on sale: to a line over the plans that says a bigger plan is the way to more)
+  const wantsTopUp = typeof window !== 'undefined' && window.location.hash === '#top-up'
   useEffect(() => {
     if (page && info && window.location.hash === '#top-up') document.getElementById('top-up')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [page, info])
@@ -303,6 +305,12 @@ export default function UpgradeDialog({ open: shown, onClose, onPaid, page = fal
                   <p className="mt-3 text-[12px] text-ink-500">
                     Your <b>{info.plans.find((p) => p.plan === info.current)?.label || ''}</b> plan is paid until <b>{day(info.paid_until)}</b>. Renewing it adds a month to that; a different plan starts today.
                   </p>
+                )}
+                {/* "Get more videos" with no packs on sale (none set in the admin portal): the way to more is a bigger plan — say so, here */}
+                {page && !info.packs?.length && wantsTopUp && (
+                  <div id="top-up" className="mt-4 scroll-mt-6 rounded-2xl border border-brand-line bg-brand-soft px-4 py-3 text-[13px] text-ink-700">
+                    <b className="text-ink-900">Need more videos or images?</b> Choose a bigger plan below — it starts today, with its full month of videos and images.
+                  </div>
                 )}
                 {/* the plans as on the website (lib/plans.js): price, what's in it, Choose */}
                 <div className={`grid gap-4 md:grid-cols-3 ${page ? 'mt-8 md:items-center' : 'mt-5'}`}>
