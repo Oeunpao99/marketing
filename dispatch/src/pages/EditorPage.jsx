@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Player } from '@remotion/player'
-import { FiArrowLeft, FiCheck, FiDownload, FiFilm, FiMaximize, FiMoon, FiPause, FiPlay, FiPlus, FiSend, FiSkipBack, FiSun, FiTrash2, FiUpload, FiX } from 'react-icons/fi'
+import { FiArrowLeft, FiCheck, FiDownload, FiFilm, FiMaximize, FiPause, FiPlay, FiPlus, FiSend, FiSkipBack, FiTrash2, FiUpload, FiX } from 'react-icons/fi'
 import { api } from '../api/client'
 import { Timeline, EDIT_SIZES } from '../../motion/src/timeline'
 import MediaPanel, { DRAG_TYPE } from '../components/editor/MediaPanel'
@@ -345,23 +345,15 @@ function Workspace({ id }) {
   // the export window: null (closed) · 'setup' · 'running' · 'done'; Keep editing closes it while
   // the export carries on (the top bar shows its progress), and it opens again when it's done
   const [exportStep, setExportStep] = useState(null)
-  // CapCut's dark studio (index.css .studio) — the sun / moon in the top bar switches it
-  const [studio, setStudio] = useState(() => {
-    try {
-      return localStorage.getItem('cf_editor_light') !== '1'
-    } catch {
-      return true
-    }
-  })
-  const toggleStudio = () =>
-    setStudio((on) => {
-      try {
-        localStorage.setItem('cf_editor_light', on ? '1' : '0')
-      } catch {
-        /* not remembered — fine */
-      }
-      return !on
-    })
+  // CapCut's dark studio (index.css .studio) follows the app's own theme (the top bar's
+  // moon) — one switch for the whole app, not a second one here
+  const isDark = () => document.documentElement.classList.contains('dark')
+  const [studio, setStudio] = useState(isDark)
+  useEffect(() => {
+    const watch = new MutationObserver(() => setStudio(isDark()))
+    watch.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+    return () => watch.disconnect()
+  }, [])
   const [, bump] = useState(0) // re-draw when undo / redo become (un)available
   const clock = useMemo(() => createClock(), [])
   const playerRef = useRef(null)
@@ -751,15 +743,6 @@ function Workspace({ id }) {
           {save === 'saved' && <FiCheck size={11} />} {saveLabel}
         </span>
         <div className="ml-auto flex items-center gap-2">
-          <button
-            type="button"
-            onClick={toggleStudio}
-            title={studio ? 'Light editor' : 'Dark studio'}
-            aria-label={studio ? 'Switch the editor to light' : 'Switch the editor to the dark studio'}
-            className="grid h-8 w-8 place-items-center rounded-lg text-ink-500 hover:bg-ink-100 hover:text-ink-900"
-          >
-            {studio ? <FiSun size={15} /> : <FiMoon size={15} />}
-          </button>
           {job ? (
             <>
               <button type="button" onClick={() => setExportStep('running')} title="Show the export" className="flex items-center gap-2 rounded-lg px-2 py-1 text-[12px] text-ink-600 hover:bg-ink-100">
