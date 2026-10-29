@@ -4,7 +4,7 @@ Two providers, picked by SPEECH_PROVIDER (blank = Azure Speech when set up,
 else Azure OpenAI):
 
 - "azure": Azure Speech neural voices — Khmer Sreymom / Piseth (made for Khmer;
-  the user preferred them by ear on 2026-10-13), English Ava / Andrew.
+  the user preferred them by ear on 2026-10-13), English Ava / Andrew HD.
 - "openai": Azure OpenAI gpt-4o-mini-tts — expressive, but speaks Khmer with a
   foreign accent. Voices TTS_VOICE_FEMALE / TTS_VOICE_MALE (coral / ash).
 
@@ -35,12 +35,23 @@ log = logging.getLogger("app.speech")
 VOICES = {
     ("km", "female"): "km-KH-SreymomNeural",
     ("km", "male"): "km-KH-PisethNeural",
-    ("en", "female"): "en-US-AvaNeural",
-    ("en", "male"): "en-US-AndrewNeural",
+    # English: Azure's HD voices — they read the feeling from the words (pauses, a lift on
+    # the big moment), where the standard Ava / Andrew read every line the same flat way
+    # (the user heard them side by side, 2026-10-29). Same SDK, same word timings.
+    ("en", "female"): "en-US-Ava:DragonHDLatestNeural",
+    ("en", "male"): "en-US-Andrew:DragonHDLatestNeural",
+}
+# An HD voice that fails (a region without HD voices, an outage): its standard voice reads
+HD_FALLBACK = {
+    "en-US-Ava:DragonHDLatestNeural": "en-US-AvaNeural",
+    "en-US-Andrew:DragonHDLatestNeural": "en-US-AndrewNeural",
+    "en-US-Emma:DragonHDLatestNeural": "en-US-EmmaNeural",
+    "en-US-Brian:DragonHDLatestNeural": "en-US-BrianNeural",
 }
 # Pay-as-you-go estimates per character spoken: Azure Speech neural voices
-# ~$15 / 1M; gpt-4o-mini-tts ~$0.015 per minute of audio ≈ $15 / 1M too.
+# ~$15 / 1M (HD voices ~$30 / 1M); gpt-4o-mini-tts ~$0.015 per minute of audio ≈ $15 / 1M too.
 PRICE_PER_CHAR = 15 / 1_000_000
+PRICE_PER_CHAR_HD = 30 / 1_000_000
 
 # How gpt-4o-mini-tts should sound, per language.
 HOW = {
@@ -173,7 +184,12 @@ def backup_for(voice: str) -> str | None:
 # (app/motion.py dialogue_voices). Azure's Khmer has one voice each — there the
 # two share it.
 GEMINI_OTHERS = {"female": ("Aoede", "Leda", "Kore"), "male": ("Puck", "Orus", "Charon")}
-AZURE_OTHERS = {"en-US-AvaNeural": "en-US-EmmaNeural", "en-US-AndrewNeural": "en-US-BrianNeural"}
+AZURE_OTHERS = {
+    "en-US-AvaNeural": "en-US-EmmaNeural",
+    "en-US-AndrewNeural": "en-US-BrianNeural",
+    "en-US-Ava:DragonHDLatestNeural": "en-US-Emma:DragonHDLatestNeural",
+    "en-US-Andrew:DragonHDLatestNeural": "en-US-Brian:DragonHDLatestNeural",
+}
 
 
 def other_voice(voice: str, gender: str) -> str | None:
@@ -348,7 +364,7 @@ def price_per_char(voice: str) -> float:
         return PRICE_PER_CHAR_KIRI
     if voice.startswith(GEMINI):
         return PRICE_PER_CHAR_KIRI if kiri_ready() else PRICE_PER_CHAR_GEMINI
-    return PRICE_PER_CHAR
+    return PRICE_PER_CHAR_HD if "DragonHD" in voice else PRICE_PER_CHAR
 
 
 def voice_for(language: str, gender: str, style: str | None = None) -> str | None:
@@ -449,6 +465,9 @@ def _speak_timed(text: str, voice: str) -> tuple[bytes, list[dict]]:
         return speak(text, voice), []
     if result.reason != sdk.ResultReason.SynthesizingAudioCompleted or not result.audio_data:
         details = getattr(result, "cancellation_details", None)
+        if voice in HD_FALLBACK:
+            log.warning("Azure HD voice %s failed (%s) — %s reads the line", voice, getattr(details, "error_details", "") or result.reason, HD_FALLBACK[voice])
+            return _speak_timed(text, HD_FALLBACK[voice])
         raise SpeechError(f"Azure Speech failed: {getattr(details, 'error_details', '') or result.reason}")
     words: list[dict] = []
     for ev in events:
@@ -817,5 +836,8 @@ def _azure(text: str, voice: str, rate: str = "0%") -> bytes:
     except httpx.HTTPError as exc:
         raise SpeechError(f"Could not reach Azure Speech: {exc}") from exc
     if resp.status_code != 200 or not resp.content:
+        if voice in HD_FALLBACK:
+            log.warning("Azure HD voice %s failed (%s) — %s reads the line", voice, resp.status_code, HD_FALLBACK[voice])
+            return _azure(text, HD_FALLBACK[voice], rate)
         raise SpeechError(f"Azure Speech said {resp.status_code}: {resp.text[:200]}")
     return resp.content
