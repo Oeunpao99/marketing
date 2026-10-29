@@ -24,22 +24,29 @@ const MOVES = [
 
 function Picture({ src, seed, page = false }) {
   const frame = useCurrentFrame()
-  const { durationInFrames } = useVideoConfig()
+  const { durationInFrames, width, height } = useVideoConfig()
+  // a wide stick-figure page keeps its top quarter for the title, the drawing fitted below it
+  const below = page && width > height ? '24%' : 0
   const [s0, s1, dx, dy] = MOVES[Math.floor(random(seed) * MOVES.length)]
   const t = interpolate(frame, [0, durationInFrames], [0, 1], { extrapolateRight: 'clamp' })
-  const scale = s0 + (s1 - s0) * t
+  // a stick-figure page: the whole drawing fits (painted 2:3, the video 9:16 — cover cut its sides),
+  // standing on the bottom of the white page, the camera only leaning in a little, from the bottom
+  const scale = page ? 1 + Math.min(0.05, Math.abs(s1 - s0) * 0.4) * t : s0 + (s1 - s0) * t
   return (
-    <AbsoluteFill style={{ overflow: 'hidden', backgroundColor: '#0d0f14' }}>
+    <AbsoluteFill style={{ overflow: 'hidden', backgroundColor: page ? '#FFFFFF' : '#0d0f14' }}>
       {src && (
         <Img
           src={srcOf(src)}
           style={{
+            position: 'absolute',
+            left: 0,
+            top: below,
             width: '100%',
-            height: '100%',
-            objectFit: 'cover',
-            transform: `scale(${scale}) translate(${dx * (t - 0.5)}%, ${(page ? 0 : dy) * (t - 0.5)}%)`,
-            // a stick-figure page grows from its top edge: the drawing never rises into the title
-            transformOrigin: page ? '50% 0%' : undefined,
+            height: below ? `calc(100% - ${below})` : '100%',
+            objectFit: page ? 'contain' : 'cover',
+            objectPosition: page ? '50% 100%' : undefined,
+            transform: page ? `scale(${scale})` : `scale(${scale}) translate(${dx * (t - 0.5)}%, ${dy * (t - 0.5)}%)`,
+            transformOrigin: page ? '50% 100%' : undefined,
           }}
         />
       )}
