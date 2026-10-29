@@ -85,7 +85,7 @@ export default function TutorialsPage() {
 
 /** The course: the player and the lesson list. Also the body of the public
  * /mkt-tutorial page (LandingPage page="tutorials", with the site's header and footer). */
-export function Course({ openLabel, onOpen }) {
+export function Course({ openLabel, onOpen, bare = false }) {
   useKhmerFont()
   const firstReady = TUTORIALS.find((l) => l.src) || TUTORIALS[0]
   const [pick, setPick] = useState(firstReady.id)
@@ -121,7 +121,8 @@ export function Course({ openLabel, onOpen }) {
   const soonList = TUTORIALS.filter((l) => !l.src)
 
   return (
-    <div className="w-full px-5 py-7 animate-fadein lg:px-8">
+    // ``bare``: no side padding — the public page sets the width (the header bar's)
+    <div className={`w-full py-7 animate-fadein ${bare ? '' : 'px-5 lg:px-8'}`}>
       {/* title + a slim progress bar */}
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>

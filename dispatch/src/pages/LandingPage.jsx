@@ -41,6 +41,7 @@ import { applyTheme, isDark } from '../lib/theme'
 import { FaLinkedin } from 'react-icons/fa'
 import { SiFacebook, SiInstagram, SiTelegram, SiTiktok, SiYoutube } from 'react-icons/si'
 import { MOTION_TEMPLATES, previewSrc } from '../lib/motionTemplates'
+import { NEW_DAYS } from '../lib/announce'
 import { Course } from './TutorialsPage'
 import Developers from './DevelopersPage'
 import { PhoneFrame, RENDER } from '../components/preview/SocialPreview'
@@ -48,6 +49,8 @@ import PlatformIcon, { PLAT_BRAND_CLASS } from '../components/ui/PlatformIcon'
 import LiveAvatar from '../components/ui/LiveAvatar'
 import { PLANS } from '../lib/plans'
 import SkyGuide from '../components/landing/SkyGuide'
+import AvatarPublish from '../components/landing/AvatarPublish'
+import TemplateGallery from '../components/landing/TemplateGallery'
 import { api, tokenStore } from '../api/client'
 
 // The public page at "/" for people who aren't signed in (search engines,
@@ -191,7 +194,36 @@ const CHANNELS = [
   { Icon: SiYoutube, name: 'YouTube', color: '#FF0000' },
 ]
 
-const SHOWCASE = ['studio', 'reaction', 'doodle', 'cartoon', 'lesson', 'rise', 'neural', 'countdown', 'tips', 'pov']
+// the strip: the 10 newest templates (their `added` date, lib/motionTemplates.js) — so a template
+// we just made is on the website the day it ships — then the long-time favourites
+const FAVOURITES = ['studio', 'reaction', 'doodle', 'cartoon', 'lesson', 'rise', 'neural', 'countdown', 'tips', 'pov']
+const SHOWCASE = [
+  ...MOTION_TEMPLATES.filter((x) => x.added)
+    .sort((a, b) => Date.parse(b.added) - Date.parse(a.added))
+    .slice(0, 10)
+    .map((x) => x.id),
+  ...FAVOURITES,
+  ...MOTION_TEMPLATES.map((x) => x.id),
+].filter((id, i, all) => all.indexOf(id) === i)
+const isNew = (tp) => !!tp?.added && Date.now() - Date.parse(tp.added) < NEW_DAYS * 86400000
+// a template's id → the style its videos are recorded under (app/motion.py STYLES)
+const STYLE_OF = { sell: 'tech', teach: 'explainer', stickman: 'picture' }
+
+/** How many businesses made a video with each template (GET /api/public/template-usage). */
+function useTemplateUsage() {
+  const [use, setUse] = useState({})
+  useEffect(() => {
+    let live = true
+    fetch('/api/public/template-usage')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => live && d?.templates && setUse(d.templates))
+      .catch(() => {})
+    return () => {
+      live = false
+    }
+  }, [])
+  return (id) => use[STYLE_OF[id] || id]?.businesses || 0
+}
 
 /** A phone playing one of our template preview clips (public/templates/<id>.mp4). */
 function Phone({ id, className = '', tilt = 0, label }) {
@@ -408,9 +440,10 @@ function Eyebrow({ children }) {
 }
 
 function SectionTitle({ eyebrow, title, khmer, sub }) {
-  // in Khmer the title already says it — the Khmer tagline under it is only for the English page
+  // the Khmer tagline under an English title is off (too much text — the owner, 2026-10-29);
+  // the Khmer page has its own titles. ``khmer`` stays on the sections, unused, to bring back.
   const en = useT().lang !== 'km'
-  if (!en) khmer = null
+  khmer = null
   return (
     <div className="mx-auto max-w-3xl text-center">
       {eyebrow && <Eyebrow>{eyebrow}</Eyebrow>}
@@ -535,12 +568,8 @@ function LiveEverywhere({ onStart }) {
       <GridBackdrop className="-z-10 opacity-60" />
       <SectionTitle
         eyebrow={t('Post everywhere', 'បង្ហោះគ្រប់កន្លែង')}
-        title={t('One click — your content is live on all your socials', 'ចុចម្តង — មាតិការបស់បង ចេញលើគ្រប់បណ្តាញសង្គម')}
-        khmer="ចុចម្តង ចេញគ្រប់ទំព័រ"
-        sub={t(
-          'Each platform gets the post the way it likes it — the right size, the caption cut where it should be. Here is one post on five of them.',
-          'វេទិកានីមួយៗទទួលបានប្រកាសតាមរបៀបដែលវាចូលចិត្ត — ទំហំត្រឹមត្រូវ ចំណងជើងកាត់ត្រង់កន្លែងគួរកាត់។ នេះជាប្រកាសមួយ លើវេទិកាប្រាំ។',
-        )}
+        title={t('One click — live on all your socials', 'ចុចម្តង — ចេញលើគ្រប់បណ្តាញសង្គម')}
+        sub={t('One post, the right size for each platform.', 'ប្រកាសមួយ ទំហំត្រឹមត្រូវសម្រាប់វេទិកានីមួយៗ។')}
       />
 
       {/* the one button */}
@@ -740,8 +769,8 @@ const FAQ = [
   [
     ['What does each plan include?', 'តើគម្រោងនីមួយៗមានអ្វីខ្លះ?'],
     [
-      'Each plan has a number of AI videos (24–40 seconds each) and images a month. Growth and Business can also make longer videos — up to 3 and 10 minutes — and a longer one counts as more than one video. AI posts, the weekly plan, scheduling and the website check are included. You always see how many are left; they refill every month, and you can add more.',
-      'គម្រោងនីមួយៗមានចំនួនវីដេអូ AI (២៤–៤០ វិនាទី) និងរូបភាព AI ក្នុងមួយខែ។ Growth និង Business អាចធ្វើវីដេអូវែងជាងនេះផងដែរ — រហូតដល់ ៣ និង ១០ នាទី — ហើយវីដេអូវែងរាប់លើសពីមួយ។ ប្រកាស AI ផែនការប្រចាំសប្តាហ៍ ការកំណត់ពេល និងការពិនិត្យគេហទំព័រ មានរួចជាស្រេច។ បងឃើញចំនួនដែលនៅសល់ជានិច្ច វាបន្ថែមឡើងវិញរៀងរាល់ខែ ហើយបងអាចទិញបន្ថែមបាន។',
+      'Each plan has a number of AI videos (24–40 seconds each) a month, and AI images with no limit. Growth and Business can also make longer videos — up to 3 and 10 minutes — and a longer one counts as more than one video. AI posts, the weekly plan, scheduling and the website check are included. You always see how many are left; they refill every month, and you can add more.',
+      'គម្រោងនីមួយៗមានចំនួនវីដេអូ AI (២៤–៤០ វិនាទី) ក្នុងមួយខែ និងរូបភាព AI មិនកំណត់។ Growth និង Business អាចធ្វើវីដេអូវែងជាងនេះផងដែរ — រហូតដល់ ៣ និង ១០ នាទី — ហើយវីដេអូវែងរាប់លើសពីមួយ។ ប្រកាស AI ផែនការប្រចាំសប្តាហ៍ ការកំណត់ពេល និងការពិនិត្យគេហទំព័រ មានរួចជាស្រេច។ បងឃើញចំនួនដែលនៅសល់ជានិច្ច វាបន្ថែមឡើងវិញរៀងរាល់ខែ ហើយបងអាចទិញបន្ថែមបាន។',
     ],
   ],
   [
@@ -806,7 +835,7 @@ const COMPARE = [
   [['AI videos (24–40 s)', 'វីដេអូ AI (២៤–៤០ វិនាទី)'], [['1 to try', '១ សាកល្បង'], ['2 / month', '២ / ខែ'], ['8 / month', '៨ / ខែ'], ['20 / month', '២០ / ខែ']]],
   // a longer video is allowed up to the plan's longest, and counts as more than one
   [['Longest video', 'វីដេអូវែងបំផុត'], [['40 s', '៤០ វិនាទី'], ['1 min', '១ នាទី'], ['3 min (counts as 2)', '៣ នាទី (រាប់ជា ២)'], ['10 min (1 per 3 min)', '១០ នាទី (១ ក្នុង ៣ នាទី)']]],
-  [['AI images a month', 'រូបភាព AI ក្នុងមួយខែ'], ['2', '60', '150', '400']],
+  [['AI images', 'រូបភាព AI'], [['To try', 'សាកល្បង'], ['Unlimited', 'មិនកំណត់'], ['Unlimited', 'មិនកំណត់'], ['Unlimited', 'មិនកំណត់']]],
   [['Brands / channels', 'ម៉ាក / ឆានែល'], [['1 / 2', '១ / ២'], ['1 / 3', '១ / ៣'], ['1 / all 5', '១ / ទាំង ៥'], ['3 / all 5 each', '៣ / ទាំង ៥ ក្នុងមួយ']]],
   [['Khmer + English captions, images, memes', 'ចំណងជើង រូបភាព មីម ខ្មែរ និងអង់គ្លេស'], [true, true, true, true]],
   [['Scheduling & auto-posting', 'កំណត់ពេល និងបង្ហោះស្វ័យប្រវត្តិ'], [true, true, true, true]],
@@ -957,20 +986,14 @@ const BUNDLES = [
 ]
 const BUNDLE_OFF = 0.8
 const BUNDLE_GAINS = [
-  [FiMessageCircle, ['Answers every message, 24/7', 'ឆ្លើយរាល់សារ ២៤/៧'], ['On Messenger, Telegram and your website — in Khmer and English, even at midnight.', 'លើ Messenger, Telegram និងគេហទំព័រ — ជាភាសាខ្មែរ និងអង់គ្លេស ទោះពាក់កណ្តាលអធ្រាត្រក៏ដោយ។']],
-  [FiTrendingUp, ['Turns chats into orders', 'ប្តូរការជជែក ទៅជាការកម្ម៉ង់'], ['Recommends your products, takes the order and sends broadcasts to past customers.', 'ណែនាំផលិតផលបង ទទួលការកម្ម៉ង់ និងផ្ញើសារទៅអតិថិជនចាស់។']],
-  [FiBarChart2, ['See which post sold', 'ដឹងថាប្រកាសណាលក់ដាច់'], ['Every lead from the chat lands in Smart Marketing — linked to the post that brought it.', 'អតិថិជនសក្តានុពលពីការជជែក ចូលមក Smart Marketing — ភ្ជាប់នឹងប្រកាសដែលនាំគាត់មក។']],
-  [FiGift, ['One team, 20% off both', 'ក្រុមតែមួយ បញ្ចុះ ២០% ទាំងពីរ'], ['Both made by our team in Cambodia, set up together, with one bill.', 'ទាំងពីរបង្កើតដោយក្រុមយើងនៅកម្ពុជា រៀបចំជាមួយគ្នា និងវិក្កយបត្រតែមួយ។']],
+  [FiMessageCircle, ['Replies to every customer, 24/7', 'ឆ្លើយអតិថិជនគ្រប់គ្នា ២៤/៧']],
+  [FiTrendingUp, ['Turns chats into orders', 'ប្តូរការជជែក ទៅជាការកម្ម៉ង់']],
+  [FiBarChart2, ['Shows which post brought each sale', 'បង្ហាញថាប្រកាសណានាំការលក់']],
 ]
 function ChumnouykarBundle({ onStart }) {
   const t = useT()
   const money = (v) => `$${Number.isInteger(v) ? v : v.toFixed(2)}`
   const rows = BUNDLES.map(([name, smart, ai, popular, plus]) => ({ id: name[0], name: t(name), smart, ai, popular, plus }))
-  const flow = [
-    ['Smart Marketing', t('posts that bring customers', 'ប្រកាសដែលនាំអតិថិជនមក')],
-    ['Chumnouykar', t('answers and takes the order', 'ឆ្លើយ និងទទួលការកម្ម៉ង់')],
-    ['Smart Marketing', t('shows which post sold', 'បង្ហាញថាប្រកាសណាលក់ដាច់')],
-  ]
   return (
     <Reveal className="mx-auto mt-10 max-w-6xl">
       <div className="overflow-hidden rounded-3xl bg-white shadow-card">
@@ -987,35 +1010,18 @@ function ChumnouykarBundle({ onStart }) {
               <span className="ml-1 rounded-full bg-brand-soft px-3 py-1 text-[12px] font-bold text-brand">{t('20% off both', 'បញ្ចុះ ២០% ទាំងពីរ')}</span>
             </div>
             <h3 className="mt-5 text-[24px] font-bold leading-tight text-ink-900 sm:text-[28px]">
-              {t('Better together: add Chumnouykar, your AI sales assistant', 'ល្អជាងពេលនៅជាមួយគ្នា៖ បន្ថែម Chumnouykar ជំនួយការលក់ AI')}
+              {t('Add Chumnouykar, your AI sales assistant', 'បន្ថែម Chumnouykar ជំនួយការលក់ AI')}
             </h3>
-            <p className="mt-2 text-[14.5px] leading-relaxed text-ink-500">
-              {t(
-                'Smart Marketing brings customers to your page. Chumnouykar (ជំនួយការ) — our AI chatbot — answers them the moment they message, and hands every lead back to you.',
-                'Smart Marketing នាំអតិថិជនមកទំព័របង។ Chumnouykar (ជំនួយការ) — Chatbot AI របស់យើង — ឆ្លើយគាត់ភ្លាមពេលគាត់ផ្ញើសារ ហើយបញ្ជូនអតិថិជនសក្តានុពលទាំងអស់មកបងវិញ។',
-              )}
+            <p className="mt-2 text-[15px] leading-relaxed text-ink-500">
+              {t('Smart Marketing brings the customers. Chumnouykar answers them.', 'Smart Marketing នាំអតិថិជនមក។ Chumnouykar ឆ្លើយគាត់។')}
             </p>
-            {/* how the two work together */}
-            <ol className="mt-5 flex flex-wrap items-center gap-2 text-[12.5px]">
-              {flow.map(([who, what], i) => (
-                <li key={i} className="flex items-center gap-2">
-                  <span className="rounded-xl bg-canvas px-3 py-2">
-                    <b className="text-ink-900">{who}</b> <span className="text-ink-500">{what}</span>
-                  </span>
-                  {i < flow.length - 1 && <FiArrowRight className="flex-none text-ink-300" size={14} aria-hidden="true" />}
-                </li>
-              ))}
-            </ol>
-            <ul className="mt-6 grid gap-4 sm:grid-cols-2">
-              {BUNDLE_GAINS.map(([Icon, title, text]) => (
-                <li key={title[0]} className="flex gap-3">
+            <ul className="mt-6 space-y-3">
+              {BUNDLE_GAINS.map(([Icon, title]) => (
+                <li key={title[0]} className="flex items-center gap-3 text-[15px] font-semibold text-ink-900">
                   <span className="grid h-9 w-9 flex-none place-items-center rounded-xl bg-brand-soft text-brand">
                     <Icon size={16} aria-hidden="true" />
                   </span>
-                  <span className="min-w-0">
-                    <span className="block text-[14px] font-bold text-ink-900">{t(title)}</span>
-                    <span className="mt-0.5 block text-[12.5px] leading-snug text-ink-500">{t(text)}</span>
-                  </span>
+                  {t(title)}
                 </li>
               ))}
             </ul>
@@ -1063,8 +1069,8 @@ function ChumnouykarBundle({ onStart }) {
             </div>
             <p className="mt-3 text-[12px] leading-relaxed text-ink-400">
               {t(
-                'Each works on its own too. Chumnouykar has a 14-day free trial. Our team sets the bundle up with you.',
-                'ទាំងពីរក៏ប្រើដាច់ដោយឡែកបានដែរ។ Chumnouykar មានសាកល្បងឥតគិតថ្លៃ ១៤ ថ្ងៃ។ ក្រុមយើងរៀបចំកញ្ចប់រួមជាមួយបង។',
+                'Chumnouykar has a 14-day free trial.',
+                'Chumnouykar មានសាកល្បងឥតគិតថ្លៃ ១៤ ថ្ងៃ។',
               )}
             </p>
           </div>
@@ -1426,6 +1432,7 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
     return () => window.removeEventListener('scroll', on)
   }, [])
   const byId = Object.fromEntries(MOTION_TEMPLATES.map((tp) => [tp.id, tp]))
+  const usedBy = useTemplateUsage()
   const go = (id) => {
     setMenu(false)
     // from the tutorials page, the sections are on the landing page
@@ -1597,8 +1604,9 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
       </header>
 
       {page === 'tutorials' ? (
-        <div className="pt-20 sm:pt-24">
-          <Course openLabel={t('Log in to try it', 'ចូលដើម្បីសាកល្បង')} onOpen={onLogin} />
+        // the header bar's width exactly: max-w-6xl inside the same side gap (px-3 / sm:px-5)
+        <div className="mx-auto max-w-6xl px-3 pt-20 sm:px-5 sm:pt-24 box-content">
+          <Course bare openLabel={t('Log in to try it', 'ចូលដើម្បីសាកល្បង')} onOpen={onLogin} />
         </div>
       ) : page === 'developers' ? (
         <Developers t={t} me={me} onStart={onStart} />
@@ -1709,7 +1717,7 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
         </div>
       </section>
 
-      {/* ── how it works ── */}
+      {/* ── how it works: second, right under the top — the robot acts out the whole flow ── */}
       <section id="how" className="relative isolate scroll-mt-20 overflow-hidden px-4 py-20 sm:px-6 sm:py-28">
         <GridBackdrop className="-z-10 opacity-70" />
         <SectionTitle
@@ -1717,26 +1725,35 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
           title={t('Sunday night, your whole week is ready', 'ល្ងាចថ្ងៃអាទិត្យ ប្រកាសពេញមួយសប្តាហ៍ត្រៀមរួច')}
           khmer="ភ្ជាប់ម្តង — បន្ទាប់មក AI ចាប់ផ្តើមធ្វើការជំនួសបង"
         />
-        <div className="mx-auto mt-14 grid max-w-6xl gap-10 sm:grid-cols-2 lg:grid-cols-4 lg:gap-4">
-          {[
-            [FiGlobe, t('Plug in your pages', 'ភ្ជាប់ទំព័ររបស់បង'), t('Facebook, Instagram, TikTok, Telegram, LinkedIn — one brand, as many pages as you run.', 'Facebook, Instagram, TikTok, Telegram, LinkedIn — ម៉ាកមួយ ភ្ជាប់ទំព័របានច្រើនតាមចិត្ត។')],
-            [FiCalendar, t('The AI drafts your week', 'AI រៀបចំសប្តាហ៍ជូនបង'), t('Tips, stories, offers — mixed the way your followers actually react.', 'គន្លឹះ រឿង ការផ្តល់ជូន — លាយគ្នាតាមអ្វីដែលអ្នកតាមដានចូលចិត្តពិតៗ។')],
-            [FiPenTool, t('It designs and writes', 'វារចនា និងសរសេរ'), t('Scroll-stopping videos, pictures and Khmer captions — in your colours, with your logo.', 'វីដេអូ រូបភាព និងចំណងជើងខ្មែរ ដែលធ្វើឲ្យគេឈប់អូស — ពណ៌ និងឡូហ្គោរបស់បង។')],
-            [FiCheck, t('You tap Approve. Done.', 'បងចុចយល់ព្រម។ រួចរាល់។'), t('It posts itself at the hour your audience is online.', 'វាបង្ហោះដោយខ្លួនឯង នៅម៉ោងដែលអ្នកមើលកំពុងអនឡាញ។')],
-          ].map(([Icon, title, d], i) => (
-            <Reveal key={i} delay={i * 120}>
-              <div className="relative text-center lg:px-3">
-                {/* the line joining the steps */}
-                {i < 3 && <div className="absolute left-[calc(50%+36px)] right-[calc(-50%+36px)] top-7 hidden h-[2px] bg-gradient-to-r from-brand/40 to-brand/10 lg:block" />}
-                <span className="relative mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-brand text-white shadow-[0_10px_24px_-8px_rgb(var(--brand)/0.6)]">
-                  <Icon size={22} />
-                  <span className="absolute -right-2 -top-2 grid h-6 w-6 place-items-center rounded-full bg-white text-[11px] font-bold text-brand ring-2 ring-brand-soft">{i + 1}</span>
-                </span>
-                <div className="mt-5 text-[16px] font-bold text-ink-900">{title}</div>
-                <p className="mx-auto mt-1.5 max-w-[240px] text-[14px] leading-relaxed text-ink-500">{d}</p>
-              </div>
-            </Reveal>
-          ))}
+        {/* the flow, acted out by our robot: brand → plan → Make for me → post → insights */}
+        <AvatarPublish t={t} />
+      </section>
+
+      {/* ── videos: third, after How it works — every template, filtered, previewed ── */}
+      <section id="videos" className="relative isolate scroll-mt-20 overflow-hidden bg-canvas py-20 sm:py-28">
+        <GridBackdrop className="-z-10 opacity-60" />
+        <div className="px-4 sm:px-6">
+          <div className="mx-auto max-w-2xl text-center">
+            <div className={eyebrowCls(lang)}>{t('Video studio', 'ស្ទូឌីយោវីដេអូ')}</div>
+            <h2 className="mt-3 text-[28px] font-bold leading-tight tracking-tight text-ink-900 sm:text-[38px]">
+              {t('Videos people stop scrolling for', 'វីដេអូដែលធ្វើឲ្យមនុស្សឈប់អូស')}
+            </h2>
+            <p className="mt-3 text-[15.5px] text-ink-500">
+              {t(`${MOTION_TEMPLATES.length}+ templates in Khmer, with your logo — click one to preview.`, `គំរូជាង ${khDigits(MOTION_TEMPLATES.length)} ជាភាសាខ្មែរ មានឡូហ្គោរបស់បង — ចុចមួយ ដើម្បីមើល។`)}
+            </p>
+          </div>
+        </div>
+        <div className="px-4 sm:px-6">
+          <TemplateGallery items={SHOWCASE.filter((id) => byId[id]).map((id) => byId[id])} usedBy={usedBy} isNew={isNew} t={t} num={(n) => (lang === 'km' ? khDigits(n) : String(n))} onStart={onStart} />
+        </div>
+        <div className="mt-20 px-4 sm:px-6">
+          <Laptop />
+          <p className="mt-5 text-center text-[13px] text-ink-400">
+            {t(
+              'Wide 16:9 for YouTube, Facebook and your website — tall 9:16 for Reels and TikTok',
+              'ទទឹង 16:9 សម្រាប់ YouTube, Facebook និងគេហទំព័រ — បញ្ឈរ 9:16 សម្រាប់ Reels និង TikTok',
+            )}
+          </p>
         </div>
       </section>
 
@@ -1828,82 +1845,6 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
 
       {/* ── one post, live everywhere ── */}
       <LiveEverywhere onStart={onStart} />
-
-      {/* ── videos ── */}
-      <section id="videos" className="relative isolate scroll-mt-20 overflow-hidden bg-canvas py-20 sm:py-28">
-        <GridBackdrop className="-z-10 opacity-60" />
-        <div className="px-4 sm:px-6">
-          <div className="mx-auto max-w-2xl text-center">
-            <div className={eyebrowCls(lang)}>{t('Video studio', 'ស្ទូឌីយោវីដេអូ')}</div>
-            <h2 className="mt-3 text-[28px] font-bold leading-tight tracking-tight text-ink-900 sm:text-[38px]">
-              {t('Videos people stop scrolling for', 'វីដេអូដែលធ្វើឲ្យមនុស្សឈប់អូស')}
-            </h2>
-            {lang !== 'km' && (
-              <p className="mt-2 text-[17px] font-medium text-ink-600" style={km}>
-                វីដេអូខ្មែរ ដែលមនុស្សឈប់មើល
-              </p>
-            )}
-            <p className="mt-4 text-[15.5px] leading-relaxed text-ink-500">
-              {t(
-                `${MOTION_TEMPLATES.length}+ animated templates — memes, stories, lessons, product launches — or let the AI design every scene for your brief. Your colours, your logo, a Khmer voice and subtitles.`,
-                `គំរូវីដេអូចលនាជាង ${MOTION_TEMPLATES.length} — មីម រឿង មេរៀន ការដាក់លក់ផលិតផលថ្មី — ឬទុកឲ្យ AI រចនាគ្រប់ឈុតតាមការណែនាំរបស់បង។ ពណ៌ ឡូហ្គោ សំឡេងខ្មែរ និងអក្សររត់ របស់បង។`,
-              )}
-            </p>
-          </div>
-        </div>
-        <div className="mt-14 px-4 sm:px-6">
-          <Laptop />
-          <p className="mt-5 text-center text-[13px] text-ink-400">
-            {t(
-              'Wide 16:9 for YouTube, Facebook and your website — tall 9:16 for Reels and TikTok',
-              'ទទឹង 16:9 សម្រាប់ YouTube, Facebook និងគេហទំព័រ — បញ្ឈរ 9:16 សម្រាប់ Reels និង TikTok',
-            )}
-          </p>
-        </div>
-        {/* the phones drift past in a loop (the list twice, moved by half) inside a window the
-            header's width (max-w-6xl), its ends lined up with the header bar's, no fade (the
-            owner's choice); still on hover and for people who turn motion off */}
-        <style>{`
-          @keyframes lp-drift { from { transform: translateX(0) } to { transform: translateX(-50%) } }
-          @keyframes lp-drift-back { from { transform: translateX(-50%) } to { transform: translateX(0) } }
-          .lp-drift { animation: lp-drift 70s linear infinite }
-          .lp-drift-back { animation: lp-drift-back 70s linear infinite }
-          .lp-strip:hover .lp-drift, .lp-strip:hover .lp-drift-back { animation-play-state: paused }
-          @media (prefers-reduced-motion: reduce) { .lp-drift, .lp-drift-back { animation: none } }
-        `}</style>
-        {/* two rows going opposite ways: the top one right to left, the bottom one left to
-            right — the same templates, the bottom row starting halfway through the list */}
-        {/* the strip's own heading: pick a look, or leave it to the AI */}
-        <div className="mx-auto mt-16 max-w-6xl px-4 text-center sm:px-6">
-          <h3 className="text-[22px] font-bold leading-tight text-ink-900 sm:text-[28px]">
-            {t('Choose your vibe', 'ជ្រើសរចនាប័ទ្មរបស់បង')}
-            <span className="text-ink-400"> — </span>
-            <span className="text-brand">{t('pick a template, or let AI make it', 'ជ្រើសគំរូ ឬទុកឲ្យ AI បង្កើតជូន')}</span>
-          </h3>
-          <p className="mt-2 text-[14px] text-ink-500">
-            {t('Hover to pause. Every one speaks Khmer, wears your logo and your colours.', 'ដាក់កណ្ដុរលើ ដើម្បីផ្អាក។ គ្រប់គំរូនិយាយខ្មែរ មានឡូហ្គោ និងពណ៌របស់បង។')}
-          </p>
-        </div>
-        <div className="lp-strip mx-auto mt-8 max-w-6xl space-y-6 overflow-hidden rounded-[28px] pb-4 pt-2">
-          {[0, 1].map((row) => {
-            const ids = SHOWCASE.filter((id) => byId[id])
-            const order = row ? [...ids.slice(Math.ceil(ids.length / 2)), ...ids.slice(0, Math.ceil(ids.length / 2))] : ids
-            return (
-              <div key={row} className={`${row ? 'lp-drift-back' : 'lp-drift'} flex w-max`}>
-                {[0, 1].map((copy) =>
-                  order.map((id) => (
-                    <div key={`${copy}-${id}`} className="mr-4 w-[130px] flex-none sm:mr-6 sm:w-[160px]" aria-hidden={row === 1 || copy === 1 || undefined}>
-                      <Phone id={id} />
-                      <div className="mt-2.5 text-center text-[12.5px] font-semibold text-ink-700">{byId[id].name}</div>
-                    </div>
-                  )),
-                )}
-              </div>
-            )
-          })}
-        </div>
-        <LockedTemplates onStart={onStart} />
-      </section>
 
       {/* ── tutorials ── */}
       <TutorialShowcase />

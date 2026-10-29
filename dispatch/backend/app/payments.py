@@ -266,6 +266,28 @@ def public_prices(db: Session = Depends(get_db)):
     return {"prices": prices(), "packs": packs(db), "custom": _custom_out(db)}
 
 
+_TEMPLATE_USE: dict = {"at": 0.0, "data": None}
+
+
+@public_router.get("/template-usage")
+def public_template_usage(db: Session = Depends(get_db)):
+    """How many businesses (workspaces) made a finished video with each template, and how many
+    videos — the website's template strip ("Used by 12"). Read off each video's "How it was
+    made" (GenerationJob.making starts {"style": …}); counts only, nobody named. 10 min cache."""
+    from sqlalchemy import text
+
+    if _TEMPLATE_USE["data"] is None or time.time() - _TEMPLATE_USE["at"] > 600:
+        rows = db.execute(
+            text(
+                "SELECT substring(making from '\"style\": \"([a-z0-9_-]+)\"') AS style, "
+                "count(DISTINCT workspace_id), count(*) FROM generation_jobs "
+                "WHERE kind = 'motion' AND status = 'succeeded' AND making <> '' GROUP BY 1"
+            )
+        ).all()
+        _TEMPLATE_USE.update(at=time.time(), data={s: {"businesses": b, "videos": v} for s, b, v in rows if s})
+    return {"templates": _TEMPLATE_USE["data"]}
+
+
 # ── the admin portal (app/admin.py mounts these behind its own login) ──────
 class PriceRow(BaseModel):
     usd: float | None = None
