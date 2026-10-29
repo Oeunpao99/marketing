@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { FiArrowRight, FiChevronDown, FiChevronLeft, FiChevronRight, FiChevronUp, FiPlay, FiUsers, FiX } from 'react-icons/fi'
 import { previewSrc } from '../../lib/motionTemplates'
 
-// The website's template gallery — every template, newest first: the clips themselves (no
+// The website's template gallery — every template, the 3 most used first, then newest to oldest: the clips themselves (no
 // phone frame) in a masonry (tall 9:16 and wide 16:9, each its clip's own shape), playing while on screen. A row of category
 // buttons filters them; hover shows "Preview" and how many videos were made with it; a click
 // opens a preview (the clip big, what it's for, its scenes) with "Use this template".
@@ -148,16 +148,13 @@ export default function TemplateGallery({ items, usedBy, isNew, t, num = String,
   const [all, setAll] = useState(false) // the whole gallery, or its first rows under a fade
   const top = useRef(null)
   const ids = CATEGORIES.find(([k]) => k === cat)?.[2]
-  const shown = ids ? items.filter((tp) => ids.includes(tp.id)) : items
   const cols = useCols()
-  // "Most used": the 3 templates with the most videos made (real counts, none with 0)
-  const top3 = new Set(
-    [...items]
-      .filter((tp) => usedBy(tp.id) > 0)
-      .sort((a, b) => usedBy(b.id) - usedBy(a.id))
-      .slice(0, 3)
-      .map((tp) => tp.id),
-  )
+  // "Most used": the 3 templates with the most videos made (real counts, none with 0; a tie keeps the newer first)
+  const ranked = [...items].filter((tp) => usedBy(tp.id) > 0).sort((a, b) => usedBy(b.id) - usedBy(a.id)).slice(0, 3)
+  const top3 = new Set(ranked.map((tp) => tp.id))
+  // the order: the most used first (the owner, 2026-10-29), then the rest newest to oldest; a filter keeps that order
+  const ordered = [...ranked, ...items.filter((tp) => !top3.has(tp.id))]
+  const shown = ids ? ordered.filter((tp) => ids.includes(tp.id)) : ordered
   const card = (tp, i) => {
     const wide = WIDE.has(tp.id)
     const id = wide ? `${tp.id}-wide` : tp.id
