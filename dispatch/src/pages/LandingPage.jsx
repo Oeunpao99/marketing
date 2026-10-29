@@ -944,6 +944,136 @@ function AddonShop() {
   )
 }
 
+/** Smart Marketing + Chumnouykar AI (our AI sales chatbot — chumnouykar.bcietech.com) at 20% off
+ * both — the bundle sheet's fixed prices (2026-10-29), so a test price in the admin portal never
+ * changes them. Bundles are set up by our team for now (no checkout yet). */
+const CHUMNOUYKAR_URL = 'https://chumnouykar.bcietech.com/'
+// [plan, Smart Marketing $, Chumnouykar AI $, recommended, "and up"]
+const BUNDLES = [
+  [['Starter', 'Starter'], 29, 19],
+  [['Growth', 'Growth'], 79, 59, true],
+  [['Business', 'Business'], 199, 149],
+  [['Enterprise', 'Enterprise'], 499, 299, false, true],
+]
+const BUNDLE_OFF = 0.8
+const BUNDLE_GAINS = [
+  [FiMessageCircle, ['Answers every message, 24/7', 'ឆ្លើយរាល់សារ ២៤/៧'], ['On Messenger, Telegram and your website — in Khmer and English, even at midnight.', 'លើ Messenger, Telegram និងគេហទំព័រ — ជាភាសាខ្មែរ និងអង់គ្លេស ទោះពាក់កណ្តាលអធ្រាត្រក៏ដោយ។']],
+  [FiTrendingUp, ['Turns chats into orders', 'ប្តូរការជជែក ទៅជាការកម្ម៉ង់'], ['Recommends your products, takes the order and sends broadcasts to past customers.', 'ណែនាំផលិតផលបង ទទួលការកម្ម៉ង់ និងផ្ញើសារទៅអតិថិជនចាស់។']],
+  [FiBarChart2, ['See which post sold', 'ដឹងថាប្រកាសណាលក់ដាច់'], ['Every lead from the chat lands in Smart Marketing — linked to the post that brought it.', 'អតិថិជនសក្តានុពលពីការជជែក ចូលមក Smart Marketing — ភ្ជាប់នឹងប្រកាសដែលនាំគាត់មក។']],
+  [FiGift, ['One team, 20% off both', 'ក្រុមតែមួយ បញ្ចុះ ២០% ទាំងពីរ'], ['Both made by our team in Cambodia, set up together, with one bill.', 'ទាំងពីរបង្កើតដោយក្រុមយើងនៅកម្ពុជា រៀបចំជាមួយគ្នា និងវិក្កយបត្រតែមួយ។']],
+]
+function ChumnouykarBundle({ onStart }) {
+  const t = useT()
+  const money = (v) => `$${Number.isInteger(v) ? v : v.toFixed(2)}`
+  const rows = BUNDLES.map(([name, smart, ai, popular, plus]) => ({ id: name[0], name: t(name), smart, ai, popular, plus }))
+  const flow = [
+    ['Smart Marketing', t('posts that bring customers', 'ប្រកាសដែលនាំអតិថិជនមក')],
+    ['Chumnouykar', t('answers and takes the order', 'ឆ្លើយ និងទទួលការកម្ម៉ង់')],
+    ['Smart Marketing', t('shows which post sold', 'បង្ហាញថាប្រកាសណាលក់ដាច់')],
+  ]
+  return (
+    <Reveal className="mx-auto mt-10 max-w-6xl">
+      <div className="overflow-hidden rounded-3xl bg-white shadow-card">
+        <div className="grid gap-8 p-7 sm:p-9 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-10">
+          <div>
+            <div className="flex items-center gap-3">
+              <img src="/brand/logo-mark.png" alt="Smart Marketing" className="h-11 w-11 object-contain" />
+              <span className="text-[22px] font-bold text-ink-300" aria-hidden="true">
+                +
+              </span>
+              <a href={CHUMNOUYKAR_URL} target="_blank" rel="noreferrer" title="Chumnouykar AI">
+                <img src="/partners/chumnouykar.webp" alt="Chumnouykar AI" className="h-14 w-14 object-contain" />
+              </a>
+              <span className="ml-1 rounded-full bg-brand-soft px-3 py-1 text-[12px] font-bold text-brand">{t('20% off both', 'បញ្ចុះ ២០% ទាំងពីរ')}</span>
+            </div>
+            <h3 className="mt-5 text-[24px] font-bold leading-tight text-ink-900 sm:text-[28px]">
+              {t('Better together: add Chumnouykar, your AI sales assistant', 'ល្អជាងពេលនៅជាមួយគ្នា៖ បន្ថែម Chumnouykar ជំនួយការលក់ AI')}
+            </h3>
+            <p className="mt-2 text-[14.5px] leading-relaxed text-ink-500">
+              {t(
+                'Smart Marketing brings customers to your page. Chumnouykar (ជំនួយការ) — our AI chatbot — answers them the moment they message, and hands every lead back to you.',
+                'Smart Marketing នាំអតិថិជនមកទំព័របង។ Chumnouykar (ជំនួយការ) — Chatbot AI របស់យើង — ឆ្លើយគាត់ភ្លាមពេលគាត់ផ្ញើសារ ហើយបញ្ជូនអតិថិជនសក្តានុពលទាំងអស់មកបងវិញ។',
+              )}
+            </p>
+            {/* how the two work together */}
+            <ol className="mt-5 flex flex-wrap items-center gap-2 text-[12.5px]">
+              {flow.map(([who, what], i) => (
+                <li key={i} className="flex items-center gap-2">
+                  <span className="rounded-xl bg-canvas px-3 py-2">
+                    <b className="text-ink-900">{who}</b> <span className="text-ink-500">{what}</span>
+                  </span>
+                  {i < flow.length - 1 && <FiArrowRight className="flex-none text-ink-300" size={14} aria-hidden="true" />}
+                </li>
+              ))}
+            </ol>
+            <ul className="mt-6 grid gap-4 sm:grid-cols-2">
+              {BUNDLE_GAINS.map(([Icon, title, text]) => (
+                <li key={title[0]} className="flex gap-3">
+                  <span className="grid h-9 w-9 flex-none place-items-center rounded-xl bg-brand-soft text-brand">
+                    <Icon size={16} aria-hidden="true" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[14px] font-bold text-ink-900">{t(title)}</span>
+                    <span className="mt-0.5 block text-[12.5px] leading-snug text-ink-500">{t(text)}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* the four bundles: both plans' price, then 20% off */}
+          <div>
+            <div className="text-[13px] font-semibold text-ink-500">{t('Bundle prices · USD / month', 'តម្លៃរួម · USD / ខែ')}</div>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              {rows.map((r) => {
+                const list = r.smart + r.ai
+                const price = Math.round(list * BUNDLE_OFF * 100) / 100
+                return (
+                  <div key={r.id} className={`relative rounded-2xl p-4 ${r.popular ? 'bg-night-900 text-white ring-1 ring-white/10 dark:bg-night-800 dark:ring-2 dark:ring-brand/70' : 'bg-canvas'}`}>
+                    {r.popular && (
+                      <span className="absolute -top-2.5 right-3 rounded-full bg-brand px-2.5 py-0.5 text-[11px] font-bold text-white">{t('Recommended', 'ណែនាំ')}</span>
+                    )}
+                    <div className={`text-[15px] font-bold ${r.popular ? 'text-white' : 'text-ink-900'}`}>{r.name}</div>
+                    <div className={`mt-0.5 text-[11.5px] ${r.popular ? 'text-white/60' : 'text-ink-500'}`}>
+                      Smart {money(r.smart)}
+                      {r.plus ? '+' : ''} + AI {money(r.ai)}
+                      {r.plus ? '+' : ''}
+                    </div>
+                    <div className="mt-3 flex items-baseline gap-2">
+                      <span className={`text-[26px] font-bold tabular-nums ${r.popular ? 'text-white' : 'text-ink-900'}`}>
+                        {money(price)}
+                        {r.plus ? '+' : ''}
+                      </span>
+                      <span className={`text-[13px] tabular-nums line-through ${r.popular ? 'text-white/50' : 'text-ink-400'}`}>
+                        {money(list)}
+                        {r.plus ? '+' : ''}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <button type="button" onClick={onStart} className="inline-flex items-center gap-2 rounded-full bg-brand px-5 py-2.5 text-[14px] font-semibold text-white transition-colors hover:bg-brand/90">
+                {t('Get the bundle', 'ទិញកញ្ចប់រួម')} <FiArrowRight size={15} />
+              </button>
+              <a href={CHUMNOUYKAR_URL} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full bg-ink-100 px-5 py-2.5 text-[14px] font-semibold text-ink-900 transition-colors hover:bg-ink-200">
+                {t('See Chumnouykar', 'មើល Chumnouykar')}
+              </a>
+            </div>
+            <p className="mt-3 text-[12px] leading-relaxed text-ink-400">
+              {t(
+                'Each works on its own too. Chumnouykar has a 14-day free trial. Our team sets the bundle up with you.',
+                'ទាំងពីរក៏ប្រើដាច់ដោយឡែកបានដែរ។ Chumnouykar មានសាកល្បងឥតគិតថ្លៃ ១៤ ថ្ងៃ។ ក្រុមយើងរៀបចំកញ្ចប់រួមជាមួយបង។',
+              )}
+            </p>
+          </div>
+        </div>
+      </div>
+    </Reveal>
+  )
+}
+
 /** The plans with the prices set in the admin portal (GET /api/public/prices — the
  * same ones KHQR checkout charges); the built-in numbers above until they arrive,
  * or if the server can't be reached. */
@@ -990,7 +1120,7 @@ function Pricing({ onStart }) {
         eyebrow={t('Pricing', 'តម្លៃ')}
         title={t('Simple plans that grow with you', 'គម្រោងសាមញ្ញ រីកចម្រើនជាមួយបង')}
         khmer="ចាប់ផ្តើមឥតគិតថ្លៃ ដំឡើងពេលបងត្រៀមរួច"
-        sub={t('Start free. Every plan comes with its AI videos and images each month — posting and scheduling are always included.', 'ចាប់ផ្តើមឥតគិតថ្លៃ។ គ្រប់គម្រោងមានក្រេឌីត AI រៀងរាល់ខែ — ការបង្ហោះ និងកំណត់ពេល មិនប្រើក្រេឌីតទេ។')}
+        sub={t('Start free. Every plan comes with its AI videos and images each month — posting and scheduling are always included.', 'ចាប់ផ្តើមឥតគិតថ្លៃ។ គ្រប់គម្រោងមានវីដេអូ និងរូបភាព AI រៀងរាល់ខែ — ការបង្ហោះ និងកំណត់ពេល រួមបញ្ចូលជានិច្ច។')}
       />
 
       <div className={`mt-10 flex flex-wrap items-center justify-center gap-3 ${PRICES_SOON ? 'hidden' : ''}`}>
@@ -1084,6 +1214,9 @@ function Pricing({ onStart }) {
           </button>
         </div>
       </Reveal>
+
+      {/* with Chumnouykar, our AI sales chatbot — 20% off both */}
+      {!PRICES_SOON && <ChumnouykarBundle onStart={onStart} />}
 
       {/* Compare plans */}
       <div className="mx-auto mt-20 max-w-6xl">
