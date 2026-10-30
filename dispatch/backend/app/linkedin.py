@@ -312,7 +312,7 @@ def _register_image_upload(access_token: str, owner: str) -> tuple[str, str]:
     return upload_url, image_urn
 
 
-def _register_video_upload(access_token: str, owner: str, size: int) -> tuple[str, str]:
+def _register_video_upload(access_token: str, owner: str, size: int) -> tuple[list[dict], str]:
     try:
         resp = httpx.post(
             f"{API_BASE}/videos?action=initializeUpload",
@@ -336,9 +336,9 @@ def _register_video_upload(access_token: str, owner: str, size: int) -> tuple[st
     video_urn = value.get("video")
     if not instructions or not video_urn:
         raise LinkedInError("LinkedIn did not return a video upload url.")
-    # Single-part upload only — fine for the short AI-generated clips this
-    # portal renders; a much longer/heavier video would need multi-part.
-    return instructions[0]["uploadUrl"], video_urn
+    # LinkedIn splits anything over 4 MB into ~4 MB parts — one upload url
+    # per byte range (firstByte..lastByte, inclusive).
+    return instructions, video_urn
 
 
 def _upload_image(access_token: str, owner: str, media: bytes) -> str:
@@ -353,24 +353,34 @@ def _upload_image(access_token: str, owner: str, media: bytes) -> str:
     except httpx.HTTPError as exc:
         raise LinkedInError(f"Could not upload the image to LinkedIn: {exc}") from exc
     if put_resp.status_code >= 400:
-        raise LinkedInError(f"LinkedIn rejected the image bytes: {put_resp.text[:300]}")
+        raise LinkedInError(f"LinkedIn rejected the image bytes (HTTP {put_resp.status_code}): {put_resp.text[:300]}")
     return image_urn
 
 
 def _upload_video(access_token: str, owner: str, media: bytes) -> str:
-    upload_url, video_urn = _register_video_upload(access_token, owner, len(media))
-    try:
-        put_resp = httpx.put(
-            upload_url,
-            headers={"Authorization": f"Bearer {access_token}"},
-            content=media,
-            timeout=180.0,
-        )
-    except httpx.HTTPError as exc:
-        raise LinkedInError(f"Could not upload the video to LinkedIn: {exc}") from exc
-    if put_resp.status_code >= 400:
-        raise LinkedInError(f"LinkedIn rejected the video bytes: {put_resp.text[:300]}")
-    etag = put_resp.headers.get("ETag") or put_resp.headers.get("etag")
+    instructions, video_urn = _register_video_upload(access_token, owner, len(media))
+    part_ids: list[str] = []
+    for part in instructions:
+        first = int(part.get("firstByte") or 0)
+        last = int(part["lastByte"]) if part.get("lastByte") is not None else len(media) - 1
+        try:
+            put_resp = httpx.put(
+                part["uploadUrl"],
+                headers={"Authorization": f"Bearer {access_token}", "Content-Type": "application/octet-stream"},
+                content=media[first : last + 1],
+                timeout=180.0,
+            )
+        except httpx.HTTPError as exc:
+            raise LinkedInError(f"Could not upload the video to LinkedIn: {exc}") from exc
+        if put_resp.status_code >= 400:
+            raise LinkedInError(
+                f"LinkedIn rejected the video bytes (HTTP {put_resp.status_code}, part "
+                f"{len(part_ids) + 1}/{len(instructions)}): {put_resp.text[:300]}"
+            )
+        etag = put_resp.headers.get("ETag") or put_resp.headers.get("etag")
+        if not etag:
+            raise LinkedInError("LinkedIn did not confirm a video part upload.")
+        part_ids.append(etag)
     try:
         fin_resp = httpx.post(
             f"{API_BASE}/videos?action=finalizeUpload",
@@ -378,7 +388,7 @@ def _upload_video(access_token: str, owner: str, media: bytes) -> str:
             json={
                 "finalizeUploadRequest": {
                     "video": video_urn,
-                    "uploadedPartIds": [etag] if etag else [],
+                    "uploadedPartIds": part_ids,
                 }
             },
             timeout=30.0,
