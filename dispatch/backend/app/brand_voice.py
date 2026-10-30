@@ -56,6 +56,8 @@ def _reader_name(narrator: str | None) -> str:
         return narrator[len("gemini:") :].split("|")[0] + " · Gemini"
     if narrator.startswith("local:"):
         return "Native Khmer"
+    if narrator.startswith("kokoro:"):  # "af_heart" → "Heart · Kokoro"
+        return narrator[len("kokoro:") :].split("_", 1)[-1].title() + " · Kokoro"
     m = re.match(r"[a-z]{2}-[A-Z]{2}-([A-Za-z]+?)(?:Multilingual|:DragonHD\w*?)?Neural", narrator)
     return m.group(1) if m else narrator
 

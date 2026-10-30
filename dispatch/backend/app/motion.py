@@ -6176,7 +6176,7 @@ def add_voice(
 
     says = [s.get("say") for s in script["scenes"]]
     pronunciations = voice_pronunciations(voice, says, pronunciations)
-    local = voice.startswith("local:")  # the local Khmer voice costs no credit
+    local = voice.startswith(("local:", "kokoro:"))  # the local Khmer voice and Kokoro cost no credit
     board = [dict(b) for b in (_progress.get(job_id, {}).get("scenes") or [])]
     _report(job_id, stage="voice")
 
@@ -7468,7 +7468,7 @@ def say_line(
     except Exception as exc:  # noqa: BLE001 — the details are for the log, not the person
         log.warning("voice preview failed (%s): %s", narrator, exc)
         raise HTTPException(502, "That line couldn't be read just now — try again in a moment.") from exc
-    if not narrator.startswith("local:") and not tally["chars"]:  # the local voice and their own key cost us nothing
+    if not narrator.startswith(("local:", "kokoro:")) and not tally["chars"]:  # the local voices and their own key cost us nothing
         billing.charge(ws, "video", len(payload.text) * speech.price_per_char(narrator), user_id=user.id, model=narrator, note="Voice preview")
     return Response(content=mp3, media_type="audio/mpeg", headers={"Cache-Control": "no-store"})
 

@@ -10,6 +10,10 @@ else Azure OpenAI):
 
 Without either, motion videos are simply made silent.
 
+With ENGLISH_SPEECH_PROVIDER=kokoro, English lines go to Kokoro (app/kokoro_voice.py
+— open source, free, run on this server) — voice names "kokoro:<voice>" — and fall
+back to Azure's Ava / Andrew when it fails.
+
 Khmer lines go to Google Gemini TTS (KHMER_SPEECH_PROVIDER, blank = Gemini when
 GEMINI_API_KEY is set) — voice names "gemini:<voice>" — and fall back to Azure
 when Gemini fails. Gemini gives no word timings: Khmer subtitles use the estimate.
@@ -84,9 +88,9 @@ def provider() -> str | None:
 
 
 def ready() -> bool:
-    from app import local_voice
+    from app import kokoro_voice, local_voice
 
-    return provider() is not None or local_voice.ready() or gemini_ready()
+    return provider() is not None or local_voice.ready() or gemini_ready() or kokoro_voice.ready()
 
 
 GEMINI = "gemini:"
@@ -194,6 +198,10 @@ AZURE_OTHERS = {
 
 def other_voice(voice: str, gender: str) -> str | None:
     """Another voice like ``voice`` (the same gender) — None when there is none."""
+    from app import kokoro_voice
+
+    if voice.startswith(kokoro_voice.PREFIX):
+        return kokoro_voice.other_voice(voice, gender)
     if voice.startswith(KIRI):
         name, _, act = voice[len(KIRI) :].partition("|")
         other = next((n for n, g in KIRI_VOICES.items() if g == gender and n != name), None)
@@ -360,6 +368,8 @@ def _as_mp3(audio: bytes) -> bytes:
 
 
 def price_per_char(voice: str) -> float:
+    if voice.startswith("kokoro:"):  # run on our own server
+        return 0.0
     if voice.startswith(KIRI):
         return PRICE_PER_CHAR_KIRI
     if voice.startswith(GEMINI):
@@ -389,6 +399,11 @@ def voice_for(language: str, gender: str, style: str | None = None) -> str | Non
     # (one voice — Female and Male both use it); English keeps Azure.
     if "khmer" in (language or "").lower() and local_voice.ready():
         return local_voice.PREFIX + local_voice.model_id()
+    # English → Kokoro, the free open-source voice on this server (ENGLISH_SPEECH_PROVIDER)
+    from app import kokoro_voice
+
+    if "khmer" not in (language or "").lower() and kokoro_voice.ready():
+        return kokoro_voice.voice_for(gender)
     if provider() is None:
         return None
     if provider() == "openai":
@@ -439,9 +454,9 @@ def _speak_timed(text: str, voice: str) -> tuple[bytes, list[dict]]:
     (app/khmer_words.py), else one per space-separated phrase. Without the
     SDK, or with the OpenAI voice, the words list is empty and the subtitles
     fall back to an estimate. Raises SpeechError."""
-    from app import local_voice
+    from app import kokoro_voice, local_voice
 
-    if voice.startswith((local_voice.PREFIX, GEMINI, KIRI)):  # no word timings
+    if voice.startswith((local_voice.PREFIX, GEMINI, KIRI, kokoro_voice.PREFIX)):  # no word timings
         return speak(text, voice), []
     if provider() != "azure":
         return speak(text, voice), []
@@ -549,6 +564,19 @@ def speak(text: str, voice: str, kiri_first: bool = True) -> bytes:
             if provider() != "azure":
                 raise
             return _azure(text, backup)
+
+    from app import kokoro_voice
+
+    if voice.startswith(kokoro_voice.PREFIX):
+        backup = VOICES[(_lang(text), kokoro_voice.gender(voice))]
+        if _lang(text) == "en":
+            try:
+                return kokoro_voice.speak(text, voice[len(kokoro_voice.PREFIX) :])
+            except Exception as exc:  # noqa: BLE001 — model download / load / ffmpeg: Azure reads it
+                log.warning("Kokoro failed (%s) — reading the line with %s", exc, backup)
+                if provider() is None:
+                    raise SpeechError(f"The Kokoro voice failed: {exc}") from exc
+        voice = backup  # a Khmer line in an English video, or Kokoro out: Azure reads it
 
     if voice.startswith(local_voice.PREFIX):
         try:

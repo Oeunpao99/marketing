@@ -105,9 +105,21 @@ class Settings(BaseSettings):
     # "khmerttsopensource/khmer-tts" (app/local_voice.py) — blank = Azure.
     # Note: the MMS Khmer models are licensed CC-BY-NC 4.0 (non-commercial).
     khmer_tts_model: str = ""
+    # Who reads ENGLISH voice-overs: "" / "azure" (Ava / Andrew HD — the default)
+    # or "kokoro" (app/kokoro_voice.py — open source, free, run on this server).
+    # Off by default (the user's choice, 2026-10-30): on a 2-core server Kokoro
+    # takes ~2 s per second of speech and slows every render; Azure costs ~$0.01
+    # an English video. A Kokoro line that fails is read by Azure instead.
+    english_speech_provider: str = ""
+    kokoro_voice_female: str = "af_heart"
+    kokoro_voice_male: str = "am_michael"
+    kokoro_speed: float = 0.95
+    # kokoro-v1.0.onnx (~310 MB, best) or kokoro-v1.0.int8.onnx (~90 MB, faster, a little rougher)
+    kokoro_model: str = "kokoro-v1.0.onnx"
+    kokoro_dir: str = ""  # blank = HF_HOME/kokoro
     # Who reads KHMER voice-overs: "gemini" (Google Gemini TTS — the most natural
     # Khmer the user heard, 2026-10-14), "azure" (Sreymom / Piseth), or "" =
-    # Gemini when GEMINI_API_KEY is set. English always stays on Azure. A Gemini
+    # Gemini when GEMINI_API_KEY is set. English: see english_speech_provider. A Gemini
     # line that fails is read by Azure instead, so a video never loses its voice.
     khmer_speech_provider: str = ""
     gemini_tts_model: str = "gemini-3.8-flash-tts"

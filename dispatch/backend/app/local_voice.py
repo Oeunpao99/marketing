@@ -67,10 +67,7 @@ def _load(name: str):
 
 def speak(text: str, name: str) -> bytes:
     """``text`` (Khmer) read aloud by the local model — MP3 bytes."""
-    import numpy as np
     import torch
-
-    from app.story import _ffmpeg
 
     clean = re.sub(r"[​‌‍]", "", text).strip()
     if not clean:
@@ -82,6 +79,16 @@ def speak(text: str, name: str) -> bytes:
         with torch.no_grad():
             wav = model(**inputs).waveform[0].numpy()
         rate = model.config.sampling_rate
+    return wav_to_mp3(wav, rate)
+
+
+def wav_to_mp3(wav, rate: int) -> bytes:
+    """Float samples (-1..1) at ``rate`` Hz — MP3 bytes (24 kHz, 96k), like
+    every other voice's lines."""
+    import numpy as np
+
+    from app.story import _ffmpeg
+
     pcm = (np.clip(wav, -1.0, 1.0) * 32767).astype("<i2").tobytes()
     buf = io.BytesIO()
     with wave.open(buf, "wb") as w:

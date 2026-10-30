@@ -28,6 +28,9 @@ dependencies = [
     "python-docx>=1.2.0",
     "python-pptx>=1.0.2",
     "azure-storage-blob>=12.31.0",
+    # The English voice (app/kokoro_voice.py): Kokoro, open source (Apache 2.0),
+    # run on the server's CPU — free, no account.
+    "kokoro-onnx>=0.4",
 ]
 
 [dependency-groups]
