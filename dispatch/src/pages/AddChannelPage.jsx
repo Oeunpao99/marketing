@@ -244,7 +244,7 @@ export default function AddChannelPage({ embedded = false, initial = null, onClo
       setStep("linkedin-kind");
       return;
     }
-    setBusy(true);
+    setBusy(kind);
     setError(null);
     try {
       const brand = brands.find((b) => b.slug === brandId);
@@ -451,7 +451,8 @@ export default function AddChannelPage({ embedded = false, initial = null, onClo
             Connect <em className="italic text-brand">LinkedIn</em>
           </h1>
           <p className="page-sub mt-1">
-            For <b className="text-ink-700">{brand?.name}</b>. Where should posts go?
+            For <b className="text-ink-700">{brand?.name}</b>
+            {brand?.name?.endsWith(".") ? "" : "."} Where should posts go?
           </p>
         </div>
         <div className="space-y-3 max-w-lg">
@@ -471,7 +472,7 @@ export default function AddChannelPage({ embedded = false, initial = null, onClo
                 <span className="font-semibold text-ink-800 text-sm">{o.title}</span>
                 {o.tag && <Tag variant="ok">{o.tag}</Tag>}
                 <span className="ml-auto text-[11.5px] text-brand font-semibold">
-                  {busy ? "Redirecting to LinkedIn…" : "Connect →"}
+                  {busy === o.kind ? "Redirecting to LinkedIn…" : busy ? "" : "Connect →"}
                 </span>
               </div>
               <p className="mt-1 text-[12px] text-ink-500 leading-relaxed">{o.text}</p>
