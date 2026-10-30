@@ -1,0 +1,120 @@
+{
+ "brand": {
+  "name": "Smart Marketing",
+  "color": "#1F4E8C",
+  "logo": "ours/smart-marketing.png",
+  "slug": "smart-marketing"
+ },
+ "style": "skylaunch",
+ "music": "music/launch/contentflow-launch-2.mp3",
+ "scenes": [
+  {
+   "type": "hook",
+   "text": "Your marketing on ⟦autopilot⟧",
+   "badge": "Now live",
+   "seconds": 3.6
+  },
+  {
+   "type": "field",
+   "label": "Ask your AI marketer",
+   "value": "Plan next week's posts for Sokha Coffee",
+   "button": "Plan it",
+   "seconds": 4
+  },
+  {
+   "type": "screen",
+   "title": "Your week, ⟦ready to approve⟧",
+   "image": "ours/app/plan.jpg",
+   "imgW": 1600,
+   "imgH": 900,
+   "focus": [
+    0.855,
+    0.6,
+    0.12,
+    0.07
+   ],
+   "action": "click",
+   "result": "7 posts scheduled",
+   "seconds": 5
+  },
+  {
+   "type": "list",
+   "title": "Every week, it",
+   "seconds": 4,
+   "items": [
+    {
+     "icon": "CalendarDays",
+     "text": "Plans a real mix of posts"
+    },
+    {
+     "icon": "Video",
+     "text": "Makes Khmer videos and pictures"
+    },
+    {
+     "icon": "Clock",
+     "text": "Posts at your best times"
+    }
+   ]
+  },
+  {
+   "type": "button",
+   "title": "Iced latte promo",
+   "text": "Facebook · Instagram · TikTok",
+   "button": "Approve & schedule",
+   "result": "Posted to 3 pages",
+   "seconds": 4.2
+  },
+  {
+   "type": "cta",
+   "text": "Start ⟦free⟧ today",
+   "button": "Get started",
+   "seconds": 3.2
+  }
+ ],
+ "clip": [
+  {
+   "type": "hook",
+   "text": "Your marketing on ⟦autopilot⟧",
+   "badge": "Now live",
+   "seconds": 3.6
+  },
+  {
+   "type": "field",
+   "label": "Ask your AI marketer",
+   "value": "Plan next week's posts for Sokha Coffee",
+   "button": "Plan it",
+   "seconds": 4
+  },
+  {
+   "type": "screen",
+   "title": "Your week, ⟦ready to approve⟧",
+   "image": "ours/app/plan.jpg",
+   "imgW": 1600,
+   "imgH": 900,
+   "focus": [
+    0.855,
+    0.6,
+    0.12,
+    0.07
+   ],
+   "action": "click",
+   "result": "7 posts scheduled",
+   "seconds": 5
+  },
+  {
+   "type": "button",
+   "title": "Iced latte promo",
+   "text": "Facebook · Instagram · TikTok",
+   "button": "Approve & schedule",
+   "result": "Posted to 3 pages",
+   "seconds": 4.2
+  },
+  {
+   "type": "cta",
+   "text": "Start ⟦free⟧ today",
+   "button": "Get started",
+   "seconds": 3.2
+  }
+ ],
+ "frame": 80
+}

@@ -1,128 +1,355 @@
 {
-  "brand": {
-    "name": "Smart Marketing",
-    "color": "#1F4E8C",
-    "logo": "ours/smart-marketing.png",
-    "slug": "smart-marketing"
+ "brand": {
+  "name": "Smart Marketing",
+  "color": "#1F4E8C",
+  "logo": "ours/smart-marketing.png",
+  "slug": "smart-marketing"
+ },
+ "style": "clarity",
+ "frame": 328,
+ "music": "music/launch/contentflow-launch-1.mp3",
+ "scenes": [
+  {
+   "type": "hook",
+   "icon": "Lightbulb",
+   "text": "What should I ⟦post today⟧?",
+   "seconds": 3
   },
-  "style": "clarity",
-  "frame": 80,
-  "scenes": [
+  {
+   "type": "chaos",
+   "text": "Five apps. ⟦No time⟧.",
+   "seconds": 3.6,
+   "cards": [
     {
-      "type": "orbit",
-      "text": "Every ⟦commitment⟧ in one place",
-      "center": {
-        "icon": "FileText",
-        "title": "Statement of Work",
-        "sub": "SOW-2025-0008"
-      },
-      "tags": [
-        {
-          "icon": "Clock",
-          "label": "Timeline"
-        },
-        {
-          "icon": "DollarSign",
-          "label": "Budget"
-        },
-        {
-          "icon": "CircleCheck",
-          "label": "Deliverables"
-        },
-        {
-          "icon": "Crosshair",
-          "label": "Scope"
-        },
-        {
-          "icon": "FileCheck",
-          "label": "Approvals"
-        }
-      ]
+     "app": "Facebook",
+     "title": "3 new comments",
+     "sub": "Sokha Coffee"
+    },
+    {
+     "app": "TikTok",
+     "title": "Post a video today",
+     "sub": "Reminder"
+    },
+    {
+     "app": "Telegram",
+     "title": "Customer: price?",
+     "sub": "2 min ago"
+    },
+    {
+     "app": "Instagram",
+     "title": "Story expires soon",
+     "sub": "@sokhacoffee"
+    },
+    {
+     "app": "YouTube",
+     "title": "No upload this week",
+     "sub": "Studio"
+    },
+    {
+     "app": "Excel",
+     "title": "Content plan v7",
+     "sub": "Edited"
     }
-  ],
-  "clip": [
+   ]
+  },
+  {
+   "type": "platform",
+   "text": "Meet ⟦Smart Marketing⟧ — your AI marketing team",
+   "image": "ours/app/dashboard.jpg",
+   "imgW": 1600,
+   "imgH": 900,
+   "seconds": 3.4
+  },
+  {
+   "type": "gallery",
+   "title": "Content studio",
+   "tabs": [
+    "All",
+    "Videos",
+    "Pictures"
+   ],
+   "text": "Videos people ⟦stop scrolling⟧ for",
+   "seconds": 4,
+   "images": [
     {
-      "type": "chaos",
-      "text": "The work keeps ⟦moving⟧.",
-      "cards": [
-        {
-          "app": "Slack",
-          "title": "13 new messages!",
-          "sub": "Re: Go-Live Schedule"
-        },
-        {
-          "app": "Trello",
-          "title": "Deployment Checklist",
-          "sub": "Ravi Menon"
-        },
-        {
-          "app": "Teams",
-          "title": "Project Review",
-          "sub": "Sarah Thompson"
-        },
-        {
-          "app": "Gmail",
-          "title": "Re: Scope Change",
-          "sub": "To: Jessica Lee"
-        },
-        {
-          "app": "Google Sheets",
-          "title": "Deliverables",
-          "sub": "sheets.google.com"
-        },
-        {
-          "app": "Outlook",
-          "title": "Timeline update",
-          "sub": "Mark Taylor"
-        }
-      ]
+     "src": "ours/app/tpl-productfx.jpg"
     },
     {
-      "type": "platform",
-      "text": "One ⟦calm⟧ place for all of it."
+     "src": "ours/app/tpl-picture.jpg"
     },
     {
-      "type": "orbit",
-      "text": "Every ⟦commitment⟧ in one place",
-      "center": {
-        "icon": "FileText",
-        "title": "Statement of Work",
-        "sub": "SOW-2025-0008"
-      },
-      "tags": [
-        {
-          "icon": "Clock",
-          "label": "Timeline"
-        },
-        {
-          "icon": "DollarSign",
-          "label": "Budget"
-        },
-        {
-          "icon": "CircleCheck",
-          "label": "Deliverables"
-        },
-        {
-          "icon": "Crosshair",
-          "label": "Scope"
-        },
-        {
-          "icon": "FileCheck",
-          "label": "Approvals"
-        }
-      ]
+     "src": "ours/app/tpl-presenter.jpg"
     },
     {
-      "type": "pair",
-      "left": "Any language",
-      "right": "Instantly",
-      "icon": "BookOpen",
-      "label": "Folder"
+     "src": "ours/app/tpl-skylaunch.jpg"
     },
     {
-      "type": "cta",
-      "text": "See it with ⟦your⟧ work",
-      "button": "Book a demo"
+     "src": "ours/app/tpl-podcast.jpg"
+    },
+    {
+     "src": "ours/app/tpl-spotlight.jpg"
     }
-  ]
+   ],
+   "cards": [
+    {
+     "title": "Iced latte promo",
+     "sub": "Video · Khmer",
+     "icon": "Video"
+    },
+    {
+     "title": "Weekend story",
+     "sub": "Picture story",
+     "icon": "Image"
+    },
+    {
+     "title": "Ask the barista",
+     "sub": "Presenter",
+     "icon": "Video"
+    },
+    {
+     "title": "New menu launch",
+     "sub": "Launch film",
+     "icon": "Film"
+    },
+    {
+     "title": "Coffee talk",
+     "sub": "Podcast",
+     "icon": "Music"
+    },
+    {
+     "title": "Cold brew",
+     "sub": "3D spotlight",
+     "icon": "Video"
+    }
+   ]
+  },
+  {
+   "type": "orbit",
+   "text": "Your whole week, ⟦planned⟧",
+   "seconds": 3.6,
+   "center": {
+    "icon": "CalendarDays",
+    "title": "Weekly plan",
+    "sub": "Wed 21 – Tue 27 Oct"
+   },
+   "tags": [
+    {
+     "icon": "Image",
+     "label": "Pictures"
+    },
+    {
+     "icon": "Video",
+     "label": "Videos"
+    },
+    {
+     "icon": "Clock",
+     "label": "Best time"
+    },
+    {
+     "icon": "Languages",
+     "label": "Khmer voice"
+    },
+    {
+     "icon": "BarChart3",
+     "label": "Insights"
+    }
+   ]
+  },
+  {
+   "type": "phones",
+   "words": [
+    "Plan.",
+    "Create.",
+    "Post.",
+    "Learn."
+   ],
+   "seconds": 4.4,
+   "images": [
+    {
+     "src": "ours/app/landing-phone.jpg"
+    },
+    {
+     "src": "ours/app/plan.jpg"
+    },
+    {
+     "src": "ours/app/studio.jpg"
+    },
+    {
+     "src": "ours/app/insights.jpg"
+    }
+   ]
+  },
+  {
+   "type": "pair",
+   "left": "Every page",
+   "right": "One click",
+   "icon": "Send",
+   "label": "Posts",
+   "seconds": 3
+  },
+  {
+   "type": "reveal",
+   "icon": "Sparkles",
+   "text": "Less work. ⟦More customers⟧.",
+   "seconds": 3
+  },
+  {
+   "type": "cta",
+   "text": "Start ⟦free⟧ today",
+   "button": "Try Smart Marketing",
+   "seconds": 3.2
+  }
+ ],
+ "clip": [
+  {
+   "type": "hook",
+   "icon": "Lightbulb",
+   "text": "What should I ⟦post today⟧?",
+   "seconds": 3
+  },
+  {
+   "type": "chaos",
+   "text": "Five apps. ⟦No time⟧.",
+   "seconds": 3.6,
+   "cards": [
+    {
+     "app": "Facebook",
+     "title": "3 new comments",
+     "sub": "Sokha Coffee"
+    },
+    {
+     "app": "TikTok",
+     "title": "Post a video today",
+     "sub": "Reminder"
+    },
+    {
+     "app": "Telegram",
+     "title": "Customer: price?",
+     "sub": "2 min ago"
+    },
+    {
+     "app": "Instagram",
+     "title": "Story expires soon",
+     "sub": "@sokhacoffee"
+    },
+    {
+     "app": "YouTube",
+     "title": "No upload this week",
+     "sub": "Studio"
+    },
+    {
+     "app": "Excel",
+     "title": "Content plan v7",
+     "sub": "Edited"
+    }
+   ]
+  },
+  {
+   "type": "platform",
+   "text": "Meet ⟦Smart Marketing⟧ — your AI marketing team",
+   "image": "ours/app/dashboard.jpg",
+   "imgW": 1600,
+   "imgH": 900,
+   "seconds": 3.4
+  },
+  {
+   "type": "gallery",
+   "title": "Content studio",
+   "tabs": [
+    "All",
+    "Videos",
+    "Pictures"
+   ],
+   "text": "Videos people ⟦stop scrolling⟧ for",
+   "seconds": 4,
+   "images": [
+    {
+     "src": "ours/app/tpl-productfx.jpg"
+    },
+    {
+     "src": "ours/app/tpl-picture.jpg"
+    },
+    {
+     "src": "ours/app/tpl-presenter.jpg"
+    },
+    {
+     "src": "ours/app/tpl-skylaunch.jpg"
+    },
+    {
+     "src": "ours/app/tpl-podcast.jpg"
+    },
+    {
+     "src": "ours/app/tpl-spotlight.jpg"
+    }
+   ],
+   "cards": [
+    {
+     "title": "Iced latte promo",
+     "sub": "Video · Khmer",
+     "icon": "Video"
+    },
+    {
+     "title": "Weekend story",
+     "sub": "Picture story",
+     "icon": "Image"
+    },
+    {
+     "title": "Ask the barista",
+     "sub": "Presenter",
+     "icon": "Video"
+    },
+    {
+     "title": "New menu launch",
+     "sub": "Launch film",
+     "icon": "Film"
+    },
+    {
+     "title": "Coffee talk",
+     "sub": "Podcast",
+     "icon": "Music"
+    },
+    {
+     "title": "Cold brew",
+     "sub": "3D spotlight",
+     "icon": "Video"
+    }
+   ]
+  },
+  {
+   "type": "phones",
+   "words": [
+    "Plan.",
+    "Create.",
+    "Post.",
+    "Learn."
+   ],
+   "seconds": 4.4,
+   "images": [
+    {
+     "src": "ours/app/landing-phone.jpg"
+    },
+    {
+     "src": "ours/app/plan.jpg"
+    },
+    {
+     "src": "ours/app/studio.jpg"
+    },
+    {
+     "src": "ours/app/insights.jpg"
+    }
+   ]
+  },
+  {
+   "type": "reveal",
+   "icon": "Sparkles",
+   "text": "Less work. ⟦More customers⟧.",
+   "seconds": 3
+  },
+  {
+   "type": "cta",
+   "text": "Start ⟦free⟧ today",
+   "button": "Try Smart Marketing",
+   "seconds": 3.2
+  }
+ ]
 }
