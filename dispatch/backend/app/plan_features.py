@@ -14,6 +14,7 @@ portal); this is everything else:
     api               API keys and the MCP connector (app/api_keys.py, app/mcp_server.py)
     boost             which posts to boost (Insights)
     export            the Insights report as Excel / CSV (made in the browser — the app locks it)
+    no_watermark      videos without the small "Made with Smart Marketing" mark (Free has it)
 
 A refusal is a 402 with a sentence that names the plan to move to — the app shows it as is.
 Nothing already made is ever removed by a lower plan: it only stops more being added.
@@ -29,11 +30,11 @@ from app import billing
 from app.models import Brand, Channel, Workspace
 
 FEATURES: dict[str, dict] = {
-    "free": {"brands": 1, "channels": 2, "posts_per_day": 1, "auto_post": False, "leads": False, "sales_reps": 0, "own_voice": False, "api": False, "boost": False, "export": False},
-    "starter": {"brands": 1, "channels": 3, "posts_per_day": 1, "auto_post": False, "leads": False, "sales_reps": 0, "own_voice": False, "api": False, "boost": False, "export": False},
-    "pro": {"brands": 1, "channels": 5, "posts_per_day": 2, "auto_post": True, "leads": True, "sales_reps": 3, "own_voice": False, "api": False, "boost": True, "export": False},
-    "business": {"brands": 3, "channels": 5, "posts_per_day": 3, "auto_post": True, "leads": True, "sales_reps": 10, "own_voice": True, "api": True, "boost": True, "export": True},
-    "enterprise": {"brands": None, "channels": None, "posts_per_day": 10, "auto_post": True, "leads": True, "sales_reps": None, "own_voice": True, "api": True, "boost": True, "export": True},
+    "free": {"brands": 1, "channels": 2, "posts_per_day": 1, "auto_post": False, "leads": False, "sales_reps": 0, "own_voice": False, "api": False, "boost": False, "export": False, "no_watermark": False},
+    "starter": {"brands": 1, "channels": 3, "posts_per_day": 1, "auto_post": False, "leads": False, "sales_reps": 0, "own_voice": False, "api": False, "boost": False, "export": False, "no_watermark": True},
+    "pro": {"brands": 1, "channels": 5, "posts_per_day": 2, "auto_post": True, "leads": True, "sales_reps": 3, "own_voice": False, "api": False, "boost": True, "export": False, "no_watermark": True},
+    "business": {"brands": 3, "channels": 5, "posts_per_day": 3, "auto_post": True, "leads": True, "sales_reps": 10, "own_voice": True, "api": True, "boost": True, "export": True, "no_watermark": True},
+    "enterprise": {"brands": None, "channels": None, "posts_per_day": 10, "auto_post": True, "leads": True, "sales_reps": None, "own_voice": True, "api": True, "boost": True, "export": True, "no_watermark": True},
 }
 ORDER = ["free", "starter", "pro", "business", "enterprise"]
 # what the feature is called in a refusal
@@ -43,6 +44,7 @@ NAMES = {
     "own_voice": "Your own voice for videos",
     "api": "API & MCP",
     "boost": "Boost suggestions",
+    "no_watermark": "Videos without the watermark",
 }
 
 

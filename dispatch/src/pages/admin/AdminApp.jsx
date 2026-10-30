@@ -5,7 +5,6 @@ import {
   FiAlertTriangle,
   FiCpu,
   FiDollarSign,
-  FiFilm,
   FiGrid,
   FiLogOut,
   FiPlus,
@@ -22,7 +21,7 @@ import { lengthText } from '../../lib/usage'
 import { hideSplash } from '../../lib/splash'
 import PlatformIcon, { PLAT_BRAND_CLASS } from '../../components/ui/PlatformIcon'
 import AiUsage, { AccountAiSection } from './AdminAI'
-import MakingNow from './AdminMaking'
+import { AccountBars, ModelDonut, SpendLine } from './AdminCharts'
 
 // The platform admin portal (/admin-mkt — backend app/admin.py): who signed
 // up, who uses ContentFlow and how much AI they spend, with the controls to
@@ -175,7 +174,6 @@ function AdminLogin({ onIn }) {
 // The sidebar's pages — add new admin pages here.
 const TABS = [
   { id: 'overview', label: 'Overview', icon: FiGrid },
-  { id: 'making', label: 'Making now', icon: FiFilm },
   { id: 'accounts', label: 'Accounts', icon: FiUsers },
   { id: 'ai', label: 'AI usage', icon: FiCpu },
   { id: 'prices', label: 'Prices', icon: FiDollarSign },
@@ -246,8 +244,6 @@ function AdminPortal({ onSignOut }) {
       <main className="min-w-0 flex-1 px-5 py-7 lg:px-10">
         {tab === 'overview' ? (
           <Overview key={stamp} onOpen={setOpenId} onAll={() => setTab('accounts')} />
-        ) : tab === 'making' ? (
-          <MakingNow api={adminApi} onOpen={setOpenId} />
         ) : tab === 'ai' ? (
           <AiUsage key={stamp} api={adminApi} onOpen={setOpenId} />
         ) : tab === 'prices' ? (
@@ -788,6 +784,30 @@ function Overview({ onOpen, onAll }) {
           </ul>
         </section>
       </div>
+
+      {/* what the AI went on, by kind of work (app/admin.py activity_kind) — over time, this
+          month's split, and who spent most */}
+      {data.ai_kinds && (
+        <>
+          <section className={`${card} mt-5 p-5`}>
+            <h2 className="text-[14px] font-semibold text-ink-900">AI charged per day, by kind of work</h2>
+            <p className="mb-3 text-[11.5px] text-ink-500">Last 30 days, every account — videos, images, captions, weekly plans…</p>
+            <SpendLine daily={data.ai_kinds.daily} keys={data.ai_kinds.split.map((s) => s.model)} label={(k) => k} />
+          </section>
+          <div className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-2">
+            <section className={`${card} p-5`}>
+              <h2 className="text-[14px] font-semibold text-ink-900">This month, by kind of work</h2>
+              <p className="mb-3 text-[11.5px] text-ink-500">What was charged for what</p>
+              {data.ai_kinds.split.length ? <ModelDonut models={data.ai_kinds.split} label={(k) => k} /> : <p className="text-[12.5px] text-ink-400">No AI used this month yet.</p>}
+            </section>
+            <section className={`${card} p-5`}>
+              <h2 className="text-[14px] font-semibold text-ink-900">Top accounts this month</h2>
+              <p className="mb-3 text-[11.5px] text-ink-500">By AI charged</p>
+              {data.ai_kinds.top_accounts.length ? <AccountBars tenants={data.ai_kinds.top_accounts} onOpen={onOpen} /> : <p className="text-[12.5px] text-ink-400">No AI used this month yet.</p>}
+            </section>
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -1165,13 +1185,36 @@ function AccountDrawer({ id, onClose, onChanged }) {
 
               {/* the ledger behind the counts: AI cost in dollars (team only), gifts as the videos / images they gave */}
               <Section title="AI activity">
+                {/* this month by kind of work — what the AI cost went on, in words (app/admin.py activity_kind) */}
+                {w.ai_month?.length > 0 && (
+                  <div className="mb-4">
+                    <div className="mb-2 flex items-baseline justify-between">
+                      <span className="text-[12px] font-semibold text-ink-700">This month</span>
+                      <span className="text-[12px] text-ink-500">
+                        Total charged <b className="tabular-nums text-ink-900">{money(w.ai_month.reduce((n, g) => n + g.charged, 0))}</b>
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {w.ai_month.map((g) => (
+                        <div key={g.group} className="rounded-xl border border-ink-200/70 bg-white px-3 py-2.5">
+                          <div className="text-[11.5px] font-semibold text-ink-500">{g.group}</div>
+                          <div className="mt-0.5 text-[17px] font-bold tabular-nums text-ink-900">{money(g.charged)}</div>
+                          <div className="text-[11px] text-ink-400">
+                            {g.count} AI call{g.count === 1 ? '' : 's'} · cost us {money(g.cost)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {w.credit.length === 0 ? (
                   <p className="text-[12.5px] text-ink-400">No AI used yet.</p>
                 ) : (
                   <ul className="space-y-1 text-[12px]">
+                    <li className="pb-1 text-[11px] font-semibold uppercase tracking-wide text-ink-400">Latest</li>
                     {w.credit.map((c, n) => (
                       <li key={n} className="flex items-center gap-3">
-                        <span className="min-w-0 flex-1 truncate text-ink-700">{c.note || c.kind}</span>
+                        <span className="min-w-0 flex-1 truncate text-ink-700" title={c.note}>{c.label || c.note || c.kind}</span>
                         <span className={`flex-none font-semibold tabular-nums ${c.amount > 0 ? 'text-emerald-700' : 'text-ink-800'}`}>
                           {c.videos || c.images
                             ? `+${[c.videos && `${c.videos} video${c.videos === 1 ? '' : 's'}`, c.images && `${c.images} image${c.images === 1 ? '' : 's'}`].filter(Boolean).join(', ')}`

@@ -214,23 +214,42 @@ export function Caption({ text, seconds, words, pauses, top = 1225, look }) {
       </div>
     )
   }
+  // Soft subtitles (the boss's pick, 2026-10-30 — the black pill read too heavy): no box, a
+  // medium weight, the words lighting up as they're said and the ones to come dim; white on a
+  // dark or photo template, ink on a light one, a soft shadow keeping them readable on anything
+  const ink = look?.light ? '#141A26' : '#FFFFFF'
+  const dim = look?.light ? 'rgba(20,26,38,0.32)' : 'rgba(255,255,255,0.42)'
+  const halo = look?.light ? '0 1px 12px rgba(255,255,255,0.95), 0 0 2px rgba(255,255,255,0.9)' : '0 2px 14px rgba(0,0,0,0.6), 0 1px 3px rgba(0,0,0,0.5)'
   return (
-    <div style={{ position: 'absolute', top, left: 0, right: 0, display: 'flex', justifyContent: 'center', padding: '0 70px', opacity: pill }}>
+    <div style={{ position: 'absolute', top, left: 0, right: 0, display: 'flex', justifyContent: 'center', padding: '0 80px', opacity: pill }}>
       <div
         style={{
-          background: '#141414',
-          color: 'white',
+          display: 'flex',
+          flexWrap: 'wrap',
+          justifyContent: 'center',
           fontFamily: FONT,
-          fontWeight: 700,
-          fontSize: look?.size || 42, // a template may set its own (Picture story: 40) — 50 read too big (the user, 2026-10-30)
+          fontWeight: 500,
+          fontSize: look?.size || 40, // a template may set its own (Picture story: 40) — 50 read too big (the user, 2026-10-30)
           lineHeight: 1.4,
-          padding: '16px 34px',
-          borderRadius: 22,
+          letterSpacing: '0.005em',
           textAlign: 'center',
-          boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
+          textShadow: halo,
+          opacity: line,
+          transform: `translateY(${(1 - line) * 8}px)`,
         }}
       >
-        <span style={{ display: 'inline-block', opacity: line, transform: `translateY(${(1 - line) * 8}px)` }}>{now.c}</span>
+        {now.ws?.length ? (
+          now.ws.map((w, k) => {
+            const on = interpolate(frame, [w.from - 1, w.from + 3], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })
+            return (
+              <span key={k} style={{ display: 'inline-block', marginLeft: w.sp ? '0.26em' : 0, color: on >= 1 ? ink : on <= 0 ? dim : ink, opacity: 0.45 + 0.55 * on }}>
+                {w.w}
+              </span>
+            )
+          })
+        ) : (
+          <span style={{ color: ink }}>{now.c}</span>
+        )}
       </div>
     </div>
   )

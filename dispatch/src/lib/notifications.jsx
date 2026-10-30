@@ -2,12 +2,13 @@
 // Topbar / Sidebar counts, filtered by Settings → Notifications. (Phone and
 // desktop pop-ups are server-sent Web Push — see lib/push.js, app/push.py.)
 import { useEffect, useMemo } from 'react'
-import { FiAlertTriangle, FiCheckCircle, FiFilm, FiInbox, FiShield } from 'react-icons/fi'
+import { FiAlertTriangle, FiAward, FiCheckCircle, FiFilm, FiInbox, FiShield } from 'react-icons/fi'
 import { useAuth } from '../auth'
 import { PLAT } from '../data/brands'
 import { useStore } from '../store'
 import { useUsage } from './usage'
 import { useSecurityAlerts } from './securityAlerts'
+import { useInsightAlerts } from './insightAlerts'
 import PlatformIcon from '../components/ui/PlatformIcon'
 
 export const NOTIFY_KINDS = [
@@ -35,6 +36,7 @@ export function useNotifications() {
   const v = usage?.videos
   const lowVideos = v?.limit && v.left <= Math.max(1, Math.round(v.limit * 0.2)) ? v.left : null
   const devices = useSecurityAlerts()
+  const insight = useInsightAlerts() // Analytics: what can't report numbers, and the #1 post
 
   return useMemo(() => {
     const out = []
@@ -116,6 +118,37 @@ export function useNotifications() {
           })
         })
     }
+    // a platform whose connection broke — its posts can't report numbers (Analytics found it;
+    // here instead of a banner on that page)
+    if (prefs.channel) {
+      ;(insight.problems || []).forEach((p) => {
+        out.push({
+          id: `stats-${p.slug}`,
+          kind: 'channel',
+          icon: <PlatformIcon name={p.label} className="text-ink-400" />,
+          tag: 'Reconnect',
+          dot: 'bg-amber-400',
+          title: p.permission ? `${p.label} isn’t sharing post stats yet` : `${p.label} is disconnected`,
+          body: `${p.count} post${p.count === 1 ? '' : 's'} can’t report numbers${p.accounts?.length ? ` — reconnect ${p.accounts.join(', ')}` : ' until you reconnect'} and allow every permission`,
+          to: '/channels',
+          urgent: true,
+        })
+      })
+    }
+    // the post that's #1 by engagement right now
+    if (insight.top) {
+      out.push({
+        id: `top-${insight.top.id}`,
+        kind: 'published',
+        icon: <FiAward size={14} className="text-amber-500" />,
+        tag: 'Your #1 post',
+        dot: 'bg-amber-400',
+        title: insight.top.title,
+        body: `${Number(insight.top.engagement).toLocaleString('en-US')} engagement${insight.top.views ? ` · ${Number(insight.top.views).toLocaleString('en-US')} views` : ''} — your best right now`,
+        to: `/insights/${insight.top.id}`,
+        urgent: false,
+      })
+    }
     if (prefs.published) {
       ;(queue || []).forEach((p, index) => {
         if (p.st !== 'posted') return
@@ -135,7 +168,7 @@ export function useNotifications() {
     const items = out.slice(0, 12)
     return { items, count: out.filter((i) => i.urgent).length }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [review, queue, channels, key, lowVideos, devices])
+  }, [review, queue, channels, key, lowVideos, devices, insight])
 }
 
 /** Keeps the installed app's icon badge equal to the bell's count while the

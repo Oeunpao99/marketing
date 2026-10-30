@@ -19,6 +19,7 @@ import LegalPage from "./pages/LegalPage";
 import LibraryPage from "./pages/LibraryPage";
 import VideoEditPage from './pages/VideoEditPage'
 import EditorPage from './pages/EditorPage'
+import MakingNowPage from './pages/MakingNowPage'
 // the slide presenter: loaded only when a deck is opened (it brings the slides' icons)
 const PresentPage = lazy(() => import('./pages/PresentPage'))
 import LoginPage from "./pages/LoginPage";
@@ -102,6 +103,7 @@ function Portal() {
             <Route path="/library" element={<LibraryPage />} />
             <Route path="/library/edit/:id" element={<VideoEditPage />} />
             <Route path="/editor" element={<EditorPage />} />
+            <Route path="/making" element={<MakingNowPage />} />
             <Route path="/editor/:id" element={<EditorPage />} />
             <Route path="/present/:id" element={<Suspense fallback={null}><PresentPage /></Suspense>} />
             <Route path="/insights" element={<InsightsPage />} />

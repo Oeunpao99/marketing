@@ -1,6 +1,9 @@
 import { useBrandMarks } from '../lib/brandMarks'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { createPortal } from 'react-dom'
+import { Sparkles } from '../components/layout/NewTemplates'
+import { markTopPostSeen, setConnectionProblems, setTopPost, topPostSeen } from '../lib/insightAlerts'
 import InsightsSalesView from '../components/insights/InsightsSalesView'
 import { buildFunnel, buildInsights } from '../lib/insightsEngine'
 import Pager from '../components/ui/Pager'
@@ -26,6 +29,7 @@ import {
 } from 'react-icons/si'
 import {
   FiArrowDown,
+  FiAward,
   FiArrowUp,
   FiDownload,
   FiEye,
@@ -876,6 +880,35 @@ export default function InsightsPage() {
     }))
   }, [filtered])
 
+  // the bell carries what's broken and what's #1 (lib/insightAlerts.js) — once the numbers are in
+  useEffect(() => {
+    if (items === null) return
+    setConnectionProblems(
+      connectionProblems.map((p) => ({
+        slug: p.slug,
+        label: PLATFORM_LABELS[p.slug] || p.slug,
+        count: p.count,
+        accounts: p.accounts,
+        permission: p.permission,
+      })),
+    )
+  }, [items, connectionProblems])
+
+  // A recent post at #1 by engagement: a pop-up, once per post, and the bell keeps it
+  const [celebrate, setCelebrate] = useState(null)
+  useEffect(() => {
+    if (items === null) return
+    const top = topPosts[0]
+    const eng = top ? engagementOf(top.metrics) : 0
+    const fresh = top?.published_at && Date.now() - new Date(top.published_at).getTime() < 7 * 86400000
+    if (!top || !fresh || eng <= 0) return
+    setTopPost({ id: top.target_id, title: top.title || top.caption || 'Your post', engagement: eng, views: top.metrics?.views || 0, platform: top.platform_slug })
+    if (!topPostSeen(top.target_id)) {
+      markTopPostSeen(top.target_id)
+      setCelebrate(top)
+    }
+  }, [items, topPosts])
+
   // Per-platform share of engagement / views for the two donuts — fixed
   // platform order so a platform keeps its place and colour under any filter.
   const platformSplit = useMemo(() => {
@@ -1185,50 +1218,9 @@ export default function InsightsPage() {
 
       <TabBar tabs={TABS} value={tab} onChange={setTab} />
 
-      {/* One banner per platform whose connection is broken, instead of the
-          same error repeated on every row. */}
-      {connectionProblems.map((p) => {
-        const PIcon = PLATFORM_ICONS[p.slug] || FiGrid
-        return (
-          <div
-            key={p.slug}
-            className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50/60 px-4 py-3"
-          >
-            <span
-              className="w-8 h-8 rounded-lg grid place-items-center text-white flex-none"
-              style={{ background: PLATFORM_COLORS[p.slug] || '#64748b' }}
-            >
-              <PIcon size={15} />
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="text-[13px] font-semibold text-ink-900">
-                {p.permission
-                  ? `${PLATFORM_LABELS[p.slug] || p.slug} isn't sharing post stats yet`
-                  : `${PLATFORM_LABELS[p.slug] || p.slug} is disconnected`}
-              </div>
-              <div className="text-[12px] text-ink-600">
-                {p.permission
-                  ? `${p.count} post${p.count === 1 ? '' : 's'} can't report numbers: the app needs a permission to read stats. Posting still works.`
-                  : `${p.count} post${p.count === 1 ? '' : 's'} can't report numbers until you reconnect the account.`}
-              </div>
-              {p.accounts.length > 0 && (
-                <div className="mt-0.5 text-[12px] text-ink-700">
-                  Affected: <span className="font-semibold">{p.accounts.join(', ')}</span> — reconnect{' '}
-                  {p.accounts.length === 1 ? 'it' : 'each one'} and allow every permission.
-                </div>
-              )}
-              {p.note && (
-                <div className="mt-1 line-clamp-2 text-[11px] text-ink-400" title={p.note}>
-                  {PLATFORM_LABELS[p.slug] || p.slug} says: {p.note}
-                </div>
-              )}
-            </div>
-            <button type="button" onClick={() => navigate('/channels')} className="btn-outline">
-              Reconnect
-            </button>
-          </div>
-        )
-      })}
+      {/* A broken connection ("TikTok is disconnected") goes to the bell, not a banner here
+          (lib/insightAlerts.js); a new #1 post gets its pop-up once */}
+      {celebrate && <TopPostPopup it={celebrate} engagement={engagementOf(celebrate.metrics)} onClose={() => setCelebrate(null)} onOpen={() => navigate(`/insights/${celebrate.target_id}`)} />}
 
 
       {tab === 'overview' && (
@@ -1697,5 +1689,67 @@ function Dropdown({ value, onChange, label, options }) {
       aria-label={label}
       buttonClassName="text-[12px] font-semibold"
     />
+  )
+}
+
+/** "Your #1 post": a recent post at the top of Top performing content, celebrated once
+ * (the user, 2026-10-30). A plain dim backdrop and a solid card, the new-template sparkles. */
+function TopPostPopup({ it, engagement, onClose, onOpen }) {
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+  const src = mediaSrc(it.media_url)
+  const m = it.metrics || {}
+  const stats = [
+    [engagement, 'engagement'],
+    [m.views, 'views'],
+    [m.likes, 'likes'],
+    [m.comments, 'comments'],
+  ].filter(([v]) => v != null && v > 0)
+  return createPortal(
+    <div className="fixed inset-0 z-[160] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-night-950/60" onClick={onClose} />
+      <div className="cf-pop-in relative w-full max-w-[440px]">
+        <Sparkles />
+        <div role="dialog" aria-modal="true" aria-labelledby="top-post-title" className="relative overflow-hidden rounded-3xl bg-white p-6 shadow-2xl">
+          <button type="button" onClick={onClose} className="absolute right-3 top-3 z-10 grid h-8 w-8 place-items-center rounded-full bg-ink-100 text-ink-500 hover:text-ink-900" aria-label="Close">
+            <FiX size={16} />
+          </button>
+          <div className="flex items-center gap-3">
+            <span className="grid h-12 w-12 flex-none place-items-center rounded-2xl bg-amber-100 text-amber-600">
+              <FiAward size={24} />
+            </span>
+            <div>
+              <div className="text-[11px] font-bold uppercase tracking-wide text-amber-600">Your #1 post</div>
+              <h2 id="top-post-title" className="text-[18px] font-bold leading-tight tracking-tight text-ink-900">This one is doing great!</h2>
+            </div>
+          </div>
+          {src && <img src={src} alt="" className="mt-4 aspect-video w-full rounded-2xl object-cover" />}
+          <p className="mt-3 line-clamp-2 text-[13px] leading-relaxed text-ink-700">{it.title || it.caption}</p>
+          {stats.length > 0 && (
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {stats.slice(0, 4).map(([v, label]) => (
+                <div key={label} className="rounded-xl bg-ink-50 px-3 py-2">
+                  <div className="text-[17px] font-bold tabular-nums text-ink-900">{Number(v).toLocaleString('en-US')}</div>
+                  <div className="text-[11.5px] text-ink-500">{label}</div>
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="mt-3 text-[12px] text-ink-500">More engagement than any of your other posts here — a good one to make more like.</p>
+          <div className="mt-4 flex gap-2">
+            <button type="button" onClick={() => { onClose(); onOpen() }} className="btn-primary flex-1 justify-center">
+              See the post
+            </button>
+            <button type="button" onClick={onClose} className="btn-outline">
+              Nice!
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body,
   )
 }

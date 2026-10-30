@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { has, usePlanFeatures } from '../lib/planFeatures'
 import {
   FiArrowUp,
   FiSquare,
@@ -187,6 +188,7 @@ function serializeTurn(t) {
     productId: t.productId ?? null,
     voice: t.voice || undefined,
     music: t.music,
+    subtitles: t.subtitles,
     branded: t.branded,
     goal: t.goal || undefined,
     // Remotion from the person's own story: the storyboard to review / that was made
@@ -317,6 +319,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
   const [videoMode, setVideoMode] = useState(saved.videoMode ?? 'clip') // 'clip' = instant video | 'story' = storyboard | 'motion'
   const [motionVoice, setMotionVoice] = useState(saved.motionVoice ?? 'female')
   const [motionMusic, setMotionMusic] = useState(saved.motionMusic ?? true)
+  const [motionSubs, setMotionSubs] = useState(saved.motionSubs ?? true)
   const [motionLogo, setMotionLogo] = useState(saved.motionLogo ?? true) // false = "No logo": a video without the brand
   // Remotion story: teach (Explainer style) or sell (Tech style); auto = sell when a product is chosen
   const [motionGoal, setMotionGoal] = useState(saved.motionGoal ?? 'auto')
@@ -332,8 +335,8 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
   const [template, setTemplate] = useState(saved.template ?? TEMPLATES.image[0])
   // …and every change is remembered for next time
   useEffect(() => {
-    saveSettings(settingsKey, { type, ratio, seconds, videoMode, motionVoice, motionMusic, motionLogo, motionGoal, motionReview, motionLength, motionRatio, storySeconds, voice, style, template, brand })
-  }, [settingsKey, type, ratio, seconds, videoMode, motionVoice, motionMusic, motionLogo, motionGoal, motionReview, motionLength, motionRatio, storySeconds, voice, style, template, brand])
+    saveSettings(settingsKey, { type, ratio, seconds, videoMode, motionVoice, motionMusic, motionSubs, motionLogo, motionGoal, motionReview, motionLength, motionRatio, storySeconds, voice, style, template, brand })
+  }, [settingsKey, type, ratio, seconds, videoMode, motionVoice, motionMusic, motionSubs, motionLogo, motionGoal, motionReview, motionLength, motionRatio, storySeconds, voice, style, template, brand])
   const [settingsOpen, setSettingsOpen] = useState(false)
   // Brand kit (Products → Brand kit): a poster template to follow, a product
   // photo to feature and the logo — sent along with image requests.
@@ -836,6 +839,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
           language: turn.language || 'Khmer',
           voice: turn.voice || 'female',
           music: turn.music !== false,
+          subtitles: turn.subtitles !== false, // Subtitles: Off — the voice without words on screen
           branded: turn.branded !== false,
           goal: turn.goal || 'auto',
           script: turn.script || null, // a reviewed storyboard: made exactly as it is
@@ -998,6 +1002,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
       productId: isMotion ? (productId ?? null) : undefined,
       voice: isMotion ? motionVoice : undefined,
       music: isMotion ? motionMusic : undefined,
+      subtitles: isMotion ? motionSubs : undefined,
       branded: isMotion ? motionLogo : undefined,
       goal: isMotion ? motionGoal : undefined,
       reviewFirst: isMotion && motionReview,
@@ -1039,6 +1044,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
       productId: productId ?? null,
       voice: motionVoice,
       music: motionMusic,
+      subtitles: motionSubs,
       branded: motionLogo,
       goal: motionGoal,
       brandId: brandObj?.id ?? null,
@@ -1556,6 +1562,8 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
                   motionVoice={motionVoice}
                   motionMusic={motionMusic}
                   setMotionMusic={setMotionMusic}
+                  motionSubs={motionSubs}
+                  setMotionSubs={setMotionSubs}
                   motionLogo={motionLogo}
                   setMotionLogo={setMotionLogo}
                   motionGoal={motionGoal}
@@ -2616,6 +2624,7 @@ const NO_BRAND = '__no_brand__' // the Brand menu's last Remotion option
 function SettingsPopover({
   type, setType, ratio, setRatio, seconds, setSeconds, videoMode, setVideoMode, storySeconds, setStorySeconds,
   motionVoice = 'female', setMotionVoice = () => {}, motionMusic = true, setMotionMusic = () => {},
+  motionSubs = true, setMotionSubs = () => {},
   motionLogo = true, setMotionLogo = () => {},
   motionGoal = 'auto', setMotionGoal = () => {},
   motionReview = true, setMotionReview = () => {}, motionLength = 'auto', setMotionLength = () => {},
@@ -2624,6 +2633,7 @@ function SettingsPopover({
   products = [], product, setProduct, onClose,
 }) {
   const markOf = useBrandMarks()
+  const planFeatures = usePlanFeatures() // Free: the watermark row
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', onKey)
@@ -2953,6 +2963,28 @@ function SettingsPopover({
                 </button>
               ))}
             </Segmented>
+          </Row>
+        )}
+        {motion && (
+          <Row label="Subtitles" hint={motionSubs ? 'The words of the voice-over on screen, Khmer or English' : 'No words on screen — the voice only'}>
+            <Segmented>
+              {[
+                [true, 'On'],
+                [false, 'Off'],
+              ].map(([v, label]) => (
+                <button key={label} type="button" onClick={() => setMotionSubs(v)} className={`${seg(motionSubs === v)} px-0 text-[11.5px]`}>
+                  {label}
+                </button>
+              ))}
+            </Segmented>
+          </Row>
+        )}
+        {/* Free plan: the videos carry a small "Made with Smart Marketing" mark — Starter removes it */}
+        {motion && !has(planFeatures, 'no_watermark') && (
+          <Row label="Watermark" hint="Free plan videos show a small “Made with Smart Marketing” mark in the corner">
+            <Link to="/upgrade" className="inline-flex h-8 items-center justify-center whitespace-nowrap rounded-lg bg-brand px-3 text-[11.5px] font-semibold text-white hover:opacity-90">
+              Remove — upgrade to Starter
+            </Link>
           </Row>
         )}
 

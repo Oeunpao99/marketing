@@ -227,6 +227,16 @@ def publishing_view(
     }
 
 
+@router.get("/making")
+def making_now(db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    """Content studio → Making now: the videos and pictures this workspace's team is
+    making right now (queued or running), who asked and how far along — only this
+    workspace's (the admin portal sees every account's, app/admin.py)."""
+    from app.admin import making_now as rows
+
+    return rows(db, ws)
+
+
 @router.get("/today")
 def today(db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
     brands = _brand_map(db, ws)

@@ -25,6 +25,7 @@ import {
   Html5Audio,
   Img,
   Sequence,
+  staticFile,
   interpolate,
   spring,
   useCurrentFrame,
@@ -819,7 +820,37 @@ const TEMPLATES = {
   training: { ...TRAINING, scenes: { ...SCENES, ...TRAINING.scenes } },
 }
 
-export const MotionPost = ({ brand, scenes, music, musicList, style, look, cast, place, places, host, street, sfx = true, musicVolume = 1, voiceVolume = 1 }) => {
+/** A Free plan's mark (app/plan_features.py no_watermark): small and quiet, top-right — across
+ * from the brand's own logo, clear of the subtitles; Starter and up have none. */
+function Watermark() {
+  const { width, height } = useVideoConfig()
+  const tall = height > width
+  const s = tall ? 1 : 1.15
+  return (
+    <AbsoluteFill style={{ pointerEvents: 'none', zIndex: 30 }}>
+      <div
+        style={{
+          position: 'absolute',
+          top: chipTop(width, height),
+          right: chipLeft(width, height),
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10 * s,
+          padding: `${9 * s}px ${16 * s}px ${9 * s}px ${12 * s}px`,
+          borderRadius: 999,
+          background: 'rgba(255,255,255,0.78)',
+          boxShadow: '0 4px 14px rgba(0,0,0,0.12)',
+          opacity: 0.9,
+        }}
+      >
+        <span style={{ fontFamily: FONT, fontWeight: 500, fontSize: 17 * s, color: '#5B6475', whiteSpace: 'nowrap' }}>Made with</span>
+        <Img src={staticFile('ours/smart-marketing.png')} style={{ height: 24 * s, objectFit: 'contain' }} />
+      </div>
+    </AbsoluteFill>
+  )
+}
+
+export const MotionPost = ({ brand, scenes, music, musicList, style, look, cast, place, places, host, street, sfx = true, subtitles = true, watermark = false, musicVolume = 1, voiceVolume = 1 }) => {
   let point = 0
   // "custom": its scenes are drawn in the look the AI picked for this video
   const custom = useMemo(() => (style === 'custom' ? customTemplate(look) : null), [style, look])
@@ -853,8 +884,8 @@ export const MotionPost = ({ brand, scenes, music, musicList, style, look, cast,
                   An AI design scene's pause (canvas.jsx) comes first: the voice waits for the reveal. */}
               <Sequence from={voiceAt} layout="none">
                 {/* Subtitles — not where the screen says it already (the chat's bubbles, a quote). */}
-                {scene.caption && !noCaption.includes(scene.type) && (
-                  <Caption text={scene.caption} words={scene.voiceWords} pauses={scene.pauses} seconds={scene.voiceSeconds || sceneFrames(scene) / FPS - 0.6} top={captionTop} look={t.caption} />
+                {scene.caption && subtitles !== false && !noCaption.includes(scene.type) && (
+                  <Caption text={scene.caption} words={scene.voiceWords} pauses={scene.pauses} seconds={scene.voiceSeconds || sceneFrames(scene) / FPS - 0.6} top={captionTop} look={{ ...t.caption, light: !!t.light || scene.art === 'stickman' }} />
                 )}
                 {scene.audio && <Html5Audio src={srcOf(scene.audio)} volume={Math.min(1, voiceVolume)} />}
               </Sequence>
@@ -875,6 +906,7 @@ export const MotionPost = ({ brand, scenes, music, musicList, style, look, cast,
       </TransitionSeries>
       {/* "No logo" (app/motion.py Unbranded): no corner chip */}
       {!brand.logo && !brand.name ? null : t.chrome ? <t.chrome scenes={scenes} brand={brand} /> : t.light ? <ExplainerChrome scenes={scenes} brand={brand} /> : <Chrome scenes={scenes} brand={brand} />}
+      {watermark && <Watermark />}
     </AbsoluteFill>
   )
 }

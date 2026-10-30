@@ -57,7 +57,7 @@ function ProgressIcon({ job }) {
   )
 }
 
-function JobRow({ job, onOpen }) {
+function JobRow({ job, onOpen, team }) {
   const kind = KIND[job.kind] || KIND.motion
   const template = job.template ? templateById(job.template)?.name || job.template : ''
   const waiting = job.status === 'queued'
@@ -66,9 +66,13 @@ function JobRow({ job, onOpen }) {
       <ProgressIcon job={job} />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <button type="button" onClick={() => onOpen(job.workspace_id)} className="truncate text-[14px] font-semibold text-ink-900 hover:text-brand">
-            {job.account}
-          </button>
+          {team ? (
+            <span className="truncate text-[14px] font-semibold text-ink-900">{job.user || 'Someone on your team'}</span>
+          ) : (
+            <button type="button" onClick={() => onOpen(job.workspace_id)} className="truncate text-[14px] font-semibold text-ink-900 hover:text-brand">
+              {job.account}
+            </button>
+          )}
           {job.brand && <span className="truncate text-[12.5px] text-ink-500">· {job.brand}</span>}
           <span className="rounded-full bg-ink-50 px-2 py-0.5 text-[11px] font-semibold text-ink-600">{template || kind.label}</span>
           {job.ratio && <span className="text-[11px] font-semibold text-ink-400">{job.ratio}</span>}
@@ -79,7 +83,7 @@ function JobRow({ job, onOpen }) {
             {job.percent != null && !waiting && ` · ${job.percent}%`}
           </span>
           <span className="text-ink-400">{took(job.elapsed)} since asked</span>
-          {job.user && <span className="text-ink-400">by {job.user}</span>}
+          {job.user && !team && <span className="text-ink-400">by {job.user}</span>}
           {job.scenes > 0 && <span className="text-ink-400">{job.scenes} scenes</span>}
         </div>
         {/* the bar: filled to its percent, or a sliding stripe while there's no number */}
@@ -96,7 +100,7 @@ function JobRow({ job, onOpen }) {
   )
 }
 
-export default function MakingNow({ api, onOpen }) {
+export default function MakingNow({ api, onOpen = () => {}, team = false }) {
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
   const load = useCallback(async () => {
@@ -119,7 +123,9 @@ export default function MakingNow({ api, onOpen }) {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-[22px] font-bold tracking-tight text-ink-900">Making now</h1>
-          <p className="mt-1 text-[13px] text-ink-500">Every video and picture being made right now, in every account — updates by itself.</p>
+          <p className="mt-1 text-[13px] text-ink-500">
+            {team ? 'What everyone on your team is making right now — updates by itself.' : 'Every video and picture being made right now, in every account — updates by itself.'}
+          </p>
         </div>
         <button type="button" onClick={load} className="btn-outline">
           <FiRefreshCw size={14} /> Refresh
@@ -144,12 +150,12 @@ export default function MakingNow({ api, onOpen }) {
         {!data && !error ? (
           [0, 1].map((i) => <div key={i} className={`${card} h-[104px] skeleton`} />)
         ) : jobs.length ? (
-          jobs.map((j) => <JobRow key={j.id} job={j} onOpen={onOpen} />)
+          jobs.map((j) => <JobRow key={j.id} job={j} onOpen={onOpen} team={team} />)
         ) : (
           <div className={`${card} px-6 py-14 text-center`}>
             <FiFilm size={26} className="mx-auto text-ink-300" />
             <p className="mt-3 text-[14px] font-semibold text-ink-700">Nothing is being made right now</p>
-            <p className="mt-1 text-[12.5px] text-ink-400">When someone presses Make, their video shows up here with its progress.</p>
+            <p className="mt-1 text-[12.5px] text-ink-400">When {team ? 'anyone on your team' : 'someone'} presses Make, their video shows up here with its progress.</p>
           </div>
         )}
       </div>

@@ -216,6 +216,8 @@ def admin_overview(db: Session = Depends(get_db)):
         "ai_month": round(sum(float(v or 0) for v in st["ai_month"].values()), 2),
         "posts_30d": int(sum(st["posts_30d"].values())),
         "signups": [{"date": d.isoformat(), "count": per_day[d]} for d in days],
+        # the charts: AI per day by kind of work (30 days), this month's split, the top spenders
+        "ai_kinds": _ai_by_kind(db, now - timedelta(days=29)),
         "recent": [_ws_row(w, owners.get(w.id), st) for w in workspaces[:8]],
     }
 
@@ -245,15 +247,24 @@ def _job_percent(p: dict) -> int | None:
 
 @router.get("/making", dependencies=[Depends(require_admin)])
 def admin_making(db: Session = Depends(get_db)):
+    """The jobs not finished yet, in every account (the team's view)."""
+    return making_now(db)
+
+
+def making_now(db: Session, workspace_id: int | None = None) -> dict:
     """The jobs not finished yet — queued or running — with who asked, for which
-    brand, and how far along a template video is (live, from this process)."""
+    brand, and how far along a template video is (live, from this process). One
+    workspace's (Content studio → Making now: the team sees each other's), or all."""
     from app.models import GenerationJob
     from app.motion import progress_of
 
     now = datetime.now(UTC)
-    jobs = db.scalars(
-        select(GenerationJob).where(GenerationJob.status.in_(("queued", "running"))).order_by(GenerationJob.created_at)
-    ).all()
+    q = select(GenerationJob).where(GenerationJob.status.in_(("queued", "running")))
+    if workspace_id is not None:
+        q = q.where(GenerationJob.workspace_id == workspace_id)
+    jobs = db.scalars(q.order_by(GenerationJob.created_at)).all()
+    # the queue is shared by every account (one render at a time): a job's place counts them all
+    queued_ids = [j.id for j in db.scalars(select(GenerationJob).where(GenerationJob.status == "queued").order_by(GenerationJob.created_at))]
     ws = {w.id: w.name for w in db.scalars(select(Workspace).where(Workspace.id.in_({j.workspace_id for j in jobs})))} if jobs else {}
     brands = {b.id: b.name for b in db.scalars(select(Brand).where(Brand.id.in_({j.brand_id for j in jobs if j.brand_id})))} if jobs else {}
     users = {u.id: u.name or u.email for u in db.scalars(select(TeamMember).where(TeamMember.id.in_({j.user_id for j in jobs if j.user_id})))} if jobs else {}
@@ -270,7 +281,7 @@ def admin_making(db: Session = Depends(get_db)):
                 "id": j.id,
                 "kind": j.kind,  # motion (a template video) | video (AI-filmed) | image
                 "status": j.status,
-                "queue": queue if waiting else 0,
+                "queue": (queued_ids.index(j.id) + 1 if j.id in queued_ids else queue) if waiting else 0,
                 "account": ws.get(j.workspace_id, "?"),
                 "workspace_id": j.workspace_id,
                 "brand": brands.get(j.brand_id, ""),
@@ -460,6 +471,17 @@ def admin_workspace(ws_id: int, db: Session = Depends(get_db)):
     credit = db.scalars(
         select(CreditEntry).where(CreditEntry.workspace_id == ws_id).order_by(CreditEntry.created_at.desc()).limit(12)
     ).all()
+    # this month's AI, grouped the way people think of it (videos, images, captions…)
+    month = db.scalars(
+        select(CreditEntry).where(CreditEntry.workspace_id == ws_id, CreditEntry.created_at >= billing.month_start(), CreditEntry.amount_usd < 0)
+    ).all()
+    summary: dict[str, dict] = {}
+    for c in month:
+        group, _label = activity_kind(c.kind, c.note)
+        g = summary.setdefault(group, {"group": group, "count": 0, "charged": 0.0, "cost": 0.0})
+        g["count"] += 1
+        g["charged"] += -float(c.amount_usd)
+        g["cost"] += float(c.cost_usd or 0)
     logins = db.scalars(
         select(LoginEvent).where(LoginEvent.workspace_id == ws_id).order_by(LoginEvent.created_at.desc()).limit(10)
     ).all()
@@ -490,13 +512,48 @@ def admin_workspace(ws_id: int, db: Session = Depends(get_db)):
             for b in brands
         ],
         "credit": [
-            {"at": c.created_at, "kind": c.kind, "amount": round(float(c.amount_usd), 4), "note": c.note, "videos": c.videos, "images": c.images}
+            {"at": c.created_at, "kind": c.kind, "amount": round(float(c.amount_usd), 4), "note": c.note, "label": activity_kind(c.kind, c.note)[1], "videos": c.videos, "images": c.images}
             for c in credit
         ],
+        # this month by kind of work, biggest first: [{group, count, charged, cost}]
+        "ai_month": sorted(
+            ({**g, "charged": round(g["charged"], 2), "cost": round(g["cost"], 2)} for g in summary.values()),
+            key=lambda g: -g["charged"],
+        ),
         "logins": [
             {"at": e.created_at, "email": e.email, "status": e.status, "ip": e.ip} for e in logins
         ],
     }
+
+
+# What an AI charge was for, in words — the ledger keeps the start of the AI's instructions
+# ("AI writing: You are the content strategist…"), which read badly in the account drawer
+# (the user, 2026-10-30). The first match wins.
+_ACTIVITY = [
+    ("Marketing advisor", "Marketing advisor chat", ("marketing advisor",)),
+    ("Website check", "Website check", ("website check",)),
+    ("Weekly plan", "Weekly plan", ("creative marketing lead", "content strategist")),
+    ("Captions & posts", "Caption / post writing", ("copy editor", "social media editor", "caption", "label one social media post", "labels already used")),
+    ("Images", "Image", ("image", "picture", "poster", "illustrator", "reference images", "cut-out", "prompt engineer")),
+    ("Videos", "Video voice-over", ("voice-over", "voice preview")),
+    ("Videos", "Video script & design", ("video", "remotion", "storyboard", "film", "storyteller", "director", "scriptwriter", "podcast", "parable",
+                                         "dialogue", "meme", "presentation designer", "instructional designer", "motion designer", "teacher", "creator", "ui designer")),
+]
+
+
+def activity_kind(kind: str, note: str) -> tuple[str, str]:
+    """(group, label) for one ledger row — "Videos" / "Video voice-over", "Images" / "Image"…"""
+    text = (note or "").lower()
+    for group, label, words in _ACTIVITY:
+        if any(w in text for w in words):
+            return group, label
+    if kind == "image":
+        return "Images", "Image"
+    if kind == "video":
+        return "Videos", "Video"
+    if kind == "grant" or kind == "topup":
+        return "Credit added", "Credit added"
+    return "Other", "Other AI writing" if text.startswith("ai writing") else (note or kind or "Other")
 
 
 def _sign_out(db: Session, **where) -> int:
@@ -694,6 +751,46 @@ def admin_ai_usage(days: int = 30, db: Session = Depends(get_db)):
         "tenants": sorted(tenants.values(), key=lambda t: -t["charged"]),
         "models": sorted(by_model.values(), key=lambda m: -m["charged"]),
         "daily": _ai_daily(db, since),
+    }
+
+
+def _ai_by_kind(db: Session, since: datetime) -> dict:
+    """The Overview's charts, by kind of work (activity_kind): every day since ``since`` —
+    [{"day", "models": {group: {calls, charged}}}] — this month's split, and the accounts
+    that spent most this month."""
+    rows = db.execute(
+        select(CreditEntry.created_at, CreditEntry.kind, CreditEntry.note, CreditEntry.amount_usd, CreditEntry.workspace_id).where(
+            CreditEntry.created_at >= min(since, billing.month_start()), CreditEntry.amount_usd < 0
+        )
+    ).all()
+    month0 = billing.month_start()
+    days: dict[str, dict] = {}
+    split: dict[str, dict] = {}
+    spend: dict[int, float] = {}
+    for at, kind, note, amount, ws_id in rows:
+        group = activity_kind(kind, note)[0]
+        charged = -float(amount)
+        at = at if at.tzinfo else at.replace(tzinfo=UTC)
+        if at >= since:
+            g = days.setdefault(at.date().isoformat(), {}).setdefault(group, {"calls": 0, "charged": 0.0})
+            g["calls"] += 1
+            g["charged"] = round(g["charged"] + charged, 4)
+        if at >= month0:
+            s = split.setdefault(group, {"model": group, "calls": 0, "charged": 0.0})
+            s["calls"] += 1
+            s["charged"] = round(s["charged"] + charged, 4)
+            spend[ws_id] = spend.get(ws_id, 0.0) + charged
+    first, last = since.date(), datetime.now(UTC).date()
+    daily = []
+    while first <= last:
+        daily.append({"day": first.isoformat(), "models": days.get(first.isoformat(), {})})
+        first += timedelta(days=1)
+    top = sorted(spend.items(), key=lambda kv: -kv[1])[:6]
+    names = {w.id: w.name for w in db.scalars(select(Workspace).where(Workspace.id.in_([k for k, _ in top] or [0])))}
+    return {
+        "daily": daily,
+        "split": sorted(split.values(), key=lambda s: -s["charged"]),
+        "top_accounts": [{"id": k, "name": names.get(k, f"#{k}"), "charged": round(v, 2), "cost": 0, "calls": 0, "tokens": 0, "models": []} for k, v in top],
     }
 
 

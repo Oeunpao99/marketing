@@ -1,4 +1,5 @@
 import {
+  FiActivity,
   FiBarChart2,
   FiCalendar,
   FiClipboard,
@@ -46,6 +47,7 @@ export const BOSS = [
       { to: '/ai', icon: FiFilm, label: 'Studio' },
       { to: '/library', icon: FiImage, label: 'Media Library', badge: 'library' },
       { to: '/editor', icon: FiScissors, label: 'Video editor' },
+      { to: '/making', icon: FiActivity, label: 'Making now' },
     ],
   },
   { to: '/leads', icon: FiUserCheck, label: 'Leads & hand-off', badge: 'leads', group: 'Grow' },

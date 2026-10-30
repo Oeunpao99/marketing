@@ -11,6 +11,7 @@ export const NEEDS = {
   own_voice: 'Business',
   api: 'Business',
   export: 'Business',
+  no_watermark: 'Starter',
 }
 
 export const FEATURE_NAMES = {
@@ -20,6 +21,7 @@ export const FEATURE_NAMES = {
   own_voice: 'Your own voice for videos',
   api: 'API & MCP',
   export: 'Excel / CSV export',
+  no_watermark: 'Videos without the watermark',
 }
 
 /** The plan's features — null while the usage loads (treat as allowed: the server still checks). */

@@ -386,7 +386,8 @@ LOGODRAW_PROMPT = (
     "You write the words of a 10-second LOGO INTRO video: the brand's logo is drawn from scratch "
     "on a drafting grid, then its name and a short tagline appear under it. There is no voice-over.\n"
     "Return JSON: {\"scenes\": [{\"type\": \"draw\", \"name\": \"...\", \"tagline\": \"...\", \"say\": \"\"}]}\n"
-    "- name: the brand's name exactly as written (Latin letters as given).\n"
+    "- name: the brand's name exactly as written (Latin letters as given) — or, when the brief says the "
+    "logo is another company's (a client's, a new brand's), THAT company's name as the brief writes it.\n"
     "- tagline: 2-6 words — what the brand promises, from the brief / products; in the LANGUAGE "
     "given; no hashtags, no price, no emoji. If the brief gives a tagline, use it word for word.\n"
     "- say: always \"\" (the intro has no voice).\n"
@@ -7145,6 +7146,8 @@ class MotionIn(BaseModel):
     ref_url: str = Field(default="", max_length=500)
     # More screenshots attached with it (up to 6 in all) — screenshots 2, 3…
     ref_urls: list[str] = Field(default_factory=list, max_length=6)
+    # False = "Subtitles: Off" — the voice-over without its words on screen (any language)
+    subtitles: bool = True
     # False = "No logo": a video without the brand — no logo, name, colours,
     # photos or products (Unbranded), e.g. a script about another product
     branded: bool = True
@@ -7746,7 +7749,7 @@ def create_motion(
     threading.Thread(
         target=_make,
         args=(job.id, payload.product_id, payload.language, payload.voice, "", payload.music, payload.goal, payload.script, payload.ratio, payload.ref_url, billing.requested_model()),
-        kwargs={"ref_urls": payload.ref_urls, "branded": payload.branded},
+        kwargs={"ref_urls": payload.ref_urls, "branded": payload.branded, "subtitles": payload.subtitles},
         daemon=True,
         name=f"motion-{job.id}",
     ).start()
@@ -7818,6 +7821,7 @@ def _make(
     model: str = "",
     ref_urls: list[str] | None = None,
     branded: bool = True,
+    subtitles: bool = True,
 ) -> None:
     from app.content_ai import ContentAIError
     from app.video import _ready_push
@@ -7880,6 +7884,12 @@ def _make(
             ref_shot = _shot_from_blob(read_media(ref_url) or b"", "reference") if ref_url else None  # screenshot 1, as planned
             more_now = attached_shots(ref_url, ref_urls) if ref_shot else []  # screenshots 2, 3… as planned
             shots_now = ([ref_shot] if ref_shot else []) + more_now + (brand_screens(db, brand.id) if script.get("style") in SCREEN_STYLES and branded else [])
+            if script.get("style") == "logodraw" and ref_url:
+                # Logo · Drawing: a logo picture attached on the Make page is the one drawn — a
+                # client's or a new logo, not the brand kit's (the user, 2026-10-30)
+                attached = _data_uri(read_media(ref_url) or b"", 512, keep_alpha=True)
+                if attached:
+                    logo = attached
             if script.get("style") == "productfx" and ref_url:  # Product showcase: the photo they attached IS the product
                 attached = _data_uri(read_media(ref_url) or b"", 1280, keep_alpha=True)
                 if attached:
@@ -7960,6 +7970,12 @@ def _make(
             language = script.get("language") or language  # a pasted script speaks its own language
             script = review_design(brand, script, logo, "khmer" in language.lower(), job_id)
             props = build_props(brand, script, logo, "khmer" in language.lower())
+            if not subtitles:  # "Subtitles: Off" — the voice without words on screen (MotionPost.jsx)
+                props["subtitles"] = False
+            from app import plan_features
+
+            if not plan_features.allows(db, job.workspace_id, "no_watermark"):  # Free: "Made with Smart Marketing"
+                props["watermark"] = True
             db.rollback()  # no transaction held open through the voice and render
             if not (_progress.get(job_id) or {}).get("sketches"):
                 # a template video: its scene pictures for the making card, from a
