@@ -86,9 +86,10 @@ const PLATFORM_META = {
     color: "#0A66C2",
     Icon: FaLinkedin,
     label: "LinkedIn",
-    desc: "Log into LinkedIn and approve the app — posts to your own feed for real.",
+    desc: "Connect your Company Page (posts with their numbers) or your own profile.",
     live: true,
     oauth: "linkedin",
+    multi: true,
   },
 };
 
@@ -235,16 +236,24 @@ export default function AddChannelPage({ embedded = false, initial = null, onClo
   };
 
   /* ---- real connect (LinkedIn OAuth → backend → linkedin.com) ---- */
-  const connectLinkedIn = async (brandId) => {
+  // Without a kind it first asks: Company Page or personal profile?
+  const connectLinkedIn = async (brandId, kind = null) => {
+    if (!kind) {
+      setSelectedBrand(brandId);
+      setError(null);
+      setStep("linkedin-kind");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
       const brand = brands.find((b) => b.slug === brandId);
       if (!brand) throw new Error("Brand not found.");
-      const res = await api.get(`/views/oauth/linkedin/start?brand_id=${brand.id}`);
+      const res = await api.get(`/views/oauth/linkedin/start?brand_id=${brand.id}&kind=${kind}`);
       if (!res?.url) throw new Error("LinkedIn did not return a connect link.");
       // Full-page navigation to linkedin.com's consent screen — this
-      // component unmounts here; the callback lands the user back on /channels.
+      // component unmounts here; the callback lands back on /channels, or on
+      // this page with Company Pages to pick from (?linkedin_pending=…).
       window.location.href = res.url;
     } catch (e) {
       setError(e.message);
@@ -333,6 +342,19 @@ export default function AddChannelPage({ embedded = false, initial = null, onClo
   const [pendingLoading, setPendingLoading] = useState(false);
 
   useEffect(() => {
+    const liPendingId = searchParams.get("linkedin_pending");
+    if (liPendingId) {
+      setSelectedPlatform("linkedin");
+      setStep("linkedin-pages");
+      setPendingLoading(true);
+      api
+        .get(`/views/oauth/linkedin/pending/${liPendingId}`)
+        .then((rec) => setPending({ id: liPendingId, ...rec }))
+        .catch((e) => setError(e.message))
+        .finally(() => setPendingLoading(false));
+      setSearchParams({}, { replace: true });
+      return;
+    }
     const pendingId = searchParams.get("meta_pending");
     if (!pendingId) return;
     setPendingLoading(true);
@@ -375,6 +397,184 @@ export default function AddChannelPage({ embedded = false, initial = null, onClo
       setBusy(false);
     }
   };
+
+  // LinkedIn Company Pages ticked in the picker
+  const [liPicks, setLiPicks] = useState([]);
+  const confirmLinkedInPages = async () => {
+    if (!liPicks.length) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api.post(`/views/oauth/linkedin/pending/${pending.id}/confirm`, {
+        page_ids: liPicks,
+      });
+      const n = res.connected.length;
+      showToast(
+        n === 1
+          ? `${res.connected[0].name} connected for ${pending.brand_name}`
+          : `${n} LinkedIn Pages connected for ${pending.brand_name}`,
+      );
+      await refreshChannels();
+      close();
+    } catch (e) {
+      setError(e.message);
+      setBusy(false);
+    }
+  };
+
+  /* ═══════════ LINKEDIN: COMPANY PAGE OR PROFILE ═══════════ */
+  if (step === "linkedin-kind") {
+    const brand = brands.find((b) => b.slug === selectedBrand);
+    const options = [
+      {
+        kind: "page",
+        title: "Company Page",
+        tag: "Recommended",
+        text: "Post as your business Page. Likes, comments and views come back to Analytics. You need to be an admin of the Page.",
+      },
+      {
+        kind: "profile",
+        title: "Personal profile",
+        text: "Post to your own LinkedIn feed. LinkedIn doesn't share the numbers of personal posts.",
+      },
+    ];
+    return (
+      <div className={`w-full ${pad} animate-fadein`}>
+        <button
+          onClick={resetFlow}
+          className="text-sm text-ink-500 hover:text-ink-700 mb-4 transition-all duration-150"
+        >
+          ← Back to platforms
+        </button>
+        <div className="mb-6">
+          <h1 className="page-title">
+            Connect <em className="italic text-brand">LinkedIn</em>
+          </h1>
+          <p className="page-sub mt-1">
+            For <b className="text-ink-700">{brand?.name}</b>. Where should posts go?
+          </p>
+        </div>
+        <div className="space-y-3 max-w-lg">
+          {options.map((o) => (
+            <button
+              key={o.kind}
+              type="button"
+              disabled={busy}
+              onClick={() => connectLinkedIn(selectedBrand, o.kind)}
+              className={`w-full text-left p-4 rounded-2xl border transition-all duration-150 ${
+                busy
+                  ? "border-ink-200 bg-ink-50 opacity-60 cursor-not-allowed"
+                  : "border-ink-100 bg-white hover:border-brand hover:shadow-card cursor-pointer"
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-ink-800 text-sm">{o.title}</span>
+                {o.tag && <Tag variant="ok">{o.tag}</Tag>}
+                <span className="ml-auto text-[11.5px] text-brand font-semibold">
+                  {busy ? "Redirecting to LinkedIn…" : "Connect →"}
+                </span>
+              </div>
+              <p className="mt-1 text-[12px] text-ink-500 leading-relaxed">{o.text}</p>
+            </button>
+          ))}
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-xl px-3.5 py-2.5 text-[12px] text-red-700">
+              {error}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  /* ═══════════ PICK LINKEDIN COMPANY PAGES ═══════════ */
+  if (step === "linkedin-pages") {
+    return (
+      <div className={`w-full ${pad} animate-fadein`}>
+        <button
+          onClick={resetFlow}
+          className="text-sm text-ink-500 hover:text-ink-700 mb-4 transition-all duration-150"
+        >
+          ← Back to platforms
+        </button>
+        <div className="mb-6">
+          <h1 className="page-title">
+            Pick your <em className="italic text-brand">LinkedIn Pages</em>
+          </h1>
+          <p className="page-sub mt-1">
+            {pending && (
+              <>
+                For <b className="text-ink-700">{pending.brand_name}</b>. These are the Company Pages
+                you manage — tick each one this brand should post to.
+              </>
+            )}
+          </p>
+        </div>
+
+        {pendingLoading ? (
+          <div className="space-y-3 max-w-lg">
+            {Array.from({ length: 2 }).map((_, i) => (
+              <div key={i} className="card p-4 space-y-2">
+                <div className="h-3 w-40 rounded skeleton" />
+              </div>
+            ))}
+          </div>
+        ) : !pending?.pages?.length ? (
+          <div className="card px-5 py-10 text-center text-ink-400 text-[12px] max-w-lg">
+            No Pages to show.
+          </div>
+        ) : (
+          <div className="space-y-3 max-w-lg">
+            {pending.pages.map((p) => {
+              const on = liPicks.includes(p.id);
+              return (
+                <label
+                  key={p.id}
+                  className={`flex items-center gap-2.5 cursor-pointer rounded-2xl border p-4 transition-colors duration-150 ${
+                    on ? "border-brand-line bg-brand-soft" : "border-ink-100 bg-white"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 accent-brand flex-none"
+                    checked={on}
+                    onChange={(e) =>
+                      setLiPicks((prev) =>
+                        e.target.checked ? [...prev, p.id] : prev.filter((x) => x !== p.id),
+                      )
+                    }
+                  />
+                  <span className="font-semibold text-ink-800 text-sm">{p.name}</span>
+                  {p.vanity && (
+                    <span className="text-[11.5px] text-ink-400 truncate">linkedin.com/company/{p.vanity}</span>
+                  )}
+                </label>
+              );
+            })}
+            <div className="flex items-center gap-3 pt-1">
+              <button
+                type="button"
+                disabled={busy || !liPicks.length}
+                onClick={confirmLinkedInPages}
+                className="btn-primary"
+              >
+                {busy ? "Connecting…" : liPicks.length > 1 ? `Connect ${liPicks.length} Pages` : "Connect"}
+              </button>
+              <span className="text-[11.5px] text-ink-400">
+                {liPicks.length ? `${liPicks.length} selected` : "Tick at least one Page."}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <div className="mt-4 max-w-lg bg-red-50 border border-red-200 rounded-xl px-3.5 py-2.5 text-[12px] text-red-700">
+            {error}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   /* ═══════════ SUCCESS ═══════════ */
   if (step === "success") {

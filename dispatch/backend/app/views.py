@@ -1132,15 +1132,18 @@ def _post_metrics(
                 "url": None,
             }
         if platform_slug == "linkedin":
-            # Reading a member post's likes/comments/impressions needs LinkedIn's
-            # partner-only Community Management API — "Share on LinkedIn" can
-            # post but not read back. Link to the post so its stats are one tap away.
+            if config.get("org_id"):  # a Company Page — its posts report their numbers
+                token, _fresh = linkedin.ensure_access_token(config)
+                data = linkedin.post_stats(token, str(config["org_id"]), external_id)
+                return {"status": "ok", "metrics": data, "url": linkedin.post_url(external_id), "note": ""}
+            # A personal profile's post: "Share on LinkedIn" can post but not
+            # read back. Link to the post so its stats are one tap away.
             return {
                 "status": "partial",
-                "note": "LinkedIn doesn't share likes, comments or views with apps for personal "
-                "posts — open the post on LinkedIn to see them.",
+                "note": "LinkedIn doesn't share likes, comments or views for personal-profile "
+                "posts — open the post on LinkedIn to see them, or connect your Company Page.",
                 "metrics": {},
-                "url": f"https://www.linkedin.com/feed/update/{external_id}/" if external_id else None,
+                "url": linkedin.post_url(external_id),
             }
         return {"status": "unavailable", "note": "No insights integration for this platform.", "metrics": {}, "url": None}
     except Exception as exc:  # noqa: BLE001 - one post's failure shouldn't blank the page
@@ -2787,7 +2790,7 @@ def disconnect_channel(channel_id: int, db: Session = Depends(get_db), ws: int =
 # Non-secret keys that say WHICH account a channel is (a Facebook Page, an
 # Instagram account, a Telegram chat) — kept on disconnect, so reconnecting
 # the same account brings back the same channel and its post history.
-_IDENTITY_KEYS = ("page_id", "page_name", "ig_user_id", "ig_username", "chat_id")
+_IDENTITY_KEYS = ("page_id", "page_name", "ig_user_id", "ig_username", "chat_id", "org_id", "org_name", "person_sub", "kind")
 
 
 def _claim_channel(db: Session, brand_id: int, platform_id: int, key: str, value: str) -> Channel:
@@ -3244,21 +3247,31 @@ def meta_pending_confirm(
 
 
 # ── LinkedIn OAuth connect ────────────────────────────────────────────────
-# Personal-profile posting only (see app/linkedin.py) — a single LinkedIn
-# login maps to one person's own feed, so like TikTok (and unlike Meta) this
-# needs no "pick a Page" step: /start -> linkedin.com -> /callback stores the
-# token straight onto the brand's Channel and bounces back into the app.
+# Two kinds (see app/linkedin.py). kind=profile: one login is one person's own
+# feed, so /callback stores the token straight onto a channel and bounces back
+# to /channels. kind=page: /callback lists the Company Pages the person
+# administers and lands on /channels/add?linkedin_pending=… to pick them (like
+# Meta's Page picker); each picked Page becomes its own channel.
 _LINKEDIN_STATE_TTL_SECONDS = 600
 
 
 @router.get("/oauth/linkedin/start")
-def linkedin_oauth_start(brand_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+def linkedin_oauth_start(
+    brand_id: int, kind: str = "profile", db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)
+):
+    kind = "page" if kind == "page" else "profile"
     _room_to_connect(db, owned(db, Brand, brand_id, ws), "linkedin")
-    state = sign_payload({"brand_id": brand_id}, _LINKEDIN_STATE_TTL_SECONDS)
+    state = sign_payload({"brand_id": brand_id, "kind": kind}, _LINKEDIN_STATE_TTL_SECONDS)
     try:
-        return {"url": linkedin.authorize_url(state)}
+        return {"url": linkedin.authorize_url(state, kind)}
     except linkedin.LinkedInError as exc:
-        raise HTTPException(503, str(exc)) from exc
+        log.warning("linkedin connect not available: %s", exc)
+        raise HTTPException(
+            503,
+            "Connecting LinkedIn Company Pages isn't switched on yet — try again later, or connect your profile."
+            if kind == "page"
+            else "Connecting LinkedIn isn't switched on yet — try again later.",
+        ) from exc
 
 
 @public_router.get("/oauth/linkedin/callback", include_in_schema=False)
@@ -3277,51 +3290,116 @@ def linkedin_oauth_callback(
             params["message"] = message[:200]
         return RedirectResponse(f"{frontend}/channels?{urlencode(params)}")
 
-    if error:
-        if error == "invalid_scope_error":
-            return back(
-                False,
-                "LinkedIn app is missing a product — add “Sign In with LinkedIn using OpenID Connect” "
-                "and “Share on LinkedIn” in the developer portal.",
-            )
-        return back(False, error_description or error)
-
     try:
         payload = verify_payload(state)
     except Exception:
+        payload = None
+    kind = (payload or {}).get("kind") or "profile"
+
+    if error:
+        if error == "user_cancelled_login" or error == "user_cancelled_authorize":
+            return back(False, "You closed the LinkedIn window — nothing was connected.")
+        log.warning("linkedin sign-in refused (%s): %s %s", kind, error, error_description)
+        return back(False, "LinkedIn didn't finish the sign-in — try again.")
+    if payload is None:
         return back(False, "That connect link expired — try again.")
     brand = db.get(Brand, payload.get("brand_id"))
     if brand is None:
         return back(False, "Brand not found.")
 
     try:
-        access_token = linkedin.exchange_code(code)
-        member = linkedin.fetch_member(access_token)
+        token = linkedin.exchange_code(code, kind)
+        if kind == "page":
+            pages = linkedin.list_admin_pages(token["access_token"])
+        else:
+            member = linkedin.fetch_member(token["access_token"])
     except linkedin.LinkedInError as exc:
-        return back(False, str(exc))
+        log.warning("linkedin connect failed (%s): %s", kind, exc)
+        return back(False, "LinkedIn didn't let us finish connecting — try again in a minute.")
+
+    if kind == "page":
+        if not pages:
+            return back(
+                False,
+                "No LinkedIn Company Pages found — you need to be a Super admin or Content admin of the Page.",
+            )
+        pending_id = linkedin.stash_pending(brand.id, {**token, "kind": "page"}, pages)
+        return RedirectResponse(f"{frontend}/channels/add?{urlencode({'linkedin_pending': pending_id})}")
 
     plat = db.scalar(select(Platform).where(Platform.slug == "linkedin"))
     if plat is None:
         return back(False, "LinkedIn platform is not set up on the server.")
-
-    channel = db.scalar(
-        select(Channel).where(Channel.brand_id == brand.id, Channel.platform_id == plat.id)
-    )
+    channel = _claim_channel(db, brand.id, plat.id, "person_sub", member["sub"])
     try:  # a new connection — the plan has room for it
-        if channel is None or channel.status == "off":
-            plan_features.check_channel(db, brand, keep=channel.id if channel is not None else None)
+        if channel.id is None or channel.status == "off":
+            db.flush()
+            plan_features.check_channel(db, brand, keep=channel.id)
     except HTTPException as exc:
+        db.rollback()
         return back(False, str(exc.detail))
-    if channel is None:
-        channel = Channel(brand_id=brand.id, platform_id=plat.id)
-        db.add(channel)
     channel.status = "live"
     channel.handle = member["name"]
     channel.token_note = "Connected via LinkedIn login"
-    channel.config = {**(channel.config or {}), "access_token": access_token, "person_sub": member["sub"]}
+    channel.config = {**(channel.config or {}), **token, "kind": "profile", "person_sub": member["sub"]}
     channel.last_post_at = None
     db.commit()
     return back(True)
+
+
+@router.get("/oauth/linkedin/pending/{pending_id}")
+def linkedin_pending_view(pending_id: str, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    record = linkedin.peek_pending(pending_id)
+    if record is None:
+        raise HTTPException(404, "That connect session expired — start again.")
+    brand = owned(db, Brand, record["brand_id"], ws)
+    return {
+        "brand_id": record["brand_id"],
+        "brand_name": brand.name,
+        "pages": [{"id": p["id"], "name": p["name"], "vanity": p["vanity"]} for p in record["pages"]],
+    }
+
+
+class LinkedInConfirmIn(BaseModel):
+    page_ids: list[str] = Field(default_factory=list)
+
+
+@router.post("/oauth/linkedin/pending/{pending_id}/confirm")
+def linkedin_pending_confirm(
+    pending_id: str, payload: LinkedInConfirmIn, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)
+):
+    record = linkedin.peek_pending(pending_id)
+    if record is None:
+        raise HTTPException(404, "That connect session expired — start again.")
+    brand = owned(db, Brand, record["brand_id"], ws)
+    by_id = {p["id"]: p for p in record["pages"]}
+    picks = [by_id[i] for i in dict.fromkeys(payload.page_ids) if i in by_id]
+    if not picks:
+        raise HTTPException(400, "Pick at least one Page to connect.")
+    plat = db.scalar(select(Platform).where(Platform.slug == "linkedin"))
+    if plat is None:
+        raise HTTPException(503, "LinkedIn isn't set up on the server yet.")
+    linkedin.pop_pending(pending_id)
+
+    connected = []
+    for page in picks:
+        ch = _claim_channel(db, brand.id, plat.id, "org_id", page["id"])
+        if ch.status == "off" or ch.id is None:  # a new connection — the plan has room for it
+            db.flush()
+            plan_features.check_channel(db, brand, keep=ch.id)
+        ch.status = "live"
+        ch.handle = page["name"]
+        ch.token_note = "Connected via LinkedIn — Company Page"
+        ch.config = {
+            **(ch.config or {}),
+            **record["token"],
+            "org_id": page["id"],
+            "org_name": page["name"],
+            "org_vanity": page["vanity"],
+        }
+        ch.last_post_at = None
+        connected.append({"platform": "linkedin", "name": page["name"]})
+    db.commit()
+    return {"connected": connected}
 
 
 # ── publishing ───────────────────────────────────────────────────────────

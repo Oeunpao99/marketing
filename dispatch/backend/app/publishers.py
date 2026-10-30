@@ -175,10 +175,11 @@ def unpublish(target: PostTarget, channel: Channel) -> str:
     if slug == "linkedin":
         from app import linkedin
 
-        if not cfg.get("access_token"):
-            raise PublishError("LinkedIn channel is missing its connection — reconnect it.")
         try:
-            return "removed" if linkedin.delete_post(cfg["access_token"], ext) else "not_on_platform"
+            token, updated_config = linkedin.ensure_access_token(cfg)
+            if updated_config is not None:
+                channel.config = updated_config
+            return "removed" if linkedin.delete_post(token, ext) else "not_on_platform"
         except linkedin.LinkedInError as exc:
             raise PublishError(str(exc)) from exc
     if slug == "telegram":
@@ -256,10 +257,13 @@ def _publish_linkedin(target: PostTarget, channel: Channel, video: Video | None)
     from app import linkedin
     from app.media import kind_for, read_media
 
-    cfg = channel.config or {}
-    token, person_sub = cfg.get("access_token"), cfg.get("person_sub")
-    if not token or not person_sub:
-        raise PublishError("LinkedIn channel is missing its connection — reconnect it.")
+    try:
+        token, updated_config = linkedin.ensure_access_token(channel.config or {})
+        author = linkedin.author_urn(channel.config or {})
+    except linkedin.LinkedInError as exc:
+        raise PublishError(str(exc)) from exc
+    if updated_config is not None:
+        channel.config = updated_config  # rides the caller's commit
 
     caption = target.caption or target.title or ""
     data = read_media(video.url) if video and video.url else None
@@ -268,7 +272,7 @@ def _publish_linkedin(target: PostTarget, channel: Channel, video: Video | None)
     kind = kind_for(video.url, None) if video and video.url else None
 
     try:
-        post_urn = linkedin.publish_post(token, person_sub, caption, data, kind)
+        post_urn = linkedin.publish_post(token, author, caption, data, kind)
     except linkedin.LinkedInError as exc:
         raise PublishError(str(exc)) from exc
     return PublishResult(external_id=post_urn, detail={"platform": "linkedin"})

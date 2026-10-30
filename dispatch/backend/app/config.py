@@ -226,16 +226,14 @@ class Settings(BaseSettings):
     # clear error until this is set.
     public_base_url: str = ""
 
-    # LinkedIn — personal-profile posting only (app/linkedin.py). Create an app
-    # at https://www.linkedin.com/developers/apps, add the "Sign In with
-    # LinkedIn using OpenID Connect" and "Share on LinkedIn" products (both
-    # self-serve, no partner approval needed), and register
-    # linkedin_redirect_uri as an authorized redirect URL — must be a static
-    # https url, so local dev needs a tunnel pointed at this backend, at
-    # "<that https url>/api/views/oauth/linkedin/callback". Posting to a
-    # Company Page instead of a person's own feed needs LinkedIn's Community
-    # Management API, which requires manual partner approval — not supported
-    # here.
+    # LinkedIn (app/linkedin.py). Personal profiles: an app at
+    # https://www.linkedin.com/developers/apps with the "Sign In with LinkedIn
+    # using OpenID Connect" and "Share on LinkedIn" products, and
+    # linkedin_redirect_uri registered as an authorized redirect URL — must be
+    # a static https url, so local dev needs a tunnel pointed at this backend,
+    # at "<that https url>/api/views/oauth/linkedin/callback". Company Pages: a
+    # second app with only the Community Management API (linkedin_pages_*
+    # below), with the same redirect url registered on it.
     # Marketing advisor chat (app/advisor.py): questions per workspace per day
     # — every question is one AI call, so this caps the bill per account.
     advisor_daily_limit: int = 60
@@ -279,6 +277,12 @@ class Settings(BaseSettings):
     linkedin_client_id: str = ""
     linkedin_client_secret: str = ""
     linkedin_redirect_uri: str = ""
+    # The Company Pages app (Community Management API). Empty = the "Company
+    # Page" choice says LinkedIn Pages aren't set up. The scopes must all be
+    # listed on that app's Auth tab, or LinkedIn refuses the sign-in.
+    linkedin_pages_client_id: str = ""
+    linkedin_pages_client_secret: str = ""
+    linkedin_pages_scopes: str = "rw_organization_admin r_organization_social w_organization_social"
     # LinkedIn REST API version (YYYYMM). LinkedIn retires each monthly version
     # about a year after release ("Requested version … is not active") — bump
     # this in .env when that happens, no code change needed.
