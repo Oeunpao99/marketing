@@ -36,7 +36,7 @@ import re
 
 from PIL import Image, ImageDraw, ImageFilter, ImageStat, features
 
-from app.meme import _font, _has_khmer, _wrap, drawable, fit_lines
+from app.meme import _font, _has_khmer, _wrap, drawable, fit_lines, logo_corner, stamp_logo
 from app.poster import INK, WHITE, _line_h, _tint
 
 log = logging.getLogger("app.text_overlay")
@@ -234,8 +234,9 @@ def _layout(head: str, sub: str, points: list[str], w: int, measure: int, scale:
     return hf, hl, hlh, sf, sl, slh, pf, cpx, cpy, cgap, ch, rows, round(w * 0.016 * scale)
 
 
-def render(picture: bytes, text: dict, accent: tuple[int, int, int]) -> bytes:
-    """``picture`` with ``text`` (from extract_text) drawn on it. PNG bytes."""
+def render(picture: bytes, text: dict, accent: tuple[int, int, int], logo: bytes | None = None) -> bytes:
+    """``picture`` with ``text`` (from extract_text) drawn on it. PNG bytes. With ``logo`` the
+    brand's logo is stamped top-left (meme.stamp_logo) and the headline starts below it."""
     if not wanted():
         raise RuntimeError("Khmer text needs libraqm (text shaping) — not installed on this server")
     img = Image.open(io.BytesIO(picture)).convert("RGB")
@@ -255,9 +256,12 @@ def render(picture: bytes, text: dict, accent: tuple[int, int, int]) -> bytes:
     for scale in (1.0, 0.92, 0.84, 0.76, 0.68, 0.6):
         hf, hl, hlh, sf, sl, slh, pf, cpx, cpy, cgap, ch, rows, gap = _layout(head, sub, points, w, measure, scale)
         block_h = len(hl) * hlh + (gap + len(sl) * slh if sl else 0) + (gap * 2 + len(rows) * (ch + cgap) if rows else 0)
-        if block_h <= h * 0.36:
+        if block_h <= h * (0.36 - (0.1 if logo else 0)):
             break
     top = round(h * 0.05)
+    if logo:  # under the top-left logo, never beside or behind it
+        chip_h, margin = logo_corner(w)
+        top = max(top, margin + chip_h + round(h * 0.03))
     bottom = top + block_h
 
     # Light text on a dark picture, dark text on a light one — read from the
@@ -333,4 +337,5 @@ def render(picture: bytes, text: dict, accent: tuple[int, int, int]) -> bytes:
 
     out = io.BytesIO()
     img.save(out, "PNG", optimize=True)
-    return out.getvalue()
+    # the brand's real logo, top-left, above the text it sits over (the headline starts below it)
+    return stamp_logo(out.getvalue(), logo) if logo else out.getvalue()

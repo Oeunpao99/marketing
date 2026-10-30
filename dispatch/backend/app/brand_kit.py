@@ -233,11 +233,19 @@ def _product_part(n: int, name: str) -> str:
     )
 
 
+# The logo is never drawn by the image AI: the real file is stamped top-left afterwards
+# (meme.stamp_logo) — the AI only keeps that corner calm (the owner, 2026-10-30).
+LOGO_CORNER_RULE = (
+    "\n\nLEAVE THE TOP-LEFT CORNER CALM (about 24% of the width, 12% of the height): no text, faces, "
+    "logos or busy detail there — the brand's logo is placed in that corner afterwards. Never draw "
+    "or write any logo, brand mark or watermark yourself."
+)
+
+
 def _logo_part(n: int) -> str:
     return (
-        f"IMAGE {n} — BRAND LOGO. Place it once, unchanged: same shape, colours and "
-        "lettering, never redrawn or restyled. Put it where the template's logo "
-        "sits (otherwise a top corner), legible, with clear space around it."
+        f"IMAGE {n} — BRAND LOGO, for its colours only. Do NOT draw it anywhere in the picture: "
+        "the real logo is added in the top-left corner afterwards."
     )
 
 

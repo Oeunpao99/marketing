@@ -904,7 +904,12 @@ def create_image(
 
     references: bytes | list[bytes] | None = (own[0] if len(own) == 1 else own) or None
     guide = own_guide(len(own))
-    if payload.brand_id is not None and (payload.template_id or payload.product_id or payload.use_logo):
+    logo = None
+    if payload.brand_id is not None and payload.use_logo:  # stamped top-left after the AI draws (meme.stamp_logo)
+        from app.brand_kit import logo_image
+
+        logo = logo_image(db, payload.brand_id)
+    if payload.brand_id is not None and (payload.template_id or payload.product_id):
         from app.brand_kit import gather
 
         references, guide = gather(
@@ -912,9 +917,12 @@ def create_image(
             payload.brand_id,
             template_id=payload.template_id,
             product_id=payload.product_id,
-            logo=payload.use_logo,
             extra=own,
         )
+    if logo:
+        from app.brand_kit import LOGO_CORNER_RULE
+
+        guide = (guide or "") + LOGO_CORNER_RULE
 
     job = GenerationJob(
         workspace_id=ws,
@@ -932,7 +940,7 @@ def create_image(
     db.commit()
     db.refresh(job)
     threading.Thread(
-        target=_render_image, args=(job.id, references, guide), daemon=True, name=f"image-{job.id}"
+        target=_render_image, args=(job.id, references, guide, logo), daemon=True, name=f"image-{job.id}"
     ).start()
     return _out(job, None)
 
@@ -952,7 +960,7 @@ def _khmer_overlay_text(job: GenerationJob) -> dict | None:
         return None
 
 
-def _render_image(job_id: int, reference: bytes | list[bytes] | None, guide: str = "") -> None:
+def _render_image(job_id: int, reference: bytes | list[bytes] | None, guide: str = "", logo: bytes | None = None) -> None:
     """``guide`` (brand-kit instructions naming each reference image) goes in
     front of the prompt for the model only — the job keeps the person's own
     prompt, which the Library shows and the caption writer reads."""
@@ -986,12 +994,21 @@ def _render_image(job_id: int, reference: bytes | list[bytes] | None, guide: str
             _ready_push(job)
             return
 
+        stamped = False
         if overlay:
             brand = db.get(Brand, job.brand_id) if job.brand_id else None
             try:
-                blob = text_overlay.render(blob, overlay, brand_rgb(brand))
+                blob = text_overlay.render(blob, overlay, brand_rgb(brand), logo=logo)
+                stamped = bool(logo)
             except Exception:  # noqa: BLE001 — the clean picture beats losing the image
                 log.exception("Khmer text overlay failed for job %s — keeping the picture alone", job_id)
+        if logo and not stamped:  # the brand's real logo, top-left — the same place on every picture
+            from app.meme import stamp_logo
+
+            try:
+                blob = stamp_logo(blob, logo)
+            except Exception:  # noqa: BLE001 — the picture without a logo beats none
+                log.exception("logo stamp failed for job %s", job_id)
 
         url = store_blob(db, blob, ".png", "image/png")
         width, height = _IMG_DIMS.get(job.aspect_ratio, _IMG_DIMS["1:1"])

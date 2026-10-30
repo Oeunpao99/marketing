@@ -206,14 +206,20 @@ def logo_chip(logo: bytes, height: int) -> Image.Image | None:
     return chip
 
 
+def logo_corner(w: int) -> tuple[int, int]:
+    """(chip height, margin) of the logo in a picture ``w`` px wide — always the top-left corner."""
+    return max(56, round(w * 0.075)), round(w * 0.035)
+
+
 def stamp_logo(picture: bytes, logo: bytes) -> bytes:
-    """``picture`` with the brand's logo chip in its bottom-right corner — PNG."""
+    """``picture`` with the brand's logo chip in its TOP-LEFT corner, the same place on every
+    picture (the owner, 2026-10-30) — PNG."""
     img = Image.open(io.BytesIO(picture)).convert("RGB")
-    chip = logo_chip(logo, max(56, round(img.width * 0.075)))
+    height, margin = logo_corner(img.width)
+    chip = logo_chip(logo, height)
     if chip is None:
         return picture
-    margin = round(img.width * 0.03)
-    img.paste(chip, (img.width - chip.width - margin, img.height - chip.height - margin), chip)
+    img.paste(chip, (margin, margin), chip)
     out = io.BytesIO()
     img.save(out, "PNG", optimize=True)
     return out.getvalue()
