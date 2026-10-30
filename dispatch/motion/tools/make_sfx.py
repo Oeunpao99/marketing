@@ -133,6 +133,27 @@ def riser() -> np.ndarray:
     return fade((air * 2.0 + tone) * k**1.6, 6)
 
 
+def sketch() -> np.ndarray:
+    # a pencil drawing on paper (Logo · Drawing, logodraw.jsx): ~3 s of strokes — each a burst of
+    # bright, grainy filtered noise that swells and fades, with a short lift of the hand between
+    sec = 3.2
+    out = np.zeros(int(sec * SR))
+    pos = 0.0
+    while pos < sec - 0.15:
+        dur = rng.uniform(0.12, 0.38)
+        n = int(dur * SR)
+        start = int(pos * SR)
+        if start + n > len(out):
+            break
+        noise = rng.standard_normal(n)
+        band = lowpass(noise, 5200) - lowpass(noise, 1400)  # the scratch of graphite on paper
+        grain = 0.55 + 0.45 * np.abs(np.sin(2 * np.pi * rng.uniform(28, 70) * t(dur) + rng.uniform(0, 6)))  # the paper's tooth
+        env = np.sin(np.pi * np.linspace(0, 1, n)) ** 0.7  # the stroke swells and fades
+        out[start : start + n] += band * grain * env * rng.uniform(0.6, 1.0)
+        pos += dur + rng.uniform(0.03, 0.11)
+    return fade(out, 8)
+
+
 def write_mp3(mono: np.ndarray, path: Path) -> None:
     import imageio_ffmpeg
 
@@ -151,7 +172,7 @@ def main() -> None:
     import sys
 
     only = set(sys.argv[1:])
-    for name, make in (("whoosh", whoosh), ("pop", pop), ("blop", blop), ("click", click), ("ding", ding), ("tick", tick), ("impact", impact), ("riser", riser)):
+    for name, make in (("whoosh", whoosh), ("pop", pop), ("blop", blop), ("click", click), ("ding", ding), ("tick", tick), ("impact", impact), ("riser", riser), ("sketch", sketch)):
         if only and name not in only:
             continue
         path = OUT / f"{name}.mp3"

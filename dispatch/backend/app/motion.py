@@ -370,6 +370,21 @@ POLL_PROMPT = (
     + '{"scenes": [{"type": "hook", "text": "...", "icon": "CircleHelp", "say": "..."}, ...]}'
 )
 
+# "Logo · Drawing" (motion/src/logodraw.jsx) — a 10-second logo intro with no voice: the brand's own
+# logo drawn from scratch over a construction grid, filled, then its name and a tagline. The lines
+# come from the uploaded logo (app/logo_draw.py); the AI only writes the name and the tagline.
+LOGODRAW_TYPES = ("draw",)
+LOGODRAW_PROMPT = (
+    "You write the words of a 10-second LOGO INTRO video: the brand's logo is drawn from scratch "
+    "on a drafting grid, then its name and a short tagline appear under it. There is no voice-over.\n"
+    "Return JSON: {\"scenes\": [{\"type\": \"draw\", \"name\": \"...\", \"tagline\": \"...\", \"say\": \"\"}]}\n"
+    "- name: the brand's name exactly as written (Latin letters as given).\n"
+    "- tagline: 2-6 words — what the brand promises, from the brief / products; in the LANGUAGE "
+    "given; no hashtags, no price, no emoji. If the brief gives a tagline, use it word for word.\n"
+    "- say: always \"\" (the intro has no voice).\n"
+)
+SILENT_STYLES = {"logodraw"}  # made without a voice-over, whatever the voice picker says
+
 QUOTE_TYPES = ("hook", "quote", "cta")
 QUOTE_PROMPT = (
     "You are the best short-form video storyteller in Cambodia. You plan a vertical "
@@ -3216,6 +3231,7 @@ STYLES = {
     "launch": (LAUNCH_PROMPT, LAUNCH_TYPES, 7, None),
     "unveil": (UNVEIL_PROMPT, UNVEIL_TYPES, 6, None),
     "skylaunch": (SKYLAUNCH_PROMPT, SKYLAUNCH_TYPES, 6, None),
+    "logodraw": (LOGODRAW_PROMPT, LOGODRAW_TYPES, 1, None),
     "fintech": (FINTECH_PROMPT, FINTECH_TYPES, 5, None),
     "gridcards": (GRID_PROMPT, GRID_TYPES, 5, "fanout"),
     "techflow": (TECHFLOW_PROMPT, TECHFLOW_TYPES, 6, None),
@@ -3253,7 +3269,7 @@ STYLES = {
 # The templates laid out for 16:9 too (motion/src/training.jsx, saas.jsx wide scenes);
 # every other template is always vertical. Scenes drawn only for a tall frame are
 # left out of a wide video.
-WIDE_STYLES = {"picture", "deck", "aiteam", "saashub", "illustrated", "street3d", "dialogue", "parable", "podcast", "presenter", "neural", "paper", "doodle", "cartoon", "lesson", "rise", "training", "custom", "demo", "offer", "spotlight", "productfx", "trend", "pov", "showcase", "launch", "unveil", "skylaunch", "fintech", "gridcards", "techflow", "canvas", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
+WIDE_STYLES = {"logodraw", "picture", "deck", "aiteam", "saashub", "illustrated", "street3d", "dialogue", "parable", "podcast", "presenter", "neural", "paper", "doodle", "cartoon", "lesson", "rise", "training", "custom", "demo", "offer", "spotlight", "productfx", "trend", "pov", "showcase", "launch", "unveil", "skylaunch", "fintech", "gridcards", "techflow", "canvas", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
 TALL_ONLY_TYPES = {"problem", "chat", "product", "point"}
 
 
@@ -3515,7 +3531,7 @@ GOAL_STYLES = {
     "teach": ("explainer",),
     "education": ("explainer", "training", "custom", "clarity", "tips", "gridcards", "techflow", "neural", "paper", "doodle", "cartoon", "lesson", "presenter", "podcast", "parable", "illustrated"),
     "reach": ("pov", "explainer", "countdown", "thisorthat", "hottake", "doodle", "cartoon", "lesson", "rise", "reaction", "podcast", "parable", "dialogue"),
-    "awareness": ("trend", "custom", "clarity", "showcase", "report", "unveil", "canvas", "studio", "presenter", "illustrated", "aiteam", "saashub"),
+    "awareness": ("logodraw", "trend", "custom", "clarity", "showcase", "report", "unveil", "canvas", "studio", "presenter", "illustrated", "aiteam", "saashub"),
     "authority": ("versus", "report", "casestudy", "hottake", "clarity", "techflow"),
     "engagement": ("poll", "thisorthat", "faq", "countdown", "hottake", "reaction", "dialogue"),
     "followers": ("quote", "explainer", "tips", "countdown", "hottake", "doodle", "lesson", "rise", "presenter", "podcast", "parable"),
@@ -3747,6 +3763,8 @@ def _clean_one(raw: dict, names: dict[str, str]) -> dict | None:
         if _line(raw.get("image"), 10).startswith("data:"):  # a reviewed storyboard's picture already painted
             scene["image"] = str(raw["image"])
         return scene if scene["draw"] and (scene["say"] or scene["title"]) else None
+    if kind == "draw":  # Logo · Drawing: the name and a tagline — never a voice line
+        return {"type": kind, "name": _line(raw.get("name"), 60), "tagline": _line(raw.get("tagline"), 60), "say": ""}
     if kind == "hook":
         text = _line(raw.get("text"), 160)
         hook = {"type": kind, "text": text, "icon": _icon(raw.get("icon"), "Zap"), "say": say}
@@ -4833,6 +4851,10 @@ def write_script(
         for s in (_clean_scene(r, names) for r in (raw.get("scenes") or []) if isinstance(r, dict))
         if s and s["type"] in allowed
     ][: (MAX_STORY_SCENES + 2) if story else 14]
+    if style == "logodraw":  # Logo · Drawing: its one scene — the brand's name when the AI gave none
+        draw = next((sc for sc in scenes if sc["type"] == "draw"), None) or {"type": "draw", "name": "", "tagline": "", "say": ""}
+        draw["name"] = draw["name"] or _line(brand.name, 60)
+        return {"scenes": [draw], "style": style, "language": language}
     if style == "canvas":
         # AI design: its own scenes in the brief's order (no hook / CTA types), and its checklist
         if len(scenes) < 2:
@@ -5817,6 +5839,14 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
             scene["n"], scene["of"] = (total - before, total) if s["type"] == "rank" else (before + 1, total)
         if not scene.get("image"):
             scene.pop("image", None)
+        if s["type"] == "draw":  # Logo · Drawing: the logo's lines and the logo, cropped alike
+            from app import logo_draw
+
+            if scene.get("tagline"):
+                scene["tagline"] = t(scene["tagline"]).replace("⟦", "").replace("⟧", "")
+            art = logo_draw.line_art(logo)
+            if art:
+                scene["art"] = art
         scenes.append(scene)
     props = {
         # logoLight: a white logo → a dark corner chip; logoSolid: a logo with its own ground → a rounded tile (canvas.jsx)
@@ -5877,6 +5907,8 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
 def default_seconds(scene: dict) -> float:
     """A scene's length without a voice-over — mirrors MotionPost.jsx defaultSeconds."""
     kind = scene.get("type")
+    if kind == "draw":  # Logo · Drawing: the whole 10-second intro
+        return 10.0
     if kind == "chat":
         return 1.6 + 1.5 * min(4, len(scene.get("messages") or []))
     if kind == "list":
@@ -7050,6 +7082,7 @@ TEMPLATE_GUIDE = {
     "clarity": "explaining what a software product does and why it matters — calm, white and light blue: the mess of tools today, the product, how it works",
     "launch": "launching a product or a new feature — a cinematic launch film: the one click that does the job, the product's screens, \"now live\"",
     "fintech": "a money product — a wallet or payment app, a bank card, crypto, savings, remittance — a black card in a burst of light with gold coins, a 3D wallet with its balances rising out",
+    "logodraw": "a short logo intro — the brand's own logo drawn from scratch on a drafting grid, then filled in, with its name and a tagline; no voice",
     "skylaunch": "launching a SaaS, app or website with its REAL screen — a prompt box typing the request, the screen in a browser window with the camera flying in, a pointer clicking Publish, on bright sky-blue light",
     "unveil": "unveiling a product or a new feature in a light, elegant way — one big word, the app card coming into focus, a field typing itself, a check with confetti",
     "gridcards": "how a product or service solves an everyday problem — the repetitive work today, then one input becoming several results (a post, a price poster, a caption), clear and friendly",
@@ -7528,8 +7561,10 @@ def checked_script(raw: dict, products: list[Product]) -> dict:
         for sc in (_clean_scene(r, names) for r in (raw.get("scenes") or [])[: MAX_STORY_SCENES + 2] if isinstance(r, dict))
         if sc and sc["type"] in allowed
     ]
-    if len(scenes) < 2:
+    if len(scenes) < (1 if style in SILENT_STYLES else 2):  # Logo · Drawing is one scene
         raise ContentAIError("The storyboard needs at least 2 scenes.")
+    if style in SILENT_STYLES:  # its one scene, with the brand's name when the box was left empty
+        scenes = scenes[:1]
     script = {"scenes": scenes, "style": style}
     if raw.get("language") in ("Khmer", "English"):
         script["language"] = raw["language"]
@@ -7843,6 +7878,8 @@ def _make(
             ):  # (Podcast: the host follows the voice)
                 voice = script["host"]["gender"]  # the host speaks in her own voice (a male host: a male one)
             narrator, clone = voice_clone.narrator_for(brand, language, voice, script.get("style"))
+            if script.get("style") in SILENT_STYLES:  # Logo · Drawing: sound effects and music only
+                narrator, clone = None, None
             # Dialogue · Two voices: each person speaks in their own voice
             two = voice in ("female", "male", "brand") or voice.startswith(speech.KIRI)
             voices = dialogue_voices(script, language, narrator, voice) if narrator and script.get("style") in DIALOGUE_STYLES and two else None

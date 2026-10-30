@@ -18,6 +18,7 @@ import { SCENE_LABELS, STYLE_LABELS } from './MotionBoard'
 // The words on screen each scene type shows (its other parts — chart
 // numbers, list items, chat messages — are kept as the AI wrote them).
 export const FIELDS = {
+  draw: [['name', 'Name'], ['tagline', 'Tagline']], // Logo · Drawing (logodraw.jsx): no voice
   hook: [['text', 'On screen']],
   talk: [['text', 'Says']],
   react: [
@@ -316,7 +317,7 @@ function extras(s) {
 // Seconds a scene runs — mirrors app/motion.py estimate_seconds.
 const KHMER = /[ក-៿]/g
 const spokenSeconds = (say = '') => (say.match(KHMER) || []).length / 11 + (say.match(/[A-Za-z0-9]+/g) || []).length / 2.6
-const MIN_SECONDS = { chart: 5.2, compare: 4.2, character: 3.8, cta: 3.8, product: 3.6, myth: 5, quote: 5.6, options: 9.8, split: 8, beforeafter: 5.4, result: 4.2, review: 6, customer: 4.4, news: 5, notify: 7, step: 4.8, offer: 5.6, screen: 5, dashboard: 5.2, flow: 6.4, chapter: 3.2, checklist: 5.8, recap: 6, apps: 5, table: 5.1, board: 4.6, roll: 4.8, launch: 4.2, button: 4.6, form: 5.2, word: 4.2, field: 4.8, done: 3.4, tasks: 5.3, fanout: 6.4, canvas: 5, send: 4.2, address: 4.4, lookup: 5.2, hops: 6.2, assemble: 4.6, stack: 4.9, platform: 4.4, orbit: 5, chaos: 5, phones: 5, pair: 3.8, rank: 4.2, tip: 4.6, doodle: 4.2, talk: 3.4, react: 4.2, punch: 3.2, collage: 4, statement: 4.4, pedestal: 4.6, speak: 4.2, onair: 4.2, visit: 4.4, wide: 4.4, closeup: 4.2, fact: 4.6, line: 3.6, shops: 4.6, crowd: 5, chatter: 5, tale: 4.2, tally: 4.6, fork: 4.8, moral: 4.6, note: 4, climb: 4, mirror: 4.8, grow: 4.8, summit: 5.2, whiteboard: 5, example: 6.5, remember: 4.4, choice: 5, reviews: 5.8, logos: 4, save: 3.4, take: 5.2, meme: 4.6, client: 5, metrics: 5.2, timeline: 5.2, qa: 4.5, bars: 5, donut: 4.6, shot: 5 }
+const MIN_SECONDS = { draw: 10, chart: 5.2, compare: 4.2, character: 3.8, cta: 3.8, product: 3.6, myth: 5, quote: 5.6, options: 9.8, split: 8, beforeafter: 5.4, result: 4.2, review: 6, customer: 4.4, news: 5, notify: 7, step: 4.8, offer: 5.6, screen: 5, dashboard: 5.2, flow: 6.4, chapter: 3.2, checklist: 5.8, recap: 6, apps: 5, table: 5.1, board: 4.6, roll: 4.8, launch: 4.2, button: 4.6, form: 5.2, word: 4.2, field: 4.8, done: 3.4, tasks: 5.3, fanout: 6.4, canvas: 5, send: 4.2, address: 4.4, lookup: 5.2, hops: 6.2, assemble: 4.6, stack: 4.9, platform: 4.4, orbit: 5, chaos: 5, phones: 5, pair: 3.8, rank: 4.2, tip: 4.6, doodle: 4.2, talk: 3.4, react: 4.2, punch: 3.2, collage: 4, statement: 4.4, pedestal: 4.6, speak: 4.2, onair: 4.2, visit: 4.4, wide: 4.4, closeup: 4.2, fact: 4.6, line: 3.6, shops: 4.6, crowd: 5, chatter: 5, tale: 4.2, tally: 4.6, fork: 4.8, moral: 4.6, note: 4, climb: 4, mirror: 4.8, grow: 4.8, summit: 5.2, whiteboard: 5, example: 6.5, remember: 4.4, choice: 5, reviews: 5.8, logos: 4, save: 3.4, take: 5.2, meme: 4.6, client: 5, metrics: 5.2, timeline: 5.2, qa: 4.5, bars: 5, donut: 4.6, shot: 5 }
 
 export function estimateSeconds(scenes) {
   const total = scenes.reduce((n, s) => n + Math.max(MIN_SECONDS[s.type] || 3.4, spokenSeconds(s.say) + 1.3), 0)
@@ -496,6 +497,8 @@ function PictureLook({ plan, onChange }) {
   )
 }
 
+const SILENT_STYLES = new Set(['logodraw'])
+
 export default function StoryboardEditor({ plan, onChange, onMake, onRewrite, voice = true, onHear, fetchLine, onError }) {
   const [hearing, setHearing] = useState(null) // the line being played
   // this month's videos left and the plan's longest video (lib/usage.js) — what "Make the video" uses of them
@@ -600,6 +603,10 @@ export default function StoryboardEditor({ plan, onChange, onMake, onRewrite, vo
       </div>
     </div>
   )
+  // a template with no voice (Logo · Drawing — app/motion.py SILENT_STYLES): no voice boxes, one scene is a video
+  const silent = SILENT_STYLES.has(plan?.style)
+  const speaks = voice && !silent
+  const fewest = silent ? 1 : 2
   const seconds = estimateSeconds(scenes)
   // the month's videos this one uses: up to 1 min 1, up to 3 min 2, longer 1 per 3 min (app/usage.py)
   const units = seconds <= 60 ? 1 : seconds <= 180 ? 2 : Math.ceil(seconds / 180)
@@ -613,7 +620,7 @@ export default function StoryboardEditor({ plan, onChange, onMake, onRewrite, vo
           <div className="text-[13px] font-semibold text-ink-900">Storyboard — check it, then make the video</div>
           <div className="mt-0.5 text-[11.5px] text-ink-500">
             {scenes.length} scenes · ≈ {fmtLength(seconds)}
-            {voice ? ' with the voice' : ''} · nothing is recorded or rendered until you press Make
+            {silent ? ' · no voice — music and sound effects' : speaks ? ' with the voice' : ''} · nothing is recorded or rendered until you press Make
           </div>
         </div>
         {style && (
@@ -654,9 +661,11 @@ export default function StoryboardEditor({ plan, onChange, onMake, onRewrite, vo
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[10.5px] font-semibold uppercase tracking-wide text-ink-400">{SCENE_LABELS[s.type] || s.type}</span>
                   <span className="flex items-center gap-0.5 text-ink-400">
-                    <button type="button" title="Add a scene after this one" onClick={() => setAdding(adding === i + 1 ? null : i + 1)} className={`rounded-md p-1 hover:bg-ink-100 hover:text-ink-700 ${adding === i + 1 ? 'bg-brand-soft text-brand' : ''}`}>
-                      <FiPlus size={13} />
-                    </button>
+                    {!silent && (
+                      <button type="button" title="Add a scene after this one" onClick={() => setAdding(adding === i + 1 ? null : i + 1)} className={`rounded-md p-1 hover:bg-ink-100 hover:text-ink-700 ${adding === i + 1 ? 'bg-brand-soft text-brand' : ''}`}>
+                        <FiPlus size={13} />
+                      </button>
+                    )}
                     <button type="button" title="Duplicate this scene" onClick={() => duplicate(i)} className="rounded-md p-1 hover:bg-ink-100 hover:text-ink-700">
                       <FiCopy size={12} />
                     </button>
@@ -675,7 +684,7 @@ export default function StoryboardEditor({ plan, onChange, onMake, onRewrite, vo
                     <button
                       type="button"
                       title="Remove this scene"
-                      disabled={scenes.length <= 2}
+                      disabled={scenes.length <= fewest}
                       onClick={() => remove(i)}
                       className="rounded-md p-1 hover:bg-red-50 hover:text-red-600 disabled:opacity-30"
                     >
@@ -695,7 +704,7 @@ export default function StoryboardEditor({ plan, onChange, onMake, onRewrite, vo
                   </label>
                 ))}
                 {more && <div className="pl-[4.5rem] text-[11.5px] text-ink-500 line-clamp-2">{more}</div>}
-                {voice && (
+                {speaks && (
                   <label className="flex items-start gap-2">
                     <span className="mt-1.5 flex w-16 flex-none items-center gap-1 text-[11px] text-ink-400">
                       <FiMic size={11} /> Voice
@@ -732,20 +741,22 @@ export default function StoryboardEditor({ plan, onChange, onMake, onRewrite, vo
           )
         })}
       </ol>
-      {/* add at the end */}
-      <div className="border-t border-ink-200/60 px-4 py-2.5">
-        {adding === scenes.length ? (
-          addMenu(scenes.length)
-        ) : (
-          <button
-            type="button"
-            onClick={() => setAdding(scenes.length)}
-            className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[12.5px] font-semibold text-brand hover:bg-brand-soft"
-          >
-            <FiPlus size={14} /> Add a scene
-          </button>
-        )}
-      </div>
+      {/* add at the end (a one-scene template — Logo · Drawing — has nothing to add) */}
+      {!silent && (
+        <div className="border-t border-ink-200/60 px-4 py-2.5">
+          {adding === scenes.length ? (
+            addMenu(scenes.length)
+          ) : (
+            <button
+              type="button"
+              onClick={() => setAdding(scenes.length)}
+              className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[12.5px] font-semibold text-brand hover:bg-brand-soft"
+            >
+              <FiPlus size={14} /> Add a scene
+            </button>
+          )}
+        </div>
+      )}
 
       {/* what "Make the video" uses of the month (app/usage.py video_units): by its length */}
       {month?.videos && (
@@ -773,7 +784,7 @@ export default function StoryboardEditor({ plan, onChange, onMake, onRewrite, vo
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-ink-200/70 px-4 py-3">
         <span className="text-[11px] text-ink-400">Words in [brackets] are highlighted on screen.</span>
         <div className="flex flex-wrap items-center gap-2">
-          {voice && fetchLine && (
+          {speaks && fetchLine && (
             <button
               type="button"
               onClick={listenAll}
@@ -804,7 +815,7 @@ export default function StoryboardEditor({ plan, onChange, onMake, onRewrite, vo
           <button
             type="button"
             onClick={onMake}
-            disabled={scenes.length < 2}
+            disabled={scenes.length < fewest}
             className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-[12.5px] font-semibold text-white hover:bg-brand/90 disabled:opacity-50"
           >
             <FiFilm size={14} /> Make the video

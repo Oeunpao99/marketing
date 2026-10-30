@@ -547,7 +547,7 @@ function ClipCard({ scene, index, story, editable, busy, onChange, onRedo }) {
     <article className={`${card} flex flex-col overflow-hidden transition-shadow hover:shadow-card-hover`}>
       <div className={`relative bg-night-950 ${story.aspect_ratio === '9:16' ? 'aspect-[3/4]' : 'aspect-video'}`}>
         {scene.video_url ? (
-          <video src={abs(scene.video_url)} controls preload="metadata" playsInline className="h-full w-full bg-black object-cover" />
+          <video src={abs(scene.video_url)} controls preload="metadata" playsInline className="h-full w-full bg-black object-contain" />
         ) : (
           <div className={`flex h-full flex-col justify-end bg-gradient-to-br ${ROLE_COLOR[key]} p-3`}>
             {working && (

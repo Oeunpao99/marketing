@@ -319,16 +319,18 @@ function Points({ scene, brand }) {
         const s = spring({ frame: frame - 10 - i * 10, fps, config: { damping: 14 } })
         const left = i % 2 === 0
         const y = wide ? height * 0.3 + i * height * 0.15 : height * 0.26 + i * height * 0.12
-        const x = wide ? (left ? width * 0.08 : width * 0.92 - cw) : (width - cw) / 2 + (left ? -30 : 30)
-        const unit = wide ? 34 : 44
+        // wide: each card as long as its words (a 640 px card held one short word and a lot of white), in a
+        // zig-zag down the middle — the left ones end just left of centre, the right ones start just right of it
+        const x = wide ? width / 2 + 24 : (width - cw) / 2 + (left ? -30 : 30)
+        const unit = wide ? 42 : 44
         return (
           <div
             key={i}
             style={{
               position: 'absolute',
-              left: x + (left ? -1 : 1) * (1 - s) * 400,
+              ...(wide ? (left ? { right: x + (1 - s) * 400 } : { left: x + (1 - s) * 400 }) : { left: x + (left ? -1 : 1) * (1 - s) * 400 }),
               top: y,
-              width: cw,
+              ...(wide ? { maxWidth: cw + 200 } : { width: cw }),
               opacity: s,
               transform: `perspective(1400px) rotateY(${(left ? 14 : -14) * (1 - 0.4 * s)}deg) rotateZ(${left ? -3 : 3}deg)`,
               display: 'flex',

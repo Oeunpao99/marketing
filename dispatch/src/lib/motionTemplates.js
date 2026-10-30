@@ -374,6 +374,17 @@ export const MOTION_TEMPLATES = [
     goals: ['conversion', 'awareness'],
   },
   {
+    id: 'logodraw',
+    story: 'logodraw',
+    added: '2026-10-30T09:00:00+07:00',
+    name: 'Logo · Drawing',
+    bestFor: 'a logo intro — the start of your videos, a launch, a rebrand; just upload your logo',
+    look: 'A cream drafting page — a grid draws itself, then circles and guide lines round your logo, your logo drawn in ink stroke by stroke with a pencil sound, filled with its colours, then your name and tagline. No voice, about 10 seconds',
+    steps: ['The grid', 'The guide lines', 'Your logo drawn', 'Filled in', 'Name and tagline'],
+    note: 'Uses your logo from the brand kit (Products → Brand kit) — upload it there first; with no logo it draws your brand name',
+    goals: ['awareness'],
+  },
+  {
     id: 'skylaunch',
     story: 'skylaunch',
     added: '2026-10-29T15:00:00+07:00',

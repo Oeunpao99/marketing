@@ -1676,9 +1676,11 @@ export default function LandingPage({ onLogin, onStart, page = 'home' }) {
           {/* three phones, each playing a real template */}
           <div className="relative isolate mx-auto h-[400px] w-full max-w-[460px] sm:h-[470px]">
             <div className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[420px] w-[420px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand/20 blur-[90px] dark:bg-brand/30" />
-            <Phone id="reaction" className="absolute left-0 top-12 w-[38%]" tilt={-8} />
-            <Phone id="studio" className="absolute left-1/2 top-0 z-10 w-[44%] -translate-x-1/2" />
-            <Phone id="doodle" className="absolute right-0 top-12 w-[38%]" tilt={8} />
+            {/* the three newest templates (SHOWCASE starts with them) — the newest in the middle, so the
+                top of the page always shows what we just made */}
+            <Phone id={SHOWCASE[1]} className="absolute left-0 top-12 w-[38%]" tilt={-8} />
+            <Phone id={SHOWCASE[0]} className="absolute left-1/2 top-0 z-10 w-[44%] -translate-x-1/2" />
+            <Phone id={SHOWCASE[2]} className="absolute right-0 top-12 w-[38%]" tilt={8} />
             {/* our robot says hello from the corner */}
             <div className="absolute -right-3 -top-12 z-30 flex items-start sm:-right-10 sm:-top-14">
               <div className="mr-1 mt-4 rounded-2xl rounded-tr-sm bg-white px-3 py-2 text-[12.5px] font-bold text-ink-900 shadow-pop">

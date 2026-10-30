@@ -46,6 +46,7 @@ import {
   Words,
   chipLogo,
   chipOpacity,
+  chipLeft,
   chipTop,
   clean,
   defaultSeconds,
@@ -80,6 +81,7 @@ import { SPOTLIGHT } from './spotlight'
 import { PRODUCTFX } from './productfx'
 import { SKYLAUNCH } from './skylaunch'
 import { FINTECH } from './fintech'
+import { LOGODRAW } from './logodraw'
 import { APPDEMO } from './appdemo'
 import { LESSON } from './lesson'
 import { RISE } from './rise'
@@ -641,7 +643,7 @@ function Chrome({ scenes, brand }) {
   const { width, height } = useVideoConfig()
   return (
     // above the scenes' own layers (AI design's z-indexed layers, a full-frame picture)
-    <AbsoluteFill style={{ padding: `${chipTop(width, height)}px 48px 0`, pointerEvents: 'none', opacity: chipOpacity(scenes, frame), zIndex: 20 }}>
+    <AbsoluteFill style={{ padding: `${chipTop(width, height)}px ${chipLeft(width, height)}px 0`, pointerEvents: 'none', opacity: chipOpacity(scenes, frame), zIndex: 20 }}>
       <div
         style={{
           alignSelf: 'flex-start',
@@ -770,6 +772,7 @@ const TEMPLATES = {
   offer: { ...OFFER, scenes: { ...SCENES, ...OFFER.scenes } },
   spotlight: { ...SPOTLIGHT, scenes: { ...SCENES, ...SPOTLIGHT.scenes } }, // 3D · Spotlight (three.js)
   productfx: { ...PRODUCTFX, scenes: { ...SCENES, ...PRODUCTFX.scenes } }, // Product showcase — the real product cut out, shape effects
+  logodraw: { ...LOGODRAW, scenes: { ...SCENES, ...LOGODRAW.scenes } }, // Logo · Drawing — the brand's logo drawn from scratch, no voice
   fintech: { ...FINTECH, scenes: { ...SCENES, ...FINTECH.scenes } }, // Fintech · Wallet & Card — the 3D wallet, the card in a burst of light
   skylaunch: { ...SKYLAUNCH, scenes: { ...SCENES, ...SKYLAUNCH.scenes } }, // SaaS launch · Sky — the real screen in a browser window, the pointer clicks
   appdemo: { ...APPDEMO, scenes: { ...SCENES, ...APPDEMO.scenes } }, // 3D · App demo (CSS 3D)

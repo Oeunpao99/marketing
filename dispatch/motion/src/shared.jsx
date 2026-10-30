@@ -14,6 +14,8 @@ export const INK = '#0b1020'
  * app/motion.py default_seconds). */
 export function defaultSeconds(s) {
   switch (s.type) {
+    case 'draw': // Logo · Drawing (logodraw.jsx): the whole 10-second intro, no voice
+      return 10
     case 'chat':
       return 1.6 + 1.5 * Math.min(4, (s.messages || []).length)
     case 'apps':
@@ -242,6 +244,9 @@ export const showsLogo = (s) => LOGO_SCENES.has(s.type) || (s.type === 'canvas' 
  * 4:5 crop — the templates' titles start right under it; the feed shows the page's own
  * name and logo above the video anyway.) */
 export const chipTop = (width, height) => (height > width ? 150 : 64)
+// the chip's left edge: a wide video keeps it ~6% in (the title-safe area) — a laptop's 16:10 fullscreen or a
+// phone's zoom-to-fill trims the sides of a 16:9 video and cut a logo 48 px in (BCIE, 2026-10-30)
+export const chipLeft = (width, height) => (width > height ? Math.round(width * 0.06) : 48)
 
 /** The Facebook feed shows a tall video cropped to 4:5 — y 285–1635 of 1920. The subtitles
  * stay above FEED_BOTTOM (MotionPost). */

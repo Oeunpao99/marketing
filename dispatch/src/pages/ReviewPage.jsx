@@ -162,7 +162,7 @@ function IdeaCard({ r, busy, isFlagged, onApprove, onRewrite }) {
       {media ? (
         <div className="aspect-[16/9] bg-ink-50">
           {isVideo ? (
-            <video src={media} className="h-full w-full object-cover" muted playsInline controls preload="metadata" />
+            <video src={media} className="h-full w-full bg-black object-contain" muted playsInline controls preload="metadata" />
           ) : (
             <img src={media} alt="" className="h-full w-full object-cover" />
           )}
