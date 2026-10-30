@@ -14,7 +14,7 @@ const WIDE = new Set(['cartoon', 'lesson', 'neural']) // public/templates/<id>-w
 // the website's categories — a template can be in more than one
 const CATEGORIES = [
   ['all', ['All', 'ទាំងអស់']],
-  ['saas', ['SaaS & apps', 'SaaS និងកម្មវិធី'], ['skylaunch', 'saashub', 'clarity', 'aiteam', 'appdemo', 'custom', 'techflow', 'gridcards', 'fintech', 'launch']],
+  ['saas', ['SaaS & apps', 'SaaS និងកម្មវិធី'], ['skylaunch', 'saashub', 'clarity', 'aiteam', 'appdemo', 'custom', 'techflow', 'gridcards', 'fintech', 'launch', 'cyber']],
   ['product', ['Product demo', 'បង្ហាញផលិតផល'], ['logodraw', 'productfx', 'demo', 'sell', 'offer', 'launch', 'unveil', 'showcase', 'spotlight', 'appdemo', 'studio']],
   ['3d', ['3D animation', 'ចលនា 3D'], ['spotlight', 'appdemo', 'street3d', 'fintech', 'skylaunch']],
   ['story', ['Stories & characters', 'រឿង និងតួអង្គ'], ['cartoon', 'parable', 'dialogue', 'podcast', 'picture', 'stickman', 'illustrated', 'presenter', 'rise']],

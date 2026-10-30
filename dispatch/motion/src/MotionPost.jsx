@@ -48,6 +48,8 @@ import {
   chipOpacity,
   chipLeft,
   chipTop,
+  chipBox,
+  chipPlain,
   clean,
   defaultSeconds,
   fitSize,
@@ -81,6 +83,7 @@ import { SPOTLIGHT } from './spotlight'
 import { PRODUCTFX } from './productfx'
 import { SKYLAUNCH } from './skylaunch'
 import { FINTECH } from './fintech'
+import { CYBER } from './cyber'
 import { LOGODRAW } from './logodraw'
 import { APPDEMO } from './appdemo'
 import { LESSON } from './lesson'
@@ -650,12 +653,15 @@ function Chrome({ scenes, brand }) {
           display: 'flex',
           alignItems: 'center',
           gap: 16,
-          // a light (white) logo vanished on the white chip — it gets a dark one (app/motion.py logo_is_light)
-          background: brand.logoLight ? 'rgba(10,14,22,0.82)' : 'rgba(255,255,255,0.92)',
           borderRadius: 10,
-          border: brand.logoLight ? '1px solid rgba(255,255,255,0.14)' : 0,
-          padding: brand.logo ? '10px 14px' : '14px 28px',
-          boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+          // a light (white) logo vanished on the white chip — it gets a dark one (app/motion.py logo_is_light);
+          // a dark template keeps the card unless the brand picked "No background" (shared.jsx chipPlain)
+          ...chipBox(chipPlain(brand, false), {
+            background: brand.logoLight ? 'rgba(10,14,22,0.82)' : 'rgba(255,255,255,0.92)',
+            border: brand.logoLight ? '1px solid rgba(255,255,255,0.14)' : 0,
+            padding: brand.logo ? '10px 14px' : '14px 28px',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+          }, true),
         }}
       >
         {/* The logo alone — it already says who we are; the name only when there's no logo. */}
@@ -774,6 +780,7 @@ const TEMPLATES = {
   productfx: { ...PRODUCTFX, scenes: { ...SCENES, ...PRODUCTFX.scenes } }, // Product showcase — the real product cut out, shape effects
   logodraw: { ...LOGODRAW, scenes: { ...SCENES, ...LOGODRAW.scenes } }, // Logo · Drawing — the brand's logo drawn from scratch, no voice
   fintech: { ...FINTECH, scenes: { ...SCENES, ...FINTECH.scenes } }, // Fintech · Wallet & Card — the 3D wallet, the card in a burst of light
+  cyber: { ...CYBER, scenes: { ...SCENES, ...CYBER.scenes } }, // Cybersecurity · SOC — the network, the attacker, the console, the SOC wall
   skylaunch: { ...SKYLAUNCH, scenes: { ...SCENES, ...SKYLAUNCH.scenes } }, // SaaS launch · Sky — the real screen in a browser window, the pointer clicks
   appdemo: { ...APPDEMO, scenes: { ...SCENES, ...APPDEMO.scenes } }, // 3D · App demo (CSS 3D)
   showcase: { ...SHOWCASE, scenes: { ...SCENES, ...SHOWCASE.scenes } },

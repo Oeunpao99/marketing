@@ -1016,21 +1016,24 @@ CLARITY_PROMPT = (
 )
 
 # ── Product launch (motion/src/launch.jsx) — a cinematic launch film ─────────
-LAUNCH_TYPES = ("hook", "launch", "button", "form", "stack", "screen", "flow", "dashboard", "reveal", "list", "stat", "cta")
+LAUNCH_TYPES = ("hook", "launch", "gallery", "button", "form", "stack", "screen", "flow", "dashboard", "reveal", "list", "stat", "cta")
 LAUNCH_PROMPT = (
     "You are the director of premium SaaS launch films in Cambodia. You plan a REMOTION VIDEO (about "
-    "40-60 s) that LAUNCHES a product or a new feature: deep purple stage light, a big tilted app card "
-    "with a glowing mint edge, the camera pushing in on one button while a cartoon hand clicks it, "
-    "fields typing themselves in, the product's real screens stacking up like a deck. Cinematic, "
-    "confident, few words on screen — the moment of the click is the hero.\n"
+    "40-60 s) that LAUNCHES a product or a new feature, soft and After-Effects smooth: a light "
+    "lavender stage, the line landing word by word with a glowing icon, the product's GALLERY — "
+    "what it makes or keeps, as cards popping into a tilted 3D app window — the camera pushing in "
+    "on one button while a cartoon hand clicks it, the product's real screens stacking up like a "
+    "deck. Confident, few words on screen — the product itself is the hero.\n"
     "\n"
     "THE STORY (7-9 scenes):\n"
     "1. hook — the pain or the promise in one line (\"Still chasing approvals by [email]?\").\n"
     "2. launch — introduce the product or feature by name, with its one-line promise.\n"
-    "3-6. the product working, the hand doing it: `form` (filling in what the user fills in), "
-    "`button` (the ONE click that does the job, and what happens), `stack` (the real screens, when "
-    "there are screenshots), `screen`, `flow` or `dashboard` — three or four of these, different "
-    "types, in the order a user would really do it.\n"
+    "3. gallery — the product's library: what it makes, keeps or sells, as cards (ALWAYS, right "
+    "after the launch).\n"
+    "4-6. the product working, the hand doing it: `button` (the ONE click that does the job, and "
+    "what happens), `stack` (the real screens, when there are screenshots), `screen`, `flow`, "
+    "`dashboard`, or `form` ONLY when filling in a form is truly what the product is about — two or "
+    "three of these, different types, in the order a user would really do it.\n"
     "7. reveal or stat — the one thing to remember (stat only with a TRUE number).\n"
     "last. cta — try it / book a demo / it's live today.\n"
     "\n"
@@ -1038,6 +1041,11 @@ LAUNCH_PROMPT = (
     "- hook: text (max 9 words), icon.\n"
     "- launch: name (the product or feature name, as written), text (its promise, max 10 words), "
     "badge (1-2 words, e.g. \"Now live\", \"New\", \"Beta\").\n"
+    "- gallery: title (the app page's name, 1-2 words — \"Library\", \"My videos\", \"Menu\"), tabs: "
+    "3-4 x 1 word, cards: 4-6 x {\"title\": max 3 words — a believable item the product makes, keeps "
+    "or sells, \"sub\": max 3 words, \"icon\": \"Video\" | \"Image\" | \"FileText\" | \"ShoppingBag\" …}, "
+    "shots: screenshot numbers for the thumbnails (from THE BRAND'S SCREENSHOTS, or []), text "
+    "(max 8 words, optional).\n"
     "- button: title (what the card is, 2-4 words, e.g. \"Leave request\"), text (one detail line, "
     "max 8 words, sample data), button (the action, 1-3 words — e.g. \"Send for approval\"), result "
     "(what happens, max 6 words).\n"
@@ -1062,6 +1070,55 @@ LAUNCH_PROMPT = (
     + "\n"
     + _COMMON_RULES
     + '{"scenes": [{"type": "hook", "text": "...", "icon": "Rocket", "say": "..."}, ...]}'
+)
+
+# ── Cybersecurity · SOC (motion/src/cyber.jsx) — the network, the attacker, the console, the SOC wall ──
+CYBER_TYPES = ("hook", "flow", "step", "notify", "dashboard", "list", "stat", "reveal", "cta")
+CYBER_PROMPT = (
+    "You are the director of cybersecurity films for security companies in Cambodia — an MSSP, a "
+    "SOC, an IT-security or network reseller. You plan a REMOTION VIDEO (about 35-55 s) in a dark "
+    "navy command room: a radar finding a threat, the client's network drawn as glowing lines with "
+    "data running along them over a turning dotted globe, a hooded attacker whose red pulses break "
+    "on the brand's shield, a live threat-monitoring console, the SOC wall with its counters and "
+    "threat level falling to LOW, a padlock closing. Calm and serious, never scary for its own sake; "
+    "few words on screen.\n"
+    "\n"
+    "THE STORY (7-9 scenes):\n"
+    "1. hook — the risk in one line (the radar finds a threat).\n"
+    "2. flow — the network being protected: the places and systems the brand watches.\n"
+    "3. step — one attack and how it's stopped (phishing, ransomware, a brute-force login…).\n"
+    "4. notify — the live monitoring console: what's caught right now.\n"
+    "5. dashboard — the SOC wall: 2-3 counters.\n"
+    "6. list — what the service protects / includes (optional).\n"
+    "7. stat (a TRUE number only) or reveal — the outcome: protected.\n"
+    "last. cta — a free security check / book a call / talk to the SOC.\n"
+    "\n"
+    "SCENE TYPES and their fields:\n"
+    "- hook: text (max 9 words; ⟦mark⟧ the 1-2 key words), badge (2-3 words in capitals, optional, "
+    "e.g. \"THREAT DETECTED\").\n"
+    "- flow: title (max 6 words), nodes: 4-5 x {\"icon\" (Building2, Cloud, Server, Laptop, Smartphone, "
+    "Wifi, Database, Router, Store…), \"label\": 1-3 words — a place or system, \"sub\": a short "
+    "technical detail (\"DC-01\", \"120 devices\", \"AWS\"), optional}.\n"
+    "- step: title (the attack, max 6 words; ⟦mark⟧ its name), text (how it was stopped, max 10 "
+    "words), result (1-2 words, e.g. \"Blocked\", \"Quarantined\").\n"
+    "- notify: title (max 6 words, optional), time (\"23:47\"), notes: 3-4 x {\"app\": the source — "
+    "\"Firewall\", \"Email\", \"Endpoint\", \"DNS\", \"VPN\", \"Cloud\"…, \"text\": the alert, max 9 "
+    "words — the first the most serious}.\n"
+    "- dashboard: title (optional, e.g. \"Security Operations Center\"), metrics: 2-3 x {\"label\": max "
+    "5 words, \"value\": a number, \"prefix\", \"suffix\" (\" min\", \"%\"…), \"delta\" (\"+12%\", "
+    "\"-38%\" or \"\")} — believable SAMPLE numbers, unless the brief gives real ones.\n"
+    "- list: title (max 5 words), items: 3-4 x {\"icon\", \"text\": 2-6 words}.\n"
+    "- stat: value, prefix, suffix, label (max 6 words) — only a TRUE number from the brief or a "
+    "well-known public source.\n"
+    "- reveal: text (max 8 words), icon.\n"
+    "- cta: text (max 8 words), button (2-4 words).\n"
+    "Only services the product information supports — never invent a certification, a client or a "
+    "breach. IP addresses, hostnames and device counts are samples.\n"
+    "\n"
+    + _SAAS_CRAFT
+    + "\n"
+    + _COMMON_RULES
+    + '{"scenes": [{"type": "hook", "text": "...", "badge": "THREAT DETECTED", "say": "..."}, ...]}'
 )
 
 # ── Fintech · Wallet & Card (motion/src/fintech.jsx) — the 3D wallet, the card in a burst of light ──
@@ -3249,6 +3306,7 @@ STYLES = {
     "skylaunch": (SKYLAUNCH_PROMPT, SKYLAUNCH_TYPES, 6, None),
     "logodraw": (LOGODRAW_PROMPT, LOGODRAW_TYPES, 1, None),
     "fintech": (FINTECH_PROMPT, FINTECH_TYPES, 5, None),
+    "cyber": (CYBER_PROMPT, CYBER_TYPES, 7, None),
     "gridcards": (GRID_PROMPT, GRID_TYPES, 5, "fanout"),
     "techflow": (TECHFLOW_PROMPT, TECHFLOW_TYPES, 6, None),
     "canvas": (CANVAS_PROMPT, CANVAS_TYPES, 12, "canvas"),
@@ -3285,7 +3343,7 @@ STYLES = {
 # The templates laid out for 16:9 too (motion/src/training.jsx, saas.jsx wide scenes);
 # every other template is always vertical. Scenes drawn only for a tall frame are
 # left out of a wide video.
-WIDE_STYLES = {"logodraw", "picture", "deck", "aiteam", "saashub", "illustrated", "street3d", "dialogue", "parable", "podcast", "presenter", "neural", "paper", "doodle", "cartoon", "lesson", "rise", "training", "custom", "demo", "offer", "spotlight", "productfx", "trend", "pov", "showcase", "launch", "unveil", "skylaunch", "fintech", "gridcards", "techflow", "canvas", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
+WIDE_STYLES = {"logodraw", "cyber", "picture", "deck", "aiteam", "saashub", "illustrated", "street3d", "dialogue", "parable", "podcast", "presenter", "neural", "paper", "doodle", "cartoon", "lesson", "rise", "training", "custom", "demo", "offer", "spotlight", "productfx", "trend", "pov", "showcase", "launch", "unveil", "skylaunch", "fintech", "gridcards", "techflow", "canvas", "clarity", "countdown", "thisorthat", "reviews", "tips", "hottake", "casestudy", "faq", "report"}
 TALL_ONLY_TYPES = {"problem", "chat", "product", "point"}
 
 
@@ -3547,11 +3605,11 @@ GOAL_STYLES = {
     "teach": ("explainer",),
     "education": ("explainer", "training", "custom", "clarity", "tips", "gridcards", "techflow", "neural", "paper", "doodle", "cartoon", "lesson", "presenter", "podcast", "parable", "illustrated"),
     "reach": ("pov", "explainer", "countdown", "thisorthat", "hottake", "doodle", "cartoon", "lesson", "rise", "reaction", "podcast", "parable", "dialogue"),
-    "awareness": ("logodraw", "trend", "custom", "clarity", "showcase", "report", "unveil", "canvas", "studio", "presenter", "illustrated", "aiteam", "saashub"),
-    "authority": ("versus", "report", "casestudy", "hottake", "clarity", "techflow"),
+    "awareness": ("logodraw", "cyber", "trend", "custom", "clarity", "showcase", "report", "unveil", "canvas", "studio", "presenter", "illustrated", "aiteam", "saashub"),
+    "authority": ("versus", "report", "casestudy", "hottake", "clarity", "techflow", "cyber"),
     "engagement": ("poll", "thisorthat", "faq", "countdown", "hottake", "reaction", "dialogue"),
     "followers": ("quote", "explainer", "tips", "countdown", "hottake", "doodle", "lesson", "rise", "presenter", "podcast", "parable"),
-    "trust": ("testimonial", "reviews", "casestudy", "faq", "report"),
+    "trust": ("testimonial", "reviews", "casestudy", "faq", "report", "cyber"),
 }
 
 
@@ -5881,8 +5939,12 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
                 scene["art"] = art
         scenes.append(scene)
     props = {
-        # logoLight: a white logo → a dark corner chip; logoSolid: a logo with its own ground → a rounded tile (canvas.jsx)
-        "brand": {"name": brand.name, "color": f"#{r:02x}{g:02x}{b:02x}", "logo": logo, "logoLight": logo_is_light(logo), "logoSolid": bool(logo) and not logo_prints(logo)},
+        # logoLight: a white logo → a dark corner chip; logoSolid: a logo with its own ground → a rounded tile (canvas.jsx);
+        # logoChip: the brand's choice for the corner — auto / card / none (shared.jsx chipPlain)
+        "brand": {
+            "name": brand.name, "color": f"#{r:02x}{g:02x}{b:02x}", "logo": logo, "logoLight": logo_is_light(logo),
+            "logoSolid": bool(logo) and not logo_prints(logo), "logoChip": getattr(brand, "logo_chip", None) or "auto",
+        },
         "scenes": scenes,
         "style": script.get("style") or "tech",
     }
@@ -7118,6 +7180,7 @@ TEMPLATE_GUIDE = {
     "clarity": "explaining what a software product does and why it matters — calm, white and light blue: the mess of tools today, the product, how it works",
     "launch": "launching a product or a new feature — a cinematic launch film: the one click that does the job, the product's screens, \"now live\"",
     "fintech": "a money product — a wallet or payment app, a bank card, crypto, savings, remittance — a black card in a burst of light with gold coins, a 3D wallet with its balances rising out",
+    "cyber": "cybersecurity, IT security, an MSSP or SOC, network protection — a dark command room: the network as glowing lines on a turning globe, a hooded attacker blocked by the brand's shield, a live threat console, the SOC wall, a padlock closing",
     "logodraw": "a short logo intro — the brand's own logo drawn from scratch on a drafting grid, then filled in, with its name and a tagline; no voice",
     "skylaunch": "launching a SaaS, app or website with its REAL screen — a prompt box typing the request, the screen in a browser window with the camera flying in, a pointer clicking Publish, on bright sky-blue light",
     "unveil": "unveiling a product or a new feature in a light, elegant way — one big word, the app card coming into focus, a field typing itself, a check with confetti",

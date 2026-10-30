@@ -74,7 +74,22 @@ class ColorsIn(BaseModel):
 
 def _colors_out(db: Session, brand: Brand) -> dict:
     has_logo = db.scalar(select(BrandAsset.id).where(BrandAsset.brand_id == brand.id, BrandAsset.kind == "logo")) is not None
-    return {"colors": list(brand.colors or []), "has_logo": has_logo}
+    return {"colors": list(brand.colors or []), "has_logo": has_logo, "logo_chip": brand.logo_chip or "auto"}
+
+
+class LogoChipIn(BaseModel):
+    mode: str = "auto"
+
+
+@router.put("/colors/{brand_id}/logo-chip")
+def set_logo_chip(brand_id: int, body: LogoChipIn, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    """How the logo sits in the corner of the brand's videos: auto / card / none."""
+    if body.mode not in ("auto", "card", "none"):
+        raise HTTPException(400, "Pick Auto, White card or No background.")
+    brand = owned(db, Brand, brand_id, ws)
+    brand.logo_chip = body.mode
+    db.commit()
+    return _colors_out(db, brand)
 
 
 @router.get("/colors/{brand_id}")

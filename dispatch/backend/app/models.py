@@ -268,6 +268,9 @@ class Brand(Base, TimestampMixin):
     # logo when one is uploaded (brand_kit.detect_colors), editable in the Brand
     # kit. Videos and posters use them (poster.brand_rgb); [] = none known yet.
     colors: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]", nullable=False)
+    # The logo in the corner of its videos (Brand kit → Colours): "auto" — a see-through PNG
+    # floats on a light template, else a white card; "card" — always the white card; "none".
+    logo_chip: Mapped[str] = mapped_column(String(8), default="auto", server_default="auto")
 
     @property
     def voice_ready(self) -> bool:

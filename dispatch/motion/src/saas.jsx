@@ -78,7 +78,8 @@ const PALETTES = {
   report: palette({ bg: '#F6F9FC', a: '#0EA5E9', b: '#8B5CF6', mode: 'light', background: 'neat', icon: 'ChartBar' }),
   tips: palette({ bg: '#F2F8F5', a: '#0F9D74', b: '#3B82F6', mode: 'light', background: 'neat', icon: 'Lightbulb' }),
   clarity: palette({ bg: '#F4F6FA', a: '#2F6FED', b: '#4FB3F6', mode: 'light', background: 'rings', icon: 'FileText' }),
-  launch: palette({ bg: '#14082A', a: '#8B5CF6', b: '#5EEAD4', mode: 'dark', background: 'launch', icon: 'Rocket', card: '#1C0F38' }),
+  // soft and light since 2026-10-30 (the user: the deep purple looked heavy, "not After Effects")
+  launch: palette({ bg: '#F7F4FF', a: '#7C5CFF', b: '#5EEAD4', mode: 'light', background: 'launch', icon: 'Rocket' }),
   unveil: palette({ bg: '#EEF4F3', a: '#2F7A68', b: '#9EC9F2', mode: 'light', background: 'mist', icon: 'Sparkles' }),
   techflow: palette({ bg: '#0B1220', a: '#22D3EE', b: '#10B981', mode: 'dark', background: 'techgrid', icon: 'Cpu', card: '#111B2E' }),
   gridcards: palette({ bg: '#EEF1F6', a: '#1E3470', b: '#7CC242', mode: 'light', background: 'paper', icon: 'Lightbulb' }),
@@ -168,7 +169,22 @@ function Rings({ P }) {
  * a stage lit for a launch. */
 function LaunchLight({ P }) {
   const frame = useCurrentFrame()
+  const { width, height } = useVideoConfig()
   const breathe = 0.85 + 0.15 * Math.sin(frame / 45)
+  if (P.light) {
+    // a soft lavender-white page: violet and mint light drifting slowly, thin rings breathing
+    const big = Math.max(width, height)
+    const drift = (k) => Math.sin((frame + k * 90) / 70)
+    return (
+      <>
+        <div style={{ position: 'absolute', left: width * (0.08 + 0.04 * drift(0)) - big * 0.35, top: height * 0.12 - big * 0.35, width: big * 0.7, height: big * 0.7, borderRadius: '50%', background: `radial-gradient(circle, ${tint(P.a, 0.22 * breathe)}, transparent 65%)` }} />
+        <div style={{ position: 'absolute', left: width * (0.9 + 0.04 * drift(1)) - big * 0.32, top: height * 0.82 - big * 0.32, width: big * 0.64, height: big * 0.64, borderRadius: '50%', background: `radial-gradient(circle, ${tint(P.b, 0.26 * breathe)}, transparent 65%)` }} />
+        {[0.2, 0.36, 0.54].map((r, i) => (
+          <div key={i} style={{ position: 'absolute', left: width / 2 - r * big, top: height * 0.46 - r * big, width: r * big * 2, height: r * big * 2, borderRadius: '50%', border: `2px solid ${tint(P.a, 0.09 - i * 0.02)}`, transform: `scale(${1 + 0.03 * Math.sin(frame / 50 + i)})` }} />
+        ))}
+      </>
+    )
+  }
   return (
     <>
       <AbsoluteFill style={{ background: `radial-gradient(ellipse 75% 50% at 50% 105%, ${tint(P.a, 0.75 * breathe)}, transparent 70%)` }} />
@@ -1529,7 +1545,18 @@ export const CLARITY = {
   linearTransitions: true,
 }
 const LP = PALETTES.launch
-export const LAUNCH = template(LP, 'launch', { ...launchScenes(LP, AiBg), step: makeStep(LP), screen: makeScreen(LP), dashboard: makeDashboard(LP), flow: makeFlow(LP) })
+// Product launch, the After Effects way (like the SaaS explainer): the line alone landing word
+// by word with a glowing icon and a sparkle (no sticker, no boxes), a drifting camera, the
+// swoosh / whip / zoom scene changes, key words as soft violet words
+const launchLines = clarityScenes(LP, AiBg)
+const LAUNCH_BASE = template(LP, 'launch', { ...launchScenes(LP, AiBg), hook: launchLines.hook, reveal: launchLines.reveal, gallery: launchLines.gallery, step: makeStep(LP), screen: makeScreen(LP), dashboard: makeDashboard(LP), flow: makeFlow(LP) })
+export const LAUNCH = {
+  ...LAUNCH_BASE,
+  scenes: Object.fromEntries(Object.entries(LAUNCH_BASE.scenes).map(([k, S]) => [k, withCamera(S)])),
+  root: { ...LAUNCH_BASE.root, '--hl-bg': 'transparent', '--hl-text': LP.a },
+  transitions: clarityTransitions(LP),
+  linearTransitions: true,
+}
 const TP = PALETTES.techflow
 /** Tech explainer: its own hook / journey scenes / checklist; the cta from the kit. */
 export const TECHFLOW = template(TP, 'techflow', techScenes())
@@ -1539,7 +1566,7 @@ const GRID = template(GP, 'gridcards', { ...gridScenes(), step: makeStep(GP), fl
 export const GRIDCARDS = {
   ...GRID,
   root: { ...GRID.root, '--hl-bg': LIME, '--hl-text': NAVY, '--hl-top': '0.82em' },
-  caption: { kind: 'karaoke', ink: NAVY, todo: 'rgba(30,52,112,0.32)', marker: LIME, size: 62 },
+  caption: { kind: 'karaoke', ink: NAVY, todo: 'rgba(30,52,112,0.32)', marker: LIME, size: 54 },
 }
 const UP = PALETTES.unveil
 export const UNVEIL = template(UP, 'unveil', { ...unveilScenes(UP, AiBg), step: makeStep(UP), screen: makeScreen(UP), dashboard: makeDashboard(UP), flow: makeFlow(UP) })

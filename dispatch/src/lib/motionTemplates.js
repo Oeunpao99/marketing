@@ -154,6 +154,8 @@ export const MOTION_TEMPLATES = [
   },
   {
     id: 'clarity',
+    added: '2026-10-30T15:00:00+07:00', // a new look — After Effects style (announced again)
+    bestFor: 'explaining a software product or app — what it does, a gallery of what it makes, how it works',
     story: 'clarity',
     name: 'SaaS explainer',
     look: 'White and blue, After Effects style — words landing out of a blur, glowing icons, a sparkle, your app as a tilted 3D screen, blue swoosh and whip-pan scene changes',
@@ -163,11 +165,13 @@ export const MOTION_TEMPLATES = [
   },
   {
     id: 'launch',
+    added: '2026-10-30T15:00:00+07:00', // a new soft look (announced again)
+    bestFor: 'launching a product or a new feature — the click that does the job, "now live"',
     story: 'launch',
     name: 'Product launch',
-    look: 'Cinematic purple launch film — a tilted app card, the camera pushes in, a hand clicks the button',
-    steps: ['Hook', 'Introducing', 'The click', 'Your screens', 'Call to action'],
-    note: 'Add 2+ app screenshots in Products → Brand kit for the screen deck',
+    look: 'Soft lavender, After Effects smooth — your product’s gallery in a tilted 3D window, glowing icons, the camera pushing in as a hand clicks the button, your real screens stacking up',
+    steps: ['Hook', 'Introducing', 'Your product’s gallery', 'The click', 'Your screens', 'Call to action'],
+    note: 'Add 3+ screenshots or product pictures in Products → Brand kit — they fill the gallery and the screen deck',
     goals: ['conversion'],
   },
   {
@@ -374,6 +378,17 @@ export const MOTION_TEMPLATES = [
     goals: ['conversion', 'awareness'],
   },
   {
+    id: 'cyber',
+    story: 'cyber',
+    added: '2026-10-30T15:05:00+07:00',
+    name: 'Cybersecurity · SOC',
+    bestFor: 'cybersecurity, IT security, an MSSP or SOC, network and cloud protection',
+    look: 'A dark navy command room — a radar finding a threat, your network as glowing lines with data running over a turning globe, a hooded attacker whose red pulses break on your shield, a live threat console, the SOC wall with the threat level falling to LOW, a padlock closing',
+    steps: ['The threat', 'Your network', 'An attack blocked', 'Live monitoring', 'The SOC', 'Protected', 'Call to action'],
+    note: 'Counters and alerts are sample data; a real number only if your brief gives it',
+    goals: ['awareness', 'trust', 'authority'],
+  },
+  {
     id: 'logodraw',
     story: 'logodraw',
     added: '2026-10-30T09:00:00+07:00',
@@ -494,10 +509,10 @@ export const MOTION_TEMPLATES = [
 export const GOAL_TEMPLATES = {
   reach: ['pov', 'teach', 'countdown', 'thisorthat', 'hottake'],
   followers: ['quote', 'teach', 'tips', 'countdown', 'hottake'],
-  awareness: ['trend', 'custom', 'clarity', 'showcase', 'report'],
+  awareness: ['trend', 'custom', 'clarity', 'showcase', 'report', 'cyber'],
   engagement: ['poll', 'thisorthat', 'faq', 'countdown', 'hottake'],
   education: ['teach', 'training', 'custom', 'clarity', 'tips', 'stickman'],
-  trust: ['testimonial', 'reviews', 'casestudy', 'faq', 'report'],
+  trust: ['testimonial', 'reviews', 'casestudy', 'faq', 'report', 'cyber'],
   authority: ['versus', 'report', 'casestudy', 'hottake', 'clarity'],
   solution: ['sell', 'demo', 'custom', 'showcase', 'clarity', 'appdemo', 'skylaunch'],
   conversion: ['offer', 'productfx', 'spotlight', 'sell', 'launch', 'skylaunch', 'fintech', 'reviews', 'casestudy'],

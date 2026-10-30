@@ -176,6 +176,51 @@ function BrandColors({ brand, logoId, showToast }) {
           {busy ? 'Reading…' : 'Read from my logo again'}
         </button>
       )}
+      {data.has_logo && <LogoChip brand={brand} mode={data.logo_chip || 'auto'} onSaved={setData} showToast={showToast} />}
+    </div>
+  )
+}
+
+const CHIP_MODES = [
+  { id: 'auto', label: 'Auto', hint: 'A see-through PNG logo sits right on light videos; a white card elsewhere' },
+  { id: 'card', label: 'White card', hint: 'Always on a small white card' },
+  { id: 'none', label: 'No background', hint: 'Always the logo alone — best with a see-through PNG' },
+]
+
+/** How the logo sits in the corner of the brand's videos (backend Brand.logo_chip). */
+function LogoChip({ brand, mode, onSaved, showToast }) {
+  const [busy, setBusy] = useState(false)
+  const pick = async (id) => {
+    if (id === mode || busy) return
+    setBusy(true)
+    try {
+      onSaved(await api.put(`/brand-kit/colors/${brand.id}/logo-chip`, { mode: id }))
+    } catch (e) {
+      showToast(`Couldn’t save — ${e.message}`)
+    } finally {
+      setBusy(false)
+    }
+  }
+  const now = CHIP_MODES.find((m) => m.id === mode) || CHIP_MODES[0]
+  return (
+    <div className="mt-4">
+      <h3 className="text-[13px] font-semibold text-ink-900">Logo in videos</h3>
+      <div role="radiogroup" aria-label="Logo in videos" className="mt-2 inline-flex rounded-xl bg-ink-100 p-1">
+        {CHIP_MODES.map((m) => (
+          <button
+            key={m.id}
+            type="button"
+            role="radio"
+            aria-checked={m.id === mode}
+            disabled={busy}
+            onClick={() => pick(m.id)}
+            className={`rounded-lg px-3 py-1.5 text-[12px] font-semibold transition-colors ${m.id === mode ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-500 hover:text-ink-800'}`}
+          >
+            {m.label}
+          </button>
+        ))}
+      </div>
+      <p className="mt-1.5 text-[11.5px] leading-relaxed text-ink-500">{now.hint}</p>
     </div>
   )
 }

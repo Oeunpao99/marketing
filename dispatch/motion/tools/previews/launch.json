@@ -1,59 +1,235 @@
 {
-  "brand": {
-    "name": "Smart Marketing",
-    "color": "#1F4E8C",
-    "logo": "ours/smart-marketing.png",
-    "slug": "smart-marketing"
+ "brand": {
+  "name": "Smart Marketing",
+  "color": "#1F4E8C",
+  "logo": "ours/smart-marketing.png",
+  "slug": "smart-marketing"
+ },
+ "style": "launch",
+ "music": "music/launch/contentflow-launch-1.mp3",
+ "frame": 262,
+ "scenes": [
+  {
+   "type": "hook",
+   "icon": "Megaphone",
+   "text": "Your ⟦marketing team⟧, without the team?",
+   "seconds": 3.4
   },
-  "style": "launch",
-  "frame": 95,
-  "scenes": [
+  {
+   "type": "launch",
+   "name": "Smart Marketing",
+   "text": "Your AI marketing team, now live",
+   "badge": "Now live",
+   "seconds": 3.6
+  },
+  {
+   "type": "gallery",
+   "title": "Content studio",
+   "tabs": [
+    "All",
+    "Videos",
+    "Pictures"
+   ],
+   "text": "Everything it ⟦makes⟧ for you",
+   "seconds": 4.2,
+   "images": [
     {
-      "type": "button",
-      "title": "Leave request",
-      "text": "3 days · 21–23 Oct · Family trip",
-      "button": "Send for approval",
-      "result": "Approved in 2 minutes"
+     "src": "ours/app/tpl-productfx.jpg"
+    },
+    {
+     "src": "ours/app/tpl-picture.jpg"
+    },
+    {
+     "src": "ours/app/tpl-presenter.jpg"
+    },
+    {
+     "src": "ours/app/tpl-skylaunch.jpg"
+    },
+    {
+     "src": "ours/app/tpl-podcast.jpg"
+    },
+    {
+     "src": "ours/app/tpl-spotlight.jpg"
     }
-  ],
-  "clip": [
+   ],
+   "cards": [
     {
-      "type": "hook",
-      "text": "Still chasing approvals by ⟦email⟧?",
-      "icon": "Mail"
+     "title": "Iced latte promo",
+     "sub": "Video · Khmer",
+     "icon": "Video"
     },
     {
-      "type": "launch",
-      "name": "Smart Marketing",
-      "text": "Approvals in one click, right where you work",
-      "badge": "Now live"
+     "title": "Weekend story",
+     "sub": "Picture story",
+     "icon": "Image"
     },
     {
-      "type": "form",
-      "title": "New expense",
-      "fields": [
-        {
-          "label": "Amount",
-          "value": "$120.00"
-        },
-        {
-          "label": "Category",
-          "value": "Client lunch"
-        }
-      ],
-      "toggle": "Auto-approve under $200"
+     "title": "Ask the barista",
+     "sub": "Presenter",
+     "icon": "Video"
     },
     {
-      "type": "button",
-      "title": "Leave request",
-      "text": "3 days · 21–23 Oct · Family trip",
-      "button": "Send for approval",
-      "result": "Approved in 2 minutes"
+     "title": "New menu launch",
+     "sub": "Launch film",
+     "icon": "Film"
     },
     {
-      "type": "cta",
-      "text": "It's live — ⟦try it today⟧",
-      "button": "Book a demo"
+     "title": "Coffee talk",
+     "sub": "Podcast",
+     "icon": "Music"
+    },
+    {
+     "title": "Cold brew",
+     "sub": "3D spotlight",
+     "icon": "Video"
     }
-  ]
+   ]
+  },
+  {
+   "type": "button",
+   "title": "Iced latte promo",
+   "text": "Facebook · Instagram · TikTok",
+   "button": "Approve & schedule",
+   "result": "Posted to 3 pages",
+   "seconds": 4.2
+  },
+  {
+   "type": "stack",
+   "words": [
+    "planned",
+    "made",
+    "posted"
+   ],
+   "seconds": 4.4,
+   "images": [
+    {
+     "src": "ours/app/plan.jpg"
+    },
+    {
+     "src": "ours/app/studio.jpg"
+    },
+    {
+     "src": "ours/app/dashboard.jpg"
+    }
+   ]
+  },
+  {
+   "type": "cta",
+   "text": "It’s live — ⟦try it today⟧",
+   "button": "Start free",
+   "seconds": 3.4
+  }
+ ],
+ "clip": [
+  {
+   "type": "hook",
+   "icon": "Megaphone",
+   "text": "Your ⟦marketing team⟧, without the team?",
+   "seconds": 3.4
+  },
+  {
+   "type": "launch",
+   "name": "Smart Marketing",
+   "text": "Your AI marketing team, now live",
+   "badge": "Now live",
+   "seconds": 3.6
+  },
+  {
+   "type": "gallery",
+   "title": "Content studio",
+   "tabs": [
+    "All",
+    "Videos",
+    "Pictures"
+   ],
+   "text": "Everything it ⟦makes⟧ for you",
+   "seconds": 4.2,
+   "images": [
+    {
+     "src": "ours/app/tpl-productfx.jpg"
+    },
+    {
+     "src": "ours/app/tpl-picture.jpg"
+    },
+    {
+     "src": "ours/app/tpl-presenter.jpg"
+    },
+    {
+     "src": "ours/app/tpl-skylaunch.jpg"
+    },
+    {
+     "src": "ours/app/tpl-podcast.jpg"
+    },
+    {
+     "src": "ours/app/tpl-spotlight.jpg"
+    }
+   ],
+   "cards": [
+    {
+     "title": "Iced latte promo",
+     "sub": "Video · Khmer",
+     "icon": "Video"
+    },
+    {
+     "title": "Weekend story",
+     "sub": "Picture story",
+     "icon": "Image"
+    },
+    {
+     "title": "Ask the barista",
+     "sub": "Presenter",
+     "icon": "Video"
+    },
+    {
+     "title": "New menu launch",
+     "sub": "Launch film",
+     "icon": "Film"
+    },
+    {
+     "title": "Coffee talk",
+     "sub": "Podcast",
+     "icon": "Music"
+    },
+    {
+     "title": "Cold brew",
+     "sub": "3D spotlight",
+     "icon": "Video"
+    }
+   ]
+  },
+  {
+   "type": "button",
+   "title": "Iced latte promo",
+   "text": "Facebook · Instagram · TikTok",
+   "button": "Approve & schedule",
+   "result": "Posted to 3 pages",
+   "seconds": 4.2
+  },
+  {
+   "type": "stack",
+   "words": [
+    "planned",
+    "made",
+    "posted"
+   ],
+   "seconds": 4.4,
+   "images": [
+    {
+     "src": "ours/app/plan.jpg"
+    },
+    {
+     "src": "ours/app/studio.jpg"
+    },
+    {
+     "src": "ours/app/dashboard.jpg"
+    }
+   ]
+  },
+  {
+   "type": "cta",
+   "text": "It’s live — ⟦try it today⟧",
+   "button": "Start free",
+   "seconds": 3.4
+  }
+ ]
 }

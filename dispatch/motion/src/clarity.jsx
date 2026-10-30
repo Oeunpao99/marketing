@@ -322,10 +322,16 @@ function makePlatform(P, Bg) {
     const frame = useCurrentFrame()
     const { fps, width, height } = useVideoConfig()
     const wide = width > height
-    const L = wide ? { bubble: 150, bTop: 70, tTop: 250, dTop: 380, dW: 1480 } : { bubble: 200, bTop: 270, tTop: 520, dTop: 800, dW: 980 }
+    const L = wide ? { bubble: 120, bTop: 50, tTop: 190, dTop: 300, dW: 1480 } : { bubble: 200, bTop: 270, tTop: 520, dTop: 800, dW: 980 }
     const bub = spring({ frame, fps, config: { damping: 11 } })
     const rise = spring({ frame: frame - 16, fps, config: { damping: 18, mass: 1.2 } })
-    const dH = Math.round(L.dW * 0.66)
+    // the device takes the screenshot's own shape — the whole screen shows, nothing cut off its
+    // sides — and ends above the subtitles (the user, 2026-10-30)
+    const aspect = scene.image && scene.imgW && scene.imgH ? scene.imgH / scene.imgW : 0.66
+    const maxH = (wide ? 870 : 1430) - L.dTop
+    const dW = Math.min(L.dW, Math.round((maxH - 36) / aspect + 36))
+    const dH = Math.round((dW - 36) * aspect + 36)
+    L.dW = dW
     return (
       <AbsoluteFill>
         <Bg P={P} />
@@ -353,7 +359,7 @@ function makePlatform(P, Bg) {
             </div>
             <div style={{ width: '100%', height: '100%', borderRadius: 24, overflow: 'hidden', background: '#FFFFFF', border: '2px solid #E6EAF0' }}>
               {scene.image ? (
-                <Img src={srcOf(scene.image)} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top center', display: 'block' }} />
+                <Img src={srcOf(scene.image)} style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'top center', display: 'block' }} />
               ) : (
                 <SampleApp P={P} brand={brand} wide={wide} />
               )}
@@ -614,6 +620,8 @@ function makeGallery(P, Bg) {
             <Kinetic text={scene.text} P={P} size={fitSize(scene.text, wide ? 64 : 76)} delay={4} />
           </div>
         )}
+        {/* the window fades out before the subtitles — nothing of it under them */}
+        <AbsoluteFill style={{ maskImage: `linear-gradient(to bottom, black ${wide ? 70 : 68}%, transparent ${wide ? 82 : 76}%)`, WebkitMaskImage: `linear-gradient(to bottom, black ${wide ? 70 : 68}%, transparent ${wide ? 82 : 76}%)` }}>
         <div style={{ position: 'absolute', left, top: top + (wide && scene.text ? 60 : 0), width: W * k, height: H * k, perspective: 2600, filter: flyBlur(inn, 12), maskImage: 'linear-gradient(to right, black 62%, transparent 98%)', WebkitMaskImage: 'linear-gradient(to right, black 62%, transparent 98%)' }}>
           <div style={{ width: W, height: H, transform: `scale(${k}) translateX(${(1 - inn) * 500}px) rotateY(${ry}deg) rotateX(${rx}deg) rotateZ(${-2 + (1 - inn) * -4}deg)`, transformOrigin: '0 0' }}>
             <div style={{ display: 'flex', width: '100%', height: '100%', borderRadius: 34, background: '#FFFFFF', border: `4px solid ${tint(P.b, 0.55)}`, boxShadow: `0 60px 120px rgba(31,39,51,0.18), -30px 0 80px ${tint(P.b, 0.25)}`, overflow: 'hidden', fontFamily: FONT }}>
@@ -674,6 +682,7 @@ function makeGallery(P, Bg) {
             </div>
           </div>
         </div>
+        </AbsoluteFill>
       </AbsoluteFill>
     )
   }

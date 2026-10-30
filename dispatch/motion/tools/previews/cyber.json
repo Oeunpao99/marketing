@@ -1,0 +1,257 @@
+{
+ "brand": {
+  "name": "SecureNet",
+  "color": "#0EA5E9",
+  "logo": null
+ },
+ "style": "cyber",
+ "frame": 252,
+ "scenes": [
+  {
+   "type": "hook",
+   "text": "Hackers attack every ⟦39 seconds⟧",
+   "badge": "THREAT DETECTED",
+   "seconds": 3.5
+  },
+  {
+   "type": "flow",
+   "title": "Your whole ⟦network⟧, watched",
+   "nodes": [
+    {
+     "icon": "Building2",
+     "label": "Head office",
+     "sub": "10.0.1.0/24"
+    },
+    {
+     "icon": "Cloud",
+     "label": "Cloud",
+     "sub": "AWS"
+    },
+    {
+     "icon": "Server",
+     "label": "Servers",
+     "sub": "DC-01"
+    },
+    {
+     "icon": "Laptop",
+     "label": "Laptops",
+     "sub": "120 devices"
+    },
+    {
+     "icon": "Wifi",
+     "label": "Branch Wi-Fi",
+     "sub": "Siem Reap"
+    }
+   ],
+   "seconds": 3.5
+  },
+  {
+   "type": "step",
+   "title": "A ⟦phishing⟧ attack",
+   "text": "Stopped before anyone clicked",
+   "result": "Blocked",
+   "seconds": 3.5
+  },
+  {
+   "type": "notify",
+   "title": "Watched ⟦24/7⟧",
+   "time": "23:47",
+   "notes": [
+    {
+     "app": "Firewall",
+     "text": "Brute-force login from 185.220.x.x"
+    },
+    {
+     "app": "Email",
+     "text": "Phishing link quarantined"
+    },
+    {
+     "app": "Endpoint",
+     "text": "Unsigned script stopped"
+    },
+    {
+     "app": "DNS",
+     "text": "Known bad domain blocked"
+    }
+   ],
+   "seconds": 3.5
+  },
+  {
+   "type": "dashboard",
+   "title": "Security Operations Center",
+   "metrics": [
+    {
+     "label": "Threats blocked today",
+     "value": "1284",
+     "prefix": "",
+     "suffix": "",
+     "delta": "+12%"
+    },
+    {
+     "label": "Mean time to respond",
+     "value": "4.2",
+     "prefix": "",
+     "suffix": " min",
+     "delta": "-38%"
+    },
+    {
+     "label": "Devices protected",
+     "value": "356",
+     "prefix": "",
+     "suffix": "",
+     "delta": ""
+    }
+   ],
+   "seconds": 3.5
+  },
+  {
+   "type": "list",
+   "title": "What we ⟦protect⟧",
+   "items": [
+    {
+     "icon": "Mail",
+     "text": "Email and phishing"
+    },
+    {
+     "icon": "Laptop",
+     "text": "Every laptop and phone"
+    },
+    {
+     "icon": "Cloud",
+     "text": "Your cloud and servers"
+    }
+   ],
+   "seconds": 3.5
+  },
+  {
+   "type": "stat",
+   "value": "99.9",
+   "suffix": "%",
+   "label": "Threats stopped ⟦automatically⟧",
+   "seconds": 3.5
+  },
+  {
+   "type": "reveal",
+   "icon": "Lock",
+   "text": "Your business, ⟦protected⟧.",
+   "seconds": 3.5
+  },
+  {
+   "type": "cta",
+   "text": "Get a ⟦free⟧ security check",
+   "button": "Book now",
+   "seconds": 3.5
+  }
+ ],
+ "clip": [
+  {
+   "type": "hook",
+   "text": "Hackers attack every ⟦39 seconds⟧",
+   "badge": "THREAT DETECTED",
+   "seconds": 3.5
+  },
+  {
+   "type": "flow",
+   "title": "Your whole ⟦network⟧, watched",
+   "nodes": [
+    {
+     "icon": "Building2",
+     "label": "Head office",
+     "sub": "10.0.1.0/24"
+    },
+    {
+     "icon": "Cloud",
+     "label": "Cloud",
+     "sub": "AWS"
+    },
+    {
+     "icon": "Server",
+     "label": "Servers",
+     "sub": "DC-01"
+    },
+    {
+     "icon": "Laptop",
+     "label": "Laptops",
+     "sub": "120 devices"
+    },
+    {
+     "icon": "Wifi",
+     "label": "Branch Wi-Fi",
+     "sub": "Siem Reap"
+    }
+   ],
+   "seconds": 3.5
+  },
+  {
+   "type": "step",
+   "title": "A ⟦phishing⟧ attack",
+   "text": "Stopped before anyone clicked",
+   "result": "Blocked",
+   "seconds": 3.5
+  },
+  {
+   "type": "notify",
+   "title": "Watched ⟦24/7⟧",
+   "time": "23:47",
+   "notes": [
+    {
+     "app": "Firewall",
+     "text": "Brute-force login from 185.220.x.x"
+    },
+    {
+     "app": "Email",
+     "text": "Phishing link quarantined"
+    },
+    {
+     "app": "Endpoint",
+     "text": "Unsigned script stopped"
+    },
+    {
+     "app": "DNS",
+     "text": "Known bad domain blocked"
+    }
+   ],
+   "seconds": 3.5
+  },
+  {
+   "type": "dashboard",
+   "title": "Security Operations Center",
+   "metrics": [
+    {
+     "label": "Threats blocked today",
+     "value": "1284",
+     "prefix": "",
+     "suffix": "",
+     "delta": "+12%"
+    },
+    {
+     "label": "Mean time to respond",
+     "value": "4.2",
+     "prefix": "",
+     "suffix": " min",
+     "delta": "-38%"
+    },
+    {
+     "label": "Devices protected",
+     "value": "356",
+     "prefix": "",
+     "suffix": "",
+     "delta": ""
+    }
+   ],
+   "seconds": 3.5
+  },
+  {
+   "type": "reveal",
+   "icon": "Lock",
+   "text": "Your business, ⟦protected⟧.",
+   "seconds": 3.5
+  },
+  {
+   "type": "cta",
+   "text": "Get a ⟦free⟧ security check",
+   "button": "Book now",
+   "seconds": 3.5
+  }
+ ]
+}

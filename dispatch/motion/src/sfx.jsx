@@ -26,7 +26,7 @@ const VOLUME = {
   swish: 0.24, swoosh: 0.3, shimmer: 0.2, cash: 0.34, coin: 0.28, notify: 0.3, typing: 0.22, drumroll: 0.28,
   applause: 0.26, page: 0.32, chime: 0.26, drop: 0.48, confetti: 0.28, shutter: 0.3,
 }
-const SAAS = new Set(['trend', 'pov', 'demo', 'offer', 'custom', 'showcase', 'launch', 'clarity', 'countdown', 'thisorthat', 'reviews', 'tips', 'hottake', 'casestudy', 'faq', 'report'])
+const SAAS = new Set(['cyber', 'trend', 'pov', 'demo', 'offer', 'custom', 'showcase', 'launch', 'clarity', 'countdown', 'thisorthat', 'reviews', 'tips', 'hottake', 'casestudy', 'faq', 'report'])
 // What the video is about — from its template, or from the music mood the AI picked for it
 // (public/music/<mood>/), so an event or an offer sounds like one in any template.
 const TEACH = new Set(['teach', 'training', 'lesson', 'tips', 'faq', 'doodle', 'paper'])
@@ -78,7 +78,7 @@ function cuesOf(scene, style, frames, first, index, kind) {
   // transition (clarity.jsx: swoosh, whip, zoom in turn); launches and SaaS films alternate
   const change = kind.teach
     ? 'page'
-    : style === 'clarity'
+    : style === 'clarity' || style === 'launch' // the swoosh / whip / zoom (clarity.jsx clarityTransitions)
       ? ['swoosh', 'swish', 'whoosh'][(index - 1 + 3) % 3]
       : kind.launch || SAAS.has(style)
         ? (index % 2 ? 'whoosh' : 'swish')
@@ -424,7 +424,7 @@ function cuesOf(scene, style, frames, first, index, kind) {
     case 'reveal':
       add(4, 'pop')
       // clarity.jsx makeLine: the sparkle lands 26 frames after it sets off, after the words
-      if (style === 'clarity') add(8 + [...String(scene.text || '').split(' ')].length * 4 + 18, 'shimmer')
+      if (style === 'clarity' || style === 'launch') add(8 + [...String(scene.text || '').split(' ')].length * 4 + 18, 'shimmer')
       break
     default: // news, verdict, quote, customer, product, point
       add(4, 'pop')

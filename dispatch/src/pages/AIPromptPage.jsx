@@ -258,6 +258,7 @@ const MOTION_STORIES = [
   { value: 'techflow', label: 'Tech explainer', hint: 'How a technology works — devices, data packets travelling, an address, a lookup, the path, a checklist' },
   { value: 'gridcards', label: 'How it works · Grid', hint: 'Grid paper, navy and lime — the repetitive work, then one photo becoming a post, a price poster, a caption' },
   { value: 'fintech', label: 'Fintech · Wallet & Card', hint: 'A black card in a burst of light with gold coins, a 3D wallet with its balances rising out — for money products' },
+  { value: 'cyber', label: 'Cybersecurity · SOC', hint: 'A dark command room — the network glowing on a globe, an attacker blocked by your shield, a live threat console, the SOC wall' },
   { value: 'logodraw', label: 'Logo · Drawing', hint: 'Your own logo drawn from scratch on a drafting grid, then filled in — a 10-second intro with sound effects, no voice' },
   { value: 'skylaunch', label: 'SaaS launch · Sky', hint: 'Your real screen in a browser window — a prompt typing, the camera flying in, a pointer clicking Publish, on bright sky-blue light' },
   { value: 'unveil', label: 'Unveil · Launch (light)', hint: 'A light, elegant launch — one big word, the app card coming into focus, typing, a check with confetti' },

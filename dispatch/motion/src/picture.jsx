@@ -251,5 +251,5 @@ export const PICTURE = {
   root: { backgroundColor: '#0d0f14' },
   transitions: [() => fade()], // a soft crossfade every time — never a slide over a picture
   captionTop: (h) => (h < 1200 ? h - 150 : 1560),
-  caption: { size: 46 }, // the subtitles a little smaller than other templates'
+  caption: { size: 40 }, // the subtitles a little smaller than other templates'
 }

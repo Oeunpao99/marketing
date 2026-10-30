@@ -82,7 +82,12 @@ def _conf(kind: str = "profile") -> tuple[str, str, str]:
 def _explain(resp: httpx.Response) -> str:
     try:
         body = resp.json()
-        return body.get("message") or str(body)[:300]
+        # "Invalid param. Please see errorDetails…" — say what the details are
+        details = body.get("errorDetails")
+        msg = body.get("message") or ""
+        if details:
+            msg = f"{msg} {str(details)[:300]}".strip()
+        return msg or str(body)[:300]
     except ValueError:
         return resp.text[:300] or f"HTTP {resp.status_code}"
 
@@ -312,7 +317,7 @@ def _register_image_upload(access_token: str, owner: str) -> tuple[str, str]:
     return upload_url, image_urn
 
 
-def _register_video_upload(access_token: str, owner: str, size: int) -> tuple[list[dict], str]:
+def _register_video_upload(access_token: str, owner: str, size: int) -> tuple[list[dict], str, str]:
     try:
         resp = httpx.post(
             f"{API_BASE}/videos?action=initializeUpload",
@@ -337,8 +342,9 @@ def _register_video_upload(access_token: str, owner: str, size: int) -> tuple[li
     if not instructions or not video_urn:
         raise LinkedInError("LinkedIn did not return a video upload url.")
     # LinkedIn splits anything over 4 MB into ~4 MB parts — one upload url
-    # per byte range (firstByte..lastByte, inclusive).
-    return instructions, video_urn
+    # per byte range (firstByte..lastByte, inclusive). The finalize step must send
+    # back the upload token it gave ("" too) — without it: "Invalid param".
+    return instructions, video_urn, value.get("uploadToken") or ""
 
 
 def _upload_image(access_token: str, owner: str, media: bytes) -> str:
@@ -358,7 +364,7 @@ def _upload_image(access_token: str, owner: str, media: bytes) -> str:
 
 
 def _upload_video(access_token: str, owner: str, media: bytes) -> str:
-    instructions, video_urn = _register_video_upload(access_token, owner, len(media))
+    instructions, video_urn, upload_token = _register_video_upload(access_token, owner, len(media))
     part_ids: list[str] = []
     for part in instructions:
         first = int(part.get("firstByte") or 0)
@@ -388,6 +394,7 @@ def _upload_video(access_token: str, owner: str, media: bytes) -> str:
             json={
                 "finalizeUploadRequest": {
                     "video": video_urn,
+                    "uploadToken": upload_token,
                     "uploadedPartIds": part_ids,
                 }
             },

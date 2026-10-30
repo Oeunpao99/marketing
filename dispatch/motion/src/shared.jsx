@@ -254,6 +254,20 @@ export const chipLeft = (width, height) => (width > height ? Math.round(width * 
  * stay above FEED_BOTTOM (MotionPost). */
 export const FEED_BOTTOM = 1635
 export const chipLogo = (width, height) => (height > width ? 62 : 84)
+/** The logo goes on the video itself, no white card (the boss's idea, 2026-10-30): the brand
+ * picked "none", or "auto" with a see-through PNG (not a light one) on a light template. */
+export const chipPlain = (brand, lightTemplate) => {
+  if (!brand?.logo) return false
+  const mode = brand.logoChip || 'auto'
+  if (mode === 'none') return true
+  if (mode === 'card') return false
+  return lightTemplate && !brand.logoSolid && !brand.logoLight
+}
+/** The card round the logo, or nothing but a soft shadow that keeps it readable. */
+export const chipBox = (plain, card, dark = false) =>
+  plain
+    ? { background: 'transparent', border: 0, boxShadow: 'none', padding: 0, filter: dark ? 'drop-shadow(0 0 2px rgba(255,255,255,0.9)) drop-shadow(0 0 12px rgba(255,255,255,0.55))' : 'drop-shadow(0 2px 10px rgba(0,0,0,0.18))' }
+    : card
 
 /** The corner logo chip's opacity at ``frame``: it fades out over a scene that shows the logo itself. */
 export function chipOpacity(scenes, frame) {

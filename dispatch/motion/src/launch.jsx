@@ -48,7 +48,7 @@ function cardStyle(P, glow) {
     borderRadius: 44,
     background: 'linear-gradient(135deg, #CDBDF5 0%, #F1ECFB 38%, #FCFBF7 70%)',
     border: `5px solid ${P.b}`,
-    boxShadow: `0 0 ${30 + 50 * glow}px ${tint(P.b, 0.35 + 0.4 * glow)}, 0 70px 140px rgba(0,0,0,0.55)`,
+    boxShadow: `0 0 ${30 + 50 * glow}px ${tint(P.b, 0.35 + 0.4 * glow)}, ${P.light ? '0 50px 110px rgba(91,62,190,0.18)' : '0 70px 140px rgba(0,0,0,0.55)'}`,
     overflow: 'hidden',
   }
 }
@@ -75,10 +75,10 @@ function makeLaunchReveal(P, Bg) {
               <Img src={srcOf(brand.logo)} style={{ height: wide ? 64 : 80, maxWidth: 380, objectFit: 'contain' }} />
             </div>
           ) : (
-            <div style={{ opacity: kick, fontFamily: FONT, fontWeight: 700, fontSize: wide ? 34 : 38, letterSpacing: 8, color: tint(P.b, 0.9) }}>INTRODUCING</div>
+            <div style={{ opacity: kick, fontFamily: FONT, fontWeight: 700, fontSize: wide ? 34 : 38, letterSpacing: 8, color: P.light ? P.a : tint(P.b, 0.9) }}>INTRODUCING</div>
           )}
           <div style={{ position: 'relative' }}>
-            <div style={{ display: 'flex', justifyContent: 'center', fontFamily: FONT, fontWeight: 800, fontSize: size, letterSpacing: '-0.03em', lineHeight: 1.15, color: '#FFFFFF', whiteSpace: 'nowrap' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', fontFamily: FONT, fontWeight: 800, fontSize: size, letterSpacing: '-0.03em', lineHeight: 1.15, color: P.ink, whiteSpace: 'nowrap' }}>
               {chars.map((c, i) => {
                 const s = spring({ frame: frame - 8 - i * 2, fps, config: { damping: 13 } })
                 return (
@@ -91,11 +91,11 @@ function makeLaunchReveal(P, Bg) {
             <div style={{ height: Math.max(8, size * 0.06), borderRadius: 99, marginTop: 6, background: `linear-gradient(90deg, ${P.a}, ${P.b})`, transform: `scaleX(${line})`, transformOrigin: 'left center', boxShadow: `0 0 24px ${tint(P.b, 0.6)}` }} />
           </div>
           {scene.text && (
-            <div style={{ maxWidth: wide ? 1300 : 940, fontFamily: FONT, fontWeight: 500, fontSize: fitSize(scene.text, wide ? 50 : 54), color: 'rgba(240,235,255,0.82)', lineHeight: 1.4, opacity: sub, transform: `translateY(${(1 - sub) * 24}px)` }}>
+            <div style={{ maxWidth: wide ? 1300 : 940, fontFamily: FONT, fontWeight: 500, fontSize: fitSize(scene.text, wide ? 50 : 54), color: P.sub, lineHeight: 1.4, opacity: sub, transform: `translateY(${(1 - sub) * 24}px)` }}>
               {clean(scene.text)}
             </div>
           )}
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 14, padding: '12px 30px', borderRadius: 999, background: tint(P.b, 0.14), border: `2px solid ${tint(P.b, 0.7)}`, fontFamily: FONT, fontWeight: 700, fontSize: wide ? 30 : 34, letterSpacing: 3, color: P.b, transform: `scale(${badge})`, opacity: badge }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 14, padding: '12px 30px', borderRadius: 999, background: tint(P.b, 0.14), border: `2px solid ${tint(P.b, 0.7)}`, fontFamily: FONT, fontWeight: 700, fontSize: wide ? 30 : 34, letterSpacing: 3, color: P.light ? P.a : P.b, transform: `scale(${badge})`, opacity: badge }}>
             <span style={{ width: 14, height: 14, borderRadius: 7, background: P.b, boxShadow: `0 0 14px ${P.b}`, opacity: 0.5 + 0.5 * Math.sin(frame / 4) }} />
             {clean(scene.badge || 'NOW LIVE').toUpperCase()}
           </div>
@@ -152,7 +152,7 @@ function makeLaunchButton(P, Bg) {
         </AbsoluteFill>
         {scene.result && (
           <div style={{ position: 'absolute', left: 0, right: 0, top: by - C.bh * 0.5 * 1.42 - (wide ? 110 : 130), display: 'flex', justifyContent: 'center', opacity: done, transform: `translateY(${(1 - done) * -40}px) scale(${0.9 + 0.1 * done})` }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 18, padding: '20px 34px', borderRadius: 999, background: 'rgba(16,10,32,0.85)', border: `2px solid ${tint(P.b, 0.8)}`, boxShadow: `0 0 40px ${tint(P.b, 0.35)}`, fontFamily: FONT, fontWeight: 700, fontSize: fitSize(scene.result, wide ? 40 : 44), color: '#FFFFFF' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 18, padding: '20px 34px', borderRadius: 999, background: P.light ? '#FFFFFF' : 'rgba(16,10,32,0.85)', border: `2px solid ${tint(P.b, 0.8)}`, boxShadow: `0 0 40px ${tint(P.b, 0.35)}`, fontFamily: FONT, fontWeight: 700, fontSize: fitSize(scene.result, wide ? 40 : 44), color: P.light ? P.ink : '#FFFFFF' }}>
               <Icon name="CircleCheck" size={wide ? 44 : 50} color={P.b} stroke={2.6} />
               {clean(scene.result)}
             </div>
@@ -253,7 +253,7 @@ function makeLaunchStack(P, Bg) {
       <AbsoluteFill>
         <Bg P={P} />
         {word && (
-          <div key={word} style={{ position: 'absolute', left: 0, right: 0, top: wide ? 150 : 300, zIndex: 10, textAlign: 'center', fontFamily: FONT, fontWeight: 800, fontSize: fitSize(word, wide ? 110 : 120), letterSpacing: '-0.03em', color: '#FFFFFF', opacity: wordIn, transform: `translateY(${(1 - wordIn) * 40}px)` }}>
+          <div key={word} style={{ position: 'absolute', left: 0, right: 0, top: wide ? 150 : 300, zIndex: 10, textAlign: 'center', fontFamily: FONT, fontWeight: 800, fontSize: fitSize(word, wide ? 110 : 120), letterSpacing: '-0.03em', color: P.ink, opacity: wordIn, transform: `translateY(${(1 - wordIn) * 40}px)` }}>
             {word}
           </div>
         )}
@@ -274,8 +274,8 @@ function makeLaunchStack(P, Bg) {
                 borderRadius: 30,
                 overflow: 'hidden',
                 background: '#FFFFFF',
-                border: i === front ? `4px solid ${P.b}` : '4px solid rgba(255,255,255,0.6)',
-                boxShadow: i === front ? `0 0 40px ${tint(P.b, 0.35)}, 0 50px 100px rgba(0,0,0,0.55)` : '0 30px 60px rgba(0,0,0,0.4)',
+                border: i === front ? `4px solid ${P.b}` : P.light ? '4px solid rgba(124,92,255,0.18)' : '4px solid rgba(255,255,255,0.6)',
+                boxShadow: i === front ? `0 0 40px ${tint(P.b, 0.35)}, ${P.light ? '0 40px 90px rgba(91,62,190,0.2)' : '0 50px 100px rgba(0,0,0,0.55)'}` : P.light ? '0 24px 50px rgba(91,62,190,0.14)' : '0 30px 60px rgba(0,0,0,0.4)',
                 transform: `scale(${1 - back * 0.07})`,
                 transformOrigin: 'top center',
                 filter: `brightness(${1 - Math.min(0.5, back * 0.22)})`,

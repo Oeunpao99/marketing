@@ -16,7 +16,7 @@
  * Any scene may carry `caption` (its spoken line) — shown as subtitles.
  */
 import { AbsoluteFill, Img, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion'
-import { FONT, FPS, Icon, NeatGrid, Words, ZWSP, chipLeft, chipLogo, chipOpacity, chipTop, clean, fitSize, srcOf } from './shared'
+import { FONT, FPS, Icon, NeatGrid, Words, ZWSP, chipBox, chipLeft, chipLogo, chipOpacity, chipPlain, chipTop, clean, fitSize, srcOf } from './shared'
 
 export const EX = {
   bg: '#FBF6EC',
@@ -183,7 +183,7 @@ export function Caption({ text, seconds, words, pauses, top = 1225, look }) {
     const cur = [...now.ws].reverse().find((w) => frame >= w.from) || now.ws[0]
     return (
       <div style={{ position: 'absolute', top, left: 0, right: 0, display: 'flex', justifyContent: 'center', padding: '0 70px', opacity: pill }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', fontFamily: FONT, fontWeight: 700, fontSize: look.size || 64, lineHeight: 1.35, opacity: line, transform: `translateY(${(1 - line) * 8}px)` }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', fontFamily: FONT, fontWeight: 700, fontSize: look.size || 54, lineHeight: 1.35, opacity: line, transform: `translateY(${(1 - line) * 8}px)` }}>
           {now.ws.map((w, k) => {
             const said = frame >= w.from
             const on = w === cur
@@ -222,10 +222,10 @@ export function Caption({ text, seconds, words, pauses, top = 1225, look }) {
           color: 'white',
           fontFamily: FONT,
           fontWeight: 700,
-          fontSize: look?.size || 50, // a template may set its own (Picture story: 46)
+          fontSize: look?.size || 42, // a template may set its own (Picture story: 40) — 50 read too big (the user, 2026-10-30)
           lineHeight: 1.4,
-          padding: '20px 40px',
-          borderRadius: 26,
+          padding: '16px 34px',
+          borderRadius: 22,
           textAlign: 'center',
           boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
         }}
@@ -638,7 +638,7 @@ export function ExplainerChrome({ scenes, brand }) {
   const { width, height } = useVideoConfig()
   return (
     <AbsoluteFill style={{ padding: `${chipTop(width, height)}px ${chipLeft(width, height)}px 0`, pointerEvents: 'none', opacity: chipOpacity(scenes, frame) }}>
-      <div style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 14, background: 'white', border: 0, borderRadius: 10, padding: brand.logo ? '8px 12px' : '12px 26px' }}>
+      <div style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 14, borderRadius: 10, ...chipBox(chipPlain(brand, true), { background: 'white', border: 0, padding: brand.logo ? '8px 12px' : '12px 26px' }) }}>
         {/* The logo alone; the name only when there's no logo. */}
         {brand.logo ? (
           <Img src={srcOf(brand.logo)} style={{ height: chipLogo(width, height), maxWidth: 260, objectFit: 'contain' }} />
