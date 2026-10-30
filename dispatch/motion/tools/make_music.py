@@ -205,6 +205,15 @@ def compose(spec: dict) -> np.ndarray:
         if style in ("upbeat", "festive"):
             for k in range(8):
                 tr.add(bass(root + (12 if k % 2 else 0), beat * 0.45), t0 + k * beat / 2, spec["bass"])
+        elif style == "learning":  # light staccato steps on the beat
+            for k in range(4):
+                tr.add(bass(root + (7 if k == 3 else 0), beat * 0.3), t0 + k * beat, spec["bass"])
+        elif style == "event":  # the off-beat pump of a dance floor
+            for k in range(4):
+                tr.add(bass(root, beat * 0.42), t0 + k * beat + beat / 2, spec["bass"])
+        elif style == "promo":  # bouncy root–fifth
+            for k in range(8):
+                tr.add(bass(root + (7 if k % 4 == 3 else 0) + (12 if k % 2 else 0), beat * 0.35), t0 + k * beat / 2, spec["bass"])
         elif style == "corporate":
             for k in range(8):
                 tr.add(bass(root, beat * 0.4), t0 + k * beat / 2, spec["bass"] * (1 if k % 2 == 0 else 0.6))
@@ -230,6 +239,28 @@ def compose(spec: dict) -> np.ndarray:
                 tr.add(shaker(rng, 1.3 if k % 4 == 2 else 0.7), at, 1, 0.4)
             if style in ("calm", "warm") and k % 2 == 1:
                 tr.add(shaker(rng, 0.6 if k % 4 == 3 else 0.35), at, 1, -0.3)
+            if style == "learning":
+                if k in (0, 8):
+                    tr.add(kick(rng), at, 0.5)
+                if k in (4, 12):
+                    tr.add(rim(rng), at, 0.4, 0.25, 0.3)
+                if k % 2 == 1:
+                    tr.add(shaker(rng, 0.45), at, 1, -0.3)
+            if style == "event":
+                if k % 4 == 0:
+                    tr.add(kick(rng), at, 1.0)
+                if k in (4, 12):
+                    tr.add(clap(rng), at, 0.6, 0.1, 0.35)
+                tr.add(hat(rng, 1.4 if k % 4 == 2 else 0.45), at, 0.6, 0.35 if k % 2 else -0.35)
+                if b % 4 == 3 and k >= 8:  # a clap roll into every fourth bar
+                    tr.add(clap(rng), at + beat / 8, 0.25 + 0.04 * (k - 8), -0.1, 0.3)
+            if style == "promo":
+                if k in (0, 6, 8):
+                    tr.add(kick(rng), at, 0.85)
+                if k in (4, 12):
+                    tr.add(clap(rng), at, 0.5, 0.1, 0.3)
+                if k % 2 == 1:
+                    tr.add(hat(rng), at, 0.55, 0.35)
 
         # melodic layer
         tones = chord(key, deg, True, spec.get("lead_octave", 5))
@@ -249,6 +280,24 @@ def compose(spec: dict) -> np.ndarray:
             for k in range(8):
                 m = tones[0] - 12 if k % 4 != 3 else tones[2] - 12
                 tr.add(pluck(m, beat * 0.35, 0.7), t0 + k * beat / 2, 0.36, 0.3, 0.3)
+        elif style == "learning":  # a curious marimba climbing up and stepping back, with rests
+            pattern = [0, 1, 2, None, 1, 2, 3, None, 3, 2, 1, None, 2, 1, 0, None]
+            for k, p in enumerate(pattern):
+                if p is not None:
+                    tr.add(bell(tones[p], beat * 0.6), t0 + k * beat / 4, 0.3, 0.45 if k % 2 else -0.45, 0.35)
+            if b % 2 == 1:  # a plucked answer every other bar
+                tr.add(pluck(tones[3] - 12, beat * 0.8, 1.0), t0 + 3 * beat, 0.28, 0.3, 0.4)
+        elif style == "event":  # bright chord stabs on the off-beats and a 16th arpeggio
+            for k in range(4):
+                for m in tones[:3]:
+                    tr.add(saw(m, beat * 0.22, 1.0), t0 + k * beat + beat / 2, 0.07, 0.2, 0.35)
+            for k in range(16):
+                tr.add(saw(tones[[0, 2, 1, 3][k % 4]] + 12, beat * 0.2, 0.8), t0 + k * beat / 4, 0.045, 0.5 if k % 2 else -0.5, 0.3)
+        elif style == "promo":  # a catchy syncopated pluck hook, a bell on the bar
+            for k in (0, 3, 6, 10, 12, 14):
+                tr.add(pluck(tones[[0, 2, 1, 3, 2, 1][(k // 2) % 6]], beat * 0.3, 1.3), t0 + k * beat / 4, 0.34, 0.35 if k % 4 else -0.35, 0.3)
+            if b % 2 == 0:
+                tr.add(bell(tones[2] + 12, beat * 1.5), t0, 0.2, 0.4, 0.5)
         elif style == "festive":
             scale = [12 * 6 + key + p for p in PENTA] + [12 * 7 + key + p for p in PENTA[:3]]
             for k in range(8):
@@ -417,6 +466,15 @@ LONG_SPECS = {
         dict(style="tech", bpm=122, key=4, progs=[[0, 5, 3, 4], [5, 3, 0, 4], [3, 4, 0, 5]], seed=72,
              sections=[(8, 0, 0), (8, 1, 1), (12, 2, 0), (8, 1, 2), (12, 3, 1), (8, 3, 0), (4, 0, 2)]),
     ],
+    # product launches: a quiet tease, a long build, then the drop — the reveal lands on it
+    "launch": [
+        dict(style="cinematic", bpm=100, key=0, progs=[[0, 4, 5, 3], [5, 3, 0, 4]], seed=81,
+             sections=[(4, 0, 0), (4, 1, 0), (4, 2, 1), (8, 3, 0), (2, 0, 1)]),
+        dict(style="tech", bpm=124, key=5, progs=[[5, 3, 0, 4], [0, 4, 5, 3]], seed=82,
+             sections=[(4, 0, 0), (4, 1, 0), (4, 2, 1), (8, 3, 0), (4, 3, 1), (2, 0, 0)]),
+        dict(style="cinematic", bpm=94, key=7, progs=[[0, 5, 3, 4], [3, 4, 0, 0]], seed=83,
+             sections=[(6, 0, 0), (8, 1, 0), (8, 2, 1), (12, 3, 0), (8, 2, 1), (8, 3, 0), (4, 0, 1)]),
+    ],
 }
 
 
@@ -425,22 +483,45 @@ SPECS = {
     "upbeat": [
         dict(style="upbeat", bpm=118, key=0, prog=[0, 4, 5, 3], bars=16, pad=0.22, bass=0.5, seed=11),
         dict(style="upbeat", bpm=122, key=7, prog=[5, 3, 0, 4], bars=16, pad=0.22, bass=0.5, seed=12),
+        dict(style="upbeat", bpm=126, key=2, prog=[0, 5, 3, 4], bars=16, pad=0.2, bass=0.5, seed=13),
+    ],
+    # teaching: lessons, tips, how-tos, training
+    "learning": [
+        dict(style="learning", bpm=100, key=0, prog=[0, 3, 4, 0], bars=12, pad=0.22, bass=0.4, pad_bright=0.8, seed=91),
+        dict(style="learning", bpm=96, key=7, prog=[0, 5, 3, 4], bars=12, pad=0.22, bass=0.4, sevenths=True, pad_bright=0.8, seed=92),
+        dict(style="learning", bpm=104, key=5, prog=[3, 4, 0, 5], bars=12, pad=0.22, bass=0.4, pad_bright=0.8, seed=93),
+    ],
+    # events: openings, workshops, concerts, countdowns
+    "event": [
+        dict(style="event", bpm=126, key=9, prog=[5, 3, 0, 4], bars=16, pad=0.18, bass=0.55, seed=101),
+        dict(style="event", bpm=128, key=2, prog=[0, 4, 5, 3], bars=16, pad=0.18, bass=0.55, seed=102),
+        dict(style="event", bpm=122, key=4, prog=[5, 4, 3, 4], bars=16, pad=0.18, bass=0.55, seed=103),
+    ],
+    # promotions: offers, discounts, claim a deal, flash sales
+    "promo": [
+        dict(style="promo", bpm=116, key=0, prog=[0, 4, 5, 3], bars=16, pad=0.2, bass=0.5, seed=111),
+        dict(style="promo", bpm=120, key=5, prog=[0, 3, 4, 4], bars=16, pad=0.2, bass=0.5, seed=112),
+        dict(style="promo", bpm=112, key=7, prog=[5, 3, 0, 4], bars=16, pad=0.2, bass=0.5, seed=113),
     ],
     "calm": [
         dict(style="calm", bpm=78, key=5, prog=[0, 5, 3, 4], bars=10, pad=0.3, bass=0.35, sevenths=True, pad_bright=0.6, seed=21),
         dict(style="calm", bpm=74, key=2, prog=[0, 3, 5, 4], bars=10, pad=0.3, bass=0.35, sevenths=True, pad_bright=0.6, seed=22),
+        dict(style="calm", bpm=80, key=9, prog=[3, 0, 4, 5], bars=10, pad=0.3, bass=0.35, sevenths=True, pad_bright=0.6, seed=23),
     ],
     "warm": [
         dict(style="warm", bpm=90, key=7, prog=[0, 5, 3, 4], bars=12, pad=0.28, bass=0.4, sevenths=True, pad_bright=0.8, seed=31),
         dict(style="warm", bpm=86, key=4, prog=[0, 2, 3, 0], bars=12, pad=0.28, bass=0.4, sevenths=True, pad_bright=0.8, seed=32),
+        dict(style="warm", bpm=92, key=0, prog=[3, 4, 0, 5], bars=12, pad=0.28, bass=0.4, sevenths=True, pad_bright=0.8, seed=33),
     ],
     "corporate": [
         dict(style="corporate", bpm=108, key=2, prog=[0, 4, 5, 3], bars=14, pad=0.25, bass=0.45, pad_bright=0.9, seed=41),
         dict(style="corporate", bpm=112, key=9, prog=[5, 3, 0, 4], bars=14, pad=0.25, bass=0.45, pad_bright=0.9, seed=42),
+        dict(style="corporate", bpm=104, key=5, prog=[0, 3, 5, 4], bars=14, pad=0.25, bass=0.45, pad_bright=0.9, seed=43),
     ],
     "festive": [
         dict(style="festive", bpm=124, key=9, prog=[0, 3, 4, 0], bars=16, pad=0.2, bass=0.5, seed=51),
         dict(style="festive", bpm=128, key=2, prog=[0, 4, 3, 4], bars=16, pad=0.2, bass=0.5, seed=52),
+        dict(style="festive", bpm=120, key=7, prog=[0, 3, 0, 4], bars=16, pad=0.2, bass=0.5, seed=53),
     ],
 }
 

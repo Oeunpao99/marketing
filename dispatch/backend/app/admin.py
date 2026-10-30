@@ -220,6 +220,74 @@ def admin_overview(db: Session = Depends(get_db)):
     }
 
 
+# ── making now: every video / picture being made, in every account ────────
+# How far along a template video is, from its live progress (app/motion.py _report):
+# the story, the Khmer polish, the pictures, the voice, then the frames drawn.
+_STAGE_SPAN = {"story": (0, 10), "polish": (10, 20), "pictures": (20, 45), "voice": (45, 60), "check": (60, 62), "render": (62, 100)}
+_STAGE_LABEL = {"story": "Writing the story", "polish": "Polishing the words", "pictures": "Painting the pictures", "voice": "Recording the voice", "check": "Checking", "render": "Rendering the video"}
+
+
+def _job_percent(p: dict) -> int | None:
+    stage = p.get("stage")
+    if stage not in _STAGE_SPAN:
+        return None
+    lo, hi = _STAGE_SPAN[stage]
+    part = 0.0
+    if stage == "render":
+        part = float(p.get("render") or 0)
+    elif stage == "pictures" and p.get("drawings"):
+        part = min(1.0, float(p.get("drawn") or 0) / max(1, int(p["drawings"])))
+    elif stage == "voice" and p.get("scenes"):
+        scenes = p["scenes"]
+        part = sum(1 for s in scenes if s.get("voice") in ("done", "skip")) / max(1, len(scenes))
+    return int(lo + (hi - lo) * max(0.0, min(1.0, part)))
+
+
+@router.get("/making", dependencies=[Depends(require_admin)])
+def admin_making(db: Session = Depends(get_db)):
+    """The jobs not finished yet — queued or running — with who asked, for which
+    brand, and how far along a template video is (live, from this process)."""
+    from app.models import GenerationJob
+    from app.motion import progress_of
+
+    now = datetime.now(UTC)
+    jobs = db.scalars(
+        select(GenerationJob).where(GenerationJob.status.in_(("queued", "running"))).order_by(GenerationJob.created_at)
+    ).all()
+    ws = {w.id: w.name for w in db.scalars(select(Workspace).where(Workspace.id.in_({j.workspace_id for j in jobs})))} if jobs else {}
+    brands = {b.id: b.name for b in db.scalars(select(Brand).where(Brand.id.in_({j.brand_id for j in jobs if j.brand_id})))} if jobs else {}
+    users = {u.id: u.name or u.email for u in db.scalars(select(TeamMember).where(TeamMember.id.in_({j.user_id for j in jobs if j.user_id})))} if jobs else {}
+    rows = []
+    queue = 0
+    for j in jobs:
+        p = (progress_of(j.id) or {}) if j.kind == "motion" else {}
+        waiting = j.status == "queued"
+        if waiting:
+            queue += 1
+        made = j.created_at if j.created_at.tzinfo else j.created_at.replace(tzinfo=UTC)
+        rows.append(
+            {
+                "id": j.id,
+                "kind": j.kind,  # motion (a template video) | video (AI-filmed) | image
+                "status": j.status,
+                "queue": queue if waiting else 0,
+                "account": ws.get(j.workspace_id, "?"),
+                "workspace_id": j.workspace_id,
+                "brand": brands.get(j.brand_id, ""),
+                "user": users.get(j.user_id, ""),
+                "template": p.get("style") or "",
+                "stage": _STAGE_LABEL.get(p.get("stage"), "Waiting its turn" if waiting else "Working"),
+                "percent": _job_percent(p) if p else None,
+                "scenes": len(p.get("scenes") or []),
+                "ratio": j.aspect_ratio,
+                "seconds": j.seconds,
+                "prompt": (j.prompt or "")[:140],
+                "elapsed": int((now - made).total_seconds()),
+            }
+        )
+    return {"jobs": rows, "running": sum(1 for r in rows if r["status"] == "running"), "queued": queue}
+
+
 # ── accounts ──────────────────────────────────────────────────────────────
 @router.get("/workspaces", dependencies=[Depends(require_admin)])
 def admin_workspaces(q: str = "", status: str = "all", db: Session = Depends(get_db)):

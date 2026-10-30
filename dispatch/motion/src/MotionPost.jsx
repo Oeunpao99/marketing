@@ -31,7 +31,7 @@ import {
   useVideoConfig,
 } from 'remotion'
 import { useMemo } from 'react'
-import { TransitionSeries, springTiming } from '@remotion/transitions'
+import { TransitionSeries, linearTiming, springTiming } from '@remotion/transitions'
 import { fade } from '@remotion/transitions/fade'
 import { slide } from '@remotion/transitions/slide'
 import { wipe } from '@remotion/transitions/wipe'
@@ -60,7 +60,7 @@ import { CANVAS } from './canvas'
 import { POLL, QUOTE, VERSUS } from './goaltemplates'
 import { TESTIMONIAL } from './testimonial'
 import { CASESTUDY, CLARITY, COUNTDOWN, DEMO, FAQ, GRIDCARDS, HOTTAKE, TECHFLOW, LAUNCH, OFFER, POV, REPORT, REVIEWS, SHOWCASE, THISORTHAT, TIPS, TREND, UNVEIL, customTemplate } from './saas'
-import { SceneSfx } from './sfx'
+import { SceneSfx, moodOf } from './sfx'
 import { NEURAL } from './neural'
 import { PAPER } from './paper'
 import { DOODLE } from './doodle'
@@ -818,6 +818,8 @@ export const MotionPost = ({ brand, scenes, music, musicList, style, look, cast,
   const custom = useMemo(() => (style === 'custom' ? customTemplate(look) : null), [style, look])
   const t = custom ? { ...custom, scenes: { ...SCENES, ...custom.scenes } } : TEMPLATES[style] || TEMPLATES.tech
   const noCaption = ['chat', ...(t.noCaption || [])]
+  // the music's mood (public/music/<mood>/) — the sound effects follow it (sfx.jsx)
+  const mood = moodOf(music || (typeof musicList?.[0] === 'string' ? musicList[0] : musicList?.[0]?.src))
   // Story · Characters: its two people, its place and the question kept on top (cartoon.jsx)
   const story = useMemo(() => ({ title: scenes.find((s) => s.type === 'hook')?.text }), [scenes])
   const { width, height } = useVideoConfig()
@@ -838,7 +840,7 @@ export const MotionPost = ({ brand, scenes, music, musicList, style, look, cast,
             <TransitionSeries.Sequence key={`s${i}`} durationInFrames={sceneFrames(scene)}>
               {body}
               {/* whoosh / pop / blop … on the scene's moves (sfx.jsx) */}
-              {sfx && <SceneSfx scene={scene} style={style} frames={sceneFrames(scene)} first={i === 0} />}
+              {sfx && <SceneSfx scene={scene} style={style} frames={sceneFrames(scene)} first={i === 0} mood={mood} index={i} next={scenes[i + 1]} />}
               {/* The voice-over line (app/motion.py add_voice) and its subtitles start together, once
                   the scene has slid in + 6 frames breathing room so the visual title is registered right as or slightly before the voice speaks.
                   An AI design scene's pause (canvas.jsx) comes first: the voice waits for the reveal. */}
@@ -856,7 +858,8 @@ export const MotionPost = ({ brand, scenes, music, musicList, style, look, cast,
               <TransitionSeries.Transition
                 key={`t${i}`}
                 presentation={(t.transitions || PRESENTATIONS)[i % (t.transitions || PRESENTATIONS).length]()}
-                timing={springTiming({ config: { damping: 200 }, durationInFrames: TRANSITION })}
+                // a template whose transitions ease themselves (clarity.jsx) takes them at an even pace
+                timing={t.linearTransitions ? linearTiming({ durationInFrames: TRANSITION }) : springTiming({ config: { damping: 200 }, durationInFrames: TRANSITION })}
               />,
             )
           }

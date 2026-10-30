@@ -256,7 +256,17 @@ def line_art(logo: str | None) -> dict | None:
         # the logo itself, on a clean see-through ground in the same box
         fill = im.copy()
         fill.putalpha(ImageChops.multiply(im.getchannel("A"), mask.filter(ImageFilter.GaussianBlur(0.8))))
-        return {"line": uri(art), "fill": uri(fill), "w": im.width, "h": im.height, "guides": guides(mask)}
+        # the measured construction is extra: a logo it can't measure is still drawn (the
+        # template then uses its classic construction), never swapped for the name
+        try:
+            measured = guides(mask)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("logo guides failed (the logo is still drawn): %s", exc)
+            measured = None
+        out = {"line": uri(art), "fill": uri(fill), "w": im.width, "h": im.height}
+        if measured:
+            out["guides"] = measured
+        return out
     except Exception as exc:  # noqa: BLE001 — the video still runs: the template draws the name instead
         log.warning("logo line art failed: %s", exc)
         return None

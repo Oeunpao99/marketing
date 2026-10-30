@@ -110,6 +110,10 @@ MUSIC_MOODS = {
     "festive": "celebration — holidays, Khmer New Year, big sales",
     "cinematic": "epic and building — launch films, big reveals, event screens, brand stories",
     "tech": "driving synth pulse — technology, apps, SaaS, AI, how-it-works",
+    "learning": "curious and light — lessons, teaching, tips, training, explaining a skill",
+    "event": "hype dance beat — events, openings, workshops, concerts, countdowns, live shows",
+    "promo": "bouncy and catchy — offers, discounts, claim a deal or a voucher, flash sales",
+    "launch": "tease, build, drop — product launches, new features, grand reveals",
 }
 
 
@@ -122,6 +126,10 @@ MUSIC_NEIGHBOURS = {
     "festive": ("upbeat", "warm"),
     "cinematic": ("tech", "corporate"),
     "tech": ("corporate", "cinematic"),
+    "learning": ("calm", "corporate"),
+    "event": ("festive", "upbeat"),
+    "promo": ("upbeat", "festive"),
+    "launch": ("cinematic", "tech"),
 }
 
 
@@ -947,13 +955,15 @@ TIPS_PROMPT = (
 )
 
 # ── SaaS explainer (motion/src/clarity.jsx) — calm, white and light blue ────
-CLARITY_TYPES = ("hook", "chaos", "platform", "orbit", "phones", "pair", "step", "screen", "flow", "dashboard", "reveal", "list", "stat", "cta")
+CLARITY_TYPES = ("hook", "chaos", "platform", "orbit", "phones", "gallery", "pair", "step", "screen", "flow", "dashboard", "reveal", "list", "stat", "cta")
 CLARITY_PROMPT = (
     "You are the director of calm, premium SaaS explainer videos. You plan a REMOTION VIDEO (about "
-    "45-60 s) that EXPLAINS what a software product does and why it matters: soft white and light "
-    "blue, thin rings, words that sharpen into place one by one, notifications flying in from every "
-    "side, the real app rising in a device frame, chips orbiting the one thing that matters, phones "
-    "turning round a word. Quiet confidence — few words on screen, each one earning its place.\n"
+    "45-60 s) that EXPLAINS what a software product does and why it matters, cut like an After "
+    "Effects launch film: white and blue, words landing one by one out of a blur with the key words "
+    "in a moving blue gradient, glowing icons, a sparkle flying in, notifications shooting in from "
+    "every side, the real app swinging up as a tilted 3D screen, chips flying out of the one thing "
+    "that matters, phones turning round a word, a blue swoosh or a whip pan between scenes. Few "
+    "words on screen, each one earning its place — mark the 1-3 key words of each line ⟦like this⟧.\n"
     "\n"
     "THE STORY (8-10 scenes):\n"
     "1. hook — the everyday reality in one line.\n"
@@ -961,7 +971,8 @@ CLARITY_PROMPT = (
     "one calm line (\"The work keeps moving.\").\n"
     "3. platform — the product appears: its logo and one line of what it is.\n"
     "4-7. how it works: `orbit` (the one item everything connects to and its parts), `pair` (two "
-    "words round one object — \"Any language · Instantly\"), `phones` (what it handles, a word at a "
+    "words round one object — \"Any language · Instantly\"), `gallery` (the app's library: what it "
+    "makes or keeps, as cards in a tilted app window), `phones` (what it handles, a word at a "
     "time), `step`, `screen`, `flow` or `dashboard` — three or four of these, different types.\n"
     "8. reveal or stat — the outcome (stat only with a TRUE number).\n"
     "last. cta — calm and clear: book a demo / try it.\n"
@@ -979,6 +990,11 @@ CLARITY_PROMPT = (
     "- phones: words: 3-4 single words, each ending with a full stop (\"Books.\", \"Videos.\") — the "
     "things it works on; shots: screenshot numbers for the phones (from THE BRAND'S SCREENSHOTS, or []).\n"
     "- pair: left (2-3 words), right (1-2 words — the payoff), icon, label (1-2 words on the card).\n"
+    "- gallery: title (the app page's name, 1-2 words — \"Library\", \"My videos\"), tabs: 3-4 x 1 "
+    "word (\"All\", \"Videos\", \"Images\"), cards: 4-6 x {\"title\": max 3 words — a believable "
+    "item the product makes or keeps, \"sub\": max 3 words (a date, a language, a tag), \"icon\": "
+    "\"Video\" | \"Image\" | \"FileText\" | \"Music\" …}, shots: screenshot numbers for the thumbnails "
+    "(from THE BRAND'S SCREENSHOTS, or []), text (max 8 words, optional).\n"
     "- step: title (max 7 words), text (max 12 words), icon, result (max 6 words, optional).\n"
     "- screen: shot (the screenshot's number — only from THE BRAND'S SCREENSHOTS), title (max 7 "
     "words), target (in ENGLISH: the ONE element to point at), action (\"click\" | \"highlight\"), "
@@ -4095,6 +4111,17 @@ def _clean_one(raw: dict, names: dict[str, str]) -> dict | None:
         words = [w for w in (_line(w, 20) for w in (raw.get("words") or [])) if w][:4]
         shots = [int(x) for x in (raw.get("shots") or []) if str(x).strip().isdigit() and int(x) >= 1][:4]
         return {"type": kind, "words": words, "shots": shots, "say": say} if words else None
+    if kind == "gallery":  # SaaS explainer: the app's library, a tilted 3D window of picture / video cards
+        cards = [
+            {"title": _line(x.get("title"), 30), "sub": _line(x.get("sub"), 30), "icon": _icon(x.get("icon"), "Image")}
+            for x in (raw.get("cards") or [])
+            if isinstance(x, dict) and _line(x.get("title"), 30)
+        ][:6]
+        tabs = [t for t in (_line(t, 14) for t in (raw.get("tabs") or [])) if t][:4]
+        shots = [int(x) for x in (raw.get("shots") or []) if str(x).strip().isdigit() and int(x) >= 1][:6]
+        title = _line(raw.get("title"), 30) or "Library"
+        out = {"type": kind, "title": title, "text": _line(raw.get("text"), 80), "tabs": tabs, "cards": cards, "shots": shots, "say": say}
+        return out if len(cards) >= 3 else None
     if kind == "pair":
         left, right = _line(raw.get("left"), 30), _line(raw.get("right"), 24)
         return (
@@ -4593,6 +4620,7 @@ _TEXT_FIELDS = {
     "orbit": (("text", 100), ("say", 300)),
     "chaos": (("text", 80), ("say", 300)),
     "phones": (("say", 300),),
+    "gallery": (("title", 30), ("text", 80), ("say", 300)),
     "pair": (("left", 30), ("right", 24), ("label", 20), ("say", 300)),
     "button": (("title", 40), ("text", 80), ("button", 28), ("result", 50), ("say", 300)),
     "word": (("word", 24), ("title", 40), ("text", 90), ("say", 300)),
@@ -5018,6 +5046,8 @@ def write_script(
             slots += [(x, key, 40) for x in s.get("cards", []) if isinstance(x, dict) for key in ("title", "sub") if x.get(key)]
             if s["type"] == "phones":
                 slots += [(s["words"], k, 20) for k in range(len(s["words"]))]
+            if s["type"] == "gallery":
+                slots += [(s["tabs"], k, 14) for k in range(len(s["tabs"]))]
             if s["type"] in ("fork", "shops"):  # Parable: the two paths' signs; 3D · Street: the two shops
                 slots += [(x, "label", 40) for x in s["sides"]]
         # Story mode: the voice lines are the person's own sentences — kept.
@@ -5186,6 +5216,8 @@ def script_lines(script: dict) -> list[tuple[str, str]]:
             screen = s["text"] + " — " + " / ".join(f"{x['app']}: {x['title']}" for x in s["cards"])
         elif s["type"] == "phones":
             screen = " ".join(s["words"]) + (f" — screenshots {', '.join(str(x) for x in s['shots'])}" if s.get("shots") else "")
+        elif s["type"] == "gallery":
+            screen = f"{s['title']} — " + " / ".join(x["title"] for x in s["cards"]) + (f" · {s['text']}" if s.get("text") else "")
         elif s["type"] == "pair":
             screen = f"{s['left']} [{s.get('label') or 'card'}] {s['right']}"
         elif s["type"] == "launch":
@@ -5613,7 +5645,7 @@ def pick_pictures(
         if s["type"] == "platform" and 1 <= s.get("shot", 0) <= len(shots):  # the app in its frame (else drawn)
             shot = shots[s["shot"] - 1]
             s["image"], s["imgW"], s["imgH"] = shot["uri"], shot["w"], shot["h"]
-        if s["type"] == "phones":  # the phones' screens (else drawn)
+        if s["type"] in ("phones", "gallery"):  # the phones' screens / the library's thumbnails (else drawn)
             s["images"] = [{"src": shots[n - 1]["uri"]} for n in s.get("shots", []) if 1 <= n <= len(shots)]
     for s in script["scenes"]:
         if s["type"] == "screen":
@@ -6011,6 +6043,8 @@ def default_seconds(scene: dict) -> float:
         return 2.6 + 0.4 * min(6, len(scene.get("cards") or []))
     if kind == "phones":
         return 1.4 + 1.2 * min(4, len(scene.get("words") or []))
+    if kind == "gallery":
+        return 3.0 + 0.4 * min(6, len(scene.get("cards") or []))
     if kind == "form":
         return 2.6 + 0.9 * min(3, len(scene.get("fields") or [])) + (1.4 if scene.get("toggle") else 0)
     if kind == "word":
@@ -6476,6 +6510,8 @@ def _scene_summary(s: dict) -> str:
         text = (s.get("center") or {}).get("title") or s.get("text") or ""
     elif t == "phones":
         text = " ".join(s.get("words") or [])
+    elif t == "gallery":
+        text = s.get("text") or s.get("title") or ""
     elif t == "pair":
         text = f"{s.get('left', '')} · {s.get('right', '')}"
     elif t == "word":

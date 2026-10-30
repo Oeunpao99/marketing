@@ -7,7 +7,10 @@ Writes public/sfx/<name>.mp3 — the sounds motion/src/sfx.jsx puts on the
 scenes: whoosh (scene change), pop (something springs in), blop (a chat
 bubble / notification), click (a button pressed), ding (success), tick (a
 countdown second), impact (a cinematic hit on a big reveal), riser (the
-build-up before it). Re-running overwrites them (same seed → same sounds);
+build-up before it), and (2026-10-30) swish (a whip pan), swoosh (a big
+sweep), shimmer (a sparkle), cash / coin (offers, claiming a deal), notify,
+typing, drumroll, applause (events), page / chime (lessons), drop (a launch),
+confetti, shutter (photos). Re-running overwrites them (same seed → same sounds);
 name some to make only those: make_sfx.py impact riser
 """
 
@@ -154,6 +157,162 @@ def sketch() -> np.ndarray:
     return fade(out, 8)
 
 
+def bell_tone(f: float, sec: float, rate: float = 6.0, parts=((1, 1.0), (2.76, 0.3), (5.4, 0.1))) -> np.ndarray:
+    x = t(sec)
+    return sum(amp * np.sin(2 * np.pi * f * m * x) for m, amp in parts) * np.exp(-x * rate)
+
+
+def place(out: np.ndarray, x: np.ndarray, at: float, gain: float = 1.0) -> None:
+    n0 = int(at * SR)
+    n = min(len(x), len(out) - n0)
+    if n > 0:
+        out[n0 : n0 + n] += x[:n] * gain
+
+
+def swish() -> np.ndarray:
+    # a whip pan: short, bright, fast air
+    sec = 0.28
+    x = t(sec)
+    shape = np.sin(np.pi * (x / sec) ** 0.5) ** 3
+    noise = rng.standard_normal(len(x))
+    band = lowpass(noise, 1500 + 7000 * shape) - lowpass(noise, 900 + 1500 * shape)
+    return fade(band * shape * 2.4)
+
+
+def swoosh() -> np.ndarray:
+    # a big ribbon sweeping past: deep air with a falling tone underneath
+    sec = 0.75
+    x = t(sec)
+    shape = np.sin(np.pi * (x / sec) ** 0.8) ** 2
+    noise = rng.standard_normal(len(x))
+    air = lowpass(noise, 150 + 2200 * shape) - lowpass(noise, 60 + 300 * shape)
+    tone = sweep(320, 90, sec, 0.7) * shape * 0.35
+    return fade(air * shape * 2.6 + tone)
+
+
+def shimmer() -> np.ndarray:
+    # a sparkle: a cloud of tiny high bells twinkling up
+    sec = 1.1
+    out = np.zeros(int(sec * SR))
+    for i in range(18):
+        f = 2600 + 3200 * rng.random() + i * 60
+        place(out, bell_tone(f, 0.4, 14, ((1, 1.0), (2.0, 0.2))), i * 0.04 + rng.uniform(0, 0.03), 0.25 + 0.03 * i)
+    return fade(out * np.linspace(1, 0.6, len(out)))
+
+
+def cash() -> np.ndarray:
+    # a cash register "ka-ching": a drawer clunk, a bell and coins
+    sec = 1.1
+    out = np.zeros(int(sec * SR))
+    clunk = lowpass(rng.standard_normal(int(0.08 * SR)), 1200) * decay(0.08, 50) * 1.5
+    place(out, clunk, 0.0)
+    place(out, bell_tone(2093.0, 0.9, 4.5), 0.06, 0.8)
+    place(out, bell_tone(2637.0, 0.8, 5.0), 0.1, 0.6)
+    for i in range(6):
+        place(out, bell_tone(3800 + 900 * rng.random(), 0.15, 30, ((1, 1.0), (1.6, 0.4))), 0.14 + i * 0.045, 0.35)
+    return fade(out)
+
+
+def coin() -> np.ndarray:
+    # one coin collected: two quick rising bells
+    out = np.zeros(int(0.5 * SR))
+    place(out, bell_tone(1975.5, 0.12, 20), 0.0, 0.8)
+    place(out, bell_tone(2637.0, 0.4, 8), 0.07, 1.0)
+    return fade(out)
+
+
+def notify() -> np.ndarray:
+    # a phone notification: a soft two-tone chime
+    out = np.zeros(int(0.7 * SR))
+    place(out, bell_tone(1046.5, 0.5, 7, ((1, 1.0), (3.0, 0.15))), 0.0, 0.8)
+    place(out, bell_tone(1568.0, 0.55, 6, ((1, 1.0), (3.0, 0.15))), 0.11, 0.9)
+    return fade(out)
+
+
+def typing() -> np.ndarray:
+    # someone typing: a run of keyboard clacks
+    sec = 1.2
+    out = np.zeros(int(sec * SR))
+    at = 0.0
+    while at < sec - 0.06:
+        key = (lowpass(rng.standard_normal(int(0.03 * SR)), 4500) - lowpass(rng.standard_normal(int(0.03 * SR)), 800)) * decay(0.03, 160)
+        place(out, key, at, rng.uniform(0.5, 1.0))
+        at += rng.uniform(0.05, 0.14)
+    return fade(out)
+
+
+def drumroll() -> np.ndarray:
+    # a snare roll building up to a reveal
+    sec = 1.5
+    out = np.zeros(int(sec * SR))
+    at = 0.0
+    while at < sec - 0.05:
+        k = at / sec
+        hit = (lowpass(rng.standard_normal(int(0.06 * SR)), 5000) * 0.8 + np.sin(2 * np.pi * 190 * t(0.06)) * 0.5) * decay(0.06, 55)
+        place(out, hit, at, 0.25 + 0.75 * k**1.5)
+        at += 0.045 - 0.015 * k
+    return fade(out, 6)
+
+
+def applause() -> np.ndarray:
+    # a crowd clapping and cheering — events, openings
+    sec = 2.4
+    x = t(sec)
+    out = np.zeros(len(x))
+    for _ in range(420):
+        clap = (lowpass(rng.standard_normal(int(0.025 * SR)), 3800) - lowpass(rng.standard_normal(int(0.025 * SR)), 700)) * decay(0.025, 140)
+        place(out, clap, rng.uniform(0, sec - 0.05), rng.uniform(0.2, 0.6))
+    crowd = lowpass(rng.standard_normal(len(x)), 900) * 0.6
+    shape = np.minimum(1, x / 0.25) * np.exp(-np.maximum(0, x - 1.4) * 2.2)
+    return fade((out + crowd) * shape, 10)
+
+
+def page() -> np.ndarray:
+    # a page turning — lessons, tips
+    sec = 0.45
+    x = t(sec)
+    shape = np.sin(np.pi * x / sec) ** 1.5
+    noise = rng.standard_normal(len(x))
+    rustle = (lowpass(noise, 6000) - lowpass(noise, 1800)) * (0.6 + 0.4 * np.abs(np.sin(2 * np.pi * 34 * x)))
+    flap = lowpass(rng.standard_normal(len(x)), 500) * np.exp(-np.maximum(0, x - 0.3) * 40) * (x > 0.3)
+    return fade(rustle * shape * 1.6 + flap * 1.2)
+
+
+def chime() -> np.ndarray:
+    # "you got it": three marimba notes going up — a tip or a right answer
+    out = np.zeros(int(0.9 * SR))
+    for i, f in enumerate((784.0, 987.8, 1318.5)):
+        place(out, bell_tone(f, 0.5, 9, ((1, 1.0), (4.0, 0.25), (10.0, 0.05))), i * 0.08, 0.8)
+    return fade(out)
+
+
+def drop() -> np.ndarray:
+    # the launch drop: a sub bass sliding down under a bright crash
+    sec = 1.8
+    x = t(sec)
+    sub = sweep(90, 32, sec, 0.5) * np.exp(-x * 1.6)
+    crash = (rng.standard_normal(len(x)) - lowpass(rng.standard_normal(len(x)), 3000)) * np.exp(-x * 3.5) * 0.7
+    return fade(sub * 1.4 + crash, 2)
+
+
+def confetti() -> np.ndarray:
+    # a party popper: a pop and paper falling with little twinkles
+    sec = 1.2
+    out = np.zeros(int(sec * SR))
+    place(out, lowpass(rng.standard_normal(int(0.07 * SR)), 2500) * decay(0.07, 45) * 2.0, 0.0)
+    for i in range(14):
+        place(out, bell_tone(1800 + 2500 * rng.random(), 0.25, 18), 0.06 + i * 0.06 + rng.uniform(0, 0.03), 0.3)
+    return fade(out)
+
+
+def shutter() -> np.ndarray:
+    # a camera shutter — a product photo, a gallery
+    out = np.zeros(int(0.25 * SR))
+    for at in (0.0, 0.09):
+        place(out, (lowpass(rng.standard_normal(int(0.04 * SR)), 6000) - lowpass(rng.standard_normal(int(0.04 * SR)), 1500)) * decay(0.04, 120), at, 1.0)
+    return fade(out)
+
+
 def write_mp3(mono: np.ndarray, path: Path) -> None:
     import imageio_ffmpeg
 
@@ -172,7 +331,11 @@ def main() -> None:
     import sys
 
     only = set(sys.argv[1:])
-    for name, make in (("whoosh", whoosh), ("pop", pop), ("blop", blop), ("click", click), ("ding", ding), ("tick", tick), ("impact", impact), ("riser", riser), ("sketch", sketch)):
+    for name, make in (
+        ("whoosh", whoosh), ("pop", pop), ("blop", blop), ("click", click), ("ding", ding), ("tick", tick), ("impact", impact), ("riser", riser), ("sketch", sketch),
+        ("swish", swish), ("swoosh", swoosh), ("shimmer", shimmer), ("cash", cash), ("coin", coin), ("notify", notify), ("typing", typing),
+        ("drumroll", drumroll), ("applause", applause), ("page", page), ("chime", chime), ("drop", drop), ("confetti", confetti), ("shutter", shutter),
+    ):
         if only and name not in only:
             continue
         path = OUT / f"{name}.mp3"

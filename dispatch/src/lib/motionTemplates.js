@@ -156,7 +156,7 @@ export const MOTION_TEMPLATES = [
     id: 'clarity',
     story: 'clarity',
     name: 'SaaS explainer',
-    look: 'Calm white and light blue — notifications flying in, your app rising in a frame, chips orbiting, phones turning',
+    look: 'White and blue, After Effects style — words landing out of a blur, glowing icons, a sparkle, your app as a tilted 3D screen, blue swoosh and whip-pan scene changes',
     steps: ['Hook', 'The mess today', 'The product', 'How it works', 'Call to action'],
     note: 'Add app screenshots in Products → Brand kit to have them in the frame and the phones',
     goals: ['awareness', 'education', 'authority', 'solution'],

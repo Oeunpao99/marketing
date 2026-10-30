@@ -143,6 +143,8 @@ export function defaultSeconds(s) {
       return 2.6 + 0.4 * Math.min(6, (s.cards || []).length)
     case 'phones':
       return 1.4 + 1.2 * Math.min(4, (s.words || []).length)
+    case 'gallery':
+      return 3.0 + 0.4 * Math.min(6, (s.cards || []).length)
     case 'pair':
       return 3.8
     case 'stack':

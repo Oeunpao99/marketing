@@ -17,6 +17,14 @@ tracks) into the folder for their mood:
 | `festive`   | holidays, Khmer New Year, Pchum Ben, sales     |
 | `cinematic` | launch films, big reveals, event screens (60 s and 2 min, in sections) |
 | `tech`      | technology, apps, SaaS, AI, how-it-works (65 s and 2 min, in sections) |
+| `learning`  | lessons, teaching, tips, training — a curious marimba            |
+| `event`     | events, openings, workshops, countdowns — a dance beat with stabs |
+| `promo`     | offers, discounts, claim a deal — a bouncy pluck hook            |
+| `launch`    | product launches — tease, build, drop (in sections, ~40 s to 2 min) |
+
+The sound effects follow the mood too (motion/src/sfx.jsx): a lesson turns pages and
+chimes, an offer rings the till and drops coins, an event cheers its close, a launch
+drops the bass on its reveal.
 
 The AI picks the mood for each video from the folders that have tracks
 (backend app/motion.py `music_tracks`); a track at least as long as the video is

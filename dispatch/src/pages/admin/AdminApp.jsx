@@ -5,6 +5,7 @@ import {
   FiAlertTriangle,
   FiCpu,
   FiDollarSign,
+  FiFilm,
   FiGrid,
   FiLogOut,
   FiPlus,
@@ -21,6 +22,7 @@ import { lengthText } from '../../lib/usage'
 import { hideSplash } from '../../lib/splash'
 import PlatformIcon, { PLAT_BRAND_CLASS } from '../../components/ui/PlatformIcon'
 import AiUsage, { AccountAiSection } from './AdminAI'
+import MakingNow from './AdminMaking'
 
 // The platform admin portal (/admin-mkt — backend app/admin.py): who signed
 // up, who uses ContentFlow and how much AI they spend, with the controls to
@@ -173,6 +175,7 @@ function AdminLogin({ onIn }) {
 // The sidebar's pages — add new admin pages here.
 const TABS = [
   { id: 'overview', label: 'Overview', icon: FiGrid },
+  { id: 'making', label: 'Making now', icon: FiFilm },
   { id: 'accounts', label: 'Accounts', icon: FiUsers },
   { id: 'ai', label: 'AI usage', icon: FiCpu },
   { id: 'prices', label: 'Prices', icon: FiDollarSign },
@@ -243,6 +246,8 @@ function AdminPortal({ onSignOut }) {
       <main className="min-w-0 flex-1 px-5 py-7 lg:px-10">
         {tab === 'overview' ? (
           <Overview key={stamp} onOpen={setOpenId} onAll={() => setTab('accounts')} />
+        ) : tab === 'making' ? (
+          <MakingNow api={adminApi} onOpen={setOpenId} />
         ) : tab === 'ai' ? (
           <AiUsage key={stamp} api={adminApi} onOpen={setOpenId} />
         ) : tab === 'prices' ? (

@@ -40,6 +40,11 @@ const letters = (text) => {
 
 /** The brand's colour, or a clear blue when it's missing. */
 const accent = (brand) => (/^#[0-9a-f]{6}$/i.test(brand?.color || '') ? brand.color : '#2F7BFF')
+/** A colour that reads as text on the white stage — a pale brand colour (yellow, mint) isn't. */
+const readable = (hex) => {
+  const n = parseInt(hex.slice(1), 16)
+  return (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255 > 0.72 ? '#2F7BFF' : hex
+}
 
 /** The stage: white light in the middle, sky-blue glow drifting at the edges. */
 function Sky({ brand }) {
@@ -204,8 +209,10 @@ function Stage({ brand, children }) {
   const frame = useCurrentFrame()
   const { durationInFrames } = useVideoConfig()
   const t = Math.min(1, frame / Math.max(1, durationInFrames))
+  // the ⟦key words⟧ in the brand's colour, no box behind them — three solid boxes in one line
+  // were too much (the user, 2026-10-30)
   return (
-    <AbsoluteFill>
+    <AbsoluteFill style={{ '--hl-bg': 'transparent', '--hl-text': readable(accent(brand)) }}>
       <Sky brand={brand} />
       <Depth brand={brand} />
       <AbsoluteFill style={{ transform: `scale(${1 + 0.04 * t})` }}>{children}</AbsoluteFill>
@@ -331,7 +338,7 @@ function Headline({ text, size, align = 'center', delay = 6, brand }) {
       text={text}
       delay={delay}
       align={align}
-      color={accent(brand)}
+      color={INK} // the key words alone in the brand's colour (Stage's --hl-text)
       style={{ fontFamily: FONT, fontWeight: KHMER_RE.test(text || '') ? 700 : 800, fontSize: size, lineHeight: KHMER_RE.test(text || '') ? 1.45 : 1.1, letterSpacing: KHMER_RE.test(text || '') ? 0 : '-0.02em', color: INK }}
     />
   )

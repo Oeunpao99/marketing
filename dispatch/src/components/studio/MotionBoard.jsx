@@ -62,6 +62,7 @@ export const SCENE_LABELS = {
   orbit: 'Orbit',
   chaos: 'The mess today',
   phones: 'Phones',
+  gallery: 'App library',
   pair: 'Two words',
   rank: 'Top 5 item',
   tip: 'Tip',

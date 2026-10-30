@@ -34,7 +34,7 @@ import { launchScenes } from './launch'
 import { Mist, unveilScenes } from './unveil'
 import { LIME, NAVY, Paper, gridScenes } from './gridcards'
 import { TechGrid, techScenes } from './techflow'
-import { clarityScenes } from './clarity'
+import { clarityScenes, clarityTransitions, withCamera } from './clarity'
 import { choiceScenes, countdownScenes, reviewScenes, tipScenes } from './clean'
 import { caseScenes, faqScenes, reportScenes, takeScenes } from './clean2'
 
@@ -1520,7 +1520,14 @@ export const CASESTUDY = cleanTemplate('casestudy', caseScenes)
 export const FAQ = cleanTemplate('faq', faqScenes)
 export const REPORT = cleanTemplate('report', reportScenes)
 const CP = PALETTES.clarity
-export const CLARITY = template(CP, 'clarity', { ...clarityScenes(CP, AiBg), step: makeStep(CP), screen: makeScreen(CP), dashboard: makeDashboard(CP), flow: makeFlow(CP) })
+const CLARITY_BASE = template(CP, 'clarity', { ...clarityScenes(CP, AiBg), step: makeStep(CP), screen: makeScreen(CP), dashboard: makeDashboard(CP), flow: makeFlow(CP) })
+// every scene under a drifting camera, and its own swoosh / whip / zoom scene changes (clarity.jsx)
+export const CLARITY = {
+  ...CLARITY_BASE,
+  scenes: Object.fromEntries(Object.entries(CLARITY_BASE.scenes).map(([k, S]) => [k, withCamera(S)])),
+  transitions: clarityTransitions(CP),
+  linearTransitions: true,
+}
 const LP = PALETTES.launch
 export const LAUNCH = template(LP, 'launch', { ...launchScenes(LP, AiBg), step: makeStep(LP), screen: makeScreen(LP), dashboard: makeDashboard(LP), flow: makeFlow(LP) })
 const TP = PALETTES.techflow

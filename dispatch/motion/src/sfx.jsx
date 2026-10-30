@@ -7,7 +7,7 @@
  * testimonial.jsx, saas.jsx) — move one, move the other.
  */
 import { Html5Audio, Sequence, staticFile } from 'remotion'
-import { FPS } from './shared'
+import { FPS, TRANSITION } from './shared'
 import { hitFrames } from './canvas'
 import { mouthBeats } from './reaction'
 import { presenterCues } from './presenter'
@@ -21,13 +21,69 @@ import { saashubCues } from './saashub'
 import { deckCues } from './deck'
 import { logodrawCues } from './logodraw'
 
-const VOLUME = { whoosh: 0.22, pop: 0.3, blop: 0.32, click: 0.35, ding: 0.28, tick: 0.18, impact: 0.55, riser: 0.3, sketch: 0.5 }
+const VOLUME = {
+  whoosh: 0.22, pop: 0.3, blop: 0.32, click: 0.35, ding: 0.28, tick: 0.18, impact: 0.55, riser: 0.3, sketch: 0.5,
+  swish: 0.24, swoosh: 0.3, shimmer: 0.2, cash: 0.34, coin: 0.28, notify: 0.3, typing: 0.22, drumroll: 0.28,
+  applause: 0.26, page: 0.32, chime: 0.26, drop: 0.48, confetti: 0.28, shutter: 0.3,
+}
 const SAAS = new Set(['trend', 'pov', 'demo', 'offer', 'custom', 'showcase', 'launch', 'clarity', 'countdown', 'thisorthat', 'reviews', 'tips', 'hottake', 'casestudy', 'faq', 'report'])
+// What the video is about — from its template, or from the music mood the AI picked for it
+// (public/music/<mood>/), so an event or an offer sounds like one in any template.
+const TEACH = new Set(['teach', 'training', 'lesson', 'tips', 'faq', 'doodle', 'paper'])
+const PROMO = new Set(['offer', 'sell', 'fintech'])
+const LAUNCH = new Set(['launch', 'skylaunch', 'unveil', 'showcase', 'productfx', 'spotlight', 'appdemo', 'clarity'])
 
-/** [{ at: frame in the scene, s: sound }] for one scene. */
-export function cuesFor(scene, style, frames, first) {
+/** The music's mood from its path ("music/event/x.mp3" → "event"). */
+export const moodOf = (music) => (String(music || '').match(/music\/([^/]+)\//) || [])[1] || ''
+
+/** [{ at: frame in the scene, s: sound }] for one scene — ``index``: its place in the video. */
+export function cuesFor(scene, style, frames, first, mood = '', index = 0, next = null) {
   if (style === 'picture') return [] // Picture story: soft crossfades under the voice — no whooshes
-  const cues = first ? [] : [{ at: 0, s: 'whoosh' }] // the transition slides in at the scene's frame 0
+  const kind = {
+    teach: mood === 'learning' || TEACH.has(style),
+    promo: mood === 'promo' || PROMO.has(style),
+    event: mood === 'event' || mood === 'festive',
+    launch: mood === 'launch' || mood === 'cinematic' || LAUNCH.has(style),
+  }
+  const cues = [...varied(cuesOf(scene, style, frames, first, index, kind), kind)]
+  const add = (at, s) => at < frames - 4 && cues.push({ at: Math.max(0, Math.round(at)), s })
+  // the moment that carries the video: a launch drops on its reveal, an event cheers its close
+  const big = (s) => s && (s.type === 'reveal' || s.type === 'launch')
+  if (kind.launch && big(scene) && !first) add(4, 'drop')
+  // …and builds to it: the riser (1.4 s) starts at the end of the scene before and peaks on the drop
+  // (the next scene's frame 4, which overlaps this one's last TRANSITION frames)
+  if (kind.launch && big(next) && frames > 70) add(frames - TRANSITION + 4 - 42, 'riser')
+  if (kind.event && scene.type === 'cta') {
+    add(6, 'confetti')
+    add(18, 'applause')
+  }
+  if (kind.event && (scene.type === 'stat' || scene.type === 'result')) add(4, 'drumroll')
+  return cues
+}
+
+/** The same cues in the video's own sounds: a lesson's success is a marimba chime, an offer's a
+ * coin; the first notification is a phone's own chime. */
+function* varied(cues, kind) {
+  let notes = 0
+  for (const c of cues) {
+    if (c.s === 'ding' && kind.teach) yield { ...c, s: 'chime' }
+    else if (c.s === 'ding' && kind.promo) yield { ...c, s: 'coin' }
+    else if (c.s === 'blop' && c.note && notes++ === 0) yield { ...c, s: 'notify' }
+    else yield c
+  }
+}
+
+function cuesOf(scene, style, frames, first, index, kind) {
+  // the scene change: a page turning in a lesson; in the SaaS explainer the sound of its own
+  // transition (clarity.jsx: swoosh, whip, zoom in turn); launches and SaaS films alternate
+  const change = kind.teach
+    ? 'page'
+    : style === 'clarity'
+      ? ['swoosh', 'swish', 'whoosh'][(index - 1 + 3) % 3]
+      : kind.launch || SAAS.has(style)
+        ? (index % 2 ? 'whoosh' : 'swish')
+        : 'whoosh'
+  const cues = first ? [] : [{ at: 0, s: change }] // the transition slides in at the scene's frame 0
   const add = (at, s) => at < frames - 4 && cues.push({ at: Math.max(0, Math.round(at)), s })
   const n = (list, max = 4) => Math.min(max, (list || []).length)
   const saas = SAAS.has(style)
@@ -157,6 +213,7 @@ export function cuesFor(scene, style, frames, first) {
     case 'notify': {
       const gap = Math.max(10, Math.min(28, Math.round((frames * 0.6) / Math.max(1, n(scene.notes)))))
       for (let i = 0; i < n(scene.notes); i++) add(12 + i * gap, 'blop')
+      cues.forEach((c) => c.s === 'blop' && (c.note = true))
       break
     }
     case 'step': {
@@ -188,7 +245,7 @@ export function cuesFor(scene, style, frames, first) {
     }
     case 'launch': {
       const n = [...String(scene.name || '')].length
-      add(8, 'whoosh')
+      add(8, 'swoosh')
       add(8 + n * 2 + 14, 'ding') // the badge pops
       break
     }
@@ -202,7 +259,7 @@ export function cuesFor(scene, style, frames, first) {
     case 'form': {
       let at = 14
       for (const f of (scene.fields || []).slice(0, 3)) {
-        add(at, 'tick')
+        add(at, 'typing') // the value types itself in
         at += Math.max(10, Math.round([...String(f.value || '')].length * 1.1)) + 6
       }
       if (scene.toggle) add(at + 18, 'click')
@@ -289,6 +346,10 @@ export function cuesFor(scene, style, frames, first) {
       add(6, 'pop')
       add(32, 'click')
       break
+    case 'gallery': // clarity.jsx: the window swings in, the cards pop in one by one
+      add(2, 'swoosh')
+      for (let i = 0; i < n(scene.cards, 6); i++) add(16 + i * 5, 'pop')
+      break
     case 'stack': {
       const pages = n(scene.images, 4)
       const step = Math.max(14, Math.min(30, Math.round((frames * 0.6) / Math.max(1, pages))))
@@ -317,7 +378,7 @@ export function cuesFor(scene, style, frames, first) {
       break
     }
     case 'offer':
-      add(14, 'pop')
+      add(14, 'cash') // the price lands
       for (let i = 0; i < n(scene.features); i++) add(30 + i * 10, 'click')
       break
     case 'cta': {
@@ -359,15 +420,21 @@ export function cuesFor(scene, style, frames, first) {
       }
       break
     }
-    default: // hook, news, reveal, verdict, quote, customer, product, point
+    case 'hook':
+    case 'reveal':
+      add(4, 'pop')
+      // clarity.jsx makeLine: the sparkle lands 26 frames after it sets off, after the words
+      if (style === 'clarity') add(8 + [...String(scene.text || '').split(' ')].length * 4 + 18, 'shimmer')
+      break
+    default: // news, verdict, quote, customer, product, point
       add(4, 'pop')
   }
   return cues
 }
 
 /** The scene's sound effects, each starting on its frame. */
-export function SceneSfx({ scene, style, frames, first }) {
-  return cuesFor(scene, style, frames, first).map(({ at, s }, k) => (
+export function SceneSfx({ scene, style, frames, first, mood = '', index = 0, next = null }) {
+  return cuesFor(scene, style, frames, first, mood, index, next).map(({ at, s }, k) => (
     <Sequence key={k} from={at} layout="none">
       <Html5Audio src={staticFile(`sfx/${s}.mp3`)} volume={VOLUME[s]} />
     </Sequence>

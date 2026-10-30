@@ -25,11 +25,16 @@ const MOVES = [
 // a stick-figure page's drawing sits between the title and the subtitles — never under them:
 // [top, bottom] of its box (the drawing fitted inside, centred)
 const PAGE_BOX = { wide: ['36%', '15%'], tall: ['28%', '23.5%'] } // tall: under a two-line title (ends ~y 530)
+// a wide page with a title (the user, 2026-10-30): the drawing on one half, the big title on the
+// other — [left, right] of the drawing's box when the title is on the left / on the right
+const WIDE_SIDE = { left: ['46%', '3%'], right: ['3%', '46%'] }
+const WIDE_SIDE_Y = ['12%', '15%'] // under the logo chip, over the subtitles
 
-function Picture({ src, seed, page = false }) {
+function Picture({ src, seed, page = false, side = null }) {
   const frame = useCurrentFrame()
   const { durationInFrames, width, height } = useVideoConfig()
-  const [boxTop, boxBottom] = page ? PAGE_BOX[width > height ? 'wide' : 'tall'] : [0, 0]
+  const [boxTop, boxBottom] = page ? (side ? WIDE_SIDE_Y : PAGE_BOX[width > height ? 'wide' : 'tall']) : [0, 0]
+  const [boxLeft, boxRight] = side ? WIDE_SIDE[side] : ['0%', '0%']
   const [s0, s1, dx, dy] = MOVES[Math.floor(random(seed) * MOVES.length)]
   const t = interpolate(frame, [0, durationInFrames], [0, 1], { extrapolateRight: 'clamp' })
   // a stick-figure page: the whole drawing fits (painted 2:3, the video 9:16 — cover cut its sides),
@@ -42,9 +47,9 @@ function Picture({ src, seed, page = false }) {
           src={srcOf(src)}
           style={{
             position: 'absolute',
-            left: 0,
+            left: boxLeft,
             top: boxTop,
-            width: '100%',
+            width: `calc(100% - ${boxLeft} - ${boxRight})`,
             height: page ? `calc(100% - ${boxTop} - ${boxBottom})` : '100%',
             objectFit: page ? 'contain' : 'cover',
             objectPosition: page ? '50% 50%' : undefined,
@@ -58,7 +63,7 @@ function Picture({ src, seed, page = false }) {
 }
 
 /** The line on the picture, word by word; ⟦marked⟧ words in the highlight colour. */
-function Title({ text, ink, wide, page = false }) {
+function Title({ text, ink, wide, page = false, side = null }) {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
   const pieces = []
@@ -77,7 +82,8 @@ function Title({ text, ink, wide, page = false }) {
   const khmer = KHMER_RE.test(text || '')
   // like a YouTube thumbnail: as big as two lines across the free side allow
   // (Khmer marks stack on their letters, so a Khmer character is narrower)
-  const box = page && wide ? 1600 : wide ? 800 : 940 // a stick-figure page: one centred title across the top, under the logo
+  // a stick-figure page: one centred title across the top, under the logo — or, wide, beside the drawing
+  const box = side ? 760 : page && wide ? 1600 : wide ? 800 : 940
   const len = Math.max(6, [...clean(text)].filter((ch) => !/[ា-៓៝]/.test(ch)).length)
   // a tall video's two lines stay inside the picture's calm top (y 250–610 of 1920),
   // off the person below: 112 px tops (two Khmer lines with the bigger key word ≈ 355 px)
@@ -86,8 +92,10 @@ function Title({ text, ink, wide, page = false }) {
   // a wide stick-figure page: two lines in its white top band (WIDE_PAGE_TOP), measured like a tall one
   const per = khmer ? (wide && !page ? 0.62 : 0.9) : 0.68
   // a stick-figure page's title a little smaller than a photo's: it reads under the logo, the drawing is the hero
-  const most = page ? (wide ? 76 : 100) : wide ? 150 : 112
-  const size = Math.max(page ? (wide ? 48 : 58) : wide ? 70 : 64, Math.min(most, (box * 2) / (len * per)))
+  // …but beside the drawing it's the half the drawing left: big, one or two lines
+  const most = side ? 140 : page ? (wide ? 76 : 100) : wide ? 150 : 112
+  const size = Math.max(side ? 64 : page ? (wide ? 48 : 58) : wide ? 70 : 64, Math.min(most, (box * 2) / (len * per)))
+  const align = side ? (side === 'right' ? 'flex-end' : 'flex-start') : 'center'
   return (
     <div
       style={{
@@ -100,9 +108,9 @@ function Title({ text, ink, wide, page = false }) {
         textWrap: 'balance', // two even lines, not one long and one word
         // readable on any picture: a soft dark halo, no box (none on a white stick-figure page)
         textShadow: page ? 'none' : '0 4px 24px rgba(0,0,0,0.6), 0 2px 4px rgba(0,0,0,0.55)',
-        textAlign: page ? 'center' : undefined,
+        textAlign: page ? (side || 'center') : undefined,
         // a page's title always wraps between its words — a long Khmer line never runs off the edges
-        ...(page ? { display: 'flex', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'baseline' } : {}),
+        ...(page ? { display: 'flex', flexWrap: 'wrap', justifyContent: align, alignItems: 'baseline' } : {}),
       }}
     >
       {pieces.map(({ p, gap, em: hi }, n) => {
@@ -127,14 +135,74 @@ function Title({ text, ink, wide, page = false }) {
   )
 }
 
-function Shot({ scene }) {
+/** A wide stick-figure page's title, like a YouTube thumbnail (the user's sample, 2026-10-30):
+ * the words before the ⟦key words⟧ small, the key words big in the highlight colour, the words
+ * after small again — three lines lined up on the side they sit on. No marked words: Title. */
+function StackTitle({ text, ink, side }) {
+  const frame = useCurrentFrame()
+  const { fps } = useVideoConfig()
+  const raw = String(text || '')
+  const m = raw.match(/^(.*?)⟦(.+?)⟧(.*)$/s)
+  if (!m) return <Title text={text} ink={ink} wide page side={side} />
+  const tidy = (s) => clean(s.replace(/[⟦⟧]/g, '')).replace(/​/g, '').trim()
+  const [before, key, after] = [tidy(m[1]), tidy(m[2]), tidy(m[3])]
+  const W = 760
+  const glyphs = (s) => Math.max(3, [...s].filter((ch) => !/[ា-៓៝\s]/.test(ch)).length)
+  const per = KHMER_RE.test(raw) ? 0.82 : 0.6
+  const big = Math.round(Math.max(84, Math.min(190, W / (glyphs(key) * per))))
+  const small = (s) => Math.round(Math.max(44, Math.min(big * 0.45, (W * 1.6) / (glyphs(s) * per))))
+  const lines = [before && { t: before, size: small(before), color: ink.text }, { t: key, size: big, color: ink.accent }, after && { t: after, size: small(after), color: ink.text }].filter(Boolean)
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: side === 'right' ? 'flex-end' : 'flex-start', textAlign: side, fontFamily: FONT, fontWeight: 700 }}>
+      {lines.map((L, i) => {
+        const s = spring({ frame: frame - 8 - i * 7, fps, config: { damping: 16, mass: 0.6 } })
+        return (
+          <div key={i} style={{ fontSize: L.size, lineHeight: KHMER_RE.test(L.t) ? 1.42 : 1.08, color: L.color, opacity: s, transform: `translateX(${(1 - s) * (side === 'right' ? 60 : -60)}px)` }}>
+            {L.t}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/** How light a #rrggbb colour is, 0 (black) to 1 (white). */
+function lightness(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || '').trim())
+  if (!m) return 1
+  const n = parseInt(m[1], 16)
+  return (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255
+}
+
+function Shot({ scene, brand }) {
   const { width, height } = useVideoConfig()
   const wide = width > height
   const right = scene.side === 'right'
-  const ink = { text: '#FFFFFF', accent: '#FFD400', ...(scene.ink || {}) }
+  let ink = { text: '#FFFFFF', accent: '#FFD400', ...(scene.ink || {}) }
+  if (scene.art === 'stickman') {
+    // a white page (the user, 2026-10-30): the key words in the brand's own colour — navy for a
+    // navy logo, orange for orange — the rest in dark ink, never white text on the white page
+    const text = lightness(ink.text) > 0.6 ? '#16181D' : ink.text
+    const own = brand?.color && lightness(brand.color) < 0.72 ? brand.color : null
+    ink = { text, accent: own || (lightness(ink.accent) < 0.72 ? ink.accent : text) }
+  }
   const seed = clean(scene.caption || scene.title || '') || 'picture'
   if (scene.art === 'stickman') {
-    // Stick figures: black-ink drawings on a white page, the title centred across the white top
+    // Stick figures: black-ink drawings on a white page. Tall: the title centred across the white
+    // top. Wide: the drawing on one half and the title, big, on the other (scene.side, else left).
+    if (wide && scene.title) {
+      const side = right ? 'right' : 'left'
+      return (
+        <AbsoluteFill style={{ backgroundColor: '#FFFFFF' }}>
+          <Picture src={scene.image} seed={seed} page side={side} />
+          <div style={{ position: 'absolute', top: 175, bottom: 175, [side]: 110, width: 760, display: 'flex', alignItems: 'center' }}>
+            <div style={{ width: '100%' }}>
+              <StackTitle text={scene.title} ink={ink} side={side} />
+            </div>
+          </div>
+        </AbsoluteFill>
+      )
+    }
     return (
       <AbsoluteFill style={{ backgroundColor: '#FFFFFF' }}>
         <Picture src={scene.image} seed={seed} page />
