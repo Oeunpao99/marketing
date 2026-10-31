@@ -172,6 +172,11 @@ export function OriginBadge({ origin, platform }) {
   )
 }
 
+/** Facebook refused the reactions + comments read (null, not 0): shares alone would
+ *  otherwise make that look like "0 engagement" — it is "not available". */
+export const reactionsRefused = (m) => !!m && m.likes === null && m.comments === null
+const hasEngagement = (m) => !reactionsRefused(m) && ['likes', 'comments', 'shares'].some((k) => (m || {})[k] != null)
+
 /** engagement = the sum of whatever counts we actually have for that platform. */
 export function engagementOf(metrics) {
   const { likes = 0, comments = 0, shares = 0 } = metrics || {}
@@ -733,20 +738,25 @@ export default function InsightsPage() {
     let likes = 0
     let comments = 0
     let shares = 0
+    let reported = false
     for (const it of rows) {
       if (!isResolved(it)) continue
       const m = it.metrics || {}
       const e = engagementOf(m)
+      if (hasEngagement(m)) reported = true
       likes += m.likes || 0
       comments += m.comments || 0
       shares += m.shares || 0
       if (m.views != null) {
         views += m.views
-        viewsForRate += m.views
-        engagementForRate += e
+        if (hasEngagement(m)) {
+          viewsForRate += m.views
+          engagementForRate += e
+        }
       }
     }
     return {
+      reported,
       views,
       engagement: likes + comments + shares,
       rate: viewsForRate > 0 ? (engagementForRate / viewsForRate) * 100 : null,
@@ -758,6 +768,17 @@ export default function InsightsPage() {
   }
 
   const cur = useMemo(() => totalsOf(filtered), [filtered])
+  // Pages whose reactions / comments Facebook won't share (usually a permission not granted when they
+  // were connected): named, so the 0 isn't a mystery
+  const refusedPages = useMemo(() => {
+    const names = new Set()
+    for (const it of filtered) {
+      if (isResolved(it) && it.platform_slug === 'facebook' && reactionsRefused(it.metrics)) {
+        names.add([it.channel_handle, it.brand_name].filter(Boolean).join(' · '))
+      }
+    }
+    return [...names]
+  }, [filtered])
   const prev = useMemo(() => (previous ? totalsOf(previous) : null), [previous])
 
   const days = useMemo(() => {
@@ -974,7 +995,7 @@ export default function InsightsPage() {
       if (!isResolved(it)) continue
       const m = it.metrics || {}
       const e = engagementOf(m)
-      if (['likes', 'comments', 'shares'].some((k) => m[k] != null)) r.reported = true
+      if (hasEngagement(m)) r.reported = true
       r.engagement += e
       r.likes += m.likes || 0
       r.comments += m.comments || 0
@@ -1057,7 +1078,7 @@ export default function InsightsPage() {
       if (!isResolved(it)) continue
       const m = it.metrics || {}
       const e = engagementOf(m)
-      if (['likes', 'comments', 'shares'].some((k) => m[k] != null)) r.reported = true
+      if (hasEngagement(m)) r.reported = true
       r.engagement += e
       if (m.views != null) {
         r.views = (r.views || 0) + m.views
@@ -1170,7 +1191,8 @@ export default function InsightsPage() {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 mb-5">
+      {/* a phone: two filters per row, then Export + Refresh side by side (they wrapped into uneven rows) */}
+      <div className="mb-5 grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap">
         <Dropdown
           value={brandFilter}
           onChange={setBrandFilter}
@@ -1206,11 +1228,11 @@ export default function InsightsPage() {
           label="Hashtag"
           options={[{ value: 'all', label: 'All hashtags' }, ...allTags.map((t) => ({ value: t }))]}
         />
-        <div className="ml-auto flex items-center gap-2">
-          <button type="button" onClick={exportCsv} disabled={!filtered.length} className="btn-outline">
+        <div className="col-span-2 grid grid-cols-2 gap-2 sm:col-span-1 sm:ml-auto sm:flex sm:items-center">
+          <button type="button" onClick={exportCsv} disabled={!filtered.length} className="btn-outline justify-center">
             <FiDownload size={15} /> Export
           </button>
-          <button type="button" onClick={load} disabled={loading} className="btn-outline">
+          <button type="button" onClick={load} disabled={loading} className="btn-outline justify-center">
             <FiRefreshCw size={15} className={loading ? 'animate-spin' : ''} /> {loading ? 'Refreshing' : 'Refresh'}
           </button>
         </div>
@@ -1236,6 +1258,7 @@ export default function InsightsPage() {
                 period={range.label[0].toUpperCase() + range.label.slice(1)}
                 viewsReported={reports(filtered, 'views')}
                 topPlatform={topPlatform}
+                refusedPages={refusedPages}
               />
             )}
           </div>
@@ -1517,7 +1540,7 @@ function PostRow({ it, max, onOpen }) {
   const captionText = caption.replace(HASHTAG_RE, '').trim()
   const resolved = it.status === 'ok' || it.status === 'partial'
   const m = resolved ? it.metrics || {} : {}
-  const reported = ['likes', 'comments', 'shares'].some((k) => m[k] != null)
+  const reported = hasEngagement(m)
   const src = mediaSrc(it.media_url)
   const engagement = reported ? engagementOf(m) : null
   const rate = m.views ? (engagementOf(m) / m.views) * 100 : null
@@ -1687,6 +1710,7 @@ function Dropdown({ value, onChange, label, options }) {
       onChange={onChange}
       options={options}
       aria-label={label}
+      className="min-w-0"
       buttonClassName="text-[12px] font-semibold"
     />
   )

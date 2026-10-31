@@ -83,12 +83,13 @@ export default function Topbar({ onToggleSidebar }) {
       <span className="hidden lg:block h-6 w-px bg-ink-200" />
 
       <nav className="min-w-0 flex-1 flex items-center gap-2 text-[13px]" aria-label="Breadcrumb">
-        <Link to="/" className={label ? "text-ink-500 hover:text-ink-800" : "text-ink-900 font-medium"}>
+        {/* on a phone the row is full (menu, theme, bell, compose, credits, avatar): only the page's own name shows */}
+        <Link to="/" className={label ? "hidden sm:inline text-ink-500 hover:text-ink-800" : "text-ink-900 font-medium"}>
           Dashboard
         </Link>
         {label && (
           <>
-            <FiChevronRight size={15} className="text-ink-400 flex-none" />
+            <FiChevronRight size={15} className="hidden sm:block text-ink-400 flex-none" />
             <span className="text-ink-900 font-medium truncate">{label}</span>
           </>
         )}
@@ -109,7 +110,7 @@ export default function Topbar({ onToggleSidebar }) {
       <button
         type="button"
         onClick={toggleTheme}
-        className="w-9 h-9 grid place-items-center rounded-lg text-ink-600 hover:bg-ink-100"
+        className="hidden sm:grid w-9 h-9 place-items-center rounded-lg text-ink-600 hover:bg-ink-100"
         aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
         title={dark ? "Light mode" : "Dark mode"}
       >
@@ -136,7 +137,7 @@ export default function Topbar({ onToggleSidebar }) {
       <Link
         to="/new"
         data-tour="topbar-compose"
-        className="inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-brand text-white text-[13px] font-semibold hover:bg-brand-dark transition-colors duration-150"
+        className="inline-flex items-center gap-2 h-10 px-3 sm:px-4 rounded-xl bg-brand text-white text-[13px] font-semibold hover:bg-brand-dark transition-colors duration-150"
       >
         <FiEdit size={16} />
         <span className="hidden sm:inline">Compose</span>

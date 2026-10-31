@@ -10,6 +10,7 @@
 // table (three of the colours sit below 3:1 contrast on white, so the legend +
 // table are the required relief, not decoration).
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   FiArrowDownRight,
   FiArrowUpRight,
@@ -341,13 +342,17 @@ const pct = (n) => (n == null ? '—' : `${n.toFixed(1)}%`)
 
 /** Engagement as the hero (with what it's made of and a one-line read-out),
  *  then the supporting numbers. `cur` / `prev` come from totalsOf(). */
-export function PulseCard({ cur, prev, period, viewsReported, topPlatform }) {
+export function PulseCard({ cur, prev, period, viewsReported, topPlatform, refusedPages = [] }) {
   const total = cur.engagement || 0
+  // no post gave us reactions at all, and Facebook refused them for some Pages: "not available", never a made-up 0
+  const unavailable = !cur.reported && refusedPages.length > 0
   const parts = MIX.map((m) => ({ ...m, value: cur[m.id] || 0 }))
   const lead = [...parts].sort((a, b) => b.value - a.value)[0]
-  const perPost = cur.posts ? total / cur.posts : null
+  const perPost = !unavailable && cur.posts ? total / cur.posts : null
   const prevPerPost = prev?.posts ? prev.engagement / prev.posts : null
-  const readout = !total
+  const readout = unavailable
+    ? `Facebook isn't sharing reactions and comments for ${refusedPages.length === 1 ? 'this Page' : `${refusedPages.length} Pages`}: ${refusedPages.slice(0, 4).join(', ')}${refusedPages.length > 4 ? '…' : ''}. Reconnect ${refusedPages.length === 1 ? 'it' : 'them'} in Setup → Channels and allow every permission.`
+    : !total
     ? 'No reactions, comments or shares yet in this period.'
     : [
         `Mostly ${lead.label.toLowerCase()} — ${Math.round((lead.value / total) * 100)}% of it.`,
@@ -374,12 +379,15 @@ export function PulseCard({ cur, prev, period, viewsReported, topPlatform }) {
           <span className="text-[11.5px] text-ink-400">{period}</span>
         </div>
         <div className="mt-1 flex flex-wrap items-baseline gap-3">
-          <span className="text-[38px] font-bold leading-none tracking-tight text-ink-900 tabular-nums">{fmtNum(total)}</span>
-          <span className="text-[13px]">
-            <DeltaText current={total} previous={prev?.engagement} />
-          </span>
+          <span className="text-[38px] font-bold leading-none tracking-tight text-ink-900 tabular-nums">{unavailable ? '—' : fmtNum(total)}</span>
+          <span className="text-[13px]">{!unavailable && <DeltaText current={total} previous={prev?.engagement} />}</span>
         </div>
-        <p className="mt-2 max-w-[46ch] text-[12.5px] leading-relaxed text-ink-600">{readout}</p>
+        <p className={`mt-2 max-w-[46ch] text-[12.5px] leading-relaxed ${unavailable ? 'text-amber-800' : 'text-ink-600'}`}>{readout}</p>
+        {unavailable && (
+          <Link to="/channels" className="mt-2 inline-flex rounded-xl border border-amber-300 bg-amber-50 px-3 py-1.5 text-[12px] font-semibold text-amber-800 hover:bg-amber-100">
+            Reconnect Pages
+          </Link>
+        )}
 
         {/* what the engagement is made of */}
         <div className="mt-4 flex h-2.5 gap-0.5 overflow-hidden rounded-full bg-ink-100" aria-hidden="true">
