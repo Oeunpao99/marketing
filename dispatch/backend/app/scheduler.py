@@ -126,6 +126,16 @@ def _snapshot_tick() -> int:
         imported = import_all(db)
         if imported:
             log.info("imported %d post(s) made outside ContentFlow", imported)
+        # follower counts in their own step: a failure in the post numbers must not skip them
+        try:
+            from app.views import collect_follower_counts
+
+            followed = collect_follower_counts(db)
+            if followed:
+                log.info("saved %d follower count(s)", followed)
+        except Exception:  # noqa: BLE001
+            db.rollback()
+            log.exception("follower counts failed")
         saved = collect_snapshots(db)
         try:
             from app.post_tags import auto_tag_all

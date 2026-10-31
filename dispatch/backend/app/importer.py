@@ -125,6 +125,14 @@ def import_in_background(channel_ids: list[int]) -> None:
                 except Exception as exc:  # noqa: BLE001
                     db.rollback()
                     log.warning("importing past posts for channel %s failed: %s", cid, exc)
+                # the Page's follower count, so Insights has its first reading from minute one
+                try:
+                    from app.views import collect_follower_counts
+
+                    collect_follower_counts(db, channels=[ch])
+                except Exception as exc:  # noqa: BLE001
+                    db.rollback()
+                    log.warning("first follower count of channel %s failed: %s", cid, exc)
         finally:
             db.close()
 

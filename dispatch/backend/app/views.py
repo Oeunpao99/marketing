@@ -1473,6 +1473,20 @@ def insights_sales_view(
     # Follower delta across channels
     channels = db.scalars(select(Channel).where(Channel.brand_id.in_(brand_ids), Channel.status != "off")).all()
     plat_slugs = dict(db.execute(select(Platform.id, Platform.slug)).all())
+    # a Page connected before follower counts were kept (or just connected) has no reading yet:
+    # read those now, so the card never waits for the background job
+    try:
+        unread = [
+            c for c in channels
+            if c.status == "live"
+            and plat_slugs.get(c.platform_id) in ("facebook", "instagram", "youtube")
+            and not db.scalar(select(MetricSnapshot.id).where(MetricSnapshot.channel_id == c.id, MetricSnapshot.target_id.is_(None)).limit(1))
+        ][:6]
+        if unread:
+            collect_follower_counts(db, channels=unread)
+    except Exception:  # noqa: BLE001 - the page must load without it
+        db.rollback()
+        log.exception("could not read follower counts for Insights")
     plat_delta = {}
     total_follower_delta = 0
     total_followers = 0
@@ -1481,7 +1495,8 @@ def insights_sales_view(
         pslug = plat_slugs.get(c.platform_id, "other")
         cur_snap = db.scalars(
             select(MetricSnapshot)
-            .where(MetricSnapshot.channel_id == c.id, MetricSnapshot.target_id.is_(None), MetricSnapshot.taken_at <= until)
+            # up to now, not up to when this request began: a reading just taken above counts
+            .where(MetricSnapshot.channel_id == c.id, MetricSnapshot.target_id.is_(None), MetricSnapshot.taken_at <= datetime.now(UTC))
             .order_by(MetricSnapshot.taken_at.desc())
             .limit(1)
         ).first()
@@ -2089,26 +2104,25 @@ def collect_snapshots(db: Session) -> int:
         by_ws.setdefault(brand.workspace_id, []).append(
             {"target_id": t.id, "channel_id": ch.id, "platform_slug": plat.slug, **result}
         )
-    saved = sum(record_snapshots(db, ws, rows) for ws, rows in by_ws.items())
-    try:
-        saved += collect_follower_counts(db, plats, brands)
-    except Exception:  # noqa: BLE001 - follower counts must never stop the post numbers
-        db.rollback()
-        log.exception("could not read follower counts")
-    return saved
+    return sum(record_snapshots(db, ws, rows) for ws, rows in by_ws.items())
 
 
-def collect_follower_counts(db: Session, plats: dict, brands: dict) -> int:
+def collect_follower_counts(db: Session, plats: dict | None = None, brands: dict | None = None, channels: list | None = None) -> int:
     """Save how many people follow each live Facebook / Instagram / YouTube channel
     (a channel-wide reading, target_id NULL, at most one an hour) — "New followers"
-    on Insights is the difference between two of these. Telegram's count is saved
-    with its posts (record_snapshots)."""
+    on Insights is the difference between two of these. It belongs to the Page, so
+    it doesn't matter who made its posts. Telegram's count is saved with its posts
+    (record_snapshots). ``channels`` = just these (right after connecting, or when
+    Insights finds one with no reading yet); default = every live channel."""
     now = datetime.now(UTC)
-    channels = db.scalars(select(Channel).where(Channel.status == "live")).all()
+    plats = plats if plats is not None else _platform_map(db)
+    brands = brands if brands is not None else {b.id: b for b in db.scalars(select(Brand)).all()}
+    if channels is None:
+        channels = db.scalars(select(Channel).where(Channel.status == "live")).all()
     last = dict(
         db.execute(
             select(MetricSnapshot.channel_id, func.max(MetricSnapshot.taken_at))
-            .where(MetricSnapshot.target_id.is_(None))
+            .where(MetricSnapshot.target_id.is_(None), MetricSnapshot.channel_id.in_([c.id for c in channels] or [0]))
             .group_by(MetricSnapshot.channel_id)
         ).all()
     )
@@ -2132,9 +2146,10 @@ def collect_follower_counts(db: Session, plats: dict, brands: dict) -> int:
             else:
                 continue
         except (meta.MetaError, youtube.YouTubeError) as exc:
-            log.info("follower count of channel %s not read: %s", ch.id, exc)
+            log.warning("follower count of channel %s not read: %s", ch.id, exc)
             continue
         if count is None:
+            log.warning("follower count of channel %s: %s gave none (a permission missing? reconnect fixes it)", ch.id, plat.slug)
             continue
         db.add(MetricSnapshot(workspace_id=brand.workspace_id, channel_id=ch.id, target_id=None, taken_at=now, metrics={"followers": int(count)}))
         added += 1
