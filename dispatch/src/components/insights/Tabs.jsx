@@ -17,7 +17,7 @@ import {
   FiRepeat,
   FiTarget,
 } from 'react-icons/fi'
-import { fmtNum, platformHue, platformIconClass } from './Overview'
+import { fmtNum, hideBroken, platformHue, platformIconClass } from './Overview'
 
 const ACCENT = '#2a78d6'
 export const cardCls = 'rounded-2xl border border-ink-200/60 bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]'
@@ -202,7 +202,7 @@ export function TopContentGrid({ rows, icons, mediaSrc, onOpen, engagementOf }) 
           >
             <div className="relative grid aspect-[16/10] place-items-center overflow-hidden bg-ink-100">
               {src && (it.media_kind === 'image' || it.media_thumb) ? (
-                <img src={src} alt="" className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+                <img src={src} alt="" onError={hideBroken} className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
               ) : src && it.media_kind === 'video' ? (
                 <video src={src} className="absolute inset-0 h-full w-full object-cover" muted />
               ) : (

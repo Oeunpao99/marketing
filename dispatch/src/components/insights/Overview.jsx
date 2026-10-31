@@ -42,6 +42,12 @@ const SURFACE = '#ffffff'
 const ACCENT = SLOTS[0]
 
 const compact = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 })
+/** A picture whose link no longer works (Facebook's picture links expire): hide it instead of
+ *  leaving the broken-image icon — what is behind it (a neutral tile) shows instead. */
+export const hideBroken = (e) => {
+  e.currentTarget.style.display = 'none'
+}
+
 export const fmtNum = (n) => (n == null ? '—' : Math.abs(n) >= 1000 ? compact.format(n) : Math.round(n).toLocaleString())
 
 /** Signed change vs the previous period — green up / red down, with an arrow
@@ -174,7 +180,7 @@ export function UpNext({ items, icons, mediaSrc }) {
             </div>
             <div className="w-16 flex-none bg-ink-100 grid place-items-center">
               {src && (u.media_kind === 'image' || u.media_thumb) ? (
-                <img src={src} alt="" className="h-full w-full object-cover" />
+                <img src={src} alt="" onError={hideBroken} className="h-full w-full object-cover" />
               ) : src && u.media_kind === 'video' ? (
                 <video src={src} className="h-full w-full object-cover" muted />
               ) : (

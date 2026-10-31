@@ -52,6 +52,7 @@ import {
   RANK_BY,
   UpNext,
   WeekColumns,
+  hideBroken,
 } from '../components/insights/Overview'
 
 // Fixed platform order for the donuts/legend (matches Overview.jsx's colour slots).
@@ -1559,7 +1560,7 @@ function PostRow({ it, max, onOpen }) {
           <div className="relative flex-none">
             <div className="relative isolate h-11 w-11 overflow-hidden rounded-lg bg-ink-100">
               {src && (it.media_kind === 'image' || it.media_thumb) ? (
-                <img src={src} alt="" className="h-full w-full object-cover" />
+                <img src={src} alt="" onError={hideBroken} className="h-full w-full object-cover" />
               ) : src ? (
                 <>
                   <video
@@ -1652,7 +1653,7 @@ function MobilePostRow({ it, onOpen }) {
       <div className="relative flex-none">
         <div className="relative isolate h-12 w-12 overflow-hidden rounded-xl bg-ink-100">
           {src && (it.media_kind === 'image' || it.media_thumb) ? (
-            <img src={src} alt="" className="h-full w-full object-cover" />
+            <img src={src} alt="" onError={hideBroken} className="h-full w-full object-cover" />
           ) : src ? (
             <>
               <video src={`${src}#t=0.1`} preload="metadata" muted playsInline className="pointer-events-none h-full w-full object-cover" />
@@ -1729,6 +1730,7 @@ function TopPostPopup({ it, engagement, onClose, onOpen }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
   const src = mediaSrc(it.media_url)
+  const [pictureBroken, setPictureBroken] = useState(false) // an expired Facebook picture link: leave the picture out
   const m = it.metrics || {}
   const stats = [
     [engagement, 'engagement'],
@@ -1754,7 +1756,7 @@ function TopPostPopup({ it, engagement, onClose, onOpen }) {
               <h2 id="top-post-title" className="text-[18px] font-bold leading-tight tracking-tight text-ink-900">This one is doing great!</h2>
             </div>
           </div>
-          {src && <img src={src} alt="" className="mt-4 aspect-video w-full rounded-2xl object-cover" />}
+          {src && !pictureBroken && <img src={src} alt="" onError={() => setPictureBroken(true)} className="mt-4 aspect-video w-full rounded-2xl object-cover" />}
           <p className="mt-3 line-clamp-2 text-[13px] leading-relaxed text-ink-700">{it.title || it.caption}</p>
           {stats.length > 0 && (
             <div className="mt-3 grid grid-cols-2 gap-2">
