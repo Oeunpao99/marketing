@@ -288,17 +288,26 @@ export default function InsightsSalesView({
 
   // The AI reads the latest untagged posts (costs AI credit) so the picks can
   // say what each post is about.
+  // All of them, 10 per request (the server's batch) — progress on the button; stops
+  // when none are left, a round reads none (posts with no caption) or the AI runs out.
   const tagPosts = async () => {
-    setTagging(true)
+    const total = boosts.untagged
+    let done = 0
+    setTagging({ done, total })
     try {
       const qs = brandId ? `?brand_id=${brandId}` : ''
-      const r = await api.post(`/views/insights/tag-posts${qs}`)
-      showToast?.(`The AI read ${r.tagged} post${r.tagged === 1 ? '' : 's'}${r.remaining ? ` — ${r.remaining} more to go` : ''}`)
-      await loadBoosts()
+      for (;;) {
+        const r = await api.post(`/views/insights/tag-posts${qs}`)
+        done += r.tagged
+        setTagging({ done, total })
+        if (!r.tagged || !r.remaining) break
+      }
+      showToast?.(`The AI read ${done} post${done === 1 ? '' : 's'}.`)
     } catch (e) {
-      showToast?.(`Could not read the posts — ${e.message}`)
+      showToast?.(done ? `The AI read ${done} posts, then stopped — ${e.message}` : `Could not read the posts — ${e.message}`)
     } finally {
       setTagging(false)
+      await loadBoosts()
     }
   }
 
@@ -832,11 +841,16 @@ export default function InsightsSalesView({
                   ? shown.map((a) => `${brandId ? '' : `${brandName(a.brand_id)}: `}${a.name}`).join(' · ') + ' — boosts are paid from this Facebook ad account.'
                   : 'Connect your Facebook ad account to boost posts from here. Nothing is spent until you approve a boost.'}
               </p>
-              {canManage && (
-                <button type="button" onClick={() => connectAds(brandId || (brands.length === 1 ? brands[0].id : 0))} className="btn-outline whitespace-nowrap">
-                  {shown.length ? 'Change ad account' : 'Connect ad account'}
-                </button>
-              )}
+              <button
+                type="button"
+                disabled={!canManage}
+                title={canManage ? undefined : 'Only the workspace owner or an admin can connect — it spends money'}
+                onClick={() => connectAds(brandId || (brands.length === 1 ? brands[0].id : 0))}
+                className="btn-outline whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {shown.length ? 'Change ad account' : 'Connect ad account'}
+              </button>
+              {!canManage && <p className="w-full text-[11.5px] text-ink-400">Only the workspace owner or an admin can connect an ad account or boost — it spends money.</p>}
             </div>
           )
         })()}
@@ -848,8 +862,8 @@ export default function InsightsSalesView({
                 ? `${boosts.untagged} recent post${boosts.untagged === 1 ? ' hasn’t' : 's haven’t'} been read by the AI yet.`
                 : 'The AI hasn’t read your posts yet. It reads each caption once to learn the topic, who it speaks to and what it asks for — then shows which kind of content brings leads.'}
             </p>
-            <button type="button" onClick={tagPosts} disabled={tagging} className="btn-outline whitespace-nowrap disabled:opacity-60">
-              {tagging ? 'Reading…' : `Let the AI read ${Math.min(boosts.untagged, 10)} post${Math.min(boosts.untagged, 10) === 1 ? '' : 's'}`}
+            <button type="button" onClick={tagPosts} disabled={!!tagging} className="btn-outline whitespace-nowrap disabled:opacity-60">
+              {tagging ? `Reading… ${tagging.done} of ${tagging.total}` : `Let the AI read ${boosts.untagged === 1 ? 'it' : `all ${boosts.untagged}`}`}
             </button>
           </div>
         )}
