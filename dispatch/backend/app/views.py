@@ -1475,6 +1475,8 @@ def insights_sales_view(
     plat_slugs = dict(db.execute(select(Platform.id, Platform.slug)).all())
     plat_delta = {}
     total_follower_delta = 0
+    total_followers = 0
+    counted_from = None  # when counting began, if that is later than this period's start
     for c in channels:
         pslug = plat_slugs.get(c.platform_id, "other")
         cur_snap = db.scalars(
@@ -1489,8 +1491,19 @@ def insights_sales_view(
             .order_by(MetricSnapshot.taken_at.desc())
             .limit(1)
         ).first()
+        if old_snap is None and cur_snap is not None:
+            # no reading from before this period: count from the first one we have
+            old_snap = db.scalars(
+                select(MetricSnapshot)
+                .where(MetricSnapshot.channel_id == c.id, MetricSnapshot.target_id.is_(None))
+                .order_by(MetricSnapshot.taken_at.asc())
+                .limit(1)
+            ).first()
+            if old_snap is not None and (counted_from is None or old_snap.taken_at > counted_from):
+                counted_from = old_snap.taken_at
         cur_c = (cur_snap.metrics.get("followers") or cur_snap.metrics.get("subscribers") or cur_snap.metrics.get("members") or 0) if cur_snap else 0
         old_c = (old_snap.metrics.get("followers") or old_snap.metrics.get("subscribers") or old_snap.metrics.get("members") or 0) if old_snap else cur_c
+        total_followers += cur_c
         diff = max(0, cur_c - old_c)
         if diff > 0:
             plat_delta[pslug] = plat_delta.get(pslug, 0) + diff
@@ -1498,8 +1511,13 @@ def insights_sales_view(
 
     if plat_delta and total_follower_delta > 0:
         followers_sub = " · ".join(f"{k.upper() if len(k) <= 2 else k.capitalize()} {v}" for k, v in plat_delta.items())
+    elif total_followers:
+        followers_sub = f"{total_followers:,} followers now"
+        if counted_from is not None:
+            since_local = counted_from.astimezone(PHNOM_PENH)
+            followers_sub += f" · counting new ones since {since_local.day} {since_local:%b}"
     else:
-        followers_sub = f"Across {len(channels)} connected channel{'s' if len(channels) != 1 else ''}"
+        followers_sub = f"Across {len(channels)} connected channel{'s' if len(channels) != 1 else ''} · counts appear within a few hours"
 
     # Leads
     leads = db.scalars(
@@ -2071,7 +2089,58 @@ def collect_snapshots(db: Session) -> int:
         by_ws.setdefault(brand.workspace_id, []).append(
             {"target_id": t.id, "channel_id": ch.id, "platform_slug": plat.slug, **result}
         )
-    return sum(record_snapshots(db, ws, rows) for ws, rows in by_ws.items())
+    saved = sum(record_snapshots(db, ws, rows) for ws, rows in by_ws.items())
+    try:
+        saved += collect_follower_counts(db, plats, brands)
+    except Exception:  # noqa: BLE001 - follower counts must never stop the post numbers
+        db.rollback()
+        log.exception("could not read follower counts")
+    return saved
+
+
+def collect_follower_counts(db: Session, plats: dict, brands: dict) -> int:
+    """Save how many people follow each live Facebook / Instagram / YouTube channel
+    (a channel-wide reading, target_id NULL, at most one an hour) — "New followers"
+    on Insights is the difference between two of these. Telegram's count is saved
+    with its posts (record_snapshots)."""
+    now = datetime.now(UTC)
+    channels = db.scalars(select(Channel).where(Channel.status == "live")).all()
+    last = dict(
+        db.execute(
+            select(MetricSnapshot.channel_id, func.max(MetricSnapshot.taken_at))
+            .where(MetricSnapshot.target_id.is_(None))
+            .group_by(MetricSnapshot.channel_id)
+        ).all()
+    )
+    added = 0
+    for ch in channels:
+        plat = plats.get(ch.platform_id)
+        brand = brands.get(ch.brand_id)
+        if not plat or not brand or plat.slug not in ("facebook", "instagram", "youtube"):
+            continue
+        if ch.id in last and now - last[ch.id] < _SNAPSHOT_EVERY:
+            continue
+        cfg = ch.config or {}
+        try:
+            if plat.slug == "facebook" and cfg.get("access_token") and cfg.get("page_id"):
+                count = meta.page_follower_count(cfg["access_token"], str(cfg["page_id"]))
+            elif plat.slug == "instagram" and cfg.get("access_token") and cfg.get("ig_user_id"):
+                count = meta.instagram_follower_count(cfg["access_token"], str(cfg["ig_user_id"]))
+            elif plat.slug == "youtube" and cfg.get("refresh_token"):
+                token, _fresh = youtube.ensure_access_token(cfg)
+                count = youtube.my_channel(token).get("subscribers")
+            else:
+                continue
+        except (meta.MetaError, youtube.YouTubeError) as exc:
+            log.info("follower count of channel %s not read: %s", ch.id, exc)
+            continue
+        if count is None:
+            continue
+        db.add(MetricSnapshot(workspace_id=brand.workspace_id, channel_id=ch.id, target_id=None, taken_at=now, metrics={"followers": int(count)}))
+        added += 1
+    if added:
+        db.commit()
+    return added
 
 
 @router.get("/sidebar")

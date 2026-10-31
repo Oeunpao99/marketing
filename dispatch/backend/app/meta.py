@@ -552,3 +552,20 @@ def instagram_media_insights(token: str, media_id: str) -> dict:
         "comments": body.get("comments_count", 0),
         "url": body.get("permalink"),
     }
+
+
+def page_follower_count(token: str, page_id: str) -> int | None:
+    """How many people follow a Facebook Page now (None when Facebook won't say)."""
+    _app_id, _secret, _redirect, version = _conf()
+    body = _graph_get(version, page_id, {"fields": "followers_count,fan_count", "access_token": token})
+    if not body:
+        return None
+    n = body.get("followers_count")
+    return int(n if n is not None else body.get("fan_count") or 0) or None
+
+
+def instagram_follower_count(token: str, ig_user_id: str) -> int | None:
+    """How many people follow an Instagram Business account now."""
+    _app_id, _secret, _redirect, version = _conf()
+    body = _graph_get(version, ig_user_id, {"fields": "followers_count", "access_token": token})
+    return int(body["followers_count"]) if body and body.get("followers_count") is not None else None

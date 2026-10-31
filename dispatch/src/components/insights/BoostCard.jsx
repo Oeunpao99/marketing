@@ -143,6 +143,11 @@ export default function BoostCard({ it, amount, skipped, boosting, onAmount, onA
         ))}
       </ol>
       {it.kind !== 'check' && <p className="mt-2.5 text-[12px] leading-relaxed text-ink-700">{it.reason}</p>}
+      {it.kind === 'check' && it.channel === 'facebook' && (
+        <p className="mt-2.5 text-[12px] leading-relaxed text-ink-600">
+          <b className="text-ink-800">Suggested test: $10.</b> No lead is linked to this post yet, so start small — link leads to see if it pays before spending more.
+        </p>
+      )}
 
       {it.kind === 'boost' && (
         <div className="mt-3.5">
@@ -199,10 +204,10 @@ export default function BoostCard({ it, amount, skipped, boosting, onAmount, onA
               ) : (
                 <span className="text-[12px] text-ink-500">Likes, not buyers.</span>
               )}
-              {/* the owner's call: boost it without leads to judge by */}
+              {/* the owner's call: boost it without leads to judge by — a small test, not a proven spend */}
               {it.channel === 'facebook' && (
-                <button type="button" onClick={onApprove} className="ml-auto text-[12px] font-medium text-ink-500 transition-colors hover:text-ink-800">
-                  Boost anyway
+                <button type="button" onClick={onApprove} className="ml-auto rounded-xl bg-brand px-3.5 py-2 text-[12.5px] font-semibold text-white shadow-xs transition-colors hover:bg-brand-dark">
+                  Test boost · $10
                 </button>
               )}
             </>
