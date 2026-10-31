@@ -42,6 +42,7 @@ from app.usage import router as usage_router
 from app.mcp_server import router as mcp_router
 from app.leads import intake_router as leads_intake_router
 from app.leads import router as leads_router
+from app.boosts import router as boosts_router
 from app.sales_alerts import router as sales_alerts_router
 from app.ai_models_api import router as ai_models_router
 
@@ -168,6 +169,7 @@ api.include_router(activity_router, dependencies=authed)
 api.include_router(command_router, dependencies=authed)
 api.include_router(leads_router, dependencies=[*authed, Depends(plan_features.needs("leads"))])  # Growth and up
 api.include_router(sales_alerts_router, dependencies=authed)
+api.include_router(boosts_router, dependencies=[*authed, Depends(plan_features.needs("boost"))])  # Growth and up
 api.include_router(ai_models_router, dependencies=authed)
 api.include_router(views_public_router)
 api.include_router(payments_public_router)  # public: the website's plan prices (no sign-in)

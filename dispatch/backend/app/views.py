@@ -25,6 +25,7 @@ from app.config import get_settings
 from app.database import get_db
 from app.media import local_path_for
 from app.models import (
+    Boost,
     Automation,
     Brand,
     BrandAsset,
@@ -1342,6 +1343,12 @@ def _fmt_sales_compact(n: float | int | None) -> str:
     return f"{int(n):,}" if float(n).is_integer() else f"{n:,.1f}"
 
 
+def _cost_per_lead(spend: float | None, paid_leads: list) -> str:
+    if not spend:
+        return "—"
+    return f"${spend / len(paid_leads):,.2f}" if paid_leads else "no leads yet"
+
+
 @router.get("/insights/sales")
 def insights_sales_view(
     brand_id: int | None = None,
@@ -1660,6 +1667,15 @@ def insights_sales_view(
         {"name": "YouTube", "slug": "youtube", "default_reach": 220, "default_follows": "+1", "default_leads": 0, "default_won": 0, "default_rev": "$0", "default_spend": "—", "default_cpl": "—"},
     ]
 
+    # Paid spend: boosts started in this period (app/boosts.py), and the leads
+    # linked to the posts they boosted — cost per lead counts only those
+    plat_spend: dict[str, float] = {}
+    plat_paid_posts: dict[str, set] = {}
+    for b in db.scalars(select(Boost).where(scope(Boost, ws), Boost.brand_id.in_(brand_ids), Boost.created_at >= since, Boost.created_at <= until)):
+        plat_spend[b.platform] = plat_spend.get(b.platform, 0.0) + float(b.spend_usd or 0)
+        if b.post_id:
+            plat_paid_posts.setdefault(b.platform, set()).add(b.post_id)
+
     by_channel_rows = []
     for cs in channel_specs:
         s = cs["slug"]
@@ -1678,9 +1694,9 @@ def insights_sales_view(
             "leads": len(c_leads),
             "won": len(c_won),
             "revenue": f"${c_rev:,.0f}" if c_rev > 0 else "$0",
-            # Paid spend isn't tracked yet — the page shows a dash, not a made-up figure.
-            "spend": "—",
-            "cost_per_lead": "—",
+            # a dash when nothing was boosted — never a made-up figure
+            "spend": f"${plat_spend[s]:,.2f}" if s in plat_spend else "—",
+            "cost_per_lead": _cost_per_lead(plat_spend.get(s), [l for l in leads if l.post_id in plat_paid_posts.get(s, ())]),
         })
 
     # Funnel — only the steps we really record. Chatbot conversations aren't
@@ -1894,7 +1910,8 @@ def insights_boosts(brand_id: int | None = None, db: Session = Depends(get_db), 
             reason = f"{ratio:.1f}× the usual engagement, but no leads came from it — likes, not buyers."
         else:
             kind, tier = "check", None
-            reason = f"{ratio:.1f}× the usual engagement. Link the leads it brought in (Leads & hand-off) to see if boosting would pay."
+            # the card shows the ratio big already: this says what to do next
+            reason = "Did anyone message or buy from it? Link those leads (Leads & hand-off) to see if a boost would pay."
         tags = post.content_tags or {}
         if kind == "boost":
             match = next(
@@ -1908,6 +1925,7 @@ def insights_boosts(brand_id: int | None = None, db: Session = Depends(get_db), 
                 )
         item = {
             "post_id": post.id,
+            "brand_id": post.brand_id,
             "title": post.title or t.title or "Untitled post",
             "summary": tags.get("summary", ""),
             "tags": {k: tags.get(k, "") for k in ("topic", "audience", "pain_point", "cta")} if tags else None,
@@ -1917,6 +1935,10 @@ def insights_boosts(brand_id: int | None = None, db: Session = Depends(get_db), 
             "ratio": round(ratio, 1),
             "leads": leads,
             "reach": max(m.get("views") or 0, m.get("impressions") or 0),
+            # the card's donut (what the attention is made of) and its "vs usual" figure
+            "mix": {k: m.get(k) or 0 for k in ("likes", "comments", "shares")},
+            "engagement": eng,
+            "usual": round(avg, 1),
             "reason": reason,
             "budget": tier,
             "tiers": list(_BOOST_TIERS),
@@ -3122,6 +3144,20 @@ def meta_oauth_callback(
     brand = db.get(Brand, payload.get("brand_id"))
     if brand is None:
         return to_channels("Brand not found.")
+
+    if payload.get("intent") == "ads":
+        # the Boost page's "Connect ad account" (app/boosts.py): pick an ad account, not a Page
+        from app import boosts
+
+        def to_insights(params: dict) -> RedirectResponse:
+            return RedirectResponse(f"{frontend}/insights?{urlencode(params)}")
+
+        try:
+            user_token = meta.long_lived_token(meta.exchange_code(code))
+            pending = boosts.take_login(brand.id, user_token)
+        except meta.MetaError as exc:
+            return to_insights({"ads": "error", "message": str(exc)[:200]})
+        return to_insights({"ads_pending": pending})
 
     try:
         short_token = meta.exchange_code(code)

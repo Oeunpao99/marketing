@@ -1108,3 +1108,53 @@ class Lead(Base, TimestampMixin):
     external_id: Mapped[str] = mapped_column(String(120), default="", server_default="")
 
     post: Mapped[Post | None] = relationship(lazy="selectin")
+
+
+class AdAccount(Base, TimestampMixin):
+    """A brand's Facebook ad account that boosts are paid from (app/boosts.py).
+    The Facebook login's token (ads_management) is kept encrypted, never sent
+    to the browser."""
+
+    __tablename__ = "ad_accounts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
+    brand_id: Mapped[int] = mapped_column(ForeignKey("brands.id", ondelete="CASCADE"), index=True)
+    platform: Mapped[str] = mapped_column(String(12), default="meta", server_default="meta")
+    account_id: Mapped[str] = mapped_column(String(40))  # "act_123…"
+    name: Mapped[str] = mapped_column(String(200), default="", server_default="")
+    currency: Mapped[str] = mapped_column(String(8), default="USD", server_default="USD")
+    token_enc: Mapped[str] = mapped_column(Text, default="", server_default="")
+    connected_by: Mapped[int | None] = mapped_column(ForeignKey("team_members.id", ondelete="SET NULL"), nullable=True)
+
+
+class Boost(Base, TimestampMixin):
+    """A paid boost of one published post, sent to the ad account after a
+    person approved it. Spend / reach are read back from Facebook."""
+
+    __tablename__ = "boosts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
+    brand_id: Mapped[int] = mapped_column(ForeignKey("brands.id", ondelete="CASCADE"), index=True)
+    post_id: Mapped[int | None] = mapped_column(ForeignKey("posts.id", ondelete="SET NULL"), nullable=True, index=True)
+    target_id: Mapped[int | None] = mapped_column(ForeignKey("post_targets.id", ondelete="SET NULL"), nullable=True)
+    ad_account_id: Mapped[int | None] = mapped_column(ForeignKey("ad_accounts.id", ondelete="SET NULL"), nullable=True)
+    platform: Mapped[str] = mapped_column(String(12), default="facebook", server_default="facebook")
+    budget_usd: Mapped[float] = mapped_column(Numeric(10, 2))  # the whole boost, not per day
+    days: Mapped[int] = mapped_column(Integer)
+    ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # in_review | running | stopped | finished | rejected | failed
+    status: Mapped[str] = mapped_column(String(12), default="in_review", server_default="in_review")
+    campaign_id: Mapped[str] = mapped_column(String(40), default="", server_default="")
+    adset_id: Mapped[str] = mapped_column(String(40), default="", server_default="")
+    ad_id: Mapped[str] = mapped_column(String(40), default="", server_default="")
+    spend_usd: Mapped[float] = mapped_column(Numeric(10, 2), default=0, server_default="0")
+    reach: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    clicks: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    engaged: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    note: Mapped[str] = mapped_column(String(300), default="", server_default="")  # why it was rejected / failed
+    # [{"day": "2026-10-31", "spend": 1.2, "reach": 300}] — the charts on the Insights page
+    daily: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list, server_default="[]", nullable=False)
+    refreshed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("team_members.id", ondelete="SET NULL"), nullable=True)

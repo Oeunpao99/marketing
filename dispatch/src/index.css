@@ -35,10 +35,23 @@
   --ai-gemini: #4f7df3;
   --ai-claude: #d97757;
   --ai-gpt-5-mini: #c25bb5;
+  /* one colour per boosted post (Insights → Your boosts charts), in this fixed order;
+     the dataviz palette, validated light and dark (three are under 3:1 on white, so
+     every line and slice is also named beside it) */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
   color-scheme: light;
 }
 html.dark {
   --ai-claude: #d0704f; /* the light one is too bright on the dark surface */
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
 }
 
 /* Dark theme (src/lib/theme.js puts `dark` on <html>): the grey scale flips —

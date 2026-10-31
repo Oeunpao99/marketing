@@ -7,6 +7,8 @@ import { useLayoutEffect, useRef, useState } from 'react'
 //   SpendLine   — what each model charged (or its calls) per day, with a crosshair
 //   ModelDonut  — each model's share of what was charged
 //   AccountBars — the accounts that used the most, top 8 + the rest
+// SpendLine, ModelDonut and Legend also draw Insights → Your boosts (each boosted post a
+// series): they take a colour per key and their own measures, AI usage's by default.
 
 export const aiColor = (key = '') =>
   key === 'gpt-5-mini'
@@ -44,12 +46,12 @@ function niceTicks(max) {
   return [0, 1, 2, 3, 4].map((i) => +(i * step).toFixed(6))
 }
 
-export function Legend({ items }) {
+export function Legend({ items, color = aiColor }) {
   return (
     <ul className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12px] text-ink-600">
       {items.map((it) => (
         <li key={it.key} className="flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full" style={{ background: aiColor(it.key) }} aria-hidden="true" />
+          <span className="h-2.5 w-2.5 rounded-full" style={{ background: color(it.key) }} aria-hidden="true" />
           {it.label}
         </li>
       ))}
@@ -67,10 +69,16 @@ function Tip({ x, y, width, children }) {
   )
 }
 
+const AI_MEASURES = [
+  { id: 'charged', label: 'Charged $', money: true },
+  { id: 'calls', label: 'Calls' },
+]
+
 /** Each model's line per day: what it charged, or how many calls (one measure at a time). */
-export function SpendLine({ daily, keys, label }) {
+export function SpendLine({ daily, keys, label, color = aiColor, measures = AI_MEASURES, what = 'by model' }) {
   const [ref, width] = useWidth()
-  const [measure, setMeasure] = useState('charged')
+  const [measure, setMeasure] = useState(measures[0].id)
+  const isMoney = !!measures.find((m) => m.id === measure)?.money
   const [hover, setHover] = useState(null) // a day's index
   const H = 240
   const pad = { l: 46, r: 104, t: 12, b: 26 }
@@ -81,7 +89,7 @@ export function SpendLine({ daily, keys, label }) {
   const top = ticks[ticks.length - 1] || 1
   const x = (i) => pad.l + (daily.length < 2 ? iw / 2 : (i / (daily.length - 1)) * iw)
   const y = (v) => pad.t + ih - (v / top) * ih
-  const fmt = (v) => (measure === 'calls' ? Math.round(v).toLocaleString() : money(v))
+  const fmt = (v) => (isMoney ? money(v) : Math.round(v).toLocaleString())
   // the names at the lines' ends, nudged apart so two close lines don't overlap
   const ends = keys
     .map((k) => ({ k, y: y(val(daily[daily.length - 1] || { models: {} }, k)) }))
@@ -102,12 +110,9 @@ export function SpendLine({ daily, keys, label }) {
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center gap-3">
-        <Legend items={keys.map((k) => ({ key: k, label: label(k) }))} />
+        <Legend items={keys.map((k) => ({ key: k, label: label(k) }))} color={color} />
         <div className="ml-auto flex rounded-lg bg-ink-100 p-0.5" role="group" aria-label="Show">
-          {[
-            ['charged', 'Charged $'],
-            ['calls', 'Calls'],
-          ].map(([id, l]) => (
+          {measures.map(({ id, label: l }) => (
             <button key={id} type="button" aria-pressed={measure === id} onClick={() => setMeasure(id)} className={`rounded-md px-2.5 py-1 text-[11.5px] font-semibold ${measure === id ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-500'}`}>
               {l}
             </button>
@@ -116,7 +121,7 @@ export function SpendLine({ daily, keys, label }) {
       </div>
       <div ref={ref} className="relative">
         {width > 0 && (
-          <svg width={width} height={H} role="img" aria-label={`${measure === 'calls' ? 'Calls' : 'Charged'} per day by model`} onMouseMove={move} onMouseLeave={() => setHover(null)}>
+          <svg width={width} height={H} role="img" aria-label={`${measures.find((m) => m.id === measure)?.label} per day ${what}`} onMouseMove={move} onMouseLeave={() => setHover(null)}>
             {ticks.map((t) => (
               <g key={t}>
                 <line x1={pad.l} x2={pad.l + iw} y1={y(t)} y2={y(t)} stroke="rgb(var(--ink-100))" strokeWidth="1" />
@@ -137,7 +142,7 @@ export function SpendLine({ daily, keys, label }) {
                 key={k}
                 d={daily.map((d, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(val(d, k)).toFixed(1)}`).join('')}
                 fill="none"
-                stroke={aiColor(k)}
+                stroke={color(k)}
                 strokeWidth="2"
                 strokeLinejoin="round"
                 strokeLinecap="round"
@@ -152,7 +157,7 @@ export function SpendLine({ daily, keys, label }) {
               <g>
                 <line x1={x(hover)} x2={x(hover)} y1={pad.t} y2={pad.t + ih} stroke="rgb(var(--ink-300))" strokeWidth="1" />
                 {keys.map((k) => (
-                  <circle key={k} cx={x(hover)} cy={y(val(day, k))} r="4.5" fill={aiColor(k)} stroke="rgb(var(--surface))" strokeWidth="2" />
+                  <circle key={k} cx={x(hover)} cy={y(val(day, k))} r="4.5" fill={color(k)} stroke="rgb(var(--surface))" strokeWidth="2" />
                 ))}
               </g>
             )}
@@ -163,9 +168,9 @@ export function SpendLine({ daily, keys, label }) {
             <div className="mb-1 font-semibold text-ink-900">{shortDay(day.day)}</div>
             {keys.map((k) => (
               <div key={k} className="flex items-center gap-1.5 text-ink-600">
-                <span className="h-2 w-2 rounded-full" style={{ background: aiColor(k) }} />
+                <span className="h-2 w-2 rounded-full" style={{ background: color(k) }} />
                 <span className="min-w-0 flex-1 truncate">{label(k)}</span>
-                <span className="font-semibold tabular-nums text-ink-900">{measure === 'calls' ? (day.models[k]?.calls || 0).toLocaleString() : exact(day.models[k]?.charged)}</span>
+                <span className="font-semibold tabular-nums text-ink-900">{isMoney ? exact(val(day, k)) : Math.round(val(day, k)).toLocaleString()}</span>
               </div>
             ))}
           </Tip>
@@ -176,7 +181,7 @@ export function SpendLine({ daily, keys, label }) {
 }
 
 /** Each model's share of what was charged — a ring, the total in its middle, a named legend beside it. */
-export function ModelDonut({ models, label }) {
+export function ModelDonut({ models, label, color = aiColor, unit = 'charged', what = 'by model', empty = 'No AI writing in this period.' }) {
   const [hover, setHover] = useState(null)
   const total = models.reduce((a, m) => a + m.charged, 0)
   const R = 78
@@ -207,13 +212,13 @@ export function ModelDonut({ models, label }) {
 
   return (
     <div className="flex flex-wrap items-center gap-6">
-      <svg width="200" height="200" viewBox="0 0 200 200" role="img" aria-label="Share of what was charged, by model" className="flex-none" onMouseLeave={() => setHover(null)}>
+      <svg width="200" height="200" viewBox="0 0 200 200" role="img" aria-label={`Share of what was ${unit}, ${what}`} className="flex-none" onMouseLeave={() => setHover(null)}>
         {!arcs.length && <circle cx={C} cy={C} r={R - T / 2} fill="none" stroke="rgb(var(--ink-100))" strokeWidth={T} />}
         {arcs.map((a) => (
           <path
             key={a.model}
             d={path(a)}
-            fill={aiColor(a.model)}
+            fill={color(a.model)}
             stroke="rgb(var(--surface))"
             strokeWidth="2"
             opacity={hover && hover !== a.model ? 0.45 : 1}
@@ -225,19 +230,19 @@ export function ModelDonut({ models, label }) {
           {shown ? `${Math.round(shown.share * 100)}%` : money(total)}
         </text>
         <text x={C} y={C + 16} textAnchor="middle" fontSize="11" fill="rgb(var(--ink-500))">
-          {shown ? label(shown.model) : 'charged'}
+          {shown ? label(shown.model) : unit}
         </text>
       </svg>
       <ul className="min-w-[180px] flex-1 space-y-2">
         {arcs.map((a) => (
           <li key={a.model} onMouseEnter={() => setHover(a.model)} onMouseLeave={() => setHover(null)} className={`flex items-center gap-2 rounded-lg px-2 py-1 text-[12.5px] ${hover === a.model ? 'bg-ink-50' : ''}`}>
-            <span className="h-2.5 w-2.5 flex-none rounded-full" style={{ background: aiColor(a.model) }} aria-hidden="true" />
+            <span className="h-2.5 w-2.5 flex-none rounded-full" style={{ background: color(a.model) }} aria-hidden="true" />
             <span className="min-w-0 flex-1 truncate font-semibold text-ink-800">{label(a.model)}</span>
             <span className="tabular-nums text-ink-500">{Math.round(a.share * 100)}%</span>
             <span className="w-16 text-right font-semibold tabular-nums text-ink-900">{exact(a.charged)}</span>
           </li>
         ))}
-        {!arcs.length && <li className="text-[12.5px] text-ink-400">No AI writing in this period.</li>}
+        {!arcs.length && <li className="text-[12.5px] text-ink-400">{empty}</li>}
       </ul>
     </div>
   )

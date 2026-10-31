@@ -354,9 +354,9 @@ export function tint(hex, a) {
  * them. */
 export const KHMER_RE = /[ក-៿]/
 
-export function Words({ text, delay = 0, stagger = 1, style, align = 'left', color }) {
-  const frame = useCurrentFrame()
-  const { fps } = useVideoConfig()
+/** Text → its pieces: words, and Khmer words cut at their ZWSP breaks. gap = a
+ * space follows; em = inside ⟦highlight⟧ markers. */
+export function wordPieces(text) {
   const pieces = []
   let em = false
   for (const word of String(text || '').split(' ').filter(Boolean)) {
@@ -371,6 +371,13 @@ export function Words({ text, delay = 0, stagger = 1, style, align = 'left', col
       if (i === parts.length - 1 && pieces.length) pieces[pieces.length - 1].gap = true
     })
   }
+  return pieces
+}
+
+export function Words({ text, delay = 0, stagger = 1, style, align = 'left', color }) {
+  const frame = useCurrentFrame()
+  const { fps } = useVideoConfig()
+  const pieces = wordPieces(text)
   // the empty band above and below Khmer letters in this line height (em)
   const khInset = Math.max(0, ((Number(style?.lineHeight) || 1.45) - 1.04) / 2)
   return (

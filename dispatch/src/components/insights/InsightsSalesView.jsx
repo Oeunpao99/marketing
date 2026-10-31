@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   FiAward,
   FiBookOpen,
@@ -21,6 +21,10 @@ import { api } from '../../api/client'
 import { useStore } from '../../store'
 import Select from '../ui/Select'
 import PlanLock from '../billing/PlanLock'
+import BoostCard from './BoostCard'
+import { AdAccountPicker, BoostDrawer, BoostList } from './BoostControls'
+import BoostInsights from './BoostInsights'
+import { useAuth } from '../../auth'
 import { has, NEEDS, usePlanFeatures } from '../../lib/planFeatures'
 import { downloadCsv, insightsCsv } from '../../lib/insightsCsv'
 import { useBrandMarks } from '../../lib/brandMarks'
@@ -124,7 +128,8 @@ export default function InsightsSalesView({
   const markOf = useBrandMarks()
   const { brands, showToast } = useStore()
   const features = usePlanFeatures() // boost picks: Growth and up · the CSV export: Business and up
-  const [rangeId, setRangeId] = useState('today')
+  // a week by default: "today" showed zeros on most mornings (posts go out every few days)
+  const [rangeId, setRangeId] = useState('7d')
   const [brandId, setBrandId] = useState(0) // 0 = all brands
   const [realData, setRealData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -135,6 +140,17 @@ export default function InsightsSalesView({
   const [tagging, setTagging] = useState(false)
   const [boostAmounts, setBoostAmounts] = useState({}) // post id → chosen budget
   const [skippedBoosts, setSkippedBoosts] = useState({})
+
+  // Real boosts (app/boosts.py): the ad accounts, the boosts sent, and the drawers
+  const { user } = useAuth() || {}
+  const canManage = user?.role === 'owner' || user?.role === 'admin'
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [adAccounts, setAdAccounts] = useState([])
+  const [sent, setSent] = useState([])
+  const [pendingAds, setPendingAds] = useState(null)
+  const [boostItem, setBoostItem] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [stopping, setStopping] = useState(null)
 
   // Interactive state for Budget plan & ROI
   const [selectedBudgetTier, setSelectedBudgetTier] = useState(1000)
@@ -147,6 +163,7 @@ export default function InsightsSalesView({
     telegram: 0,
   })
   const [budgetPlanApproved, setBudgetPlanApproved] = useState(false)
+  const [showPlanExample, setShowPlanExample] = useState(false)
 
   // The store's showToast is a new function on every store update; reading it
   // through a ref keeps the loader below stable, so the cards don't reload (and
@@ -186,6 +203,88 @@ export default function InsightsSalesView({
   useEffect(() => {
     loadBoosts()
   }, [loadBoosts])
+
+  const loadSent = useCallback(() => {
+    if (!has(features, 'boost')) return
+    const qs = brandId ? `?brand_id=${brandId}` : ''
+    api.get('/boosts/ads').then(setAdAccounts).catch(() => setAdAccounts([]))
+    api.get(`/boosts${qs}`).then(setSent).catch(() => setSent([]))
+  }, [brandId, features])
+
+  useEffect(() => {
+    loadSent()
+  }, [loadSent])
+
+  // back from Facebook's login: pick the ad account (or say why it failed)
+  useEffect(() => {
+    const pid = searchParams.get('ads_pending')
+    const failed = searchParams.get('ads') === 'error'
+    if (!pid && !failed) return
+    if (failed) toastRef.current?.(searchParams.get('message') || 'Facebook didn’t connect — try again.')
+    if (pid) {
+      api
+        .get(`/boosts/ads/pending/${pid}`)
+        .then((p) => setPendingAds({ ...p, id: pid }))
+        .catch((e) => toastRef.current?.(e.message))
+    }
+    const next = new URLSearchParams(searchParams)
+    ;['ads_pending', 'ads', 'message'].forEach((k) => next.delete(k))
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setSearchParams])
+
+  const accountFor = (bid) => adAccounts.find((a) => a.brand_id === bid)
+
+  const connectAds = async (bid) => {
+    if (!bid) return showToast?.('Pick a brand at the top first — each brand has its own ad account.')
+    try {
+      const r = await api.get(`/boosts/ads/start?brand_id=${bid}`)
+      window.location.href = r.url
+    } catch (e) {
+      showToast?.(e.message)
+    }
+  }
+
+  const pickAccount = async (accountId) => {
+    setBusy(true)
+    try {
+      await api.post(`/boosts/ads/pending/${pendingAds.id}/confirm`, { account_id: accountId })
+      setPendingAds(null)
+      showToast?.('Ad account connected — you can boost posts now.')
+      loadSent()
+    } catch (e) {
+      showToast?.(e.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const sendBoost = async (body) => {
+    setBusy(true)
+    try {
+      await api.post('/boosts', body)
+      setBoostItem(null)
+      showToast?.('Sent to Facebook — it starts once Facebook reviews the ad, usually within an hour.')
+      loadSent()
+    } catch (e) {
+      showToast?.(e.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const stopBoost = async (b) => {
+    if (!window.confirm(`Stop boosting “${b.title}”? You pay only what was spent so far.`)) return
+    setStopping(b.id)
+    try {
+      await api.post(`/boosts/${b.id}/stop`)
+      showToast?.('Boost stopped.')
+      loadSent()
+    } catch (e) {
+      showToast?.(e.message)
+    } finally {
+      setStopping(null)
+    }
+  }
 
   // The AI reads the latest untagged posts (costs AI credit) so the picks can
   // say what each post is about.
@@ -241,9 +340,12 @@ export default function InsightsSalesView({
     downloadCsv(csv, `contentflow-insights-${slug}-${rangeId}-${new Date().toISOString().slice(0, 10)}.csv`)
   }
 
-  // Ads aren't connected yet, so nothing is sent or spent from here.
-  const approveBoost = () => {
-    showToast?.("Ad accounts aren't connected yet — nothing was sent.")
+  // Every boost needs a person's yes: the drawer shows what it costs before anything is sent.
+  const approveBoost = (it) => {
+    if (!canManage) return showToast?.('Only a workspace owner or admin can boost — it spends money.')
+    if (it.channel !== 'facebook') return showToast?.('Boosting works on Facebook posts for now — Instagram and TikTok come next.')
+    if (!accountFor(it.brand_id)) return connectAds(it.brand_id)
+    setBoostItem(it)
   }
 
   // Handlers for Budget Plan & ROI
@@ -267,7 +369,7 @@ export default function InsightsSalesView({
   }
 
   const handleApproveBudgetPlan = () => {
-    showToast?.("Ad accounts aren't connected yet — nothing was sent. This is a preview.")
+    showToast?.('This is an example plan — nothing was sent or spent.')
   }
 
   const updateChannelBudget = (channelKey, delta) => {
@@ -719,9 +821,25 @@ export default function InsightsSalesView({
           <PlanLock feature="boost" text="See which of your posts brought leads — not just likes — and what to spend boosting them." />
         ) : (
         <>
-        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-[12px] text-amber-800">
-          The picks below come from your own posts and leads. Ad accounts aren’t connected yet, so approving can’t send a boost.
-        </div>
+        {/* the ad account boosts are paid from (the chosen brand's, else every brand's) */}
+        {(() => {
+          const shown = brandId ? adAccounts.filter((a) => a.brand_id === brandId) : adAccounts
+          const brandName = (bid) => brands.find((b) => b.id === bid)?.name || ''
+          return (
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ink-200/60 bg-white px-4 py-3">
+              <p className="text-[12.5px] text-ink-600">
+                {shown.length
+                  ? shown.map((a) => `${brandId ? '' : `${brandName(a.brand_id)}: `}${a.name}`).join(' · ') + ' — boosts are paid from this Facebook ad account.'
+                  : 'Connect your Facebook ad account to boost posts from here. Nothing is spent until you approve a boost.'}
+              </p>
+              {canManage && (
+                <button type="button" onClick={() => connectAds(brandId || (brands.length === 1 ? brands[0].id : 0))} className="btn-outline whitespace-nowrap">
+                  {shown.length ? 'Change ad account' : 'Connect ad account'}
+                </button>
+              )}
+            </div>
+          )
+        })()}
 
         {boosts.untagged > 0 && (
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ink-200/60 bg-white px-4 py-3">
@@ -762,98 +880,33 @@ export default function InsightsSalesView({
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-            {boosts.items.map((it) => {
-              const skipped = !!skippedBoosts[it.post_id]
-              const amount = boostAmounts[it.post_id] ?? it.budget
-              const chip =
-                it.kind === 'boost'
-                  ? { text: `Boost · suggested $${it.budget}`, cls: 'bg-emerald-50 border-emerald-200/60 text-emerald-700' }
-                  : it.kind === 'skip'
-                  ? { text: "Don't boost", cls: 'bg-ink-100 border-ink-200/60 text-ink-600' }
-                  : { text: 'Link leads to decide', cls: 'bg-amber-50 border-amber-200/60 text-amber-800' }
-              return (
-                <div key={it.post_id} className="flex flex-col justify-between rounded-2xl border border-ink-200/60 bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
-                  <div>
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className="text-[14.5px] font-bold leading-snug text-ink-900">{it.title}</h3>
-                      <span className={`flex-none whitespace-nowrap rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${chip.cls}`}>
-                        {chip.text}
-                      </span>
-                    </div>
-                    <div className="mt-1 text-[11.5px] capitalize text-ink-400">
-                      {it.channel} · posted {new Date(it.posted_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                    </div>
-                    {it.summary && <p className="mt-2.5 text-[12px] italic leading-relaxed text-ink-500">“{it.summary}”</p>}
-                    {it.tags && (
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {[it.tags.audience, it.tags.topic, it.tags.pain_point].filter(Boolean).map((t) => (
-                          <span key={t} className="rounded-full bg-ink-100 px-2 py-0.5 text-[10.5px] font-medium text-ink-600">{t}</span>
-                        ))}
-                      </div>
-                    )}
-                    <p className="mt-2.5 text-[12px] leading-relaxed text-ink-700">{it.reason}</p>
-                    <div className="mt-3 flex gap-4 text-[11.5px] text-ink-500">
-                      <span>Engagement <b className="text-ink-800">{it.ratio}×</b> average</span>
-                      <span>Leads <b className="text-ink-800">{it.leads}</b></span>
-                      {it.reach > 0 && <span>Reach <b className="text-ink-800">{it.reach.toLocaleString()}</b></span>}
-                    </div>
-
-                    {it.kind === 'boost' && (
-                      <div className="mt-3.5">
-                        <div className="text-[10px] font-bold uppercase tracking-wider text-ink-400">Budget</div>
-                        <div className="mt-1.5 grid grid-cols-3 gap-2">
-                          {it.tiers.map((amt) => (
-                            <button
-                              key={amt}
-                              type="button"
-                              onClick={() => setBoostAmounts((m) => ({ ...m, [it.post_id]: amt }))}
-                              className={`relative rounded-xl border p-2 text-left transition-all ${
-                                amount === amt ? 'border-brand bg-brand-soft/30 shadow-xs' : 'border-ink-200 hover:bg-ink-50/70'
-                              }`}
-                            >
-                              {amt === it.budget && (
-                                <span className="absolute -top-2 right-1.5 rounded-full bg-brand px-1.5 py-px text-[8.5px] font-bold uppercase tracking-wider text-white">
-                                  Suggested
-                                </span>
-                              )}
-                              <div className="text-[13px] font-bold text-ink-900">${amt}</div>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {it.kind === 'boost' && (
-                    <div className="mt-4 flex items-center gap-3 border-t border-ink-100 pt-3">
-                      {skipped ? (
-                        <span className="text-[12px] italic text-ink-400">Skipped</span>
-                      ) : (
-                        <>
-                          <button
-                            type="button"
-                            onClick={approveBoost}
-                            className="rounded-xl bg-brand px-4 py-2 text-[12.5px] font-semibold text-white shadow-xs transition-colors hover:bg-brand-dark"
-                          >
-                            Approve boost · ${amount}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setSkippedBoosts((m) => ({ ...m, [it.post_id]: true }))}
-                            className="text-[12px] font-medium text-ink-500 transition-colors hover:text-ink-800"
-                          >
-                            Skip
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
+            {boosts.items.map((it) => (
+              <BoostCard
+                key={it.post_id}
+                it={it}
+                amount={boostAmounts[it.post_id] ?? it.budget}
+                skipped={!!skippedBoosts[it.post_id]}
+                onAmount={(amt) => setBoostAmounts((m) => ({ ...m, [it.post_id]: amt }))}
+                boosting={sent.some((b) => b.post_id === it.post_id && (b.status === 'running' || b.status === 'in_review'))}
+                onApprove={() => approveBoost(it)}
+                onSkip={() => setSkippedBoosts((m) => ({ ...m, [it.post_id]: true }))}
+              />
+            ))}
           </div>
         )}
+        <BoostInsights boosts={sent} />
+        <BoostList boosts={sent} canManage={canManage} stopping={stopping} onStop={stopBoost} />
         </>
+        )}
+        {pendingAds && <AdAccountPicker pending={pendingAds} saving={busy} onPick={pickAccount} onClose={() => setPendingAds(null)} />}
+        {boostItem && (
+          <BoostDrawer
+            item={{ ...boostItem, budget: boostAmounts[boostItem.post_id] ?? boostItem.budget }}
+            account={accountFor(boostItem.brand_id)}
+            sending={busy}
+            onSend={sendBoost}
+            onClose={() => setBoostItem(null)}
+          />
         )}
       </div>
 
@@ -917,9 +970,24 @@ export default function InsightsSalesView({
       </div>
 
       {/* ── Budget plan & ROI Section ──────────────────────── */}
-      <div className="mt-8 rounded-2xl border border-ink-200/60 bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+      {/* Its numbers need months of your own boosts (cost per lead per channel) and
+          close rates from Dynamics 365 — until then the plan is an example, folded away */}
+      <div className="mt-8 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-ink-200/60 bg-white px-6 py-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+        <div>
+          <h2 className="text-[15px] font-bold text-ink-900">Budget plan &amp; ROI</h2>
+          <p className="mt-0.5 text-[12px] text-ink-500">
+            Works out a monthly boost budget from your own cost per lead. It needs a few weeks of boosts first
+            {sent.length ? ` — ${sent.length} so far.` : ' — none yet.'}
+          </p>
+        </div>
+        <button type="button" onClick={() => setShowPlanExample((v) => !v)} className="btn-outline whitespace-nowrap">
+          {showPlanExample ? 'Hide the example' : 'See an example'}
+        </button>
+      </div>
+      {showPlanExample && (
+      <div className="mt-3 rounded-2xl border border-ink-200/60 bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
         <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-[12px] text-amber-800">
-          Preview — example numbers, not your data. Connecting ad accounts is coming; nothing here is sent or spent yet.
+          Example numbers, not your data — how the plan will look once your boosts have run for a while.
         </div>
         {/* Header row: Title + Subtitle on left; Monthly Budget & Gross Margin selectors on right */}
         <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6 pb-6 border-b border-ink-100">
@@ -1348,6 +1416,7 @@ export default function InsightsSalesView({
           </div>
         </div>
       </div>
+      )}
 
       {/* ── Bottom 3 Cards: Funnel, Content that sold, What to change next ── */}
       <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-6">

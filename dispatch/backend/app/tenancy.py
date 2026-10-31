@@ -17,6 +17,8 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import (
     ActivityPlan,
+    AdAccount,
+    Boost,
     Website,
     Automation,
     Brand,
@@ -95,7 +97,7 @@ def scope(model, ws: int):
         return None
     if model in (
         Brand, Video, GenerationJob, TeamMember, VideoStory, CreditEntry, Website, SalesRep, LeadAccount, LibraryFolder,
-        EditProject,
+        EditProject, AdAccount, Boost,
     ):
         return model.workspace_id == ws
     if model in (Channel, Post, Draft, Automation, Product, WeeklyPlan, BrandAsset, ActivityPlan, Lead):

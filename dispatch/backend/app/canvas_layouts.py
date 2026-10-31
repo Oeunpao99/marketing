@@ -165,11 +165,14 @@ def layout_layers(raw: dict, wide: bool) -> list[dict]:
         v = {"kind": "picture", "draw": v.get("draw") or raw.get("draw"), "icon": v.get("icon") or icon}
         if wide:
             out += _visual(v, 31, 48, 0.2, wide, big=True)
+            # kicker, title and sub in one block (like split): a separate kicker pill
+            # sat on a headline that wrapped to three lines
+            L = _text(title, 72, 47, min(96, _head(title)), 0.5, maxw=40, align="left")
             if kicker:
-                out.append(_pill(kicker, 60, 30, 0.4))
-            out.append(_text(title, 72, 45, min(96, _head(title)), 0.5, maxw=40, align="left"))
+                L["kicker"] = kicker
             if sub:
-                out.append(_text(sub, 72, 62, 46, 1.0, maxw=40, align="left", weight=500, tin="fade", color="sub"))
+                L["sub"], L["subSize"] = sub, 46
+            out.append(L)
         else:
             out.append(_text(title, 50, 19, _head(title), 0.2, maxw=88))
             out += _visual(v, 50, 47, 0.4, wide, big=True)

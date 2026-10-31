@@ -828,10 +828,11 @@ export default function AddChannelPage({ embedded = false, initial = null, onClo
           </p>
         </div>
 
-        <div className="space-y-3 max-w-lg">
-          <p className="text-[11.5px] font-bold text-ink-400 uppercase tracking-wide">
-            Choose a brand
-          </p>
+        <p className="mb-3 text-[11.5px] font-bold text-ink-400 uppercase tracking-wide">
+          Choose a brand
+        </p>
+        {/* a grid of brand cards, three across on a wide screen (a long list was one thin column) */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {brands.map((b) => {
             const isConnected = connectedForBrand(b.slug);
             // Facebook / Instagram / Telegram: a brand can add more accounts.
@@ -842,49 +843,51 @@ export default function AddChannelPage({ embedded = false, initial = null, onClo
                 key={b.id}
                 disabled={locked || busy}
                 onClick={() => chooseBrand(b.slug)}
-                className={`w-full text-left p-4 rounded-2xl border transition-all duration-150 ${
+                className={`group flex min-h-[132px] flex-col text-left p-5 rounded-2xl border transition-all duration-150 ${
                   locked || busy
                     ? "border-ink-200 bg-ink-50 opacity-60 cursor-not-allowed"
-                    : "border-ink-100 bg-white hover:border-brand hover:shadow-card cursor-pointer"
+                    : "border-ink-200/70 bg-white hover:border-brand hover:shadow-card cursor-pointer"
                 }`}
               >
                 <div className="flex items-center gap-3">
                   {logos[b.id] ? (
-                    <BrandMark brand={b} logo={logos[b.id]} size={28} />
+                    <BrandMark brand={b} logo={logos[b.id]} size={40} />
                   ) : (
                     <span
-                      className="w-3 h-3 rounded-full flex-none"
-                      style={{
-                        background: color,
-                        boxShadow: `0 0 8px ${color}30`,
-                      }}
-                    />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-ink-800 text-sm">
-                      {b.name}
-                    </div>
-                    <div className="text-[11.5px] text-ink-400">{b.lang}</div>
-                  </div>
-                  {locked ? (
-                    <Tag variant="ok">Connected</Tag>
-                  ) : isConnected && !busy ? (
-                    <span className="text-[11.5px] text-brand font-semibold">
-                      {meta.oauth === "meta" ? "Add another Page →" : "Add another →"}
+                      className="grid h-10 w-10 flex-none place-items-center rounded-xl text-[15px] font-bold text-white"
+                      style={{ background: color }}
+                    >
+                      {b.name.charAt(0).toUpperCase()}
                     </span>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-semibold text-ink-900 text-[14px]">{b.name}</div>
+                    <div className="truncate text-[11.5px] text-ink-400">{b.lang || " "}</div>
+                  </div>
+                </div>
+                <div className="mt-auto flex items-center justify-between gap-2 border-t border-ink-100 pt-3">
+                  {isConnected ? (
+                    <Tag variant="ok">Connected</Tag>
                   ) : (
-                    <span className="text-[11.5px] text-brand font-semibold">
+                    <span className="text-[11.5px] text-ink-400">Not connected</span>
+                  )}
+                  {!locked && (
+                    <span className="text-[12px] text-brand font-semibold group-hover:underline">
                       {busy
                         ? `Redirecting to ${meta.label}…`
-                        : meta.fields
-                          ? "Set up →"
-                          : "Connect →"}
+                        : isConnected
+                          ? meta.oauth === "meta" ? "Add another Page →" : "Add another →"
+                          : meta.fields
+                            ? "Set up →"
+                            : "Connect →"}
                     </span>
                   )}
                 </div>
               </button>
             );
           })}
+        </div>
+        <div className="mt-4 max-w-lg">
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-xl px-3.5 py-2.5 text-[12px] text-red-700">
               {error}

@@ -232,13 +232,13 @@ export function TrendLine({ values, width = 150, height = 44, color = ACCENT }) 
 }
 
 /** Part-to-whole by platform (≤ 6 segments, 2px surface gaps). Hover shows
- *  the platform, its value and share. */
-export function Donut({ segments, size = 84, label }) {
+ *  the platform, its value and share. A segment can bring its own `color`
+ *  (not a platform); children sit in the hole (a total). */
+export function Donut({ segments, size = 84, label, of = 'by platform', stroke = 13, children }) {
   const [hover, setHover] = useState(null)
   const total = segments.reduce((s, x) => s + x.value, 0)
-  const r = size / 2 - 7
+  const r = size / 2 - Math.max(7, stroke / 2 + 2) // room for the hover thickening
   const c = size / 2
-  const stroke = 13
   if (!(total > 0)) {
     return (
       <svg width={size} height={size} aria-label={`${label}: no data`}>
@@ -251,7 +251,7 @@ export function Donut({ segments, size = 84, label }) {
   let acc = 0
   return (
     <div className="relative" style={{ width: size, height: size }}>
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={`${label} by platform`} className="-rotate-90">
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={`${label} ${of}`} className="-rotate-90">
         {segments.map((s) => {
           if (!(s.value > 0)) return null
           const len = (s.value / total) * circ
@@ -265,7 +265,7 @@ export function Donut({ segments, size = 84, label }) {
               cy={c}
               r={r}
               fill="none"
-              style={{ stroke: platformHue(s.slug) }}
+              style={{ stroke: s.color || platformHue(s.slug) }}
               strokeWidth={hover === s.slug ? stroke + 3 : stroke}
               strokeDasharray={`${dash} ${circ - dash}`}
               strokeDashoffset={off}
@@ -276,6 +276,7 @@ export function Donut({ segments, size = 84, label }) {
           )
         })}
       </svg>
+      {children && <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">{children}</div>}
       {hover && (
         <Tip x="50%" y={0}>
           <span className="font-semibold">{segments.find((s) => s.slug === hover)?.label}</span>{' '}
@@ -331,7 +332,7 @@ export function Defined({ children, text }) {
 }
 
 // What engagement is made of — fixed colours, same as the Performance chart.
-const MIX = [
+export const MIX = [
   { id: 'likes', label: 'Reactions', color: '#1B75BB' },
   { id: 'comments', label: 'Comments', color: '#F08A5D' },
   { id: 'shares', label: 'Shares', color: '#86A41E' },

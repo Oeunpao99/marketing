@@ -23,7 +23,7 @@
  */
 import { useLayoutEffect, useRef, useState } from 'react'
 import { AbsoluteFill, Img, interpolate, random, spring, useCurrentFrame, useVideoConfig } from 'remotion'
-import { FONT, Icon, KHMER_RE, Words, clean, srcOf, tint } from './shared'
+import { FONT, Icon, KHMER_RE, Words, clean, srcOf, tint, wordPieces } from './shared'
 
 const clamp = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
 const ease = (t) => 1 - (1 - t) ** 3
@@ -260,8 +260,77 @@ function loopStyle(L, frame) {
 }
 
 // blocks of words: the scene measures them (even before they arrive) and moves one
-// down when the AI's guess of its height ran it into the block above (spaceOut)
-const FLOW = new Set(['text', 'list'])
+// down when the AI's guess of its height ran it into the block above (spaceOut).
+// Pills too: a kicker pill placed above a headline that wrapped to three lines sat on it.
+const FLOW = new Set(['text', 'list', 'pill'])
+
+const expoOut = (t) => (t >= 1 ? 1 : 1 - 2 ** (-10 * t))
+
+/** A headline set the way a motion designer would in After Effects: each word
+ * rises out of its own mask with a slight tilt and a touch of blur, one after
+ * another; the ⟦key words⟧ land in the accent colour, a light sheen runs
+ * across them and an underline draws in under them. f = frames since the
+ * block arrived. The layout never moves while it plays (the masks keep each
+ * word's full size), so spaceOut measures it the same on every frame. */
+function Headline({ text, f, fps, style, color, hl, align, light }) {
+  const pieces = wordPieces(text)
+  const step = Math.max(2, Math.round(fps * 0.075)) // ~2-3 frames between words
+  const dur = Math.round(fps * 0.6)
+  const lastIn = (pieces.length - 1) * step + dur
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: align === 'center' ? 'center' : 'flex-start', fontFamily: FONT, ...style }}>
+      {pieces.map(({ p, gap, em }, n) => {
+        const k = expoOut(Math.min(1, Math.max(0, (f - n * step) / dur)))
+        const khmer = KHMER_RE.test(p)
+        // room inside the mask for Khmer vowels above and stacked consonants below
+        const padY = khmer ? 0.3 : 0.14
+        const sheen = interpolate(f, [lastIn, lastIn + fps * 0.7], [130, -30], clamp)
+        const line = expoOut(Math.min(1, Math.max(0, (f - lastIn + fps * 0.25) / (fps * 0.55))))
+        return (
+          <span key={n} style={{ display: 'inline-block', overflow: 'hidden', padding: `${padY}em 0.04em`, margin: `-${padY}em ${gap ? '0.24em' : '-0.04em'} -${padY}em -0.04em`, position: 'relative' }}>
+            <span
+              style={{
+                display: 'inline-block',
+                transform: `translateY(${(1 - k) * 115}%) rotate(${(1 - k) * 7}deg)`,
+                transformOrigin: 'left bottom',
+                filter: k < 0.98 ? `blur(${(1 - k) * 10}px)` : undefined,
+                color: em ? hl : color,
+                ...(em
+                  ? {
+                      backgroundImage: `linear-gradient(105deg, ${hl} 0%, ${hl} 40%, ${light} 50%, ${hl} 60%, ${hl} 100%)`,
+                      backgroundSize: '250% 100%',
+                      backgroundPosition: `${sheen}% 0`,
+                      WebkitBackgroundClip: 'text',
+                      backgroundClip: 'text',
+                      WebkitTextFillColor: 'transparent',
+                    }
+                  : null),
+              }}
+            >
+              {p}
+            </span>
+            {em && (
+              <span
+                style={{
+                  position: 'absolute',
+                  left: '0.04em',
+                  right: gap ? '0.04em' : '-0.04em',
+                  // Khmer: below the stacked consonants (្រ ្ស), not through them
+                  bottom: `${padY - (khmer ? 0.16 : 0.06)}em`,
+                  height: '0.075em',
+                  borderRadius: '0.05em',
+                  background: hl,
+                  transform: `scaleX(${line})`,
+                  transformOrigin: 'left center',
+                }}
+              />
+            )}
+          </span>
+        )
+      })}
+    </div>
+  )
+}
 
 function Layer({ L, pal, brand, u, delay, dy = 0, measure }) {
   const frame = useCurrentFrame()
@@ -278,6 +347,8 @@ function Layer({ L, pal, brand, u, delay, dy = 0, measure }) {
   const border = pal.mode === 'light' ? 'rgba(15,23,42,0.08)' : 'rgba(255,255,255,0.14)'
   const cardBg = L.fill ? fill(L.fill) : L.glass === false ? (pal.mode === 'light' ? '#FFFFFF' : '#0E1526') : glass
 
+  // a rising headline plays its own entrance word by word (Headline); the block doesn't also rise
+  const own = L.kind === 'text' && !L.hit && (L.in || 'rise') === 'rise'
   let body = null
   switch (L.kind) {
     case 'text': {
@@ -290,12 +361,24 @@ function Layer({ L, pal, brand, u, delay, dy = 0, measure }) {
       body = (
         <div style={{ width: L.maxw ? (L.maxw / 100) * width : undefined, maxWidth: width * 0.92, textAlign: L.align || 'center', display: 'flex', flexDirection: 'column', alignItems: left ? 'flex-start' : 'center' }}>
           {L.kicker && (
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 14 * u, marginBottom: 34 * u, padding: `${12 * u}px ${30 * u}px ${12 * u}px ${22 * u}px`, borderRadius: 999, background: tint(pal.a, 0.12), border: `2px solid ${tint(pal.a, 0.45)}`, fontFamily: FONT, fontWeight: 700, fontSize: 36 * u, color: pal.a, whiteSpace: 'nowrap', letterSpacing: KHMER_RE.test(L.kicker) ? undefined : '0.1em', textTransform: KHMER_RE.test(L.kicker) ? undefined : 'uppercase', opacity: late(0), transform: `translateY(${(1 - late(0)) * -16}px)` }}>
-              <span style={{ width: 14 * u, height: 14 * u, borderRadius: '50%', background: pal.a, boxShadow: `0 0 ${16 * u}px ${pal.a}` }} />
-              {clean(L.kicker)}
+            // wipes open from its dot, the dot popping first (an After Effects reveal)
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 14 * u, marginBottom: 34 * u, padding: `${12 * u}px ${30 * u}px ${12 * u}px ${22 * u}px`, borderRadius: 999, background: tint(pal.a, 0.12), border: `2px solid ${tint(pal.a, 0.45)}`, fontFamily: FONT, fontWeight: 700, fontSize: 36 * u, color: pal.a, whiteSpace: 'nowrap', letterSpacing: KHMER_RE.test(L.kicker) ? undefined : '0.1em', textTransform: KHMER_RE.test(L.kicker) ? undefined : 'uppercase', opacity: late(0), clipPath: `inset(0 ${(1 - expoOut(Math.max(0, f - 3) / (0.5 * fps))) * 100}% 0 0 round 999px)` }}>
+              <span style={{ width: 14 * u, height: 14 * u, borderRadius: '50%', background: pal.a, boxShadow: `0 0 ${16 * u}px ${pal.a}`, transform: `scale(${spring({ frame: f, fps, config: { damping: 8 } })})` }} />
+              <span style={{ display: 'inline-block', transform: `translateX(${(1 - late(0.1)) * -24 * u}px)` }}>{clean(L.kicker)}</span>
             </div>
           )}
-          {L.in === 'type' ? (
+          {own ? (
+            <Headline
+              text={L.text}
+              f={f - (L.kicker ? Math.round(0.2 * fps) : 0)}
+              fps={fps}
+              align={left ? 'left' : 'center'}
+              color={color}
+              hl={L.highlight ? fill(L.highlight) : pal.a}
+              light={pal.mode === 'light' ? 'rgba(255,255,255,0.75)' : '#FFFFFF'}
+              style={{ fontSize: size, fontWeight: (L.weight || 700) === 700 ? 800 : L.weight, lineHeight: khmer ? 1.3 : 1.1, letterSpacing: L.weight && L.weight <= 400 ? '-0.03em' : khmer ? undefined : '-0.02em' }}
+            />
+          ) : L.in === 'type' ? (
             <span style={{ fontFamily: L.mono ? MONO : FONT, fontWeight: L.weight || 700, fontSize: size, color, lineHeight: 1.2, letterSpacing: L.weight && L.weight <= 400 ? '-0.03em' : '-0.015em' }}>
               {clean(L.text).slice(0, Math.max(0, Math.floor(f / 1.5)))}
               {/* the rest is there but unseen, so the block keeps its full size while it types */}
@@ -570,7 +653,7 @@ function Layer({ L, pal, brand, u, delay, dy = 0, measure }) {
   if (!body) return null
   return (
     <div style={box} ref={FLOW.has(L.kind) ? measure : undefined}>
-      <div style={style}>
+      <div style={own ? undefined : style}>
         <div style={loop}>{body}</div>
       </div>
     </div>

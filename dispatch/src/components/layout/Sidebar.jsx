@@ -16,6 +16,7 @@ import { colorForBrand } from "../../lib/brandColor";
 import SettingsModal from "./SettingsModal";
 import { openCreateBrand } from "./CreateBrandDrawer";
 import { canOpen } from "../../lib/access";
+import { useUsage } from "../../lib/usage";
 import { BOSS, onPath } from "../../lib/nav";
 import { kitSrc } from "../brandkit/BrandKit";
 
@@ -525,8 +526,9 @@ export default function Sidebar({ collapsed = false }) {
             </span>
             {!collapsed && (
             <span className="min-w-0 flex-1">
-              <span className="block text-[13px] font-semibold text-ink-900 truncate leading-tight">
-                {user?.name || "Account"}
+              <span className="flex items-center gap-1.5 leading-tight">
+                <span className="text-[13px] font-semibold text-ink-900 truncate">{user?.name || "Account"}</span>
+                <PlanBadge />
               </span>
               <span className="block text-[11.5px] text-ink-500 truncate">{user?.email || ""}</span>
             </span>
@@ -698,5 +700,25 @@ function SearchModal({ open, onClose, channels, queue, review, brands, navigate 
       </div>
     </div>,
     document.body,
+  );
+}
+
+// The workspace's plan beside the name (GET /usage plan / plan_label: Free, Starter,
+// Growth, Business, Enterprise), each in its own colour so a glance says which one.
+const PLAN_TONE = {
+  free: "bg-ink-100 text-ink-600",
+  starter: "bg-sky-50 text-sky-700",
+  pro: "bg-emerald-50 text-emerald-700",
+  business: "bg-violet-50 text-violet-600",
+  enterprise: "bg-amber-50 text-amber-800",
+};
+
+function PlanBadge() {
+  const { usage } = useUsage();
+  if (!usage?.plan_label) return null;
+  return (
+    <span className={`flex-none rounded-full px-1.5 py-px text-[10px] font-bold uppercase tracking-wide ${PLAN_TONE[usage.plan] || PLAN_TONE.free}`}>
+      {usage.plan_label}
+    </span>
   );
 }
