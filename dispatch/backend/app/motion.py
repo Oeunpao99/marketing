@@ -5247,6 +5247,8 @@ def script_lines(script: dict) -> list[tuple[str, str]]:
             screen = f"{s['top']} / {s['bottom']}"
         elif s["type"] == "client":
             screen = f"{s['name']}" + (f" ({s['field']})" if s.get("field") else "") + f" — {s['text']}" + (" [example]" if s.get("example") else "")
+        elif s["type"] == "metrics" and "stats" in s:  # SaaS Hub
+            screen = (s.get("text") or "Results") + " — " + ", ".join(f"{m['label']}: {m.get('prefix', '')}{m['value']}{m.get('suffix', '')}" + (f" ({m['note']})" if m.get("note") else "") for m in s["stats"])
         elif s["type"] == "metrics":
             screen = (s.get("title") or "Results") + " — " + ", ".join(f"{m['label']}: {m.get('prefix', '')}{m['before']}{m.get('suffix', '')} → {m.get('prefix', '')}{m['after']}{m.get('suffix', '')}" for m in s["rows"])
         elif s["type"] == "timeline":
@@ -5272,7 +5274,11 @@ def script_lines(script: dict) -> list[tuple[str, str]]:
         elif s["type"] == "orbit":
             screen = f"{s['center']['title']} — " + ", ".join(x["label"] for x in s["tags"]) + (f" · {s['text']}" if s.get("text") else "")
         elif s["type"] == "chaos":
-            screen = s["text"] + " — " + " / ".join(f"{x['app']}: {x['title']}" for x in s["cards"])
+            screen = s["text"] + " — " + (" / ".join(f"{x['app']}: {x['title']}" for x in s["cards"]) if s.get("cards") else ", ".join(s.get("tools") or []))
+        elif s["type"] == "hub":  # SaaS Hub
+            screen = s["text"] + " — " + ", ".join(a["name"] + (f" ({a['desc']})" if a.get("desc") else "") for a in s.get("apps") or [])
+        elif s["type"] == "trigger":  # SaaS Hub
+            screen = s["text"] + f" — when {s['event']['label']}: " + ", ".join(a["label"] for a in s.get("actions") or [])
         elif s["type"] == "phones":
             screen = " ".join(s["words"]) + (f" — screenshots {', '.join(str(x) for x in s['shots'])}" if s.get("shots") else "")
         elif s["type"] == "gallery":
