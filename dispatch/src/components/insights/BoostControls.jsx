@@ -246,16 +246,17 @@ export function BoostList({ boosts, canManage, stopping, onStop }) {
 
 /** The boosted post's picture in its row (opens the live post when there's a link). */
 function Thumb({ b }) {
-  const src = mediaSrc(b.media_url)
+  const [broken, setBroken] = useState(false) // an expired Facebook picture link: the text icon instead
+  const src = broken ? null : mediaSrc(b.media_url)
   const still = src && (b.media_kind === 'image' || b.media_thumb)
   const Box = b.link ? 'a' : 'span'
   return (
     <Box {...(b.link ? { href: b.link, target: '_blank', rel: 'noreferrer', title: 'Open the post' } : {})} className="relative isolate block h-11 w-11 flex-none overflow-hidden rounded-lg bg-ink-100">
       {still ? (
-        <img src={src} alt="" className="h-full w-full object-cover" />
+        <img src={src} alt="" onError={() => setBroken(true)} className="h-full w-full object-cover" />
       ) : src ? (
         <>
-          <video src={`${src}#t=0.1`} preload="metadata" muted playsInline disablePictureInPicture className="pointer-events-none h-full w-full object-cover" />
+          <video src={`${src}#t=0.1`} preload="metadata" muted playsInline disablePictureInPicture onError={() => setBroken(true)} className="pointer-events-none h-full w-full object-cover" />
           <span className="absolute inset-0 grid place-items-center">
             <span className="grid h-5 w-5 place-items-center rounded-full bg-night-950/55 text-white">
               <FiPlay size={9} className="ml-px" />

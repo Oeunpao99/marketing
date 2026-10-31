@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { FiCheck, FiExternalLink, FiPlay } from 'react-icons/fi'
 import { Donut, MIX, fmtNum } from './Overview'
@@ -5,16 +6,19 @@ import { Donut, MIX, fmtNum } from './Overview'
 // a file under /media is served by the API (port 8000 in local dev)
 export const mediaSrc = (url) => (!url ? null : /^https?:\/\//i.test(url) ? url : `${window.location.port === '5173' ? 'http://localhost:8000' : ''}${url}`)
 
-/** The post itself at the top of its card — its picture, a video's first frame with a ▶,
- *  or a text post's caption — with the card's badge on it, so it's clear which post this is. */
+/** The post itself at the top of its card — its whole picture (never cropped), a
+ *  video's first frame with a ▶, or a text post's caption — with the card's badge on
+ *  it, so it's clear which post this is. Facebook's picture links expire: one that no
+ *  longer loads shows the caption instead of a broken image. */
 function PostPreview({ it, chip }) {
-  const src = mediaSrc(it.media_url)
+  const [broken, setBroken] = useState(false)
+  const src = broken ? null : mediaSrc(it.media_url)
   const still = src && (it.media_kind === 'image' || it.media_thumb)
   const body = still ? (
-    <img src={src} alt="" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+    <img src={src} alt="" onError={() => setBroken(true)} className="h-full w-full object-contain" />
   ) : src ? (
     <>
-      <video src={`${src}#t=0.1`} preload="metadata" muted playsInline disablePictureInPicture className="pointer-events-none h-full w-full object-cover" />
+      <video src={`${src}#t=0.1`} preload="metadata" muted playsInline disablePictureInPicture onError={() => setBroken(true)} className="pointer-events-none h-full w-full object-contain" />
       <span className="absolute inset-0 grid place-items-center">
         <span className="grid h-10 w-10 place-items-center rounded-full bg-night-950/55 text-white">
           <FiPlay size={16} className="ml-0.5" />
@@ -28,7 +32,7 @@ function PostPreview({ it, chip }) {
   return (
     <Box
       {...(it.link ? { href: it.link, target: '_blank', rel: 'noreferrer', title: 'Open the post on ' + it.channel } : {})}
-      className="group relative isolate block h-44 overflow-hidden border-b border-ink-100 bg-canvas"
+      className="group relative isolate block h-52 overflow-hidden border-b border-ink-100 bg-canvas"
     >
       {body}
       <span className={`absolute left-3 top-3 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-[11px] font-semibold shadow-xs ${chip.cls}`}>{chip.text}</span>
