@@ -474,25 +474,45 @@ def page_post_insights(token: str, post_id: str) -> dict:
         post_id,
         {"fields": "reactions.summary(total_count).limit(0),comments.summary(true).limit(0)", "access_token": token},
     )
+    likes = comments = None
+    if counts is not None:
+        likes = ((counts.get("reactions") or {}).get("summary") or {}).get("total_count", 0)
+        comments = ((counts.get("comments") or {}).get("summary") or {}).get("total_count", 0)
+    else:
+        # A VIDEO node has no `reactions` / `comments` FIELD ((#100) "nonexisting field") but
+        # does have them as lists: read each one's total from its own edge
+        likes = _edge_total(version, post_id, token, ("reactions", "likes"))
+        comments = _edge_total(version, post_id, token, ("comments",))
+        if likes is not None or comments is not None:
+            counts_err = {}
     stats = _graph_get(version, f"{post_id}/insights", {"metric": "post_media_view,post_clicks", "access_token": token})
     metric = {
         m.get("name"): ((m.get("values") or [{}])[0].get("value"))
         for m in ((stats or {}).get("data") or [])
     }
 
-    def total(edge: str) -> int | None:
-        return None if counts is None else ((counts.get(edge) or {}).get("summary") or {}).get("total_count", 0)
-
     return {
-        "likes": total("reactions"),  # Facebook "likes" = all reactions (👍❤️😆…)
-        "comments": total("comments"),
+        "likes": likes,  # Facebook "likes" = all reactions (👍❤️😆…)
+        "comments": comments,
         "shares": (base.get("shares") or {}).get("count", 0),
         "views": metric.get("post_media_view"),
         "clicks": metric.get("post_clicks"),
         "url": base.get("permalink_url"),
         # why reactions / comments are missing (None above), in Facebook's own terms — shown on Analytics
-        "counts_error": None if counts is not None else _post_read_error(counts_err),
+        "counts_error": None if (likes is not None or comments is not None) else _post_read_error(counts_err),
     }
+
+
+def _edge_total(version: str, node_id: str, token: str, edges: tuple[str, ...]) -> int | None:
+    """The total of one list on a post / video (reactions, comments), read as its own
+    edge — the first of ``edges`` Facebook answers; None when none does."""
+    for edge in edges:
+        body = _graph_get(version, f"{node_id}/{edge}", {"summary": "total_count", "limit": 0, "access_token": token})
+        if body is not None:
+            total = (body.get("summary") or {}).get("total_count")
+            if total is not None:
+                return int(total)
+    return None
 
 
 _FEED_FIELDS = (
