@@ -1103,6 +1103,24 @@ def _post_metrics(
                 data = _from_page_feed(meta, token, config.get("page_id"), external_id, published_at, cache)
                 if data is None:
                     raise
+            reason = data.pop("counts_error", None)
+            if data.get("likes") is None and data.get("comments") is None:
+                # the post itself answered, but not its reactions / comments: the Page's post list
+                # often still has them — try that before saying they're unavailable
+                feed = _from_page_feed(meta, token, config.get("page_id"), external_id, published_at, cache)
+                if feed and (feed.get("likes") is not None or feed.get("comments") is not None):
+                    data = {
+                        **data,
+                        "likes": feed.get("likes"),
+                        "comments": feed.get("comments"),
+                        "shares": max(data.get("shares") or 0, feed.get("shares") or 0),
+                        "views": data.get("views") if data.get("views") is not None else feed.get("views"),
+                        "clicks": data.get("clicks") if data.get("clicks") is not None else feed.get("clicks"),
+                    }
+                    reason = None
+            if data.get("likes") is None and data.get("comments") is None:
+                # still refused: say why, in Facebook's words (the page names the Pages and the reason)
+                return {"status": "partial", "metrics": data, "url": data.get("url"), "note": reason or "Facebook wouldn't share this post's reactions and comments."}
             return {"status": "ok", "metrics": data, "url": data.get("url"), "note": ""}
         if platform_slug == "instagram":
             from app import meta

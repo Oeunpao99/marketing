@@ -469,7 +469,7 @@ def page_post_insights(token: str, post_id: str) -> dict:
         base, err2 = _graph_read(version, post_id, {"fields": "permalink_url", "access_token": token})
         if base is None:
             raise MetaError(_post_read_error(err2 or err))
-    counts = _graph_get(
+    counts, counts_err = _graph_read(
         version,
         post_id,
         {"fields": "reactions.summary(total_count).limit(0),comments.summary(true).limit(0)", "access_token": token},
@@ -490,6 +490,8 @@ def page_post_insights(token: str, post_id: str) -> dict:
         "views": metric.get("post_media_view"),
         "clicks": metric.get("post_clicks"),
         "url": base.get("permalink_url"),
+        # why reactions / comments are missing (None above), in Facebook's own terms — shown on Analytics
+        "counts_error": None if counts is not None else _post_read_error(counts_err),
     }
 
 

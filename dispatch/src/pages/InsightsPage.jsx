@@ -772,12 +772,16 @@ export default function InsightsPage() {
   // were connected): named, so the 0 isn't a mystery
   const refusedPages = useMemo(() => {
     const names = new Set()
+    const reasons = new Set()
     for (const it of filtered) {
       if (isResolved(it) && it.platform_slug === 'facebook' && reactionsRefused(it.metrics)) {
         names.add([it.channel_handle, it.brand_name].filter(Boolean).join(' · '))
+        if (it.note) reasons.add(it.note)
       }
     }
-    return [...names]
+    const list = [...names]
+    list.reasons = [...reasons] // Facebook's own words for why, most common first-seen
+    return list
   }, [filtered])
   const prev = useMemo(() => (previous ? totalsOf(previous) : null), [previous])
 

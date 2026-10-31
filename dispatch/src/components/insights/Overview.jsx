@@ -346,6 +346,8 @@ export function PulseCard({ cur, prev, period, viewsReported, topPlatform, refus
   const total = cur.engagement || 0
   // no post gave us reactions at all, and Facebook refused them for some Pages: "not available", never a made-up 0
   const unavailable = !cur.reported && refusedPages.length > 0
+  // some Pages report (even real zeros) and others are refused: the total leaves the refused ones out — say so
+  const partial = cur.reported && refusedPages.length > 0
   const parts = MIX.map((m) => ({ ...m, value: cur[m.id] || 0 }))
   const lead = [...parts].sort((a, b) => b.value - a.value)[0]
   const perPost = !unavailable && cur.posts ? total / cur.posts : null
@@ -383,6 +385,16 @@ export function PulseCard({ cur, prev, period, viewsReported, topPlatform, refus
           <span className="text-[13px]">{!unavailable && <DeltaText current={total} previous={prev?.engagement} />}</span>
         </div>
         <p className={`mt-2 max-w-[46ch] text-[12.5px] leading-relaxed ${unavailable ? 'text-amber-800' : 'text-ink-600'}`}>{readout}</p>
+        {partial && (
+          <div className="mt-3 max-w-[52ch] rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] leading-snug text-amber-800">
+            Not counted above: Facebook isn&rsquo;t sharing reactions and comments for <b>{refusedPages.slice(0, 4).join(', ')}{refusedPages.length > 4 ? '…' : ''}</b>.
+            {refusedPages.reasons?.length > 0 && <span className="block text-amber-700">Facebook says: {refusedPages.reasons[0]}</span>}
+            <Link to="/channels" className="mt-1 inline-block font-semibold underline underline-offset-2">Reconnect {refusedPages.length === 1 ? 'it' : 'them'}</Link>
+          </div>
+        )}
+        {unavailable && refusedPages.reasons?.length > 0 && (
+          <p className="mt-1.5 max-w-[46ch] text-[11.5px] leading-snug text-ink-500">Facebook says: {refusedPages.reasons[0]}</p>
+        )}
         {unavailable && (
           <Link to="/channels" className="mt-2 inline-flex rounded-xl border border-amber-300 bg-amber-50 px-3 py-1.5 text-[12px] font-semibold text-amber-800 hover:bg-amber-100">
             Reconnect Pages
