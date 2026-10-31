@@ -299,6 +299,26 @@ def today(db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)
     return out
 
 
+def refresh_tiktok_tokens(db: Session, channels, plats: dict) -> None:
+    """TikTok's access token lasts 24 hours. Refresh the ones that are about to expire and SAVE the
+    result (TikTok may hand out a new refresh token each time) — before their numbers are read."""
+    changed = False
+    for c in channels:
+        plat = plats.get(c.platform_id)
+        if c.status != "live" or not plat or plat.slug != "tiktok" or not (c.config or {}).get("access_token"):
+            continue
+        try:
+            _token, fresh = tiktok.ensure_access_token(c.config or {})
+        except tiktok.TikTokError as exc:
+            log.info("TikTok login of channel %s not refreshed: %s", c.id, exc)
+            continue
+        if fresh is not None:
+            c.config = fresh
+            changed = True
+    if changed:
+        db.commit()
+
+
 def fill_tiktok_names(db: Session, channels: list, plats: dict, cap: int = 3) -> int:
     """TikTok channels still labelled with a code ("tiktok:-000KacCng", connected before names
     were read) get their account's name — at most ``cap`` per call, a failure keeps the code."""
@@ -1169,6 +1189,9 @@ def _post_metrics(
             token = config.get("access_token")
             if not token:
                 return {"status": "unavailable", "note": "Channel not connected.", "metrics": {}}
+            # TikTok's access token lasts 24 hours: refresh it first (once per account per request),
+            # like YouTube's — otherwise every number goes missing a day after the last post
+            token, _fresh = cache.get_or_set(f"tiktok_token:{config.get('open_id') or token[:16]}", lambda: tiktok.ensure_access_token(config))
             return {**tiktok.video_insights(token, external_id), "url": None}
         if platform_slug == "youtube":
             if not config.get("refresh_token"):
@@ -1258,6 +1281,11 @@ def insights_view(
     plats = _platform_map(db)
     chans = {c.id: c for c in _scoped(db, Channel, ws)}
     videos = {v.id: v for v in _scoped(db, Video, ws)}
+    try:  # before the numbers are read: an expired TikTok login is refreshed (and saved)
+        refresh_tiktok_tokens(db, list(chans.values()), plats)
+    except Exception:  # noqa: BLE001 - the page must load without it
+        db.rollback()
+        log.exception("could not refresh TikTok logins")
 
     q = (
         select(PostTarget)
@@ -2153,6 +2181,11 @@ def collect_snapshots(db: Session) -> int:
         .where(PostTarget.status == "posted", PostTarget.external_id != "", PostTarget.published_at >= since)
     ).all()
     brands = {b.id: b for b in db.scalars(select(Brand)).all()}
+    try:  # the background reading refreshes TikTok logins too (a day is all one lasts)
+        refresh_tiktok_tokens(db, {t.channel for t in targets if t.channel}, plats)
+    except Exception:  # noqa: BLE001
+        db.rollback()
+        log.exception("could not refresh TikTok logins")
     by_ws: dict[int, list[dict]] = {}
     cache = _MetricsCache()
     for t in targets:
@@ -2401,7 +2434,7 @@ def import_channel_posts(channel_id: int, db: Session = Depends(get_db), ws: int
     ch = owned(db, Channel, channel_id, ws)
     try:
         added = importer.import_channel(db, ch)
-    except meta.MetaError as exc:
+    except (meta.MetaError, tiktok.TikTokError) as exc:
         raise HTTPException(502, str(exc)) from exc
     return {"imported": added, "days": importer.LOOKBACK_DAYS}
 
@@ -3173,6 +3206,10 @@ def tiktok_oauth_callback(
     channel.config = {**(channel.config or {}), **tokens}
     channel.last_post_at = None
     db.commit()
+    # its earlier videos (and their numbers) come in the background, like a Facebook Page's posts
+    from app.importer import import_in_background
+
+    import_in_background([channel.id])
     return back(True)
 
 

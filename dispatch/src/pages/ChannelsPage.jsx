@@ -133,7 +133,7 @@ export default function ChannelsPage() {
     }
   };
 
-  // Facebook / Instagram: pull in posts made directly on the account (the
+  // Facebook / Instagram / TikTok: pull in posts made directly on the account (the
   // backend also does this on connect and every few hours for new ones).
   const [importing, setImporting] = useState(null);
   const importPosts = async (c) => {
@@ -373,7 +373,7 @@ export default function ChannelsPage() {
                           </button>
                         ) : (
                           <div className="flex items-center gap-2">
-                            {(c.p === "facebook" || c.p === "instagram") && (
+                            {(c.p === "facebook" || c.p === "instagram" || c.p === "tiktok") && (
                               <button
                                 type="button"
                                 disabled={importing === c.id}
@@ -709,7 +709,7 @@ function ChannelTile({ c, importing, onImport, onDisconnect, onConnect }) {
           </button>
         ) : (
           <div className="flex flex-none items-center gap-1">
-            {(c.p === "facebook" || c.p === "instagram") && (
+            {(c.p === "facebook" || c.p === "instagram" || c.p === "tiktok") && (
               <button
                 type="button"
                 disabled={importing}

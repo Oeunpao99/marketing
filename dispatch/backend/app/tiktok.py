@@ -373,6 +373,52 @@ def post_status(access_token: str, publish_id: str) -> dict:
     return resp.json().get("data") or {}
 
 
+_VIDEO_FIELDS = "id,create_time,cover_image_url,share_url,video_description,title,view_count,like_count,comment_count,share_count"
+
+
+def list_videos(access_token: str, since, limit: int = 200) -> list[dict]:
+    """The account's public videos made since ``since`` (newest first, at most ``limit``), each
+    with its numbers: {id, caption, published_at, picture, url, kind, views, likes, comments,
+    shares}. Needs the video.list scope; raises TikTokError when TikTok refuses."""
+    from datetime import UTC, datetime
+
+    out: list[dict] = []
+    cursor = None
+    while len(out) < limit:
+        body: dict = {"max_count": 20}
+        if cursor is not None:
+            body["cursor"] = cursor
+        try:
+            resp = httpx.post(f"{API_BASE}/video/list/", headers=_headers(access_token), params={"fields": _VIDEO_FIELDS}, json=body, timeout=30.0)
+        except httpx.HTTPError as exc:
+            raise TikTokError(f"Could not reach TikTok: {exc}") from exc
+        if resp.status_code >= 400:
+            raise TikTokError(f"TikTok wouldn't list this account's videos: {_explain(resp)}")
+        data = resp.json().get("data") or {}
+        for v in data.get("videos") or []:
+            when = datetime.fromtimestamp(int(v.get("create_time") or 0), UTC)
+            if when < since:
+                return out  # newest first: everything after this is older still
+            out.append(
+                {
+                    "id": str(v.get("id") or ""),
+                    "caption": str(v.get("video_description") or v.get("title") or ""),
+                    "published_at": when,
+                    "picture": v.get("cover_image_url") or "",
+                    "url": v.get("share_url") or "",
+                    "kind": "video",
+                    "views": v.get("view_count"),
+                    "likes": v.get("like_count"),
+                    "comments": v.get("comment_count"),
+                    "shares": v.get("share_count"),
+                }
+            )
+        if not data.get("has_more") or data.get("cursor") is None:
+            break
+        cursor = data["cursor"]
+    return out[:limit]
+
+
 def query_videos(access_token: str, video_ids: list[str]) -> list[dict]:
     """view/like/comment/share counts for up to 20 of this account's videos."""
     try:
@@ -399,6 +445,17 @@ def video_insights(access_token: str, publish_id: str) -> dict:
     the connected account's TikTok inbox, done on our end, waiting for a
     person to open TikTok and tap Post. There's nothing public (and no view
     /like counts) until they do."""
+    if publish_id.isdigit():
+        # a video id (a video made in TikTok and imported — app/importer.py), not an upload's
+        # publish_id: its numbers come straight from the Query Videos API
+        videos = query_videos(access_token, [publish_id])
+        if not videos:
+            return {"status": "unavailable", "note": "TikTok has no data for this video (it may be private or deleted).", "metrics": {}}
+        v = videos[0]
+        return {
+            "status": "ok",
+            "metrics": {"views": v.get("view_count", 0), "likes": v.get("like_count", 0), "comments": v.get("comment_count", 0), "shares": v.get("share_count", 0)},
+        }
     status = post_status(access_token, publish_id)
     state = status.get("status")
     if state == "FAILED":

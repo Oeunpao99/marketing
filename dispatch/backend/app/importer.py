@@ -23,7 +23,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import meta
+from app import meta, tiktok
 from app.database import SessionLocal
 from app.models import Channel, Post, PostTarget
 
@@ -32,7 +32,7 @@ log = logging.getLogger("app.importer")
 LOOKBACK_DAYS = 90  # first import after connecting
 RECENT_DAYS = 7  # each background tick after that
 MAX_PER_CHANNEL = 200
-PLATFORMS = ("facebook", "instagram")
+PLATFORMS = ("facebook", "instagram", "tiktok")
 
 
 def _title(caption: str, platform: str) -> str:
@@ -52,7 +52,12 @@ def import_channel(db: Session, ch: Channel, days: int = LOOKBACK_DAYS) -> int:
     if slug not in PLATFORMS or ch.status != "live" or not token:
         return 0
     since = datetime.now(UTC) - timedelta(days=days)
-    if slug == "facebook":
+    if slug == "tiktok":
+        token, fresh = tiktok.ensure_access_token(cfg)  # refreshed when it is about to expire
+        if fresh is not None:
+            ch.config = fresh
+        items = [{**v, "alt_id": ""} for v in tiktok.list_videos(token, since, MAX_PER_CHANNEL)]
+    elif slug == "facebook":
         if not cfg.get("page_id"):
             return 0
         items = meta.list_page_posts(token, cfg["page_id"], since, MAX_PER_CHANNEL)
@@ -65,11 +70,22 @@ def import_channel(db: Session, ch: Channel, days: int = LOOKBACK_DAYS) -> int:
     # channel rows for it, so a Page reconnected into a new row still matches.
     sibling_ids = select(Channel.id).where(Channel.brand_id == ch.brand_id, Channel.platform_id == ch.platform_id)
     known = set(db.scalars(select(PostTarget.external_id).where(PostTarget.channel_id.in_(sibling_ids))))
+    # A TikTok video ContentFlow uploaded is stored under its upload's publish_id, not the video's id, so
+    # it is also recognised by its caption and day (the account's own captions are all we have to go on).
+    made_here: list[tuple[str, datetime]] = []
+    if slug == "tiktok":
+        for cap, when in db.execute(select(PostTarget.caption, PostTarget.published_at).where(PostTarget.channel_id.in_(sibling_ids), PostTarget.published_at.is_not(None))):
+            if (cap or "").strip():
+                made_here.append((" ".join(cap.lower().split())[:40], when))
 
     added = 0
     for it in items:
         if it["id"] in known or (it["alt_id"] and it["alt_id"] in known):
             continue
+        if slug == "tiktok" and it["caption"].strip():
+            head = " ".join(it["caption"].lower().split())[:40]
+            if any(h == head and abs((w - it["published_at"]).total_seconds()) < 86400 for h, w in made_here):
+                continue
         title = _title(it["caption"], slug)
         post = Post(brand_id=ch.brand_id, title=title, status="posted", origin="native")
         db.add(post)
