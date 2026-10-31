@@ -28,7 +28,7 @@ from app import meta_ads
 from app.config import get_settings
 from app.database import get_db
 from app.meta import MetaError
-from app.models import AdAccount, Boost, Brand, Channel, Platform, Post, PostTarget, TeamMember
+from app.models import AdAccount, Boost, Brand, Channel, Platform, Post, PostTarget, TeamMember, Video
 from app.security import sign_payload
 from app.tenancy import current_workspace_id, owned, require_manager, scope
 
@@ -201,8 +201,15 @@ def boost_create(payload: BoostIn, db: Session = Depends(get_db), user: TeamMemb
     return _boost_out(b, db.get(Post, post_id))
 
 
-def _boost_out(b: Boost, post: Post | None) -> dict:
+def _boost_out(b: Boost, post: Post | None, db: Session | None = None) -> dict:
+    from app.views import post_media  # the card's picture, as the Analytics list shows it
+
+    media = {}
+    if db is not None and post is not None:
+        target = db.get(PostTarget, b.target_id) if b.target_id else None
+        media = post_media(post, target, db.get(Video, post.video_id) if post.video_id else None, b.platform)
     return {
+        **media,
         "id": b.id,
         "post_id": b.post_id,
         "title": (post.title if post else "") or "Boosted post",
@@ -276,7 +283,7 @@ def boost_list(brand_id: int | None = None, db: Session = Depends(get_db), ws: i
         q = q.where(Boost.brand_id == brand_id)
     rows = db.scalars(q.order_by(Boost.id.desc()).limit(30)).all()
     posts = {p.id: p for p in db.scalars(select(Post).where(Post.id.in_([b.post_id for b in rows if b.post_id] or [0])))}
-    return [_boost_out(b, posts.get(b.post_id)) for b in rows]
+    return [_boost_out(b, posts.get(b.post_id), db) for b in rows]
 
 
 @router.post("/{boost_id}/stop")

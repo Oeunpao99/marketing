@@ -1,6 +1,45 @@
 import { Link } from 'react-router-dom'
-import { FiCheck } from 'react-icons/fi'
+import { FiCheck, FiExternalLink, FiPlay } from 'react-icons/fi'
 import { Donut, MIX, fmtNum } from './Overview'
+
+// a file under /media is served by the API (port 8000 in local dev)
+export const mediaSrc = (url) => (!url ? null : /^https?:\/\//i.test(url) ? url : `${window.location.port === '5173' ? 'http://localhost:8000' : ''}${url}`)
+
+/** The post itself at the top of its card — its picture, a video's first frame with a ▶,
+ *  or a text post's caption — with the card's badge on it, so it's clear which post this is. */
+function PostPreview({ it, chip }) {
+  const src = mediaSrc(it.media_url)
+  const still = src && (it.media_kind === 'image' || it.media_thumb)
+  const body = still ? (
+    <img src={src} alt="" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+  ) : src ? (
+    <>
+      <video src={`${src}#t=0.1`} preload="metadata" muted playsInline disablePictureInPicture className="pointer-events-none h-full w-full object-cover" />
+      <span className="absolute inset-0 grid place-items-center">
+        <span className="grid h-10 w-10 place-items-center rounded-full bg-night-950/55 text-white">
+          <FiPlay size={16} className="ml-0.5" />
+        </span>
+      </span>
+    </>
+  ) : (
+    <p className="line-clamp-5 h-full whitespace-pre-line px-5 pb-4 pt-11 text-[12.5px] leading-relaxed text-ink-700">{it.caption || it.title}</p>
+  )
+  const Box = it.link ? 'a' : 'div'
+  return (
+    <Box
+      {...(it.link ? { href: it.link, target: '_blank', rel: 'noreferrer', title: 'Open the post on ' + it.channel } : {})}
+      className="group relative isolate block h-44 overflow-hidden border-b border-ink-100 bg-canvas"
+    >
+      {body}
+      <span className={`absolute left-3 top-3 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-[11px] font-semibold shadow-xs ${chip.cls}`}>{chip.text}</span>
+      {it.link && (
+        <span className="absolute bottom-2.5 right-2.5 inline-flex items-center gap-1 rounded-full bg-night-950/60 px-2 py-0.5 text-[10.5px] font-semibold text-white opacity-90 group-hover:opacity-100">
+          View on {it.channel === 'facebook' ? 'Facebook' : it.channel} <FiExternalLink size={10} />
+        </span>
+      )}
+    </Box>
+  )
+}
 
 /** One boost pick, read at a glance by a business owner: what the attention is
  *  made of (a donut: reactions / comments / shares), how far above the usual
@@ -25,13 +64,12 @@ export default function BoostCard({ it, amount, skipped, boosting, onAmount, onA
   const channel = it.channel.charAt(0).toUpperCase() + it.channel.slice(1)
 
   return (
-    <div className="flex flex-col rounded-2xl border border-ink-200/60 bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
-      <div className="flex items-start justify-between gap-2">
-        <h3 className="line-clamp-2 text-[14px] font-bold leading-snug text-ink-900" title={it.title}>
-          {it.title}
-        </h3>
-        <span className={`flex-none whitespace-nowrap rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${chip.cls}`}>{chip.text}</span>
-      </div>
+    <div className="flex flex-col overflow-hidden rounded-2xl border border-ink-200/60 bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+      <PostPreview it={it} chip={chip} />
+      <div className="flex flex-1 flex-col p-5">
+      <h3 className="line-clamp-2 text-[14px] font-bold leading-snug text-ink-900" title={it.title}>
+        {it.title}
+      </h3>
       <div className="mt-1 text-[11.5px] text-ink-400">
         {channel} · posted {new Date(it.posted_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
         {it.reach > 0 && ` · ${fmtNum(it.reach)} reached`}
@@ -152,6 +190,7 @@ export default function BoostCard({ it, amount, skipped, boosting, onAmount, onA
             </>
           )}
         </div>
+      </div>
       </div>
     </div>
   )

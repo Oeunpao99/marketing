@@ -1198,8 +1198,6 @@ def insights_view(
 ):
     from concurrent.futures import ThreadPoolExecutor
 
-    from app.media import kind_for
-
     try:
         reattach_posts(db, ws)
     except Exception:  # noqa: BLE001 - a repair must never block the page
@@ -1225,9 +1223,10 @@ def insights_view(
         ch = chans.get(t.channel_id)
         plat = plats.get(ch.platform_id) if ch else None
         video = videos.get(post.video_id) if post and post.video_id else None
-        imported = (t.platform_options or {}).get("imported") or {}
         rows.append(
             {
+                # its picture (an imported post's is the platform's — a video's cover, never played)
+                **post_media(post, t, video, plat.slug if plat else ""),
                 "target_id": t.id,
                 "post_id": t.post_id,
                 "brand_slug": brand.slug if brand else None,
@@ -1239,15 +1238,6 @@ def insights_view(
                 "channel_handle": (ch.handle if ch else "") or "",
                 "title": t.title or (post.title if post else "") or "Untitled",
                 "caption": t.caption,
-                "media_url": video.url if video else (imported.get("picture") or None),
-                "media_kind": (
-                    kind_for(video.url, None)
-                    if video and video.url
-                    else (imported.get("kind") if imported.get("kind") in ("image", "video") else None)
-                ),
-                # An imported post only has the platform's picture (for a video,
-                # its cover image) — show it as an image, never play it.
-                "media_thumb": bool(imported.get("picture")) and not video,
                 # "contentflow" = posted from here; "native" = posted straight
                 # on the platform and imported (app/importer.py).
                 "origin": (post.origin if post else "") or "contentflow",
@@ -1341,6 +1331,27 @@ def _fmt_sales_compact(n: float | int | None) -> str:
     if abs(n) >= 1_000:
         return f"{n / 1_000:.1f}k".replace(".0k", "k")
     return f"{int(n):,}" if float(n).is_integer() else f"{n:,.1f}"
+
+
+def post_media(post: Post | None, target: PostTarget | None, video: Video | None, platform: str = "") -> dict:
+    """A published post's picture for a card: the video made here, else the
+    platform's own picture of an imported post (a video's cover — shown as an
+    image, never played), and a link to the live post when there is one."""
+    from app.media import kind_for
+
+    imported = ((target.platform_options if target else None) or {}).get("imported") or {}
+    ext = target.external_id if target else ""
+    link = imported.get("url") or (f"https://www.facebook.com/{ext}" if platform == "facebook" and ext else None)
+    return {
+        "media_url": video.url if video else (imported.get("picture") or None),
+        "media_kind": (
+            kind_for(video.url, None)
+            if video and video.url
+            else (imported.get("kind") if imported.get("kind") in ("image", "video") else None)
+        ),
+        "media_thumb": bool(imported.get("picture")) and not video,
+        "link": link,
+    }
 
 
 def _cost_per_lead(spend: float | None, paid_leads: list) -> str:
@@ -1924,9 +1935,11 @@ def insights_boosts(brand_id: int | None = None, db: Session = Depends(get_db), 
                     f"{match['per_post']} leads each ({match['vs_average']}× your average)."
                 )
         item = {
+            **post_media(post, t, db.get(Video, post.video_id) if post.video_id else None, slug),
             "post_id": post.id,
             "brand_id": post.brand_id,
             "title": post.title or t.title or "Untitled post",
+            "caption": (t.caption or "")[:400],  # a text-only post shows this in place of a picture
             "summary": tags.get("summary", ""),
             "tags": {k: tags.get(k, "") for k in ("topic", "audience", "pain_point", "cta")} if tags else None,
             "channel": slug,

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { FiX } from 'react-icons/fi'
+import { FiFileText, FiPlay, FiX } from 'react-icons/fi'
+import { mediaSrc } from './BoostCard'
 import { fmtNum } from './Overview'
 
 /** Real boosts (app/boosts.py): the brand's Facebook ad account, the confirm
@@ -195,7 +196,9 @@ export function BoostList({ boosts, canManage, stopping, onStop }) {
           const live = b.status === 'running' || b.status === 'in_review'
           return (
             <li key={b.id} className="grid grid-cols-1 items-center gap-3 py-3 sm:grid-cols-[minmax(0,1fr)_240px_190px_76px]">
-              <div className="min-w-0">
+              <div className="flex min-w-0 items-center gap-3">
+                <Thumb b={b} />
+                <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="truncate text-[13px] font-semibold text-ink-900">{b.title}</span>
                   <span className={`flex-none rounded-full border px-2 py-px text-[10.5px] font-semibold ${st.cls}`}>{st.text}</span>
@@ -205,6 +208,7 @@ export function BoostList({ boosts, canManage, stopping, onStop }) {
                   {b.ends_at && live && ` · ends ${new Date(b.ends_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`}
                 </div>
                 {b.note && <div className="mt-0.5 text-[11.5px] text-red-600">{b.note}</div>}
+                </div>
               </div>
               <div>
                 <div className="flex justify-between text-[11.5px] text-ink-600">
@@ -237,5 +241,32 @@ export function BoostList({ boosts, canManage, stopping, onStop }) {
         })}
       </ul>
     </div>
+  )
+}
+
+/** The boosted post's picture in its row (opens the live post when there's a link). */
+function Thumb({ b }) {
+  const src = mediaSrc(b.media_url)
+  const still = src && (b.media_kind === 'image' || b.media_thumb)
+  const Box = b.link ? 'a' : 'span'
+  return (
+    <Box {...(b.link ? { href: b.link, target: '_blank', rel: 'noreferrer', title: 'Open the post' } : {})} className="relative isolate block h-11 w-11 flex-none overflow-hidden rounded-lg bg-ink-100">
+      {still ? (
+        <img src={src} alt="" className="h-full w-full object-cover" />
+      ) : src ? (
+        <>
+          <video src={`${src}#t=0.1`} preload="metadata" muted playsInline disablePictureInPicture className="pointer-events-none h-full w-full object-cover" />
+          <span className="absolute inset-0 grid place-items-center">
+            <span className="grid h-5 w-5 place-items-center rounded-full bg-night-950/55 text-white">
+              <FiPlay size={9} className="ml-px" />
+            </span>
+          </span>
+        </>
+      ) : (
+        <span className="grid h-full w-full place-items-center text-ink-300">
+          <FiFileText size={16} />
+        </span>
+      )}
+    </Box>
   )
 }
