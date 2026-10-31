@@ -299,6 +299,34 @@ def today(db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)
     return out
 
 
+def fill_tiktok_names(db: Session, channels: list, plats: dict, cap: int = 3) -> int:
+    """TikTok channels still labelled with a code ("tiktok:-000KacCng", connected before names
+    were read) get their account's name — at most ``cap`` per call, a failure keeps the code."""
+    done = 0
+    for c in channels:
+        if done >= cap:
+            break
+        plat = plats.get(c.platform_id)
+        if c.status != "live" or not plat or plat.slug != "tiktok" or not (c.config or {}).get("access_token"):
+            continue
+        if c.handle and not c.handle.startswith("tiktok:"):
+            continue
+        try:
+            token, fresh = tiktok.ensure_access_token(c.config or {})
+            label = tiktok.label_for(tiktok.account_name(token))
+        except tiktok.TikTokError as exc:
+            log.info("TikTok name of channel %s not read: %s", c.id, exc)
+            continue
+        if fresh is not None:
+            c.config = fresh
+        if label:
+            c.handle = label
+            done += 1
+    if done:
+        db.commit()
+    return done
+
+
 @router.get("/channels")
 def channels_view(db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
     plats = _platform_map(db)
@@ -326,6 +354,11 @@ def channels_view(db: Session = Depends(get_db), ws: int = Depends(current_works
     for rows_ in groups.values():
         live = [c for c in rows_ if c.status != "off"]
         shown.update(c.id for c in (live or rows_[:1]))
+    try:  # a TikTok channel still named by a code gets its account's name now
+        fill_tiktok_names(db, [c for c in chans if c.id in shown], plats)
+    except Exception:  # noqa: BLE001 - the list must load without it
+        db.rollback()
+        log.exception("could not read TikTok account names")
     result = []
     for b in brands:
         rows = []
@@ -2950,7 +2983,7 @@ def disconnect_channel(channel_id: int, db: Session = Depends(get_db), ws: int =
 # Non-secret keys that say WHICH account a channel is (a Facebook Page, an
 # Instagram account, a Telegram chat) — kept on disconnect, so reconnecting
 # the same account brings back the same channel and its post history.
-_IDENTITY_KEYS = ("page_id", "page_name", "ig_user_id", "ig_username", "chat_id", "org_id", "org_name", "person_sub", "kind")
+_IDENTITY_KEYS = ("page_id", "page_name", "ig_user_id", "ig_username", "chat_id", "org_id", "org_name", "person_sub", "kind", "open_id")
 
 
 def _claim_channel(db: Session, brand_id: int, platform_id: int, key: str, value: str) -> Channel:
@@ -3111,20 +3144,31 @@ def tiktok_oauth_callback(
     if plat is None:
         return back(False, "TikTok platform is not set up on the server.")
 
-    channel = db.scalar(
-        select(Channel).where(Channel.brand_id == brand.id, Channel.platform_id == plat.id)
-    )
+    # A brand can hold several TikTok accounts, one channel each (like Facebook Pages): the
+    # account's open_id says which row this login belongs to — reconnecting the same account
+    # updates its row, a different account gets a new one (within the plan's channels per brand).
+    open_id = tokens.get("open_id") or ""
+    if open_id:
+        mine = db.scalars(select(Channel).where(Channel.brand_id == brand.id, Channel.platform_id == plat.id).order_by(Channel.id)).all()
+        same = next((c for c in mine if str((c.config or {}).get("open_id") or "") == open_id), None)
+        # a channel connected before the account id was kept is adopted, not duplicated
+        legacy = next((c for c in mine if c.status != "off" and not (c.config or {}).get("open_id")), None) if same is None else None
+        channel = same or legacy or _claim_channel(db, brand.id, plat.id, "open_id", open_id)
+    else:  # TikTok didn't say who this is: the brand's one TikTok row, as before
+        channel = db.scalar(select(Channel).where(Channel.brand_id == brand.id, Channel.platform_id == plat.id).order_by(Channel.id))
+        if channel is None:
+            channel = Channel(brand_id=brand.id, platform_id=plat.id)
+            db.add(channel)
     try:  # a new connection — the plan has room for it
-        if channel is None or channel.status == "off":
-            plan_features.check_channel(db, brand, keep=channel.id if channel is not None else None)
+        if channel.id is None or channel.status == "off":
+            plan_features.check_channel(db, brand, keep=channel.id)
     except HTTPException as exc:
+        db.rollback()
         return back(False, str(exc.detail))
-    if channel is None:
-        channel = Channel(brand_id=brand.id, platform_id=plat.id)
-        db.add(channel)
     channel.status = "live"
-    if tokens.get("open_id"):
-        channel.handle = f"tiktok:{tokens['open_id'][:10]}"
+    # named after the person's TikTok account, not a code (best effort: "tiktok:<id>" otherwise)
+    label = tiktok.label_for(tiktok.account_name(tokens["access_token"]))
+    channel.handle = label or (f"tiktok:{open_id[:10]}" if open_id else channel.handle or "")
     channel.token_note = "Connected via TikTok login"
     channel.config = {**(channel.config or {}), **tokens}
     channel.last_post_at = None

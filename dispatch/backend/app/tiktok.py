@@ -54,12 +54,15 @@ TOKEN_URL = "https://open.tiktokapis.com/v2/oauth/token/"
 API_BASE = "https://open.tiktokapis.com/v2"
 BASE_SCOPE = "video.upload,video.list"
 DIRECT_POST_SCOPE = "video.publish"
+USER_INFO_SCOPE = "user.info.basic"  # the account's display name + avatar (Login Kit)
 
 
 def _scope() -> str:
-    if get_settings().tiktok_request_direct_post:
-        return f"{BASE_SCOPE},{DIRECT_POST_SCOPE}"
-    return BASE_SCOPE
+    s = get_settings()
+    scope = f"{USER_INFO_SCOPE},{BASE_SCOPE}" if s.tiktok_request_user_info else BASE_SCOPE
+    if s.tiktok_request_direct_post:
+        scope = f"{scope},{DIRECT_POST_SCOPE}"
+    return scope
 
 
 # TikTok's single-PUT upload path tops out at 64 MB per chunk.
@@ -266,6 +269,50 @@ def creator_info(access_token: str) -> dict:
     if resp.status_code >= 400:
         raise TikTokError(f"Could not read creator info: {_explain(resp)}")
     return resp.json().get("data") or {}
+
+
+def account_name(access_token: str) -> dict:
+    """Who this TikTok account is: {"name": display name, "username": handle (no @),
+    "avatar": picture url} — whatever TikTok will tell with this token, {} when nothing.
+    The user-info endpoint (scope user.info.basic) gives the display name; the creator-info
+    endpoint (the one the composer already uses) gives the nickname and the @username.
+    Never raises: a channel without a name just keeps its fallback label."""
+    out: dict = {}
+    try:
+        resp = httpx.get(
+            f"{API_BASE}/user/info/",
+            headers=_headers(access_token),
+            params={"fields": "open_id,display_name,avatar_url"},
+            timeout=20.0,
+        )
+        if resp.status_code < 400:
+            user = ((resp.json().get("data") or {}).get("user")) or {}
+            if user.get("display_name"):
+                out["name"] = str(user["display_name"])
+            if user.get("avatar_url"):
+                out["avatar"] = str(user["avatar_url"])
+    except (httpx.HTTPError, ValueError):
+        pass
+    try:
+        info = creator_info(access_token)
+        if info.get("creator_nickname") and not out.get("name"):
+            out["name"] = str(info["creator_nickname"])
+        if info.get("creator_username"):
+            out["username"] = str(info["creator_username"]).lstrip("@")
+        if info.get("creator_avatar_url") and not out.get("avatar"):
+            out["avatar"] = str(info["creator_avatar_url"])
+    except (TikTokError, ValueError):
+        pass
+    return out
+
+
+def label_for(info: dict) -> str:
+    """The channel's name for a person: "Display name (@username)", or whichever there is."""
+    name = (info.get("name") or "").strip()
+    user = (info.get("username") or "").strip().lstrip("@")
+    if name and user and name.lower() != user.lower():
+        return f"{name} (@{user})"[:120]
+    return (name or (f"@{user}" if user else ""))[:120]
 
 
 def publish_video_direct(

@@ -41,6 +41,7 @@ const PLATFORM_META = {
     desc: "Log into TikTok and approve the app — this one publishes for real.",
     live: true,
     oauth: "tiktok",
+    multi: true, // several TikTok accounts per brand, each its own channel
   },
   youtube: {
     color: "#FF0000",

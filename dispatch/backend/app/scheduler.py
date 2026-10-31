@@ -126,6 +126,15 @@ def _snapshot_tick() -> int:
         imported = import_all(db)
         if imported:
             log.info("imported %d post(s) made outside ContentFlow", imported)
+        # TikTok channels still named by a code get their account's name (also done when Channels opens)
+        try:
+            from app.models import Channel
+            from app.views import _platform_map, fill_tiktok_names
+
+            fill_tiktok_names(db, db.query(Channel).filter(Channel.status == "live").all(), _platform_map(db), cap=10)
+        except Exception:  # noqa: BLE001
+            db.rollback()
+            log.exception("TikTok names failed")
         # follower counts in their own step: a failure in the post numbers must not skip them
         try:
             from app.views import collect_follower_counts

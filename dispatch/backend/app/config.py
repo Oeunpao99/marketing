@@ -215,6 +215,11 @@ class Settings(BaseSettings):
     # valid for the account. While this is false, app/tiktok.py's picker only
     # ever offers/sends SELF_ONLY, so that failure can't happen.
     tiktok_app_audited: bool = False
+    # Also ask for ``user.info.basic`` when someone connects, so the channel can be named after
+    # the person's TikTok account (their display name) instead of a code. It comes with Login Kit
+    # (check Scopes in the TikTok developer portal); set TIKTOK_REQUEST_USER_INFO=false if TikTok
+    # ever refuses it ("invalid_scope") — accounts then fall back to creator_info's nickname.
+    tiktok_request_user_info: bool = True
 
     # Meta Graph API — Facebook Pages + Instagram, one shared developer app
     # (app/meta.py). Create an app at https://developers.facebook.com, add
