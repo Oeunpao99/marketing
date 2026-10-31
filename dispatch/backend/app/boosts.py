@@ -16,7 +16,7 @@ import hashlib
 import logging
 import time
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 
 from cryptography.fernet import Fernet, InvalidToken
 from fastapi import APIRouter, Depends, HTTPException
@@ -28,7 +28,7 @@ from app import meta_ads
 from app.config import get_settings
 from app.database import get_db
 from app.meta import MetaError
-from app.models import AdAccount, Boost, Brand, Channel, Platform, Post, PostTarget, TeamMember, Video
+from app.models import AdAccount, Boost, BoostBudget, Brand, Channel, Platform, Post, PostTarget, TeamMember, Video
 from app.security import sign_payload
 from app.tenancy import current_workspace_id, owned, require_manager, scope
 
@@ -39,6 +39,8 @@ DAYS = (3, 5, 7)
 MIN_USD, MAX_USD = 3, 500
 STALE = timedelta(minutes=20)  # read a live boost's numbers again after this
 DONE = ("finished", "failed", "rejected")
+PHNOM_PENH = timezone(timedelta(hours=7))  # a month starts at midnight in Cambodia
+MIN_BUDGET, MAX_BUDGET = 10, 10000
 
 
 def _fernet() -> Fernet:
@@ -137,6 +139,74 @@ def ads_remove(acc_id: int, db: Session = Depends(get_db), user: TeamMember = De
     return {"ok": True}
 
 
+# ── the monthly budget ─────────────────────────────────────────────────────
+# What an owner / admin approves for a brand's boosts each month. Every new boost counts against it:
+# a running / in-review boost counts its whole budget (that is what it may still spend), a stopped or
+# finished one only what it really spent. No budget set = no cap (each boost still needs its own yes).
+def month_start() -> datetime:
+    now = datetime.now(PHNOM_PENH)
+    return datetime(now.year, now.month, 1, tzinfo=PHNOM_PENH)
+
+
+def committed_usd(db: Session, brand_id: int) -> float:
+    total = 0.0
+    for status, budget, spent in db.execute(
+        select(Boost.status, Boost.budget_usd, Boost.spend_usd).where(Boost.brand_id == brand_id, Boost.created_at >= month_start())
+    ):
+        total += float(budget) if status in ("in_review", "running") else float(spent or 0)
+    return round(total, 2)
+
+
+def _budget_out(db: Session, brand: Brand, row: BoostBudget | None) -> dict:
+    used = committed_usd(db, brand.id)
+    cap = float(row.monthly_usd) if row else None
+    approver = db.get(TeamMember, row.approved_by) if row and row.approved_by else None
+    return {
+        "brand_id": brand.id,
+        "brand_name": brand.name,
+        "month": datetime.now(PHNOM_PENH).strftime("%B %Y"),
+        "monthly_usd": cap,
+        "used_usd": used,
+        "left_usd": round(max(0.0, cap - used), 2) if cap is not None else None,
+        "approved_by": approver.name if approver else "",
+        "approved_at": row.approved_at if row else None,
+    }
+
+
+@router.get("/budget")
+def budget_list(db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    rows = {r.brand_id: r for r in db.scalars(select(BoostBudget).where(scope(BoostBudget, ws)))}
+    return [_budget_out(db, b, rows.get(b.id)) for b in db.scalars(select(Brand).where(scope(Brand, ws)).order_by(Brand.name))]
+
+
+class BudgetIn(BaseModel):
+    brand_id: int
+    monthly_usd: float = Field(ge=MIN_BUDGET, le=MAX_BUDGET)
+
+
+@router.put("/budget")
+def budget_approve(payload: BudgetIn, db: Session = Depends(get_db), user: TeamMember = Depends(require_manager)):
+    brand = owned(db, Brand, payload.brand_id, user.workspace_id)
+    row = db.scalar(select(BoostBudget).where(BoostBudget.brand_id == brand.id, BoostBudget.workspace_id == user.workspace_id))
+    if row is None:
+        row = BoostBudget(workspace_id=user.workspace_id, brand_id=brand.id, monthly_usd=payload.monthly_usd)
+        db.add(row)
+    row.monthly_usd, row.approved_by, row.approved_at = payload.monthly_usd, user.id, datetime.now(UTC)
+    db.commit()
+    log.info("boost budget of brand %s set to $%s a month by member %s", brand.id, payload.monthly_usd, user.id)
+    return _budget_out(db, brand, row)
+
+
+@router.delete("/budget/{brand_id}")
+def budget_remove(brand_id: int, db: Session = Depends(get_db), user: TeamMember = Depends(require_manager)):
+    brand = owned(db, Brand, brand_id, user.workspace_id)
+    row = db.scalar(select(BoostBudget).where(BoostBudget.brand_id == brand.id, BoostBudget.workspace_id == user.workspace_id))
+    if row is not None:
+        db.delete(row)
+        db.commit()
+    return _budget_out(db, brand, None)
+
+
 # ── boost ──────────────────────────────────────────────────────────────────
 class BoostIn(BaseModel):
     post_id: int
@@ -174,12 +244,19 @@ def boost_create(payload: BoostIn, db: Session = Depends(get_db), user: TeamMemb
     name = post.title or target.title or (target.caption or "")[:60] or f"post {post.id}"
     brand_id, target_id, post_id = post.brand_id, target.id, post.id
     external = target.external_id
-    db.commit()  # no connection held while Facebook works
 
-    try:
-        made = meta_ads.boost_post(token, account_id, page_id, external, payload.budget_usd, payload.days, name)
-    except MetaError as exc:
-        raise HTTPException(502, str(exc)) from exc
+    # The approved monthly budget: this boost may not take the month past it. The budget row is locked
+    # while the boost is reserved (saved before Facebook is called), so two boosts at once can't both fit.
+    cap_row = db.scalar(select(BoostBudget).where(BoostBudget.brand_id == brand_id, BoostBudget.workspace_id == user.workspace_id).with_for_update())
+    if cap_row is not None:
+        cap, used = float(cap_row.monthly_usd), committed_usd(db, brand_id)
+        if used + payload.budget_usd > cap + 1e-9:
+            month = datetime.now(PHNOM_PENH).strftime("%B")
+            raise HTTPException(
+                409,
+                f"This would take {month}'s boosts to ${used + payload.budget_usd:,.0f} of your ${cap:,.0f} budget "
+                f"(${max(0.0, cap - used):,.0f} left). Choose a smaller amount, or raise the monthly budget.",
+            )
     b = Boost(
         workspace_id=user.workspace_id,
         brand_id=brand_id,
@@ -188,14 +265,23 @@ def boost_create(payload: BoostIn, db: Session = Depends(get_db), user: TeamMemb
         ad_account_id=acc_id,
         budget_usd=payload.budget_usd,
         days=payload.days,
-        ends_at=made["ends_at"],
         status="in_review",
-        campaign_id=made["campaign_id"],
-        adset_id=made["adset_id"],
-        ad_id=made["ad_id"],
         created_by=user.id,
     )
     db.add(b)
+    db.commit()  # the reservation is saved, and no connection is held while Facebook works
+    boost_id = b.id
+
+    try:
+        made = meta_ads.boost_post(token, account_id, page_id, external, payload.budget_usd, payload.days, name)
+    except MetaError as exc:
+        gone = db.get(Boost, boost_id)  # nothing was sent: the reservation goes
+        if gone is not None:
+            db.delete(gone)
+            db.commit()
+        raise HTTPException(502, str(exc)) from exc
+    b = db.get(Boost, boost_id)
+    b.ends_at, b.campaign_id, b.adset_id, b.ad_id = made["ends_at"], made["campaign_id"], made["adset_id"], made["ad_id"]
     db.commit()
     log.info("boost %s: post %s, $%s over %s days (campaign %s) by member %s", b.id, post_id, payload.budget_usd, payload.days, b.campaign_id, user.id)
     return _boost_out(b, db.get(Post, post_id))

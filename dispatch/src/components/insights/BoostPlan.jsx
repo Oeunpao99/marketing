@@ -11,7 +11,7 @@ const MIN_SPEND = 10 // dollars spent before the numbers mean anything
 const BUDGETS = [100, 250, 500, 1000]
 const usd = (n) => `$${Number(n).toFixed(n < 10 ? 2 : 0)}`
 
-export default function BoostPlan({ boosts }) {
+export default function BoostPlan({ boosts, canApprove, onApprove }) {
   const [budget, setBudget] = useState(250)
   const spent = boosts.reduce((a, b) => a + b.spend_usd, 0)
   const reach = boosts.reduce((a, b) => a + b.reach, 0)
@@ -31,6 +31,7 @@ export default function BoostPlan({ boosts }) {
           </p>
         </div>
         {ready && (
+          <div className="flex flex-wrap items-center gap-2">
           <div className="flex rounded-xl bg-ink-100 p-0.5" role="group" aria-label="Monthly budget">
             {BUDGETS.map((b) => (
               <button
@@ -43,6 +44,12 @@ export default function BoostPlan({ boosts }) {
                 ${b.toLocaleString()}
               </button>
             ))}
+          </div>
+          {canApprove && (
+            <button type="button" onClick={() => onApprove(budget)} className="rounded-xl bg-brand px-3.5 py-2 text-[12.5px] font-semibold text-white shadow-xs transition-colors hover:bg-brand-dark">
+              Approve ${budget.toLocaleString()} a month
+            </button>
+          )}
           </div>
         )}
       </div>

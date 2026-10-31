@@ -20,7 +20,7 @@ import { useStore } from '../../store'
 import Select from '../ui/Select'
 import PlanLock from '../billing/PlanLock'
 import BoostCard from './BoostCard'
-import { AdAccountPicker, BoostDrawer, BoostList } from './BoostControls'
+import { AdAccountPicker, BoostDrawer, BoostList, BudgetDrawer } from './BoostControls'
 import BoostInsights, { Strip } from './BoostInsights'
 import BoostPlan from './BoostPlan'
 import { fmtNum } from './Overview'
@@ -152,6 +152,8 @@ export default function InsightsSalesView({
   const [busy, setBusy] = useState(false)
   const [stopping, setStopping] = useState(null)
   const [boostTab, setBoostTab] = useState('picks') // 'picks' | 'mine'
+  const [budgets, setBudgets] = useState([]) // each brand's approved monthly boost budget and what is used
+  const [budgetFor, setBudgetFor] = useState(null) // { info, initial } while the approve-a-budget drawer is open
 
   // The store's showToast is a new function on every store update; reading it
   // through a ref keeps the loader below stable, so the cards don't reload (and
@@ -197,6 +199,7 @@ export default function InsightsSalesView({
     const qs = brandId ? `?brand_id=${brandId}` : ''
     api.get('/boosts/ads').then(setAdAccounts).catch(() => setAdAccounts([]))
     api.get(`/boosts${qs}`).then(setSent).catch(() => setSent([]))
+    api.get('/boosts/budget').then(setBudgets).catch(() => setBudgets([]))
   }, [brandId, features])
 
   useEffect(() => {
@@ -221,6 +224,43 @@ export default function InsightsSalesView({
   }, [searchParams, setSearchParams])
 
   const accountFor = (bid) => adAccounts.find((a) => a.brand_id === bid)
+  const budgetOf = (bid) => budgets.find((b) => b.brand_id === bid)
+  // the brand the budget is about: the one picked at the top, or the only one there is
+  const budgetBrand = brandId || (brands.length === 1 ? brands[0].id : 0)
+
+  const openBudget = (bid, initial) => {
+    if (!canManage) return showToast?.('Only a workspace owner or admin can set the monthly boost budget.')
+    const info = budgetOf(bid)
+    if (info) setBudgetFor({ info, initial })
+  }
+
+  const saveBudget = async (value) => {
+    setBusy(true)
+    try {
+      await api.put('/boosts/budget', { brand_id: budgetFor.info.brand_id, monthly_usd: value })
+      setBudgetFor(null)
+      showToast?.(`Approved $${value.toLocaleString()} a month for boosts.`)
+      loadSent()
+    } catch (e) {
+      showToast?.(e.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const removeBudget = async () => {
+    setBusy(true)
+    try {
+      await api.del(`/boosts/budget/${budgetFor.info.brand_id}`)
+      setBudgetFor(null)
+      showToast?.('Monthly budget removed — boosts have no monthly limit now.')
+      loadSent()
+    } catch (e) {
+      showToast?.(e.message)
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const connectAds = async (bid) => {
     if (!bid) return showToast?.('Pick a brand at the top first — each brand has its own ad account.')
@@ -739,6 +779,36 @@ export default function InsightsSalesView({
                   {shown.length ? 'Change' : 'Connect ad account'}
                 </button>
               </span>
+              {/* the monthly boost budget an owner / admin approved for this brand */}
+              {(() => {
+                const info = budgetBrand ? budgetOf(budgetBrand) : null
+                if (!budgetBrand) {
+                  return <span className="inline-flex items-center gap-2 rounded-full border border-ink-200 bg-white px-3 py-1.5 text-ink-500">Monthly budget: pick a brand to set one</span>
+                }
+                if (!info) return null
+                const set = info.monthly_usd != null
+                const low = set && info.left_usd <= info.monthly_usd * 0.1
+                return (
+                  <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 ${!set ? 'border-ink-200 bg-white text-ink-600' : low ? 'border-amber-200/70 bg-amber-50 text-amber-800' : 'border-ink-200 bg-white text-ink-700'}`}>
+                    {set ? (
+                      <>
+                        <b className="tabular-nums">${info.used_usd.toFixed(0)}</b> of ${info.monthly_usd.toFixed(0)} {info.month.split(' ')[0]} budget · ${info.left_usd.toFixed(0)} left
+                      </>
+                    ) : (
+                      'No monthly boost budget'
+                    )}
+                    <button
+                      type="button"
+                      disabled={!canManage}
+                      title={canManage ? undefined : 'Only the workspace owner or an admin can set it'}
+                      onClick={() => openBudget(budgetBrand)}
+                      className="font-semibold underline-offset-2 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {set ? 'Change' : 'Set a budget'}
+                    </button>
+                  </span>
+                )
+              })()}
               {readable > 0 && (
                 <span className="inline-flex items-center gap-2 rounded-full border border-ink-200 bg-white px-3 py-1.5 text-ink-600">
                   <FiZap size={12} className="text-amber-500" aria-hidden="true" />
@@ -843,10 +913,12 @@ export default function InsightsSalesView({
         </>
         )}
         {pendingAds && <AdAccountPicker pending={pendingAds} saving={busy} onPick={pickAccount} onClose={() => setPendingAds(null)} />}
+        {budgetFor && <BudgetDrawer info={budgetFor.info} initial={budgetFor.initial} saving={busy} onSave={saveBudget} onRemove={removeBudget} onClose={() => setBudgetFor(null)} />}
         {boostItem && (
           <BoostDrawer
             item={{ ...boostItem, budget: boostAmounts[boostItem.post_id] ?? boostItem.budget }}
             account={accountFor(boostItem.brand_id)}
+            budget={budgetOf(boostItem.brand_id)}
             sending={busy}
             onSend={sendBoost}
             onClose={() => setBoostItem(null)}
@@ -914,7 +986,7 @@ export default function InsightsSalesView({
       </div>
 
       {/* ── Budget plan: what a monthly budget would reach, from the boosts really run ── */}
-      {has(features, 'boost') && <BoostPlan boosts={sent} />}
+      {has(features, 'boost') && <BoostPlan boosts={sent} canApprove={canManage && !!budgetBrand} onApprove={(amount) => openBudget(budgetBrand, amount)} />}
 
       {/* ── Bottom 3 Cards: Funnel, Content that sold, What to change next ── */}
       <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-6">

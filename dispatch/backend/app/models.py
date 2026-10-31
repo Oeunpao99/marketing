@@ -1158,3 +1158,18 @@ class Boost(Base, TimestampMixin):
     daily: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list, server_default="[]", nullable=False)
     refreshed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_by: Mapped[int | None] = mapped_column(ForeignKey("team_members.id", ondelete="SET NULL"), nullable=True)
+
+
+class BoostBudget(Base, TimestampMixin):
+    """What an owner / admin approved to spend on a brand's boosts each month (app/boosts.py).
+    No row = no cap (every boost still needs its own yes)."""
+
+    __tablename__ = "boost_budgets"
+    __table_args__ = (UniqueConstraint("brand_id", name="uq_boost_budgets_brand"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
+    brand_id: Mapped[int] = mapped_column(ForeignKey("brands.id", ondelete="CASCADE"))
+    monthly_usd: Mapped[float] = mapped_column(Numeric(10, 2))
+    approved_by: Mapped[int | None] = mapped_column(ForeignKey("team_members.id", ondelete="SET NULL"), nullable=True)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

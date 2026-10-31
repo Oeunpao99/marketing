@@ -19,6 +19,7 @@ from app.models import (
     ActivityPlan,
     AdAccount,
     Boost,
+    BoostBudget,
     Website,
     Automation,
     Brand,
@@ -97,7 +98,7 @@ def scope(model, ws: int):
         return None
     if model in (
         Brand, Video, GenerationJob, TeamMember, VideoStory, CreditEntry, Website, SalesRep, LeadAccount, LibraryFolder,
-        EditProject, AdAccount, Boost,
+        EditProject, AdAccount, Boost, BoostBudget,
     ):
         return model.workspace_id == ws
     if model in (Channel, Post, Draft, Automation, Product, WeeklyPlan, BrandAsset, ActivityPlan, Lead):

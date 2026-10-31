@@ -77,12 +77,14 @@ export function AdAccountPicker({ pending, saving, onPick, onClose }) {
 }
 
 /** Approve a boost: how much, how long, who sees it — then it goes to Facebook. */
-export function BoostDrawer({ item, account, sending, onSend, onClose }) {
+export function BoostDrawer({ item, account, sending, onSend, onClose, budget: plan }) {
   const [amount, setAmount] = useState(item.budget || 10)
   const [other, setOther] = useState('')
   const [days, setDays] = useState(5)
   const budget = other !== '' ? Number(other) : amount
-  const ok = Number.isFinite(budget) && budget >= 3 && budget <= 500
+  const fits = !plan || plan.monthly_usd == null || (Number.isFinite(budget) && plan.used_usd + budget <= plan.monthly_usd + 1e-9)
+  const valid = Number.isFinite(budget) && budget >= 3 && budget <= 500
+  const ok = valid && fits
   return (
     <Drawer
       title="Boost this post on Facebook"
@@ -99,7 +101,7 @@ export function BoostDrawer({ item, account, sending, onSend, onClose }) {
             onClick={() => onSend({ post_id: item.post_id, budget_usd: budget, days })}
             className="rounded-xl bg-brand px-4 py-2 text-[12.5px] font-semibold text-white shadow-xs transition-colors hover:bg-brand-dark disabled:opacity-60"
           >
-            {sending ? 'Sending to Facebook…' : `Boost · $${ok ? budget : '—'} over ${days} days`}
+            {sending ? 'Sending to Facebook…' : `Boost · $${valid ? budget : '—'} over ${days} days`}
           </button>
         </>
       }
@@ -155,10 +157,26 @@ export function BoostDrawer({ item, account, sending, onSend, onClose }) {
         ))}
       </div>
 
+      {plan && plan.monthly_usd != null && (
+        <div className={`mt-5 rounded-xl border px-4 py-3 text-[12px] ${fits ? 'border-ink-200/70 bg-white' : 'border-red-200 bg-red-50'}`}>
+          <div className="flex justify-between gap-3">
+            <span className="text-ink-600">{plan.month} budget</span>
+            <span className="font-semibold tabular-nums text-ink-900">
+              ${plan.used_usd.toFixed(0)} of ${plan.monthly_usd.toFixed(0)} used
+            </span>
+          </div>
+          <p className={`mt-1 ${fits ? 'text-ink-500' : 'text-red-700'}`}>
+            {fits
+              ? `After this boost: $${(plan.used_usd + (Number.isFinite(budget) ? budget : 0)).toFixed(0)} used, $${Math.max(0, plan.monthly_usd - plan.used_usd - (Number.isFinite(budget) ? budget : 0)).toFixed(0)} left.`
+              : `Only $${Math.max(0, plan.monthly_usd - plan.used_usd).toFixed(0)} is left this month — choose a smaller amount, or raise the monthly budget.`}
+          </p>
+        </div>
+      )}
+
       <dl className="mt-5 space-y-2 rounded-xl bg-canvas px-4 py-3 text-[12px]">
         {[
           ['Who sees it', 'People in Cambodia, 18 and over'],
-          ['Per day', ok ? `about $${(budget / days).toFixed(2)}` : '—'],
+          ['Per day', valid ? `about $${(budget / days).toFixed(2)}` : '—'],
           ['Paid from', account ? `${account.name} (${account.currency})` : '—'],
           ['Starts', 'after Facebook reviews the ad — usually within an hour'],
         ].map(([k, v]) => (
@@ -269,5 +287,96 @@ function Thumb({ b }) {
         </span>
       )}
     </Box>
+  )
+}
+
+const BUDGET_PRESETS = [100, 250, 500, 1000]
+
+/** Approve what a brand may spend on boosts each month. Every boost still needs its own yes;
+ *  this is the most Smart Marketing will let them add up to (checked on the server). */
+export function BudgetDrawer({ info, initial, saving, onSave, onRemove, onClose }) {
+  const [amount, setAmount] = useState(initial || info.monthly_usd || 250)
+  const [other, setOther] = useState('')
+  const value = other !== '' ? Number(other) : amount
+  const ok = Number.isFinite(value) && value >= 10 && value <= 10000
+  const below = info.monthly_usd == null ? false : ok && value < info.used_usd
+  const used = info.monthly_usd ? Math.min(1, info.used_usd / info.monthly_usd) : 0
+  return (
+    <Drawer
+      title={`Monthly boost budget · ${info.brand_name}`}
+      sub={`The most boosts for this brand can add up to each month. It starts again on the 1st (now: ${info.month}).`}
+      onClose={onClose}
+      footer={
+        <>
+          {info.monthly_usd != null && (
+            <button type="button" disabled={saving} onClick={onRemove} className="mr-auto text-[12px] font-medium text-ink-500 hover:text-red-600 disabled:opacity-60">
+              Remove budget
+            </button>
+          )}
+          <button type="button" onClick={onClose} className="btn-outline">
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={!ok || saving}
+            onClick={() => onSave(value)}
+            className="rounded-xl bg-brand px-4 py-2 text-[12.5px] font-semibold text-white shadow-xs transition-colors hover:bg-brand-dark disabled:opacity-60"
+          >
+            {saving ? 'Saving…' : `Approve $${ok ? value.toLocaleString() : '—'} a month`}
+          </button>
+        </>
+      }
+    >
+      {info.monthly_usd != null && (
+        <div className="rounded-xl border border-ink-200/70 px-4 py-3">
+          <div className="flex justify-between text-[12px] text-ink-600">
+            <span>
+              Used so far <b className="text-ink-900">${info.used_usd.toFixed(2)}</b> of ${info.monthly_usd.toFixed(0)}
+            </span>
+            <span>${info.left_usd.toFixed(0)} left</span>
+          </div>
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-ink-100" role="meter" aria-valuemin={0} aria-valuemax={info.monthly_usd} aria-valuenow={info.used_usd} aria-label="Used of the monthly budget">
+            <div className="h-full rounded-full bg-brand" style={{ width: `${used * 100}%` }} />
+          </div>
+          {info.approved_by && <p className="mt-2 text-[11px] text-ink-400">Approved by {info.approved_by}</p>}
+        </div>
+      )}
+
+      <div className="mt-5 text-[11px] font-bold uppercase tracking-wider text-ink-400">Per month</div>
+      <div className="mt-1.5 grid grid-cols-5 gap-2">
+        {BUDGET_PRESETS.map((amt) => (
+          <button
+            key={amt}
+            type="button"
+            onClick={() => {
+              setAmount(amt)
+              setOther('')
+            }}
+            className={`rounded-xl border p-2.5 text-left text-[13px] font-bold transition-all ${other === '' && amount === amt ? 'border-brand bg-brand-soft/30 text-ink-900' : 'border-ink-200 text-ink-900 hover:bg-ink-50/70'}`}
+          >
+            ${amt.toLocaleString()}
+          </button>
+        ))}
+        <input
+          type="number"
+          min={10}
+          max={10000}
+          value={other}
+          onChange={(e) => setOther(e.target.value)}
+          placeholder="Other"
+          className={`input min-w-0 rounded-xl text-[13px] font-bold ${other !== '' ? 'border-brand' : ''}`}
+          aria-label="Other monthly amount in US dollars"
+        />
+      </div>
+      {other !== '' && !ok && <p className="mt-1.5 text-[11.5px] text-red-600">Between $10 and $10,000.</p>}
+      {below && <p className="mt-1.5 text-[11.5px] text-amber-700">${info.used_usd.toFixed(0)} is already used this month — new boosts will wait until the 1st.</p>}
+
+      <ul className="mt-5 space-y-2 rounded-xl bg-canvas px-4 py-3 text-[12px] leading-relaxed text-ink-600">
+        <li>Every boost still needs your yes — this only sets the ceiling.</li>
+        <li>A running boost counts its whole budget; a stopped one counts only what it spent.</li>
+        <li>A boost that would go over is refused, with what is left.</li>
+        <li>Only an owner or admin can change it.</li>
+      </ul>
+    </Drawer>
   )
 }
