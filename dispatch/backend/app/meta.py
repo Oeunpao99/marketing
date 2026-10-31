@@ -561,7 +561,9 @@ def page_follower_count(token: str, page_id: str) -> int | None:
     if not body:
         return None
     n = body.get("followers_count")
-    return int(n if n is not None else body.get("fan_count") or 0) or None
+    if n is None:
+        n = body.get("fan_count")
+    return int(n) if n is not None else None  # 0 is a real answer (a brand-new Page)
 
 
 def instagram_follower_count(token: str, ig_user_id: str) -> int | None:

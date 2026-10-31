@@ -510,11 +510,11 @@ export default function InsightsSalesView({
           </div>
         </div>
 
-        {/* 2. New followers */}
+        {/* 2. Followers: how many now, the growth underneath */}
         <div className="rounded-2xl border border-ink-200/60 bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
-          <div className="text-[12px] font-medium text-ink-500">New followers</div>
+          <div className="text-[12px] font-medium text-ink-500">Followers</div>
           <div className="mt-1 text-[26px] font-bold tracking-tight text-ink-900 tabular-nums">
-            {loading && !realData ? '…' : period.followers?.value ?? '+0'}
+            {loading && !realData ? '…' : period.followers?.value ?? '—'}
           </div>
           <div className="mt-1 text-[11px] text-ink-400 truncate">
             {period.followers?.sub ?? ''}

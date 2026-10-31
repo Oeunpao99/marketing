@@ -1408,7 +1408,7 @@ def insights_sales_view(
             "period": period,
             "has_real_records": False,
             "reach": {"value": "0", "raw": 0, "sub": f"{time_label} · 0 reach"},
-            "followers": {"value": "+0", "raw": 0, "sub": "No channels connected"},
+            "followers": {"value": "—", "raw": 0, "sub": "No channels connected"},
             "engagementRate": {"value": "0.0%", "raw": 0, "sub": "No posts in this period"},
             "leads": {"value": "0", "raw": 0, "sub": "0 captured"},
             "dealsWon": {"value": "0", "raw": 0, "sub": "0 closed"},
@@ -1475,6 +1475,7 @@ def insights_sales_view(
     plat_slugs = dict(db.execute(select(Platform.id, Platform.slug)).all())
     # a Page connected before follower counts were kept (or just connected) has no reading yet:
     # read those now, so the card never waits for the background job
+    refused: list = []  # channels Facebook / YouTube wouldn't give a count for
     try:
         unread = [
             c for c in channels
@@ -1484,12 +1485,15 @@ def insights_sales_view(
         ][:6]
         if unread:
             collect_follower_counts(db, channels=unread)
+            have = set(db.scalars(select(MetricSnapshot.channel_id).where(MetricSnapshot.channel_id.in_([c.id for c in unread]), MetricSnapshot.target_id.is_(None))).all())
+            refused = [c for c in unread if c.id not in have]
     except Exception:  # noqa: BLE001 - the page must load without it
         db.rollback()
         log.exception("could not read follower counts for Insights")
     plat_delta = {}
     total_follower_delta = 0
     total_followers = 0
+    readings = 0  # channels with a follower reading (0 followers is a reading too)
     counted_from = None  # when counting began, if that is later than this period's start
     for c in channels:
         pslug = plat_slugs.get(c.platform_id, "other")
@@ -1519,18 +1523,23 @@ def insights_sales_view(
         cur_c = (cur_snap.metrics.get("followers") or cur_snap.metrics.get("subscribers") or cur_snap.metrics.get("members") or 0) if cur_snap else 0
         old_c = (old_snap.metrics.get("followers") or old_snap.metrics.get("subscribers") or old_snap.metrics.get("members") or 0) if old_snap else cur_c
         total_followers += cur_c
+        readings += 1 if cur_snap is not None else 0
         diff = max(0, cur_c - old_c)
         if diff > 0:
             plat_delta[pslug] = plat_delta.get(pslug, 0) + diff
             total_follower_delta += diff
 
+    # The card's big number is how many people follow now; underneath, the growth.
     if plat_delta and total_follower_delta > 0:
-        followers_sub = " · ".join(f"{k.upper() if len(k) <= 2 else k.capitalize()} {v}" for k, v in plat_delta.items())
-    elif total_followers:
-        followers_sub = f"{total_followers:,} followers now"
-        if counted_from is not None:
-            since_local = counted_from.astimezone(PHNOM_PENH)
-            followers_sub += f" · counting new ones since {since_local.day} {since_local:%b}"
+        followers_sub = f"+{total_follower_delta:,} new · " + " · ".join(f"{k.upper() if len(k) <= 2 else k.capitalize()} +{v:,}" for k, v in plat_delta.items())
+    elif readings and counted_from is not None:
+        since_local = counted_from.astimezone(PHNOM_PENH)
+        followers_sub = f"Counting new ones since {since_local.day} {since_local:%b}"
+    elif readings:
+        followers_sub = "No new followers in this period"
+    elif refused:
+        names = ", ".join((c.handle or "a channel") for c in refused[:2])
+        followers_sub = f"Couldn't read {names}'s followers — reconnect it in Setup → Channels"
     else:
         followers_sub = f"Across {len(channels)} connected channel{'s' if len(channels) != 1 else ''} · counts appear within a few hours"
 
@@ -1823,8 +1832,9 @@ def insights_sales_view(
             "sub": f"{time_label} · {reach_pct}" if reach_pct else (time_label if targets else f"{time_label} · no posts yet"),
         },
         "followers": {
-            "value": f"+{total_follower_delta:,}" if total_follower_delta > 0 else "+0",
-            "raw": total_follower_delta,
+            "value": _fmt_sales_compact(total_followers) if readings else "—",
+            "raw": total_followers,
+            "growth": total_follower_delta,
             "sub": followers_sub,
         },
         "engagementRate": {

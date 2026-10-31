@@ -25,7 +25,7 @@ export function insightsCsv(data, { brand, period, goals = [] }) {
   const kpi = (k, label) => [label, data[k]?.raw ?? '', data[k]?.sub ?? '']
   section('Key numbers', ['Metric', 'Value', 'Note'], [
     kpi('reach', 'Reach'),
-    kpi('followers', 'New followers'),
+    kpi('followers', 'Followers'),
     kpi('engagementRate', 'Engagement rate (%)'),
     kpi('leads', 'Leads'),
     kpi('dealsWon', 'Deals won'),
