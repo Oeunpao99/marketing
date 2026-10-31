@@ -14,6 +14,21 @@ const MEASURES = [
 ]
 const usd = (n) => `$${Number(n || 0).toFixed(2)}`
 
+/** Headline numbers in ONE slim card (columns divided by hairlines) instead of a row of boxes. */
+export function Strip({ items }) {
+  return (
+    <dl className={`grid grid-cols-2 divide-ink-100 lg:divide-x ${items.length === 4 ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} ${card}`}>
+      {items.map(([k, v, sub]) => (
+        <div key={k} className="px-5 py-3.5">
+          <dt className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">{k}</dt>
+          <dd className="mt-0.5 text-[22px] font-bold leading-tight tracking-tight text-ink-900">{v}</dd>
+          <div className="text-[11px] text-ink-400">{sub}</div>
+        </div>
+      ))}
+    </dl>
+  )
+}
+
 /** Every day from the first boost day to the last (gaps filled with 0), each key's numbers on it. */
 function byDay(series) {
   const days = series.flatMap((s) => s.daily.map((d) => d.day)).sort()
@@ -63,15 +78,7 @@ export default function BoostInsights({ boosts }) {
 
   return (
     <div className="mt-5 space-y-5">
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {tiles.map((t) => (
-          <div key={t.label} className={`${card} px-5 py-4`}>
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-500">{t.label}</div>
-            <div className="mt-1 text-[24px] font-bold leading-tight tracking-tight text-ink-900">{t.value}</div>
-            <div className="mt-0.5 text-[11.5px] text-ink-400">{t.sub}</div>
-          </div>
-        ))}
-      </div>
+      <Strip items={tiles.map((t) => [t.label, t.value, t.sub])} />
 
       <section className={`${card} px-5 py-4`}>
         <h3 className="mb-3 text-[13.5px] font-semibold text-ink-900">Per day, by boosted post</h3>

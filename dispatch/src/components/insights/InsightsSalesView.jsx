@@ -21,7 +21,7 @@ import Select from '../ui/Select'
 import PlanLock from '../billing/PlanLock'
 import BoostCard from './BoostCard'
 import { AdAccountPicker, BoostDrawer, BoostList } from './BoostControls'
-import BoostInsights from './BoostInsights'
+import BoostInsights, { Strip } from './BoostInsights'
 import BoostPlan from './BoostPlan'
 import { fmtNum } from './Overview'
 import { useAuth } from '../../auth'
@@ -151,6 +151,7 @@ export default function InsightsSalesView({
   const [boostItem, setBoostItem] = useState(null)
   const [busy, setBusy] = useState(false)
   const [stopping, setStopping] = useState(null)
+  const [boostTab, setBoostTab] = useState('picks') // 'picks' | 'mine'
 
   // The store's showToast is a new function on every store update; reading it
   // through a ref keeps the loader below stable, so the cards don't reload (and
@@ -755,22 +756,39 @@ export default function InsightsSalesView({
 
         {/* the week's value at a glance, from the picks below */}
         {boosts.items.length > 0 && (
-          <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-            {[
-              ['Posts above average', boosts.items.length, 'in the last 7 days'],
-              ['People reached', fmtNum(boosts.items.reduce((n, i) => n + (i.reach || 0), 0)), 'by these posts'],
-              ['Engaged', fmtNum(boosts.items.reduce((n, i) => n + Object.values(i.mix || {}).reduce((a, b) => a + b, 0), 0)), 'reactions, comments, shares'],
-              ['Leads from them', boosts.items.reduce((n, i) => n + (i.leads || 0), 0), 'link leads to see which sell'],
-            ].map(([k, v, sub]) => (
-              <div key={k} className="rounded-2xl border border-ink-200/60 bg-white px-4 py-3 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">{k}</div>
-                <div className="mt-0.5 text-[22px] font-bold leading-tight tracking-tight text-ink-900">{v}</div>
-                <div className="text-[11px] text-ink-400">{sub}</div>
-              </div>
-            ))}
+          <div className="mb-5">
+            <Strip
+              items={[
+                ['Posts above average', boosts.items.length, 'in the last 7 days'],
+                ['People reached', fmtNum(boosts.items.reduce((n, i) => n + (i.reach || 0), 0)), 'by these posts'],
+                ['Engaged', fmtNum(boosts.items.reduce((n, i) => n + Object.values(i.mix || {}).reduce((a, b) => a + b, 0), 0)), 'reactions, comments, shares'],
+                ['Leads from them', boosts.items.reduce((n, i) => n + (i.leads || 0), 0), 'link leads to see which sell'],
+              ]}
+            />
           </div>
         )}
 
+        {/* two tabs instead of one long scroll: the picks, and what you have sent */}
+        <div className="mb-4 inline-flex rounded-xl bg-ink-100 p-0.5" role="tablist" aria-label="Boosts">
+          {[
+            ['picks', `Picks${boosts.items.length ? ` · ${boosts.items.length}` : ''}`],
+            ['mine', `Your boosts${sent.length ? ` · ${sent.length}` : ''}`],
+          ].map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={boostTab === id}
+              onClick={() => setBoostTab(id)}
+              className={`rounded-lg px-4 py-1.5 text-[12.5px] font-semibold transition-colors ${boostTab === id ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-500 hover:text-ink-800'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {boostTab === 'picks' ? (
+          <>
         {boosts.what_works?.length > 0 && (
           <div className="mb-5 rounded-2xl border border-ink-200/60 bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
             <h3 className="text-[14.5px] font-bold text-ink-900">What brings leads</h3>
@@ -811,8 +829,17 @@ export default function InsightsSalesView({
             ))}
           </div>
         )}
-        <BoostInsights boosts={sent} />
+          </>
+        ) : sent.length ? (
+          <>
         <BoostList boosts={sent} canManage={canManage} stopping={stopping} onStop={stopBoost} />
+        <BoostInsights boosts={sent} />
+          </>
+        ) : (
+          <div className="rounded-2xl border border-ink-200/60 bg-white p-6 text-center text-[12.5px] leading-relaxed text-ink-500">
+            Nothing boosted yet. Pick a post under <b className="text-ink-700">Picks</b> and press its boost button — it shows up here with its spend and reach.
+          </div>
+        )}
         </>
         )}
         {pendingAds && <AdAccountPicker pending={pendingAds} saving={busy} onPick={pickAccount} onClose={() => setPendingAds(null)} />}
