@@ -36,6 +36,11 @@ function PostPreview({ it, chip }) {
     >
       {body}
       <span className={`absolute left-3 top-3 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-[11px] font-semibold shadow-xs ${chip.cls}`}>{chip.text}</span>
+      {/* the headline number, on the post itself */}
+      <span className="absolute bottom-2.5 left-2.5 inline-flex items-baseline gap-1 rounded-xl bg-white px-2.5 py-1 shadow-card">
+        <b className="text-[17px] font-extrabold leading-none tracking-tight text-ink-900">{it.ratio}×</b>
+        <span className="text-[10.5px] font-semibold text-ink-500">your usual</span>
+      </span>
       {it.link && (
         <span className="absolute bottom-2.5 right-2.5 inline-flex items-center gap-1 rounded-full bg-night-950/60 px-2 py-0.5 text-[10.5px] font-semibold text-white opacity-90 group-hover:opacity-100">
           View on {it.channel === 'facebook' ? 'Facebook' : it.channel} <FiExternalLink size={10} />
@@ -71,46 +76,55 @@ export default function BoostCard({ it, amount, skipped, boosting, onAmount, onA
     <div className="flex flex-col overflow-hidden rounded-2xl border border-ink-200/60 bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
       <PostPreview it={it} chip={chip} />
       <div className="flex flex-1 flex-col p-5">
-      <h3 className="line-clamp-2 text-[14px] font-bold leading-snug text-ink-900" title={it.title}>
+      <h3 className="line-clamp-2 text-[14px] font-bold leading-snug text-ink-900" title={it.summary || it.title}>
         {it.title}
       </h3>
-      <div className="mt-1 text-[11.5px] text-ink-400">
-        {channel} · posted {new Date(it.posted_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-        {it.reach > 0 && ` · ${fmtNum(it.reach)} reached`}
+      <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11.5px] text-ink-400">
+        <span>
+          {channel} · {new Date(it.posted_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+        </span>
+        {/* what the AI says it's about, as labels */}
+        {[it.tags?.topic, it.tags?.audience].filter(Boolean).map((t) => (
+          <span key={t} className="rounded-full bg-ink-100 px-2 py-px text-[10.5px] font-medium text-ink-600">
+            {t.replace(/_/g, ' ')}
+          </span>
+        ))}
       </div>
 
-      {/* the picture: what the attention is made of, and how far above the usual post */}
-      <div className="mt-4 flex items-center gap-4">
-        <Donut segments={parts} size={104} stroke={14} label="Engagement" of="by kind">
-          <div>
-            <div className="text-[17px] font-bold leading-none text-ink-900">{fmtNum(total)}</div>
-            <div className="mt-0.5 text-[10px] text-ink-500">engaged</div>
+      {/* the value at a glance */}
+      <dl className="mt-4 grid grid-cols-3 divide-x divide-ink-100 rounded-xl bg-canvas py-2.5 text-center">
+        {[
+          ['Reached', fmtNum(it.reach)],
+          ['Engaged', fmtNum(total)],
+          ['Leads', it.leads],
+        ].map(([k, v]) => (
+          <div key={k}>
+            <dd className={`text-[17px] font-bold leading-tight tabular-nums ${k === 'Leads' && !it.leads ? 'text-ink-400' : 'text-ink-900'}`}>{v}</dd>
+            <dt className="text-[10.5px] font-medium uppercase tracking-wider text-ink-400">{k}</dt>
           </div>
+        ))}
+      </dl>
+
+      {/* what the attention is made of */}
+      <div className="mt-4 flex items-center gap-3.5">
+        <Donut segments={parts} size={68} stroke={10} label="Engagement" of="by kind">
+          <span className="text-[11px] font-bold text-ink-700">{talk}%</span>
         </Donut>
-        <div className="min-w-0">
-          <div className="text-[30px] font-bold leading-none tracking-tight text-ink-900">{it.ratio}×</div>
-          <div className="mt-1 text-[12px] leading-snug text-ink-600">
-            more than your usual {channel} post{it.usual ? ` (${fmtNum(it.usual)})` : ''}
-          </div>
-          <ul className="mt-2 space-y-0.5 text-[11.5px] text-ink-600">
+        <div className="min-w-0 flex-1">
+          <p className="text-[12px] font-semibold leading-snug text-ink-800">
+            {!total ? 'No reactions yet' : talk >= 20 ? 'People are talking about it' : 'Mostly likes'}
+          </p>
+          <p className="mt-0.5 text-[11.5px] leading-snug text-ink-500">{talk}% comments and shares</p>
+          <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-ink-600">
             {parts.map((p) => (
-              <li key={p.slug} className="flex items-center gap-1.5">
-                <span className="h-2 w-2 flex-none rounded-full" style={{ background: p.color }} aria-hidden="true" />
-                {p.label} <b className="ml-auto pl-2 font-semibold tabular-nums text-ink-800">{fmtNum(p.value)}</b>
-              </li>
+              <span key={p.slug} className="inline-flex items-center gap-1">
+                <span className="h-2 w-2 rounded-full" style={{ background: p.color }} aria-hidden="true" />
+                {p.label} <b className="font-semibold tabular-nums text-ink-800">{fmtNum(p.value)}</b>
+              </span>
             ))}
-          </ul>
+          </div>
         </div>
       </div>
-      {total > 0 && (
-        <p className="mt-3 text-[11.5px] leading-relaxed text-ink-500">
-          {talk >= 20
-            ? `${talk}% are comments and shares — people are talking about it, not just liking it.`
-            : `Mostly reactions — only ${talk}% comments and shares.`}
-        </p>
-      )}
-
-      {it.summary && <p className="mt-2 text-[11.5px] italic leading-relaxed text-ink-500">“{it.summary}”</p>}
 
       {/* where it stands on the road to a boost */}
       <ol className="mt-4 flex items-center gap-1.5 text-[11px]">
@@ -128,7 +142,7 @@ export default function BoostCard({ it, amount, skipped, boosting, onAmount, onA
           </li>
         ))}
       </ol>
-      <p className="mt-2 text-[12px] leading-relaxed text-ink-700">{it.reason}</p>
+      {it.kind !== 'check' && <p className="mt-2.5 text-[12px] leading-relaxed text-ink-700">{it.reason}</p>}
 
       {it.kind === 'boost' && (
         <div className="mt-3.5">

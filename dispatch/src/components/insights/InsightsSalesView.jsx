@@ -3,11 +3,9 @@ import { Link, useSearchParams } from 'react-router-dom'
 import {
   FiAward,
   FiBookOpen,
-  FiCheck,
   FiGlobe,
   FiMessageCircle,
   FiPlus,
-  FiMinus,
   FiDownload,
   FiRefreshCw,
   FiShield,
@@ -24,6 +22,8 @@ import PlanLock from '../billing/PlanLock'
 import BoostCard from './BoostCard'
 import { AdAccountPicker, BoostDrawer, BoostList } from './BoostControls'
 import BoostInsights from './BoostInsights'
+import BoostPlan from './BoostPlan'
+import { fmtNum } from './Overview'
 import { useAuth } from '../../auth'
 import { has, NEEDS, usePlanFeatures } from '../../lib/planFeatures'
 import { downloadCsv, insightsCsv } from '../../lib/insightsCsv'
@@ -152,19 +152,6 @@ export default function InsightsSalesView({
   const [busy, setBusy] = useState(false)
   const [stopping, setStopping] = useState(null)
 
-  // Interactive state for Budget plan & ROI
-  const [selectedBudgetTier, setSelectedBudgetTier] = useState(1000)
-  const [selectedMargin, setSelectedMargin] = useState(40) // 30, 40, 60
-  const [channelBudgets, setChannelBudgets] = useState({
-    facebook: 350,
-    tiktok: 500,
-    instagram: 150,
-    youtube: 0,
-    telegram: 0,
-  })
-  const [budgetPlanApproved, setBudgetPlanApproved] = useState(false)
-  const [showPlanExample, setShowPlanExample] = useState(false)
-
   // The store's showToast is a new function on every store update; reading it
   // through a ref keeps the loader below stable, so the cards don't reload (and
   // flash "…") whenever something else in the app changes.
@@ -290,7 +277,7 @@ export default function InsightsSalesView({
   // say what each post is about.
   // All of them, 10 per request (the server's batch) — progress on the button; stops
   // when none are left, a round reads none (posts with no caption) or the AI runs out.
-  const tagPosts = async () => {
+  const tagPosts = async ({ quiet = false } = {}) => {
     const total = boosts.untagged
     let done = 0
     setTagging({ done, total })
@@ -302,14 +289,26 @@ export default function InsightsSalesView({
         setTagging({ done, total })
         if (!r.tagged || !r.remaining) break
       }
-      showToast?.(`The AI read ${done} post${done === 1 ? '' : 's'}.`)
+      if (!quiet) showToast?.(`The AI read ${done} post${done === 1 ? '' : 's'}.`)
     } catch (e) {
-      showToast?.(done ? `The AI read ${done} posts, then stopped — ${e.message}` : `Could not read the posts — ${e.message}`)
+      // started by itself: stay quiet (the line shows what is left, with "Read the rest" to try again)
+      if (!quiet) showToast?.(done ? `The AI read ${done} posts, then stopped — ${e.message}` : `Could not read the posts — ${e.message}`)
     } finally {
       setTagging(false)
       await loadBoosts()
     }
   }
+
+  // Nobody has to press anything: the first time the page shows unread posts (per brand
+  // choice) the AI starts reading them. The server also reads new posts in the background
+  // every few hours (app/post_tags.py auto_tag_all), so this only catches the backlog up.
+  const autoRead = useRef({})
+  useEffect(() => {
+    if (!has(features, 'boost') || tagging || !boosts.untagged || autoRead.current[brandId]) return
+    autoRead.current[brandId] = true
+    tagPosts({ quiet: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boosts.untagged, brandId, features])
 
   // Current active data set
   const period = useMemo(() => {
@@ -356,119 +355,6 @@ export default function InsightsSalesView({
     if (!accountFor(it.brand_id)) return connectAds(it.brand_id)
     setBoostItem(it)
   }
-
-  // Handlers for Budget Plan & ROI
-  const handleSelectBudgetTier = (tier) => {
-    setSelectedBudgetTier(tier)
-    if (tier === 500) {
-      setChannelBudgets({ facebook: 175, tiktok: 250, instagram: 75, youtube: 0, telegram: 0 })
-    } else if (tier === 1000) {
-      setChannelBudgets({ facebook: 350, tiktok: 500, instagram: 150, youtube: 0, telegram: 0 })
-    } else if (tier === 2000) {
-      setChannelBudgets({ facebook: 700, tiktok: 1000, instagram: 300, youtube: 0, telegram: 0 })
-    } else if (tier === 3000) {
-      setChannelBudgets({ facebook: 1050, tiktok: 1500, instagram: 450, youtube: 0, telegram: 0 })
-    }
-    setBudgetPlanApproved(false)
-  }
-
-  const handleResetAiSplit = () => {
-    handleSelectBudgetTier(selectedBudgetTier)
-    showToast?.('Reset channel allocations to AI optimal profit split.')
-  }
-
-  const handleApproveBudgetPlan = () => {
-    showToast?.('This is an example plan — nothing was sent or spent.')
-  }
-
-  const updateChannelBudget = (channelKey, delta) => {
-    setChannelBudgets((prev) => {
-      const current = prev[channelKey] || 0
-      const next = Math.max(0, current + delta)
-      return { ...prev, [channelKey]: next }
-    })
-    setBudgetPlanApproved(false)
-  }
-
-  const marginDecimal = selectedMargin / 100
-
-  // Facebook calculations: CPL = $14, close = 6.6%, avg deal = $4.2k
-  const planFacebook = useMemo(() => {
-    const budget = channelBudgets.facebook
-    if (budget <= 0) return { budget: 0, leads: 0, cpl: 14, deals: 0, revenue: 0, roi: 0 }
-    const leads = Math.round(budget / 14)
-    const deals = Number((leads * 0.066).toFixed(1))
-    const revenue = Math.round((deals * 4180) / 100) * 100
-    const grossProfit = revenue * marginDecimal
-    const roi = Math.round(((grossProfit - budget) / budget) * 100)
-    return { budget, leads, cpl: 14, deals, revenue, roi }
-  }, [channelBudgets.facebook, marginDecimal])
-
-  // TikTok calculations: CPL = $13.3, close = 6.3%, avg deal = $3.7k
-  const planTikTok = useMemo(() => {
-    const budget = channelBudgets.tiktok
-    if (budget <= 0) return { budget: 0, leads: 0, cpl: 13.3, deals: 0, revenue: 0, roi: 0 }
-    const leads = Math.round(budget / 13.16)
-    const deals = Number((leads * 0.063).toFixed(1))
-    const revenue = Math.round((deals * 3750) / 100) * 100
-    const grossProfit = revenue * marginDecimal
-    const roi = Math.round(((grossProfit - budget) / budget) * 100)
-    return { budget, leads, cpl: 13.3, deals, revenue, roi }
-  }, [channelBudgets.tiktok, marginDecimal])
-
-  // Instagram calculations: CPL = $14, close = 5%, avg deal = $4.2k
-  const planInstagram = useMemo(() => {
-    const budget = channelBudgets.instagram
-    if (budget <= 0) return { budget: 0, leads: 0, cpl: 14, deals: 0, revenue: 0, roi: 0 }
-    const leads = Math.round(budget / 13.64)
-    const deals = Number((leads * 0.05).toFixed(1))
-    const revenue = Math.round((deals * 4600) / 100) * 100
-    const grossProfit = revenue * marginDecimal
-    const roi = Math.round(((grossProfit - budget) / budget) * 100)
-    return { budget, leads, cpl: 14, deals, revenue, roi }
-  }, [channelBudgets.instagram, marginDecimal])
-
-  // YouTube calculations: CPL = $20, close = 3.5%, avg deal = $3.5k
-  const planYouTube = useMemo(() => {
-    const budget = channelBudgets.youtube
-    if (budget <= 0) return { budget: 0, leads: 0, cpl: null, deals: 0, revenue: 0, roi: 0 }
-    const leads = Math.round(budget / 20)
-    const deals = Number((leads * 0.035).toFixed(1))
-    const revenue = Math.round(deals * 3500)
-    const grossProfit = revenue * marginDecimal
-    const roi = Math.round(((grossProfit - budget) / budget) * 100)
-    return { budget, leads, cpl: 20, deals, revenue, roi }
-  }, [channelBudgets.youtube, marginDecimal])
-
-  const totalPlannedSpend =
-    channelBudgets.facebook + channelBudgets.tiktok + channelBudgets.instagram + channelBudgets.youtube
-  const totalEstPaidLeads =
-    planFacebook.leads + planTikTok.leads + planInstagram.leads + planYouTube.leads
-  const blendedCostPerLead =
-    totalEstPaidLeads > 0 ? (totalPlannedSpend / totalEstPaidLeads).toFixed(1) : '0.0'
-  const totalEstDeals = Number(
-    (planFacebook.deals + planTikTok.deals + planInstagram.deals + planYouTube.deals).toFixed(1)
-  )
-  const totalEstRevenue =
-    planFacebook.revenue + planTikTok.revenue + planInstagram.revenue + planYouTube.revenue
-  const blendedRoas =
-    totalPlannedSpend > 0 ? (totalEstRevenue / totalPlannedSpend).toFixed(1) : '0.0'
-  const totalGrossProfit = totalEstRevenue * marginDecimal
-  const totalRoi =
-    totalPlannedSpend > 0
-      ? Math.round(((totalGrossProfit - totalPlannedSpend) / totalPlannedSpend) * 100)
-      : 0
-
-  const fbShare = totalPlannedSpend > 0 ? Math.round((channelBudgets.facebook / totalPlannedSpend) * 100) : 0
-  const ttShare = totalPlannedSpend > 0 ? Math.round((channelBudgets.tiktok / totalPlannedSpend) * 100) : 0
-  const igShare = totalPlannedSpend > 0 ? Math.round((channelBudgets.instagram / totalPlannedSpend) * 100) : 0
-  const ytShare = totalPlannedSpend > 0 ? Math.round((channelBudgets.youtube / totalPlannedSpend) * 100) : 0
-
-  const plannedSpendSub = useMemo(() => {
-    if (totalPlannedSpend === selectedBudgetTier) return 'matches budget'
-    if (totalPlannedSpend < selectedBudgetTier) return `$${selectedBudgetTier - totalPlannedSpend} remaining`
-    return `$${totalPlannedSpend - selectedBudgetTier} over budget`
-  }, [totalPlannedSpend, selectedBudgetTier])
 
   const funnelStages = period.funnel || []
   const contentSoldItems = period.content_that_sold || []
@@ -830,41 +716,58 @@ export default function InsightsSalesView({
           <PlanLock feature="boost" text="See which of your posts brought leads — not just likes — and what to spend boosting them." />
         ) : (
         <>
-        {/* the ad account boosts are paid from (the chosen brand's, else every brand's) */}
+        {/* one thin status line: who pays for boosts, and how far the AI has read the posts */}
         {(() => {
           const shown = brandId ? adAccounts.filter((a) => a.brand_id === brandId) : adAccounts
           const brandName = (bid) => brands.find((b) => b.id === bid)?.name || ''
+          const readable = boosts.tagged + boosts.untagged
           return (
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ink-200/60 bg-white px-4 py-3">
-              <p className="text-[12.5px] text-ink-600">
+            <div className="mb-4 flex flex-wrap items-center gap-2 text-[12px]">
+              <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 ${shown.length ? 'border-emerald-200/60 bg-emerald-50 text-emerald-700' : 'border-ink-200 bg-white text-ink-600'}`}>
+                <span className={`h-2 w-2 rounded-full ${shown.length ? 'bg-emerald-500' : 'bg-ink-300'}`} aria-hidden="true" />
                 {shown.length
-                  ? shown.map((a) => `${brandId ? '' : `${brandName(a.brand_id)}: `}${a.name}`).join(' · ') + ' — boosts are paid from this Facebook ad account.'
-                  : 'Connect your Facebook ad account to boost posts from here. Nothing is spent until you approve a boost.'}
-              </p>
-              <button
-                type="button"
-                disabled={!canManage}
-                title={canManage ? undefined : 'Only the workspace owner or an admin can connect — it spends money'}
-                onClick={() => connectAds(brandId || (brands.length === 1 ? brands[0].id : 0))}
-                className="btn-outline whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {shown.length ? 'Change ad account' : 'Connect ad account'}
-              </button>
-              {!canManage && <p className="w-full text-[11.5px] text-ink-400">Only the workspace owner or an admin can connect an ad account or boost — it spends money.</p>}
+                  ? `Paid from ${shown.map((a) => `${brandId ? '' : `${brandName(a.brand_id)}: `}${a.name}`).join(' · ')}`
+                  : 'No ad account yet — nothing is spent until you approve a boost'}
+                <button
+                  type="button"
+                  disabled={!canManage}
+                  title={canManage ? undefined : 'Only the workspace owner or an admin can connect an ad account or boost — it spends money'}
+                  onClick={() => connectAds(brandId || (brands.length === 1 ? brands[0].id : 0))}
+                  className="font-semibold underline-offset-2 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {shown.length ? 'Change' : 'Connect ad account'}
+                </button>
+              </span>
+              {readable > 0 && (
+                <span className="inline-flex items-center gap-2 rounded-full border border-ink-200 bg-white px-3 py-1.5 text-ink-600">
+                  <FiZap size={12} className="text-amber-500" aria-hidden="true" />
+                  {tagging ? `AI reading… ${tagging.done} of ${tagging.total}` : `AI read ${boosts.tagged} of ${readable} posts`}
+                  {!tagging && boosts.untagged > 0 && (
+                    <button type="button" onClick={() => tagPosts()} className="font-semibold text-ink-800 underline-offset-2 hover:underline">
+                      Read the rest
+                    </button>
+                  )}
+                </span>
+              )}
             </div>
           )
         })()}
 
-        {boosts.untagged > 0 && (
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ink-200/60 bg-white px-4 py-3">
-            <p className="text-[12.5px] text-ink-600">
-              {boosts.tagged > 0
-                ? `${boosts.untagged} recent post${boosts.untagged === 1 ? ' hasn’t' : 's haven’t'} been read by the AI yet.`
-                : 'The AI hasn’t read your posts yet. It reads each caption once to learn the topic, who it speaks to and what it asks for — then shows which kind of content brings leads.'}
-            </p>
-            <button type="button" onClick={tagPosts} disabled={!!tagging} className="btn-outline whitespace-nowrap disabled:opacity-60">
-              {tagging ? `Reading… ${tagging.done} of ${tagging.total}` : `Let the AI read ${boosts.untagged === 1 ? 'it' : `all ${boosts.untagged}`}`}
-            </button>
+        {/* the week's value at a glance, from the picks below */}
+        {boosts.items.length > 0 && (
+          <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {[
+              ['Posts above average', boosts.items.length, 'in the last 7 days'],
+              ['People reached', fmtNum(boosts.items.reduce((n, i) => n + (i.reach || 0), 0)), 'by these posts'],
+              ['Engaged', fmtNum(boosts.items.reduce((n, i) => n + Object.values(i.mix || {}).reduce((a, b) => a + b, 0), 0)), 'reactions, comments, shares'],
+              ['Leads from them', boosts.items.reduce((n, i) => n + (i.leads || 0), 0), 'link leads to see which sell'],
+            ].map(([k, v, sub]) => (
+              <div key={k} className="rounded-2xl border border-ink-200/60 bg-white px-4 py-3 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">{k}</div>
+                <div className="mt-0.5 text-[22px] font-bold leading-tight tracking-tight text-ink-900">{v}</div>
+                <div className="text-[11px] text-ink-400">{sub}</div>
+              </div>
+            ))}
           </div>
         )}
 
@@ -983,454 +886,8 @@ export default function InsightsSalesView({
         </div>
       </div>
 
-      {/* ── Budget plan & ROI Section ──────────────────────── */}
-      {/* Its numbers need months of your own boosts (cost per lead per channel) and
-          close rates from Dynamics 365 — until then the plan is an example, folded away */}
-      <div className="mt-8 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-ink-200/60 bg-white px-6 py-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
-        <div>
-          <h2 className="text-[15px] font-bold text-ink-900">Budget plan &amp; ROI</h2>
-          <p className="mt-0.5 text-[12px] text-ink-500">
-            Works out a monthly boost budget from your own cost per lead. It needs a few weeks of boosts first
-            {sent.length ? ` — ${sent.length} so far.` : ' — none yet.'}
-          </p>
-        </div>
-        <button type="button" onClick={() => setShowPlanExample((v) => !v)} className="btn-outline whitespace-nowrap">
-          {showPlanExample ? 'Hide the example' : 'See an example'}
-        </button>
-      </div>
-      {showPlanExample && (
-      <div className="mt-3 rounded-2xl border border-ink-200/60 bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
-        <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-[12px] text-amber-800">
-          Example numbers, not your data — how the plan will look once your boosts have run for a while.
-        </div>
-        {/* Header row: Title + Subtitle on left; Monthly Budget & Gross Margin selectors on right */}
-        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6 pb-6 border-b border-ink-100">
-          <div>
-            <h2 className="text-[17px] font-bold text-ink-900 tracking-tight">
-              Budget plan & ROI · October
-            </h2>
-            <p className="mt-1 text-[12.5px] text-ink-500 max-w-2xl leading-relaxed">
-              Pick a monthly boost budget. The AI splits it $50 at a time to whichever channel earns the most profit from the next $50. Adjust any channel yourself.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-6 flex-none">
-            {/* Monthly Budget Selector */}
-            <div>
-              <div className="text-[10.5px] font-bold uppercase tracking-wider text-ink-400 mb-1.5">
-                Monthly Budget
-              </div>
-              <div className="inline-flex items-center rounded-xl border border-ink-200/80 bg-ink-50/70 p-1 gap-1">
-                {[500, 1000, 2000, 3000].map((tier) => (
-                  <button
-                    key={tier}
-                    type="button"
-                    onClick={() => handleSelectBudgetTier(tier)}
-                    className={`rounded-lg px-2.5 py-1 text-[12px] font-semibold transition-all ${
-                      selectedBudgetTier === tier
-                        ? 'bg-white text-ink-900 shadow-xs border border-ink-200/60 font-bold'
-                        : 'text-ink-600 hover:text-ink-900 hover:bg-white/50'
-                    }`}
-                  >
-                    ${tier.toLocaleString()}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Gross Margin Selector */}
-            <div>
-              <div className="text-[10.5px] font-bold uppercase tracking-wider text-ink-400 mb-1.5">
-                Gross Margin
-              </div>
-              <div className="inline-flex items-center rounded-xl border border-ink-200/80 bg-ink-50/70 p-1 gap-1">
-                {[30, 40, 60].map((margin) => (
-                  <button
-                    key={margin}
-                    type="button"
-                    onClick={() => setSelectedMargin(margin)}
-                    className={`rounded-lg px-2.5 py-1 text-[12px] font-semibold transition-all ${
-                      selectedMargin === margin
-                        ? 'bg-white text-ink-900 shadow-xs border border-ink-200/60 font-bold'
-                        : 'text-ink-600 hover:text-ink-900 hover:bg-white/50'
-                    }`}
-                  >
-                    {margin}%
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* 6 Summary KPI Cards */}
-        <div className="mt-6 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3.5">
-          <div className="rounded-xl border border-ink-200/60 bg-ink-50/30 p-3.5">
-            <div className="text-[11.5px] font-medium text-ink-500">Planned spend</div>
-            <div className="mt-1 text-[20px] font-bold text-ink-900 tracking-tight tabular-nums">
-              ${totalPlannedSpend.toLocaleString()}
-            </div>
-            <div className="mt-0.5 text-[11px] text-ink-400">
-              {plannedSpendSub}
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-ink-200/60 bg-ink-50/30 p-3.5">
-            <div className="text-[11.5px] font-medium text-ink-500">Est. paid leads</div>
-            <div className="mt-1 text-[20px] font-bold text-ink-900 tracking-tight tabular-nums">
-              {totalEstPaidLeads}
-            </div>
-            <div className="mt-0.5 text-[11px] text-ink-400">
-              on top of organic leads
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-ink-200/60 bg-ink-50/30 p-3.5">
-            <div className="text-[11.5px] font-medium text-ink-500">Blended cost / lead</div>
-            <div className="mt-1 text-[20px] font-bold text-ink-900 tracking-tight tabular-nums">
-              ${blendedCostPerLead}
-            </div>
-            <div className="mt-0.5 text-[11px] text-ink-400">
-              all channels
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-ink-200/60 bg-ink-50/30 p-3.5">
-            <div className="text-[11.5px] font-medium text-ink-500">Est. deals</div>
-            <div className="mt-1 text-[20px] font-bold text-ink-900 tracking-tight tabular-nums">
-              {totalEstDeals}
-            </div>
-            <div className="mt-0.5 text-[11px] text-ink-400">
-              closing ~21 days later
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-ink-200/60 bg-ink-50/30 p-3.5">
-            <div className="text-[11.5px] font-medium text-ink-500">Est. revenue</div>
-            <div className="mt-1 text-[20px] font-bold text-ink-900 tracking-tight tabular-nums">
-              ${totalEstRevenue.toLocaleString()}
-            </div>
-            <div className="mt-0.5 text-[11px] text-ink-400">
-              ROAS {blendedRoas}×
-            </div>
-          </div>
-
-          {/* 6th Card: ROI on gross profit (highlighted with emerald accent) */}
-          <div className="rounded-xl border-2 border-emerald-300 bg-emerald-50/30 p-3.5">
-            <div className="text-[11.5px] font-medium text-emerald-900">ROI on gross profit</div>
-            <div className="mt-1 text-[20px] font-bold text-emerald-700 tracking-tight tabular-nums">
-              {totalRoi}%
-            </div>
-            <div className="mt-0.5 text-[11px] text-emerald-600/90 font-medium">
-              at {selectedMargin}% margin
-            </div>
-          </div>
-        </div>
-
-        {/* Channel Budget Allocation Table */}
-        <div className="mt-6 overflow-x-auto">
-          <table className="w-full text-left text-[12.5px] border-collapse min-w-[760px]">
-            <thead>
-              <tr className="border-b border-ink-100 text-[10.5px] font-semibold uppercase tracking-wider text-ink-400">
-                <th className="py-2.5 pr-4 pl-1">Channel</th>
-                <th className="py-2.5 px-3 text-center">Budget</th>
-                <th className="py-2.5 px-3">Share</th>
-                <th className="py-2.5 px-3 text-right">Est. Leads</th>
-                <th className="py-2.5 px-3 text-right">Cost / Lead</th>
-                <th className="py-2.5 px-3 text-right">Est. Deals</th>
-                <th className="py-2.5 px-3 text-right">Est. Revenue</th>
-                <th className="py-2.5 pl-3 pr-1 text-right">ROI</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-ink-50">
-              {/* Facebook */}
-              <tr className="hover:bg-ink-50/50 transition-colors">
-                <td className="py-3.5 pr-4 pl-1">
-                  <div className="font-bold text-ink-900">Facebook</div>
-                  <div className="text-[11px] text-ink-400 mt-0.5">
-                    Past saturation ($300) · close 6.6% · avg deal $4.2k
-                  </div>
-                </td>
-                <td className="py-3.5 px-3 text-center">
-                  <div className="inline-flex items-center gap-1 rounded-lg border border-ink-200/80 bg-white px-1.5 py-0.5 shadow-2xs">
-                    <button
-                      type="button"
-                      onClick={() => updateChannelBudget('facebook', -50)}
-                      className="w-6 h-6 rounded flex items-center justify-center text-ink-500 hover:text-ink-900 hover:bg-ink-100 transition-colors text-[13px] font-bold"
-                    >
-                      −
-                    </button>
-                    <span className="w-12 text-center font-bold text-ink-900 tabular-nums">
-                      ${channelBudgets.facebook}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => updateChannelBudget('facebook', 50)}
-                      className="w-6 h-6 rounded flex items-center justify-center text-ink-500 hover:text-ink-900 hover:bg-ink-100 transition-colors text-[13px] font-bold"
-                    >
-                      +
-                    </button>
-                  </div>
-                </td>
-                <td className="py-3.5 px-3">
-                  <div className="h-2 w-28 rounded-full bg-ink-100 overflow-hidden">
-                    <div
-                      className="h-full bg-blue-900 rounded-full transition-all duration-300"
-                      style={{ width: `${fbShare}%` }}
-                    />
-                  </div>
-                </td>
-                <td className="py-3.5 px-3 text-right tabular-nums text-ink-900 font-medium">
-                  {planFacebook.leads || '—'}
-                </td>
-                <td className="py-3.5 px-3 text-right tabular-nums text-ink-700">
-                  {planFacebook.budget > 0 ? '$14' : '—'}
-                </td>
-                <td className="py-3.5 px-3 text-right tabular-nums text-ink-900 font-medium">
-                  {planFacebook.deals || '—'}
-                </td>
-                <td className="py-3.5 px-3 text-right tabular-nums text-ink-900 font-semibold">
-                  {planFacebook.budget > 0 ? `$${planFacebook.revenue.toLocaleString()}` : '—'}
-                </td>
-                <td className="py-3.5 pl-3 pr-1 text-right tabular-nums text-emerald-700 font-bold">
-                  {planFacebook.budget > 0 ? `${planFacebook.roi}%` : '—'}
-                </td>
-              </tr>
-
-              {/* TikTok */}
-              <tr className="hover:bg-ink-50/50 transition-colors">
-                <td className="py-3.5 pr-4 pl-1">
-                  <div className="font-bold text-ink-900">TikTok</div>
-                  <div className="text-[11px] text-ink-400 mt-0.5">
-                    Past saturation ($250) · close 6.3% · avg deal $3.7k
-                  </div>
-                </td>
-                <td className="py-3.5 px-3 text-center">
-                  <div className="inline-flex items-center gap-1 rounded-lg border border-ink-200/80 bg-white px-1.5 py-0.5 shadow-2xs">
-                    <button
-                      type="button"
-                      onClick={() => updateChannelBudget('tiktok', -50)}
-                      className="w-6 h-6 rounded flex items-center justify-center text-ink-500 hover:text-ink-900 hover:bg-ink-100 transition-colors text-[13px] font-bold"
-                    >
-                      −
-                    </button>
-                    <span className="w-12 text-center font-bold text-ink-900 tabular-nums">
-                      ${channelBudgets.tiktok}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => updateChannelBudget('tiktok', 50)}
-                      className="w-6 h-6 rounded flex items-center justify-center text-ink-500 hover:text-ink-900 hover:bg-ink-100 transition-colors text-[13px] font-bold"
-                    >
-                      +
-                    </button>
-                  </div>
-                </td>
-                <td className="py-3.5 px-3">
-                  <div className="h-2 w-28 rounded-full bg-ink-100 overflow-hidden">
-                    <div
-                      className="h-full bg-blue-900 rounded-full transition-all duration-300"
-                      style={{ width: `${ttShare}%` }}
-                    />
-                  </div>
-                </td>
-                <td className="py-3.5 px-3 text-right tabular-nums text-ink-900 font-medium">
-                  {planTikTok.leads || '—'}
-                </td>
-                <td className="py-3.5 px-3 text-right tabular-nums text-ink-700">
-                  {planTikTok.budget > 0 ? '$13.3' : '—'}
-                </td>
-                <td className="py-3.5 px-3 text-right tabular-nums text-ink-900 font-medium">
-                  {planTikTok.deals || '—'}
-                </td>
-                <td className="py-3.5 px-3 text-right tabular-nums text-ink-900 font-semibold">
-                  {planTikTok.budget > 0 ? `$${planTikTok.revenue.toLocaleString()}` : '—'}
-                </td>
-                <td className="py-3.5 pl-3 pr-1 text-right tabular-nums text-emerald-700 font-bold">
-                  {planTikTok.budget > 0 ? `${planTikTok.roi}%` : '—'}
-                </td>
-              </tr>
-
-              {/* Instagram */}
-              <tr className="hover:bg-ink-50/50 transition-colors">
-                <td className="py-3.5 pr-4 pl-1">
-                  <div className="font-bold text-ink-900">Instagram</div>
-                  <div className="text-[11px] text-ink-400 mt-0.5">
-                    close 5% · avg deal $4.2k
-                  </div>
-                </td>
-                <td className="py-3.5 px-3 text-center">
-                  <div className="inline-flex items-center gap-1 rounded-lg border border-ink-200/80 bg-white px-1.5 py-0.5 shadow-2xs">
-                    <button
-                      type="button"
-                      onClick={() => updateChannelBudget('instagram', -50)}
-                      className="w-6 h-6 rounded flex items-center justify-center text-ink-500 hover:text-ink-900 hover:bg-ink-100 transition-colors text-[13px] font-bold"
-                    >
-                      −
-                    </button>
-                    <span className="w-12 text-center font-bold text-ink-900 tabular-nums">
-                      ${channelBudgets.instagram}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => updateChannelBudget('instagram', 50)}
-                      className="w-6 h-6 rounded flex items-center justify-center text-ink-500 hover:text-ink-900 hover:bg-ink-100 transition-colors text-[13px] font-bold"
-                    >
-                      +
-                    </button>
-                  </div>
-                </td>
-                <td className="py-3.5 px-3">
-                  <div className="h-2 w-28 rounded-full bg-ink-100 overflow-hidden">
-                    <div
-                      className="h-full bg-blue-900 rounded-full transition-all duration-300"
-                      style={{ width: `${igShare}%` }}
-                    />
-                  </div>
-                </td>
-                <td className="py-3.5 px-3 text-right tabular-nums text-ink-900 font-medium">
-                  {planInstagram.leads || '—'}
-                </td>
-                <td className="py-3.5 px-3 text-right tabular-nums text-ink-700">
-                  {planInstagram.budget > 0 ? '$14' : '—'}
-                </td>
-                <td className="py-3.5 px-3 text-right tabular-nums text-ink-900 font-medium">
-                  {planInstagram.deals || '—'}
-                </td>
-                <td className="py-3.5 px-3 text-right tabular-nums text-ink-900 font-semibold">
-                  {planInstagram.budget > 0 ? `$${planInstagram.revenue.toLocaleString()}` : '—'}
-                </td>
-                <td className="py-3.5 pl-3 pr-1 text-right tabular-nums text-emerald-700 font-bold">
-                  {planInstagram.budget > 0 ? `${planInstagram.roi}%` : '—'}
-                </td>
-              </tr>
-
-              {/* YouTube */}
-              <tr className="hover:bg-ink-50/50 transition-colors">
-                <td className="py-3.5 pr-4 pl-1">
-                  <div className="font-bold text-ink-900">YouTube</div>
-                  <div className="text-[11px] text-ink-400 mt-0.5">
-                    close 3.5% (early data) · avg deal $3.5k
-                  </div>
-                </td>
-                <td className="py-3.5 px-3 text-center">
-                  <div className="inline-flex items-center gap-1 rounded-lg border border-ink-200/80 bg-white px-1.5 py-0.5 shadow-2xs">
-                    <button
-                      type="button"
-                      onClick={() => updateChannelBudget('youtube', -50)}
-                      className="w-6 h-6 rounded flex items-center justify-center text-ink-500 hover:text-ink-900 hover:bg-ink-100 transition-colors text-[13px] font-bold"
-                    >
-                      −
-                    </button>
-                    <span className="w-12 text-center font-bold text-ink-900 tabular-nums">
-                      ${channelBudgets.youtube}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => updateChannelBudget('youtube', 50)}
-                      className="w-6 h-6 rounded flex items-center justify-center text-ink-500 hover:text-ink-900 hover:bg-ink-100 transition-colors text-[13px] font-bold"
-                    >
-                      +
-                    </button>
-                  </div>
-                </td>
-                <td className="py-3.5 px-3">
-                  <div className="h-2 w-28 rounded-full bg-ink-100 overflow-hidden">
-                    <div
-                      className="h-full bg-blue-900 rounded-full transition-all duration-300"
-                      style={{ width: `${ytShare}%` }}
-                    />
-                  </div>
-                </td>
-                <td className="py-3.5 px-3 text-right tabular-nums text-ink-500">
-                  {planYouTube.budget > 0 ? planYouTube.leads : '—'}
-                </td>
-                <td className="py-3.5 px-3 text-right tabular-nums text-ink-500">
-                  {planYouTube.budget > 0 ? `$${planYouTube.cpl}` : '—'}
-                </td>
-                <td className="py-3.5 px-3 text-right tabular-nums text-ink-500">
-                  {planYouTube.budget > 0 ? planYouTube.deals : '—'}
-                </td>
-                <td className="py-3.5 px-3 text-right tabular-nums text-ink-500">
-                  {planYouTube.budget > 0 ? `$${planYouTube.revenue.toLocaleString()}` : '—'}
-                </td>
-                <td className="py-3.5 pl-3 pr-1 text-right tabular-nums text-ink-500">
-                  {planYouTube.budget > 0 ? `${planYouTube.roi}%` : '—'}
-                </td>
-              </tr>
-
-              {/* Telegram */}
-              <tr className="hover:bg-ink-50/50 transition-colors">
-                <td className="py-3.5 pr-4 pl-1">
-                  <div className="font-bold text-ink-900">Telegram</div>
-                  <div className="text-[11px] text-ink-400 mt-0.5">
-                    Telegram Ads not set up · grows through channel + bot
-                  </div>
-                </td>
-                <td className="py-3.5 px-3 text-center">
-                  <span className="text-[12px] font-medium text-ink-400 italic">
-                    Organic only
-                  </span>
-                </td>
-                <td className="py-3.5 px-3">
-                  <div className="h-2 w-28 rounded-full bg-ink-100/60" />
-                </td>
-                <td className="py-3.5 px-3 text-right tabular-nums text-ink-400">
-                  —
-                </td>
-                <td className="py-3.5 px-3 text-right tabular-nums text-ink-400">
-                  —
-                </td>
-                <td className="py-3.5 px-3 text-right tabular-nums text-ink-400">
-                  —
-                </td>
-                <td className="py-3.5 px-3 text-right tabular-nums text-ink-400">
-                  —
-                </td>
-                <td className="py-3.5 pl-3 pr-1 text-right tabular-nums text-ink-400">
-                  —
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        {/* Calculation footnote & Action buttons */}
-        <div className="mt-5 pt-4 border-t border-ink-100 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-          <p className="text-[11px] leading-relaxed text-ink-500 max-w-3xl">
-            How it's calculated: est. leads = budget ÷ cost per lead from the last 90 days of boosts (cost per lead doubles past each channel's saturation point, then keeps rising). Est. deals = leads × close rate from Dynamics 365. Revenue = deals × average deal size. ROI = (revenue × gross margin − budget) ÷ budget. Deals close ~21 days after the lead, so most revenue lands the following month.
-          </p>
-
-          <div className="flex items-center gap-2.5 flex-none w-full lg:w-auto justify-end">
-            <button
-              type="button"
-              onClick={handleResetAiSplit}
-              className="rounded-xl border border-ink-200 bg-white hover:bg-ink-50 px-3.5 py-2 text-[12.5px] font-semibold text-ink-700 transition-colors shadow-2xs"
-            >
-              Reset to AI split
-            </button>
-            <button
-              type="button"
-              onClick={handleApproveBudgetPlan}
-              className={`rounded-xl px-4 py-2 text-[12.5px] font-semibold transition-all shadow-xs flex items-center gap-1.5 ${
-                budgetPlanApproved
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-[#1e3a8a] hover:bg-[#172554] text-white'
-              }`}
-            >
-              {budgetPlanApproved ? (
-                <>
-                  <FiCheck className="w-4 h-4" />
-                  Budget plan approved
-                </>
-              ) : (
-                'Approve budget plan'
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
-      )}
+      {/* ── Budget plan: what a monthly budget would reach, from the boosts really run ── */}
+      {has(features, 'boost') && <BoostPlan boosts={sent} />}
 
       {/* ── Bottom 3 Cards: Funnel, Content that sold, What to change next ── */}
       <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-6">

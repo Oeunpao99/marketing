@@ -150,8 +150,9 @@ def brand_what_works(db: Session, brand_id: int, days: int = 90) -> list[dict]:
 
 
 # ── reading new posts automatically ───────────────────────────────────────
-AUTO_PER_RUN = 5  # posts per workspace per pass (the collector runs every 3 hours)
-AUTO_MONTHLY_CAP = 150  # posts per workspace per month — a few cents of AI credit at most
+AUTO_PER_RUN = 20  # posts per workspace per pass (the collector runs every 3 hours)
+AUTO_MONTHLY_CAP = 300  # posts per workspace per month — a few cents of AI credit at most
+AUTO_WINDOW_DAYS = 60  # the same window Insights looks at
 _LEDGER_NOTE = "AI writing: You label one social media post%"
 
 
@@ -176,7 +177,7 @@ def auto_tag_all(db: Session) -> int:
         .where(
             PostTarget.status == "posted",
             PostTarget.caption != "",
-            PostTarget.published_at >= now - timedelta(days=14),
+            PostTarget.published_at >= now - timedelta(days=AUTO_WINDOW_DAYS),
             PostTarget.published_at <= now - timedelta(hours=4),
         )
         .group_by(PostTarget.post_id)

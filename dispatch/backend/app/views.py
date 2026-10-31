@@ -1961,7 +1961,10 @@ def insights_boosts(brand_id: int | None = None, db: Session = Depends(get_db), 
 
     order = {"boost": 0, "check": 1, "skip": 2}
     items = sorted(best.values(), key=lambda i: (order[i["kind"]], -i["ratio"]))
-    untagged = sum(1 for p in posts_by_id.values() if not p.content_tags)
+    # only posts with a caption can be read (a photo-only post never will be) — the page's
+    # "N haven't been read" must be something reading can actually finish
+    with_caption = {p.id for t, p, _ in rows if (t.caption or "").strip()}
+    untagged = sum(1 for p in posts_by_id.values() if not p.content_tags and p.id in with_caption)
     return {
         "items": items[:6],
         "baseline_posts": len(rows),
