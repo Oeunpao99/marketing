@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../../api/client'
-import { fmtNum } from '../insights/Overview'
+import { fmtNum, monotonePath } from '../insights/Overview'
+import PerformanceTrends from './PerformanceTrends'
+import './platform-performance.css'
 import { PLATFORM } from './platformMeta'
 
 /** The Dashboard's charts: one card per social platform, each with a LINE chart and a BAR chart of
@@ -58,7 +60,7 @@ export function useGrow(ms = 1000) {
 const dayLabel = (iso) => new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
 
 /** A line (with its area) or bars, drawn from the series ``daily[key]``; ``t`` is the growth, 0 → 1. */
-export function Chart({ kind, daily, k, label, t }) {
+export function Chart({ kind, daily, k, label, t, compact = false }) {
   const [hover, setHover] = useState(null)
   const n = daily.length
   const vals = daily.map((d) => d[k] || 0)
@@ -72,16 +74,16 @@ export function Chart({ kind, daily, k, label, t }) {
     const p = (e.clientX - r.left) / r.width
     setHover(Math.max(0, Math.min(n - 1, kind === 'bar' ? Math.floor(p * n) : Math.round(p * (n - 1)))))
   }
-  const line = vals.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join('')
+  const line = monotonePath(vals.map((v, i) => [x(i), y(v)]))
   const at = hover != null ? (kind === 'bar' ? ((hover + 0.5) / n) * 100 : (x(hover) / W) * 100) : 0
   return (
-    <div className="min-w-0">
+    <div className={compact ? "platform-mini-chart min-w-0" : "min-w-0"}>
       <div className="mb-1.5 flex items-baseline justify-between gap-2">
         <span className="text-[11.5px] font-semibold text-ink-700">{label}</span>
         <span className="text-[10.5px] tabular-nums text-ink-400">max {fmtNum(max)}</span>
       </div>
       <div className="relative" onMouseMove={move} onMouseLeave={() => setHover(null)}>
-        <svg viewBox={`0 0 ${W} 100`} preserveAspectRatio="none" className="block h-[112px] w-full" role="img" aria-label={`${label}, last ${n} days`}>
+        <svg viewBox={`0 0 ${W} 100`} preserveAspectRatio="none" className={compact ? "block h-[64px] w-full" : "block h-[112px] w-full"} role="img" aria-label={`${label}, last ${n} days`}>
           {[BASE, (BASE + TOP) / 2, TOP].map((gy) => (
             <line key={gy} x1="0" x2={W} y1={gy} y2={gy} stroke="rgb(var(--ink-100))" strokeWidth="1" vectorEffect="non-scaling-stroke" />
           ))}
@@ -127,8 +129,8 @@ function PlatformCard({ p }) {
   const barK = p.totals.engagement > 0 ? 'engagement' : 'posts'
   const count = (v) => fmtNum(Math.round(v * t))
   return (
-    <section ref={ref} className={`${card} min-w-0 p-5`}>
-      <div className="mb-4 flex items-center gap-3">
+    <section ref={ref} className={`${card} platform-summary-card min-w-0 p-5`}>
+      <div className="platform-summary-heading mb-4 flex items-center gap-3">
         <span className={`grid h-10 w-10 flex-none place-items-center rounded-xl bg-ink-50 ring-1 ring-ink-100 ${meta.cls}`}>{Icon ? <Icon size={20} /> : null}</span>
         <div className="min-w-0 flex-1">
           <h3 className="text-[15px] font-bold leading-tight text-ink-900">{meta.name}</h3>
@@ -140,7 +142,7 @@ function PlatformCard({ p }) {
           {[
             ['Posts', p.totals.posts],
             ['Views', p.totals.views],
-            ['Engaged', p.totals.engagement],
+            ['Engagement', p.totals.engagement],
           ].map(([name, v]) => (
             <div key={name}>
               <dd className="text-[20px] font-bold leading-none tabular-nums text-ink-900">{count(v)}</dd>
@@ -149,17 +151,17 @@ function PlatformCard({ p }) {
           ))}
         </dl>
       </div>
-      <div className={`grid grid-cols-1 gap-5 sm:grid-cols-2 ${meta.cls}`}>
-        <Chart kind="line" daily={p.daily} k={lineK} label={lineK === 'views' ? 'Views per day' : 'Posts per day'} t={t} />
-        <Chart kind="bar" daily={p.daily} k={barK} label={barK === 'engagement' ? 'Engagement per day' : 'Posts per day'} t={t} />
+      <div className={`platform-summary-charts grid grid-cols-1 gap-5 sm:grid-cols-2 ${meta.cls}`}>
+        <Chart compact kind="line" daily={p.daily} k={lineK} label={lineK === 'views' ? 'Views per day' : 'Posts per day'} t={t} />
+        <Chart compact kind="bar" daily={p.daily} k={barK} label={barK === 'engagement' ? 'Engagement per day' : 'Posts per day'} t={t} />
       </div>
-      {p.totals.views === 0 && p.totals.engagement === 0 && p.totals.posts > 0 && <p className="mt-3 text-[11.5px] text-ink-400">{meta.name} doesn't share per-post views or reactions with us, so these show how often you posted.</p>}
+      {p.totals.views === 0 && p.totals.engagement === 0 && p.totals.posts > 0 && <p className="mt-3 text-[11.5px] text-ink-400">No views or engagement recorded for these posts. Charts show publishing activity.</p>}
     </section>
   )
 }
 
 export default function PlatformCharts() {
-  const [days, setDays] = useState(14)
+  const [days, setDays] = useState(30)
   const [data, setData] = useState(null)
   const [failed, setFailed] = useState(false)
   useEffect(() => {
@@ -175,10 +177,10 @@ export default function PlatformCharts() {
     }
   }, [days])
   return (
-    <section className="mb-7">
+    <section className="platform-performance mb-7">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-[13.5px] font-semibold text-ink-800">Performance by platform</h2>
+          <h2 className="text-[17px] font-semibold text-ink-900">Performance by platform</h2>
           <p className="text-[11.5px] text-ink-500">By the day each post went out · views and engagement it has earned so far</p>
         </div>
         <div className="inline-flex rounded-xl bg-ink-100 p-0.5" role="group" aria-label="Period">
@@ -200,11 +202,14 @@ export default function PlatformCharts() {
       ) : data.platforms.length === 0 ? (
         <p className={`${card} px-5 py-6 text-center text-[12.5px] text-ink-500`}>No post went out in the last {days} days. The charts appear once you post.</p>
       ) : (
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <>
+        <div className="platform-summary-grid grid grid-cols-1 gap-3 xl:grid-cols-2">
           {data.platforms.map((p) => (
             <PlatformCard key={`${p.platform}-${days}`} p={p} />
           ))}
         </div>
+        <PerformanceTrends platforms={data.platforms} days={days} onDays={setDays} />
+        </>
       )}
     </section>
   )

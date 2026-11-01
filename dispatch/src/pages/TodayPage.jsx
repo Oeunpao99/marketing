@@ -3,13 +3,11 @@ import { Link } from 'react-router-dom'
 import { useStore } from '../store'
 import DayView from '../components/today/DayView'
 import TableView from '../components/today/TableView'
-import CircularProgress from '../components/ui/CircularProgress'
 import Pager from '../components/ui/Pager'
 import { phnomPenhDay, phnomPenhDate, fullDayLabel } from '../lib/tz'
 import DateRangePicker, { inRange } from '../components/ui/DateRangePicker'
-import { FiChevronDown, FiCheck, FiCheckCircle, FiClock, FiEdit3, FiEye, FiInbox, FiLayers, FiRefreshCw, FiSend, FiShare2, FiZap } from 'react-icons/fi'
+import { FiChevronDown, FiCheck, FiCheckCircle, FiEdit3, FiEye, FiLayers, FiRefreshCw, FiSend, FiShare2, FiZap } from 'react-icons/fi'
 import '../styles/studio-dashboard.css'
-import { DeltaText } from '../components/insights/Overview'
 import DashboardHome from '../components/dashboard/DashboardHome'
 import { BestTimeHeatmap, DailyStackedBars, DonutWithTable, Insights, useDashboardStats } from '../components/today/DashboardCharts'
 
@@ -22,22 +20,6 @@ function ChartCard({ title, sub, className = '', children }) {
       {sub && <p className="mt-0.5 mb-4 text-[11.5px] text-ink-400">{sub}</p>}
       {children}
     </section>
-  )
-}
-
-function KpiCard({ icon: Icon, label, value, note, loading, children }) {
-  return (
-    <div className="studio-kpi bg-white rounded-2xl border border-ink-200/60 shadow-[0_1px_2px_rgba(16,24,40,0.04)] px-4 py-4 min-w-0 flex items-center gap-4">
-      <div className="min-w-0 flex-1">
-        <Icon size={17} className="text-ink-600 mb-2.5" aria-hidden="true" />
-        <div className="text-[12px] text-ink-600">{label}</div>
-        <div className="mt-1.5 text-[24px] font-bold text-ink-900 tabular-nums tracking-tight leading-none">
-          {loading ? <span className="inline-block w-8 h-6 rounded-md skeleton align-middle" /> : value}
-        </div>
-        {note && <div className="mt-2 text-[11.5px] text-ink-500">{note}</div>}
-      </div>
-      {children}
-    </div>
   )
 }
 
@@ -58,7 +40,7 @@ function QueueSkeleton() {
 }
 
 export default function TodayPage() {
-  const { queue, channels, review, queueReady, activeBrand, brands } = useStore()
+  const { queue, channels, queueReady, activeBrand, brands } = useStore()
   const [range, setRange] = useState(null) // { from, to } Phnom Penh days, null = all dates
   const [view, setView] = useState('timeline')
   const [status, setStatus] = useState('all')
@@ -66,7 +48,6 @@ export default function TodayPage() {
   const stats = useDashboardStats(queue, channels)
   const { weekday: todayWeekday, rest: todayRest } = fullDayLabel(phnomPenhDate())
   const active = brands.find((b) => b.slug === activeBrand)
-  const reviewCount = (review || []).length
 
   // Posts per day — the date picker marks these days on its calendar.
   const dayCounts = useMemo(() => {
@@ -140,56 +121,6 @@ export default function TodayPage() {
 
       {/* results first: what needs you, this week, the post to boost, the accounts' health */}
       <DashboardHome />
-
-      <div className="studio-section-heading"><h2>Your content at a glance</h2><span>Live workspace activity</span></div>
-
-      {/* KPI cards — counted per delivery (a post to 2 Pages = 2) */}
-      <div className="studio-metrics grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
-        <KpiCard
-          icon={FiCheckCircle}
-          label="Published · 30 days"
-          value={stats.published30}
-          note={
-            <>
-              <DeltaText current={stats.published30} previous={stats.publishedPrev30} className="text-[11.5px]" /> vs the 30 days before
-            </>
-          }
-          loading={!queueReady}
-        />
-        <KpiCard
-          icon={FiClock}
-          label="Scheduled · next 7 days"
-          value={stats.upcoming}
-          note={stats.emptyAhead ? `${stats.emptyAhead} day${stats.emptyAhead === 1 ? '' : 's'} with nothing planned` : 'every day covered'}
-          loading={!queueReady}
-        />
-        <KpiCard
-          icon={FiCheck}
-          label="Success rate · 30 days"
-          value={stats.successRate == null ? '—' : `${stats.successRate}%`}
-          note={stats.failed30 ? `${stats.failed30} failed` : 'nothing failed'}
-          loading={!queueReady}
-        >
-          {stats.successRate != null && (
-            <CircularProgress percent={stats.successRate} size={56} stroke={6} trackColor="rgb(var(--ink-100))" />
-          )}
-        </KpiCard>
-        <KpiCard
-          icon={FiInbox}
-          label="Ideas to review"
-          value={reviewCount}
-          note={
-            reviewCount ? (
-              <Link to="/review" className="font-medium text-brand hover:underline">
-                Review now →
-              </Link>
-            ) : (
-              'all caught up'
-            )
-          }
-          loading={!queueReady}
-        />
-      </div>
 
       {/* Queue */}
       <div ref={listRef} className="studio-content scroll-mt-4 bg-white rounded-2xl border border-ink-200/60 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">

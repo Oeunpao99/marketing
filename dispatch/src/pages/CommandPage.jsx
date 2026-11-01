@@ -4,7 +4,6 @@ import { FiArrowDownRight, FiArrowUpRight, FiCheck, FiChevronRight, FiPlus, FiRe
 import { api } from '../api/client'
 import { useStore } from '../store'
 import Select from '../components/ui/Select'
-import CommandHealth from '../components/command/CommandHealth'
 import { useBrandMarks } from '../lib/brandMarks'
 
 // Command center (backend app/command.py): what the AI is doing, and the few
@@ -102,7 +101,6 @@ export default function CommandPage() {
       ) : (
         <div className="space-y-5">
           <Kpis k={data.kpis} />
-          <CommandHealth key={brandId} rows={data.today} />
 
           {/* grid-cols-1 = one column the width of the screen — without it the column grew to
               the longest line of text and pushed the cards off a phone's screen */}

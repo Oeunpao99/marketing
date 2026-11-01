@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { FiAlertTriangle, FiArrowRight, FiCheck, FiChevronRight, FiZap } from 'react-icons/fi'
+import { FiActivity, FiAlertTriangle, FiArrowRight, FiArrowUp, FiArrowDown, FiBarChart2, FiCheck, FiChevronRight, FiEye, FiTarget, FiUsers, FiZap } from 'react-icons/fi'
 import { api } from '../../api/client'
-import { fmtNum } from '../insights/Overview'
+import { fmtNum, monotonePath } from '../insights/Overview'
+import './dashboard-overview.css'
 import { mediaSrc } from '../insights/BoostCard'
-import PlatformCharts from './PlatformCharts'
+import PlatformCharts, { useGrow } from './PlatformCharts'
 import { PLATFORM } from './platformMeta'
 
 /** The Dashboard's results-first top: what needs you, how this week went, the post to boost,
@@ -13,8 +14,9 @@ import { PLATFORM } from './platformMeta'
 
 const card = 'rounded-2xl border border-ink-200/60 bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]'
 const TONE = {
-  critical: { row: 'border-red-200/70 bg-red-50/50 hover:bg-red-50', num: 'text-red-600' },
-  warning: { row: 'border-amber-200 bg-amber-50/60 hover:bg-amber-50', num: 'text-amber-700' },
+  // see-through tints, so they read on the light and the dark theme alike
+  critical: { row: 'border-red-500/35 bg-red-500/10 hover:bg-red-500/15', num: 'text-red-500' },
+  warning: { row: 'border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/15', num: 'text-amber-600' },
   normal: { row: 'border-ink-200/70 bg-white hover:bg-ink-50', num: 'text-brand' },
 }
 
@@ -64,11 +66,11 @@ function NeedsYou({ needs, boosts, health }) {
   items.sort((a, b) => (order[a.tone] ?? 2) - (order[b.tone] ?? 2))
   const shown = items.slice(0, 6)
   return (
-    <section className="mb-7">
+    <section className="overview-needs mb-7">
       <Heading title="Needs you" note={items.length ? `${items.length} thing${items.length === 1 ? '' : 's'}` : 'Everything else runs on its own'} to="/command" toLabel="Open Command center" />
       {items.length === 0 ? (
         <div className={`${card} flex items-center gap-3 px-5 py-4`}>
-          <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-emerald-50 text-emerald-700">
+          <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-emerald-500/15 text-emerald-600">
             <FiCheck size={18} aria-hidden="true" />
           </span>
           <div>
@@ -82,7 +84,7 @@ function NeedsYou({ needs, boosts, health }) {
             const tone = TONE[n.tone] || TONE.normal
             const body = (
               <>
-                <span className={`w-9 flex-none text-center text-[22px] font-bold tabular-nums ${tone.num}`}>{n.count ?? '!'}</span>
+                <span className={`overview-alert-count w-9 flex-none text-center text-[22px] font-bold tabular-nums ${tone.num}`}>{n.count ?? '!'}</span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-[13.5px] font-semibold leading-snug text-ink-900">{n.title}</span>
                   <span className="block truncate text-[12px] text-ink-500">{n.detail}</span>
@@ -109,28 +111,77 @@ function NeedsYou({ needs, boosts, health }) {
   )
 }
 
-// ── 1 · this week: four big numbers, each with only its title ───────────────
-function Week({ sales, failed }) {
+// ── 1 · this week: four big numbers — each with an icon, a count-up and its own 7-day line ──────
+/** "111.7k" / "3.7%" / "15k" / "0" counted up from zero (the text keeps its own unit and decimals). */
+function countUp(text, t) {
+  const m = typeof text === 'string' && text.match(/^(\D*)(\d[\d,]*\.?\d*)(.*)$/)
+  if (!m) return text ?? '—'
+  const decimals = (m[2].split('.')[1] || '').length
+  const v = parseFloat(m[2].replace(/,/g, '')) * t
+  return `${m[1]}${v.toLocaleString('en', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}${m[3]}`
+}
+
+/** The last days as a soft line that rises from the bottom; nothing is drawn without 2+ real points. */
+function Spark({ vals, color, t }) {
+  const id = useId()
+  const known = (vals || []).filter((v) => v != null)
+  if (known.length < 2) return <span className="overview-spark-empty">Daily trend unavailable</span>
+  const min = Math.min(...known)
+  const span = Math.max(...known) - min
+  const y = (v) => 49 - (span ? (v - min) / span * 40 : 4) * t
+  const groups = []
+  let group = []
+  vals.forEach((v, i) => {
+    if (v == null) { if (group.length) groups.push(group); group = []; return }
+    group.push([i / Math.max(1, vals.length - 1) * 190, y(v)])
+  })
+  if (group.length) groups.push(group)
+  return <svg viewBox="0 0 190 56" preserveAspectRatio="none" role="img" aria-label={`Daily trend: ${vals.map((v) => v == null ? 'unavailable' : v.toLocaleString()).join(', ')}`}>
+    <defs><linearGradient id={id} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={color} stopOpacity=".25"/><stop offset="1" stopColor={color} stopOpacity=".01"/></linearGradient></defs>
+    {groups.map((points,i) => { const line = monotonePath(points); return <g key={i}><path d={`${line}L${points.at(-1)[0]},56L${points[0][0]},56Z`} fill={`url(#${id})`}/><path d={line} fill="none" stroke={color} strokeWidth="1.7" vectorEffect="non-scaling-stroke"/>{i === groups.length-1 && <circle cx={points.at(-1)[0]} cy={points.at(-1)[1]} r="2.3" fill={color}/>}</g>})}
+  </svg>
+}
+
+function Tile({ Icon, label, value, color, vals, badge, note, badgeTone = 'neutral' }) {
+  const [ref, t] = useGrow(800)
+  return <Link ref={ref} to="/insights" className="overview-kpi" style={{'--kpi-color':color}}>
+    <div className="overview-kpi-title"><span><Icon size={20} aria-hidden="true" /></span><h3>{label}</h3></div>
+    <div className="overview-kpi-value"><strong>{countUp(value,t)}</strong><span className={`overview-kpi-change ${badgeTone}`}>
+      {badgeTone === 'up' ? <FiArrowUp size={12}/> : badgeTone === 'down' ? <FiArrowDown size={12}/> : null}{badge || '?'}
+    </span></div>
+    <p>{note}</p>
+    <div className="overview-kpi-spark"><Spark vals={vals} color={color} t={t}/></div>
+  </Link>
+}
+
+function Week({ sales, failed, plats, fol }) {
+  // the last 7 days from the same saved readings the charts below use
+  const days = plats?.platforms || []
+  const sum = (k) => (days[0] ? days[0].daily.map((_, i) => days.reduce((a, p) => a + (p.daily[i]?.[k] || 0), 0)) : [])
+  const views = sum('views')
+  const eng = sum('engagement')
+  const rate = views.map((v, i) => (v > 0 ? (eng[i] / v) * 100 : null))
+  const followers = fol?.days?.length
+    ? fol.days.map((_, i) => {
+        const vs = Object.values(fol.platforms || {}).map((arr) => arr[i])
+        return vs.some((v) => v != null) ? vs.reduce((a, v) => a + (v || 0), 0) : null
+      })
+    : []
+  const growth = sales?.followers?.growth
+  const reachChange = sales?.reach?.sub?.match(/([+-]?[0-9.]+)% vs prior/)
   const tiles = sales && [
-    ['Reach', sales.reach?.value],
-    ['Engagement rate', sales.engagementRate?.value],
-    ['Followers', sales.followers?.value],
-    ['Leads', sales.leads?.value],
+    { Icon: FiEye, label: 'Reach', value: sales.reach?.value, color: '#1877f2', vals: views, badge: reachChange ? `${reachChange[1]}%` : null, badgeTone: reachChange ? Number(reachChange[1]) >= 0 ? 'up' : 'down' : 'neutral', note: reachChange ? 'vs. previous 7 days' : 'Recorded reach ? last 7 days' },
+    { Icon: FiBarChart2, label: 'Engagement rate', value: sales.engagementRate?.value, color: '#11b67a', vals: rate, note: sales.engagementRate?.sub || 'Last 7 days' },
+    { Icon: FiUsers, label: 'Followers', value: sales.followers?.value, color: '#a44cf2', vals: followers, badge: growth == null ? null : `${growth > 0 ? '+' : ''}${growth.toLocaleString()}`, badgeTone: growth > 0 ? 'up' : growth < 0 ? 'down' : 'neutral', note: 'Change across saved audience readings' },
+    { Icon: FiTarget, label: 'Leads', value: sales.leads?.value, color: '#f58725', vals: sales.leads?.raw === 0 ? Array(7).fill(0) : [], note: 'Captured in the last 7 days' },
   ]
   return (
-    <section className="mb-6">
+    <section className="overview-week mb-6">
       {failed ? (
         <p className={`${card} px-5 py-4 text-[12.5px] text-ink-500`}>This week's numbers couldn't load — open Insights to try again.</p>
       ) : (
         <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-          {tiles
-            ? tiles.map(([label, value]) => (
-                <Link key={label} to="/insights" className={`${card} block min-w-0 px-5 py-4 transition-shadow hover:shadow-card-hover`}>
-                  <div className="text-[34px] font-bold leading-none tracking-tight tabular-nums text-ink-900">{value ?? '—'}</div>
-                  <div className="mt-2 text-[13px] font-medium text-ink-500">{label}</div>
-                </Link>
-              ))
-            : [0, 1, 2, 3].map((i) => <div key={i} className="h-[88px] animate-pulse rounded-2xl bg-ink-100" />)}
+          {tiles ? tiles.map((t) => <Tile key={t.label} {...t} />) : [0, 1, 2, 3].map((i) => <div key={i} className="h-[142px] animate-pulse rounded-2xl bg-ink-100" />)}
         </div>
       )}
     </section>
@@ -145,7 +196,7 @@ function TopPost({ boosts, failed }) {
   const still = src && (top.media_kind === 'image' || top.media_thumb)
   const engaged = top ? Object.values(top.mix || {}).reduce((a, b) => a + b, 0) : 0
   return (
-    <section className={`${card} flex min-w-0 flex-col p-5`}>
+    <section className={`${card} overview-detail-card flex min-w-0 flex-col p-5`}>
       <Heading title="Top post this week" note="vs your usual post" />
       {failed ? (
         <p className="py-6 text-center text-[12.5px] text-ink-500">Boost picks are on the Growth plan and up — see Plans & usage.</p>
@@ -194,10 +245,10 @@ function Accounts({ health, failed }) {
   const rows = health?.channels || []
   const shown = all ? rows : rows.slice(0, 7)
   return (
-    <section className={`${card} flex min-w-0 flex-col p-5`}>
+    <section className={`${card} overview-detail-card flex min-w-0 flex-col p-5`}>
       <Heading
         title="Your accounts"
-        note={health ? (health.attention ? <b className="text-amber-700">{health.attention} need{health.attention === 1 ? 's' : ''} attention</b> : `${health.connected} connected · all readable`) : ''}
+        note={health ? (health.attention ? <b className="text-amber-600">{health.attention} need{health.attention === 1 ? 's' : ''} attention</b> : `${health.connected} connected · all readable`) : ''}
         to="/channels"
         toLabel="Manage"
       />
@@ -223,7 +274,7 @@ function Accounts({ health, failed }) {
                   <span className={`grid h-8 w-8 flex-none place-items-center rounded-lg bg-ink-50 ring-1 ring-ink-100 ${p?.cls || 'text-ink-500'}`}>{p ? <p.Icon size={16} /> : null}</span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[13px] font-semibold text-ink-900">{c.handle || p?.name || c.platform}</span>
-                    <span className={`block truncate text-[11.5px] ${bad ? 'text-amber-700' : 'text-ink-500'}`}>
+                    <span className={`block truncate text-[11.5px] ${bad ? 'text-amber-600' : 'text-ink-500'}`}>
                       {bad ? (
                         <span className="inline-flex items-center gap-1">
                           <FiAlertTriangle size={11} aria-hidden="true" /> {c.note}
@@ -259,11 +310,13 @@ export default function DashboardHome() {
   const [sales, salesFailed] = useLoad('/views/insights/sales?period=7d')
   const [boosts, boostsFailed] = useLoad('/views/insights/boosts')
   const [health, healthFailed] = useLoad('/views/dashboard/health')
+  const [plats] = useLoad('/views/dashboard/platforms?days=7')
+  const [fol] = useLoad('/views/insights/followers?days=7')
   return (
-    <div className="mb-2">
-      <Week sales={sales} failed={salesFailed} />
+    <div className="dashboard-overview mb-2">
+      <Week sales={sales} failed={salesFailed} plats={plats} fol={fol} />
       <NeedsYou needs={command?.needs} boosts={boosts} health={health} />
-      <div className="mb-7 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+      <div className="overview-details mb-7 grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
         <TopPost boosts={boosts} failed={boostsFailed} />
         <Accounts health={health} failed={healthFailed} />
       </div>
