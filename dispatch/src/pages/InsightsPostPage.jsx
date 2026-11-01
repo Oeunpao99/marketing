@@ -13,6 +13,7 @@ import {
   FiAlertTriangle,
   FiArrowLeft,
   FiAward,
+  FiBarChart2 as FiBarChart,
   FiCalendar,
   FiCheckCircle,
   FiClock,
@@ -30,12 +31,14 @@ import {
   FiTrendingUp,
   FiZap,
 } from 'react-icons/fi'
+import '../styles/social-insights.css'
 import { api } from '../api/client'
 import { useStore } from '../store'
 import { colorForBrand } from '../lib/brandColor'
 import { isKhmer } from '../lib/format'
 import { platformHue, platformIconClass } from '../components/insights/Overview'
 import { GrowthCard, MembersCard, MoreFromChannel, PostingTimeCard, PostsTrendCard } from '../components/insights/PostDetail'
+import { ChannelBars, ChannelStatPanel, MembersPostingCard, useChannelData } from '../components/social/ChannelCharts'
 import ImproveCard from '../components/insights/ImproveCard'
 import LogoLoader from '../components/ui/LogoLoader'
 import RepostDialog from '../components/insights/RepostDialog'
@@ -180,17 +183,11 @@ function VsText({ v, fallback }) {
 /** Engagement · reach · rate · rank — each with how it compares. */
 function KpiStrip({ cells }) {
   return (
-    <section className={`${card} grid grid-cols-2 gap-px overflow-hidden bg-ink-100 lg:grid-cols-4`}>
-      {cells.map((c) => (
-        <div key={c.label} className="bg-white px-5 py-4">
-          <div className="flex items-center gap-1.5 text-[12px] text-ink-500">
-            <c.icon size={13} className="text-ink-400" aria-hidden="true" />
-            {c.label}
-          </div>
-          <div className="mt-1 text-[26px] font-bold leading-tight tracking-tight tabular-nums text-ink-900">{c.value}</div>
-          <div className="mt-0.5 truncate text-[11.5px]">{c.sub}</div>
-        </div>
-      ))}
+    <section className="insights-metric-cards" aria-label="Key performance metrics">
+      {cells.map((c, i) => <div key={c.label} className={`insights-metric-card metric-tone-${i}`}>
+        <span className="insights-metric-icon"><c.icon size={20} aria-hidden="true" /></span>
+        <div><div className="insights-metric-label">{c.label}</div><strong>{c.value}</strong><div className="insights-metric-note">{c.sub}</div></div>
+      </div>)}
     </section>
   )
 }
@@ -262,6 +259,12 @@ export default function InsightsPostPage() {
   const [items, setItems] = useState(null)
   const [zoom, setZoom] = useState(false)
   const [history, setHistory] = useState(null)
+  const [period, setPeriod] = useState('all')
+  const chartHistory = useMemo(() => {
+    if (!history || period === 'all') return history
+    const cutoff = Date.now() - Number(period) * 86400000
+    return { ...history, post: (history.post || []).filter((s) => new Date(s.at).getTime() >= cutoff), channel: (history.channel || []).filter((s) => new Date(s.at).getTime() >= cutoff) }
+  }, [history, period])
   const [reposting, setReposting] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const navigate = useNavigate()
@@ -294,6 +297,10 @@ export default function InsightsPostPage() {
     [items, post],
   )
 
+  // This channel's members and posts per day, for the graphs
+  const channelPosts = useMemo(() => samePlatform.filter((p) => !post || post.channel_id == null || p.channel_id === post.channel_id), [samePlatform, post])
+  const channelData = useChannelData(chartHistory, channelPosts, period)
+
   // Everything this post is compared with is the same platform — a Telegram
   // post's reach and a TikTok post's reach aren't the same number.
   const peers = useMemo(
@@ -315,7 +322,7 @@ export default function InsightsPostPage() {
   if (items === null) {
     return (
       <div className="w-full px-5 lg:px-8 py-7">
-        <LogoLoader label="Loading this post’s numbers" />
+        <LogoLoader avatar label="Reading this post’s numbers" />
       </div>
     )
   }
@@ -401,8 +408,8 @@ export default function InsightsPostPage() {
   const info = !resolved || (!showEngagement && m.views == null && m.subscribers == null) ? explain(post, platformName) : null
 
   return (
-    <div className="w-full px-5 lg:px-8 pt-7 pb-28 animate-fadein">
-      <div className="mb-5 flex items-center justify-between gap-3">
+    <div className="social-insights w-full px-4 sm:px-6 lg:px-8 pt-6 pb-12">
+      <div className="insights-toolbar mb-5 flex flex-wrap items-center justify-between gap-3">
         <Link to="/insights" className="inline-flex items-center gap-1.5 text-[13px] font-medium text-ink-600 hover:text-ink-900">
           <FiArrowLeft size={16} /> Back to Analytics
         </Link>
@@ -418,9 +425,11 @@ export default function InsightsPostPage() {
       {reposting && <RepostDialog post={post} onClose={() => setReposting(false)} />}
       {deleting && <DeletePostDialog post={post} onClose={() => setDeleting(false)} onDeleted={() => navigate('/insights')} />}
 
-      <div className="space-y-4">
+      <header className="social-insights-heading"><div><p>CONTENT ANALYTICS</p><h1>Post insights</h1><span>Understand how your content performs on {platformName}.</span></div><div className="insights-platform-pill"><Icon size={17} />{platformName}</div></header>
+      <div className="insights-reference-layout">
+      <div className="insights-reference-main space-y-4">
         {/* The post */}
-        <section className={`${card} flex flex-col gap-4 p-4 sm:flex-row`}>
+        <section className={`${card} insights-post-summary flex flex-col gap-4 p-4 sm:flex-row`}>
           <button
             type="button"
             onClick={() => src && setZoom(true)}
@@ -428,9 +437,9 @@ export default function InsightsPostPage() {
             title={src ? 'View full size' : ''}
           >
             {src && (post.media_kind === 'image' || post.media_thumb) ? (
-              <img src={src} alt="" className="absolute inset-0 h-full w-full object-cover" />
+              <img src={src} alt="" className="absolute inset-0 h-full w-full object-contain" />
             ) : src && post.media_kind === 'video' ? (
-              <video src={src} className="absolute inset-0 h-full w-full object-cover" muted playsInline />
+              <video src={src} className="absolute inset-0 h-full w-full object-contain" muted playsInline />
             ) : (
               <FiImage size={24} className="text-ink-400" />
             )}
@@ -440,6 +449,7 @@ export default function InsightsPostPage() {
           </button>
 
           <div className="min-w-0 flex-1">
+            <h2 className="insights-summary-title">{post.title || body.split('\n')[0] || 'Untitled post'}</h2>
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px]">
               <span className="h-2.5 w-2.5 rounded-full" style={{ background: brandColor }} />
               <span className="font-semibold text-ink-900">{post.brand_name}</span>
@@ -463,9 +473,9 @@ export default function InsightsPostPage() {
                 {resolved ? 'Live' : 'Needs attention'}
               </span>
             </div>
-            <p className={`mt-2 line-clamp-3 whitespace-pre-line text-[13.5px] leading-relaxed text-ink-800 ${isKhmer(body) ? 'font-khmer' : ''}`}>
+            <details className="insights-caption-disclosure"><summary>View caption</summary><p className={`mt-2 line-clamp-3 whitespace-pre-line text-[13.5px] leading-relaxed text-ink-800 ${isKhmer(body) ? 'font-khmer' : ''}`}>
               {body || <span className="italic text-ink-400">No caption</span>}
-            </p>
+            </p></details>
             {tags.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {tags.map((t) => (
@@ -477,13 +487,16 @@ export default function InsightsPostPage() {
             )}
           </div>
 
+          <div className="insights-summary-actions">
+            <a href="#insights-recommendations" className="btn-primary"><FiZap size={14} /> Improve with AI</a>
           {post.url && (
-            <div className="flex-none sm:w-44">
+            <div className="flex-none">
               <a href={post.url} target="_blank" rel="noreferrer" className="btn-outline w-full">
                 View on {platformName} <FiExternalLink size={13} />
               </a>
             </div>
           )}
+          </div>
         </section>
 
         {zoom && src && (
@@ -496,14 +509,13 @@ export default function InsightsPostPage() {
           </div>
         )}
 
-        {weakText && improve}
+
 
         {info ? (
           <>
             <Explainer info={info} post={post} platformName={platformName} />
             <PostingTimeCard post={post} peers={samePlatform} platformName={platformName} />
-            <MoreFromChannel post={post} items={items} icons={PLATFORM_ICONS} engagementOf={engagementOf} onOpen={openPost} />
-            {!weakText && improve}
+
           </>
         ) : (
           <>
@@ -567,48 +579,53 @@ export default function InsightsPostPage() {
                 </div>
               </>
             ) : (
-              <section className={`${card} p-6`}>
-                <div className="text-[12.5px] font-medium text-ink-600">{reach.label}</div>
-                <div className="mt-1 text-[44px] font-bold leading-none tracking-tight text-ink-900">{fmt(reach.value)}</div>
-                <p className="mt-2 text-[12.5px] text-ink-500">
-                  {reach.hint}. {platformName} doesn't share likes, comments or shares with apps
-                  {post.url ? ' — open the post to see them.' : '.'}
-                </p>
-              </section>
+              <div className="insights-context">
+                <KpiStrip cells={[
+                  { icon: FiGrid, label: reach.label, value: fmt(reach.value), sub: <span className="text-ink-500">{m.subscribers != null ? 'Channel-wide audience' : 'Reported by the platform'}</span> },
+                  { icon: FiTrendingUp, label: 'Audience change', value: (() => { const points = (chartHistory?.channel || []).filter((r) => r.subscribers != null); return points.length >= 2 ? `${points.at(-1).subscribers - points[0].subscribers >= 0 ? '+' : ''}${fmt(points.at(-1).subscribers - points[0].subscribers)}` : '—' })(), sub: <span className="text-ink-500">Across selected saved readings</span> },
+                  { icon: FiBarChart, label: 'Saved readings', value: fmt((chartHistory?.channel || []).length), sub: <span className="text-ink-500">In the selected period</span> },
+                  { icon: FiCheckCircle, label: 'Post status', value: resolved ? 'Published' : 'Pending', sub: <span className="text-ink-500">On {platformName}</span> },
+                ]} />
+                <p className="insights-data-note"><FiLock size={13} />{m.subscribers != null ? 'Audience metrics describe the whole channel. They do not measure engagement with this post.' : `${platformName} has not supplied engagement metrics for this post.`}</p>
+              </div>
             )}
 
-            {/* Over time: this post's own growth, and where it sits among your posts */}
-            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <div className="insights-section-heading"><div><h2>{m.subscribers != null && !showEngagement ? 'Audience growth' : 'Performance over time'}</h2><p>Saved snapshots · the period filter applies to these growth charts</p></div><div className="insights-period" role="group" aria-label="Growth chart period">{[['7','7 days'],['30','30 days'],['all','All time']].map(([value,label]) => <button key={value} type="button" aria-pressed={period === value} onClick={() => setPeriod(value)}>{label}</button>)}</div></div>
+            <div className={`insights-growth-grid grid grid-cols-1 gap-4 ${series.length >= 2 ? 'xl:grid-cols-2' : 'xl:grid-cols-[minmax(0,1fr)_300px]'}`}>
               {showEngagement || m.views != null ? (
-                <GrowthCard history={history} publishedAt={post.published_at} seriesColors={SERIES_COLORS} platformName={platformName} />
+                <GrowthCard history={chartHistory} publishedAt={post.published_at} seriesColors={SERIES_COLORS} platformName={platformName} />
               ) : m.subscribers != null ? (
-                <MembersCard history={history} publishedAt={post.published_at} />
+                <MembersCard history={chartHistory} publishedAt={post.published_at} />
               ) : null}
-              {series.length >= 2 && <PostsTrendCard series={series} activeId={post.target_id} usual={usualEngagement} platformName={platformName} />}
+              {series.length >= 2 ? <PostsTrendCard series={series} activeId={post.target_id} usual={usualEngagement} platformName={platformName} /> : <ChannelStatPanel data={channelData} />}
             </div>
 
-            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
+              <MembersPostingCard data={channelData} />
               <PostingTimeCard post={post} peers={samePlatform} platformName={platformName} />
-              <MoreFromChannel post={post} items={items} icons={PLATFORM_ICONS} engagementOf={engagementOf} onOpen={openPost} />
             </div>
 
-            <section className={`${card} p-5`}>
-              <h2 className="mb-3 text-[14.5px] font-semibold tracking-tight text-ink-900">What to do next</h2>
-              <ol className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                {tips.map((t, i) => (
-                  <li key={i} className="flex items-center gap-3 rounded-xl bg-ink-50/70 px-3.5 py-2.5">
-                    <span className="grid h-8 w-8 flex-none place-items-center rounded-lg bg-brand-soft text-brand">
-                      <t.icon size={15} aria-hidden="true" />
-                    </span>
-                    <p className="text-[12.5px] leading-snug text-ink-700">{t.text}</p>
-                  </li>
-                ))}
-              </ol>
-            </section>
-
-            {!weakText && improve}
+            <details className="insights-extra-charts"><summary>Explore daily activity</summary><ChannelBars data={channelData} platformName={platformName} /></details>
           </>
         )}
+      </div>
+            <aside className="insights-reference-sidebar space-y-4">
+              <section id="insights-recommendations" className="insights-ai-panel"><h2><FiZap size={20} /> Recommendations</h2><p>Ideas for your next post</p>{improve || <p>Add a caption to generate an improved version.</p>}</section>
+              <div className="insights-recent-posts"><MoreFromChannel post={post} items={items} icons={PLATFORM_ICONS} engagementOf={engagementOf} onOpen={openPost} /><Link to="/insights" className="insights-view-all">View all posts <FiArrowLeft className="rotate-180" size={14} /></Link></div>
+              <details className={`${card} insights-recommendations p-5`}>
+                <summary className="mb-3 text-[14.5px] font-semibold tracking-tight text-ink-900">Recommendations <span>View suggestions</span></summary>
+                <ol className="grid grid-cols-1 gap-2.5">
+                  {tips.map((t, i) => (
+                    <li key={i} className="flex items-center gap-3 rounded-xl bg-ink-50/70 px-3.5 py-2.5">
+                      <span className="grid h-8 w-8 flex-none place-items-center rounded-lg bg-brand-soft text-brand">
+                        <t.icon size={15} aria-hidden="true" />
+                      </span>
+                      <p className="text-[12.5px] leading-snug text-ink-700">{t.text}</p>
+                    </li>
+                  ))}
+                </ol>
+              </details>
+            </aside>
       </div>
     </div>
   )

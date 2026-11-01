@@ -8,6 +8,7 @@ import {
   FiFilm,
   FiGlobe,
   FiHome,
+  FiGrid,
   FiImage,
   FiMessageSquare,
   FiPackage,
@@ -25,6 +26,7 @@ import {
 // whose anchor isn't on screen is simply skipped.
 // `group` starts a new group under a small grey heading (the sidebar, AI Studio style).
 export const BOSS = [
+  { to: '/', end: true, icon: FiGrid, label: 'Dashboard' },
   { to: '/command', icon: FiHome, label: 'Command center', tour: 'command' },
   {
     to: '/weekly',

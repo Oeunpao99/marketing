@@ -1,16 +1,5 @@
-import {
-  FiArrowRight,
-  FiCheck,
-  FiClock,
-  FiDatabase,
-  FiLock,
-  FiShield,
-  FiStar,
-  FiTrendingUp,
-  FiUsers,
-  FiZap,
-} from 'react-icons/fi'
-import { SiFacebook, SiTelegram } from 'react-icons/si'
+import { FiArrowRight, FiCheck, FiDatabase, FiLock, FiUsers, FiZap } from 'react-icons/fi'
+import { SiTelegram } from 'react-icons/si'
 import { useNavigate } from 'react-router-dom'
 import { FEATURE_NAMES, has, NEEDS, usePlanFeatures } from '../../lib/planFeatures'
 import LiveAvatar from '../ui/LiveAvatar'
@@ -18,7 +7,7 @@ import LiveAvatar from '../ui/LiveAvatar'
 // what each locked page says it does, so the lock sells the feature
 const PAGE_TEXT = {
   leads:
-    'Collect leads from your chatbot and your posts, and hand each one to the right sales rep by Telegram — 3 reps on Growth, 10 on Business. Leads your chatbot sends now are kept for you.',
+    'Send each lead to the right sales rep on Telegram — 3 reps on Growth, 10 on Business.',
   api:
     'Let Claude, ChatGPT or your own systems use Smart Marketing — plan posts, make videos and read results through an API key or the MCP connector.',
 }
@@ -29,56 +18,39 @@ export function PlanGate({ feature, children }) {
   return has(features, feature) ? children : <PlanLock page feature={feature} text={PAGE_TEXT[feature]} />
 }
 
-/** Full-width creative showcase specifically for the Leads & hand-off feature */
+/** Full-width showcase for the Leads & hand-off feature: short lines, the picture does the explaining */
+const Tick = ({ children }) => (
+  <li className="flex items-start gap-2.5">
+    <span className="grid h-5 w-5 flex-none place-items-center rounded-full bg-emerald-100 text-emerald-700">
+      <FiCheck size={12} strokeWidth={3} />
+    </span>
+    <span>{children}</span>
+  </li>
+)
+
 function LeadsPlanPage({ onUpgrade }) {
   return (
     <div className="w-full px-5 lg:px-8 py-7 animate-fadein space-y-7">
-      {/* Top Hero Banner */}
       <div className="relative w-full overflow-hidden rounded-3xl border border-brand-line/70 bg-gradient-to-br from-white via-brand-soft/30 to-brand-soft/60 p-6 sm:p-9 lg:p-10 shadow-pop">
-        {/* Ambient background glows */}
         <div className="pointer-events-none absolute -right-20 -top-20 h-72 w-72 rounded-full bg-brand/10 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-24 -left-12 h-64 w-64 rounded-full bg-brand-light/15 blur-3xl" />
-
         <div className="relative z-10 grid items-center gap-8 lg:grid-cols-[1fr_auto]">
-          <div className="min-w-0 flex-1 space-y-4.5">
-            {/* Plan Badge */}
-            <div className="inline-flex items-center gap-2 rounded-full border border-brand-line bg-white/90 px-3.5 py-1.5 shadow-sm backdrop-blur">
+          <div className="min-w-0 flex-1 space-y-4">
+            <div className="inline-flex items-center gap-2 rounded-full border border-brand-line bg-white/90 px-3.5 py-1.5 shadow-sm">
               <span className="grid h-5 w-5 place-items-center rounded-full bg-brand text-white">
                 <FiZap size={11} />
               </span>
-              <span className="text-[12px] font-bold tracking-wide uppercase text-brand">
-                Growth &amp; Business Plan
-              </span>
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-[12px] font-bold tracking-wide uppercase text-brand">Growth &amp; Business</span>
             </div>
-
-            {/* Headline */}
             <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-ink-900 leading-tight">
-              Leads &amp; hand-off is on the Growth plan
+              Send every lead to the right sales rep
             </h1>
-
-            {/* Subtitle */}
             <p className="text-[14.5px] sm:text-[15.5px] text-ink-600 leading-relaxed">
-              Collect leads from your chatbot and your posts, and hand each one to the right sales rep by Telegram —{' '}
-              <strong className="text-ink-900 font-semibold">3 reps on Growth</strong>,{' '}
-              <strong className="text-ink-900 font-semibold">10 on Business</strong>. Leads your chatbot sends now are kept for you.
+              Leads from your chatbot and posts reach your team on Telegram.
             </p>
-
-            {/* Quick value badges */}
-            <div className="flex flex-wrap items-center gap-2.5 pt-1 text-[12.5px] text-ink-700">
-              <span className="inline-flex items-center gap-1.5 rounded-lg bg-white/80 border border-ink-200/60 px-3 py-1.5 font-medium shadow-xs">
-                <SiTelegram className="text-[#229ED9]" size={14} /> Telegram Instant Alerts
-              </span>
-              <span className="inline-flex items-center gap-1.5 rounded-lg bg-white/80 border border-ink-200/60 px-3 py-1.5 font-medium shadow-xs">
-                <FiUsers className="text-brand" size={14} /> 3 to 10 Sales Reps
-              </span>
-              <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200/80 px-3 py-1.5 font-medium shadow-xs">
-                <FiShield size={14} className="text-emerald-600" /> Leads Safely Retained
-              </span>
-            </div>
-
-            {/* CTA action buttons */}
-            <div className="flex flex-wrap items-center gap-3.5 pt-3">
+            <p className="inline-flex items-center gap-1.5 rounded-lg border border-ink-200/60 bg-white/80 px-3 py-1.5 text-[13px] font-medium text-ink-700 shadow-xs">
+              <FiCheck size={14} className="text-emerald-600" /> Included in <b className="text-ink-900">Growth</b> and <b className="text-ink-900">Business</b>
+            </p>
+            <div className="flex flex-wrap items-center gap-3.5 pt-2">
               <button
                 type="button"
                 onClick={() => onUpgrade('pro')}
@@ -96,151 +68,62 @@ function LeadsPlanPage({ onUpgrade }) {
               </button>
             </div>
           </div>
-
-          {/* Avatar Character & Creative Speech Bubble */}
-          <div className="relative flex flex-col items-center justify-center lg:pl-6">
-            <div className="relative">
-              {/* Floating speech bubble */}
-              <div className="absolute -top-12 -left-8 sm:-left-16 z-20 w-52 sm:w-60 rounded-2xl border border-brand-line bg-white p-3 text-left shadow-pop animate-float">
-                <div className="flex items-center gap-1.5 text-[11px] font-bold text-brand uppercase tracking-wider">
-                  <FiZap size={12} /> Smart Assistant
-                </div>
-                <p className="mt-1 text-[12px] text-ink-700 leading-snug">
-                  I route every chatbot inquiry straight to your sales team's Telegram!
-                </p>
-                {/* Speech tail */}
-                <div className="absolute -bottom-2 right-12 h-3 w-3 rotate-45 border-b border-r border-brand-line bg-white" />
-              </div>
-
-              {/* Glowing ring under avatar */}
-              <div className="absolute inset-0 m-auto h-36 w-36 rounded-full bg-gradient-to-tr from-brand/20 to-brand-light/30 blur-xl" />
-
-              {/* The Mascot */}
-              <div className="relative z-10 pt-6">
-                <LiveAvatar size={155} wave={true} />
-              </div>
-            </div>
-
-            {/* Status indicator pill */}
-            <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-[11.5px] font-medium text-emerald-800 shadow-xs">
-              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-              Lead capture engine ready
+          <div className="relative hidden flex-col items-center justify-center lg:flex lg:pl-6">
+            <div className="absolute inset-0 m-auto h-36 w-36 rounded-full bg-gradient-to-tr from-brand/20 to-brand-light/30 blur-xl" />
+            <div className="relative z-10">
+              <LiveAvatar size={150} wave={true} />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Visual Workflow: How Leads & Hand-off Works */}
       <div className="rounded-3xl border border-ink-200/70 bg-white p-6 sm:p-8 shadow-card">
-        <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <div className="text-[12px] font-bold uppercase tracking-wider text-brand">The Live Workflow</div>
-            <h2 className="text-xl sm:text-2xl font-bold text-ink-900 mt-1">
-              From Customer Message to Telegram Hand-Off
-            </h2>
-            <p className="text-[13.5px] text-ink-500 mt-1">
-              Zero manual copying. The chatbot qualifies buyers and hands them to the best available rep.
-            </p>
-          </div>
-          <span className="rounded-full bg-brand-soft px-3 py-1 text-[12px] font-semibold text-brand">
-            Automated Routing
-          </span>
-        </div>
-
+        <h2 className="mb-5 text-xl sm:text-2xl font-bold text-ink-900">How it works</h2>
         <div className="grid gap-4 md:grid-cols-3">
-          {/* Step 1: Customer inquiry */}
-          <div className="relative rounded-2xl border border-ink-200/70 bg-canvas-soft p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="flex items-center gap-1.5 text-[11.5px] font-bold uppercase tracking-wider text-ink-500">
-                <span className="grid h-5 w-5 place-items-center rounded-full bg-brand text-white text-[10px]">1</span>
-                Inbound Lead
-              </span>
-              <span className="inline-flex items-center gap-1 rounded bg-[#1877F2]/10 px-2 py-0.5 text-[11px] font-medium text-[#1877F2]">
-                <SiFacebook size={12} /> Chatbot / Post
-              </span>
+          <div className="rounded-2xl border border-ink-200/70 bg-canvas-soft p-5 space-y-3">
+            <span className="flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-wider text-ink-500">
+              <span className="grid h-5 w-5 place-items-center rounded-full bg-brand text-white text-[10px]">1</span>
+              Customer asks
+            </span>
+            <div className="rounded-xl border border-ink-200/60 bg-white p-3 shadow-xs">
+              <div className="text-[13px] font-bold text-ink-900">Sokha Meng</div>
+              <p className="mt-1 text-[12px] text-ink-600">"I need 50 units. Please contact me."</p>
             </div>
+          </div>
 
-            <div className="rounded-xl border border-ink-200/60 bg-white p-3 shadow-xs space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-[13px] text-ink-900">Sokha Meng</span>
-                <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">Hot Lead</span>
+          <div className="rounded-2xl border border-brand-line/80 bg-brand-soft/40 p-5 space-y-3">
+            <span className="flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-wider text-brand">
+              <span className="grid h-5 w-5 place-items-center rounded-full bg-brand text-white text-[10px]">2</span>
+              We pick a rep
+            </span>
+            <div className="rounded-xl border border-brand-line/60 bg-white p-3 shadow-xs">
+              <div className="flex items-center justify-between text-[13px]">
+                <span className="font-bold text-ink-900">Dara</span>
+                <span className="text-[11.5px] font-semibold text-emerald-600">Available</span>
               </div>
-              <p className="text-[12px] text-ink-600 line-clamp-2">
-                "Hello! We need 50 units by next Tuesday. Can someone contact me on Telegram?"
-              </p>
-              <div className="pt-1 flex items-center justify-between text-[11px] text-ink-400">
-                <span>Phone: 012 998 776</span>
-                <span>Just now</span>
+              <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-ink-100">
+                <div className="h-full w-2/3 rounded-full bg-brand" />
               </div>
             </div>
           </div>
 
-          {/* Step 2: Intelligent Routing */}
-          <div className="relative rounded-2xl border border-brand-line/80 bg-brand-soft/40 p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="flex items-center gap-1.5 text-[11.5px] font-bold uppercase tracking-wider text-brand">
-                <span className="grid h-5 w-5 place-items-center rounded-full bg-brand text-white text-[10px]">2</span>
-                Smart Matching
-              </span>
-              <span className="inline-flex items-center gap-1 rounded bg-white px-2 py-0.5 text-[11px] font-semibold text-brand shadow-xs">
-                <FiZap size={12} /> AI Rules
-              </span>
-            </div>
-
-            <div className="rounded-xl border border-brand-line/60 bg-white p-3 shadow-xs space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand-soft text-brand">
-                  <FiClock size={14} />
-                </span>
-                <div>
-                  <div className="text-[12.5px] font-bold text-ink-900">Round Robin &amp; SLA</div>
-                  <div className="text-[11px] text-ink-500">Checking rep capacity &amp; industry...</div>
-                </div>
+          <div className="rounded-2xl border border-[#229ED9]/30 bg-[#229ED9]/5 p-5 space-y-3">
+            <span className="flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-wider text-[#0088cc]">
+              <span className="grid h-5 w-5 place-items-center rounded-full bg-[#229ED9] text-white text-[10px]">3</span>
+              Rep gets it
+            </span>
+            <div className="rounded-xl border border-[#229ED9]/30 bg-white p-3 shadow-xs">
+              <div className="flex items-center gap-1.5 text-[13px] font-bold text-[#0088cc]">
+                <SiTelegram size={14} /> New lead for Dara
               </div>
-              <div className="space-y-1 pt-1 text-[11px]">
-                <div className="flex justify-between text-ink-600">
-                  <span>Dara (Wholesale Specialist)</span>
-                  <span className="font-semibold text-emerald-600">Available</span>
-                </div>
-                <div className="h-1.5 w-full rounded-full bg-ink-100 overflow-hidden">
-                  <div className="h-full rounded-full bg-brand w-2/3" />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Step 3: Telegram Hand-Off */}
-          <div className="relative rounded-2xl border border-[#229ED9]/30 bg-[#229ED9]/5 p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="flex items-center gap-1.5 text-[11.5px] font-bold uppercase tracking-wider text-[#0088cc]">
-                <span className="grid h-5 w-5 place-items-center rounded-full bg-[#229ED9] text-white text-[10px]">3</span>
-                Instant Hand-Off
-              </span>
-              <span className="inline-flex items-center gap-1 rounded bg-[#229ED9] px-2 py-0.5 text-[11px] font-semibold text-white">
-                <SiTelegram size={12} /> Telegram
-              </span>
-            </div>
-
-            <div className="rounded-xl border border-[#229ED9]/30 bg-white p-3 shadow-xs space-y-1.5">
-              <div className="flex items-center gap-1.5 text-[12px] font-bold text-[#0088cc]">
-                <span>🔔 New Lead Assigned to Dara</span>
-              </div>
-              <p className="text-[11.5px] text-ink-600 leading-tight">
-                Alert sent to <strong>@dara_sales</strong> with full conversation history &amp; contact info.
-              </p>
-              <div className="pt-1 flex items-center justify-between text-[10.5px] text-ink-400">
-                <span className="font-medium text-emerald-600">✓ Handed over in 2.4s</span>
-                <span>Target SLA: 15m</span>
-              </div>
+              <p className="mt-1 text-[12px] text-ink-500">Sent in seconds</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Plan Quotas & Comparison Cards */}
       <div className="grid gap-6 md:grid-cols-2">
-        {/* Growth Plan Card */}
-        <div className="relative rounded-3xl border-2 border-brand bg-white p-6 sm:p-7 shadow-pop flex flex-col justify-between">
+        <div className="relative flex flex-col justify-between rounded-3xl border-2 border-brand bg-white p-6 sm:p-7 shadow-pop">
           <div className="absolute -top-3.5 right-6 rounded-full bg-brand px-3.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white shadow-sm">
             Most Popular
           </div>
@@ -255,58 +138,28 @@ function LeadsPlanPage({ onUpgrade }) {
                 <div className="text-[11px] text-ink-400">per month (325,000 ៛)</div>
               </div>
             </div>
-
-            <div className="my-5 rounded-2xl bg-brand-soft/50 border border-brand-line/60 p-4">
-              <div className="flex items-center gap-2.5">
-                <span className="grid h-9 w-9 flex-none place-items-center rounded-xl bg-brand text-white shadow-xs">
-                  <FiUsers size={18} />
-                </span>
-                <div>
-                  <div className="text-[14px] font-bold text-ink-900">3 Sales Reps on Telegram</div>
-                  <div className="text-[12px] text-ink-600">Assign leads automatically to 3 individual reps</div>
-                </div>
+            <div className="my-5 flex items-center gap-2.5 rounded-2xl border border-brand-line/60 bg-brand-soft/50 p-4">
+              <span className="grid h-9 w-9 flex-none place-items-center rounded-xl bg-brand text-white shadow-xs">
+                <FiUsers size={18} />
+              </span>
+              <div>
+                <div className="text-[14px] font-bold text-ink-900">3 Sales Reps on Telegram</div>
+                <div className="text-[12px] text-ink-600">Assign leads automatically to 3 individual reps</div>
               </div>
             </div>
-
             <ul className="space-y-2.5 text-[13px] text-ink-700">
-              <li className="flex items-start gap-2.5">
-                <span className="grid h-5 w-5 flex-none place-items-center rounded-full bg-emerald-100 text-emerald-700">
-                  <FiCheck size={12} strokeWidth={3} />
-                </span>
-                <span>Collect leads from chatbot &amp; post comments</span>
-              </li>
-              <li className="flex items-start gap-2.5">
-                <span className="grid h-5 w-5 flex-none place-items-center rounded-full bg-emerald-100 text-emerald-700">
-                  <FiCheck size={12} strokeWidth={3} />
-                </span>
-                <span>Instant routing &amp; notification by Telegram</span>
-              </li>
-              <li className="flex items-start gap-2.5">
-                <span className="grid h-5 w-5 flex-none place-items-center rounded-full bg-emerald-100 text-emerald-700">
-                  <FiCheck size={12} strokeWidth={3} />
-                </span>
-                <span>Insights: leads, deals, response time &amp; revenue</span>
-              </li>
-              <li className="flex items-start gap-2.5">
-                <span className="grid h-5 w-5 flex-none place-items-center rounded-full bg-emerald-100 text-emerald-700">
-                  <FiCheck size={12} strokeWidth={3} />
-                </span>
-                <span>All leads currently collected are stored &amp; ready</span>
-              </li>
+              <Tick>Collect leads from chatbot &amp; post comments</Tick>
+              <Tick>Instant routing &amp; notification by Telegram</Tick>
+              <Tick>Insights: leads, deals, response time &amp; revenue</Tick>
+              <Tick>All leads currently collected are stored &amp; ready</Tick>
             </ul>
           </div>
-
-          <button
-            type="button"
-            onClick={() => onUpgrade('pro')}
-            className="btn-primary mt-6 w-full py-3 text-[14px] font-semibold flex items-center justify-center gap-2"
-          >
+          <button type="button" onClick={() => onUpgrade('pro')} className="btn-primary mt-6 flex w-full items-center justify-center gap-2 py-3 text-[14px] font-semibold">
             Upgrade to Growth <FiArrowRight size={15} />
           </button>
         </div>
 
-        {/* Business Plan Card */}
-        <div className="relative rounded-3xl border border-ink-200/80 bg-white p-6 sm:p-7 shadow-card flex flex-col justify-between">
+        <div className="relative flex flex-col justify-between rounded-3xl border border-ink-200/80 bg-white p-6 sm:p-7 shadow-card">
           <div>
             <div className="flex items-center justify-between">
               <div>
@@ -318,73 +171,35 @@ function LeadsPlanPage({ onUpgrade }) {
                 <div className="text-[11px] text-ink-400">per month (819,000 ៛)</div>
               </div>
             </div>
-
-            <div className="my-5 rounded-2xl bg-canvas border border-ink-200/60 p-4">
-              <div className="flex items-center gap-2.5">
-                <span className="grid h-9 w-9 flex-none place-items-center rounded-xl bg-night-900 text-white shadow-xs">
-                  <FiUsers size={18} />
-                </span>
-                <div>
-                  <div className="text-[14px] font-bold text-ink-900">10 Sales Reps on Telegram</div>
-                  <div className="text-[12px] text-ink-600">Full sales department routing with capacity limits</div>
-                </div>
+            <div className="my-5 flex items-center gap-2.5 rounded-2xl border border-ink-200/60 bg-canvas p-4">
+              <span className="grid h-9 w-9 flex-none place-items-center rounded-xl bg-night-900 text-white shadow-xs">
+                <FiUsers size={18} />
+              </span>
+              <div>
+                <div className="text-[14px] font-bold text-ink-900">10 Sales Reps on Telegram</div>
+                <div className="text-[12px] text-ink-600">Full sales department routing with capacity limits</div>
               </div>
             </div>
-
             <ul className="space-y-2.5 text-[13px] text-ink-700">
-              <li className="flex items-start gap-2.5">
-                <span className="grid h-5 w-5 flex-none place-items-center rounded-full bg-emerald-100 text-emerald-700">
-                  <FiCheck size={12} strokeWidth={3} />
-                </span>
-                <span>Everything in Growth, scaled for large volume</span>
-              </li>
-              <li className="flex items-start gap-2.5">
-                <span className="grid h-5 w-5 flex-none place-items-center rounded-full bg-emerald-100 text-emerald-700">
-                  <FiCheck size={12} strokeWidth={3} />
-                </span>
-                <span>Up to 10 sales reps with custom routing rules</span>
-              </li>
-              <li className="flex items-start gap-2.5">
-                <span className="grid h-5 w-5 flex-none place-items-center rounded-full bg-emerald-100 text-emerald-700">
-                  <FiCheck size={12} strokeWidth={3} />
-                </span>
-                <span>Export leads &amp; performance to Excel / CSV</span>
-              </li>
-              <li className="flex items-start gap-2.5">
-                <span className="grid h-5 w-5 flex-none place-items-center rounded-full bg-emerald-100 text-emerald-700">
-                  <FiCheck size={12} strokeWidth={3} />
-                </span>
-                <span>3 brands with separate routing &amp; API / MCP access</span>
-              </li>
+              <Tick>Everything in Growth, scaled for large volume</Tick>
+              <Tick>Up to 10 sales reps with custom routing rules</Tick>
+              <Tick>Export leads &amp; performance to Excel / CSV</Tick>
+              <Tick>3 brands with separate routing &amp; API / MCP access</Tick>
             </ul>
           </div>
-
-          <button
-            type="button"
-            onClick={() => onUpgrade('business')}
-            className="btn-ghost mt-6 w-full py-3 text-[14px] font-semibold border border-ink-200 hover:bg-canvas text-ink-900 flex items-center justify-center gap-2"
-          >
+          <button type="button" onClick={() => onUpgrade('business')} className="btn-ghost mt-6 flex w-full items-center justify-center gap-2 border border-ink-200 py-3 text-[14px] font-semibold text-ink-900 hover:bg-canvas">
             Upgrade to Business <FiArrowRight size={15} />
           </button>
         </div>
       </div>
 
-      {/* Safety & Lead Retention Reassurance Card */}
-      <div className="rounded-2xl border border-emerald-200/90 bg-emerald-50/60 p-5 sm:p-6 shadow-xs">
-        <div className="flex items-start gap-4">
-          <span className="grid h-10 w-10 flex-none place-items-center rounded-xl bg-emerald-600 text-white shadow-xs">
-            <FiDatabase size={18} />
-          </span>
-          <div className="space-y-1">
-            <h4 className="text-[15px] font-bold text-emerald-950">
-              Leads your chatbot sends right now are kept safe for you
-            </h4>
-            <p className="text-[13px] text-emerald-900/80 leading-relaxed">
-              Don't worry about missing customer inquiries while deciding. Your marketing agent securely records and saves every
-              lead your chatbot receives. Once you activate Growth or Business, all queued leads will be ready to hand off immediately!
-            </p>
-          </div>
-        </div>
+      <div className="flex items-center gap-3 rounded-2xl border border-ink-200/80 bg-ink-50 p-4 sm:p-5">
+        <span className="grid h-9 w-9 flex-none place-items-center rounded-xl bg-emerald-600 text-white shadow-xs">
+          <FiDatabase size={16} />
+        </span>
+        <p className="text-[13.5px] text-ink-700">
+          <b className="text-ink-900">Nothing is lost.</b> Leads your chatbot sends now are saved until you upgrade.
+        </p>
       </div>
     </div>
   )

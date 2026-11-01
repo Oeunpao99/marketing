@@ -7,8 +7,10 @@ import CircularProgress from '../components/ui/CircularProgress'
 import Pager from '../components/ui/Pager'
 import { phnomPenhDay, phnomPenhDate, fullDayLabel } from '../lib/tz'
 import DateRangePicker, { inRange } from '../components/ui/DateRangePicker'
-import { FiCheck, FiCheckCircle, FiClock, FiEdit3, FiEye, FiInbox, FiLayers, FiRefreshCw, FiSend, FiShare2, FiZap } from 'react-icons/fi'
+import { FiChevronDown, FiCheck, FiCheckCircle, FiClock, FiEdit3, FiEye, FiInbox, FiLayers, FiRefreshCw, FiSend, FiShare2, FiZap } from 'react-icons/fi'
+import '../styles/studio-dashboard.css'
 import { DeltaText } from '../components/insights/Overview'
+import DashboardHome from '../components/dashboard/DashboardHome'
 import { BestTimeHeatmap, DailyStackedBars, DonutWithTable, Insights, useDashboardStats } from '../components/today/DashboardCharts'
 
 const PER_PAGE = 10 // queue posts per page
@@ -25,7 +27,7 @@ function ChartCard({ title, sub, className = '', children }) {
 
 function KpiCard({ icon: Icon, label, value, note, loading, children }) {
   return (
-    <div className="bg-white rounded-2xl border border-ink-200/60 shadow-[0_1px_2px_rgba(16,24,40,0.04)] px-4 py-4 min-w-0 flex items-center gap-4">
+    <div className="studio-kpi bg-white rounded-2xl border border-ink-200/60 shadow-[0_1px_2px_rgba(16,24,40,0.04)] px-4 py-4 min-w-0 flex items-center gap-4">
       <div className="min-w-0 flex-1">
         <Icon size={17} className="text-ink-600 mb-2.5" aria-hidden="true" />
         <div className="text-[12px] text-ink-600">{label}</div>
@@ -59,7 +61,7 @@ export default function TodayPage() {
   const { queue, channels, review, queueReady, activeBrand, brands } = useStore()
   const [range, setRange] = useState(null) // { from, to } Phnom Penh days, null = all dates
   const [view, setView] = useState('timeline')
-  const liveCount = channels.filter((c) => c.s !== 'off').length
+  const [status, setStatus] = useState('all')
   const sendingCount = queue.filter((q) => q.st === 'sending').length
   const stats = useDashboardStats(queue, channels)
   const { weekday: todayWeekday, rest: todayRest } = fullDayLabel(phnomPenhDate())
@@ -95,7 +97,7 @@ export default function TodayPage() {
         String(b.t).localeCompare(String(a.t)),
     )
   }, [queue])
-  const inDayList = ordered.filter(inDay)
+  const inDayList = ordered.filter((q) => inDay(q) && (status === 'all' || q.st === status))
   // Totals for the dates picked above (latest saved numbers, all channels).
   const totals = useMemo(() => {
     const t = { posts: inDayList.length, published: 0, views: 0, engagement: 0, shares: 0, hasViews: false }
@@ -113,45 +115,36 @@ export default function TodayPage() {
   const current = Math.min(page, pageCount - 1) // the live refresh can shrink the list
   const onPage = new Set(inDayList.slice(current * PER_PAGE, (current + 1) * PER_PAGE))
   const match = (q) => onPage.has(q)
-  useEffect(() => setPage(0), [range])
+  useEffect(() => setPage(0), [range, status])
   const goToPage = (p) => {
     setPage(Math.min(Math.max(0, p), pageCount - 1))
     listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
   return (
-    <div className="w-full px-5 lg:px-8 py-7 animate-fadein">
-      {/* Header */}
-      <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
+    <div className="studio-dashboard w-full px-4 sm:px-6 lg:px-8 py-6">
+      <header className="studio-header">
         <div>
-          <h1 className="text-[24px] font-bold text-ink-900 tracking-tight leading-tight">
-            {todayWeekday}, {todayRest}
-          </h1>
-          <p className="mt-1 text-[13px] text-ink-600">
-            {active?.name ? `${active.name} · ` : ''}
-            {liveCount} of {channels.length || 0} channels live
-            {reviewCount > 0 && (
-              <>
-                {' · '}
-                <Link to="/review" className="text-brand font-medium hover:underline">
-                  {reviewCount} waiting for you
-                </Link>
-              </>
-            )}
-          </p>
+          <p className="studio-date">{active?.name || 'Your workspace'}<span aria-hidden="true"> / </span>Overview</p>
+          <h1>Dashboard</h1>
+          <p className="studio-intro">Your content, connected accounts, and publishing activity in one place.</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Link to="/ai" className="btn-outline">
-            <FiZap size={14} /> Generate with AI
-          </Link>
-          <Link to="/new" className="btn-primary">
-            <FiEdit3 size={14} /> Create a post
-          </Link>
+        <div className="studio-header-right">
+          <p className="studio-today">{todayWeekday}, {todayRest}</p>
+          <div className="studio-header-actions">
+            <Link to="/ai" className="studio-secondary"><FiZap size={15} /> AI studio</Link>
+            <Link to="/new" className="studio-create"><FiEdit3 size={15} /> Create post</Link>
+          </div>
         </div>
-      </div>
+      </header>
+
+      {/* results first: what needs you, this week, the post to boost, the accounts' health */}
+      <DashboardHome />
+
+      <div className="studio-section-heading"><h2>Your content at a glance</h2><span>Live workspace activity</span></div>
 
       {/* KPI cards — counted per delivery (a post to 2 Pages = 2) */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+      <div className="studio-metrics grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
         <KpiCard
           icon={FiCheckCircle}
           label="Published · 30 days"
@@ -198,46 +191,11 @@ export default function TodayPage() {
         />
       </div>
 
-      {/* Charts + insights */}
-      <div className="mb-6 grid gap-4 xl:grid-cols-3">
-        <ChartCard className="xl:col-span-2" title="Posts per day" sub="Last 14 days and the next 7 · by platform">
-          {queueReady ? <DailyStackedBars days={stats.days} platforms={stats.platforms} /> : <div className="h-[190px] rounded-xl skeleton" />}
-        </ChartCard>
-        <ChartCard title="Where your posts go" sub="Published in the last 30 days, by platform">
-          {queueReady ? (
-            <DonutWithTable segments={stats.shareSegments} centerLabel="posts" emptyText="Nothing published in the last 30 days." />
-          ) : (
-            <div className="h-[132px] rounded-xl skeleton" />
-          )}
-        </ChartCard>
-        <ChartCard className="xl:col-span-2" title="What stands out" sub="Worked out from your posts — most urgent first">
-          {queueReady ? <Insights items={stats.insights} /> : <div className="h-[110px] rounded-xl skeleton" />}
-        </ChartCard>
-        <ChartCard title="Delivery status" sub="Last 30 days and the next 7">
-          {queueReady ? (
-            <DonutWithTable segments={stats.statusSegments} centerLabel="deliveries" emptyText="No deliveries in this period." />
-          ) : (
-            <div className="h-[132px] rounded-xl skeleton" />
-          )}
-        </ChartCard>
-        <ChartCard
-          className="xl:col-span-3"
-          title="Best time to post"
-          sub="Average engagement per post by day and time — the AI uses this to plan your strongest posts"
-        >
-          {queueReady ? (
-            <BestTimeHeatmap heat={stats.heat} best={stats.bestSlot} posts={stats.heatPosts} />
-          ) : (
-            <div className="h-[220px] rounded-xl skeleton" />
-          )}
-        </ChartCard>
-      </div>
-
       {/* Queue */}
-      <div ref={listRef} className="scroll-mt-4 bg-white rounded-2xl border border-ink-200/60 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+      <div ref={listRef} className="studio-content scroll-mt-4 bg-white rounded-2xl border border-ink-200/60 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
         <header className="px-5 lg:px-7 pt-5 pb-3 flex items-center justify-between gap-3.5">
           <div>
-            <h2 className="text-[15.5px] font-semibold text-ink-900 tracking-tight">Queue</h2>
+            <h2 className="text-[15.5px] font-semibold text-ink-900 tracking-tight">Your content</h2>
             <p className="text-[11px] text-ink-400 mt-0.5">Today first, then newest to oldest · refreshes every 6s</p>
           </div>
           <span className="hidden sm:inline-flex items-center gap-2 rounded-full border border-ink-200 bg-ink-50 px-3 py-1 text-[11px] font-semibold text-ink-500">
@@ -247,11 +205,21 @@ export default function TodayPage() {
         </header>
 
         <div className="px-5 lg:px-7 pb-2 flex flex-wrap items-center gap-2">
+          <label className="studio-status-filter">Status
+            <select value={status} onChange={(event) => setStatus(event.target.value)}>
+              <option value="all">All posts</option>
+              <option value="queued">Scheduled</option>
+              <option value="posted">Published</option>
+              <option value="sending">Sending</option>
+              <option value="failed">Needs attention</option>
+            </select>
+          </label>
           <DateRangePicker value={range} onChange={setRange} counts={dayCounts} />
 
           <div className="ml-auto inline-flex items-center gap-0.5 rounded-xl border border-ink-200 bg-ink-50 p-0.5">
             <button
               type="button"
+              aria-pressed={view === 'timeline'}
               onClick={() => setView('timeline')}
               className={`px-3 py-1 rounded-lg text-[11px] font-semibold transition-all duration-150 ${
                 view === 'timeline' ? 'bg-white text-brand shadow-sm ring-1 ring-brand/15' : 'text-ink-500 hover:text-ink-800'
@@ -261,6 +229,7 @@ export default function TodayPage() {
             </button>
             <button
               type="button"
+              aria-pressed={view === 'table'}
               onClick={() => setView('table')}
               className={`px-3 py-1 rounded-lg text-[11px] font-semibold transition-all duration-150 ${
                 view === 'table' ? 'bg-white text-brand shadow-sm ring-1 ring-brand/15' : 'text-ink-500 hover:text-ink-800'
@@ -315,9 +284,9 @@ export default function TodayPage() {
           </div>
         ) : inDayList.length === 0 ? (
           <div className="px-7 py-14 text-center text-[12px] text-ink-400">
-            Nothing on these dates.{' '}
-            <button type="button" onClick={() => setRange(null)} className="font-semibold text-brand hover:underline">
-              Show all dates
+            No posts match these filters.{' '}
+            <button type="button" onClick={() => { setRange(null); setStatus('all') }} className="font-semibold text-brand hover:underline">
+              Show all posts
             </button>
           </div>
         ) : (
@@ -327,6 +296,46 @@ export default function TodayPage() {
           </>
         )}
       </div>
+      <details className="studio-analytics">
+        <summary><span><strong>Explore your performance</strong><small>Posting trends, delivery health, and the best times to share</small></span><FiChevronDown size={20} /></summary>
+        <div className="studio-analytics-body">
+      {/* Charts + insights */}
+      <div className="mb-6 grid gap-4 xl:grid-cols-3">
+        <ChartCard className="xl:col-span-2" title="Posts per day" sub="Last 14 days and the next 7 · by platform">
+          {queueReady ? <DailyStackedBars days={stats.days} platforms={stats.platforms} /> : <div className="h-[190px] rounded-xl skeleton" />}
+        </ChartCard>
+        <ChartCard title="Where your posts go" sub="Published in the last 30 days, by platform">
+          {queueReady ? (
+            <DonutWithTable segments={stats.shareSegments} centerLabel="posts" emptyText="Nothing published in the last 30 days." />
+          ) : (
+            <div className="h-[132px] rounded-xl skeleton" />
+          )}
+        </ChartCard>
+        <ChartCard className="xl:col-span-2" title="What stands out" sub="Worked out from your posts — most urgent first">
+          {queueReady ? <Insights items={stats.insights} /> : <div className="h-[110px] rounded-xl skeleton" />}
+        </ChartCard>
+        <ChartCard title="Delivery status" sub="Last 30 days and the next 7">
+          {queueReady ? (
+            <DonutWithTable segments={stats.statusSegments} centerLabel="deliveries" emptyText="No deliveries in this period." />
+          ) : (
+            <div className="h-[132px] rounded-xl skeleton" />
+          )}
+        </ChartCard>
+        <ChartCard
+          className="xl:col-span-3"
+          title="Best time to post"
+          sub="Average engagement per post by day and time — the AI uses this to plan your strongest posts"
+        >
+          {queueReady ? (
+            <BestTimeHeatmap heat={stats.heat} best={stats.bestSlot} posts={stats.heatPosts} />
+          ) : (
+            <div className="h-[220px] rounded-xl skeleton" />
+          )}
+        </ChartCard>
+      </div>
+
+        </div>
+      </details>
     </div>
   )
 }

@@ -160,6 +160,159 @@ def _platform_map(db: Session) -> dict[int, Platform]:
     return {p.id: p for p in db.scalars(select(Platform)).all()}
 
 
+# Platforms whose follower / member count the background job reads (so a live channel with no
+# reading in days is one we can't read — a permission missing, or its login expired).
+_READ_PLATFORMS = ("facebook", "instagram", "youtube", "telegram")
+
+
+@router.get("/dashboard/health")
+def dashboard_health(brand_id: int | None = None, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    """Each connected channel for the Dashboard: its brand, platform, account name, followers now and
+    whether we can read it. "attention" = a Facebook / Instagram / YouTube / Telegram channel that has
+    gone days with no follower reading; a channel connected in the last two hours is given time."""
+    plats = _platform_map(db)
+    brands = _brand_map(db, ws)
+    now = datetime.now(UTC)
+    chans = [c for c in _scoped(db, Channel, ws) if c.status != "off" and (brand_id is None or c.brand_id == brand_id)]
+    latest: dict[int, MetricSnapshot] = {}
+    if chans:
+        rows = db.scalars(
+            select(MetricSnapshot)
+            .where(
+                MetricSnapshot.channel_id.in_([c.id for c in chans]),
+                MetricSnapshot.target_id.is_(None),
+                MetricSnapshot.taken_at >= now - timedelta(days=14),
+            )
+            .order_by(MetricSnapshot.taken_at.desc())
+        )
+        for sn in rows:
+            latest.setdefault(sn.channel_id, sn)
+    out = []
+    for c in chans:
+        slug = plats[c.platform_id].slug if c.platform_id in plats else "?"
+        sn = latest.get(c.id)
+        m = (sn.metrics or {}) if sn else {}
+        followers = m.get("followers") if m.get("followers") is not None else m.get("subscribers")
+        fresh = sn is not None and now - sn.taken_at <= timedelta(days=3)
+        new = c.updated_at is not None and now - c.updated_at <= timedelta(hours=2)
+        status = "attention" if (slug in _READ_PLATFORMS and not fresh and not new) else "ok"
+        brand = brands.get(c.brand_id)
+        out.append(
+            {
+                "id": c.id,
+                "platform": slug,
+                "handle": c.handle or "",
+                "brand_id": c.brand_id,
+                "brand_name": brand.name if brand else "",
+                "followers": followers,
+                "status": status,
+                "note": "Can't read this account's numbers — reconnect it in Channels" if status == "attention" else "",
+            }
+        )
+    out.sort(key=lambda r: (r["status"] != "attention", r["brand_name"].lower(), r["platform"]))
+    return {"channels": out, "connected": len(out), "attention": sum(1 for r in out if r["status"] == "attention")}
+
+
+@router.get("/insights/followers")
+def insights_followers(days: int = 30, brand_id: int | None = None, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    """How many people follow each platform, day by day (Cambodia time), from the saved channel-wide
+    readings: ``{"days": ["2026-11-01", ...], "platforms": {"facebook": [1200, 1210, None, ...]}}``.
+    A channel's last reading carries forward over days with none; a platform's number is the sum of its
+    channels' (None before any of them has a reading). History only goes back to when readings began."""
+    days = max(7, min(days, 180))
+    today = datetime.now(UTC).astimezone(PHNOM_PENH).date()
+    first = today - timedelta(days=days - 1)
+    labels = [(first + timedelta(days=i)).isoformat() for i in range(days)]
+    plats = _platform_map(db)
+    chans = [c for c in _scoped(db, Channel, ws) if brand_id is None or c.brand_id == brand_id]
+    if brand_id is not None:
+        owned(db, Brand, brand_id, ws)
+    ids = [c.id for c in chans]
+    per: dict[int, dict[str, int]] = {}
+    if ids:
+        start = datetime.combine(first, datetime.min.time(), PHNOM_PENH) - timedelta(days=30)
+        for sn in db.scalars(
+            select(MetricSnapshot)
+            .where(MetricSnapshot.channel_id.in_(ids), MetricSnapshot.target_id.is_(None), MetricSnapshot.taken_at >= start)
+            .order_by(MetricSnapshot.taken_at.asc())
+        ):
+            m = sn.metrics or {}
+            v = m.get("followers") if m.get("followers") is not None else m.get("subscribers")
+            if v is not None:
+                per.setdefault(sn.channel_id, {})[sn.taken_at.astimezone(PHNOM_PENH).date().isoformat()] = int(v)  # the day's last wins
+    out: dict[str, list] = {}
+    for c in chans:
+        readings = per.get(c.id)
+        if not readings:
+            continue
+        slug = plats[c.platform_id].slug if c.platform_id in plats else "other"
+        known = sorted(readings)
+        series, last, j = [], None, 0
+        for d in labels:
+            while j < len(known) and known[j] <= d:
+                last = readings[known[j]]
+                j += 1
+            series.append(last)
+        acc = out.setdefault(slug, [None] * days)
+        out[slug] = [(a or 0) + b if (a is not None or b is not None) and b is not None else a for a, b in zip(acc, series)]
+    return {"days": labels, "platforms": out}
+
+
+@router.get("/dashboard/platforms")
+def dashboard_platforms(days: int = 14, brand_id: int | None = None, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    """For the Dashboard's charts, one entry per social platform: every one of the last ``days`` days
+    (Cambodia time, zeros included) with how many posts went out that day and the views and
+    engagement (reactions + comments + shares) those posts have EARNED so far, from the saved
+    readings — no live platform calls, so it opens fast. A post counts on the day it was published."""
+    days = max(3, min(days, 60))
+    today = datetime.now(UTC).astimezone(PHNOM_PENH).date()
+    first = today - timedelta(days=days - 1)
+    since = datetime.combine(first, datetime.min.time(), PHNOM_PENH)
+    plats = _platform_map(db)
+    q = (
+        select(PostTarget, Channel)
+        .join(Channel, Channel.id == PostTarget.channel_id)
+        .join(Post, Post.id == PostTarget.post_id)
+        .where(scope(PostTarget, ws), PostTarget.status == "posted", PostTarget.published_at >= since)
+    )
+    if brand_id is not None:
+        owned(db, Brand, brand_id, ws)
+        q = q.where(Post.brand_id == brand_id)
+    rows = db.execute(q).all()
+    snaps: dict[int, dict] = {}
+    tids = [t.id for t, _ in rows]
+    if tids:
+        for sn in db.scalars(select(MetricSnapshot).where(MetricSnapshot.target_id.in_(tids)).order_by(MetricSnapshot.taken_at.asc())):
+            snaps[sn.target_id] = sn.metrics  # the latest reading wins
+    labels = [(first + timedelta(days=i)).isoformat() for i in range(days)]
+    by: dict[str, dict] = {}
+    for t, ch in rows:
+        slug = plats[ch.platform_id].slug if ch.platform_id in plats else "other"
+        p = by.setdefault(slug, {"accounts": set(), "days": {d: {"posts": 0, "views": 0, "engagement": 0} for d in labels}})
+        p["accounts"].add(ch.id)
+        day = t.published_at.astimezone(PHNOM_PENH).date().isoformat()
+        if day not in p["days"]:
+            continue
+        m = snaps.get(t.id, {})
+        cell = p["days"][day]
+        cell["posts"] += 1
+        cell["views"] += int(m.get("views") or 0)
+        cell["engagement"] += _engagement(m)
+    out = []
+    for slug, p in by.items():
+        daily = [{"day": d, **p["days"][d]} for d in labels]
+        out.append(
+            {
+                "platform": slug,
+                "accounts": len(p["accounts"]),
+                "daily": daily,
+                "totals": {k: sum(x[k] for x in daily) for k in ("posts", "views", "engagement")},
+            }
+        )
+    out.sort(key=lambda r: -r["totals"]["posts"])
+    return {"days": days, "platforms": out}
+
+
 @router.get("/publishing")
 def publishing_view(
     brand_id: int | None = None, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)

@@ -119,7 +119,7 @@ export default function MakingNow({ api, onOpen = () => {}, team = false }) {
 
   const jobs = data?.jobs || []
   return (
-    <div className="mx-auto max-w-[1100px]">
+    <div className={team ? "w-full" : "mx-auto max-w-[1100px]"}>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-[22px] font-bold tracking-tight text-ink-900">Making now</h1>

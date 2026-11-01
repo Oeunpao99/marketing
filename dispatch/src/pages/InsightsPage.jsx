@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { Sparkles } from '../components/layout/NewTemplates'
 import { markTopPostSeen, setConnectionProblems, setTopPost, topPostSeen } from '../lib/insightAlerts'
 import InsightsSalesView from '../components/insights/InsightsSalesView'
+import SocialPlatformView from '../components/social/SocialPlatformView'
 import { buildFunnel, buildInsights } from '../lib/insightsEngine'
 import Pager from '../components/ui/Pager'
 import Select from '../components/ui/Select'
@@ -217,6 +218,11 @@ function dailyOf(rows, days) {
   out.rate = out.rateV.map((v, i) => (v > 0 ? (out.rateE[i] / v) * 100 : 0))
   return out
 }
+
+// What the per-platform view (components/social) borrows from this page.
+const SOCIAL_UTIL = { engagementOf, viewsOf, mediaSrc, fmtDate, reactionsRefused, dailyOf }
+// The platform switcher's order ("All" first, then the ones this workspace actually has)
+const SOCIAL_ORDER = ['facebook', 'tiktok', 'instagram', 'youtube', 'telegram', 'linkedin']
 
 function toCsv(rows) {
   const header = ['Date', 'Brand', 'Platform', 'Type', 'Caption', 'Views', 'Likes', 'Comments', 'Shares', 'Status']
@@ -669,6 +675,7 @@ export default function InsightsPage() {
   const [originFilter, setOriginFilter] = useState('all')
   const [tagFilter, setTagFilter] = useState('all')
   const [rangeId, setRangeId] = useState('30')
+  const [platform, setPlatform] = useState('all') // 'all' = the cross-platform tabs; else one platform's own view
   const [loading, setLoading] = useState(false)
   // Channels table: totals, or averages per post so busy and quiet channels compare fairly.
   const [perPost, setPerPost] = useState(false)
@@ -1130,6 +1137,9 @@ export default function InsightsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items])
 
+  const socialPlatforms = SOCIAL_ORDER.filter((s) => channels.some((c) => c.p === s && c.s !== 'off') || (items || []).some((it) => it.platform_slug === s))
+  const social = platform !== 'all' && socialPlatforms.includes(platform)
+
   if (mode === 'sales') {
     return (
       <InsightsSalesView
@@ -1237,14 +1247,52 @@ export default function InsightsPage() {
         </div>
       </div>
 
-      <TabBar tabs={TABS} value={tab} onChange={setTab} />
+      {socialPlatforms.length > 0 && (
+        <div className="mb-5 flex gap-1.5 overflow-x-auto pb-1" role="tablist" aria-label="Platform">
+          {['all', ...socialPlatforms].map((s) => {
+            const Icon = PLATFORM_ICONS[s]
+            const on = (social ? platform : 'all') === s
+            return (
+              <button
+                key={s}
+                type="button"
+                role="tab"
+                aria-selected={on}
+                onClick={() => setPlatform(s)}
+                className={`inline-flex flex-none items-center gap-1.5 rounded-xl border px-3.5 py-2 text-[13px] font-semibold transition-colors ${on ? 'border-brand bg-brand-soft text-brand' : 'border-ink-200 bg-white text-ink-600 hover:bg-ink-50'}`}
+              >
+                {Icon && <Icon size={14} aria-hidden="true" />}
+                {s === 'all' ? 'All platforms' : PLATFORM_LABELS[s] || s}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {social && items === null && <div className="h-[320px] rounded-2xl skeleton" />}
+      {social && items !== null && (
+        <SocialPlatformView
+          platform={platform}
+          items={filtered}
+          previous={previous}
+          days={days}
+          rangeDays={range.days}
+          brandId={brands.find((b) => b.slug === brandFilter)?.id || null}
+          channels={channels}
+          brands={brands}
+          onOpenPost={(it) => navigate(`/insights/${it.target_id}`)}
+          util={SOCIAL_UTIL}
+        />
+      )}
+
+      {!social && <TabBar tabs={TABS} value={tab} onChange={setTab} />}
 
       {/* A broken connection ("TikTok is disconnected") goes to the bell, not a banner here
           (lib/insightAlerts.js); a new #1 post gets its pop-up once */}
       {celebrate && <TopPostPopup it={celebrate} engagement={engagementOf(celebrate.metrics)} onClose={() => setCelebrate(null)} onOpen={() => navigate(`/insights/${celebrate.target_id}`)} />}
 
 
-      {tab === 'overview' && (
+      {!social && tab === 'overview' && (
         <>
           {/* Engagement as the hero, what it's made of, then the supporting numbers */}
           <div className="mb-6">
@@ -1400,7 +1448,7 @@ export default function InsightsPage() {
         </>
       )}
 
-      {tab === 'performance' && (
+      {!social && tab === 'performance' && (
         <>
           <div className="mb-6 grid gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
             <section className={`${cardCls} min-w-0 p-5`}>
@@ -1435,7 +1483,7 @@ export default function InsightsPage() {
         </>
       )}
 
-      {tab === 'content' && (
+      {!social && tab === 'content' && (
         <>
           <h2 className="mb-3 text-[17px] font-bold tracking-tight text-ink-900">Top performing content</h2>
           <div className="mb-8">
@@ -1474,7 +1522,7 @@ export default function InsightsPage() {
         </>
       )}
 
-      {tab === 'insights' && (
+      {!social && tab === 'insights' && (
         <>
           <section className={`${cardCls} mb-6 p-5`}>
             <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">

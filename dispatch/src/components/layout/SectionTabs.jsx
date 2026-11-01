@@ -19,7 +19,7 @@ export default function SectionTabs() {
   const { pathname, search } = useLocation()
   const { user } = useAuth()
   const section = BOSS.find((b) => b.sub?.some((x) => onPath(pathname, x.to)))
-  const tabs = (section?.sub || []).filter((x) => canOpen(user, x.to))
+  const tabs = (section?.sub || []).filter((x) => x.to !== '/making' && canOpen(user, x.to))
   const shown = tabs.length >= 2
   const ref = useRef(null)
   usePinnedHeight(shown ? ref : { current: null }, '--tabs-h') // pinned blocks below start under the tabs

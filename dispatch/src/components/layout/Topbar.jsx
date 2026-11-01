@@ -5,6 +5,7 @@ import { openMoreSheet } from "./MobileBar";
 import { useEffect, useState } from "react";
 import Notifications from "./Notifications";
 import AccountMenu from "./AccountMenu";
+import MakingStatus from "./MakingStatus";
 import { useAuth } from "../../auth";
 import { useStore } from "../../store";
 import { useNotifications } from "../../lib/notifications";
@@ -20,6 +21,7 @@ const LABELS = {
   "/story": "Video story",
   "/ai": "Content studio",
   "/library": "Media Library",
+  "/making": "Making now",
   "/products": "Products",
   "/channels": "Platforms",
   "/channels/add": "Add Platform",
@@ -116,6 +118,8 @@ export default function Topbar({ onToggleSidebar }) {
       >
         {dark ? <FiSun size={18} /> : <FiMoon size={18} />}
       </button>
+
+      <MakingStatus />
 
       <div className="relative">
         <button

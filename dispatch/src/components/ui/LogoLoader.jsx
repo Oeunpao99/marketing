@@ -1,9 +1,12 @@
 // While a page fetches its content: our logo breathing (a gentle grow / glow),
 // a soft ring pulsing out from it, and a line saying what's loading — instead
 // of empty grey boxes. Stays still for people who turn motion off.
-export default function LogoLoader({ label = 'Loading…', className = '' }) {
+// avatar: our robot (tilting its head, "thinking") stands in the middle instead of the logo.
+import LiveAvatar from './LiveAvatar'
+
+export default function LogoLoader({ label = 'Loading…', className = '', avatar = false }) {
   return (
-    <div className={`flex min-h-[calc(60vh/var(--z,1))] flex-col items-center justify-center gap-5 animate-fadein ${className}`} role="status" aria-live="polite">
+    <div className={`flex min-h-[calc(70vh/var(--z,1))] w-full flex-col items-center justify-center gap-5 animate-fadein ${className}`} role="status" aria-live="polite">
       <style>{`
         @keyframes ll-breathe { 0%, 100% { transform: scale(0.94); filter: drop-shadow(0 4px 10px rgb(var(--brand) / 0.15)) } 50% { transform: scale(1.06); filter: drop-shadow(0 10px 24px rgb(var(--brand) / 0.35)) } }
         @keyframes ll-ring { 0% { transform: scale(0.7); opacity: 0.55 } 100% { transform: scale(1.7); opacity: 0 } }
@@ -13,11 +16,15 @@ export default function LogoLoader({ label = 'Loading…', className = '' }) {
         .ll-dot { animation: ll-dots 1.4s ease-in-out infinite }
         @media (prefers-reduced-motion: reduce) { .ll-mark, .ll-ring, .ll-dot { animation: none } }
       `}</style>
-      <div className="relative grid h-20 w-20 place-items-center">
-        <span className="ll-ring absolute inset-0 rounded-full border-2 border-brand/40" />
-        <span className="ll-ring absolute inset-0 rounded-full border-2 border-brand/30" style={{ animationDelay: '0.9s' }} />
-        <img src="/brand/logo-mark.png" alt="" className="ll-mark h-14 w-14 object-contain" />
-      </div>
+      {avatar ? (
+        <LiveAvatar size={140} thinking />
+      ) : (
+        <div className="relative grid h-20 w-20 place-items-center">
+          <span className="ll-ring absolute inset-0 rounded-full border-2 border-brand/40" />
+          <span className="ll-ring absolute inset-0 rounded-full border-2 border-brand/30" style={{ animationDelay: '0.9s' }} />
+          <img src="/brand/logo-mark.png" alt="" className="ll-mark h-14 w-14 object-contain" />
+        </div>
+      )}
       <div className="flex items-center gap-1 text-[13px] font-medium text-ink-500">
         {label}
         <span className="ml-0.5 inline-flex gap-0.5">

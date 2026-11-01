@@ -1,0 +1,38 @@
+.sidebar-ai-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 2px 7px;
+  border: 1px solid #ffffff26;
+  border-radius: 7px;
+  background: linear-gradient(120deg, rgb(var(--brand)), rgb(var(--brand-dark)));
+  color: #fff;
+  font-size: 10px;
+  line-height: 16px;
+  font-weight: 700;
+  letter-spacing: .03em;
+}
+.sidebar-upgrade-card {
+  display: block;
+  margin-bottom: 12px;
+  padding: 13px;
+  border: 1px solid rgb(var(--brand-line));
+  border-radius: 14px;
+  background: radial-gradient(ellipse at 100% 0%, rgb(var(--brand) / .09), transparent 70%), linear-gradient(120deg, rgb(var(--brand-softer)), rgb(var(--brand-soft)));
+  color: rgb(var(--ink-900));
+  transition: border-color .18s, box-shadow .18s;
+}
+.sidebar-upgrade-card:hover {
+  border-color: rgb(var(--brand) / .5);
+  box-shadow: 0 4px 14px rgb(var(--brand) / .06);
+}
+.sidebar-upgrade-heading { display: flex; align-items: center; gap: 8px; }
+.sidebar-upgrade-heading > span { display: grid; place-items: center; color: rgb(var(--brand-text)); }
+.sidebar-upgrade-heading strong { font-size: 12px; font-weight: 650; }
+.sidebar-upgrade-card p { margin-top: 7px; font-size: 11px; line-height: 1.6; color: rgb(var(--ink-600)); }
+.sidebar-upgrade-action { display: flex; align-items: center; justify-content: space-between; margin-top: 11px; padding: 8px 10px; border: 1px solid rgb(var(--surface) / .8); border-radius: 8px; background: rgb(var(--surface) / .8); font-size: 11px; font-weight: 600; color: rgb(var(--brand-text)); }
+.sidebar-upgrade-collapsed { display: grid; place-items: center; width: 40px; height: 40px; margin: 0 auto 12px; border: 1px solid rgb(var(--brand-line)); border-radius: 11px; color: rgb(var(--brand-text)); background: rgb(var(--brand-soft)); }
+.sidebar-upgrade-collapsed:hover { background: rgb(var(--brand-line)); }
+:is(.sidebar-upgrade-card, .sidebar-upgrade-collapsed):focus-visible { outline: 2px solid rgb(var(--brand)); outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) { .sidebar-upgrade-card { transition: none; } }

@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { Crown, ArrowUpRight } from "lucide-react";
+import "../../styles/sidebar-upgrade.css";
 import {
   FiCheck,
   FiChevronDown,
@@ -45,7 +47,7 @@ export function BrandBadge({ brand, className = "", tone }) {
 // ``collapsed`` = the slim icon rail (Shell's sidebar toggle): icons only,
 // labels as hover tooltips, counts as dots, menus open beside the rail.
 export default function Sidebar({ collapsed = false }) {
-  const { brands, channels, channelsReady, auto, queue, review, activeBrand, switchBrand, showToast, libraryNew } = useStore();
+  const { brands, channels, channelsReady, queue, review, activeBrand, switchBrand, showToast, libraryNew } = useStore();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -145,16 +147,6 @@ export default function Sidebar({ collapsed = false }) {
   const dotTitle = brandChannels.some((c) => c.s === "live")
     ? "A channel needs reconnecting"
     : "Connect a Page or account to start posting";
-  const autoRow = (auto || []).find((a) => a.brand_slug === active?.slug);
-  const autopilot = !autoRow?.enabled
-    ? { title: "Off", note: "Turn on Auto-generate so the AI writes and posts every day." }
-    : autoRow.require_approval
-      ? { title: "Ask me first", note: "Every post waits for your yes before it goes out." }
-      : {
-          title: "Ask me weekly",
-          note: "Weekly plans, and any post with a price, offer or customer name that isn’t checked, wait for your yes.",
-        };
-
   const badgeFor = (badge) => {
     if (badge === "plan" && planCount > 0) return planCount;
     if (badge === "leads" && leadCount > 0) return leadCount;
@@ -270,7 +262,7 @@ export default function Sidebar({ collapsed = false }) {
           key={item.label}
           to={to}
           data-tour={item.tour}
-          title={total ? `${item.label} (${total})` : item.label}
+          title={item.to === "/ai" ? `${item.label} ? AI${total ? ` (${total})` : ""}` : total ? `${item.label} (${total})` : item.label}
           aria-label={item.label}
           className={`relative mx-auto grid h-10 w-10 place-items-center rounded-xl transition-colors duration-150 ${
             here ? "bg-ink-100 text-ink-900" : "text-ink-500 hover:bg-ink-100/60 hover:text-ink-900"
@@ -295,6 +287,7 @@ export default function Sidebar({ collapsed = false }) {
       >
         <Icon size={16} className={`flex-none ${here ? "text-ink-900" : "text-ink-500 group-hover:text-ink-800"}`} aria-hidden="true" />
         <span className="flex-1 truncate">{item.label}</span>
+        {item.to === "/ai" && <span className="sidebar-ai-badge">AI</span>}
         {total > 0 && pillFor(kind, total)}
         {showDot && <span title={dotTitle} className="h-2 w-2 flex-none rounded-full bg-red-500" />}
       </NavLink>
@@ -467,16 +460,13 @@ export default function Sidebar({ collapsed = false }) {
 
       {/* Footer: settings + user */}
       <div className={`pb-3 ${collapsed ? "px-2" : "px-3"}`}>
-        {!collapsed && auto && (
-          <NavLink
-            to="/auto"
-            className="mb-3 block rounded-xl border border-ink-200/70 bg-white px-3 py-2.5 transition-colors hover:border-ink-300"
-          >
-            <span className="block text-[11px] text-ink-500">Autopilot</span>
-            <span className="block text-[13px] font-bold leading-tight text-ink-900">{autopilot.title}</span>
-            <span className="mt-0.5 block text-[11.5px] leading-snug text-ink-500">{autopilot.note}</span>
-          </NavLink>
-        )}
+        <NavLink to="/upgrade" className={collapsed ? "sidebar-upgrade-collapsed" : "sidebar-upgrade-card"} title="Upgrade plan" aria-label="Explore upgrade plans">
+          {collapsed ? <Crown size={19} aria-hidden="true" /> : <>
+            <div className="sidebar-upgrade-heading"><span><Crown size={16} aria-hidden="true" /></span><strong>Room to create more</strong></div>
+            <p>Explore plans for your next stage of growth.</p>
+            <span className="sidebar-upgrade-action">Upgrade plan <ArrowUpRight size={14} aria-hidden="true" /></span>
+          </>}
+        </NavLink>
         <div className={`border-t border-ink-200/70 pt-3 mb-2 ${collapsed ? "space-y-1.5" : "grid grid-cols-3 gap-2"}`}>
           {[
             {

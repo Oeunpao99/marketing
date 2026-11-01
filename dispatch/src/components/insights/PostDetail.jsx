@@ -275,7 +275,7 @@ export function MembersCard({ history, publishedAt }) {
   )
 }
 
-// ── When it went out ──────────────────────────────────────────────────────
+// ── Publishing time ──────────────────────────────────────────────────────
 export function PostingTimeCard({ post, peers, platformName }) {
   const counts = useMemo(() => {
     const c = Array(24).fill(0)
@@ -291,7 +291,7 @@ export function PostingTimeCard({ post, peers, platformName }) {
     : '—'
   return (
     <section className={`${card} p-5`}>
-      <h2 className="text-[14.5px] font-semibold tracking-tight text-ink-900">When it went out</h2>
+      <h2 className="text-[14.5px] font-semibold tracking-tight text-ink-900">Publishing time</h2>
       <p className="mt-0.5 text-[12px] text-ink-500">
         {when} (Phnom Penh) · your {peers.length} {platformName} post{peers.length === 1 ? '' : 's'} by hour
       </p>
@@ -326,7 +326,7 @@ export function PostingTimeCard({ post, peers, platformName }) {
   )
 }
 
-// ── More from this channel ────────────────────────────────────────────────
+// ── Recent channel posts ────────────────────────────────────────────────
 export function MoreFromChannel({ post, items, icons, engagementOf, onOpen }) {
   const others = items
     .filter((p) => p.target_id !== post.target_id && (post.channel_id ? p.channel_id === post.channel_id : p.platform_slug === post.platform_slug))
@@ -336,7 +336,7 @@ export function MoreFromChannel({ post, items, icons, engagementOf, onOpen }) {
   const Icon = icons[post.platform_slug] || FiGrid
   return (
     <section className={`${card} p-5`}>
-      <h2 className="mb-2 text-[14.5px] font-semibold tracking-tight text-ink-900">More from this channel</h2>
+      <h2 className="mb-2 text-[14.5px] font-semibold tracking-tight text-ink-900">Recent channel posts</h2>
       <ul className="divide-y divide-ink-100">
         {others.map((p) => {
           const m = p.metrics || {}
