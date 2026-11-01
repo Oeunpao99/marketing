@@ -1146,37 +1146,31 @@ export default function InsightsPage() {
     <div className="w-full px-5 lg:px-8 pt-7 pb-28 animate-fadein">
       <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <div className="flex items-center gap-2 mb-1.5">
-            <button
-              type="button"
-              onClick={() => setMode('sales')}
-              className="text-[12px] font-semibold text-brand hover:underline flex items-center gap-1"
-            >
-              ← Back to Insights & sales
-            </button>
-          </div>
           <h1 className="text-[24px] font-bold text-ink-900 tracking-tight leading-tight">Analytics & Deep Dive</h1>
           <p className="mt-1 text-[13.5px] text-ink-600">
             Cross-platform performance overview for {range.label}.
           </p>
+          {/* Goal view / Deep analytics: on the left, under the title */}
+          <div className="mt-3">
+            <div className="inline-flex items-center rounded-xl border border-ink-200/80 bg-white p-0.5 shadow-xs">
+              <button
+                type="button"
+                onClick={() => setMode('sales')}
+                className="rounded-[9px] px-2.5 py-1 text-[12px] font-semibold text-ink-600 hover:text-ink-900 hover:bg-ink-50 transition-all"
+              >
+                Goal view
+              </button>
+              <button
+                type="button"
+                className="rounded-[9px] px-2.5 py-1 text-[12px] font-semibold bg-brand text-white shadow-xs transition-all flex items-center gap-1.5"
+              >
+                <FiGrid size={13} />
+                Deep analytics
+              </button>
+            </div>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2.5">
-          <div className="inline-flex items-center rounded-xl border border-ink-200/80 bg-white p-0.5 shadow-xs">
-            <button
-              type="button"
-              onClick={() => setMode('sales')}
-              className="rounded-[9px] px-2.5 py-1 text-[12px] font-semibold text-ink-600 hover:text-ink-900 hover:bg-ink-50 transition-all"
-            >
-              Goal view
-            </button>
-            <button
-              type="button"
-              className="rounded-[9px] px-2.5 py-1 text-[12px] font-semibold bg-brand text-white shadow-xs transition-all flex items-center gap-1.5"
-            >
-              <FiGrid size={13} />
-              Deep analytics
-            </button>
-          </div>
           <div className="inline-flex rounded-xl border border-ink-200 bg-white p-0.5" role="tablist" aria-label="Date range">
             {DATE_RANGES.map((r) => (
               <button

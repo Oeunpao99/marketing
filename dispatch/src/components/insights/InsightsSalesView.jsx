@@ -412,6 +412,35 @@ export default function InsightsSalesView({
           <p className="mt-1 text-[13px] text-ink-500">
             Reach, followers and leads tied to deals won
           </p>
+          {/* Goal view / Deep analytics: on the left, under the title */}
+          <div className="mt-3 print:hidden">
+            <div className="inline-flex items-center rounded-xl border border-ink-200/80 bg-white p-0.5 shadow-xs">
+              <button
+                type="button"
+                onClick={() => onSwitchMode?.('sales')}
+                className={`rounded-[9px] px-2.5 py-1 text-[12px] font-semibold transition-all ${
+                  mode === 'sales'
+                    ? 'bg-brand text-white shadow-xs'
+                    : 'text-ink-600 hover:text-ink-900 hover:bg-ink-50'
+                }`}
+              >
+                Goal view
+              </button>
+              <button
+                type="button"
+                onClick={() => onSwitchMode?.('analytics')}
+                className={`rounded-[9px] px-2.5 py-1 text-[12px] font-semibold transition-all flex items-center gap-1.5 ${
+                  mode === 'analytics'
+                    ? 'bg-brand text-white shadow-xs'
+                    : 'text-ink-600 hover:text-ink-900 hover:bg-ink-50'
+                }`}
+                title="Open full charts and post-level metrics"
+              >
+                <FiBarChart2 size={13} />
+                Deep analytics
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 print:hidden">
@@ -419,34 +448,6 @@ export default function InsightsSalesView({
           <span className="text-[12px] tabular-nums text-ink-500">
             {nowDisplay}
           </span>
-
-          {/* Mode Switcher Toggle: Goal view vs Deep analytics */}
-          <div className="inline-flex items-center rounded-xl border border-ink-200/80 bg-white p-0.5 shadow-xs">
-            <button
-              type="button"
-              onClick={() => onSwitchMode?.('sales')}
-              className={`rounded-[9px] px-2.5 py-1 text-[12px] font-semibold transition-all ${
-                mode === 'sales'
-                  ? 'bg-brand text-white shadow-xs'
-                  : 'text-ink-600 hover:text-ink-900 hover:bg-ink-50'
-              }`}
-            >
-              Goal view
-            </button>
-            <button
-              type="button"
-              onClick={() => onSwitchMode?.('analytics')}
-              className={`rounded-[9px] px-2.5 py-1 text-[12px] font-semibold transition-all flex items-center gap-1.5 ${
-                mode === 'analytics'
-                  ? 'bg-brand text-white shadow-xs'
-                  : 'text-ink-600 hover:text-ink-900 hover:bg-ink-50'
-              }`}
-              title="Open full charts and post-level metrics"
-            >
-              <FiBarChart2 size={13} />
-              Deep analytics
-            </button>
-          </div>
 
           {/* Refresh button */}
           <button
