@@ -60,7 +60,8 @@ const LANGS = [
 const PLATFORMS = [
   { id: 'facebook', name: 'Facebook', Icon: SiFacebook, color: '#1877F2' },
   { id: 'instagram', name: 'Instagram', Icon: SiInstagram, color: '#E4405F' },
-  { id: 'tiktok', name: 'TikTok', Icon: SiTiktok, color: '#111827' },
+  // TikTok's black follows the theme ink so it stays visible in dark mode.
+  { id: 'tiktok', name: 'TikTok', Icon: SiTiktok, color: 'rgb(var(--ink-900))', tint: 'rgb(var(--ink-900) / 0.08)' },
   { id: 'youtube', name: 'YouTube', Icon: SiYoutube, color: '#FF0000' },
   { id: 'telegram', name: 'Telegram', Icon: SiTelegram, color: '#229ED9' },
   { id: 'linkedin', name: 'LinkedIn', Icon: FaLinkedin, color: '#0A66C2' },
@@ -334,7 +335,7 @@ function PlatformsStep({ brand, channels, onBack, onNext, onLater }) {
           their own sign-in and bring you back here.
         </p>
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {PLATFORMS.map(({ id, name, Icon, color }) => {
+          {PLATFORMS.map(({ id, name, Icon, color, tint }) => {
             const on = live(id)
             return (
               <button
@@ -350,7 +351,7 @@ function PlatformsStep({ brand, channels, onBack, onNext, onLater }) {
                     <FiCheck size={12} />
                   </span>
                 )}
-                <span className="grid h-11 w-11 place-items-center rounded-xl" style={{ color, background: `${color}14` }}>
+                <span className="grid h-11 w-11 place-items-center rounded-xl" style={{ color, background: tint || `${color}14` }}>
                   <Icon size={20} aria-hidden="true" />
                 </span>
                 <span className="text-[13px] font-semibold text-ink-900">{name}</span>

@@ -29,13 +29,19 @@ from app.config import gemini_url, get_settings
 from app.database import SessionLocal
 from app.models import AiModel, Workspace
 
-# key → what customers see; the key is also the deployment / model name
+# key → the model; the key is also the deployment / model name. "label" and
+# "vendor" are for the admin portal only — customers see "name" (no maker).
 CATALOG: dict[str, dict] = {
-    "gpt-5": {"label": "GPT-5", "vendor": "OpenAI", "provider": "azure_openai", "blurb": "Strong planner, follows every rule — the default"},
-    "gpt-5-mini": {"label": "GPT-5 mini", "vendor": "OpenAI", "provider": "azure_openai", "blurb": "Fastest and cheapest — quick drafts"},
-    "claude-opus-5-5": {"label": "Claude Opus 5.5", "vendor": "Anthropic", "provider": "azure_claude", "blurb": "Most natural Khmer storytelling"},
-    "gemini-4-argon": {"label": "Gemini 4 Argon", "vendor": "Google", "provider": "gemini", "blurb": "Very fast, natural Khmer"},
+    "gpt-5": {"label": "GPT-5", "name": "Default model", "vendor": "OpenAI", "provider": "azure_openai", "blurb": "Strong planner, follows every rule — the default"},
+    "gpt-5-mini": {"label": "GPT-5 mini", "name": "Fast model", "vendor": "OpenAI", "provider": "azure_openai", "blurb": "Fastest and cheapest — quick drafts"},
+    "claude-opus-5-5": {"label": "Claude Opus 5.5", "name": "Advanced model", "vendor": "Anthropic", "provider": "azure_claude", "blurb": "Most natural Khmer storytelling"},
+    "gemini-4-argon": {"label": "Gemini 4 Argon", "name": "Quick Khmer model", "vendor": "Google", "provider": "gemini", "blurb": "Very fast, natural Khmer"},
 }
+
+
+def public_name(key: str) -> str:
+    """What a customer sees for a model — never the maker's name."""
+    return CATALOG.get(canonical(key), {}).get("name") or "Other"
 
 
 class ModelError(RuntimeError):

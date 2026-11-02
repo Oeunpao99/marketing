@@ -23,6 +23,7 @@ import {
   FiUserPlus,
   FiUsers,
   FiX,
+  FiCpu,
 } from 'react-icons/fi'
 import { api } from '../../api/client'
 import { useAuth } from '../../auth'
@@ -36,7 +37,6 @@ import { TZ } from '../../lib/tz'
 import Select from '../ui/Select'
 import HowItWorks from './HowItWorks'
 import { lengthText, useUsage } from '../../lib/usage'
-import ModelLogo from '../ui/ModelLogo'
 import { useNavigate } from 'react-router-dom'
 import { DISPLAY_SIZES, displaySize, setDisplaySize } from '../../lib/zoom'
 
@@ -1041,7 +1041,7 @@ function AiModelSection({ canManage, showToast }) {
   const platform = data.models.find((m) => m.key === data.platform_default)
   const options = [{ key: '', label: 'Platform default', blurb: platform ? `Currently ${platform.label}` : 'Chosen by Marketing ឆ្លាតវៃ', tier: '' }, ...data.models]
   const rows = (usage?.rows || []).slice().sort((a, b) => b.charged - a.charged)
-  const label = (k) => data.models.find((m) => m.key === k)?.label || k || 'Other'
+  const label = (k) => data.models.find((m) => m.key === k)?.label || 'Other'
 
   return (
     <section>
@@ -1065,7 +1065,7 @@ function AiModelSection({ canManage, showToast }) {
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="inline-flex items-center gap-2 text-[13px] font-semibold text-ink-900">
-                  {m.key && <ModelLogo model={m.key} vendor={m.vendor} />}
+                  {m.key && <FiCpu size={16} className="flex-none text-ink-400" aria-hidden="true" />}
                   {m.label}
                 </span>
                 <span className="text-[11px] font-bold text-ink-400">{saving === (m.key || 'default') ? 'Saving…' : on ? 'Default' : m.tier}</span>
@@ -1093,8 +1093,8 @@ function AiModelSection({ canManage, showToast }) {
                   <td className="px-3.5 py-1.5">{r.user}</td>
                   <td className="px-2 py-1.5">
                     <span className="inline-flex items-center gap-1.5">
-                      <ModelLogo model={r.model} size={13} />
-                      {label(r.model)}
+                      <FiCpu size={13} className="flex-none text-ink-400" aria-hidden="true" />
+                      {r.label || label(r.model)}
                     </span>
                   </td>
                   <td className="px-2 py-1.5 text-right tabular-nums">{r.calls}</td>

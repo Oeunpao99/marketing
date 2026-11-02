@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { aiModelStore, api } from '../../api/client'
-import ModelLogo from '../ui/ModelLogo'
+import { FiCpu } from 'react-icons/fi'
 import Select from '../ui/Select'
 
 // The AI that writes (captions, ideas, storyboards, the Khmer narration) —
 // backend app/ai_models.py. The pick is kept on this device and sent with every
 // request (X-AI-Model); "Workspace default" sends nothing and the server uses
 // the default set in Settings → AI model. Only models the workspace may use
-// are listed, each with its cost tier ($ cheapest … $$$ priciest).
+// are listed, each with its cost tier ($ cheapest … $$$ priciest), under our own
+// names ("Advanced model") — never the maker's name or logo.
 
 let cached = null // one fetch per page load
 
@@ -53,13 +54,13 @@ export default function WriterModelSelect({ size = 'sm', className = 'min-w-0 fl
       value: '',
       label: `Workspace default${fallback ? ` · ${fallback.label}` : ''}`,
       hint: 'Set in Settings → AI model',
-      icon: fallback && <ModelLogo model={fallback.key} vendor={fallback.vendor} size={14} />,
+      icon: <FiCpu size={14} className="flex-none text-ink-400" aria-hidden="true" />,
     },
     ...models.map((m) => ({
       value: m.key,
       label: `${m.label}  ${m.tier}`,
       hint: m.blurb,
-      icon: <ModelLogo model={m.key} vendor={m.vendor} size={14} />,
+      icon: <FiCpu size={14} className="flex-none text-ink-400" aria-hidden="true" />,
     })),
   ]
   return (

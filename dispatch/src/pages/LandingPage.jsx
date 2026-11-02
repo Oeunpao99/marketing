@@ -731,8 +731,8 @@ const MORE = [
     Icon: FiCpu,
     title: ['Pick your AI', 'ជ្រើស AI របស់បង'],
     text: [
-      'Choose the model that writes for you — Claude, GPT or Gemini — and see what each costs.',
-      'ជ្រើសម៉ូដែលដែលសរសេរឲ្យបង — Claude, GPT ឬ Gemini — ហើយមើលតម្លៃនីមួយៗ។',
+      'Choose the model that writes for you — fast, default or advanced — and see what each costs.',
+      'ជ្រើសម៉ូដែលដែលសរសេរឲ្យបង — លឿន ធម្មតា ឬកម្រិតខ្ពស់ — ហើយមើលតម្លៃនីមួយៗ។',
     ],
   },
   {
@@ -1301,7 +1301,7 @@ const PRODUCT_MENU = [
     items: [
       [FiMessageCircle, ['Leads & hand-off', 'អតិថិជនសក្តានុពល'], ['Messages from your pages, routed to your team', 'សារពីទំព័ររបស់បង បញ្ជូនទៅក្រុមការងារ'], 'more'],
       [FiGlobe, ['Website check', 'ពិនិត្យគេហទំព័រ'], ['Health, SEO and speed — with AI fixes', 'សុខភាព SEO និងល្បឿន — AI ជួយកែ'], 'more'],
-      [FiCpu, ['Pick your AI', 'ជ្រើស AI'], ['Claude, GPT or Gemini — you choose who writes', 'Claude, GPT ឬ Gemini — បងជ្រើសអ្នកសរសេរ'], 'more'],
+      [FiCpu, ['Pick your AI', 'ជ្រើស AI'], ['Fast, default or advanced — you choose who writes', 'លឿន ធម្មតា ឬកម្រិតខ្ពស់ — បងជ្រើសអ្នកសរសេរ'], 'more'],
     ],
   },
 ]

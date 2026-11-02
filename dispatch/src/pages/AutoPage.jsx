@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router-dom'
-import { FiArrowRight, FiCheck, FiPlay, FiPlus, FiSettings, FiTrendingUp, FiX } from 'react-icons/fi'
+import { FiArrowRight, FiCheck, FiCpu, FiPlay, FiPlus, FiSettings, FiTrendingUp, FiX } from 'react-icons/fi'
 import { api } from '../api/client'
 import { colorForBrand } from '../lib/brandColor'
 import { useStore } from '../store'
@@ -11,7 +11,6 @@ import AutoTextarea from '../components/ui/AutoTextarea'
 import Select from '../components/ui/Select'
 import { fullDayLabel, phnomPenhClock, phnomPenhDay } from '../lib/tz'
 import { kitSrc, TemplatePicker } from '../components/brandkit/BrandKit'
-import ModelLogo from '../components/ui/ModelLogo'
 import { forgetWriterModels, writerHint } from '../components/studio/WriterModelSelect'
 import { unzoom, viewW } from '../lib/zoom'
 import { has, NEEDS, usePlanFeatures } from '../lib/planFeatures'
@@ -915,9 +914,10 @@ function AutopilotWriter() {
   if (!data) return <div className="h-9 animate-pulse rounded-xl bg-ink-100" />
   const models = data.models || []
   const platform = models.find((m) => m.key === data.platform_default)
+  const icon = <FiCpu size={14} className="flex-none text-ink-400" aria-hidden="true" />
   const options = [
-    { value: '', label: `Platform default${platform ? ` · ${platform.label}` : ''}`, hint: 'Chosen by Marketing ឆ្លាតវៃ', icon: platform && <ModelLogo model={platform.key} vendor={platform.vendor} size={14} /> },
-    ...models.map((m) => ({ value: m.key, label: `${m.label}  ${m.tier}`, hint: m.blurb, icon: <ModelLogo model={m.key} vendor={m.vendor} size={14} /> })),
+    { value: '', label: `Platform default${platform ? ` · ${platform.label}` : ''}`, hint: 'Chosen by Marketing ឆ្លាតវៃ', icon },
+    ...models.map((m) => ({ value: m.key, label: `${m.label}  ${m.tier}`, hint: m.blurb, icon })),
   ]
   const pick = async (key) => {
     setSaving(true)

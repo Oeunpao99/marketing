@@ -32,7 +32,9 @@ def model_rows(ws: Workspace | None) -> list[dict]:
     out = []
     for key in ai_models.allowed_for(ws):
         p_in, p_out, markup = ai_models.pricing(key) or (0, 0, 1)
-        out.append({**ai_models.CATALOG[key], "key": key, "price_in": round(p_in * markup, 4), "price_out": round(p_out * markup, 4)})
+        info = ai_models.CATALOG[key]
+        # customers see our names for the models, not the makers' (no vendor, no provider)
+        out.append({"key": key, "label": info["name"], "blurb": info["blurb"], "price_in": round(p_in * markup, 4), "price_out": round(p_out * markup, 4)})
     # a cost tier for the menu: $ cheapest … $$$ priciest (by output price)
     prices = sorted({m["price_out"] for m in out})
     for m in out:
@@ -105,5 +107,6 @@ def my_usage(days: int = 30, db: Session = Depends(get_db), ws: int = Depends(cu
     rows = usage_rows(db, since, ws=ws, by_user=True)
     for r in rows:
         r["user"] = names.get(r.pop("who"), "Automations")
+        r["label"] = ai_models.public_name(r["model"])
         r.pop("cost", None)  # our cost stays ours — they see what they were charged
     return {"days": days, "rows": rows}
