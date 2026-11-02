@@ -64,7 +64,7 @@ export default function Notifications({ open, onClose, anchor = "header" }) {
   const { review } = useStore();
   const navigate = useNavigate();
   const [seen, setSeen] = useState(false);
-  const { items } = useNotifications();
+  const { items, dismiss, clearAll } = useNotifications();
 
   useEffect(() => {
     if (open) setSeen(true);
@@ -106,6 +106,7 @@ export default function Notifications({ open, onClose, anchor = "header" }) {
                   : "All clear — nothing needs you right now"}
               </div>
             </div>
+            {items.some((item) => item.kind !== "security") && <button type="button" onClick={clearAll} className="rounded-lg px-2 py-1 text-[11px] font-semibold text-brand hover:bg-brand-soft">Clear notifications</button>}
             <button
               type="button"
               onClick={onClose}
@@ -116,7 +117,7 @@ export default function Notifications({ open, onClose, anchor = "header" }) {
             </button>
           </div>
 
-          {count === 0 ? (
+          {items.length === 0 ? (
             <div className="px-6 py-10 text-center">
               <div className="mx-auto mb-3 w-12 h-12 rounded-2xl grid place-items-center bg-brand-soft text-brand text-2xl">
                 ✓
@@ -132,11 +133,11 @@ export default function Notifications({ open, onClose, anchor = "header" }) {
                 item.action === "device" ? (
                   <DeviceCard key={item.id} item={item} />
                 ) : (
+                <div key={item.id} className="flex items-start gap-1 rounded-xl hover:bg-ink-50">
                 <button
-                  key={item.id}
                   type="button"
                   onClick={() => go(item.to)}
-                  className="w-full flex items-start gap-3 rounded-xl px-2.5 py-2.5 text-left hover:bg-ink-50 transition-colors"
+                  className="min-w-0 flex-1 flex items-start gap-3 rounded-xl px-2.5 py-2.5 text-left hover:bg-ink-50 transition-colors"
                 >
                   <span className="mt-0.5 w-8 h-8 rounded-lg grid place-items-center bg-ink-50 border border-ink-100 flex-none">
                     {item.icon}
@@ -156,11 +157,14 @@ export default function Notifications({ open, onClose, anchor = "header" }) {
                     </span>
                   </span>
                 </button>
+                <button type="button" onClick={() => dismiss(item)} aria-label={`Dismiss notification: ${item.title}`} title="Dismiss notification" className="mt-2 mr-1 grid h-7 w-7 flex-none place-items-center rounded-lg text-ink-400 hover:bg-ink-100 hover:text-ink-700"><FiX size={13} /></button>
+                </div>
                 ),
               )}
             </div>
           )}
 
+          <p className="border-t border-ink-100 px-4 py-2 text-[10px] leading-relaxed text-ink-500">Clearing notifications hides alerts on this browser. Post statuses stay unchanged. Security alerts require a response.</p>
           {(review || []).length > 0 && (
             <div className="border-t border-ink-100 p-1.5">
               <button

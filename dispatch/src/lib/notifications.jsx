@@ -1,19 +1,23 @@
 // What the bell shows, in one place — used by the Notifications panel and the
 // Topbar / Sidebar counts, filtered by Settings → Notifications. (Phone and
 // desktop pop-ups are server-sent Web Push — see lib/push.js, app/push.py.)
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { FiAlertTriangle, FiAward, FiCheckCircle, FiFilm, FiInbox, FiShield } from 'react-icons/fi'
+import { notificationStamp, readDismissed, saveDismissed } from './notificationDismissals'
 import { useAuth } from '../auth'
 import { PLAT } from '../data/brands'
 import { useStore } from '../store'
 import { useUsage } from './usage'
 import { useSecurityAlerts } from './securityAlerts'
 import { useInsightAlerts } from './insightAlerts'
+import { useWorkspaceAlerts } from './workspaceAlerts'
+import { canOpen } from './access'
 import PlatformIcon from '../components/ui/PlatformIcon'
 
 export const NOTIFY_KINDS = [
   { id: 'security', label: 'A new device signed in to your account', desc: 'So you can sign it out if it wasn’t you.', pushOnly: true },
   { id: 'credits', label: 'Your videos for the month', desc: 'When a new month’s videos are ready, and when they’re running low.' },
+  { id: 'tasks', label: 'Leads and team tasks', desc: 'Lead hand-offs, overdue contact, and team follow-ups.' },
   { id: 'review', label: 'Ideas waiting for review', desc: 'New AI-written ideas that need your approval.' },
   { id: 'failed', label: 'A post failed to publish', desc: 'So you can fix it and send it again.' },
   { id: 'channel', label: 'A channel needs reconnecting', desc: 'Its login is about to expire.' },
@@ -23,12 +27,21 @@ export const NOTIFY_KINDS = [
 ]
 
 export function notifyPrefs(user) {
-  return { security: true, credits: true, review: true, failed: true, channel: true, published: true, generated: true, website: true, ...(user?.preferences?.notify || {}) }
+  return { tasks: true, security: true, credits: true, review: true, failed: true, channel: true, published: true, generated: true, website: true, ...(user?.preferences?.notify || {}) }
 }
 
 export function useNotifications() {
   const { review, queue, channels } = useStore()
   const { user } = useAuth()
+  const scope = `${user?.workspace_id || 'workspace'}:${user?.id || user?.email || 'guest'}`
+  const [revision, setRevision] = useState(0)
+  useEffect(() => {
+    const update = () => setRevision((n) => n + 1)
+    window.addEventListener('dispatch:notifications-dismissed', update)
+    window.addEventListener('storage', update)
+    return () => { window.removeEventListener('dispatch:notifications-dismissed', update); window.removeEventListener('storage', update) }
+  }, [])
+  const workspace = useWorkspaceAlerts(scope)
   const prefs = notifyPrefs(user)
   const key = JSON.stringify(prefs)
   const { usage } = useUsage()
@@ -56,6 +69,15 @@ export function useNotifications() {
         urgent: true,
       })
     })
+    workspace.needs.forEach((need) => {
+      if (['failed', 'credit', 'review'].includes(need.key)) return
+      const kind = ['stuck', 'channels'].includes(need.key) ? 'channel' : ['weekly', 'no_media'].includes(need.key) ? 'review' : 'tasks'
+      if (!prefs[kind] || !canOpen(user, need.to || '/command')) return
+      out.push({ id: `task-${need.key}`, kind, icon: <FiInbox size={14} className="text-brand" />, tag: 'Workspace task', dot: 'bg-brand', title: `${need.count != null ? `${need.count} ? ` : ''}${need.title}`, body: need.detail || '', to: need.to || '/command', urgent: true })
+    })
+    if (prefs.channel && workspace.health?.attention && !(insight.problems || []).length && canOpen(user, '/channels')) {
+      out.push({ id: 'accounts-attention', kind: 'channel', icon: <FiAlertTriangle size={14} className="text-amber-500" />, tag: 'Connection', dot: 'bg-amber-400', title: `${workspace.health.attention} accounts need reconnecting`, body: 'Reconnect these accounts to read their latest results.', to: '/channels', urgent: true })
+    }
     // this month's videos running low — a link to more (the Plans page's packs)
     if (lowVideos != null && prefs.credits) {
       out.push({
@@ -165,10 +187,15 @@ export function useNotifications() {
         })
       })
     }
-    const items = out.slice(0, 12)
-    return { items, count: out.filter((i) => i.urgent).length }
+    const dismissed = readDismissed(scope)
+    const visible = out.filter((item) => item.kind === 'security' || !dismissed.includes(notificationStamp(item)))
+    const dismissItems = (items) => {
+      saveDismissed(scope, [...readDismissed(scope), ...items.filter((i) => i.kind !== 'security').map(notificationStamp)])
+      window.dispatchEvent(new Event('dispatch:notifications-dismissed'))
+    }
+    return { items: visible, count: visible.filter((i) => i.urgent).length, dismiss: (item) => dismissItems([item]), clearAll: () => dismissItems(visible) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [review, queue, channels, key, lowVideos, devices, insight])
+  }, [review, queue, channels, key, lowVideos, devices, insight, scope, revision, workspace, user])
 }
 
 /** Keeps the installed app's icon badge equal to the bell's count while the

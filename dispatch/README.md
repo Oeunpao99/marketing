@@ -26,8 +26,7 @@ dispatch/
 
 ---
 
-## 1 · Start the backend
-
+## 1 · Start the 
 ```bash
 cd dispatch/backend
 

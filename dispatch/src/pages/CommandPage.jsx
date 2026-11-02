@@ -105,7 +105,7 @@ export default function CommandPage() {
           {/* grid-cols-1 = one column the width of the screen — without it the column grew to
               the longest line of text and pushed the cards off a phone's screen */}
           <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-            <NeedsYou needs={data.needs} autopilot={data.autopilot} showBrand={showBrand} />
+            <NeedsYou needs={data.needs.filter((n) => n.key !== 'failed')} autopilot={data.autopilot} showBrand={showBrand} />
             <Today rows={data.today} showBrand={showBrand} acting={acting} onAct={act} />
           </div>
 
