@@ -430,9 +430,8 @@ def render(picture: bytes, text: dict, accent: tuple[int, int, int], logo: bytes
 #    │  3 វិធីដែល [AI] អាចជួយ             │  ← two balanced lines, the key word on a badge
 #    │  អាជីវកម្មរបស់អ្នក                    │
 #    │  ▌ the intro line                 │
-#    │ (subject) ┌[1] title ──────────┐  │  ← soft cards, a coloured number tile each
-#    │           │    detail…         │  │
-#    │           ├[2] title ──────────┤  │
+#    │ (subject) ┌[1] title ──────────┐  │  ← see-through cards, a coloured number tile
+#    │           ├[2] title ──────────┤  │    and the title only (no detail sentence)
 #    │           ├[3] title ──────────┤  │
 #    │ [ banner…            ] [? ask →] │
 #    └──────────────────────────────────┘
@@ -497,26 +496,41 @@ def _infographic_layout(text: dict, w: int, h: int, scale: float, top: int):
     # the cards' column: right of the subject in a wide / square frame, the full width when tall
     cx0 = round(w * 0.3) if wide else pad
     cw = w - pad - cx0
-    tf, df = _font(round(u * 0.04), "Bold"), _font(round(u * 0.028), "Regular")
+    # a card carries its title only — the detail sentences made the poster busy (the user,
+    # 2026-11-02); they stay in the post's caption
+    tf, df = _font(round(u * 0.046), "Bold"), _font(round(u * 0.028), "Regular")
     tlh, dlh = _line_h(tf), _line_h(df)
     tile = round(tlh * 1.55)
     cpx, cpy = round(u * 0.028), round(u * 0.022)
     tx = cpx + tile + round(u * 0.025)
     cards = []
     for it in text["items"]:
-        tl = _wrap(it["title"], tf, cw - tx - cpx)[:2]
-        dl = _wrap(it["detail"], df, cw - tx - cpx)[:3] if it.get("detail") else []
-        cards.append((tl, dl, max(tile, len(tl) * tlh + len(dl) * dlh) + 2 * cpy))
-    bf, qf = _font(round(u * 0.032), "SemiBold"), _font(round(u * 0.026), "SemiBold")
+        f, tl = tf, _wrap(it["title"], tf, cw - tx - cpx)
+        if len(tl) > 2:  # a long title shrinks to two lines, never loses words
+            f, tl = fit_lines(it["title"], cw - tx - cpx, 2, range(round(u * 0.046), round(u * 0.03), -2), "Bold")
+        dl: list[str] = []
+        cards.append((tl, dl, max(tile, len(tl) * _line_h(f) + len(dl) * dlh) + 2 * cpy, f))
+    # the cards hug their titles (one width for all, so they line up) — full-column cards
+    # left a wide empty strip on the right (the user, 2026-11-02)
+    widest = max((c[3].getlength(ln) for c in cards for ln in c[0]), default=0)
+    card_w = min(cw, round(tx + widest + cpx * 2.2))
     banner, question = text.get("banner", ""), text.get("question", "")
     gap = round(u * 0.022)
-    # the bottom row: banner (wider) and the question side by side; stacked when tall
+    # the bottom row: banner (wider) and the question side by side; stacked when tall.
+    # Two lines each — the font shrinks before a word is ever dropped.
     side = wide and banner and question
     bw = round(measure * 0.62) if side else measure
     qw = measure - bw - gap if side else measure
-    bl = _balanced(banner, bf, bw - round(u * 0.09), _wrap(banner, bf, bw - round(u * 0.09))[:2]) if banner else []
+    bf, bl = _font(round(u * 0.032), "SemiBold"), []
+    if banner:
+        bf, bl, _ = _fit(banner, bw - round(u * 0.09), 2, round(u * 0.032), round(u * 0.022), "SemiBold")
+        bl = _balanced(banner, bf, bw - round(u * 0.09), bl)
+    qf, ql = _font(round(u * 0.026), "SemiBold"), []
     qdot = round(_line_h(qf) * 1.5)
-    ql = _balanced(question, qf, qw - qdot - round(u * 0.11), _wrap(question, qf, qw - qdot - round(u * 0.11))[:2]) if question else []
+    if question:
+        room = qw - qdot - round(u * 0.14)  # the ? dot on the left, the → arrow on the right
+        qf, ql, _ = _fit(question, room, 2, round(u * 0.026), round(u * 0.019), "SemiBold")
+        ql = _balanced(question, qf, room, ql)
     bh = len(bl) * _line_h(bf) + 2 * round(u * 0.028) if bl else 0
     qh = max(qdot, len(ql) * _line_h(qf)) + 2 * round(u * 0.022) if ql else 0
     bottom_h = max(bh, qh) if side else bh + qh + (gap if bh and qh else 0)
@@ -570,12 +584,13 @@ def _render_infographic(picture: bytes, text: dict, accent: tuple[int, int, int]
     radius = round(L["u"] * 0.035)
     y = y_cards
     boxes = []
-    for i, (tl, dl, ch) in enumerate(L["cards"]):
+    for i, (tl, dl, ch, tf) in enumerate(L["cards"]):
         colour = accent if i == 0 else TILES[(i - 1) % len(TILES)]
-        box = (L["cx0"], y, L["cx0"] + L["cw"], y + ch)
+        # against the right margin, away from the subject (the user, 2026-11-02)
+        box = (w - pad - L["card_w"], y, w - pad, y + ch)
         # see-through, fading in from the left: the picture shows, the words stay readable
         img = _shadowed(img, box, radius, _tint(colour, 0.9), 200, max(6, round(L["u"] * 0.02)), fade_from=70)
-        boxes.append((box, colour, tl, dl))
+        boxes.append((box, colour, tl, dl, tf))
         y += ch + step
     draw = ImageDraw.Draw(img)
 
@@ -587,10 +602,11 @@ def _render_infographic(picture: bytes, text: dict, accent: tuple[int, int, int]
         draw.rounded_rectangle((pad, y + round(L["ilh"] * 0.15), pad + L["bar"], y + len(L["il"]) * L["ilh"] - round(L["ilh"] * 0.1)), radius=L["bar"], fill=hot)
         _left(draw, pad + L["bar"] * 4, y, L["il"], L["inf"], _tint(ink, 0.25) if light else ink, L["ilh"])
 
-    # inside each card: the numbered tile, the bold title, the detail
-    tf, df, tlh, dlh, tile, cpx, cpy, tx = L["tf"], L["df"], L["tlh"], L["dlh"], L["tile"], L["cpx"], L["cpy"], L["tx"]
+    # inside each card: the numbered tile and the bold title (in its own size when it had to shrink)
+    df, dlh, tile, cpx, tx = L["df"], L["dlh"], L["tile"], L["cpx"], L["tx"]
     nf = _font(round(tile * 0.5), "Bold")
-    for n, (box, colour, tl, dl) in enumerate(boxes, 1):
+    for n, (box, colour, tl, dl, tf) in enumerate(boxes, 1):
+        tlh = _line_h(tf)
         x0, y0 = box[0], box[1]
         ty = y0 + (box[3] - y0 - tile) // 2
         draw.rounded_rectangle((x0 + cpx, ty, x0 + cpx + tile, ty + tile), radius=round(tile * 0.26), fill=colour)
