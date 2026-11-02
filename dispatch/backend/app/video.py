@@ -58,7 +58,11 @@ class VideoGenError(RuntimeError):
 
 def _explain(resp: httpx.Response) -> str:
     try:
-        err = resp.json().get("error", {})
+        body = resp.json()
+        # Some providers answer with a list of errors instead of an object.
+        if isinstance(body, list):
+            body = body[0] if body else {}
+        err = body.get("error", body) if isinstance(body, dict) else body
         if isinstance(err, dict):
             return err.get("message") or err.get("code") or resp.text[:300]
         return str(err)[:300]
