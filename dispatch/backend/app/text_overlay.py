@@ -70,6 +70,16 @@ EXTRACT_PROMPT = (
     "- cta: the button, 2-4 words of action (e.g. \"ចុះឈ្មោះឥឡូវ\", \"Order now\") — never a URL; "
     "\"\" when the prompt asks for none.\n"
     "- link: the website (without https://) or phone number to show small under the button, or \"\".\n"
+    "INFOGRAPHIC — only when the prompt (or the post it quotes) explains 2-4 ways, benefits, "
+    "tips or steps, each with its own short title AND a sentence about it, also return:\n"
+    '"intro": "...", "items": [{"title": "...", "detail": "..."}, ...], "banner": "...", "question": "..."\n'
+    "- headline: then the full title as written (at most 12 words), not cut.\n"
+    "- intro: the line under the title that sets it up, at most 22 words, or \"\".\n"
+    "- items: 2-4, in order — title at most 7 words, detail at most 20 words (the post's own "
+    "sentence, trimmed). No emoji.\n"
+    "- banner: the closing line (the take-away), at most 14 words, or \"\".\n"
+    "- question: a closing question to the reader, at most 14 words, or \"\".\n"
+    "Otherwise leave intro, items, banner and question out.\n"
     "Leave out the brand logo, tiny text inside device screens or chat bubbles, and "
     "anything describing style, colour or layout. If the prompt asks for no text at all, "
     'return {"headline": ""}.'
@@ -109,7 +119,7 @@ def extract_text(prompt: str) -> dict | None:
     raw = _chat(
         [{"role": "system", "content": EXTRACT_PROMPT}, {"role": "user", "content": prompt[:6000]}],
         writer_model(khmer=True),
-        max_tokens=1500,
+        max_tokens=4000,  # an infographic's rows (Khmer is token-heavy) cut off at 1500
         effort="low",
     )
 
@@ -157,10 +167,47 @@ def extract_text(prompt: str) -> dict | None:
         "cta": s(cta, 32),
         "link": link,
     }
+    # an infographic: 2-4 titled rows (_render_infographic draws the whole layout)
+    rows = raw.get("items") if isinstance(raw.get("items"), list) else []
+    items = [
+        {"title": s(tidy(r.get("title")), 60), "detail": s(tidy(r.get("detail")), 150)}
+        for r in rows[:4]
+        if isinstance(r, dict) and str(r.get("title") or "").strip()
+    ]
+    if len(items) >= 2:
+        text.update(
+            headline=s(head, 120, lines=2),
+            highlight=key if key and key in " ".join(s(head, 120, lines=2).split()) else "",
+            intro=s(tidy(raw.get("intro")), 170),
+            items=items,
+            banner=s(tidy(raw.get("banner")), 110),
+            question=s(tidy(raw.get("question")), 100),
+            points=[],
+        )
     if not text["headline"]:
         return None
-    every = [text["headline"], text["subheading"], text["cta"], *text["points"]]
+    every = [text["headline"], text["subheading"], text["cta"], *text["points"], *(i["title"] for i in text.get("items", []))]
     return text if any(_has_khmer(t) for t in every) else None
+
+
+# The picture under an infographic: one subject and a calm background — the
+# headline, the cards and the banner are all drawn by _render_infographic.
+INFOGRAPHIC_RULE = (
+    "\n\nLAYOUT AND TEXT ARE ADDED AFTERWARDS — this overrides any layout, card, TYPOGRAPHY or "
+    "text instructions above. Draw ONLY the background and ONE friendly subject (the mascot, "
+    "robot or person the prompt describes — with a laptop or a desk if it fits). In a wide or "
+    "square frame the subject sits in the LOWER-LEFT: it fills the left third of the frame, "
+    "below the top 30%. In a tall frame it sits in the middle band (from 28% to 50% of the "
+    "height), centred. Everything else is a calm, bright, softly blurred background (a light "
+    "modern office, window light, a few plants at the edges) with nothing on it — a designer "
+    "places the headline at the top and a column of cards over the rest. Draw NO letters, "
+    "numbers, cards, panels, buttons, banners, icons, logos or screens with UI anywhere."
+)
+
+
+def picture_rule(text: dict) -> str:
+    """What goes after the person's prompt for the picture under ``text``."""
+    return INFOGRAPHIC_RULE if text.get("items") else NO_TEXT_RULE
 
 
 # ── drawing ───────────────────────────────────────────────────────────────
@@ -260,6 +307,8 @@ def render(picture: bytes, text: dict, accent: tuple[int, int, int], logo: bytes
     brand's logo is stamped top-left (meme.stamp_logo) and the headline starts below it."""
     if not wanted():
         raise RuntimeError("Khmer text needs libraqm (text shaping) — not installed on this server")
+    if len(text.get("items") or []) >= 2:
+        return _render_infographic(picture, text, accent, logo)
     img = Image.open(io.BytesIO(picture)).convert("RGB")
     w, h = img.size
     pad = round(w * 0.065)
@@ -371,4 +420,209 @@ def render(picture: bytes, text: dict, accent: tuple[int, int, int], logo: bytes
     out = io.BytesIO()
     img.save(out, "PNG", optimize=True)
     # the brand's real logo, top-left, above the text it sits over (the headline starts below it)
+    return stamp_logo(out.getvalue(), logo) if logo else out.getvalue()
+
+
+# ── infographic ───────────────────────────────────────────────────────────
+# The user's reference (2026-11-02), drawn by us so the Khmer is always right:
+#
+#    ┌──────────────────────────────────┐
+#    │  3 វិធីដែល [AI] អាចជួយ             │  ← two balanced lines, the key word on a badge
+#    │  អាជីវកម្មរបស់អ្នក                    │
+#    │  ▌ the intro line                 │
+#    │ (subject) ┌[1] title ──────────┐  │  ← soft cards, a coloured number tile each
+#    │           │    detail…         │  │
+#    │           ├[2] title ──────────┤  │
+#    │           ├[3] title ──────────┤  │
+#    │ [ banner…            ] [? ask →] │
+#    └──────────────────────────────────┘
+#
+# A tall frame: the cards span the width under the subject's band.
+TILES = ((14, 165, 233), (245, 158, 11), (16, 185, 129))  # after the brand colour: sky, amber, green
+
+
+def _left(draw, x: int, y: int, lines, font, fill, lh: int, key: str = "", key_fill=None, badge: bool = False) -> int:
+    """Left-aligned lines from (x, y); ``key`` words in ``key_fill`` — on a rounded
+    badge of that colour (white letters) when ``badge``."""
+    for ln in lines:
+        cx = x
+        for part, hot in _runs(ln, key):
+            pw = font.getlength(part)
+            if hot and key_fill and badge:
+                bx = round(lh * 0.16)
+                top, bottom = y + round(lh * 0.06), y + round(lh * 0.98)
+                draw.rounded_rectangle((cx, top, cx + pw + 2 * bx, bottom), radius=round(lh * 0.22), fill=key_fill)
+                draw.text((cx + bx, y), part, font=font, fill=WHITE)
+                cx += pw + 2 * bx
+            else:
+                draw.text((cx, y), part, font=font, fill=key_fill if hot and key_fill else fill)
+                cx += pw
+        y += lh
+    return y
+
+
+def _shadowed(img: Image.Image, box, radius: int, fill, alpha: int, blur: int) -> Image.Image:
+    """A rounded box of ``fill`` at ``alpha`` with a soft shadow under it."""
+    w, h = img.size
+    sh = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(sh).rounded_rectangle((box[0], box[1] + blur // 2, box[2], box[3] + blur // 2), radius=radius, fill=46)
+    img = Image.composite(Image.new("RGB", (w, h), (15, 23, 42)), img, sh.filter(ImageFilter.GaussianBlur(blur)))
+    m = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(m).rounded_rectangle(box, radius=radius, fill=alpha)
+    return Image.composite(Image.new("RGB", (w, h), fill), img, m)
+
+
+def _infographic_layout(text: dict, w: int, h: int, scale: float, top: int):
+    """Every font, wrapped line and box of the infographic at ``scale`` — and the
+    height it all needs, so the caller can shrink until it fits."""
+    u = min(w, h) * scale
+    wide = w >= h * 0.95
+    pad = round(min(w, h) * 0.05)
+    measure = w - 2 * pad
+    hf, hl, hlh = _fit(text["headline"], measure, 2, round(u * 0.09), round(u * 0.05), "Bold")
+    hl = _balanced(text["headline"], hf, measure, hl)
+    intro = text.get("intro", "")
+    bar = max(3, round(u * 0.005))
+    inf, il, ilh = _fit(intro, measure - bar * 4, 2, round(u * 0.031), round(u * 0.024), "Regular") if intro else (None, [], 0)
+    il = _balanced(intro, inf, measure - bar * 4, il) if intro else il
+    # the cards' column: right of the subject in a wide / square frame, the full width when tall
+    cx0 = round(w * 0.3) if wide else pad
+    cw = w - pad - cx0
+    tf, df = _font(round(u * 0.04), "Bold"), _font(round(u * 0.028), "Regular")
+    tlh, dlh = _line_h(tf), _line_h(df)
+    tile = round(tlh * 1.55)
+    cpx, cpy = round(u * 0.028), round(u * 0.022)
+    tx = cpx + tile + round(u * 0.025)
+    cards = []
+    for it in text["items"]:
+        tl = _wrap(it["title"], tf, cw - tx - cpx)[:2]
+        dl = _wrap(it["detail"], df, cw - tx - cpx)[:3] if it.get("detail") else []
+        cards.append((tl, dl, max(tile, len(tl) * tlh + len(dl) * dlh) + 2 * cpy))
+    bf, qf = _font(round(u * 0.032), "SemiBold"), _font(round(u * 0.026), "SemiBold")
+    banner, question = text.get("banner", ""), text.get("question", "")
+    gap = round(u * 0.022)
+    # the bottom row: banner (wider) and the question side by side; stacked when tall
+    side = wide and banner and question
+    bw = round(measure * 0.62) if side else measure
+    qw = measure - bw - gap if side else measure
+    bl = _wrap(banner, bf, bw - round(u * 0.09))[:2] if banner else []
+    qdot = round(_line_h(qf) * 1.5)
+    ql = _wrap(question, qf, qw - qdot - round(u * 0.11))[:2] if question else []
+    bh = len(bl) * _line_h(bf) + 2 * round(u * 0.028) if bl else 0
+    qh = max(qdot, len(ql) * _line_h(qf)) + 2 * round(u * 0.022) if ql else 0
+    bottom_h = max(bh, qh) if side else bh + qh + (gap if bh and qh else 0)
+    head_h = len(hl) * hlh + (gap + len(il) * ilh if il else 0)
+    cards_h = sum(c[2] for c in cards) + gap * (len(cards) - 1)
+    need = top + head_h + gap * 2 + cards_h + (gap * 2 + bottom_h if bottom_h else 0) + pad
+    return locals()
+
+
+def _render_infographic(picture: bytes, text: dict, accent: tuple[int, int, int], logo: bytes | None = None) -> bytes:
+    """The infographic layout (see the drawing above) over ``picture``. PNG bytes."""
+    img = Image.open(io.BytesIO(picture)).convert("RGB")
+    w, h = img.size
+    top = round(min(w, h) * 0.05)
+    if logo:
+        chip_h, margin = logo_corner(w)
+        top = max(top, margin + chip_h + round(h * 0.02))
+    text = {**text, "headline": drawable(text["headline"]), "intro": drawable(text.get("intro", "")),
+            "items": [{"title": drawable(i["title"]), "detail": drawable(i.get("detail", ""))} for i in text["items"]],
+            "banner": drawable(text.get("banner", "")), "question": drawable(text.get("question", ""))}
+    for scale in (1.0, 0.93, 0.86, 0.79, 0.72, 0.65, 0.58):
+        L = _infographic_layout(text, w, h, scale, top)
+        if L["need"] <= h:
+            break
+    pad, gap, wide = L["pad"], L["gap"], L["wide"]
+
+    # a light veil behind the headline, fading into the picture
+    head_bottom = top + L["head_h"]
+    zone = img.crop((0, 0, w, min(h, head_bottom + pad))).convert("L")
+    light = ImageStat.Stat(zone).mean[0] >= 120
+    shade = (255, 255, 255) if light else (8, 12, 20)
+    ink = INK if light else WHITE
+    scrim = Image.new("L", (1, h), 0)
+    fade = round(h * 0.1)
+    for y in range(min(h, head_bottom + pad + fade)):
+        a = 150 if y <= head_bottom + pad // 2 else 150 * (1 - (y - head_bottom - pad // 2) / (pad // 2 + fade))
+        scrim.putpixel((0, y), max(0, round(a)))
+    img = Image.composite(Image.new("RGB", (w, h), shade), img, scrim.resize((w, h)))
+    hot = _readable(accent, light)
+
+    # the cards first (their shadows go under everything after them)
+    y_cards = head_bottom + gap * 2
+    bottom_h = L["bottom_h"]
+    y_bottom = h - pad - bottom_h
+    room = (y_bottom - gap * 2 if bottom_h else h - pad) - y_cards
+    if not wide:  # tall: below the subject's band when there's room for it
+        y_cards = max(y_cards, min(round(h * 0.5), y_cards + room - L["cards_h"]))
+        room = (y_bottom - gap * 2 if bottom_h else h - pad) - y_cards
+    spare = max(0, room - L["cards_h"])
+    step = gap + min(spare // max(1, len(L["cards"]) - 1), gap * 2) if len(L["cards"]) > 1 else 0
+    radius = round(L["u"] * 0.035)
+    y = y_cards
+    boxes = []
+    for i, (tl, dl, ch) in enumerate(L["cards"]):
+        colour = accent if i == 0 else TILES[(i - 1) % len(TILES)]
+        box = (L["cx0"], y, L["cx0"] + L["cw"], y + ch)
+        img = _shadowed(img, box, radius, _tint(colour, 0.9), 238, max(6, round(L["u"] * 0.02)))
+        boxes.append((box, colour, tl, dl))
+        y += ch + step
+    draw = ImageDraw.Draw(img)
+
+    # the headline, its key word on a brand badge, and the intro with its accent bar
+    key = text.get("highlight", "")
+    y = _left(draw, pad, top, L["hl"], L["hf"], ink, L["hlh"], key, hot, badge=len(key) <= 12)
+    if L["il"]:
+        y += gap
+        draw.rounded_rectangle((pad, y + round(L["ilh"] * 0.15), pad + L["bar"], y + len(L["il"]) * L["ilh"] - round(L["ilh"] * 0.1)), radius=L["bar"], fill=hot)
+        _left(draw, pad + L["bar"] * 4, y, L["il"], L["inf"], _tint(ink, 0.25) if light else ink, L["ilh"])
+
+    # inside each card: the numbered tile, the bold title, the detail
+    tf, df, tlh, dlh, tile, cpx, cpy, tx = L["tf"], L["df"], L["tlh"], L["dlh"], L["tile"], L["cpx"], L["cpy"], L["tx"]
+    nf = _font(round(tile * 0.5), "Bold")
+    for n, (box, colour, tl, dl) in enumerate(boxes, 1):
+        x0, y0 = box[0], box[1]
+        ty = y0 + (box[3] - y0 - tile) // 2
+        draw.rounded_rectangle((x0 + cpx, ty, x0 + cpx + tile, ty + tile), radius=round(tile * 0.26), fill=colour)
+        num = str(n)
+        draw.text((x0 + cpx + (tile - nf.getlength(num)) / 2, ty + (tile - _line_h(nf)) / 2), num, font=nf, fill=WHITE)
+        block = len(tl) * tlh + len(dl) * dlh
+        yy = y0 + (box[3] - y0 - block) // 2
+        yy = _left(draw, x0 + tx, yy, tl, tf, INK, tlh)
+        _left(draw, x0 + tx, yy, dl, df, _tint(INK, 0.3), dlh)
+
+    # the bottom row: the banner in the brand colour, the question as an outlined pill
+    if bottom_h:
+        u = L["u"]
+        x = pad
+        yb = y_bottom
+        if L["bl"]:
+            bh = L["bh"]
+            by = yb + (bottom_h - bh) // 2 if L["side"] else yb
+            draw.rounded_rectangle((x, by + 4, x + L["bw"], by + bh + 4), radius=round(bh * 0.3), fill=tuple(c // 2 for c in accent))
+            draw.rounded_rectangle((x, by, x + L["bw"], by + bh), radius=round(bh * 0.3), fill=accent)
+            _left(draw, x + round(u * 0.045), by + round(u * 0.028), L["bl"], L["bf"], WHITE, _line_h(L["bf"]))
+            if L["side"]:
+                x += L["bw"] + gap
+            else:
+                yb += bh + gap
+        if L["ql"]:
+            qh, qf, qdot = L["qh"], L["qf"], L["qdot"]
+            qy = yb + (bottom_h - qh) // 2 if L["side"] else yb
+            qx1 = x + L["qw"]
+            draw.rounded_rectangle((x, qy, qx1, qy + qh), radius=round(qh * 0.3), fill=WHITE, outline=hot, width=max(2, round(u * 0.004)))
+            dx, dy = x + round(u * 0.03), qy + (qh - qdot) // 2
+            draw.ellipse((dx, dy, dx + qdot, dy + qdot), fill=hot)
+            qm = _font(round(qdot * 0.62), "Bold")
+            draw.text((dx + (qdot - qm.getlength("?")) / 2, dy + (qdot - _line_h(qm)) / 2), "?", font=qm, fill=WHITE)
+            qlh = _line_h(qf)
+            _left(draw, dx + qdot + round(u * 0.022), qy + (qh - len(L["ql"]) * qlh) // 2, L["ql"], qf, INK, qlh)
+            # an arrow at the end: →
+            ax, ay, al = qx1 - round(u * 0.035), qy + qh // 2, round(u * 0.022)
+            lw = max(2, round(u * 0.005))
+            draw.line((ax - al, ay, ax, ay), fill=hot, width=lw)
+            draw.line((ax - al // 2, ay - al // 2, ax, ay, ax - al // 2, ay + al // 2), fill=hot, width=lw, joint="curve")
+
+    out = io.BytesIO()
+    img.save(out, "PNG", optimize=True)
     return stamp_logo(out.getvalue(), logo) if logo else out.getvalue()

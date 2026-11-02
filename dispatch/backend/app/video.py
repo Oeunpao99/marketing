@@ -974,7 +974,7 @@ def _render_image(job_id: int, reference: bytes | list[bytes] | None, guide: str
         if job is None:
             return
         overlay = _khmer_overlay_text(job)
-        prompt = guide + job.prompt + (text_overlay.NO_TEXT_RULE if overlay else "")
+        prompt = guide + job.prompt + (text_overlay.picture_rule(overlay) if overlay else "")
         ratio = job.aspect_ratio
         # Hand the database connection back while this waits for a slot and the
         # provider draws (30-60 s): a burst of images each holding one ran the
