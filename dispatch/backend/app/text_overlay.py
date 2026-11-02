@@ -36,7 +36,7 @@ import io
 import logging
 import re
 
-from PIL import Image, ImageDraw, ImageFilter, ImageStat, features
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageStat, features
 
 from app.meme import _font, _has_khmer, _wrap, drawable, fit_lines, logo_corner, stamp_logo
 from app.poster import INK, WHITE, _line_h, _tint
@@ -461,15 +461,24 @@ def _left(draw, x: int, y: int, lines, font, fill, lh: int, key: str = "", key_f
     return y
 
 
-def _shadowed(img: Image.Image, box, radius: int, fill, alpha: int, blur: int) -> Image.Image:
-    """A rounded box of ``fill`` at ``alpha`` with a soft shadow under it."""
+def _shadowed(img: Image.Image, box, radius: int, fill, alpha: int, blur: int, fade_from: int = 0) -> Image.Image:
+    """A rounded box of ``fill`` at ``alpha`` with a faint shadow under it.
+    ``fade_from``: the box's left edge is that see-through and grows to ``alpha``
+    over its first 45% — the picture beside it stays in view, the words sit on
+    the solid part (the user: no heavy overlay on the picture, 2026-11-02)."""
     w, h = img.size
     sh = Image.new("L", (w, h), 0)
-    ImageDraw.Draw(sh).rounded_rectangle((box[0], box[1] + blur // 2, box[2], box[3] + blur // 2), radius=radius, fill=46)
+    ImageDraw.Draw(sh).rounded_rectangle((box[0], box[1] + blur // 2, box[2], box[3] + blur // 2), radius=radius, fill=22)
     img = Image.composite(Image.new("RGB", (w, h), (15, 23, 42)), img, sh.filter(ImageFilter.GaussianBlur(blur)))
     m = Image.new("L", (w, h), 0)
-    ImageDraw.Draw(m).rounded_rectangle(box, radius=radius, fill=alpha)
-    return Image.composite(Image.new("RGB", (w, h), fill), img, m)
+    ImageDraw.Draw(m).rounded_rectangle(box, radius=radius, fill=255)
+    ramp = Image.new("L", (w, 1), alpha)
+    if fade_from:
+        x0, span = box[0], max(1, round((box[2] - box[0]) * 0.45))
+        for x in range(x0, min(w, x0 + span)):
+            ramp.putpixel((x, 0), round(fade_from + (alpha - fade_from) * (x - x0) / span))
+    m = ImageChops.multiply(m, ramp.resize((w, h)))
+    return Image.composite(Image.new("RGB", (w, h), fill), img, m.filter(ImageFilter.GaussianBlur(1)))
 
 
 def _infographic_layout(text: dict, w: int, h: int, scale: float, top: int):
@@ -505,9 +514,9 @@ def _infographic_layout(text: dict, w: int, h: int, scale: float, top: int):
     side = wide and banner and question
     bw = round(measure * 0.62) if side else measure
     qw = measure - bw - gap if side else measure
-    bl = _wrap(banner, bf, bw - round(u * 0.09))[:2] if banner else []
+    bl = _balanced(banner, bf, bw - round(u * 0.09), _wrap(banner, bf, bw - round(u * 0.09))[:2]) if banner else []
     qdot = round(_line_h(qf) * 1.5)
-    ql = _wrap(question, qf, qw - qdot - round(u * 0.11))[:2] if question else []
+    ql = _balanced(question, qf, qw - qdot - round(u * 0.11), _wrap(question, qf, qw - qdot - round(u * 0.11))[:2]) if question else []
     bh = len(bl) * _line_h(bf) + 2 * round(u * 0.028) if bl else 0
     qh = max(qdot, len(ql) * _line_h(qf)) + 2 * round(u * 0.022) if ql else 0
     bottom_h = max(bh, qh) if side else bh + qh + (gap if bh and qh else 0)
@@ -543,7 +552,7 @@ def _render_infographic(picture: bytes, text: dict, accent: tuple[int, int, int]
     scrim = Image.new("L", (1, h), 0)
     fade = round(h * 0.1)
     for y in range(min(h, head_bottom + pad + fade)):
-        a = 150 if y <= head_bottom + pad // 2 else 150 * (1 - (y - head_bottom - pad // 2) / (pad // 2 + fade))
+        a = 105 if y <= head_bottom + pad // 2 else 105 * (1 - (y - head_bottom - pad // 2) / (pad // 2 + fade))  # a light veil, not a wash
         scrim.putpixel((0, y), max(0, round(a)))
     img = Image.composite(Image.new("RGB", (w, h), shade), img, scrim.resize((w, h)))
     hot = _readable(accent, light)
@@ -564,7 +573,8 @@ def _render_infographic(picture: bytes, text: dict, accent: tuple[int, int, int]
     for i, (tl, dl, ch) in enumerate(L["cards"]):
         colour = accent if i == 0 else TILES[(i - 1) % len(TILES)]
         box = (L["cx0"], y, L["cx0"] + L["cw"], y + ch)
-        img = _shadowed(img, box, radius, _tint(colour, 0.9), 238, max(6, round(L["u"] * 0.02)))
+        # see-through, fading in from the left: the picture shows, the words stay readable
+        img = _shadowed(img, box, radius, _tint(colour, 0.9), 200, max(6, round(L["u"] * 0.02)), fade_from=70)
         boxes.append((box, colour, tl, dl))
         y += ch + step
     draw = ImageDraw.Draw(img)
