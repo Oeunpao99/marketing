@@ -530,14 +530,17 @@ def admin_workspace(ws_id: int, db: Session = Depends(get_db)):
 # ("AI writing: You are the content strategist…"), which read badly in the account drawer
 # (the user, 2026-10-30). The first match wins.
 _ACTIVITY = [
+    # vector_art.PROMPT — before "Images", whose "illustrator" would catch it
+    ("Images", "Vector drawing (SVG)", ("draws in code",)),
     ("Marketing advisor", "Marketing advisor chat", ("marketing advisor",)),
     ("Website check", "Website check", ("website check",)),
-    ("Weekly plan", "Weekly plan", ("creative marketing lead", "content strategist")),
-    ("Captions & posts", "Caption / post writing", ("copy editor", "social media editor", "caption", "label one social media post", "labels already used")),
-    ("Images", "Image", ("image", "picture", "poster", "illustrator", "reference images", "cut-out", "prompt engineer")),
+    ("Weekly plan", "Weekly plan", ("creative marketing lead", "content strategist", "weekly summary")),
+    ("Captions & posts", "Caption / post writing", ("copy editor", "social media editor", "caption", "label one social media post", "labels already used", "list items")),
+    ("Images", "Image", ("image", "picture", "poster", "illustrator", "reference images", "cut-out", "cut out", "prompt engineer")),
     ("Videos", "Video voice-over", ("voice-over", "voice preview")),
     ("Videos", "Video script & design", ("video", "remotion", "storyboard", "film", "storyteller", "director", "scriptwriter", "podcast", "parable",
-                                         "dialogue", "meme", "presentation designer", "instructional designer", "motion designer", "teacher", "creator", "ui designer")),
+                                         "dialogue", "meme", "presentation designer", "instructional designer", "motion designer", "teacher", "creator", "ui designer",
+                                         "explainer", "animated-story", "customer-support voice", "sharpest voice")),
 ]
 
 
@@ -751,6 +754,32 @@ def admin_ai_usage(days: int = 30, db: Session = Depends(get_db)):
         "tenants": sorted(tenants.values(), key=lambda t: -t["charged"]),
         "models": sorted(by_model.values(), key=lambda m: -m["charged"]),
         "daily": _ai_daily(db, since),
+        "jobs": _ai_jobs(db, since),
+    }
+
+
+def _ai_jobs(db: Session, since: datetime) -> dict[str, list[dict]]:
+    """What each model's AI writing was for since ``since`` — story / script,
+    vector drawing, captions… (activity_kind, from the ledger note), biggest
+    spend first: {model: [{"job", "calls", "tokens", "cost", "charged"}]}."""
+    from app import ai_models
+
+    rows = db.execute(
+        select(CreditEntry.model, CreditEntry.note, CreditEntry.tokens, CreditEntry.cost_usd, CreditEntry.amount_usd).where(
+            CreditEntry.kind == "text", CreditEntry.created_at >= since
+        )
+    ).all()
+    found: dict[str, dict[str, dict]] = {}
+    for model, note, tokens, cost, amount in rows:
+        job = activity_kind("text", note)[1]
+        j = found.setdefault(ai_models.canonical(model or ""), {}).setdefault(job, {"job": job, "calls": 0, "tokens": 0, "cost": 0.0, "charged": 0.0})
+        j["calls"] += 1
+        j["tokens"] += int(tokens or 0)
+        j["cost"] += float(cost or 0)
+        j["charged"] += -float(amount or 0)
+    return {
+        m: sorted(({**j, "cost": round(j["cost"], 4), "charged": round(j["charged"], 4)} for j in jobs.values()), key=lambda j: -j["charged"])
+        for m, jobs in found.items()
     }
 
 

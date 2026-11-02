@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { aiModelStore, api } from '../../api/client'
-import { FiCpu } from 'react-icons/fi'
+import CostTier from '../ui/CostTier'
 import Select from '../ui/Select'
 
 // The AI that writes (captions, ideas, storyboards, the Khmer narration) —
@@ -54,13 +54,13 @@ export default function WriterModelSelect({ size = 'sm', className = 'min-w-0 fl
       value: '',
       label: `Workspace default${fallback ? ` · ${fallback.label}` : ''}`,
       hint: 'Set in Settings → AI model',
-      icon: <FiCpu size={14} className="flex-none text-ink-400" aria-hidden="true" />,
+      icon: <CostTier tier={fallback?.tier} />,
     },
     ...models.map((m) => ({
       value: m.key,
-      label: `${m.label}  ${m.tier}`,
+      label: m.label,
       hint: m.blurb,
-      icon: <FiCpu size={14} className="flex-none text-ink-400" aria-hidden="true" />,
+      icon: <CostTier tier={m.tier} />,
     })),
   ]
   return (

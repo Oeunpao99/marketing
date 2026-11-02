@@ -93,6 +93,7 @@ export default function AiUsage({ api, onOpen }) {
               <AccountBars tenants={u.tenants} onOpen={onOpen} />
             </section>
           </div>
+          <ModelJobs models={u.models} jobs={u.jobs || {}} label={label} />
         </>
       )}
 
@@ -217,6 +218,50 @@ export default function AiUsage({ api, onOpen }) {
         </div>
       </section>
     </div>
+  )
+}
+
+/** What each model's writing was for — video story / script, vector drawing,
+ * captions… (backend _ai_jobs, from the ledger note) — one card per model,
+ * biggest spend first, each job a bar of that model's spend. */
+function ModelJobs({ models, jobs, label }) {
+  const shown = models.filter((m) => jobs[m.model]?.length)
+  if (!shown.length) return null
+  return (
+    <section className={`${card} px-5 py-4`}>
+      <h2 className="text-[13.5px] font-semibold text-ink-900">What each model was used for</h2>
+      <p className="mb-3 mt-0.5 text-[12px] text-ink-500">Each model’s spend split by the job it did — writing a video story, drawing a vector picture, captions…</p>
+      <div className="grid gap-4 lg:grid-cols-2">
+        {shown.map((m) => {
+          const top = Math.max(...jobs[m.model].map((j) => j.charged), 0.0001)
+          return (
+            <div key={m.model} className="rounded-xl border border-ink-100 px-4 py-3">
+              <div className="mb-2 flex items-center gap-2">
+                <ModelLogo model={m.model} />
+                <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-ink-900">{label(m.model)}</span>
+                <span className="text-[12.5px] font-bold tabular-nums text-ink-900">{usd(m.charged)}</span>
+              </div>
+              <ul className="space-y-2">
+                {jobs[m.model].map((j) => (
+                  <li key={j.job}>
+                    <div className="flex items-baseline gap-2 text-[12px]">
+                      <span className="min-w-0 flex-1 truncate text-ink-700">{j.job}</span>
+                      <span className="tabular-nums text-ink-400">
+                        {num(j.calls)} calls · {m.charged > 0 ? Math.round((100 * j.charged) / m.charged) : 0}%
+                      </span>
+                      <span className="w-16 text-right font-semibold tabular-nums text-ink-900">{usd(j.charged)}</span>
+                    </div>
+                    <div className="mt-1 h-1.5 rounded-full bg-ink-100">
+                      <div className="h-1.5 rounded-full bg-brand" style={{ width: `${Math.max(2, (100 * j.charged) / top)}%` }} />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )
+        })}
+      </div>
+    </section>
   )
 }
 

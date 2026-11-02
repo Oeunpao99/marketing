@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router-dom'
-import { FiArrowRight, FiCheck, FiCpu, FiPlay, FiPlus, FiSettings, FiTrendingUp, FiX } from 'react-icons/fi'
+import { FiArrowRight, FiCheck, FiPlay, FiPlus, FiSettings, FiTrendingUp, FiX } from 'react-icons/fi'
+import CostTier from '../components/ui/CostTier'
 import { api } from '../api/client'
 import { colorForBrand } from '../lib/brandColor'
 import { useStore } from '../store'
@@ -914,10 +915,9 @@ function AutopilotWriter() {
   if (!data) return <div className="h-9 animate-pulse rounded-xl bg-ink-100" />
   const models = data.models || []
   const platform = models.find((m) => m.key === data.platform_default)
-  const icon = <FiCpu size={14} className="flex-none text-ink-400" aria-hidden="true" />
   const options = [
-    { value: '', label: `Platform default${platform ? ` · ${platform.label}` : ''}`, hint: 'Chosen by Marketing ឆ្លាតវៃ', icon },
-    ...models.map((m) => ({ value: m.key, label: `${m.label}  ${m.tier}`, hint: m.blurb, icon })),
+    { value: '', label: `Platform default${platform ? ` · ${platform.label}` : ''}`, hint: 'Chosen by Marketing ឆ្លាតវៃ', icon: <CostTier tier={platform?.tier} /> },
+    ...models.map((m) => ({ value: m.key, label: m.label, hint: m.blurb, icon: <CostTier tier={m.tier} /> })),
   ]
   const pick = async (key) => {
     setSaving(true)

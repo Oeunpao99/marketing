@@ -23,7 +23,6 @@ import {
   FiUserPlus,
   FiUsers,
   FiX,
-  FiCpu,
 } from 'react-icons/fi'
 import { api } from '../../api/client'
 import { useAuth } from '../../auth'
@@ -37,6 +36,7 @@ import { TZ } from '../../lib/tz'
 import Select from '../ui/Select'
 import HowItWorks from './HowItWorks'
 import { lengthText, useUsage } from '../../lib/usage'
+import CostTier from '../ui/CostTier'
 import { useNavigate } from 'react-router-dom'
 import { DISPLAY_SIZES, displaySize, setDisplaySize } from '../../lib/zoom'
 
@@ -1065,10 +1065,10 @@ function AiModelSection({ canManage, showToast }) {
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="inline-flex items-center gap-2 text-[13px] font-semibold text-ink-900">
-                  {m.key && <FiCpu size={16} className="flex-none text-ink-400" aria-hidden="true" />}
+                  <CostTier tier={m.tier} size="md" />
                   {m.label}
                 </span>
-                <span className="text-[11px] font-bold text-ink-400">{saving === (m.key || 'default') ? 'Saving…' : on ? 'Default' : m.tier}</span>
+                <span className="text-[11px] font-bold text-ink-400">{saving === (m.key || 'default') ? 'Saving…' : on ? 'Default' : ''}</span>
               </div>
               <div className="mt-0.5 text-[11.5px] text-ink-500">{m.blurb}</div>
             </button>
@@ -1093,7 +1093,7 @@ function AiModelSection({ canManage, showToast }) {
                   <td className="px-3.5 py-1.5">{r.user}</td>
                   <td className="px-2 py-1.5">
                     <span className="inline-flex items-center gap-1.5">
-                      <FiCpu size={13} className="flex-none text-ink-400" aria-hidden="true" />
+                      <CostTier />
                       {r.label || label(r.model)}
                     </span>
                   </td>

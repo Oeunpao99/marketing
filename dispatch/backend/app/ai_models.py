@@ -34,7 +34,7 @@ from app.models import AiModel, Workspace
 CATALOG: dict[str, dict] = {
     "gpt-5": {"label": "GPT-5", "name": "Default model", "vendor": "OpenAI", "provider": "azure_openai", "blurb": "Strong planner, follows every rule — the default"},
     "gpt-5-mini": {"label": "GPT-5 mini", "name": "Fast model", "vendor": "OpenAI", "provider": "azure_openai", "blurb": "Fastest and cheapest — quick drafts"},
-    "claude-opus-5-5": {"label": "Claude Opus 5.5", "name": "Advanced model", "vendor": "Anthropic", "provider": "azure_claude", "blurb": "Most natural Khmer storytelling"},
+    "claude-opus-5-5": {"label": "Claude Opus 5.5", "name": "Advanced model", "vendor": "Anthropic", "provider": "azure_claude", "blurb": "Most natural Khmer storytelling — uses up your plan faster"},
     "gemini-4-argon": {"label": "Gemini 4 Argon", "name": "Quick Khmer model", "vendor": "Google", "provider": "gemini", "blurb": "Very fast, natural Khmer"},
 }
 

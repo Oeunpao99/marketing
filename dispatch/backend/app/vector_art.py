@@ -23,6 +23,8 @@ import logging
 import re
 import xml.etree.ElementTree as ET
 
+from app.config import get_settings
+
 log = logging.getLogger(__name__)
 
 SVG_NS = "http://www.w3.org/2000/svg"
@@ -180,17 +182,12 @@ def _lift_moves(parent) -> None:
             parent.insert(i, g)
 
 
-# Claude draws far better in SVG than the other writers (measured on the same
-# scene) — it draws every vector picture when the platform has it.
-ARTIST = "claude-opus-5-5"
-
-
 def artist() -> str:
-    """The model that draws: ARTIST when configured, else the workspace's writer."""
-    from app import ai_models
-    from app.content_ai import writer_model
-
-    return ARTIST if ai_models.configured(ARTIST) else writer_model()
+    """The model that draws: always the platform's GPT writer (GPT-5), whatever
+    the workspace writes with — Claude drew nicer SVG but used far too many
+    tokens (the user, 2026-11-02)."""
+    s = get_settings()
+    return s.azure_openai_writer_deployment or s.azure_openai_deployment or "gpt-5"
 
 
 CARD = (
