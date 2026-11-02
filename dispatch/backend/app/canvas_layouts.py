@@ -191,12 +191,16 @@ def layout_layers(raw: dict, wide: bool) -> list[dict]:
                 card.update(x=50, y=ys[i], w=880)
             out.append(card)
     elif lay == "metric":
+        # The kicker above the ring and the line under it, both clear of its stroke —
+        # they sat ON the ring's top and bottom edges (the user, 2026-11-02). The ring
+        # spans (tall) 28-62 % / (wide) 27-67 % of the height; the gauge's ticks and
+        # orbiting dots (canvas.jsx Gauge) reach ~75 px further out.
         if kicker:
-            out.append(_pill(kicker, 50, 28 if wide else 30, 0.1, caps=True))
-        out.append({"kind": "shape", "shape": "ring", "x": 50, "y": 47 if wide else 45, "w": 560 if wide else 640, "stroke": 3, "color": "a", "opacity": 0.3, "at": 0.2, "in": "scale", "loop": "spin"})
-        out.append({"kind": "metric", "value": raw.get("value"), "prefix": _s(raw.get("prefix"), 4), "suffix": _s(raw.get("suffix"), 6), "label": _s(raw.get("label"), 50), "x": 50, "y": 47 if wide else 45, "size": 190 if wide else 200, "at": 0.3, "in": "scale", **({"hit": True} if hit else {})})
+            out.append(_pill(kicker, 50, 15 if wide else 21, 0.1, caps=True))
+        out.append({"kind": "shape", "shape": "ring", "x": 50, "y": 47 if wide else 45, "w": 420 if wide else 640, "stroke": 3, "color": "a", "opacity": 0.3, "at": 0.2, "in": "scale", "loop": "spin"})
+        out.append({"kind": "metric", "value": raw.get("value"), "prefix": _s(raw.get("prefix"), 4), "suffix": _s(raw.get("suffix"), 6), "label": _s(raw.get("label"), 50), "x": 50, "y": 47 if wide else 45, "size": 160 if wide else 200, "fit": 360 if wide else 500, "ring": 420 if wide else 640, "at": 0.3, "in": "scale", **({"hit": True} if hit else {})})
         if sub or title:
-            out.append(_text(sub or title, 50, 68 if wide else 62, 50, 1.0, maxw=70 if wide else 84, weight=600, tin="fade", color="sub"))
+            out.append(_text(sub or title, 50, 77 if wide else 69, 50, 1.0, maxw=70 if wide else 84, weight=600, tin="fade", color="sub"))
     elif lay == "list":
         items = [{"icon": x.get("icon") or "CircleCheck", "text": _s(x.get("text"), 50)} for x in (raw.get("items") or []) if isinstance(x, dict) and _s(x.get("text"), 50)][:5]
         if wide:

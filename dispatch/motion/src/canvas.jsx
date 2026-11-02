@@ -38,7 +38,7 @@ const col = (pal, c, fallback) => {
 const TOKEN = { a: 'a', b: 'b', ink: 'ink', sub: 'sub', bg: 'bg', white: 'white', black: 'black' }
 
 // ── backgrounds ────────────────────────────────────────────────────────────
-function Background({ bg = {}, pal }) {
+function Background({ bg = {}, pal, anchor }) {
   const frame = useCurrentFrame()
   const { width, height } = useVideoConfig()
   const base = col(pal, bg.color, pal.bg)
@@ -53,10 +53,22 @@ function Background({ bg = {}, pal }) {
           pattern (waves, rings…) is drawn over it */}
       <AbsoluteFill style={{ background: `radial-gradient(ellipse 62% 55% at ${60 + Math.sin(frame / 90) * 3}% 48%, ${tint(a, dark ? 0.2 : 0.16)}, transparent 72%)` }} />
       {kind === 'spotlight' && <AbsoluteFill style={{ background: `radial-gradient(ellipse 55% 45% at 50% ${40 + Math.sin(frame / 60) * 4}%, ${tint(a, 0.28)}, transparent 70%)` }} />}
+      {/* rings: round the scene's own ring when it has one (a metric's), well outside
+          it — they used to sit just off-centre beside it and look doubled and messy */}
       {kind === 'rings' &&
-        [0.3, 0.5, 0.72].map((r, i) => (
-          <div key={i} style={{ position: 'absolute', left: width / 2 - (Math.max(width, height) * r) / 2, top: height * 0.45 - (Math.max(width, height) * r) / 2, width: Math.max(width, height) * r, height: Math.max(width, height) * r, borderRadius: '50%', border: `2px solid ${tint(a, 0.18 - i * 0.04)}`, transform: `scale(${1 + Math.sin((frame + i * 30) / 50) * 0.02})` }} />
-        ))}
+        (anchor ? [1.8, 2.5, 3.3].map((k) => anchor.r * 2 * k) : [0.3, 0.5, 0.72].map((r) => Math.max(width, height) * r)).map((d, i) => {
+          const cx = anchor ? anchor.x : width / 2
+          const cy = anchor ? anchor.y : height * 0.45
+          return <div key={i} style={{ position: 'absolute', left: cx - d / 2, top: cy - d / 2, width: d, height: d, borderRadius: '50%', border: `2px solid ${tint(a, 0.18 - i * 0.04)}`, transform: `scale(${1 + Math.sin((frame + i * 30) / 50) * 0.02})` }} />
+        })}
+      {/* ripples: soft pulses running out from the scene's ring through the rings */}
+      {kind === 'rings' &&
+        anchor &&
+        [0, 1].map((i) => {
+          const ph = ((frame + i * 45) % 90) / 90
+          const d = anchor.r * 2 * (1.05 + ph * 1.6)
+          return <div key={`rip${i}`} style={{ position: 'absolute', left: anchor.x - d / 2, top: anchor.y - d / 2, width: d, height: d, borderRadius: '50%', border: `3px solid ${a}`, opacity: (1 - ph) * 0.28 }} />
+        })}
       {kind === 'city' && <City width={width} height={height} a={a} dark={dark} frame={frame} />}
       {/* "network" (dots joined by lines) is no longer drawn — too busy; older designs keep just the grid */}
       {kind === 'streams' && <Streams width={width} height={height} a={a} b={b} frame={frame} />}
@@ -582,21 +594,30 @@ function Layer({ L, pal, brand, u, delay, dy = 0, measure }) {
       const ems = (pre.length + full.length + (smallSuf ? 0 : suf.length)) * 0.6 + (smallSuf ? suf.length * 0.6 * 0.42 + 0.08 : 0)
       const room = (L.fit || (width > height ? 440 : 500)) * u
       const size = Math.min((L.size || 150) * u, room / Math.max(1, ems))
+      // After Effects-style: the number pops out of a blur with a little overshoot, the unit
+      // slides in once it has counted, the label fades up — and round it the gauge (Gauge)
+      const pop = spring({ frame: f - 2, fps, config: { damping: 11, mass: 0.7 } })
+      // early, so the number isn't left of centre beside an empty unit while it counts
+      const unit = interpolate(f, [8, 20], [0, 1], { ...clamp, easing: ease })
+      const lab = interpolate(f, [22, 38], [0, 1], { ...clamp, easing: ease })
       body = (
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontFamily: FONT, fontWeight: 800, fontSize: size, color: col(pal, L.color, pal.a), letterSpacing: '-0.04em', lineHeight: 1, whiteSpace: 'nowrap' }}>
+        <div style={{ position: 'relative', textAlign: 'center' }}>
+          {L.ring > 0 && <Gauge D={L.ring * u} p={k} f={f} pal={pal} u={u} />}
+          <div style={{ position: 'relative', fontFamily: FONT, fontWeight: 800, fontSize: size, color: col(pal, L.color, pal.a), letterSpacing: '-0.04em', lineHeight: 1, whiteSpace: 'nowrap', transform: `scale(${0.8 + 0.2 * pop})`, filter: pop < 0.98 ? `blur(${Math.max(0, 1 - pop) * 9 * u}px)` : undefined }}>
             {pre}
             {v}
-            {smallSuf ? <span style={{ fontSize: '0.42em', fontWeight: 700, letterSpacing: '-0.01em', marginLeft: '0.08em' }}>{suf}</span> : suf}
+            {smallSuf ? <span style={{ display: 'inline-block', fontSize: '0.42em', fontWeight: 700, letterSpacing: '-0.01em', marginLeft: '0.08em', opacity: unit, transform: `translateX(${(1 - unit) * 24 * u}px)` }}>{suf}</span> : suf}
           </div>
-          {L.label && <div style={{ marginTop: 14 * u, fontFamily: FONT, fontWeight: 600, fontSize: (L.size || 150) * 0.28 * u, color: pal.sub }}>{clean(L.label)}</div>}
+          {L.label && <div style={{ position: 'relative', marginTop: 14 * u, fontFamily: FONT, fontWeight: 600, fontSize: (L.size || 150) * 0.28 * u, color: pal.sub, opacity: lab, transform: `translateY(${(1 - lab) * 14 * u}px)` }}>{clean(L.label)}</div>}
         </div>
       )
       break
     }
     case 'pill':
       body = (
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 12 * u, padding: `${14 * u}px ${30 * u}px`, borderRadius: 999, background: L.fill ? fill(L.fill) : tint(pal.a, 0.14), border: `2px solid ${tint(col(pal, L.color, pal.a), 0.5)}`, fontFamily: FONT, fontWeight: 700, fontSize: Math.max(30, L.size || 34) * u, color: col(pal, L.color, pal.a), whiteSpace: 'nowrap', letterSpacing: L.caps && !KHMER_RE.test(L.text || '') ? '0.12em' : undefined, textTransform: L.caps ? 'uppercase' : undefined }}>
+        // a solid tint (the accent mixed into the background), so the background's rings
+        // pass behind the pill instead of showing through it
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 12 * u, padding: `${14 * u}px ${30 * u}px`, borderRadius: 999, background: L.fill ? fill(L.fill) : `color-mix(in srgb, ${pal.a} 14%, ${pal.bg})`, border: `2px solid ${tint(col(pal, L.color, pal.a), 0.5)}`, fontFamily: FONT, fontWeight: 700, fontSize: Math.max(30, L.size || 34) * u, color: col(pal, L.color, pal.a), whiteSpace: 'nowrap', letterSpacing: L.caps && !KHMER_RE.test(L.text || '') ? '0.12em' : undefined, textTransform: L.caps ? 'uppercase' : undefined }}>
           {L.icon && <Icon name={L.icon} size={(L.size || 34) * 1.05 * u} color={col(pal, L.color, pal.a)} stroke={2.4} />}
           {clean(L.text)}
         </div>
@@ -787,6 +808,58 @@ export function spaceOut(boxes, height, gap) {
   return Object.fromEntries(list.filter((b) => Math.abs(b.dy) > 0.5).map((b) => [b.i, Math.round(b.dy)]))
 }
 
+/** A metric's gauge, drawn on its layout ring (diameter D px) — the After Effects look
+ * (the user, 2026-11-02): a progress arc in the look's two accents sweeps round as the
+ * number counts (p 0 → 1) with a glowing head; 60 ticks light up behind it; once it's
+ * full a bright comet keeps circling, and three small dots orbit outside. */
+function Gauge({ D, p, f, pal, u }) {
+  const S = D + 180 * u
+  const c = S / 2
+  const r = D / 2
+  const C = 2 * Math.PI * r
+  const rad = (deg) => (deg * Math.PI) / 180
+  const done = Math.max(0, f - 34)
+  const head = p < 1 ? p * 360 - 90 : -90 + done * 2.6
+  const id = `gauge-${String(pal.a).replace(/[^\w]/g, '')}-${Math.round(D)}`
+  const glow = `drop-shadow(0 0 ${10 * u}px ${pal.a})`
+  return (
+    <svg width={S} height={S} style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', overflow: 'visible', pointerEvents: 'none' }}>
+      <defs>
+        <linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor={pal.a} />
+          <stop offset="1" stopColor={pal.b} />
+        </linearGradient>
+      </defs>
+      {Array.from({ length: 60 }, (_, i) => {
+        const a = rad((i / 60) * 360 - 90)
+        const r1 = r + 22 * u
+        const r2 = r + (i % 5 === 0 ? 44 * u : 34 * u)
+        const lit = i / 60 <= p
+        const show = interpolate(f, [i * 0.25, i * 0.25 + 8], [0, 1], clamp)
+        return <line key={i} x1={c + r1 * Math.cos(a)} y1={c + r1 * Math.sin(a)} x2={c + r2 * Math.cos(a)} y2={c + r2 * Math.sin(a)} stroke={lit ? pal.a : pal.sub} strokeWidth={(i % 5 === 0 ? 4 : 2.5) * u} strokeLinecap="round" opacity={(lit ? 0.9 : 0.22) * show} />
+      })}
+      {/* the progress arc, from 12 o'clock */}
+      <circle cx={c} cy={c} r={r} fill="none" stroke={`url(#${id})`} strokeWidth={10 * u} strokeLinecap="round" strokeDasharray={C} strokeDashoffset={C * (1 - p)} transform={`rotate(-90 ${c} ${c})`} style={{ filter: glow }} />
+      {/* full: a bright comet keeps running round it */}
+      {p >= 1 && <circle cx={c} cy={c} r={r} fill="none" stroke="#FFFFFF" strokeWidth={6 * u} strokeLinecap="round" strokeDasharray={`${C * 0.09} ${C}`} transform={`rotate(${head - 0.09 * 360} ${c} ${c})`} opacity={0.85} style={{ filter: glow }} />}
+      {p > 0.01 && <circle cx={c + r * Math.cos(rad(head))} cy={c + r * Math.sin(rad(head))} r={11 * u} fill="#FFFFFF" stroke={pal.a} strokeWidth={4 * u} style={{ filter: glow }} />}
+      {[0, 1, 2].map((i) => {
+        const a = rad(f * 1.1 + i * 120)
+        const ro = r + 74 * u
+        return <circle key={i} cx={c + ro * Math.cos(a)} cy={c + ro * Math.sin(a)} r={(5 + i) * u} fill={i === 1 ? pal.b : pal.a} opacity={0.75 * Math.min(1, f / 20)} />
+      })}
+    </svg>
+  )
+}
+
+/** The scene's ring layer (a metric sits in one) as { x, y, r } px — the
+ * background's rings centre on it. null when there's none. */
+function ringAnchor(layers, width, height, u) {
+  const R = (layers || []).find((L) => L.kind === 'shape' && L.shape === 'ring')
+  if (!R) return null
+  return { x: ((R.x ?? 50) / 100) * width, y: ((R.y ?? 50) / 100) * height, r: ((R.w || 600) * u) / 2 }
+}
+
 /** One AI-designed scene: its background and its layers, in its act's palette. */
 export function CanvasScene({ scene, brand }) {
   const frame = useCurrentFrame()
@@ -823,7 +896,7 @@ export function CanvasScene({ scene, brand }) {
   return (
     <AbsoluteFill style={{ backgroundColor: pal.bg }}>
       <AbsoluteFill style={{ transform: jolt }}>
-        <Background bg={scene.bg} pal={pal} />
+        <Background bg={scene.bg} pal={pal} anchor={ringAnchor(scene.layers, width, height, u)} />
         {(scene.layers || []).map((L, i) => (
           <Layer key={i} L={L} pal={pal} brand={brand} u={u} delay={delay} dy={dys[i] || 0} measure={(el) => (els.current[i] = el)} />
         ))}

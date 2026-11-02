@@ -2906,6 +2906,10 @@ def _clean_canvas(raw: dict, say: str) -> dict | None:
             if _num(L.get("value"), -1e12, 1e12) is None:
                 continue
             out.update(value=_num(L.get("value"), -1e12, 1e12), prefix=_line(L.get("prefix"), 4), suffix=_line(L.get("suffix"), 6), label=_line(L.get("label"), 50), size=_num(L.get("size"), 90, 200, 150))
+            # the layout's ring round it (canvas.jsx draws the animated gauge on it) and the room inside
+            for k, lo, hi in (("ring", 200, 1000), ("fit", 200, 800)):
+                if _num(L.get(k), lo, hi) is not None:
+                    out[k] = _num(L.get(k), lo, hi)
         elif kind == "pill":
             text = _line(L.get("text"), 40)
             if not text:
