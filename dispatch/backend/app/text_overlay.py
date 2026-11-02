@@ -13,9 +13,11 @@ libraqm) — the same split app/meme.py and app/poster.py use for Autopilot.
        bottom.
 
     ┌──────────────┐
-    │   Headline   │  ← scrim fades into the picture
+    │   Headline   │  ← two balanced lines at most; scrim fades into the picture
+    │   headline   │
     │  subheading  │
-    │ (chip)(chip) │
+    │ ░ • point  ░ │  ← the detail list, on a soft panel with faded edges
+    │ ░ • point  ░ │
     │   picture    │
     │  ( button )  │  ← 2-4 words, wraps rather than being cut
     │   site.com   │  ← the link, small
@@ -62,8 +64,9 @@ EXTRACT_PROMPT = (
     "printed in the brand colour. \"\" when nothing stands out.\n"
     "- subheading: usually \"\". Only a must-know fact the headline lacks — the offer, "
     "price, date or place — in at most 10 words.\n"
-    "- points: [] — unless the prompt itself lists short tags to print on the poster; then "
-    "at most 3, 1-3 words each, and only when there is no subheading.\n"
+    "- points: [] — unless the prompt itself lists details, benefits or tags to print on the "
+    "poster; then at most 3, each one short line of at most 6 words (they are printed as a "
+    "bullet list), and only when there is no subheading.\n"
     "- cta: the button, 2-4 words of action (e.g. \"ចុះឈ្មោះឥឡូវ\", \"Order now\") — never a URL; "
     "\"\" when the prompt asks for none.\n"
     "- link: the website (without https://) or phone number to show small under the button, or \"\".\n"
@@ -81,7 +84,9 @@ NO_TEXT_RULE = (
     "simple shapes, icons and colour blocks only, never writing. Keep the TOP 40% of "
     "the frame calm and uncluttered (plain background, soft gradient, wall or sky — no "
     "faces, products or logo there) so the headline can sit on it, and keep a little "
-    "clear space at the bottom centre for a button. If a brand logo image is given, place "
+    "clear space at the bottom centre for a button. Never draw EMPTY placeholders meant for "
+    "words — no blank banners, ribbons, brush strokes, pills or label bars: "
+    "where words would go, just show the picture. If a brand logo image is given, place "
     "it unchanged in a bottom corner."
 )
 
@@ -148,7 +153,7 @@ def extract_text(prompt: str) -> dict | None:
         "highlight": key if key and len(key) < len(headline) and key in " ".join(headline.split()) else "",
         "subheading": s(sub, 90),
         # tags only on a poster with no subheading — a headline + one more row at most
-        "points": [] if sub else [p for p in (s(v, 28) for v in points[:3]) if p],
+        "points": [] if sub else [p for p in (s(v, 48) for v in points[:3]) if p],
         "cta": s(cta, 32),
         "link": link,
     }
@@ -211,27 +216,43 @@ def _readable(c: tuple[int, int, int], light: bool) -> tuple[int, int, int]:
     return c
 
 
+def _balanced(text: str, font, width: int, lines: list[str]) -> list[str]:
+    """Two lines of about the same length instead of a full line and a lone
+    word under it (the user, 2026-11-02): the narrowest width that still wraps
+    ``text`` into as many lines, on whole words."""
+    if len(lines) != 2 or "\n" in text:
+        return lines
+    lo, hi, best = round(width * 0.4), width, lines
+    while lo <= hi:
+        mid = (lo + hi) // 2
+        trial = _wrap(text, font, mid, clusters=False)
+        if len(trial) <= 2 and all(font.getlength(ln) <= mid for ln in trial):
+            best, hi = trial, mid - 1
+        else:
+            lo = mid + 1
+    return best
+
+
 def _layout(head: str, sub: str, points: list[str], w: int, measure: int, scale: float):
-    """Fonts, wrapped lines and chip rows for the top block at ``scale``. A headline
-    on its own is drawn bigger — it's the whole poster."""
-    big = 0.095 if not sub and not points else 0.08
-    hf, hl, hlh = _fit(head, measure, 3, round(w * big * scale), round(w * 0.045 * scale), "Bold")
+    """Fonts, wrapped lines and the detail list for the top block at ``scale``.
+    The headline is big and at most two balanced lines; on its own it's bigger
+    still — it's the whole poster."""
+    big = 0.115 if not sub and not points else 0.1
+    hf, hl, hlh = _fit(head, measure, 2, round(w * big * scale), round(w * 0.045 * scale), "Bold")
+    hl = _balanced(head, hf, measure, hl)
     sf, sl, slh = (
         _fit(sub, measure, 2, round(w * 0.038 * scale), round(w * 0.027 * scale), "Medium") if sub else (None, [], 0)
     )
-    # Points go as centred rows of chips, so they stay in the top zone.
-    pf = _font(round(w * 0.026 * scale), "Medium")
-    cpx, cpy, cgap = round(w * 0.02 * scale), round(w * 0.008 * scale), round(w * 0.012 * scale)
-    ch = _line_h(pf) + 2 * cpy
-    rows: list[list[tuple[str, int]]] = []
-    for p in points:
-        label = _wrap(p, pf, measure - 2 * cpx)[0]
-        cw = round(pf.getlength(label)) + 2 * cpx
-        if rows and sum(c for _, c in rows[-1]) + cgap * len(rows[-1]) + cw <= measure:
-            rows[-1].append((label, cw))
-        elif len(rows) < 3:
-            rows.append([(label, cw)])
-    return hf, hl, hlh, sf, sl, slh, pf, cpx, cpy, cgap, ch, rows, round(w * 0.016 * scale)
+    # Points: a bullet list on a soft faded panel under the headline — each
+    # point one line (two at most), left-aligned after its dot.
+    pf = _font(round(w * 0.034 * scale), "Medium")
+    plh = _line_h(pf)
+    ppx, ppy, dot = round(w * 0.04 * scale), round(w * 0.026 * scale), round(plh * 0.28)
+    avail = measure - 2 * ppx - dot * 3
+    items = [_wrap(p, pf, avail)[:2] for p in points]
+    widest = max((pf.getlength(ln) for it in items for ln in it), default=0)
+    panel = (round(widest) + dot * 3 + 2 * ppx, sum(len(it) for it in items) * plh + max(0, len(items) - 1) * round(plh * 0.3) + 2 * ppy) if items else (0, 0)
+    return hf, hl, hlh, sf, sl, slh, pf, plh, ppx, ppy, dot, items, panel, round(w * 0.016 * scale)
 
 
 def render(picture: bytes, text: dict, accent: tuple[int, int, int], logo: bytes | None = None) -> bytes:
@@ -254,9 +275,10 @@ def render(picture: bytes, text: dict, accent: tuple[int, int, int], logo: bytes
     # Everything shrinks together until the text block fits the calm top zone
     # the model was asked to leave (~40% of the height).
     for scale in (1.0, 0.92, 0.84, 0.76, 0.68, 0.6):
-        hf, hl, hlh, sf, sl, slh, pf, cpx, cpy, cgap, ch, rows, gap = _layout(head, sub, points, w, measure, scale)
-        block_h = len(hl) * hlh + (gap + len(sl) * slh if sl else 0) + (gap * 2 + len(rows) * (ch + cgap) if rows else 0)
-        if block_h <= h * (0.36 - (0.1 if logo else 0)):
+        hf, hl, hlh, sf, sl, slh, pf, plh, ppx, ppy, dot, items, panel, gap = _layout(head, sub, points, w, measure, scale)
+        block_h = len(hl) * hlh + (gap + len(sl) * slh if sl else 0) + (gap * 2 + panel[1] if items else 0)
+        # a detail list may reach a little lower than the calm zone — it brings its own panel
+        if block_h <= h * (0.36 + (0.08 if items else 0) - (0.1 if logo else 0)):
             break
     top = round(h * 0.05)
     if logo:  # under the top-left logo, never beside or behind it
@@ -292,24 +314,35 @@ def render(picture: bytes, text: dict, accent: tuple[int, int, int], logo: bytes
     y = _centred(draw, w, top, hl, hf, ink, hlh, glow, text.get("highlight", ""), hot)
     if sl:
         y = _centred(draw, w, y + gap, sl, sf, _tint(INK, 0.15) if light else _tint(ink, 0.08), slh, glow)
-    if rows:
-        y += gap * 2
-        # the brand's colour: a soft tint of it, its own colour round the edge and on the words
-        fill = _tint(accent, 0.88) if light else tuple(round(c * 0.32 + 10) for c in accent)
-        edge = _tint(hot, 0.35) if light else _tint(hot, 0.2)
-        label_ink = hot if light else WHITE
-        for row in rows:
-            x = round((w - sum(c for _, c in row) - cgap * (len(row) - 1)) / 2)
-            for label, cw in row:
-                draw.rounded_rectangle((x, y, x + cw, y + ch), radius=ch // 2, fill=fill, outline=edge, width=max(2, round(w * 0.0022)))
-                draw.text((x + cpx, y + cpy), label, font=pf, fill=label_ink)
-                x += cw + cgap
-            y += ch + cgap
+    list_y = y + gap * 2
 
     halo = halo.filter(ImageFilter.GaussianBlur(max(4, round(w * 0.012))))
     halo = halo.point(lambda v: min(255, round(v * (1.6 if busy else 1.2))))
     img = Image.composite(Image.new("RGB", (w, h), shade), img, halo)
     img.paste(words, (0, 0), words)
+
+    if items:
+        # The detail list on a soft panel whose edges fade into the picture:
+        # • point
+        # • point
+        pw, ph = panel
+        px, py = round((w - pw) / 2), list_y
+        # a pale tint of the brand colour (deep on a dark picture), so the shape shows
+        feather = max(6, round(w * 0.014))
+        tint = _tint(accent, 0.76) if light else tuple(round(c * 0.3 + 8) for c in accent)
+        mask = Image.new("L", (w, h), 0)
+        ImageDraw.Draw(mask).rounded_rectangle((px, py, px + pw, py + ph), radius=round(ph * 0.18), fill=235)
+        mask = mask.filter(ImageFilter.GaussianBlur(feather))
+        img = Image.composite(Image.new("RGB", (w, h), tint), img, mask)
+        d = ImageDraw.Draw(img)
+        y = py + ppy
+        for lines in items:
+            cy = y + plh // 2
+            d.ellipse((px + ppx, cy - dot // 2, px + ppx + dot, cy + dot // 2 + dot % 2), fill=hot)
+            for ln in lines:
+                d.text((px + ppx + dot * 3, y), ln, font=pf, fill=ink)
+                y += plh
+            y += round(plh * 0.3)
     draw = ImageDraw.Draw(img)
 
     # The button and the link sit bottom-centre, no wider than the middle ~56%
