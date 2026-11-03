@@ -278,15 +278,21 @@ export default function OnboardingTour() {
           </div>
         )}
 
-        <div className={`flex items-center gap-2 ${centred ? 'mt-5' : 'mt-4'}`}>
+        <div className={`flex gap-1 ${centred ? 'mt-5' : 'mt-4'}`} aria-hidden="true">
+          {steps.map((s, i) => (
+            <span key={s.id} className={`h-1.5 flex-1 rounded-full ${i <= index ? 'bg-brand' : 'bg-ink-300'}`} />
+          ))}
+        </div>
+        <div className="mt-3 flex items-center gap-2">
           <span className="text-[11.5px] font-semibold text-ink-600 tabular-nums">
             {index + 1} of {steps.length}
           </span>
-          <span className="flex-1 flex gap-1">
-            {steps.map((s, i) => (
-              <span key={s.id} className={`h-1.5 flex-1 rounded-full ${i <= index ? 'bg-brand' : 'bg-ink-300'}`} />
-            ))}
-          </span>
+          {!last && (
+            <button type="button" onClick={finish} className="rounded-lg px-2 py-1 text-[12px] font-semibold text-ink-500 hover:bg-ink-100 hover:text-ink-800">
+              Skip tour
+            </button>
+          )}
+          <span className="flex-1" />
           {index > 0 && (
             <button type="button" onClick={back} className="btn-ghost h-8 px-2" aria-label="Previous step">
               <FiArrowLeft size={14} />

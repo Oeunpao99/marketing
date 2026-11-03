@@ -128,27 +128,27 @@ def _request_line(place: str, device: str, action: str) -> tuple[str, str]:
 
 
 def _code_block(code: str) -> str:
-    """The code, a digit to a box on a soft panel, with a "Copy code" button (an
-    email can't run code, so it opens /copy-code, which copies it — the code after
-    "#" never reaches the server), and the plain code to copy by hand."""
-    url = _app_url(f"/copy-code#{code}")
-    boxes = "".join(
-        f'<td style="padding:0 3px"><div style="width:40px;height:50px;line-height:50px;border-radius:8px;background:#ffffff;'
-        f'border:1px solid #E2E8F0;text-align:center;font-family:\'SFMono-Regular\',Consolas,Menlo,monospace;font-size:26px;'
-        f'font-weight:700;color:{INK}">{html.escape(d)}</div></td>'
-        for d in code
+    """The code, a digit to a box on a soft panel. The boxes are inline spans with
+    nothing between them, so selecting / long-pressing them copies exactly
+    "878152" — no gaps or tabs — to paste into the code box. (An email can't hold
+    a working copy button: email apps strip scripts; Gmail adds its own "Copy
+    code" above codes it recognises.)"""
+    box = (
+        "display:inline-block;width:40px;height:50px;line-height:50px;margin:0 6px 0 0;border-radius:8px;"
+        "background:#ffffff;border:1px solid #E2E8F0;text-align:center;"
+        f"font-family:'SFMono-Regular',Consolas,Menlo,monospace;font-size:26px;font-weight:700;color:{INK}"
     )
+    boxes = "".join(f'<span style="{box}">{html.escape(d)}</span>' for d in code)
     return f"""
 <div style="margin:0 0 18px;padding:18px 20px 20px;border-radius:14px;background:{CANVAS}">
 <div style="margin:0 0 12px;font-size:13px;font-weight:700;color:{SOFT}">Code requested</div>
-<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 0 -3px"><tr>{boxes}</tr></table>
-<div style="margin:18px 0 0"><a href="{html.escape(url)}" style="display:inline-block;padding:11px 22px;border-radius:999px;background:{GREEN};color:#ffffff;font-size:14px;font-weight:700;text-decoration:none">Copy code</a></div>
-</div>
-<p style="margin:0 0 6px;color:{SOFT};font-size:13px">Or copy it: <span style="font-family:'SFMono-Regular',Consolas,Menlo,monospace;font-size:18px;font-weight:700;letter-spacing:2px;color:{INK}">{html.escape(code)}</span></p>"""
+<div style="white-space:nowrap;-webkit-user-select:all;user-select:all">{boxes}</div>
+<div style="margin:12px 0 0;font-size:12px;color:{SOFT}">Tap and hold the code to copy it, then paste it in {BRAND}.</div>
+</div>"""
 
 
 def _send_code_mail(to: str, subject: str, preheader: str, heading: str, first: str, action: str,
-                    code: str, url: str, ignore: str, ip: str, ua: str) -> None:
+                    code: str, ignore: str, ip: str, ua: str) -> None:
     """Build (the place is looked up from the IP — a network call) and send, in the background."""
     if not configured():
         log.info("mail is off — not sent to %s: %s", to, subject)
@@ -163,7 +163,7 @@ def _send_code_mail(to: str, subject: str, preheader: str, heading: str, first: 
 {_code_block(code)}
 <p style="margin:12px 0 0;color:{SOFT};font-size:13px">This code expires in 15 minutes. {html.escape(ignore)}</p>"""
         text = (
-            f"Hi {first},\n\n{line_t}\n\n{code}\n\nCopy it: {url}\n\n"
+            f"Hi {first},\n\n{line_t}\n\n{code}\n\n"
             f"This code expires in 15 minutes. {ignore}"
         )
         send_later(to, subject, text, _frame(preheader, inner))
@@ -176,7 +176,7 @@ def send_code(to: str, name: str, code: str, ip: str = "", ua: str = "") -> None
     first = (name or "").split()[0] if (name or "").strip() else "there"
     _send_code_mail(
         to, f"{code} is your {BRAND} code", f"Your code: {code}", "Confirm your email", first,
-        "confirm your email for a new Smart Marketing account", code, _app_url(f"/copy-code#{code}"),
+        "confirm your email for a new Smart Marketing account", code,
         "If you didn't sign up, you can safely ignore this email — the account can't be used without the code.", ip, ua,
     )
 
@@ -186,7 +186,7 @@ def send_reset_code(to: str, name: str, code: str, ip: str = "", ua: str = "") -
     first = (name or "").split()[0] if (name or "").strip() else "there"
     _send_code_mail(
         to, f"{code} is your {BRAND} password reset code", f"Your reset code: {code}", "Reset your password", first,
-        "reset your Smart Marketing password", code, _app_url(f"/copy-code#{code}"),
+        "reset your Smart Marketing password", code,
         "If you didn't ask for it, you can safely ignore this email — your password stays the same.", ip, ua,
     )
 
@@ -196,7 +196,7 @@ def send_close_code(to: str, name: str, code: str, ip: str = "", ua: str = "") -
     first = (name or "").split()[0] if (name or "").strip() else "there"
     _send_code_mail(
         to, f"{code} is your code to close your {BRAND} account", f"Your code: {code}", "Close your account", first,
-        "close your Smart Marketing account", code, _app_url(f"/copy-code#{code}"),
+        "close your Smart Marketing account", code,
         "If you didn't ask for it, ignore this email — your account stays open.", ip, ua,
     )
 
