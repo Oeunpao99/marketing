@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import {
   FiActivity,
   FiAlertTriangle,
+  FiBell,
   FiCpu,
   FiDollarSign,
   FiGrid,
@@ -21,6 +22,7 @@ import { lengthText } from '../../lib/usage'
 import { hideSplash } from '../../lib/splash'
 import PlatformIcon, { PLAT_BRAND_CLASS } from '../../components/ui/PlatformIcon'
 import AiUsage, { AccountAiSection } from './AdminAI'
+import TeamAlerts from './AdminAlerts'
 import { AccountBars, ModelDonut, SpendLine } from './AdminCharts'
 
 // The platform admin portal (/admin-mkt — backend app/admin.py): who signed
@@ -177,6 +179,7 @@ const TABS = [
   { id: 'accounts', label: 'Accounts', icon: FiUsers },
   { id: 'ai', label: 'AI usage', icon: FiCpu },
   { id: 'prices', label: 'Prices', icon: FiDollarSign },
+  { id: 'alerts', label: 'Team alerts', icon: FiBell },
 ]
 
 function AdminPortal({ onSignOut }) {
@@ -248,6 +251,8 @@ function AdminPortal({ onSignOut }) {
           <AiUsage key={stamp} api={adminApi} onOpen={setOpenId} />
         ) : tab === 'prices' ? (
           <Prices key={stamp} />
+        ) : tab === 'alerts' ? (
+          <TeamAlerts key={stamp} api={adminApi} />
         ) : (
           <Accounts key={stamp} onOpen={setOpenId} />
         )}

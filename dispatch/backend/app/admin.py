@@ -411,6 +411,60 @@ def admin_set_custom(payload: CustomIn, db: Session = Depends(get_db)):
     return {"custom": payments.save_custom_rate(db, payload.usd, payload.khr)}
 
 
+# ── Team alerts: who on our team hears about each new sign-up (app/team_alerts.py) ──
+@router.get("/team-alerts", dependencies=[Depends(require_admin)])
+def admin_team_alerts(db: Session = Depends(get_db)):
+    from app import team_alerts
+
+    return team_alerts.status(db)
+
+
+class BotIn(BaseModel):
+    token: str = Field(min_length=10, max_length=200)
+
+
+@router.put("/team-alerts/bot", dependencies=[Depends(require_admin)])
+def admin_team_bot(payload: BotIn, db: Session = Depends(get_db)):
+    from app import team_alerts
+
+    return team_alerts.set_bot(db, payload.token)
+
+
+@router.delete("/team-alerts/bot", dependencies=[Depends(require_admin)])
+def admin_team_bot_clear(db: Session = Depends(get_db)):
+    from app import team_alerts
+
+    return team_alerts.clear_bot(db)
+
+
+@router.post("/team-alerts/connect", dependencies=[Depends(require_admin)])
+def admin_team_connect(db: Session = Depends(get_db)):
+    from app import team_alerts
+
+    return team_alerts.start_connect(db)
+
+
+@router.post("/team-alerts/check", dependencies=[Depends(require_admin)])
+def admin_team_check(db: Session = Depends(get_db)):
+    from app import team_alerts
+
+    return team_alerts.check_connect(db)
+
+
+@router.post("/team-alerts/test", dependencies=[Depends(require_admin)])
+def admin_team_test(db: Session = Depends(get_db)):
+    from app import team_alerts
+
+    return team_alerts.test(db)
+
+
+@router.delete("/team-alerts/recipients/{chat_id}", dependencies=[Depends(require_admin)])
+def admin_team_remove(chat_id: str, db: Session = Depends(get_db)):
+    from app import team_alerts
+
+    return team_alerts.remove(db, chat_id)
+
+
 @router.get("/payments", dependencies=[Depends(require_admin)])
 def admin_payments(status: str = "", db: Session = Depends(get_db)):
     """KHQR plan payments (app/payments.py), newest first — "paid", "mismatch"

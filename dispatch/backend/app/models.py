@@ -141,6 +141,16 @@ class PlanLimit(Base, TimestampMixin):
     longest_seconds: Mapped[int] = mapped_column(Integer)
 
 
+class AppSetting(Base, TimestampMixin):
+    """An app-wide setting the admin portal changes, by name (key → JSON) — e.g.
+    "team_alerts": who on the team hears about new sign-ups (app/team_alerts.py)."""
+
+    __tablename__ = "app_settings"
+
+    key: Mapped[str] = mapped_column(String(60), primary_key=True)
+    value: Mapped[dict] = mapped_column(JSONB, default=dict)
+
+
 class CreditPack(Base, TimestampMixin):
     """A pack of extra AI credits a customer on a paid plan can buy with KHQR
     (app/payments.py; the Upgrade page's "Top up credits"). Set in the admin
