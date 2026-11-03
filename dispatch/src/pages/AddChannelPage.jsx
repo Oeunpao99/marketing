@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FaLinkedin } from "react-icons/fa";
 import {
   SiFacebook,
@@ -114,10 +114,17 @@ export default function AddChannelPage({ embedded = false, initial = null, onClo
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [connected, setConnected] = useState(null); // { name, bot, brandName }
+  // Opened for one platform (setup wizard, a Channels row's Connect): its sign-in
+  // starts by itself — show "Opening…" (or why it didn't), never the platform list again.
+  const [opening, setOpening] = useState(() => {
+    const p = (initial || location.state)?.platformSlug;
+    return PLATFORM_META[p] ? p : null;
+  });
 
   const meta = selectedPlatform ? PLATFORM_META[selectedPlatform] : null;
 
   const resetFlow = () => {
+    setOpening(null);
     setSelectedPlatform(null);
     setSelectedBrand(null);
     setCreds({});
@@ -319,13 +326,18 @@ export default function AddChannelPage({ embedded = false, initial = null, onClo
     }
   };
 
-  // Deep link from a specific row's "Connect" button on the Channels page
-  // (brand + platform already known) — skip straight past both picker steps.
-  useEffect(() => {
+  // Deep link from a specific row's "Connect" button on the Channels page or the
+  // setup wizard (brand + platform already known) — skip straight past both picker
+  // steps. Waits for the brand list (a brand made a moment ago in the wizard may
+  // not be in it on the first render), then runs once.
+  const deepRan = useRef(false);
+  const startDeep = () => {
     const { brandSlug, platformSlug } = initial || location.state || {};
     if (!brandSlug || !platformSlug) return;
     const platformMeta = PLATFORM_META[platformSlug];
     if (!platformMeta) return;
+    if (!brands.some((b) => b.slug === brandSlug)) return;
+    deepRan.current = true;
     setSelectedPlatform(platformSlug);
     setSelectedBrand(brandSlug);
     if (platformMeta.oauth === "tiktok") connectTikTok(brandSlug);
@@ -334,8 +346,19 @@ export default function AddChannelPage({ embedded = false, initial = null, onClo
     else if (platformMeta.oauth === "youtube") connectYouTube(brandSlug);
     else if (platformMeta.fields) setStep("credentials");
     else connectMock(brandSlug, platformSlug);
+  };
+  useEffect(() => {
+    if (!deepRan.current) startDeep();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [brands]);
+  // the brand never showed up: say so instead of waiting forever
+  useEffect(() => {
+    if (!opening) return;
+    const t = setTimeout(() => {
+      if (!deepRan.current) setError("Couldn’t find your company yet — try again in a moment.");
+    }, 8000);
+    return () => clearTimeout(t);
+  }, [opening]);
 
   /* ---- returning from facebook.com with a Page list to pick from ---- */
   const [searchParams, setSearchParams] = useSearchParams();
@@ -892,6 +915,51 @@ export default function AddChannelPage({ embedded = false, initial = null, onClo
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-xl px-3.5 py-2.5 text-[12px] text-red-700">
               {error}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  /* ═══════════ OPENING ONE PLATFORM (deep link) ═══════════ */
+  if (opening) {
+    const m = PLATFORM_META[opening];
+    const waiting = !error && (busy || !deepRan.current);
+    return (
+      <div className={`w-full ${pad} animate-fadein`}>
+        <div className="mx-auto flex max-w-[360px] flex-col items-center py-6 text-center">
+          <span className="grid h-14 w-14 place-items-center rounded-2xl text-white" style={{ background: m.color }}>
+            <m.Icon className="h-7 w-7" aria-hidden="true" />
+          </span>
+          <h1 className="mt-4 text-[18px] font-bold tracking-tight text-ink-900">
+            {waiting ? `Opening ${m.label}…` : error ? `Couldn’t open ${m.label}` : `Connect ${m.label}`}
+          </h1>
+          <p className="mt-1 text-[13px] text-ink-500">
+            {waiting
+              ? m.oauth
+                ? "Taking you to its sign-in — you’ll come back here after."
+                : "One moment…"
+              : error || "Ready when you are."}
+          </p>
+          {waiting ? (
+            <span className="mt-5 h-6 w-6 animate-spin rounded-full border-2 border-ink-200 border-t-brand" aria-hidden="true" />
+          ) : (
+            <div className="mt-5 flex flex-wrap justify-center gap-2">
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => {
+                  setError(null);
+                  deepRan.current = false;
+                  startDeep();
+                }}
+              >
+                {error ? "Try again" : `Connect ${m.label}`}
+              </button>
+              <button type="button" className="btn-outline" onClick={embedded && onClose ? onClose : resetFlow}>
+                {embedded && onClose ? "Back" : "Pick another platform"}
+              </button>
             </div>
           )}
         </div>
