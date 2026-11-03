@@ -68,9 +68,9 @@ function Tile({ Icon, label, value, color, badge, note, badgeTone = 'neutral' })
   const [ref, t] = useGrow(800)
   return <Link ref={ref} to="/insights" className="overview-kpi" style={{'--kpi-color':color}}>
     <div className="overview-kpi-title"><span><Icon size={20} aria-hidden="true" /></span><h3>{label}</h3></div>
-    <div className="overview-kpi-value"><strong>{countUp(value,t)}</strong><span className={`overview-kpi-change ${badgeTone}`}>
-      {badgeTone === 'up' ? <FiArrowUp size={12}/> : badgeTone === 'down' ? <FiArrowDown size={12}/> : null}{badge || '?'}
-    </span></div>
+    <div className="overview-kpi-value"><strong>{countUp(value,t)}</strong>{badge ? <span className={`overview-kpi-change ${badgeTone}`}>
+      {badgeTone === 'up' ? <FiArrowUp size={12}/> : badgeTone === 'down' ? <FiArrowDown size={12}/> : null}{badge}
+    </span> : null /* no change to show (no earlier week to compare): no badge, not a "?" */}</div>
     <p>{note}</p>
   </Link>
 }

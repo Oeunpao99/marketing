@@ -262,7 +262,7 @@ export default function Sidebar({ collapsed = false }) {
           key={item.label}
           to={to}
           data-tour={item.tour}
-          title={item.to === "/ai" ? `${item.label} ? AI${total ? ` (${total})` : ""}` : total ? `${item.label} (${total})` : item.label}
+          title={item.to === "/ai" ? `${item.label} · AI${total ? ` (${total})` : ""}` : total ? `${item.label} (${total})` : item.label}
           aria-label={item.label}
           className={`relative mx-auto grid h-10 w-10 place-items-center rounded-xl transition-colors duration-150 ${
             here ? "bg-ink-100 text-ink-900" : "text-ink-500 hover:bg-ink-100/60 hover:text-ink-900"

@@ -12,7 +12,7 @@ export default function PostPerformance({ totals, rows, onlyTelegram, analyticsI
   const hasEngagement = metrics.some(([key]) => totals[key] != null)
   const complete = metrics.every(([key]) => totals[key] != null)
   const share = (key) => totals[key] == null || !engagement ? null : totals[key] / engagement * 100
-  const shareLabel = (key) => share(key) == null ? '?' : `${share(key).toFixed(1)}%`
+  const shareLabel = (key) => share(key) == null ? '—' : `${share(key).toFixed(1)}%`
   const metricValue = (r) => metric === 'engagement' ? (metrics.some(([key]) => r.metrics?.[key] != null) ? metrics.reduce((sum,[key]) => sum + (r.metrics?.[key] || 0),0) : null) : r.metrics?.[metric]
   let end = 0
   const stops = metrics.filter(([key]) => totals[key] > 0).map(([key, , , color]) => {

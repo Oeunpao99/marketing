@@ -101,36 +101,94 @@ Questions? Just reply to this email — a real person reads it.</div>
 </td></tr></table></body></html>"""
 
 
-def send_code(to: str, name: str, code: str) -> None:
+def _where(ip: str, ua: str) -> tuple[str, str]:
+    """("Phnom Penh, Cambodia", "Chrome on Windows") for the "we received a request" line ("" when unknown)."""
+    from app.auth import describe_device
+    from app.sessions import _lookup_place
+
+    place = ""
+    if ip:
+        try:
+            place = _lookup_place(ip) or ""
+        except Exception:  # noqa: BLE001 — the line just leaves the place out
+            place = ""
+    return place, (describe_device(ua) if ua else "")
+
+
+def _request_line(place: str, device: str, action: str) -> tuple[str, str]:
+    """The Vercel-style line, as (html, text): "We received a request from Phnom
+    Penh, Cambodia (Chrome on Windows) to reset your password."""
+    e = html.escape
+    where_h = f" from <b>{e(place)}</b>" if place else ""
+    where_t = f" from {place}" if place else ""
+    dev_h = f" ({e(device)})" if device else ""
+    dev_t = f" ({device})" if device else ""
+    return (f"We received a request{where_h}{dev_h} to <b>{e(action)}</b>. Use this code:",
+            f"We received a request{where_t}{dev_t} to {action}. Use this code:")
+
+
+def _code_block(code: str) -> str:
+    """The code, a digit to a box on a soft panel, with a "Copy code" button (an
+    email can't run code, so it opens /copy-code, which copies it — the code after
+    "#" never reaches the server), and the plain code to copy by hand."""
+    url = _app_url(f"/copy-code#{code}")
+    boxes = "".join(
+        f'<td style="padding:0 3px"><div style="width:40px;height:50px;line-height:50px;border-radius:8px;background:#ffffff;'
+        f'border:1px solid #E2E8F0;text-align:center;font-family:\'SFMono-Regular\',Consolas,Menlo,monospace;font-size:26px;'
+        f'font-weight:700;color:{INK}">{html.escape(d)}</div></td>'
+        for d in code
+    )
+    return f"""
+<div style="margin:0 0 18px;padding:18px 20px 20px;border-radius:14px;background:{CANVAS}">
+<div style="margin:0 0 12px;font-size:13px;font-weight:700;color:{SOFT}">Code requested</div>
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 0 -3px"><tr>{boxes}</tr></table>
+<div style="margin:18px 0 0"><a href="{html.escape(url)}" style="display:inline-block;padding:11px 22px;border-radius:999px;background:{GREEN};color:#ffffff;font-size:14px;font-weight:700;text-decoration:none">Copy code</a></div>
+</div>
+<p style="margin:0 0 6px;color:{SOFT};font-size:13px">Or copy it: <span style="font-family:'SFMono-Regular',Consolas,Menlo,monospace;font-size:18px;font-weight:700;letter-spacing:2px;color:{INK}">{html.escape(code)}</span></p>"""
+
+
+def _send_code_mail(to: str, subject: str, preheader: str, heading: str, first: str, action: str,
+                    code: str, url: str, ignore: str, ip: str, ua: str) -> None:
+    """Build (the place is looked up from the IP — a network call) and send, in the background."""
+    if not configured():
+        log.info("mail is off — not sent to %s: %s", to, subject)
+        return
+
+    def run() -> None:
+        place, device = _where(ip, ua)
+        line_h, line_t = _request_line(place, device, action)
+        inner = f"""
+<h1 style="margin:16px 0 10px;font-size:22px;line-height:1.3">{html.escape(heading)}</h1>
+<p style="margin:0 0 16px">Hi {html.escape(first)}, {line_h[0].lower()}{line_h[1:]}</p>
+{_code_block(code)}
+<p style="margin:12px 0 0;color:{SOFT};font-size:13px">This code expires in 15 minutes. {html.escape(ignore)}</p>"""
+        text = (
+            f"Hi {first},\n\n{line_t}\n\n{code}\n\nCopy it: {url}\n\n"
+            f"This code expires in 15 minutes. {ignore}"
+        )
+        send_later(to, subject, text, _frame(preheader, inner))
+
+    threading.Thread(target=run, daemon=True, name="mail-build").start()
+
+
+def send_code(to: str, name: str, code: str, ip: str = "", ua: str = "") -> None:
     """The 6-digit code that confirms a new account's email."""
     first = (name or "").split()[0] if (name or "").strip() else "there"
-    spaced = " ".join(code)
-    inner = f"""
-<h1 style="margin:16px 0 8px;font-size:22px;line-height:1.3">Confirm your email</h1>
-<p style="margin:0 0 20px;color:{SOFT}">Hi {html.escape(first)}, enter this code in {BRAND} to finish making your account.</p>
-<div style="margin:0 0 20px;padding:18px;border-radius:12px;background:{CANVAS};text-align:center;font-size:32px;font-weight:800;letter-spacing:6px;color:{INK}">{spaced}</div>
-<p style="margin:0;color:{SOFT};font-size:13px">The code works for 15 minutes. If you didn't sign up, you can ignore this email — the account can't be used without the code.</p>"""
-    text = (
-        f"Hi {first},\n\nYour {BRAND} code: {code}\n\nEnter it in {BRAND} to confirm your email. "
-        "It works for 15 minutes.\nIf you didn't sign up, ignore this email."
+    _send_code_mail(
+        to, f"{code} is your {BRAND} code", f"Your code: {code}", "Confirm your email", first,
+        "confirm your email for a new Smart Marketing account", code, _app_url(f"/copy-code#{code}"),
+        "If you didn't sign up, you can safely ignore this email — the account can't be used without the code.", ip, ua,
     )
-    send_later(to, f"{code} is your {BRAND} code", text, _frame(f"Your code: {code}", inner))
 
 
-def send_reset_code(to: str, name: str, code: str) -> None:
+def send_reset_code(to: str, name: str, code: str, ip: str = "", ua: str = "") -> None:
     """"Forgot password": the 6-digit code that lets them choose a new password."""
     first = (name or "").split()[0] if (name or "").strip() else "there"
-    spaced = " ".join(code)
-    inner = f"""
-<h1 style="margin:16px 0 8px;font-size:22px;line-height:1.3">Reset your password</h1>
-<p style="margin:0 0 20px;color:{SOFT}">Hi {html.escape(first)}, enter this code in {BRAND}, then choose your new password.</p>
-<div style="margin:0 0 20px;padding:18px;border-radius:12px;background:{CANVAS};text-align:center;font-size:32px;font-weight:800;letter-spacing:6px;color:{INK}">{spaced}</div>
-<p style="margin:0;color:{SOFT};font-size:13px">The code works for 15 minutes. If you didn't ask for it, ignore this email — your password stays the same.</p>"""
-    text = (
-        f"Hi {first},\n\nYour {BRAND} password reset code: {code}\n\nEnter it in {BRAND}, then choose a new password. "
-        "It works for 15 minutes.\nIf you didn't ask for it, ignore this email — your password stays the same."
+    _send_code_mail(
+        to, f"{code} is your {BRAND} password reset code", f"Your reset code: {code}", "Reset your password", first,
+        "reset your Smart Marketing password", code, _app_url(f"/copy-code#{code}"),
+        "If you didn't ask for it, you can safely ignore this email — your password stays the same.", ip, ua,
     )
-    send_later(to, f"{code} is your {BRAND} password reset code", text, _frame(f"Your reset code: {code}", inner))
 
 
 def send_password_changed(to: str, name: str) -> None:

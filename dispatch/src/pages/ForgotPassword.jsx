@@ -3,6 +3,7 @@ import { FiCheckCircle } from 'react-icons/fi'
 import { api } from '../api/client'
 import { useAuth } from '../auth'
 import CodeBoxes from '../components/ui/CodeBoxes'
+import { takeResetLink } from '../lib/emailLink'
 import { BrandLockup, BrandPanel, Field, inputCls } from './LoginPage'
 
 const WAIT = 60 // seconds before another code can be sent (app/auth.py _RESEND_AFTER)
@@ -13,8 +14,9 @@ const STEPS = ['email', 'code', 'password']
  *  typed twice → signed in. The page never says whether an email has an account. */
 export default function ForgotPassword({ email: start = '', onBack }) {
   const { signInWith } = useAuth()
-  const [step, setStep] = useState('email')
-  const [email, setEmail] = useState(start)
+  const [link] = useState(() => takeResetLink()) // opened from the email's "Open & use code"
+  const [step, setStep] = useState(link ? 'code' : 'email')
+  const [email, setEmail] = useState(link?.email || start)
   const [code, setCode] = useState('')
   const [password, setPassword] = useState('')
   const [again, setAgain] = useState('')
@@ -67,6 +69,12 @@ export default function ForgotPassword({ email: start = '', onBack }) {
       setBusy(false)
     }
   }
+
+  // the code came with the link: check it straight away (then the new password)
+  useEffect(() => {
+    if (link) checkCode(link.code)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const save = async (e) => {
     e.preventDefault()
@@ -139,7 +147,7 @@ export default function ForgotPassword({ email: start = '', onBack }) {
                 checkCode(code)
               }}
             >
-              <CodeBoxes ref={boxes} onChange={setCode} onComplete={checkCode} disabled={busy} />
+              <CodeBoxes ref={boxes} onChange={setCode} onComplete={checkCode} disabled={busy} initial={link?.code || ''} />
               {error && <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-[12px] text-red-700">{error}</div>}
               <button type="submit" disabled={busy || !code} className="mt-5 w-full btn-primary h-11 text-[13.5px]">
                 {busy ? 'Checking…' : 'Continue'}

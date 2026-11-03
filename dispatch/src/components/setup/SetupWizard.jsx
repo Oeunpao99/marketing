@@ -210,7 +210,11 @@ function Footer({ onBack, onLater, children }) {
 /** ① The company: its name, the language it posts in, a line about it, and its logo. */
 function CompanyStep({ brand, brands, onNext }) {
   const { setBrands, switchBrand, refreshChannels, refreshAuto } = useStore()
-  const [name, setName] = useState(brand?.name || '')
+  const { user } = useAuth()
+  // the company / shop typed at sign-up — not asked twice; "Sokha's workspace"
+  // (made when that box was left empty) isn't a shop name, so it isn't used
+  const signedUpAs = (user?.workspace_name || '').trim()
+  const [name, setName] = useState(brand?.name || (/['’]s workspace$/i.test(signedUpAs) ? '' : signedUpAs))
   const [lang, setLang] = useState(brand?.lang || 'Khmer + English')
   const [note, setNote] = useState(brand?.note || '')
   const [logo, setLogo] = useState(null) // a picked File

@@ -5,8 +5,9 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
  *  the code once every box is filled ("" while one is empty), and
  *  ``onComplete(code)`` runs then. The ref's ``clear()`` empties them and puts the
  *  cursor in the first box. */
-const CodeBoxes = forwardRef(function CodeBoxes({ onChange, onComplete, disabled, autoFocus = true, length = 6 }, ref) {
-  const [digits, setDigits] = useState(() => Array(length).fill(''))
+const CodeBoxes = forwardRef(function CodeBoxes({ onChange, onComplete, disabled, autoFocus = true, length = 6, initial = '' }, ref) {
+  // ``initial``: a code from the email's "Open & use code" link (lib/emailLink.js)
+  const [digits, setDigits] = useState(() => Array.from({ length }, (_, i) => (initial || '')[i] || ''))
   const boxes = useRef([])
 
   useEffect(() => {

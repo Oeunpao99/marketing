@@ -16,6 +16,7 @@ import InsightsPage from "./pages/InsightsPage";
 import InsightsPostPage from "./pages/InsightsPostPage";
 import JoinPage from "./pages/JoinPage";
 import LegalPage from "./pages/LegalPage";
+import CopyCodePage from "./pages/CopyCodePage";
 import LibraryPage from "./pages/LibraryPage";
 import VideoEditPage from './pages/VideoEditPage'
 import EditorPage from './pages/EditorPage'
@@ -25,6 +26,7 @@ const PresentPage = lazy(() => import('./pages/PresentPage'))
 import LoginPage from "./pages/LoginPage";
 import VerifyEmailPage from "./pages/VerifyEmailPage";
 import AddPhonePage from "./pages/AddPhonePage";
+import { hasResetLink, hasVerifyLink } from "./lib/emailLink";
 import LandingPage from "./pages/LandingPage";
 import NewPostPage from "./pages/NewPostPage";
 import UpgradePage from "./pages/UpgradePage";
@@ -132,6 +134,8 @@ function Gate() {
   const [signIn, setSignIn] = useState(() => {
     const asked = new URLSearchParams(window.location.search).get("auth");
     if (asked === "signin" || asked === "register") return asked;
+    if (hasResetLink()) return "forgot"; // the reset email's "Open & use code"
+    if (hasVerifyLink()) return "signin"; // the confirm email's link, opened signed out: sign in, then it's used
     return window.location.pathname === "/" ? null : "signin";
   });
 
@@ -171,6 +175,8 @@ export default function App() {
   const path = window.location.pathname.replace(/\/+$/, "");
   const publicPage = PUBLIC_PAGES[path];
   if (publicPage) return <Public><LegalPage kind={publicPage} /></Public>;
+  // the "Copy code" button in our code emails (an email can't copy by itself)
+  if (path === "/copy-code") return <Public><CopyCodePage /></Public>;
   // the how-to videos for training sessions — anyone can watch, no sign-in;
   // the landing page's header and footer, "Log in" / "Start free" go to the sign-in
   // the developer docs for the API and MCP connector (pages/DevelopersPage.jsx) — public, like the tutorials

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../auth'
 import CodeBoxes from '../components/ui/CodeBoxes'
+import { takeVerifyCode } from '../lib/emailLink'
 import { BrandLockup, BrandPanel } from './LoginPage'
 
 const WAIT = 60 // seconds before a new code can be sent (app/auth.py _RESEND_AFTER)
@@ -11,7 +12,8 @@ const WAIT = 60 // seconds before a new code can be sent (app/auth.py _RESEND_AF
  *  welcome email goes out). */
 export default function VerifyEmailPage() {
   const { user, verifyEmail, resendCode, logout } = useAuth()
-  const [code, setCode] = useState('')
+  const [linked] = useState(() => takeVerifyCode()) // opened from the email's "Open & use code"
+  const [code, setCode] = useState(linked || '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [note, setNote] = useState('')
@@ -37,6 +39,12 @@ export default function VerifyEmailPage() {
       setBusy(false)
     }
   }
+
+  // the code came with the link: confirm it straight away
+  useEffect(() => {
+    if (linked) submit(linked)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const resend = async () => {
     setError('')
@@ -70,7 +78,7 @@ export default function VerifyEmailPage() {
               submit(code)
             }}
           >
-            <CodeBoxes ref={boxes} onChange={setCode} onComplete={submit} disabled={busy} />
+            <CodeBoxes ref={boxes} onChange={setCode} onComplete={submit} disabled={busy} initial={linked || ''} />
 
             {error && <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-[12px] text-red-700">{error}</div>}
             {note && !error && <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-[12px] text-emerald-700">{note}</div>}

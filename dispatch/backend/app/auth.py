@@ -58,9 +58,10 @@ def _code_hash(user: TeamMember, code: str, purpose: str = "") -> str:
     return hashlib.sha256(f"{get_settings().secret_key}:{purpose}{user.id}:{code}".encode()).hexdigest()
 
 
-def _send_code(db: Session, user: TeamMember) -> None:
+def _send_code(db: Session, user: TeamMember, request: Request | None = None) -> None:
     """A new code for ``user`` (any older one stops working), emailed in the
-    background. Email switched off: the account just counts as confirmed."""
+    background — with where the request came from. Email switched off: the
+    account just counts as confirmed."""
     from app import mailer
 
     now = datetime.now(UTC)
@@ -74,7 +75,8 @@ def _send_code(db: Session, user: TeamMember) -> None:
     user.email_code_sent_at = now
     user.email_code_tries = 0
     db.commit()
-    mailer.send_code(user.email, user.name, code)
+    ip, ua = (client_ip(request), request.headers.get("user-agent", "")) if request is not None else ("", "")
+    mailer.send_code(user.email, user.name, code, ip=ip, ua=ua)
 
 
 def _aware(t: datetime | None) -> datetime | None:
@@ -113,7 +115,7 @@ def register(payload: RegisterIn, request: Request, db: Session = Depends(get_db
     from app import team_alerts
 
     team_alerts.new_signup(user, request, "email")  # the team's Telegram group hears (background)
-    _send_code(db, user)  # the 6-digit code to confirm the email; the welcome email comes after it
+    _send_code(db, user, request)  # the 6-digit code to confirm the email; the welcome email comes after it
     token = create_token(user.id)
     sessions.start(token, user, request)
     return AuthOut(token=token, user=_user_out(db, user))
@@ -291,7 +293,7 @@ def verify_email(payload: CodeIn, user: TeamMember = Depends(get_current_user), 
 
 
 @router.post("/verify-email/resend")
-def resend_code(user: TeamMember = Depends(get_current_user), db: Session = Depends(get_db)):
+def resend_code(request: Request, user: TeamMember = Depends(get_current_user), db: Session = Depends(get_db)):
     """A new code — at most once a minute."""
     if user.email_verified_at is not None:
         return {"sent": False, "verified": True}
@@ -299,7 +301,7 @@ def resend_code(user: TeamMember = Depends(get_current_user), db: Session = Depe
     if sent is not None and datetime.now(UTC) - sent < _RESEND_AFTER:
         wait = int((_RESEND_AFTER - (datetime.now(UTC) - sent)).total_seconds()) + 1
         raise HTTPException(429, f"Wait {wait} seconds, then send a new code.")
-    _send_code(db, user)
+    _send_code(db, user, request)
     return {"sent": True, "verified": user.email_verified_at is not None}
 
 
@@ -339,7 +341,7 @@ def forgot_password(payload: ForgotIn, request: Request, db: Session = Depends(g
             user.reset_code_sent_at = now
             user.reset_code_tries = 0
             db.commit()
-            mailer.send_reset_code(user.email, user.name, code)
+            mailer.send_reset_code(user.email, user.name, code, ip=client_ip(request), ua=request.headers.get("user-agent", ""))
         record_login(db, request, email, "reset_asked", user)
     return {"sent": True, "message": _SENT_IF}
 

@@ -122,6 +122,9 @@ export default function AddChannelPage({ embedded = false, initial = null, onClo
   });
 
   const meta = selectedPlatform ? PLATFORM_META[selectedPlatform] : null;
+  // opened for one platform inside a panel (setup wizard, a Channels row): the panel has its own
+  // back / close — no second "Back to platforms" in here
+  const singleFlow = embedded && !!(initial || {}).platformSlug;
 
   const resetFlow = () => {
     setOpening(null);
@@ -464,12 +467,14 @@ export default function AddChannelPage({ embedded = false, initial = null, onClo
     ];
     return (
       <div className={`w-full ${pad} animate-fadein`}>
-        <button
-          onClick={resetFlow}
-          className="text-sm text-ink-500 hover:text-ink-700 mb-4 transition-all duration-150"
-        >
-          ← Back to platforms
-        </button>
+        {!singleFlow && (
+          <button
+            onClick={resetFlow}
+            className="text-sm text-ink-500 hover:text-ink-700 mb-4 transition-all duration-150"
+          >
+            ← Back to platforms
+          </button>
+        )}
         <div className="mb-6">
           <h1 className="page-title">
             Connect <em className="italic text-brand">LinkedIn</em>
@@ -516,12 +521,14 @@ export default function AddChannelPage({ embedded = false, initial = null, onClo
   if (step === "linkedin-pages") {
     return (
       <div className={`w-full ${pad} animate-fadein`}>
-        <button
-          onClick={resetFlow}
-          className="text-sm text-ink-500 hover:text-ink-700 mb-4 transition-all duration-150"
-        >
-          ← Back to platforms
-        </button>
+        {!singleFlow && (
+          <button
+            onClick={resetFlow}
+            className="text-sm text-ink-500 hover:text-ink-700 mb-4 transition-all duration-150"
+          >
+            ← Back to platforms
+          </button>
+        )}
         <div className="mb-6">
           <h1 className="page-title">
             Pick your <em className="italic text-brand">LinkedIn Pages</em>
@@ -661,12 +668,14 @@ export default function AddChannelPage({ embedded = false, initial = null, onClo
   if (step === "meta-pages") {
     return (
       <div className={`w-full ${pad} animate-fadein`}>
-        <button
-          onClick={resetFlow}
-          className="text-sm text-ink-500 hover:text-ink-700 mb-4 transition-all duration-150"
-        >
-          ← Back to platforms
-        </button>
+        {!singleFlow && (
+          <button
+            onClick={resetFlow}
+            className="text-sm text-ink-500 hover:text-ink-700 mb-4 transition-all duration-150"
+          >
+            ← Back to platforms
+          </button>
+        )}
 
         <div className="mb-6">
           <h1 className="page-title">
@@ -754,15 +763,17 @@ export default function AddChannelPage({ embedded = false, initial = null, onClo
     const brand = brands.find((b) => b.slug === selectedBrand);
     return (
       <div className={`w-full ${pad} animate-fadein`}>
-        <button
-          onClick={() => {
-            setStep("connect");
-            setError(null);
-          }}
-          className="text-sm text-ink-500 hover:text-ink-700 mb-4 transition-all duration-150"
-        >
-          ← Back
-        </button>
+        {!singleFlow && (
+          <button
+            onClick={() => {
+              setStep("connect");
+              setError(null);
+            }}
+            className="text-sm text-ink-500 hover:text-ink-700 mb-4 transition-all duration-150"
+          >
+            ← Back
+          </button>
+        )}
 
         <div className="mb-6">
           <h1 className="page-title">
@@ -836,12 +847,14 @@ export default function AddChannelPage({ embedded = false, initial = null, onClo
 
     return (
       <div className={`w-full ${pad} animate-fadein`}>
-        <button
-          onClick={() => setStep("pick")}
-          className="text-sm text-ink-500 hover:text-ink-700 mb-4 transition-all duration-150"
-        >
-          ← Back to platforms
-        </button>
+        {!singleFlow && (
+          <button
+            onClick={() => setStep("pick")}
+            className="text-sm text-ink-500 hover:text-ink-700 mb-4 transition-all duration-150"
+          >
+            ← Back to platforms
+          </button>
+        )}
 
         <div className="mb-6">
           <h1 className="page-title">
