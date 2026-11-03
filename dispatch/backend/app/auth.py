@@ -342,11 +342,14 @@ def forgot_password(payload: ForgotIn, request: Request, db: Session = Depends(g
     return {"sent": True, "message": _SENT_IF}
 
 
-@router.post("/password-reset/confirm", response_model=AuthOut)
-def reset_password(payload: ResetIn, request: Request, db: Session = Depends(get_db)):
-    """Public: the code and a new password → the password is changed, every other
-    device is signed out, and this one is signed in."""
-    email = payload.email.strip().lower()
+class ResetCodeIn(BaseModel):
+    email: str = Field(min_length=3, max_length=160)
+    code: str = Field(min_length=4, max_length=12)
+
+
+def _reset_user(db: Session, request: Request, email: str, raw_code: str) -> TeamMember:
+    """The account whose reset code this is — or a refusal (wrong codes count
+    toward the 15-minute lock and the code's 5 tries)."""
     bad = HTTPException(422, "That code isn't right, or it has expired — ask for a new one.")
     if too_many_failures(db, email, client_ip(request)):
         raise HTTPException(429, "Too many tries. Wait 15 minutes and try again.")
@@ -357,7 +360,7 @@ def reset_password(payload: ResetIn, request: Request, db: Session = Depends(get
         raise bad
     if user.reset_code_tries >= _CODE_TRIES:
         raise HTTPException(429, "Too many wrong codes — ask for a new one.")
-    code = "".join(ch for ch in payload.code if ch.isdigit())
+    code = "".join(ch for ch in raw_code if ch.isdigit())
     if not secrets.compare_digest(_code_hash(user, code, "reset:"), user.reset_code_hash):
         user.reset_code_tries += 1
         db.commit()
@@ -365,6 +368,23 @@ def reset_password(payload: ResetIn, request: Request, db: Session = Depends(get
         raise bad
     if db.scalar(select(Workspace.suspended_at).where(Workspace.id == user.workspace_id)):
         raise HTTPException(403, "This account is suspended — please contact Smart Marketing support.")
+    return user
+
+
+@router.post("/password-reset/check")
+def check_reset_code(payload: ResetCodeIn, request: Request, db: Session = Depends(get_db)):
+    """Public: step 2 of "Forgot password" — is this code right? (It stays valid
+    for the next step, which checks it again with the new password.)"""
+    _reset_user(db, request, payload.email.strip().lower(), payload.code)
+    return {"ok": True}
+
+
+@router.post("/password-reset/confirm", response_model=AuthOut)
+def reset_password(payload: ResetIn, request: Request, db: Session = Depends(get_db)):
+    """Public: the code and a new password → the password is changed, every other
+    device is signed out, and this one is signed in."""
+    email = payload.email.strip().lower()
+    user = _reset_user(db, request, email, payload.code)
     now = datetime.now(UTC)
     user.password_hash = hash_password(payload.password)
     user.reset_code_hash = None

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../auth'
+import CodeBoxes from '../components/ui/CodeBoxes'
 import { BrandLockup, BrandPanel } from './LoginPage'
 
-const LEN = 6
 const WAIT = 60 // seconds before a new code can be sent (app/auth.py _RESEND_AFTER)
 
 /** A new account confirms its email: the 6-digit code we emailed (app/auth.py
@@ -11,12 +11,12 @@ const WAIT = 60 // seconds before a new code can be sent (app/auth.py _RESEND_AF
  *  welcome email goes out). */
 export default function VerifyEmailPage() {
   const { user, verifyEmail, resendCode, logout } = useAuth()
-  const [digits, setDigits] = useState(Array(LEN).fill(''))
+  const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [note, setNote] = useState('')
   const [wait, setWait] = useState(WAIT)
-  const boxes = useRef([])
+  const boxes = useRef(null)
 
   useEffect(() => {
     if (wait <= 0) return
@@ -24,41 +24,17 @@ export default function VerifyEmailPage() {
     return () => clearTimeout(t)
   }, [wait])
 
-  useEffect(() => boxes.current[0]?.focus(), [])
-
-  const submit = async (code) => {
-    if (code.length !== LEN || busy) return
+  const submit = async (value) => {
+    if (!value || busy) return
     setBusy(true)
     setError('')
     try {
-      await verifyEmail(code) // the user is confirmed: App opens the portal
+      await verifyEmail(value) // the user is confirmed: App opens the portal
     } catch (err) {
       setError(err.message)
-      setDigits(Array(LEN).fill(''))
-      boxes.current[0]?.focus()
+      boxes.current?.clear()
     } finally {
       setBusy(false)
-    }
-  }
-
-  const fill = (from, text) => {
-    const clean = text.replace(/\D/g, '')
-    if (!clean) return
-    const next = [...digits]
-    for (let i = 0; i < clean.length && from + i < LEN; i++) next[from + i] = clean[i]
-    setDigits(next)
-    const at = Math.min(LEN - 1, from + clean.length)
-    boxes.current[at]?.focus()
-    if (next.every(Boolean)) submit(next.join(''))
-  }
-
-  const onKey = (i, e) => {
-    if (e.key === 'Backspace' && !digits[i] && i > 0) {
-      const next = [...digits]
-      next[i - 1] = ''
-      setDigits(next)
-      boxes.current[i - 1]?.focus()
-      e.preventDefault()
     }
   }
 
@@ -91,45 +67,15 @@ export default function VerifyEmailPage() {
             className="mt-6"
             onSubmit={(e) => {
               e.preventDefault()
-              submit(digits.join(''))
+              submit(code)
             }}
           >
-            <div className="flex justify-center gap-2">
-              {digits.map((d, i) => (
-                <input
-                  key={i}
-                  ref={(el) => (boxes.current[i] = el)}
-                  value={d}
-                  inputMode="numeric"
-                  autoComplete={i === 0 ? 'one-time-code' : 'off'}
-                  aria-label={`Digit ${i + 1}`}
-                  maxLength={LEN}
-                  disabled={busy}
-                  onChange={(e) => {
-                    const v = e.target.value.replace(/\D/g, '')
-                    if (!v) {
-                      const next = [...digits]
-                      next[i] = ''
-                      setDigits(next)
-                      return
-                    }
-                    // a phone's code autofill puts the whole code in one box; typing over a digit keeps the new one
-                    fill(i, v.length > 2 ? v : v.slice(-1))
-                  }}
-                  onPaste={(e) => {
-                    e.preventDefault()
-                    fill(i, e.clipboardData.getData('text'))
-                  }}
-                  onKeyDown={(e) => onKey(i, e)}
-                  className="h-12 w-11 rounded-xl border border-ink-200 bg-white text-center text-[20px] font-bold text-ink-900 outline-none transition-colors focus:border-brand focus:ring-2 focus:ring-brand/20 disabled:opacity-60"
-                />
-              ))}
-            </div>
+            <CodeBoxes ref={boxes} onChange={setCode} onComplete={submit} disabled={busy} />
 
             {error && <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-[12px] text-red-700">{error}</div>}
             {note && !error && <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-[12px] text-emerald-700">{note}</div>}
 
-            <button type="submit" disabled={busy || digits.some((x) => !x)} className="mt-5 w-full btn-primary h-11 text-[13.5px]">
+            <button type="submit" disabled={busy || !code} className="mt-5 w-full btn-primary h-11 text-[13.5px]">
               {busy ? 'Checking…' : 'Confirm email'}
             </button>
           </form>
