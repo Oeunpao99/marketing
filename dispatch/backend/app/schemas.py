@@ -460,6 +460,8 @@ class UserOut(ORMModel):
     preferences: dict[str, Any] = Field(default_factory=dict)
     # Features this person may use (app/access.py); null = everything.
     access: list[str] | None = None
+    # False until a new account enters the code emailed to it (app/auth.py verify-email)
+    email_verified: bool = True
 
 
 class WorkspaceUpdate(BaseModel):

@@ -775,6 +775,8 @@ const LOGIN_STATUS = {
   unknown_email: { label: 'Unknown email', tone: 'bg-red-50 text-red-700 ring-red-200' },
   disabled: { label: 'Account disabled', tone: 'bg-amber-50 text-amber-800 ring-amber-200' },
   blocked: { label: 'Blocked · too many tries', tone: 'bg-red-100 text-red-800 ring-red-300' },
+  reset_asked: { label: 'Asked for a password reset', tone: 'bg-amber-50 text-amber-800 ring-amber-200' },
+  reset: { label: 'Password reset', tone: 'bg-sky-50 text-sky-700 ring-sky-200' },
 }
 
 const loginTime = (iso) =>

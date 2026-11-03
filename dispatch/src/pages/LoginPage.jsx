@@ -4,6 +4,7 @@ import { FiCalendar, FiTrendingUp } from 'react-icons/fi'
 import { SiFacebook, SiInstagram, SiTelegram, SiTiktok, SiYoutube } from 'react-icons/si'
 import { api } from '../api/client'
 import { useAuth } from '../auth'
+import ForgotPassword from './ForgotPassword'
 
 const PLATFORMS = [
   [SiFacebook, 'Facebook'],
@@ -16,7 +17,7 @@ const PLATFORMS = [
 
 export default function LoginPage({ initial = 'signin', onBack }) {
   const { login, register } = useAuth()
-  const [mode, setMode] = useState(initial) // signin | register
+  const [mode, setMode] = useState(initial) // signin | register | forgot
   const [form, setForm] = useState({ name: '', company: '', email: '', password: '' })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
@@ -59,6 +60,8 @@ export default function LoginPage({ initial = 'signin', onBack }) {
       setBusy(false)
     }
   }
+
+  if (mode === 'forgot') return <ForgotPassword email={form.email} onBack={() => { setMode('signin'); setError(null) }} />
 
   return (
     <div className="min-h-screen grid lg:h-dvh lg:overflow-hidden lg:grid-cols-[1.1fr_1fr] bg-canvas">
@@ -152,6 +155,11 @@ export default function LoginPage({ initial = 'signin', onBack }) {
                 placeholder={isRegister ? 'At least 8 characters' : '••••••••'}
                 className={inputCls}
               />
+              {!isRegister && (
+                <button type="button" onClick={() => { setMode('forgot'); setError(null) }} className="mt-1.5 block ml-auto text-[12px] font-medium text-brand hover:underline">
+                  Forgot password?
+                </button>
+              )}
             </Field>
 
             {error && (

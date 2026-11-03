@@ -8,7 +8,7 @@ import AccountMenu from "./AccountMenu";
 import MakingStatus from "./MakingStatus";
 import { useAuth } from "../../auth";
 import { useStore } from "../../store";
-import { useNotifications } from "../../lib/notifications";
+import { useBellRing, useNotifications } from "../../lib/notifications";
 
 const LABELS = {
   "/command": "Command center",
@@ -64,6 +64,7 @@ export default function Topbar({ onToggleSidebar }) {
 
   const label = labelFor(pathname);
   const { count: notifCount } = useNotifications();
+  const bellRing = useBellRing();
   return (
     <header className="sticky top-0 z-20 h-14 flex items-center gap-3 px-4 sm:px-6 bg-white border-b border-ink-200/70">
       <button
@@ -128,7 +129,7 @@ export default function Topbar({ onToggleSidebar }) {
           className="relative w-9 h-9 grid place-items-center rounded-lg text-ink-600 hover:bg-ink-100"
           aria-label="Notifications"
         >
-          <FiBell size={19} />
+          <span key={bellRing} className={bellRing ? "cf-bell-ring" : "inline-block"}><FiBell size={19} /></span>
           {notifCount > 0 && (
             <span className="absolute top-0.5 right-0.5 min-w-[17px] h-[17px] px-1 rounded-full bg-red-600 text-white text-[10px] font-bold grid place-items-center ring-2 ring-canvas-soft">
               {notifCount > 9 ? "9+" : notifCount}

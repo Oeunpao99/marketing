@@ -321,6 +321,7 @@ def run() -> None:
                 timezone="UTC+7",
                 role="owner",
                 is_active=True,
+                email_verified_at=datetime.now(timezone.utc),
                 password_hash=(
                     hash_password(cfg.seed_admin_password) if cfg.seed_admin_password else ""
                 ),

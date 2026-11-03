@@ -927,6 +927,18 @@ class TeamMember(Base, TimestampMixin):
     is_active: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default="true", nullable=False
     )
+    # Email confirmation (app/auth.py verify-email): null = not confirmed yet. The
+    # 6-digit code is kept hashed, for 15 minutes, 5 tries; resent at most once a minute.
+    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    email_code_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    email_code_expires: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    email_code_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    email_code_tries: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # "Forgot password" (app/auth.py password-reset): the same kind of 6-digit code, kept apart
+    reset_code_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    reset_code_expires: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    reset_code_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    reset_code_tries: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     # Which features an editor may use (app/access.py FEATURES keys); null =
     # everything. Owners and admins always have everything.
     access: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)

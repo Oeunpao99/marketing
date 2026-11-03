@@ -42,8 +42,43 @@ def _initials(name: str) -> str:
 def _user_out(db: Session, user: TeamMember) -> UserOut:
     ws = db.get(Workspace, user.workspace_id)
     return UserOut.model_validate(user).model_copy(
-        update={"workspace_name": ws.name if ws else ""}
+        update={"workspace_name": ws.name if ws else "", "email_verified": user.email_verified_at is not None}
     )
+
+
+# ── Email confirmation: a 6-digit code (app/mailer.py) ─────────────────────
+_CODE_TTL = timedelta(minutes=15)
+_CODE_TRIES = 5
+_RESEND_AFTER = timedelta(seconds=60)
+
+
+def _code_hash(user: TeamMember, code: str, purpose: str = "") -> str:
+    from app.config import get_settings
+
+    return hashlib.sha256(f"{get_settings().secret_key}:{purpose}{user.id}:{code}".encode()).hexdigest()
+
+
+def _send_code(db: Session, user: TeamMember) -> None:
+    """A new code for ``user`` (any older one stops working), emailed in the
+    background. Email switched off: the account just counts as confirmed."""
+    from app import mailer
+
+    now = datetime.now(UTC)
+    if not mailer.configured():
+        user.email_verified_at = now
+        db.commit()
+        return
+    code = f"{secrets.randbelow(1_000_000):06d}"
+    user.email_code_hash = _code_hash(user, code)
+    user.email_code_expires = now + _CODE_TTL
+    user.email_code_sent_at = now
+    user.email_code_tries = 0
+    db.commit()
+    mailer.send_code(user.email, user.name, code)
+
+
+def _aware(t: datetime | None) -> datetime | None:
+    return t.replace(tzinfo=UTC) if t is not None and t.tzinfo is None else t
 
 
 @router.post("/register", response_model=AuthOut, status_code=201)
@@ -73,6 +108,10 @@ def register(payload: RegisterIn, request: Request, db: Session = Depends(get_db
     db.commit()
     db.refresh(user)
     record_login(db, request, email, "signup", user)
+    from app import team_alerts
+
+    team_alerts.new_signup(user, request, "email")  # the team's Telegram group hears (background)
+    _send_code(db, user)  # the 6-digit code to confirm the email; the welcome email comes after it
     token = create_token(user.id)
     sessions.start(token, user, request)
     return AuthOut(token=token, user=_user_out(db, user))
@@ -217,6 +256,130 @@ def login_history(request: Request, user: TeamMember = Depends(get_current_user)
 @router.get("/me", response_model=UserOut)
 def me(user: TeamMember = Depends(get_current_user), db: Session = Depends(get_db)):
     return _user_out(db, user)
+
+
+class CodeIn(BaseModel):
+    code: str = Field(min_length=4, max_length=12)
+
+
+@router.post("/verify-email", response_model=UserOut)
+def verify_email(payload: CodeIn, user: TeamMember = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Confirm the account's email with the code we emailed — then the welcome email."""
+    if user.email_verified_at is not None:
+        return _user_out(db, user)
+    code = "".join(ch for ch in payload.code if ch.isdigit())
+    expires = _aware(user.email_code_expires)
+    if not user.email_code_hash or expires is None or expires < datetime.now(UTC):
+        raise HTTPException(410, "This code has expired — press “Send a new code”.")
+    if user.email_code_tries >= _CODE_TRIES:
+        raise HTTPException(429, "Too many wrong codes — press “Send a new code”.")
+    if not secrets.compare_digest(_code_hash(user, code), user.email_code_hash):
+        user.email_code_tries += 1
+        db.commit()
+        left = _CODE_TRIES - user.email_code_tries
+        raise HTTPException(422, f"That code isn't right — {left} tr{'y' if left == 1 else 'ies'} left." if left else "Too many wrong codes — press “Send a new code”.")
+    user.email_verified_at = datetime.now(UTC)
+    user.email_code_hash = None
+    user.email_code_expires = None
+    db.commit()
+    from app import mailer
+
+    mailer.send_welcome(user.email, user.name)
+    return _user_out(db, user)
+
+
+@router.post("/verify-email/resend")
+def resend_code(user: TeamMember = Depends(get_current_user), db: Session = Depends(get_db)):
+    """A new code — at most once a minute."""
+    if user.email_verified_at is not None:
+        return {"sent": False, "verified": True}
+    sent = _aware(user.email_code_sent_at)
+    if sent is not None and datetime.now(UTC) - sent < _RESEND_AFTER:
+        wait = int((_RESEND_AFTER - (datetime.now(UTC) - sent)).total_seconds()) + 1
+        raise HTTPException(429, f"Wait {wait} seconds, then send a new code.")
+    _send_code(db, user)
+    return {"sent": True, "verified": user.email_verified_at is not None}
+
+
+# ── Forgot password: a 6-digit code to the account's email, then a new password ──
+_SENT_IF = "If an account uses that email, we sent it a 6-digit code. Check your inbox (and spam)."
+
+
+class ForgotIn(BaseModel):
+    email: str = Field(min_length=3, max_length=160)
+
+
+class ResetIn(BaseModel):
+    email: str = Field(min_length=3, max_length=160)
+    code: str = Field(min_length=4, max_length=12)
+    password: str = Field(min_length=8, max_length=128)
+
+
+@router.post("/password-reset")
+def forgot_password(payload: ForgotIn, request: Request, db: Session = Depends(get_db)):
+    """Public: email a reset code. The answer is the same whether or not the
+    email has an account — nobody can use this to find out who our customers are."""
+    from app import mailer
+
+    if not mailer.configured():
+        raise HTTPException(503, "Password reset by email isn't available yet — please contact Smart Marketing support.")
+    email = payload.email.strip().lower()
+    if too_many_failures(db, email, client_ip(request)):
+        raise HTTPException(429, "Too many tries. Wait 15 minutes and try again.")
+    user = db.scalar(select(TeamMember).where(func.lower(TeamMember.email) == email))
+    if user is not None and user.is_active:
+        sent = _aware(user.reset_code_sent_at)
+        now = datetime.now(UTC)
+        if sent is None or now - sent >= _RESEND_AFTER:  # at most one email a minute
+            code = f"{secrets.randbelow(1_000_000):06d}"
+            user.reset_code_hash = _code_hash(user, code, "reset:")
+            user.reset_code_expires = now + _CODE_TTL
+            user.reset_code_sent_at = now
+            user.reset_code_tries = 0
+            db.commit()
+            mailer.send_reset_code(user.email, user.name, code)
+        record_login(db, request, email, "reset_asked", user)
+    return {"sent": True, "message": _SENT_IF}
+
+
+@router.post("/password-reset/confirm", response_model=AuthOut)
+def reset_password(payload: ResetIn, request: Request, db: Session = Depends(get_db)):
+    """Public: the code and a new password → the password is changed, every other
+    device is signed out, and this one is signed in."""
+    email = payload.email.strip().lower()
+    bad = HTTPException(422, "That code isn't right, or it has expired — ask for a new one.")
+    if too_many_failures(db, email, client_ip(request)):
+        raise HTTPException(429, "Too many tries. Wait 15 minutes and try again.")
+    user = db.scalar(select(TeamMember).where(func.lower(TeamMember.email) == email))
+    expires = _aware(user.reset_code_expires) if user else None
+    if user is None or not user.is_active or not user.reset_code_hash or expires is None or expires < datetime.now(UTC):
+        record_login(db, request, email, "wrong_password", user)  # counts toward the 15-minute lock
+        raise bad
+    if user.reset_code_tries >= _CODE_TRIES:
+        raise HTTPException(429, "Too many wrong codes — ask for a new one.")
+    code = "".join(ch for ch in payload.code if ch.isdigit())
+    if not secrets.compare_digest(_code_hash(user, code, "reset:"), user.reset_code_hash):
+        user.reset_code_tries += 1
+        db.commit()
+        record_login(db, request, email, "wrong_password", user)
+        raise bad
+    if db.scalar(select(Workspace.suspended_at).where(Workspace.id == user.workspace_id)):
+        raise HTTPException(403, "This account is suspended — please contact Smart Marketing support.")
+    now = datetime.now(UTC)
+    user.password_hash = hash_password(payload.password)
+    user.reset_code_hash = None
+    user.reset_code_expires = None
+    if user.email_verified_at is None:  # the code reached their inbox: the email is theirs
+        user.email_verified_at = now
+    db.commit()
+    record_login(db, request, email, "reset", user)
+    token = create_token(user.id)
+    sessions.start(token, user, request)
+    sessions.revoke_others(user.id, sessions.session_id(token))  # whoever had the old password is out
+    from app import mailer
+
+    mailer.send_password_changed(user.email, user.name)
+    return AuthOut(token=token, user=_user_out(db, user))
 
 
 @router.patch("/workspace", response_model=UserOut)
@@ -366,6 +529,7 @@ def add_member(payload: MemberIn, manager: TeamMember = Depends(require_manager)
         password_hash=hash_password(payload.password),
         is_active=True,
         access=feature_access.clean(payload.access) if payload.role == "editor" else None,
+        email_verified_at=datetime.now(UTC),  # the owner added them: no code needed
     )
     db.add(m)
     db.commit()
@@ -564,6 +728,7 @@ def join(token: str, payload: JoinIn, request: Request, db: Session = Depends(ge
         password_hash=hash_password(payload.password),
         is_active=True,
         access=inv.access if inv.role == "editor" else None,
+        email_verified_at=datetime.now(UTC),  # joined by the workspace's invite: no code needed
     )
     db.add(user)
     inv.uses += 1

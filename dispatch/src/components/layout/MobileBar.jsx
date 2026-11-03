@@ -27,7 +27,7 @@ import {
 } from "react-icons/fi";
 import { useAuth } from "../../auth";
 import { canOpen } from "../../lib/access";
-import { useNotifications } from "../../lib/notifications";
+import { useBellRing, useNotifications } from "../../lib/notifications";
 import { useStore } from "../../store";
 import { openCreateBrand } from "./CreateBrandDrawer";
 import { applyUpdate } from "../../lib/update";
@@ -148,6 +148,7 @@ function MoreSheet({ onClose }) {
   const { user, logout } = useAuth();
   const modules = MODULES.filter((m) => canOpen(user, m.to));
   const { count } = useNotifications();
+  const bellRing = useBellRing();
   const navigate = useNavigate();
   const { pathname } = useLocation();
 
@@ -262,7 +263,7 @@ function MoreSheet({ onClose }) {
             className="relative flex flex-col items-center gap-1.5 rounded-2xl px-1 py-3 text-[11px] font-medium text-ink-700 active:bg-ink-100"
           >
             <span className="relative grid h-10 w-10 place-items-center rounded-xl bg-ink-50 text-ink-600">
-              <FiBell size={18} />
+              <span key={bellRing} className={bellRing ? "cf-bell-ring" : "inline-block"}><FiBell size={18} /></span>
               {count > 0 && (
                 <span className="absolute -right-1 -top-1 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[9.5px] font-bold grid place-items-center">
                   {count > 9 ? "9+" : count}

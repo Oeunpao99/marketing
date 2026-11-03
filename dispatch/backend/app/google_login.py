@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import logging
 import secrets
+from datetime import UTC, datetime
 from urllib.parse import urlencode, urlsplit
 
 import httpx
@@ -166,11 +167,18 @@ def google_callback(request: Request, code: str = "", state: str = "", error: st
             role="owner",
             password_hash="",  # Google-only until they set one
             is_active=True,
+            email_verified_at=datetime.now(UTC),  # Google has confirmed the email
         )
         db.add(user)
         db.commit()
         db.refresh(user)
         status = "signup"
+        from app import team_alerts
+
+        team_alerts.new_signup(user, request, "Google")  # the team's Telegram group hears (background)
+        from app import mailer
+
+        mailer.send_welcome(user.email, user.name)
         log.info("google login: new account %s (workspace %s)", user.id, workspace.id)
     else:
         if not user.is_active:

@@ -305,6 +305,9 @@ def require(ws: int | None, needed: float = 0.0, db: Session | None = None) -> N
     try:
         if db.scalar(select(Workspace.suspended_at).where(Workspace.id == ws)):
             raise OutOfCredit("This account is suspended — no AI can be used.")
+        if not db.scalar(select(TeamMember.id).where(TeamMember.workspace_id == ws, TeamMember.email_verified_at.is_not(None)).limit(1)):
+            # a new account that hasn't entered its email code yet (app/auth.py verify-email)
+            raise OutOfCredit("Confirm your email first — enter the code we sent you.")
         now = balance(db, ws)
         if now["available"] - needed <= 0 and now["claim_available"]:
             # customers count videos / images (app/usage.py), not credits: the month's

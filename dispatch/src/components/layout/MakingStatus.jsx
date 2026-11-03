@@ -1,15 +1,24 @@
-﻿import { useEffect, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { Hourglass } from 'lucide-react'
 import { api } from '../../api/client'
 import { useAuth } from '../../auth'
 import { canOpen } from '../../lib/access'
+import { ringBell } from '../../lib/notifications'
 
 export default function MakingStatus() {
   const { user } = useAuth()
   const { pathname } = useLocation()
   const allowed = canOpen(user, '/making')
   const [data, setData] = useState(null)
+  // a job that was being made and isn't any more has finished: the bell rings
+  const jobIds = (data?.jobs || []).map((j) => j.id).join(',')
+  const lastIds = useRef('')
+  useEffect(() => {
+    const was = lastIds.current
+    if (was && was.split(',').some((id) => !jobIds.split(',').includes(id))) ringBell()
+    lastIds.current = jobIds
+  }, [jobIds])
   useEffect(() => {
     if (!allowed) return
     let alive = true

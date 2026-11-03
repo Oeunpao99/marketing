@@ -78,8 +78,21 @@ def import_channel(db: Session, ch: Channel, days: int = LOOKBACK_DAYS) -> int:
             if (cap or "").strip():
                 made_here.append((" ".join(cap.lower().split())[:40], when))
 
+    # A post imported before: its picture link is renewed — Facebook / Instagram picture links
+    # expire after some days, and the dashboard's top post showed its caption instead (2026-11-03)
+    imported_rows = {
+        t.external_id: t
+        for t in db.scalars(select(PostTarget).where(PostTarget.channel_id.in_(sibling_ids), PostTarget.external_id.in_([i["id"] for i in items])))
+        if (t.platform_options or {}).get("imported")
+    }
     added = 0
     for it in items:
+        old = imported_rows.get(it["id"])
+        if old is not None and it["picture"]:
+            was = old.platform_options["imported"]
+            if was.get("picture") != it["picture"] or (it["url"] and was.get("url") != it["url"]):
+                # a new dict, so the JSON column is saved
+                old.platform_options = {**old.platform_options, "imported": {**was, "picture": it["picture"], "url": it["url"] or was.get("url"), "kind": it["kind"]}}
         if it["id"] in known or (it["alt_id"] and it["alt_id"] in known):
             continue
         if slug == "tiktok" and it["caption"].strip():

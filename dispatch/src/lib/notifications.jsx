@@ -198,12 +198,55 @@ export function useNotifications() {
   }, [review, queue, channels, key, lowVideos, devices, insight, scope, revision, workspace, user])
 }
 
+/** Rings every bell (Topbar, MobileBar) — a video finished (MakingStatus), a new notification. */
+export const ringBell = () => window.dispatchEvent(new Event('dispatch:bell-ring'))
+
+/** True for a moment after the bell rang — the bell icon shakes (index.css .cf-bell-ring). */
+export function useBellRing() {
+  const [ring, setRing] = useState(0)
+  useEffect(() => {
+    let timer
+    const on = () => {
+      setRing((n) => n + 1)
+      clearTimeout(timer)
+      timer = setTimeout(() => setRing(0), 2400)
+    }
+    window.addEventListener('dispatch:bell-ring', on)
+    return () => { window.removeEventListener('dispatch:bell-ring', on); clearTimeout(timer) }
+  }, [])
+  return ring // a new number each ring: the key that restarts the shake
+}
+
 /** Keeps the installed app's icon badge equal to the bell's count while the
- *  app is open (the service worker updates it from pushes while it's closed). */
+ *  app is open (the service worker updates it from pushes while it's closed),
+ *  and rings the bell when a notification appears that this browser hasn't
+ *  seen before (a new device, the #1 post, videos used up…) — remembered, so
+ *  a reload doesn't ring for the same ones again; the very first visit only
+ *  remembers what's there. */
 export function useAppBadge() {
-  const { count } = useNotifications()
+  const { count, items } = useNotifications()
+  const { user } = useAuth()
   useEffect(() => {
     if (!('setAppBadge' in navigator)) return
     ;(count > 0 ? navigator.setAppBadge(count) : navigator.clearAppBadge()).catch(() => {})
   }, [count])
+  const ids = items.map((i) => i.id).join('|')
+  useEffect(() => {
+    if (!user) return
+    const key = `cf-bell-seen:${user.workspace_id || ''}:${user.id || user.email || ''}`
+    let seen = null
+    try {
+      seen = JSON.parse(localStorage.getItem(key) || 'null')
+    } catch {
+      seen = null
+    }
+    const now = ids ? ids.split('|') : []
+    const fresh = seen ? now.filter((id) => !seen.includes(id)) : []
+    if (fresh.length) ringBell()
+    try {
+      localStorage.setItem(key, JSON.stringify([...new Set([...(seen || []), ...now])].slice(-300)))
+    } catch {
+      /* private window: it just rings again next time */
+    }
+  }, [ids, user])
 }

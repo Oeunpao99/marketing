@@ -88,6 +88,9 @@ export function AuthProvider({ children }) {
     [],
   )
   const signInWith = useCallback((res) => finish(res), [])
+  // a new account confirms its email with the 6-digit code we emailed (VerifyEmailPage)
+  const verifyEmail = useCallback((code) => api.post('/auth/verify-email', { code }).then((u) => (setUser(u), u)), [])
+  const resendCode = useCallback(() => api.post('/auth/verify-email/resend', {}), [])
 
   const logout = useCallback(() => {
     navigator.clearAppBadge?.().catch?.(() => {})
@@ -114,7 +117,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, login, register, logout, renameWorkspace, updateMe, updatePrefs, acceptInvite, signInWith }}
+      value={{ user, loading, login, register, logout, renameWorkspace, updateMe, updatePrefs, acceptInvite, signInWith, verifyEmail, resendCode }}
     >
       {children}
     </AuthContext.Provider>

@@ -13,6 +13,18 @@ class Settings(BaseSettings):
 
     # Fallback Telegram bot token, used when a channel's config has no "bot_token".
     telegram_bot_token: str = ""
+    # The Smart Marketing team's own Telegram group — every new sign-up is posted there
+    # (app/team_alerts.py). Blank chat id = off; blank token = TELEGRAM_BOT_TOKEN.
+    team_telegram_chat_id: str = ""
+    team_telegram_bot_token: str = ""
+    # Email (app/mailer.py): the sign-up code and the welcome email, over SMTP — any sender
+    # on our domain (Azure Communication Services Email, Microsoft 365, Resend…). Blank host = off.
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    mail_from: str = ""  # "Smart Marketing <hello@our-domain>"
+    mail_reply_to: str = ""
     # When true, non-Telegram platforms are "published" by simply marking them
     # posted (there is no real Facebook/TikTok/YouTube integration yet).
     simulate_unimplemented_platforms: bool = True
