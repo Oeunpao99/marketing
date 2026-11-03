@@ -918,6 +918,9 @@ class TeamMember(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(120))
     initials: Mapped[str] = mapped_column(String(4), default="")
     email: Mapped[str] = mapped_column(String(160), default="", index=True)
+    # So our team can call to help them start — asked at sign-up (and once from
+    # account owners who signed up before, or with Google). "+855…" (app/auth.py clean_phone).
+    phone: Mapped[str] = mapped_column(String(32), default="", server_default="")
     location: Mapped[str] = mapped_column(String(120), default="")
     timezone: Mapped[str] = mapped_column(String(40), default="UTC+7")
     role: Mapped[str] = mapped_column(String(60), default="editor")

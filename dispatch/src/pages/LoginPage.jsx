@@ -18,7 +18,7 @@ const PLATFORMS = [
 export default function LoginPage({ initial = 'signin', onBack }) {
   const { login, register } = useAuth()
   const [mode, setMode] = useState(initial) // signin | register | forgot
-  const [form, setForm] = useState({ name: '', company: '', email: '', password: '' })
+  const [form, setForm] = useState({ name: '', company: '', email: '', phone: '', password: '' })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
 
@@ -53,7 +53,7 @@ export default function LoginPage({ initial = 'signin', onBack }) {
     setBusy(true)
     setError(null)
     try {
-      if (isRegister) await register(form.name.trim(), form.email.trim(), form.password, form.company.trim())
+      if (isRegister) await register(form.name.trim(), form.email.trim(), form.password, form.company.trim(), form.phone.trim())
       else await login(form.email.trim(), form.password)
     } catch (err) {
       setError(err.message)
@@ -144,6 +144,20 @@ export default function LoginPage({ initial = 'signin', onBack }) {
                 className={inputCls}
               />
             </Field>
+            {isRegister && (
+              <Field label="Phone number">
+                <input
+                  type="tel"
+                  required
+                  autoComplete="tel"
+                  inputMode="tel"
+                  value={form.phone}
+                  onChange={set('phone')}
+                  placeholder="012 345 678"
+                  className={inputCls}
+                />
+              </Field>
+            )}
             <Field label="Password">
               <input
                 type="password"

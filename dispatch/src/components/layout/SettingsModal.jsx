@@ -171,7 +171,7 @@ export default function SettingsModal({ open, onClose, showToast, initialTab = n
 // ── Profile ───────────────────────────────────────────────────────────────
 function ProfileTab({ showToast, onClose }) {
   const { user, updateMe } = useAuth()
-  const initial = { name: user?.name || '', email: user?.email || '', timezone: user?.timezone || 'UTC+7' }
+  const initial = { name: user?.name || '', email: user?.email || '', phone: user?.phone || '', timezone: user?.timezone || 'UTC+7' }
   const [form, setForm] = useState(initial)
   const [saving, setSaving] = useState(false)
   const dirty = Object.keys(initial).some((k) => form[k].trim() !== initial[k])
@@ -181,7 +181,12 @@ function ProfileTab({ showToast, onClose }) {
     if (!form.name.trim()) return showToast('Name can’t be empty')
     setSaving(true)
     try {
-      await updateMe({ name: form.name.trim(), email: form.email.trim(), timezone: form.timezone })
+      await updateMe({
+        name: form.name.trim(),
+        email: form.email.trim(),
+        timezone: form.timezone,
+        ...(form.phone.trim() ? { phone: form.phone.trim() } : {}), // can't be emptied, only changed
+      })
       showToast('Profile saved')
     } catch (e) {
       showToast(`Couldn’t save — ${e.message}`)
@@ -209,6 +214,9 @@ function ProfileTab({ showToast, onClose }) {
       </Row>
       <Row label="Email" hint="You sign in with this.">
         <input type="email" value={form.email} onChange={set('email')} className={input} />
+      </Row>
+      <Row label="Phone" hint="So our team can call you to help.">
+        <input type="tel" inputMode="tel" autoComplete="tel" value={form.phone} onChange={set('phone')} placeholder="012 345 678" className={input} />
       </Row>
       <Row label="Timezone" hint="Used for times shown to you.">
         <Select

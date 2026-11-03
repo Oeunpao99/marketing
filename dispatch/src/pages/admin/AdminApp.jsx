@@ -889,6 +889,7 @@ function Accounts({ onOpen }) {
                         <div className="min-w-0">
                           <div className="truncate font-semibold text-ink-900">{w.name}</div>
                           <div className="truncate text-[11.5px] text-ink-500">{w.owner?.email || '—'}</div>
+                          {w.owner?.phone && <div className="truncate text-[11.5px] tabular-nums text-ink-500">{w.owner.phone}</div>}
                         </div>
                       </div>
                     </td>
@@ -1006,7 +1007,16 @@ function AccountDrawer({ id, onClose, onChanged }) {
             </div>
             {w && (
               <p className="mt-0.5 text-[12px] text-ink-500">
-                {w.owner ? `${w.owner.name} · ${w.owner.email}` : 'No owner'} · signed up {day(w.created_at)}
+                {w.owner ? `${w.owner.name} · ${w.owner.email}` : 'No owner'}
+                {w.owner?.phone && (
+                  <>
+                    {' · '}
+                    <a href={`tel:${w.owner.phone}`} className="font-semibold tabular-nums text-brand hover:underline">
+                      {w.owner.phone}
+                    </a>
+                  </>
+                )}{' '}
+                · signed up {day(w.created_at)}
               </p>
             )}
           </div>
@@ -1116,7 +1126,8 @@ function AccountDrawer({ id, onClose, onChanged }) {
                           {m.name} <span className="ml-1 text-[11px] font-medium capitalize text-ink-400">{m.role}</span>
                         </span>
                         <span className="block truncate text-[11.5px] text-ink-500">
-                          {m.email} · seen {ago(m.last_seen)}
+                          {m.email}
+                          {m.phone ? ` · ${m.phone}` : ''} · seen {ago(m.last_seen)}
                         </span>
                       </span>
                       <button

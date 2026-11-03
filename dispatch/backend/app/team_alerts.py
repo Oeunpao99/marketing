@@ -155,6 +155,7 @@ def signup_text(user: TeamMember, workspace: Workspace, how: str, device: str, p
         "",
         f"👤 <b>{e(user.name or '—')}</b>",
         f"✉️ {e(user.email)}",
+        f"📞 {e(user.phone)}" if user.phone else "📞 No phone yet — they're asked for it when they open the app",
         f"🏢 {e(workspace.name or '—')} · account #{workspace.id}",
         f"🔑 Signed up with {e(how)} · {e(workspace.plan or 'free').title()} plan",
         f"💻 {e(device or 'Unknown device')}",
@@ -187,6 +188,27 @@ def _signup(user_id: int, how: str, ua: str, ip: str) -> None:
         log.warning("team alert for new account %s not sent: %s", user_id, exc)
     finally:
         db.close()
+
+
+def _phone(user_id: int) -> None:
+    db = SessionLocal()
+    try:
+        user = db.get(TeamMember, user_id)
+        workspace = db.get(Workspace, user.workspace_id) if user else None
+        if not (user and workspace and user.phone):
+            return
+        e = html.escape
+        send(db, f"📞 <b>{e(user.name or user.email)}</b> added their phone: {e(user.phone)}\n"
+                 f"✉️ {e(user.email)} · 🏢 {e(workspace.name or '—')} · account #{workspace.id}")
+    except Exception as exc:  # noqa: BLE001
+        log.warning("team alert for %s's phone not sent: %s", user_id, exc)
+    finally:
+        db.close()
+
+
+def phone_added(user: TeamMember) -> None:
+    """An owner gave their phone after signing up (Google, or an older account) — in the background."""
+    threading.Thread(target=_phone, args=(user.id,), daemon=True, name=f"phone-alert-{user.id}").start()
 
 
 def new_signup(user: TeamMember, request: Request, how: str) -> None:

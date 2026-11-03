@@ -24,6 +24,7 @@ import MakingNowPage from './pages/MakingNowPage'
 const PresentPage = lazy(() => import('./pages/PresentPage'))
 import LoginPage from "./pages/LoginPage";
 import VerifyEmailPage from "./pages/VerifyEmailPage";
+import AddPhonePage from "./pages/AddPhonePage";
 import LandingPage from "./pages/LandingPage";
 import NewPostPage from "./pages/NewPostPage";
 import UpgradePage from "./pages/UpgradePage";
@@ -147,6 +148,7 @@ function Gate() {
   }
   if (joinToken) return <JoinPage token={joinToken} onDone={() => setJoinToken(null)} />;
   if (user && user.email_verified === false) return <VerifyEmailPage />; // a new account: the emailed code first
+  if (user && user.role === "owner" && !user.phone) return <AddPhonePage />; // once: our team calls to help them start
   if (user) return <Portal />;
   if (!signIn) return <LandingPage onLogin={() => setSignIn("signin")} onStart={() => setSignIn("register")} />;
   return <LoginPage key={signIn} initial={signIn} onBack={window.location.pathname === "/" ? () => setSignIn(null) : undefined} />;

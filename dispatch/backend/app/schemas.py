@@ -436,6 +436,8 @@ class RegisterIn(BaseModel):
     workspace_name: str = Field(default="", max_length=120)
     email: str = Field(min_length=3, max_length=160)
     password: str = Field(min_length=8, max_length=128)
+    # required — so our team can call to help them start (app/auth.py clean_phone)
+    phone: str = Field(default="", max_length=40)
 
 
 class LoginIn(BaseModel):
@@ -452,6 +454,7 @@ class UserOut(ORMModel):
     workspace_name: str = ""
     name: str
     email: str
+    phone: str = ""
     initials: str = ""
     location: str = ""
     timezone: str = "UTC+7"

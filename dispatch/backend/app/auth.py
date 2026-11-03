@@ -91,6 +91,7 @@ def register(payload: RegisterIn, request: Request, db: Session = Depends(get_db
         raise HTTPException(409, "An account with that email already exists.")
 
     name = payload.name.strip()
+    phone = clean_phone(payload.phone)
     # every new account starts on Free (100 credits); paid plans: Billing → Upgrade (app/payments.py)
     workspace = Workspace(name=payload.workspace_name.strip() or f"{name}'s workspace", plan="free")
     db.add(workspace)
@@ -99,6 +100,7 @@ def register(payload: RegisterIn, request: Request, db: Session = Depends(get_db
         workspace_id=workspace.id,
         name=name,
         email=email,
+        phone=phone,
         initials=_initials(name),
         role="owner",
         password_hash=hash_password(payload.password),
@@ -418,6 +420,7 @@ def rename_workspace(
 class ProfileIn(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     email: str | None = Field(default=None, min_length=3, max_length=160)
+    phone: str | None = Field(default=None, max_length=40)
     timezone: str | None = Field(default=None, max_length=40)
     location: str | None = Field(default=None, max_length=120)
     # Merged into the stored preferences (send only the keys that changed).
@@ -438,6 +441,26 @@ def _clean_email(raw: str) -> str:
     return email
 
 
+def clean_phone(raw: str) -> str:
+    """A phone number as "+<country><number>". Cambodian by default: "012 345 678",
+    "12345678" and "855 12 345 678" all become "+85512345678"."""
+    s = (raw or "").strip()
+    plus = s.startswith("+")
+    digits = "".join(ch for ch in s if ch.isdigit())
+    if not plus:
+        if digits.startswith("00"):
+            digits = digits[2:]
+        elif digits.startswith("855") and len(digits) >= 11:
+            pass
+        else:
+            digits = "855" + digits.lstrip("0")
+    if digits.startswith("8550"):  # "+855 012 …": the trunk 0 doesn't belong after the code
+        digits = "855" + digits[4:]
+    if not 8 <= len(digits) <= 15 or (digits.startswith("855") and not 11 <= len(digits) <= 12):
+        raise HTTPException(422, "Enter a phone number we can call — e.g. 012 345 678.")
+    return "+" + digits
+
+
 @router.patch("/me", response_model=UserOut)
 def update_me(payload: ProfileIn, user: TeamMember = Depends(get_current_user), db: Session = Depends(get_db)):
     if payload.name is not None:
@@ -448,6 +471,10 @@ def update_me(payload: ProfileIn, user: TeamMember = Depends(get_current_user), 
         if _email_taken(db, email, user.id):
             raise HTTPException(409, "Another account already uses that email.")
         user.email = email
+    first_phone = False
+    if payload.phone is not None:
+        first_phone = not user.phone
+        user.phone = clean_phone(payload.phone)
     if payload.timezone is not None:
         user.timezone = payload.timezone.strip()
     if payload.location is not None:
@@ -458,6 +485,10 @@ def update_me(payload: ProfileIn, user: TeamMember = Depends(get_current_user), 
         user.preferences = {**(user.preferences or {}), **payload.preferences}
     db.commit()
     db.refresh(user)
+    if first_phone:  # an owner who signed up with Google (or before phones were asked): the team hears
+        from app import team_alerts
+
+        team_alerts.phone_added(user)
     return _user_out(db, user)
 
 

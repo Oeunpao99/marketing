@@ -75,9 +75,9 @@ export function AuthProvider({ children }) {
     [],
   )
   const register = useCallback(
-    (name, email, password, workspaceName = '') =>
+    (name, email, password, workspaceName = '', phone = '') =>
       api
-        .post('/auth/register', { name, email, password, workspace_name: workspaceName })
+        .post('/auth/register', { name, email, password, workspace_name: workspaceName, phone })
         .then(finish),
     [],
   )
