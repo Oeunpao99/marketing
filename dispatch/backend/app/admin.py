@@ -471,7 +471,7 @@ def admin_payments(status: str = "", db: Session = Depends(get_db)):
     (Bakong's transaction wasn't what we asked: never activated, check it), etc."""
     from app.models import Payment
 
-    stmt = select(Payment, Workspace.name).join(Workspace, Workspace.id == Payment.workspace_id)
+    stmt = select(Payment, Workspace.name).outerjoin(Workspace, Workspace.id == Payment.workspace_id)
     if status:
         stmt = stmt.where(Payment.status == status)
     rows = db.execute(stmt.order_by(Payment.created_at.desc()).limit(300)).all()
@@ -479,7 +479,7 @@ def admin_payments(status: str = "", db: Session = Depends(get_db)):
         {
             "id": p.id,
             "workspace_id": p.workspace_id,
-            "workspace": name,
+            "workspace": name or f"{p.account_label or 'An account'} (deleted)",
             "plan": p.plan,
             "currency": p.currency,
             "amount": float(p.amount),
@@ -726,6 +726,89 @@ def admin_set_user_active(user_id: int, payload: ActiveIn, db: Session = Depends
     db.commit()
     log.warning("admin portal: user %s %s", user_id, "enabled" if payload.is_active else "disabled")
     return {"is_active": m.is_active, "signed_out": signed_out}
+
+
+@router.delete("/users/{user_id}", dependencies=[Depends(require_admin)])
+def admin_remove_user(user_id: int, db: Session = Depends(get_db)):
+    """Remove one person from their account for good — their login goes; what
+    they made stays with the account. Never the owner (delete the account instead)."""
+    m = db.get(TeamMember, user_id)
+    if m is None:
+        raise HTTPException(404, "User not found.")
+    if m.role == "owner":
+        raise HTTPException(409, "That's the account's owner — delete the whole account instead.")
+    who = f"{m.name} <{m.email}> (workspace {m.workspace_id})"
+    db.delete(m)  # sessions, push, API keys go with them; their posts and videos stay
+    db.commit()
+    log.warning("admin portal: user %s removed — %s", user_id, who)
+    return {"removed": True}
+
+
+class DeleteAccountIn(BaseModel):
+    confirm: str = Field(max_length=200)  # the account's name, typed again
+
+
+def _media_urls(db: Session, ws_id: int) -> list[str]:
+    """Every stored file of an account: library videos / images and brand-kit files."""
+    from app.models import BrandAsset, Video
+
+    urls = list(db.scalars(select(Video.url).where(Video.workspace_id == ws_id, Video.url != "")).all())
+    urls += db.scalars(select(BrandAsset.url).join(Brand, Brand.id == BrandAsset.brand_id).where(Brand.workspace_id == ws_id)).all()
+    return [u for u in urls if u and "/media/" in u]
+
+
+def _delete_files(urls: list[str], ws_id: int) -> None:
+    from app.database import SessionLocal
+    from app.media import delete_media
+
+    db = SessionLocal()
+    done = 0
+    try:
+        for url in urls:
+            try:
+                delete_media(db, url)
+                db.commit()
+                done += 1
+            except Exception:  # noqa: BLE001 — a stray file costs little; keep going
+                db.rollback()
+                log.warning("deleted account %s: file %s not removed", ws_id, url, exc_info=True)
+    finally:
+        db.close()
+    log.warning("deleted account %s: %s of %s files removed", ws_id, done, len(urls))
+
+
+@router.delete("/workspaces/{ws_id}", dependencies=[Depends(require_admin)])
+def admin_delete_account(ws_id: int, payload: DeleteAccountIn, db: Session = Depends(get_db)):
+    """Delete an account for good: its people, brands, channels, posts, videos and
+    files. Only a suspended account, and only with its name typed again. KHQR
+    payment records stay (for the books), marked with whose they were."""
+    from sqlalchemy import delete
+    from sqlalchemy.exc import IntegrityError
+
+    from app.models import Payment
+
+    w = _workspace(db, ws_id)
+    if w.suspended_at is None:
+        raise HTTPException(409, "Suspend the account first — only a suspended account can be deleted.")
+    if payload.confirm.strip().casefold() != (w.name or "").strip().casefold():
+        raise HTTPException(422, "Type the account's name exactly to confirm.")
+    owner = _owners(db).get(ws_id)
+    label = f"{w.name} · #{w.id}" + (f" · {owner.email}" if owner else "")
+    urls = _media_urls(db, ws_id)
+    people = db.scalar(select(func.count(TeamMember.id)).where(TeamMember.workspace_id == ws_id)) or 0
+    # payments stay: whose they were, and an unpaid QR can't be paid into nothing
+    db.execute(update(Payment).where(Payment.workspace_id == ws_id).values(account_label=label[:200]))
+    db.execute(update(Payment).where(Payment.workspace_id == ws_id, Payment.status == "pending").values(status="cancelled"))
+    try:
+        db.execute(delete(Workspace).where(Workspace.id == ws_id))  # the database removes everything under it
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        log.exception("admin portal: account %s could not be deleted", ws_id)
+        raise HTTPException(409, "This account couldn't be deleted — nothing was removed. The reason is in the server log.") from None
+    threading.Thread(target=_delete_files, args=(urls, ws_id), daemon=True, name=f"delete-files-{ws_id}").start()
+    log.warning("admin portal: account %s deleted — %s, %s people, %s files", ws_id, label, people, len(urls))
+    return {"deleted": True, "people": people, "files": len(urls)}
 
 
 # ── AI models: prices, markup, who may use which, and the usage ───────────

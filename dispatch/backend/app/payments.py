@@ -709,7 +709,12 @@ def _activate(db: Session, payment_id: int, tx: dict) -> None:
         p.status = "mismatch"  # for the team to look at in the admin portal — never activated
         db.commit()
         return
-    w = db.scalar(select(Workspace).where(Workspace.id == p.workspace_id).with_for_update())
+    w = db.scalar(select(Workspace).where(Workspace.id == p.workspace_id).with_for_update()) if p.workspace_id else None
+    if w is None:  # the account was deleted (admin portal) — nothing to switch on; the team checks it
+        log.error("payment %s: paid, but its account (%s) was deleted — not activated", p.id, p.account_label or "?")
+        p.status = "mismatch"
+        db.commit()
+        return
     now = _now()
     if p.plan == TOP_UP:
         _add_bought(db, p, w, tx, now)
@@ -823,11 +828,11 @@ def confirm_by_admin(db: Session, payment_id: int, who: str = "admin") -> list[d
 
 
 def admin_payment_rows(db: Session, limit: int = 30) -> list[dict]:
-    rows = db.execute(select(Payment, Workspace.name).join(Workspace, Workspace.id == Payment.workspace_id).order_by(Payment.created_at.desc()).limit(limit)).all()
+    rows = db.execute(select(Payment, Workspace.name).outerjoin(Workspace, Workspace.id == Payment.workspace_id).order_by(Payment.created_at.desc()).limit(limit)).all()
     return [
         {
             "id": p.id,
-            "workspace": name,
+            "workspace": name or f"{p.account_label or 'An account'} (deleted)",
             "plan": _label(p),
             "currency": p.currency,
             "amount": float(p.amount),

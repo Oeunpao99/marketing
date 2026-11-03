@@ -12,6 +12,7 @@ import {
   FiRefreshCw,
   FiSearch,
   FiSend,
+  FiTrash2,
   FiUserCheck,
   FiUserPlus,
   FiUsers,
@@ -970,6 +971,9 @@ function AccountDrawer({ id, onClose, onChanged }) {
   const [giving, setGiving] = useState(false) // the "Give extra videos & images" pop-up
   const [reason, setReason] = useState('')
   const [confirmSuspend, setConfirmSuspend] = useState(false)
+  const [removing, setRemoving] = useState(null) // a member id, waiting for "Remove for good?"
+  const [deleting, setDeleting] = useState(false) // the "Delete this account" box
+  const [typed, setTyped] = useState('')
 
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose()
@@ -1143,6 +1147,36 @@ function AccountDrawer({ id, onClose, onChanged }) {
                       >
                         {m.is_active ? 'Active' : 'Off'}
                       </button>
+                      {m.role !== 'owner' &&
+                        (removing === m.id ? (
+                          <span className="flex flex-none items-center gap-1.5">
+                            <button type="button" onClick={() => setRemoving(null)} className="rounded-lg px-2 py-1.5 text-[11.5px] font-semibold text-ink-500 hover:bg-ink-50">
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busy === `remove-${m.id}`}
+                              onClick={() =>
+                                act(`remove-${m.id}`, 'DELETE', `/users/${m.id}`, undefined, `${m.name} was removed — their login is gone; what they made stays`).then(() =>
+                                  setRemoving(null),
+                                )
+                              }
+                              className="rounded-lg bg-red-600 px-2.5 py-1.5 text-[11.5px] font-semibold text-white hover:bg-red-700"
+                            >
+                              {busy === `remove-${m.id}` ? 'Removing…' : 'Remove for good'}
+                            </button>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setRemoving(m.id)}
+                            aria-label={`Remove ${m.name}`}
+                            title="Remove this user for good"
+                            className="grid h-8 w-8 flex-none place-items-center rounded-lg text-ink-400 hover:bg-red-50 hover:text-red-600"
+                          >
+                            <FiTrash2 size={14} />
+                          </button>
+                        ))}
                     </li>
                   ))}
                 </ul>
@@ -1282,6 +1316,57 @@ function AccountDrawer({ id, onClose, onChanged }) {
                     className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 px-3.5 py-2 text-[12.5px] font-semibold text-red-700 hover:bg-red-50"
                   >
                     <FiAlertTriangle size={14} /> Suspend this account
+                  </button>
+                )}
+              </Section>
+
+              {/* delete for good — only a suspended account */}
+              <Section title="Delete account">
+                {!w.suspended ? (
+                  <p className="text-[12.5px] text-ink-500">To delete this account for good, suspend it first.</p>
+                ) : deleting ? (
+                  <div className="rounded-xl border border-red-200 bg-red-50 p-3.5">
+                    <p className="text-[12.5px] font-semibold text-red-800">Delete {w.name} for good?</p>
+                    <p className="mt-0.5 text-[12px] leading-relaxed text-red-700">
+                      Its {w.member_list.length} user{w.member_list.length === 1 ? '' : 's'}, brands, channels, posts, videos and files are removed and can’t be brought back. KHQR
+                      payment records are kept for your books. The email can sign up again.
+                    </p>
+                    <label className="mt-2.5 block text-[11.5px] font-semibold text-red-800">
+                      Type <span className="font-bold">{w.name}</span> to confirm
+                      <input value={typed} onChange={(e) => setTyped(e.target.value)} autoFocus className={`${input} mt-1 py-2`} />
+                    </label>
+                    <div className="mt-2.5 flex justify-end gap-2">
+                      <button type="button" onClick={() => (setDeleting(false), setTyped(''))} className="btn-outline py-1.5">
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy === 'delete' || typed.trim().toLowerCase() !== (w.name || '').trim().toLowerCase()}
+                        onClick={async () => {
+                          setBusy('delete')
+                          setNote('')
+                          try {
+                            await adminApi('DELETE', `/workspaces/${id}`, { confirm: typed })
+                            onChanged()
+                            onClose()
+                          } catch (e) {
+                            setNote(`⚠ ${e.message}`)
+                            setBusy('')
+                          }
+                        }}
+                        className="btn bg-red-600 py-1.5 text-white hover:bg-red-700 disabled:opacity-50"
+                      >
+                        <FiTrash2 size={13} /> {busy === 'delete' ? 'Deleting…' : 'Delete for good'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setDeleting(true)}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 px-3.5 py-2 text-[12.5px] font-semibold text-red-700 hover:bg-red-50"
+                  >
+                    <FiTrash2 size={14} /> Delete this account for good
                   </button>
                 )}
               </Section>

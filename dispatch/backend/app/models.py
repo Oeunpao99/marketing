@@ -174,12 +174,14 @@ class Payment(Base, TimestampMixin):
     """One plan payment by KHQR (app/payments.py): the code shown to the
     customer, its md5 (Bakong finds the transaction by it), and what Bakong
     reported once it was paid. The receipt in Settings → Billing and the admin
-    portal's payments list read these rows."""
+    portal's payments list read these rows. Kept when the account is deleted
+    (admin portal): ``workspace_id`` goes empty and ``account_label`` says whose it was."""
 
     __tablename__ = "payments"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    workspace_id: Mapped[int] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
+    workspace_id: Mapped[int | None] = mapped_column(ForeignKey("workspaces.id", ondelete="SET NULL"), nullable=True, index=True)
+    account_label: Mapped[str] = mapped_column(String(200), default="", server_default="")
     user_id: Mapped[int | None] = mapped_column(ForeignKey("team_members.id", ondelete="SET NULL"), nullable=True)
     plan: Mapped[str] = mapped_column(String(20))
     currency: Mapped[str] = mapped_column(String(3))  # "USD" | "KHR"
