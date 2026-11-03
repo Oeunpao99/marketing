@@ -1015,7 +1015,147 @@ function WorkspaceTab({ showToast }) {
           chats belong to this workspace and are invisible to every other account.
         </p>
       </section>
+
+      <CloseAccountSection />
     </div>
+  )
+}
+
+/** The owner closes the account (deleted for good in 14 days unless they sign in
+ *  again); anyone else leaves the workspace (app/account_close.py). */
+function CloseAccountSection() {
+  const { user, logout } = useAuth()
+  const owner = user?.role === 'owner'
+  const [open, setOpen] = useState(false)
+  const [typed, setTyped] = useState('')
+  const [password, setPassword] = useState('')
+  const [code, setCode] = useState('')
+  const [codeSent, setCodeSent] = useState(false)
+  const [busy, setBusy] = useState('')
+  const [error, setError] = useState('')
+  const [done, setDone] = useState(null) // the "deleted on" date once closed
+
+  const needsCode = owner && user?.has_password === false
+  const nameOk = typed.trim().toLowerCase() === (user?.workspace_name || '').trim().toLowerCase()
+  const ready = owner ? nameOk && (needsCode ? code.replace(/\D/g, '').length === 6 : password) : !user?.has_password || password
+
+  const run = async (key, fn) => {
+    setBusy(key)
+    setError('')
+    try {
+      await fn()
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const sendCode = () =>
+    run('code', async () => {
+      await api.post('/auth/account/close/code', {})
+      setCodeSent(true)
+    })
+  const submit = () =>
+    run('go', async () => {
+      if (owner) {
+        const out = await api.post('/auth/account/close', { confirm: typed, password, code })
+        setDone(new Date(out.deletes_on))
+      } else {
+        await api.post('/auth/account/leave', { password })
+        logout()
+      }
+    })
+
+  if (done) {
+    return (
+      <section className="rounded-2xl border border-red-200 bg-red-50 p-4">
+        <p className="text-[13.5px] font-semibold text-red-800">Your account is closed</p>
+        <p className="mt-1 text-[12.5px] leading-relaxed text-red-700">
+          Everyone was signed out. It’s deleted for good on <b>{done.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}</b>.
+          Changed your mind? Just sign in again before then and everything comes back.
+        </p>
+        <button type="button" onClick={logout} className="btn-outline mt-3 py-1.5">
+          Sign out
+        </button>
+      </section>
+    )
+  }
+
+  return (
+    <section className="space-y-3 border-t border-ink-100 pt-6">
+      <SectionTitle
+        title={owner ? 'Close account' : 'Leave this workspace'}
+        sub={
+          owner
+            ? 'Delete this workspace and everything in it — posts, videos, brands and connected pages. Payment receipts are kept.'
+            : `Remove your own login from ${user?.workspace_name || 'this workspace'}. What you made stays with the workspace.`
+        }
+      />
+      {!open ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 px-3.5 py-2 text-[12.5px] font-semibold text-red-700 hover:bg-red-50"
+        >
+          {owner ? 'Close my account' : 'Leave this workspace'}
+        </button>
+      ) : (
+        <div className="space-y-3 rounded-2xl border border-red-200 bg-red-50 p-4">
+          {owner ? (
+            <ul className="list-disc space-y-1 pl-5 text-[12.5px] leading-relaxed text-red-800">
+              <li>Everyone in it is signed out now, and nothing more is posted or made.</li>
+              <li>In 14 days it’s deleted for good. Sign in again before then to keep it.</li>
+            </ul>
+          ) : (
+            <p className="text-[12.5px] text-red-800">You’ll be signed out and can’t sign in to this workspace again unless someone invites you.</p>
+          )}
+          {owner && (
+            <label className="block text-[11.5px] font-semibold text-red-800">
+              Type <span className="font-bold">{user?.workspace_name}</span> to confirm
+              <input value={typed} onChange={(e) => setTyped(e.target.value)} className={`${input} mt-1`} autoFocus />
+            </label>
+          )}
+          {needsCode ? (
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-end gap-2">
+                <label className="block min-w-[160px] flex-1 text-[11.5px] font-semibold text-red-800">
+                  Code from your email
+                  <input
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    placeholder="123456"
+                    className={`${input} mt-1 tracking-[0.3em]`}
+                  />
+                </label>
+                <button type="button" onClick={sendCode} disabled={busy === 'code'} className="btn-outline py-2">
+                  {busy === 'code' ? 'Sending…' : codeSent ? 'Send again' : 'Email me a code'}
+                </button>
+              </div>
+              {codeSent && <p className="text-[11.5px] text-red-700">Sent to {user?.email}.</p>}
+            </div>
+          ) : (
+            user?.has_password !== false && (
+              <label className="block text-[11.5px] font-semibold text-red-800">
+                Your password
+                <input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} className={`${input} mt-1`} />
+              </label>
+            )
+          )}
+          {error && <p className="text-[12px] font-medium text-red-700">{error}</p>}
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => (setOpen(false), setError(''), setTyped(''), setPassword(''), setCode(''))} className="btn-outline py-1.5">
+              Cancel
+            </button>
+            <button type="button" disabled={!ready || busy === 'go'} onClick={submit} className="btn bg-red-600 py-1.5 text-white hover:bg-red-700 disabled:opacity-50">
+              {busy === 'go' ? (owner ? 'Closing…' : 'Leaving…') : owner ? 'Close my account' : 'Leave workspace'}
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
   )
 }
 

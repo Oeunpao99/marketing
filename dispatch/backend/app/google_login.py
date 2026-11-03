@@ -184,6 +184,12 @@ def google_callback(request: Request, code: str = "", state: str = "", error: st
         if not user.is_active:
             record_login(db, request, email, "disabled", user)
             return _back("This account is disabled.")
+        from app import account_close
+
+        account_close.restore_if_closing(db, user)  # its owner signed in within the 14 days
+        if account_close.is_closing(db, user.workspace_id):
+            record_login(db, request, email, "suspended", user)
+            return _back("This account was closed by its owner.")
         if db.scalar(select(Workspace.suspended_at).where(Workspace.id == user.workspace_id)):
             record_login(db, request, email, "suspended", user)
             return _back("This account is suspended — please contact Smart Marketing support.")

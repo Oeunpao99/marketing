@@ -62,8 +62,12 @@ def get_current_user(
     user = db.get(TeamMember, user_id)
     if user is None or not user.is_active:
         raise HTTPException(401, "Account not found")
-    if db.scalar(select(Workspace.suspended_at).where(Workspace.id == user.workspace_id)):
-        # suspended by the platform admin (app/admin.py) — signed out everywhere
+    state = db.execute(select(Workspace.suspended_at, Workspace.closing_at).where(Workspace.id == user.workspace_id)).first()
+    if state and state[0]:
+        # suspended by the platform admin (app/admin.py), or closed by its owner
+        # (app/account_close.py) — signed out everywhere
+        if state[1]:
+            raise HTTPException(401, "This account was closed. Its owner can sign in again within 14 days to keep it.")
         raise HTTPException(401, "This account is suspended — please contact Marketing ឆ្លាតវៃ support.")
     from app import sessions  # local import: sessions imports this module
     from app.billing import bind_user  # local import: billing imports this module

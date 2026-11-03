@@ -465,6 +465,8 @@ class UserOut(ORMModel):
     access: list[str] | None = None
     # False until a new account enters the code emailed to it (app/auth.py verify-email)
     email_verified: bool = True
+    # False for an account made with Google that never set a password (closing it asks for an email code)
+    has_password: bool = True
 
 
 class WorkspaceUpdate(BaseModel):

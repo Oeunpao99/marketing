@@ -75,6 +75,12 @@ async def _run(interval: int) -> None:
                 ended = await asyncio.to_thread(payments.expire_plans)
                 if ended:
                     log.info("paid plans: %d ended, back to Free", ended)
+                # accounts their owner closed 14+ days ago: deleted for good (app/account_close.py)
+                from app import account_close
+
+                gone = await asyncio.to_thread(account_close.purge_due)
+                if gone:
+                    log.warning("closed accounts: %d deleted for good", gone)
         except asyncio.CancelledError:
             raise
         except Exception:  # noqa: BLE001 - payments never stop delivery

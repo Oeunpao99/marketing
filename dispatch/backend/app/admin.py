@@ -782,16 +782,26 @@ def admin_delete_account(ws_id: int, payload: DeleteAccountIn, db: Session = Dep
     """Delete an account for good: its people, brands, channels, posts, videos and
     files. Only a suspended account, and only with its name typed again. KHQR
     payment records stay (for the books), marked with whose they were."""
-    from sqlalchemy import delete
-    from sqlalchemy.exc import IntegrityError
-
-    from app.models import Payment
-
     w = _workspace(db, ws_id)
     if w.suspended_at is None:
         raise HTTPException(409, "Suspend the account first — only a suspended account can be deleted.")
     if payload.confirm.strip().casefold() != (w.name or "").strip().casefold():
         raise HTTPException(422, "Type the account's name exactly to confirm.")
+    out = delete_account_now(db, w, why="admin portal")
+    if out is None:
+        raise HTTPException(409, "This account couldn't be deleted — nothing was removed. The reason is in the server log.")
+    return out
+
+
+def delete_account_now(db: Session, w: Workspace, why: str) -> dict | None:
+    """The delete itself — the admin portal's button, and an account its owner closed
+    14 days ago (app/account_close.py). None = the database refused (nothing removed)."""
+    from sqlalchemy import delete
+    from sqlalchemy.exc import IntegrityError
+
+    from app.models import Payment
+
+    ws_id = w.id
     owner = _owners(db).get(ws_id)
     label = f"{w.name} · #{w.id}" + (f" · {owner.email}" if owner else "")
     urls = _media_urls(db, ws_id)
@@ -804,10 +814,10 @@ def admin_delete_account(ws_id: int, payload: DeleteAccountIn, db: Session = Dep
         db.commit()
     except IntegrityError:
         db.rollback()
-        log.exception("admin portal: account %s could not be deleted", ws_id)
-        raise HTTPException(409, "This account couldn't be deleted — nothing was removed. The reason is in the server log.") from None
+        log.exception("%s: account %s could not be deleted", why, ws_id)
+        return None
     threading.Thread(target=_delete_files, args=(urls, ws_id), daemon=True, name=f"delete-files-{ws_id}").start()
-    log.warning("admin portal: account %s deleted — %s, %s people, %s files", ws_id, label, people, len(urls))
+    log.warning("%s: account %s deleted — %s, %s people, %s files", why, ws_id, label, people, len(urls))
     return {"deleted": True, "people": people, "files": len(urls)}
 
 

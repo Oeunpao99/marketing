@@ -191,6 +191,50 @@ def send_reset_code(to: str, name: str, code: str, ip: str = "", ua: str = "") -
     )
 
 
+def send_close_code(to: str, name: str, code: str, ip: str = "", ua: str = "") -> None:
+    """Closing an account that has no password (signed up with Google): the code confirms it's them."""
+    first = (name or "").split()[0] if (name or "").strip() else "there"
+    _send_code_mail(
+        to, f"{code} is your code to close your {BRAND} account", f"Your code: {code}", "Close your account", first,
+        "close your Smart Marketing account", code, _app_url(f"/copy-code#{code}"),
+        "If you didn't ask for it, ignore this email — your account stays open.", ip, ua,
+    )
+
+
+def send_account_closing(to: str, name: str, workspace: str, on: str) -> None:
+    """The owner closed the account: what happens, and how to change their mind."""
+    first = (name or "").split()[0] if (name or "").strip() else "there"
+    e = html.escape
+    inner = f"""
+<h1 style="margin:16px 0 8px;font-size:22px;line-height:1.3">Your account is closed</h1>
+<p style="margin:0 0 14px">Hi {e(first)}, <b>{e(workspace)}</b> was closed. Everyone was signed out, and nothing more is posted or made.</p>
+<p style="margin:0 0 14px">On <b>{e(on)}</b> it's deleted for good — posts, videos, brands and connected pages. Your payment receipts are kept.</p>
+<p style="margin:0 0 20px">Changed your mind? Just sign in again before then and everything comes back as it was.</p>
+<div style="margin:0 0 8px"><a href="{_app_url('/?auth=signin')}" style="display:inline-block;padding:12px 22px;border-radius:12px;background:{GREEN};color:#ffffff;font-weight:700;text-decoration:none">Sign in to keep my account</a></div>
+<p style="margin:16px 0 0;color:{SOFT};font-size:14px">Wasn't you? Sign in now to restore it, then change your password — and reply to this email so we can help.</p>"""
+    text = (
+        f"Hi {first},\n\n{workspace} was closed. Everyone was signed out, and nothing more is posted or made.\n"
+        f"On {on} it's deleted for good. Your payment receipts are kept.\n\n"
+        f"Changed your mind? Sign in again before then and everything comes back: {_app_url('/?auth=signin')}\n"
+    )
+    send_later(to, f"Your {BRAND} account is closed — deleted on {on}", text, _frame(f"Deleted on {on} unless you sign in again.", inner))
+
+
+def send_account_restored(to: str, name: str, workspace: str) -> None:
+    """They signed in within the 14 days — the account is back."""
+    first = (name or "").split()[0] if (name or "").strip() else "there"
+    e = html.escape
+    inner = f"""
+<h1 style="margin:16px 0 8px;font-size:22px;line-height:1.3">Welcome back — your account is restored</h1>
+<p style="margin:0 0 14px">Hi {e(first)}, you signed in, so <b>{e(workspace)}</b> won't be deleted. Everything is just as you left it, and your team can sign in again.</p>
+<p style="margin:0;color:{SOFT};font-size:14px">Posts that were scheduled while it was closed didn't go out — check them in Calendar.</p>"""
+    text = (
+        f"Hi {first},\n\nYou signed in, so {workspace} won't be deleted. Everything is as you left it, and your team can sign in again.\n"
+        "Posts scheduled while it was closed didn't go out — check them in Calendar."
+    )
+    send_later(to, f"Your {BRAND} account is restored", text, _frame("Your account won't be deleted.", inner))
+
+
 def send_password_changed(to: str, name: str) -> None:
     """A heads-up after a reset — if it wasn't them, they know at once."""
     first = (name or "").split()[0] if (name or "").strip() else "there"

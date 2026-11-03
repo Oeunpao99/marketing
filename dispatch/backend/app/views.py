@@ -41,6 +41,7 @@ from app.models import (
     Product,
     TeamMember,
     Video,
+    Workspace,
 )
 from app.goals import GOALS, goal_of
 from app.publishers import CannotUnpublish, PublishError, publish, unpublish, verify_telegram
@@ -3852,11 +3853,17 @@ def publish_due_targets(
     now = datetime.now(UTC)
     cutoff = until or now
     stale_before = now - _STALE_POSTING
-    q = select(PostTarget).join(Channel, Channel.id == PostTarget.channel_id)
+    q = (
+        select(PostTarget)
+        .join(Channel, Channel.id == PostTarget.channel_id)
+        .join(Brand, Brand.id == Channel.brand_id)
+        .join(Workspace, Workspace.id == Brand.workspace_id)
+    )
     if workspace_id is not None:
         q = q.where(scope(PostTarget, workspace_id))
     rows = db.scalars(
         q.where(
+            Workspace.closing_at.is_(None),  # an account its owner closed posts nothing more
             PostTarget.scheduled_for.is_not(None),
             PostTarget.scheduled_for <= cutoff,
             Channel.status != "off",

@@ -73,6 +73,10 @@ class Workspace(Base, TimestampMixin):
     # can sign in or use the app, and no AI is charged to it. Null = active.
     suspended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     suspended_reason: Mapped[str] = mapped_column(String(300), default="", server_default="")
+    # The owner closed the account (Settings → Workspace, app/account_close.py): it's
+    # suspended from then, and deleted for good 14 days later unless the owner signs
+    # in again (which restores it). Null = not closing.
+    closing_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # A plan paid for with KHQR (app/payments.py) runs until this moment, then the
     # workspace goes back to Free. Null = not a paid period (Free, or a plan the
     # team set in the admin portal) — never expires by itself.

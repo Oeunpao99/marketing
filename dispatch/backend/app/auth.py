@@ -42,7 +42,7 @@ def _initials(name: str) -> str:
 def _user_out(db: Session, user: TeamMember) -> UserOut:
     ws = db.get(Workspace, user.workspace_id)
     return UserOut.model_validate(user).model_copy(
-        update={"workspace_name": ws.name if ws else "", "email_verified": user.email_verified_at is not None}
+        update={"workspace_name": ws.name if ws else "", "email_verified": user.email_verified_at is not None, "has_password": bool(user.password_hash)}
     )
 
 
@@ -139,6 +139,12 @@ def login(payload: LoginIn, request: Request, db: Session = Depends(get_db)):
         fail("wrong_password", 401, "Wrong email or password.")
     if not user.is_active:
         fail("disabled", 403, "This account is disabled.")
+    from app import account_close
+
+    # the owner of an account they closed in the last 14 days: signing in brings it back
+    account_close.restore_if_closing(db, user)
+    if account_close.is_closing(db, user.workspace_id):
+        fail("suspended", 403, "This account was closed by its owner.")
     if db.scalar(select(Workspace.suspended_at).where(Workspace.id == user.workspace_id)):
         fail("suspended", 403, "This account is suspended — please contact Marketing ឆ្លាតវៃ support.")
     record_login(db, request, email, "success", user)
