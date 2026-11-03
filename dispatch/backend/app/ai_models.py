@@ -208,11 +208,15 @@ def _json_from(text: str) -> dict:
     raise _Retry("broken JSON")
 
 
-def complete(messages: list[dict], model: str, max_tokens: int, effort: str = "") -> tuple[dict, dict]:
+def complete(messages: list[dict], model: str, max_tokens: int, effort: str = "", live=None) -> tuple[dict, dict]:
     """A JSON reply from a non-Azure-OpenAI catalog model: (the parsed object,
-    usage {"input_tokens", "output_tokens"}). Raises ModelError."""
+    usage {"input_tokens", "output_tokens"}). Raises ModelError. ``live``
+    hears Claude's answer so far while it's written (content_ai._chat)."""
     provider = CATALOG[model]["provider"]
-    call = _complete_claude if provider == "azure_claude" else _complete_gemini if provider == "gemini" else None
+    if provider == "azure_claude":
+        call = lambda *a: _complete_claude(*a, live=live)  # noqa: E731
+    else:
+        call = _complete_gemini if provider == "gemini" else None
     if call is None:
         raise ModelError(f"{model} isn't called this way")
     try:
@@ -226,7 +230,9 @@ def complete(messages: list[dict], model: str, max_tokens: int, effort: str = ""
         raise ModelError(TRY_AGAIN) from None
 
 
-def _complete_claude(messages: list[dict], model: str, max_tokens: int, effort: str) -> tuple[dict, dict]:
+def _complete_claude(messages: list[dict], model: str, max_tokens: int, effort: str, live=None) -> tuple[dict, dict]:
+    import time
+
     import anthropic
 
     system = "\n\n".join(str(m["content"]) for m in messages if m.get("role") == "system") + _JSON
@@ -240,6 +246,16 @@ def _complete_claude(messages: list[dict], model: str, max_tokens: int, effort: 
             output_config={"effort": effort if effort in ("low", "medium", "high") else "medium"},
             messages=turns,
         ) as stream:
+            if live:  # the answer so far, at most twice a second (a listener's error never stops it)
+                text, last = "", 0.0
+                for piece in stream.text_stream:
+                    text += piece
+                    if time.monotonic() - last > 0.5:
+                        last = time.monotonic()
+                        try:
+                            live(text)
+                        except Exception:  # noqa: BLE001 — progress is a nicety
+                            log.exception("ai_models: the listener failed")
             msg = stream.get_final_message()
     except anthropic.RateLimitError as exc:
         log.warning("ai_models: Claude rate-limited: %s", str(exc)[:300])

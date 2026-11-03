@@ -739,7 +739,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
   const resumePlan = async (turn) => {
     const live = () => turnsRef.current.find((x) => x.id === turn.id)?.status === 'working'
     try {
-      const res = await waitForPlan(turn.planId, (p) => live() && patchTurn(turn.id, { progress: { stage: 'story', style: p.style, why: p.why } }))
+      const res = await waitForPlan(turn.planId, (p) => live() && patchTurn(turn.id, { progress: { stage: 'story', style: p.style, why: p.why, step: p.step, n: p.n, total: p.total } }))
       if (!mountedRef.current) return persistLate(turn.id, { status: 'review', plan: { ...res.script, why: res.why || '', misfit: !!res.misfit } })
       if (live()) patchTurn(turn.id, { status: 'review', plan: { ...res.script, why: res.why || '', misfit: !!res.misfit } })
       refreshCounts()
@@ -826,7 +826,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
         let res = started
         if (started.plan_id && started.status !== 'done') {
           update(turn.id, { planId: started.plan_id })
-          res = await waitForPlan(started.plan_id, (p) => update(turn.id, { progress: { stage: 'story', style: p.style, why: p.why } }))
+          res = await waitForPlan(started.plan_id, (p) => update(turn.id, { progress: { stage: 'story', style: p.style, why: p.why, step: p.step, n: p.n, total: p.total } }))
         }
         update(turn.id, { status: 'review', plan: { ...res.script, why: res.why || '', misfit: !!res.misfit } })
         refreshCounts()

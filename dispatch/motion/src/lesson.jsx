@@ -25,8 +25,9 @@ function useRoom() {
   return {
     W, H, fps, durationInFrames, wide, u,
     ground: wide ? 900 * u : 1440 * u,
-    board: wide ? { x: 560 * u, y: 150 * u, w: W - 620 * u, h: 640 * u } : { x: 60 * u, y: 340 * u, w: W - 120 * u, h: 620 * u },
-    teacher: wide ? { x: 290 * u, h: 560 * u } : { x: 170 * u, h: 440 * u }, // tall: under the board, pointing up
+    // the board starts low enough for a two-line title clear of the logo chip (Title)
+    board: wide ? { x: 560 * u, y: 190 * u, w: W - 620 * u, h: 610 * u } : { x: 60 * u, y: 470 * u, w: W - 120 * u, h: 560 * u },
+    teacher: wide ? { x: 290 * u, h: 560 * u } : { x: 170 * u, h: 400 * u }, // tall: under the board, pointing up
   }
 }
 
@@ -95,11 +96,14 @@ function Board({ children }) {
 
 /** The title at the top of the screen, key words in red. */
 function Title({ text, big = false }) {
-  const { W, u, wide } = useRoom()
+  const { W, u, wide, board: b } = useRoom()
   if (!text) return null
+  // a box clear of the logo chip and above the board, so a second line never lands on the frame:
+  // tall — under the chip (ends ~225); wide — right of the chip, over the board
+  const box = wide ? { left: b.x, width: b.w, top: 18 * u, height: b.y - 30 * u } : { left: 0, width: W, top: 232 * u, height: b.y - 252 * u }
   return (
-    <div style={{ position: 'absolute', left: 0, right: 0, top: (wide ? 30 : 190) * u, display: 'flex', justifyContent: 'center' }}>
-      <Pop text={text} size={(big ? (wide ? 84 : 96) : wide ? 66 : 74) * u} width={W * (wide ? 0.8 : 0.92)} outline />
+    <div style={{ position: 'absolute', ...box, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Pop text={text} size={(big ? (wide ? 72 : 84) : wide ? 60 : 72) * u} width={wide ? b.w : W * 0.92} outline />
     </div>
   )
 }

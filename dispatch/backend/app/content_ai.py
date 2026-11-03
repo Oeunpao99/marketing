@@ -688,11 +688,12 @@ def gone(resp: httpx.Response, model: str) -> bool:
     return True
 
 
-def _chat(messages: list[dict], model: str, max_tokens: int = 4000, effort: str = "") -> dict:
+def _chat(messages: list[dict], model: str, max_tokens: int = 4000, effort: str = "", live=None) -> dict:
     """One JSON-mode chat completion; returns the parsed JSON object the model
     replied with. Azure OpenAI, or Claude / Gemini for those catalog models
     (app/ai_models.py). ``effort``: the reasoning effort ("low" … "high") for
-    reasoning models; "" = the model's default."""
+    reasoning models; "" = the model's default. ``live``: hears the answer so
+    far while it's written (streamed) — the storyboard counts its scenes."""
     from app import ai_models
 
     if ai_models.CATALOG.get(model, {}).get("provider") in ("azure_claude", "gemini"):
@@ -701,7 +702,7 @@ def _chat(messages: list[dict], model: str, max_tokens: int = 4000, effort: str 
         except billing.OutOfCredit as exc:
             raise ContentAIError(str(exc)) from exc
         try:
-            out, usage = ai_models.complete(messages, model, max_tokens, effort)
+            out, usage = ai_models.complete(messages, model, max_tokens, effort, live=live)
         except ai_models.ModelError as exc:
             raise ContentAIError(str(exc)) from exc
         billing.charge_text(model, usage, _note(messages))
@@ -716,23 +717,25 @@ def _chat(messages: list[dict], model: str, max_tokens: int = 4000, effort: str 
     model = stand_in(model)
     endpoint, key = _endpoint_for(model)
     url = f"{endpoint.rstrip('/')}/chat/completions"
+    headers = {"api-key": key, "Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+    body = {
+        "model": model,
+        "messages": messages,
+        "response_format": {"type": "json_object"},
+        "max_completion_tokens": max_tokens,
+        **({"reasoning_effort": effort} if effort else {}),
+    }
+    if live:
+        streamed = _streamed(url, headers, body, live)
+        if streamed is not None:
+            try:
+                billing.charge_text(streamed.get("model") or model, streamed.get("usage"), _note(messages))
+                return _no_nul(json.loads(streamed["text"].strip()))
+            except ValueError as exc:
+                raise ContentAIError("AI service returned an unexpected response.") from exc
+        # the stream didn't work out: the same call, answered whole
     try:
-        resp = httpx.post(
-            url,
-            headers={
-                "api-key": key,
-                "Authorization": f"Bearer {key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": model,
-                "messages": messages,
-                "response_format": {"type": "json_object"},
-                "max_completion_tokens": max_tokens,
-                **({"reasoning_effort": effort} if effort else {}),
-            },
-            timeout=300.0,
-        )
+        resp = httpx.post(url, headers=headers, json=body, timeout=300.0)
     except httpx.HTTPError as exc:
         raise ContentAIError(f"Could not reach the AI service: {exc}") from exc
     if gone(resp, model):  # that deployment no longer exists: the writer answers
@@ -751,6 +754,56 @@ def _chat(messages: list[dict], model: str, max_tokens: int = 4000, effort: str 
         return _no_nul(json.loads(content))
     except (KeyError, IndexError, AttributeError, ValueError) as exc:
         raise ContentAIError("AI service returned an unexpected response.") from exc
+
+
+def _streamed(url: str, headers: dict, body: dict, live) -> dict | None:
+    """The chat completion streamed, ``live`` hearing the text so far (at most
+    twice a second): {"text", "model", "usage"} — or None when the stream
+    failed (an error status, a dropped connection), for the caller to ask the
+    usual way. A listener's own error never stops the answer."""
+    import time
+
+    parts: list[str] = []
+    model, usage, last = None, None, 0.0
+    try:
+        with httpx.stream(
+            "POST", url, headers=headers, json={**body, "stream": True, "stream_options": {"include_usage": True}}, timeout=300.0
+        ) as resp:
+            if resp.status_code >= 400:
+                resp.read()
+                log.warning("streamed chat: %s %s — asking without the stream", resp.status_code, resp.text[:200])
+                return None
+            for line in resp.iter_lines():
+                if not line.startswith("data:"):
+                    continue
+                chunk = line[5:].strip()
+                if chunk == "[DONE]":
+                    break
+                try:
+                    d = json.loads(chunk)
+                except ValueError:
+                    continue
+                model = d.get("model") or model
+                usage = d.get("usage") or usage
+                for c in d.get("choices") or []:
+                    if (c.get("delta") or {}).get("content"):
+                        parts.append(c["delta"]["content"])
+                    if c.get("finish_reason") == "length":
+                        log.warning("streamed chat: cut off — asking without the stream")
+                        return None
+                now = time.monotonic()
+                if parts and now - last > 0.5:
+                    last = now
+                    try:
+                        live("".join(parts))
+                    except Exception:  # noqa: BLE001 — progress is a nicety
+                        log.exception("streamed chat: the listener failed")
+    except httpx.HTTPError as exc:
+        log.warning("streamed chat: %s — asking without the stream", exc)
+        return None
+    if not parts:
+        return None
+    return {"text": "".join(parts), "model": model, "usage": usage}
 
 
 def _no_nul(value):

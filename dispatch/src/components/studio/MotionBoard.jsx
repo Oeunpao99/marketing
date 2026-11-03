@@ -237,12 +237,22 @@ function LongText({ text }) {
 /** Before the first scene: the AI's thinking, step by step — it read the
  * request, it knows the brand and settings, it picked a template (and why),
  * it's writing the story — so the wait shows work, not just a percentage. */
-function Thinking({ request, meta, style, why, elapsed }) {
+function Thinking({ request, meta, style, why, elapsed, step = '', n = 0, total = 0 }) {
+  // the server's live line (app/motion.py write_script): "Writing scene 12 of about 40", then the polish steps
+  const after = !!step && !step.startsWith('Writing')
   const lines = [
     { done: true, label: 'Read your request', body: request ? `“${request}”` : 'Make one for me — the AI picks the topic' },
     { at: 1.2, done: true, label: 'Your brand and settings', body: meta },
     { at: 2.4, done: !!style, label: style ? `Picked the template: ${style}` : 'Choosing the best template for it', body: style ? why : '' },
-    { at: 2.4, wait: !style, done: false, label: 'Writing your story, scene by scene', body: 'Each scene’s words on screen and what the voice says' },
+    {
+      at: 2.4,
+      wait: !style,
+      done: after,
+      label: after ? `Wrote ${n} scene${n === 1 ? '' : 's'}` : n ? step : 'Writing your story, scene by scene',
+      body: 'Each scene’s words on screen and what the voice says',
+      bar: !after && total > 0 ? Math.min(1, n / total) : null,
+    },
+    { at: 2.4, wait: !after, done: false, label: step },
   ]
   return (
     <ol className="mx-4 mb-4 space-y-2.5 rounded-xl bg-ink-50 px-4 py-3.5">
@@ -264,6 +274,11 @@ function Thinking({ request, meta, style, why, elapsed }) {
                 {busy && <span className="ml-0.5 inline-block animate-pulse">…</span>}
               </span>
               {l.body && (i === 0 ? <LongText text={l.body} /> : <span className="mt-0.5 line-clamp-2 text-[11.5px] leading-snug text-ink-500">{l.body}</span>)}
+              {l.bar != null && (
+                <span className="mt-1.5 block h-1.5 w-48 max-w-full overflow-hidden rounded-full bg-ink-100">
+                  <span className="block h-full rounded-full bg-brand transition-[width] duration-700" style={{ width: `${Math.max(4, l.bar * 100)}%` }} />
+                </span>
+              )}
             </span>
           </li>
         )
@@ -444,7 +459,7 @@ export function MotionMaking({ progress, pct, stage, elapsed, onStop, request = 
         {view && <p className="mt-2 text-[11.5px] text-ink-500">{STEP_HINT[view]} · click the step again to close</p>}
       </header>
       {/* before the first scene: what the AI understood and decided */}
-      {thinking && <Thinking request={request} meta={meta} style={style} why={progress?.why} elapsed={elapsed || 0} />}
+      {thinking && <Thinking request={request} meta={meta} style={style} why={progress?.why} elapsed={elapsed || 0} step={progress?.step || ''} n={progress?.n || 0} total={progress?.total || 0} />}
 
       <div className="border-t border-ink-100">
         {/* the designed scenes, live — in the Animate step only */}

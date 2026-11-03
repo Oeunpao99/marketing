@@ -4777,6 +4777,35 @@ NO_BRAND = (
 )
 
 
+def scenes_so_far(text: str) -> int:
+    """How many scenes a storyboard's JSON has begun while it's still being
+    written (streamed): the objects opened in its "scenes" list."""
+    i = text.find('"scenes"')
+    j = text.find("[", i) if i >= 0 else -1
+    if j < 0:
+        return 0
+    depth = n = 0
+    in_str = esc = False
+    for ch in text[j + 1 :]:
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+        elif ch == '"':
+            in_str = True
+        elif ch in "{[":
+            n += depth == 0 and ch == "{"
+            depth += 1
+        elif ch in "}]":
+            if depth == 0:
+                break
+            depth -= 1
+    return n
+
+
 def write_script(
     brand: Brand,
     products: list[Product],
@@ -4792,6 +4821,7 @@ def write_script(
     wide: bool = False,
     voice: str = "",
     art: str = "",
+    progress=None,
 ) -> dict:
     """The video's storyboard: one AI call, then for Khmer the same
     native-editor pass the captions get. {"scenes": [...]} — always starting
@@ -4801,6 +4831,9 @@ def write_script(
     be followed scene by scene (keeping their sentences for the voice) at
     about that length — the storyboard they review before it's rendered."""
     from app.content_ai import ContentAIError, _chat, _fix_khmer_punctuation, _polish_khmer, writer_model
+
+    # ``progress(step, n, total)``: the storyboard page's live line — "Writing scene 12 of about 40"
+    say = progress or (lambda step, n=0, total=0: None)
 
     khmer = "khmer" in language.lower()
     model = writer_model(khmer)
@@ -4884,6 +4917,14 @@ def write_script(
                 "from THIS brief's subject — never an unrelated example (no coffee in a security film), "
                 "and no made-up people's names."
             )
+    target = count if story else 0
+
+    def live(text: str) -> None:  # the scenes begun so far in the streamed answer
+        n = scenes_so_far(text)
+        if n:
+            say(f"Writing scene {n}" + (f" of about {target}" if 0 < n <= target else ""), n, max(target, n))
+
+    say("Writing the storyboard…", 0, target)
     raw = _chat(
         [
             {"role": "system", "content": prompt + extra},
@@ -4905,12 +4946,14 @@ def write_script(
         # reasoning; the default (medium) took 1-2 minutes on gpt-5-mini. The
         # Khmer editor pass after it still runs at high effort.
         effort="low",
+        live=live if progress else None,
     )
     if story and own_scenes(idea):
         missing = _missing_onscreen(idea, raw)
         if missing:
             # their quoted on-screen lines are the brief's contract: one more pass with what's missing
             log.info("storyboard: %d quoted line(s) missing — asking again: %s", len(missing), "; ".join(missing)[:200])
+            say(f"Adding {len(missing)} on-screen line{'s' if len(missing) != 1 else ''} the first draft missed…")
             try:
                 again = _chat(
                     [
@@ -4927,6 +4970,7 @@ def write_script(
                     model,
                     max_tokens=(32000 if count > LONG_STORY_SCENES or style == "canvas" else 16000),
                     effort="low",
+                    live=live if progress else None,
                 )
                 if isinstance(again.get("scenes"), list) and len(_missing_onscreen(idea, again)) < len(missing):
                     raw = again
@@ -4974,6 +5018,7 @@ def write_script(
                 if L.get(k) and _plain(L[k]) not in quoted and not any(q and q in _plain(L[k]) for q in quoted)
             ]
             if slots:
+                say("Polishing the Khmer words…")
                 fixed = _polish_khmer(
                     [obj[key] for obj, key, _ in slots],
                     model,
@@ -4986,6 +5031,7 @@ def write_script(
                     obj[key] = _line(_fix_khmer_punctuation(value), n)
         if not (story and own_voice(idea)):
             _report(job_id, stage="polish", scenes=_board(script), asks=asks_status(script))
+            say("Making the voice lines flow as one story…")
             _narrate(script, brand, products, model, khmer, own=story, narrator=story)
         _report(job_id, stage="pictures", scenes=_board(script), asks=asks_status(script))
         return script
@@ -5115,6 +5161,7 @@ def write_script(
                 slots += [(x, "label", 40) for x in s["sides"]]
         # Story mode: the voice lines are the person's own sentences — kept.
         slots = [x for x in slots if x[0][x[1]] and (x[1] != "say" or style in DIALOGUE_STYLES)]  # the voice lines: voice_script_khmer
+        say("Polishing the Khmer words…")
         fixed = _polish_khmer(
             [obj[key] for obj, key, _ in slots],
             model,
@@ -5134,6 +5181,7 @@ def write_script(
         # English, below — a pasted script's "ដល់ម៉ោង ៩" came back "ត្រឹមម៉ោង ៩")
         spoken = [s for s in script["scenes"] if s.get("say")] if style not in DIALOGUE_STYLES and not (story and own_voice(idea)) else []
         if spoken:
+            say("Making the voice lines sound natural…")
             shows = [screen for screen, _ in script_lines({"scenes": spoken})]
             for s, line in zip(
                 spoken,
@@ -5146,6 +5194,7 @@ def write_script(
         _report(job_id, stage="pictures", scenes=_board(script))
     elif not (story and own_voice(idea)) and style not in DIALOGUE_STYLES:
         # English: the same storyteller pass — the lines linked into one spoken story
+        say("Making the voice lines flow as one story…")
         _narrate(script, brand, products, model, False, own=story, narrator=story)
         _report(job_id, stage="pictures", scenes=_board(script))
     if style == "presenter" and not (story and own_voice(idea)):
@@ -7416,9 +7465,10 @@ class Unbranded:
         return getattr(self._brand, key)
 
 
-def _build_plan(payload: "PlanIn", ws: int, user_id: int, on_style=None) -> dict:
+def _build_plan(payload: "PlanIn", ws: int, user_id: int, on_style=None, progress=None) -> dict:
     """The storyboard itself — the slow part (several AI calls). ``on_style``
-    hears the template picked (and why) as soon as it's decided, for the page."""
+    hears the template picked (and why) as soon as it's decided, for the page;
+    ``progress(step, n, total)`` each step (write_script)."""
     db = SessionLocal()
     try:
         brand = db.get(Brand, payload.brand_id)
@@ -7448,6 +7498,7 @@ def _build_plan(payload: "PlanIn", ws: int, user_id: int, on_style=None) -> dict
         script = write_script(
             brand, products, payload.idea, payload.language, "", list(music_tracks()) if payload.music else [], style,
             seconds=seconds, shots=shots, design=design, wide=shape == "16:9", art=alias_art(payload.goal),
+            progress=progress,
         )
         apply_alias(script, payload.goal)
         script["ratio"] = shape
@@ -7465,7 +7516,12 @@ def _run_plan(plan_id: str, payload: "PlanIn", ws: int, user_id: int, model: str
     billing.bind(ws, user_id, model)  # the AI calls in this thread are charged to them (and use their pick)
     try:
         # the template and why, as soon as they're picked — the page shows its thinking
-        result = _build_plan(payload, ws, user_id, on_style=lambda style, why: _plans[plan_id].update(style=style, why=why))
+        result = _build_plan(
+            payload, ws, user_id,
+            on_style=lambda style, why: _plans[plan_id].update(style=style, why=why),
+            # the live line, like the weekly plan's: "Writing scene 12 of about 40"
+            progress=lambda step, n=0, total=0: _plans[plan_id].update(step=step, **({"n": n, "total": total} if n or total else {})),
+        )
         _plans[plan_id].update(status="done", result=result)
     except ContentAIError as exc:
         _plans[plan_id].update(status="failed", error=str(exc))
@@ -7536,7 +7592,10 @@ def plan_status(plan_id: str, ws: int = Depends(current_workspace_id)):
         raise HTTPException(404, "This storyboard isn't here any more — write it again.")
     if job["status"] == "running":
         # what the AI has decided so far (the template and why) — the card shows it
-        return {"status": "running", "style": job.get("style"), "why": job.get("why") or ""}
+        return {
+            "status": "running", "style": job.get("style"), "why": job.get("why") or "",
+            "step": job.get("step") or "", "n": job.get("n") or 0, "total": job.get("total") or 0,
+        }
     if job["status"] == "failed":
         return {"status": "failed", "error": job.get("error") or "The storyboard couldn't be written."}
     return {"status": "done", **job["result"]}
