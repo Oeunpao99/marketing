@@ -1022,6 +1022,40 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
       status: 'working',
       startedAt: Date.now(),
     }
+    // A short image idea ("create me an image for my shop") with no product,
+    // template or picture of its own: the prompt writer (✦ Write it for me)
+    // turns it into a full brief from the brand's real products — and a brand
+    // with one product that has a photo sends that photo, so the real product
+    // is in the picture. Longer prompts go exactly as typed.
+    const words = prompt.split(/\s+/).filter(Boolean).length
+    const short = turn.kind === 'image' && brandObj && !turn.refUrl && !turn.refUrls.length && !turn.kit?.productId && !turn.kit?.templateId && words <= 8
+    if (short && kitProducts.length) {
+      const only = kitProducts.length === 1 ? kitProducts[0] : null
+      const pid = only && kitPhotos.some((a) => a.product_id === only.id) ? only.id : null
+      const auto = pid ? { ...turn, kit: { templateId: null, logo: false, ...(turn.kit || {}), productId: pid } } : turn
+      setTurns((list) => [...list, auto])
+      setText('')
+      setRefImg(null)
+      api
+        .post('/ai/prompt', {
+          brand: brandObj.name || '',
+          brand_language: brandObj.lang || '',
+          brand_id: brandObj.id,
+          type: 'image',
+          aspect_ratio: auto.ratio,
+          style,
+          topic: prompt,
+          brand_kit: !!pid,
+          product_id: pid,
+        })
+        .then((res) => {
+          addTokens(res.total_tokens)
+          patchTurn(auto.id, { prompt: res.prompt })
+          run({ ...auto, prompt: res.prompt })
+        })
+        .catch(() => run(auto)) // the writer is down: their own words, as typed
+      return
+    }
     setTurns((list) => [...list, turn])
     setText('')
     setRefImg(null)
