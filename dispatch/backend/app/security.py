@@ -68,7 +68,9 @@ def verify_payload(token: str) -> dict:
 
 def create_token(user_id: int) -> str:
     ttl = get_settings().token_ttl_hours * 3600
-    return sign_payload({"sub": int(user_id)}, ttl)
+    # "n": two sign-ins in the same second still get their own token — and so
+    # their own session (app/sessions.py: one device signed out, not both)
+    return sign_payload({"sub": int(user_id), "n": secrets.token_hex(4)}, ttl)
 
 
 def decode_token(token: str) -> int:

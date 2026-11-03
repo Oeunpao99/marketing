@@ -766,6 +766,9 @@ class UserSession(Base):
     # a sign-in from a device this person hadn't used before — the bell asks
     # "Was this you?" until they answer (confirmed_at) or sign it out
     new_device: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    # this browser's own id (the cf_dev cookie, made once by the app) — tells two
+    # computers with the same browser apart; "" for sessions before it existed
+    device_id: Mapped[str] = mapped_column(String(64), default="", server_default="")
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 

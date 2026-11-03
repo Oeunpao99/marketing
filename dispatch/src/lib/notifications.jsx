@@ -2,13 +2,13 @@
 // Topbar / Sidebar counts, filtered by Settings → Notifications. (Phone and
 // desktop pop-ups are server-sent Web Push — see lib/push.js, app/push.py.)
 import { useEffect, useMemo, useState } from 'react'
-import { FiAlertTriangle, FiAward, FiCheckCircle, FiFilm, FiInbox, FiShield } from 'react-icons/fi'
+import { FiAlertTriangle, FiAward, FiCheckCircle, FiFilm, FiInbox, FiShield, FiUserPlus } from 'react-icons/fi'
 import { notificationStamp, readDismissed, saveDismissed } from './notificationDismissals'
 import { useAuth } from '../auth'
 import { PLAT } from '../data/brands'
 import { useStore } from '../store'
 import { useUsage } from './usage'
-import { useSecurityAlerts } from './securityAlerts'
+import { useJoinedAlerts, useSecurityAlerts } from './securityAlerts'
 import { useInsightAlerts } from './insightAlerts'
 import { useWorkspaceAlerts } from './workspaceAlerts'
 import { canOpen } from './access'
@@ -49,6 +49,7 @@ export function useNotifications() {
   const v = usage?.videos
   const lowVideos = v?.limit && v.left <= Math.max(1, Math.round(v.limit * 0.2)) ? v.left : null
   const devices = useSecurityAlerts()
+  const joined = useJoinedAlerts() // owners / admins: who joined the workspace this week
   const insight = useInsightAlerts() // Analytics: what can't report numbers, and the #1 post
 
   return useMemo(() => {
@@ -69,11 +70,26 @@ export function useNotifications() {
         urgent: true,
       })
     })
+    // someone new in the workspace (an invite link, or added by a manager) — can be dismissed
+    if (prefs.security)
+      joined.forEach((m) => {
+        out.push({
+          id: `joined-${m.id}`,
+          kind: 'joined',
+          icon: <FiUserPlus size={14} className="text-brand" />,
+          tag: 'Team',
+          dot: 'bg-brand',
+          title: `${m.name} joined your workspace`,
+          body: `${m.email} · ${m.role} · ${new Date(m.created_at).toLocaleString()}`,
+          to: '/?settings=team',
+          urgent: true,
+        })
+      })
     workspace.needs.forEach((need) => {
       if (['failed', 'credit', 'review'].includes(need.key)) return
       const kind = ['stuck', 'channels'].includes(need.key) ? 'channel' : ['weekly', 'no_media'].includes(need.key) ? 'review' : 'tasks'
       if (!prefs[kind] || !canOpen(user, need.to || '/command')) return
-      out.push({ id: `task-${need.key}`, kind, icon: <FiInbox size={14} className="text-brand" />, tag: 'Workspace task', dot: 'bg-brand', title: `${need.count != null ? `${need.count} ? ` : ''}${need.title}`, body: need.detail || '', to: need.to || '/command', urgent: true })
+      out.push({ id: `task-${need.key}`, kind, icon: <FiInbox size={14} className="text-brand" />, tag: 'Workspace task', dot: 'bg-brand', title: `${need.count != null ? `${need.count} · ` : ''}${need.title}`, body: need.detail || '', to: need.to || '/command', urgent: true })
     })
     if (prefs.channel && workspace.health?.attention && !(insight.problems || []).length && canOpen(user, '/channels')) {
       out.push({ id: 'accounts-attention', kind: 'channel', icon: <FiAlertTriangle size={14} className="text-amber-500" />, tag: 'Connection', dot: 'bg-amber-400', title: `${workspace.health.attention} accounts need reconnecting`, body: 'Reconnect these accounts to read their latest results.', to: '/channels', urgent: true })
@@ -195,7 +211,7 @@ export function useNotifications() {
     }
     return { items: visible, count: visible.filter((i) => i.urgent).length, dismiss: (item) => dismissItems([item]), clearAll: () => dismissItems(visible) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [review, queue, channels, key, lowVideos, devices, insight, scope, revision, workspace, user])
+  }, [review, queue, channels, key, lowVideos, devices, joined, insight, scope, revision, workspace, user])
 }
 
 /** Rings every bell (Topbar, MobileBar) — a video finished (MakingStatus), a new notification. */

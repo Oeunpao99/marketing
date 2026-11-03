@@ -63,3 +63,40 @@ export function useSecurityAlerts() {
   }, [])
   return alerts
 }
+
+// People who joined the workspace this week (GET /auth/security/joined — an
+// owner's / admin's bell: "Dara joined your workspace"). Loaded with the device
+// alerts, every minute and when the window comes back.
+let joined = []
+let joinedTimer = null
+const joinedListeners = new Set()
+
+function loadJoined() {
+  return api
+    .get('/auth/security/joined')
+    .then((rows) => {
+      joined = Array.isArray(rows) ? rows : []
+      joinedListeners.forEach((fn) => fn(joined))
+    })
+    .catch(() => {})
+}
+
+export function useJoinedAlerts() {
+  const [rows, setRows] = useState(joined)
+  useEffect(() => {
+    joinedListeners.add(setRows)
+    if (joinedListeners.size === 1) {
+      loadJoined()
+      joinedTimer = setInterval(loadJoined, 60_000)
+      window.addEventListener('focus', loadJoined)
+    }
+    return () => {
+      joinedListeners.delete(setRows)
+      if (!joinedListeners.size) {
+        clearInterval(joinedTimer)
+        window.removeEventListener('focus', loadJoined)
+      }
+    }
+  }, [])
+  return rows
+}

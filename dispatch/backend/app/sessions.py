@@ -55,6 +55,12 @@ def _client(request: Request) -> tuple[str, str]:
     return client_ip(request)[:64], request.headers.get("user-agent", "")[:300]
 
 
+def _device_cookie(request: Request) -> str:
+    """The browser's own id — the cf_dev cookie the app makes once (src/api/client.js)."""
+    dev = (request.cookies.get("cf_dev") or "").strip()
+    return dev if 8 <= len(dev) <= 64 and all(ch.isalnum() or ch in "-_" for ch in dev) else ""
+
+
 # ── location ──────────────────────────────────────────────────────────────
 def _lookup_place(ip: str) -> str:
     try:
@@ -98,30 +104,39 @@ def _locate(sid: str, ip: str) -> None:
 
 
 # ── recording ─────────────────────────────────────────────────────────────
-def _is_new_device(db: Session, user_id: int, ua: str) -> bool:
-    """A browser + system this person has never signed in with — and not their
-    very first sign-in (nothing to compare with yet)."""
-    seen = db.scalars(
-        select(UserSession.user_agent).where(UserSession.user_id == user_id).order_by(UserSession.created_at.desc()).limit(300)
+def _is_new_device(db: Session, user_id: int, ua: str, dev: str = "") -> bool:
+    """A device this person has never signed in with — and not their very first
+    sign-in (nothing to compare with yet). With the browser's own id (cf_dev): an
+    id never seen before, so another computer with the same browser counts too.
+    Until they have a session with an id (before ids existed, or no cookie): a
+    browser + system never seen before."""
+    seen = db.execute(
+        select(UserSession.user_agent, UserSession.device_id)
+        .where(UserSession.user_id == user_id)
+        .order_by(UserSession.created_at.desc())
+        .limit(300)
     ).all()
     if not seen:
         return False
+    known_ids = {d for _, d in seen if d}
+    if dev and known_ids:
+        return dev not in known_ids
     here = _device(ua)
-    return all(_device(u) != here for u in seen)
+    return all(_device(u) != here for u, _ in seen)
 
 
-def _create(sid: str, user: TeamMember, ip: str, ua: str, fresh: bool = False) -> None:
+def _create(sid: str, user: TeamMember, ip: str, ua: str, fresh: bool = False, dev: str = "") -> None:
     """Record a session. ``fresh``: a real sign-in just now (not an old token
     seen for the first time) — then a new device is flagged and its owner told."""
     db = SessionLocal()
     new_device = False
     try:
         now = datetime.now(UTC)
-        new_device = fresh and _is_new_device(db, user.id, ua)
+        new_device = fresh and _is_new_device(db, user.id, ua, dev)
         db.add(
             UserSession(
                 id=sid, user_id=user.id, workspace_id=user.workspace_id,
-                created_at=now, last_seen_at=now, ip=ip, user_agent=ua, new_device=new_device,
+                created_at=now, last_seen_at=now, ip=ip, user_agent=ua, new_device=new_device, device_id=dev,
             )
         )
         db.commit()
@@ -144,7 +159,7 @@ def _create(sid: str, user: TeamMember, ip: str, ua: str, fresh: bool = False) -
 def start(token: str, user: TeamMember, request: Request) -> None:
     """A fresh login / sign-up: record its session (and flag a new device)."""
     ip, ua = _client(request)
-    _create(session_id(token), user, ip, ua, fresh=True)
+    _create(session_id(token), user, ip, ua, fresh=True, dev=_device_cookie(request))
 
 
 def touch(db: Session, token: str, user: TeamMember, request: Request) -> None:
@@ -154,8 +169,16 @@ def touch(db: Session, token: str, user: TeamMember, request: Request) -> None:
     row = db.get(UserSession, sid)
     if row is None:
         ip, ua = _client(request)
-        _create(sid, user, ip, ua)
+        _create(sid, user, ip, ua, dev=_device_cookie(request))
         return
+    if not row.device_id and _device_cookie(request):  # a session from before ids: learn this browser's
+        writer = SessionLocal()
+        try:
+            writer.execute(update(UserSession).where(UserSession.id == sid).values(device_id=_device_cookie(request)))
+            writer.commit()
+        finally:
+            writer.close()
+        row.device_id = _device_cookie(request)
     if row.revoked_at is not None or row.user_id != user.id:
         raise HTTPException(401, "You were signed out on this device.")
     now = datetime.now(UTC)
@@ -249,6 +272,44 @@ def security_alerts(request: Request, db: Session = Depends(get_db), user: TeamM
         {"id": r.id, "device": _device(r.user_agent), "location": r.location or "Unknown place", "ip": r.ip, "created_at": r.created_at}
         for r in rows
     ]
+
+
+@router.get("/security/joined")
+def joined_alerts(db: Session = Depends(get_db), user: TeamMember = Depends(get_current_user)):
+    """People who joined this workspace in the last 7 days (an invite link, or added
+    by a manager) — for an owner's / admin's bell. Not themselves."""
+    if user.role not in ("owner", "admin"):
+        return []
+    since = max(datetime.now(UTC) - timedelta(days=7), _aware(user.created_at))
+    rows = db.scalars(
+        select(TeamMember)
+        .where(TeamMember.workspace_id == user.workspace_id, TeamMember.id != user.id, TeamMember.created_at > since)
+        .order_by(TeamMember.created_at.desc())
+        .limit(10)
+    ).all()
+    return [{"id": m.id, "name": m.name, "email": m.email, "role": m.role, "created_at": m.created_at} for m in rows]
+
+
+def _aware(d: datetime) -> datetime:
+    return d.replace(tzinfo=UTC) if d.tzinfo is None else d
+
+
+def member_joined(member: TeamMember, how: str) -> None:
+    """Push "Dara joined your workspace" to its owner and admins (``how``: "with an invite link" / "added by …")."""
+    from app.push import notify_user
+
+    db = SessionLocal()
+    try:
+        managers = db.scalars(
+            select(TeamMember.id).where(
+                TeamMember.workspace_id == member.workspace_id, TeamMember.role.in_(("owner", "admin")),
+                TeamMember.id != member.id, TeamMember.is_active.is_(True),
+            )
+        ).all()
+    finally:
+        db.close()
+    for mid in managers:
+        notify_user(mid, "security", f"{member.name} joined your workspace", f"{member.email} · {member.role} · {how}", "/?alerts=security", f"joined-{member.id}")
 
 
 @router.post("/security/sessions/{sid}/confirm", status_code=204)

@@ -563,13 +563,27 @@ def payment_invoice(payment_id: int, db: Session = Depends(get_db), ws: int = De
     """The invoice of a paid payment, as a PDF to download (app/invoice.py)."""
     from fastapi.responses import Response
 
-    from app import invoice
-
     p = _mine(db, payment_id, ws)
     if p.status != "paid":
         raise HTTPException(409, "An invoice is made once the payment is confirmed.")
-    w = db.get(Workspace, ws)
+    pdf, name = invoice_pdf(db, p)
+    return Response(pdf, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{name}.pdf"'})
+
+
+def _payer(db: Session, p: Payment) -> TeamMember | None:
+    """Who paid — else the account's owner (the invoice's "Bill to", the email's "To")."""
     payer = db.get(TeamMember, p.user_id) if p.user_id else None
+    if payer is None and p.workspace_id:
+        payer = db.scalar(select(TeamMember).where(TeamMember.workspace_id == p.workspace_id, TeamMember.role == "owner"))
+    return payer
+
+
+def invoice_pdf(db: Session, p: Payment) -> tuple[bytes, str]:
+    """A paid payment's invoice PDF and its number (INV-2026-000018)."""
+    from app import invoice
+
+    w = db.get(Workspace, p.workspace_id) if p.workspace_id else None
+    payer = _payer(db, p)
     pdf = invoice.render(
         payment_id=p.id,
         plan_label=billing.PLAN_LABEL.get(p.plan, p.plan.title()),
@@ -586,8 +600,47 @@ def payment_invoice(payment_id: int, db: Session = Depends(get_db), ws: int = De
         customer_workspace=w.name if w else "",
         customer_email=payer.email if payer else "",
     )
-    name = invoice.number(p.id, p.paid_at)
-    return Response(pdf, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{name}.pdf"'})
+    return pdf, invoice.number(p.id, p.paid_at)
+
+
+def email_invoice(payment_id: int) -> None:
+    """Once a payment is confirmed: the thank-you email with its invoice PDF
+    attached, to whoever paid — in the background; a mail problem never touches
+    the payment (the invoice stays downloadable in Settings → Billing)."""
+    from app import mailer
+
+    if not mailer.configured():
+        return
+
+    def run() -> None:
+        db = SessionLocal()
+        try:
+            p = db.get(Payment, payment_id)
+            if p is None or p.status != "paid":
+                return
+            payer = _payer(db, p)
+            if payer is None or not payer.email:
+                log.warning("payment %s: no email to send the invoice to", payment_id)
+                return
+            pdf, number = invoice_pdf(db, p)
+            amount = f"{float(p.amount):,.0f} KHR" if p.currency == "KHR" else f"${float(p.amount):,.2f}"
+            until = _aware(p.period_end)
+            mailer.send_invoice(
+                payer.email,
+                payer.name,
+                what=_label(p) + ("" if p.plan == TOP_UP else " plan"),
+                amount=amount,
+                until=f"{until:%d %B %Y}" if until else "",
+                top_up=p.plan == TOP_UP,
+                number=number,
+                pdf=pdf,
+            )
+        except Exception:  # noqa: BLE001 — never the payment's problem
+            log.exception("payment %s: invoice email not sent", payment_id)
+        finally:
+            db.close()
+
+    threading.Thread(target=run, daemon=True, name=f"invoice-mail-{payment_id}").start()
 
 
 @router.get("/payments")
@@ -733,6 +786,7 @@ def _activate(db: Session, payment_id: int, tx: dict) -> None:
     added = billing.grant_month(db, w, p.user_id)
     db.commit()
     log.warning("payment %s PAID: workspace %s → %s until %s (+%s credits)", p.id, w.id, p.plan, w.plan_paid_until, added)
+    email_invoice(p.id)  # the thank-you + invoice PDF to their inbox (background)
     try:
         from app import push
 
@@ -768,6 +822,7 @@ def _add_bought(db: Session, p: Payment, w: Workspace, tx: dict, now: datetime) 
     )
     db.commit()
     log.warning("payment %s PAID: workspace %s +%s credits (top-up: %s)", p.id, w.id, credits, _label(p))
+    email_invoice(p.id)  # the thank-you + invoice PDF to their inbox (background)
     try:
         from app import push
 

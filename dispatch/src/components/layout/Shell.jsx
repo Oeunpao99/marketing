@@ -10,6 +10,7 @@ import AppUpdate from './AppUpdate'
 import OnboardingTour from './OnboardingTour'
 import SetupWizard from '../setup/SetupWizard'
 import WelcomeHello from './WelcomeHello'
+import SecurityPopup from './SecurityPopup'
 import NewTemplates from './NewTemplates'
 import NewFeature from './NewFeature'
 import { useStore } from '../../store'
@@ -181,6 +182,7 @@ export default function Shell({ children }) {
       <CreateBrandDrawer />
       <AppUpdate />
       <WelcomeHello />
+      <SecurityPopup />
       <SetupWizard />
       <OnboardingTour />
       <NewTemplates />

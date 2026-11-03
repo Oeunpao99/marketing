@@ -585,6 +585,7 @@ def add_member(payload: MemberIn, manager: TeamMember = Depends(require_manager)
     db.add(m)
     db.commit()
     db.refresh(m)
+    sessions.member_joined(m, f"added by {manager.name}")  # the owner / admins hear (push + bell)
     return _member_out(m)
 
 
@@ -793,4 +794,5 @@ def join(token: str, payload: JoinIn, request: Request, db: Session = Depends(ge
     record_login(db, request, email, "signup", user)
     token_out = create_token(user.id)
     sessions.start(token_out, user, request)
+    sessions.member_joined(user, "with an invite link")  # the owner / admins hear (push + bell)
     return AuthOut(token=token_out, user=_user_out(db, user))

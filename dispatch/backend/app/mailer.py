@@ -33,7 +33,7 @@ def configured() -> bool:
     return bool(s.smtp_host and (s.mail_from or s.smtp_user))
 
 
-def _send(to: str, subject: str, text: str, body_html: str) -> None:
+def _send(to: str, subject: str, text: str, body_html: str, attachments: list[tuple[str, bytes, str]] | None = None) -> None:
     s = get_settings()
     sender = s.mail_from or formataddr((BRAND, s.smtp_user))
     msg = EmailMessage()
@@ -45,6 +45,9 @@ def _send(to: str, subject: str, text: str, body_html: str) -> None:
         msg["Reply-To"] = s.mail_reply_to
     msg.set_content(text)
     msg.add_alternative(body_html, subtype="html")
+    for filename, data, mime in attachments or []:
+        main, _, sub = mime.partition("/")
+        msg.add_attachment(data, maintype=main, subtype=sub, filename=filename)
     context = ssl.create_default_context()
     if int(s.smtp_port) == 465:
         server = smtplib.SMTP_SSL(s.smtp_host, 465, timeout=30, context=context)
@@ -57,15 +60,16 @@ def _send(to: str, subject: str, text: str, body_html: str) -> None:
         server.send_message(msg)
 
 
-def send_later(to: str, subject: str, text: str, body_html: str) -> None:
-    """Send in the background; a failure is logged, never raised."""
+def send_later(to: str, subject: str, text: str, body_html: str, attachments: list[tuple[str, bytes, str]] | None = None) -> None:
+    """Send in the background; a failure is logged, never raised.
+    ``attachments``: (filename, bytes, "application/pdf") each."""
     if not configured():
         log.info("mail is off — not sent to %s: %s", to, subject)
         return
 
     def run() -> None:
         try:
-            _send(to, subject, text, body_html)
+            _send(to, subject, text, body_html, attachments)
             log.info("mail sent to %s: %s", to, subject)
         except Exception as exc:  # noqa: BLE001 — never the caller's problem
             log.warning("mail to %s not sent (%s): %s", to, subject, exc)
@@ -141,6 +145,38 @@ def send_password_changed(to: str, name: str) -> None:
         "Wasn't you? Reset it again from the sign-in page and reply to this email."
     )
     send_later(to, f"Your {BRAND} password was changed", text, _frame("Your password was changed.", inner))
+
+
+def send_invoice(to: str, name: str, *, what: str, amount: str, until: str, top_up: bool, number: str, pdf: bytes) -> None:
+    """After a payment is confirmed: thank you, what they got, and the invoice PDF attached.
+    ``what``: "Starter plan" or "10 videos"; ``until``: when the plan runs to / the extras last."""
+    first = (name or "").split()[0] if (name or "").strip() else "there"
+    e = html.escape
+    lasts = (f"Your extras are ready to use until {until}." if top_up else f"Your plan is on until {until}.") if until else ""
+    rows = [("Invoice", number), ("For", what), ("Paid", amount + " · KHQR")]
+    table = "".join(
+        f'<tr><td style="padding:6px 0;color:{SOFT};font-size:14px">{e(k)}</td>'
+        f'<td style="padding:6px 0;text-align:right;font-weight:700;font-size:14px">{e(v)}</td></tr>'
+        for k, v in rows
+    )
+    inner = f"""
+<h1 style="margin:16px 0 8px;font-size:22px;line-height:1.3">Payment received — thank you!</h1>
+<p style="margin:0 0 18px">Hi {e(first)}, we've received your payment for <b>{e(what)}</b>. {e(lasts)}</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 18px;padding:12px 16px;border-radius:12px;background:{CANVAS}">{table}</table>
+<p style="margin:0 0 20px;color:{SOFT};font-size:14px">Your invoice is attached as a PDF. You can also download it any time from Settings → Billing.</p>
+<div style="margin:0 0 8px"><a href="{_app_url('/?settings=billing')}" style="display:inline-block;padding:12px 22px;border-radius:12px;background:{GREEN};color:#ffffff;font-weight:700;text-decoration:none">Open billing</a></div>"""
+    text = (
+        f"Hi {first},\n\nWe've received your payment for {what}. {lasts}\n\n"
+        f"Invoice: {number}\nFor: {what}\nPaid: {amount} · KHQR\n\n"
+        f"Your invoice is attached as a PDF — also in Settings → Billing: {_app_url('/?settings=billing')}\n\nThank you,\nThe {BRAND} team"
+    )
+    send_later(
+        to,
+        f"Payment received — your {BRAND} invoice {number}",
+        text,
+        _frame(f"Payment received — {what}, {amount}.", inner),
+        [(f"{number}.pdf", pdf, "application/pdf")],
+    )
 
 
 def send_welcome(to: str, name: str) -> None:

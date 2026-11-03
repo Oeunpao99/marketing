@@ -1,6 +1,20 @@
 const BASE = '/api'
 const TOKEN_KEY = 'tipsa_token'
 
+// This browser's own id, made once and kept for 2 years (the cf_dev cookie — a
+// cookie, so it also reaches the server on the Google sign-in redirect). The
+// server tells "a new device signed in" by it (app/sessions.py).
+;(() => {
+  try {
+    if (/(?:^|;\s*)cf_dev=/.test(document.cookie)) return
+    const id = (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`).replace(/[^A-Za-z0-9-]/g, '')
+    const secure = location.protocol === 'https:' ? '; Secure' : ''
+    document.cookie = `cf_dev=${id}; Max-Age=63072000; Path=/; SameSite=Lax${secure}`
+  } catch {
+    /* no cookies: new devices are told apart by browser + system only */
+  }
+})()
+
 export const tokenStore = {
   get: () => {
     try {

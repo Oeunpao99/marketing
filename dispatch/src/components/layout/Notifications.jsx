@@ -76,7 +76,10 @@ export default function Notifications({ open, onClose, anchor = "header" }) {
 
   const go = (to) => {
     onClose();
-    navigate(to);
+    // "/?settings=team" opens that Settings tab right here (Sidebar listens)
+    const tab = to?.startsWith("/?settings=") ? to.slice(11).replace(/[^a-z]/g, "") : "";
+    if (tab) window.dispatchEvent(new CustomEvent("dispatch:open-settings", { detail: { tab } }));
+    else navigate(to);
   };
 
   return createPortal(
