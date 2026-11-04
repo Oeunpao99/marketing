@@ -287,6 +287,10 @@ class Brand(Base, TimestampMixin):
     # The logo in the corner of its videos (Brand kit → Colours): "auto" — a see-through PNG
     # floats on a light template, else a white card; "card" — always the white card; "none".
     logo_chip: Mapped[str] = mapped_column(String(8), default="auto", server_default="auto")
+    # The main one of its logos (a brand keeps up to 4, brand_kit.MAX_LOGOS) — posters, memes and
+    # videos use it unless a video picks another. None, or a deleted logo's id = its oldest logo
+    # (brand_kit.main_logo). A plain id, no foreign key (brand_assets already points at brands).
+    main_logo_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     @property
     def voice_ready(self) -> bool:
@@ -678,7 +682,7 @@ class Product(Base, TimestampMixin):
 class BrandAsset(Base, TimestampMixin):
     """A brand-kit file the image AI builds on (app/images/brand_kit.py):
 
-    - ``logo``     — the brand's logo (one per brand), placed on posters as-is.
+    - ``logo``     — the brand's logos (up to 4; ``Brand.main_logo_id`` is the main one), placed on posters as-is.
     - ``product``  — a real photo of one of its products (``product_id``), so a
       poster shows the actual product instead of an invented one.
     - ``template`` — a poster the brand likes (its own or an inspiration): new

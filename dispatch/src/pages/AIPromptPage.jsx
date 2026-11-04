@@ -190,6 +190,7 @@ function serializeTurn(t) {
     music: t.music,
     subtitles: t.subtitles,
     branded: t.branded,
+    logoId: t.logoId ?? null,
     goal: t.goal || undefined,
     // Remotion from the person's own story: the storyboard to review / that was made
     reviewFirst: !!t.reviewFirst,
@@ -344,6 +345,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
   // photo to feature and the logo — sent along with image requests.
   const [kitOpen, setKitOpen] = useState(false)
   const [kitAssets, setKitAssets] = useState([])
+  const [motionLogoId, setMotionLogoId] = useState(null) // which of the brand's logos a video uses (null = main)
   const [audiences, setAudiences] = useState([]) // audiences that brought this brand leads (Insights)
   const [kitProducts, setKitProducts] = useState([])
   // The one product an image / video is about (Settings → Product) — the
@@ -406,7 +408,10 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
   const storyVoice = voice ?? (VOICES.includes(brandObj?.lang) ? brandObj.lang : 'English')
   const working = turns.some((t) => t.status === 'working')
   const kitTemplates = kitAssets.filter((a) => a.kind === 'template')
-  const kitLogo = kitAssets.find((a) => a.kind === 'logo')
+  const kitLogo = kitAssets.find((a) => a.kind === 'logo') // the main one comes first (backend brand_kit.list_assets)
+  const kitLogos = kitAssets.filter((a) => a.kind === 'logo')
+  // Remotion: the logo the video uses when the brand keeps several — null = its main one
+  const pickedLogoId = kitLogos.some((a) => a.id === motionLogoId) ? motionLogoId : null
   const kitPhotos = kitAssets.filter((a) => a.kind === 'product')
   const kitTemplate = kitTemplates.find((t) => t.id === kit.templateId)
   const kitProduct = kitProducts.find((p) => p.id === kit.productId)
@@ -475,6 +480,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
     const id = brandObj?.id
     setKit({ templateId: null, productId: null, logo: false })
     setProductId(null)
+    setMotionLogoId(null)
     if (id == null) return
     let live = true
     Promise.all([api.get(`/brand-kit?brand_id=${id}`), api.get('/products')])
@@ -843,6 +849,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
           music: turn.music !== false,
           subtitles: turn.subtitles !== false, // Subtitles: Off — the voice without words on screen
           branded: turn.branded !== false,
+          logo_id: turn.logoId ?? null, // which of the brand's logos (null = its main one)
           goal: turn.goal || 'auto',
           script: turn.script || null, // a reviewed storyboard: made exactly as it is
           ratio: turn.script?.ratio || turn.shape || (turn.ratio === '16:9' ? '16:9' : '9:16'), // a reviewed plan keeps its shape
@@ -1006,6 +1013,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
       music: isMotion ? motionMusic : undefined,
       subtitles: isMotion ? motionSubs : undefined,
       branded: isMotion ? motionLogo : undefined,
+      logoId: isMotion ? pickedLogoId : undefined,
       goal: isMotion ? motionGoal : undefined,
       reviewFirst: isMotion && motionReview,
       length: isMotion && motionReview ? motionLength : undefined,
@@ -1082,6 +1090,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
       music: motionMusic,
       subtitles: motionSubs,
       branded: motionLogo,
+      logoId: pickedLogoId,
       goal: motionGoal,
       brandId: brandObj?.id ?? null,
       brandName: motionLogo ? brandObj?.name || '' : 'No brand',
@@ -1602,6 +1611,9 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
                   setMotionSubs={setMotionSubs}
                   motionLogo={motionLogo}
                   setMotionLogo={setMotionLogo}
+                  logos={kitLogos}
+                  logoId={pickedLogoId}
+                  setLogoId={setMotionLogoId}
                   motionGoal={motionGoal}
                   setMotionGoal={setMotionGoal}
                   motionReview={motionReview}
@@ -2662,6 +2674,7 @@ function SettingsPopover({
   motionVoice = 'female', setMotionVoice = () => {}, motionMusic = true, setMotionMusic = () => {},
   motionSubs = true, setMotionSubs = () => {},
   motionLogo = true, setMotionLogo = () => {},
+  logos = [], logoId = null, setLogoId = () => {},
   motionGoal = 'auto', setMotionGoal = () => {},
   motionReview = true, setMotionReview = () => {}, motionLength = 'auto', setMotionLength = () => {},
   motionRatio = '16:9', setMotionRatio = () => {},
@@ -2925,6 +2938,31 @@ function SettingsPopover({
             ]}
           />
         </Row>
+
+        {/* a brand with several logos (Brand kit): which one this video shows — the main one first */}
+        {motion && motionLogo && logos.length > 1 && (
+          <Row label="Logo" hint={logoId == null ? 'Your main logo' : 'This video uses the logo picked here'}>
+            <div className="flex gap-1.5">
+              {logos.map((a) => {
+                const on = logoId == null ? a.main : a.id === logoId
+                return (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => setLogoId(a.main ? null : a.id)}
+                    aria-pressed={on}
+                    title={a.main ? `${a.name || 'Logo'} · main` : a.name || 'Logo'}
+                    className={`grid h-10 w-14 flex-none place-items-center overflow-hidden rounded-lg border-2 bg-[repeating-conic-gradient(rgb(var(--ink-100))_0_25%,transparent_0_50%)] bg-[length:8px_8px] transition-colors ${
+                      on ? 'border-brand' : 'border-ink-200 hover:border-brand-line'
+                    }`}
+                  >
+                    <img src={kitSrc(a.url)} alt={a.name || 'Logo'} className="max-h-[78%] max-w-[84%] object-contain" />
+                  </button>
+                )
+              })}
+            </div>
+          </Row>
+        )}
 
         {products.length > 1 && (
           <Row label="Product" hint={product ? undefined : 'The AI picks the product your idea is about'}>

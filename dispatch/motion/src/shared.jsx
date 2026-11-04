@@ -271,13 +271,15 @@ export const chipLeft = (width, height) => (width > height ? Math.round(width * 
 export const FEED_BOTTOM = 1635
 export const chipLogo = (width, height) => (height > width ? 62 : 84)
 /** The logo goes on the video itself, no white card (the boss's idea, 2026-10-30): the brand
- * picked "none", or "auto" with a see-through PNG (not a light one) on a light template. */
-export const chipPlain = (brand, lightTemplate) => {
+ * picked "none", or "auto" with a see-through PNG — on every template (the user, 2026-11-04:
+ * a PNG logo still sat on a white box), its halo keeps it readable. A light (white) logo keeps
+ * its dark chip; a JPEG / boxed logo keeps the card. */
+export const chipPlain = (brand) => {
   if (!brand?.logo) return false
   const mode = brand.logoChip || 'auto'
   if (mode === 'none') return true
   if (mode === 'card') return false
-  return lightTemplate && !brand.logoSolid && !brand.logoLight
+  return !brand.logoSolid && !brand.logoLight
 }
 /** The card round the logo, or nothing but a soft shadow that keeps it readable. */
 export const chipBox = (plain, card, dark = false) =>

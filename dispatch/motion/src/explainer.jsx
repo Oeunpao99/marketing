@@ -657,7 +657,7 @@ export function ExplainerChrome({ scenes, brand }) {
   const { width, height } = useVideoConfig()
   return (
     <AbsoluteFill style={{ padding: `${chipTop(width, height)}px ${chipLeft(width, height)}px 0`, pointerEvents: 'none', opacity: chipOpacity(scenes, frame) }}>
-      <div style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 14, borderRadius: 10, ...chipBox(chipPlain(brand, true), { background: 'white', border: 0, padding: brand.logo ? '8px 12px' : '12px 26px' }) }}>
+      <div style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 14, borderRadius: 10, ...chipBox(chipPlain(brand), { background: 'white', border: 0, padding: brand.logo ? '8px 12px' : '12px 26px' }) }}>
         {/* The logo alone; the name only when there's no logo. */}
         {brand.logo ? (
           <Img src={srcOf(brand.logo)} style={{ height: chipLogo(width, height), maxWidth: 260, objectFit: 'contain' }} />

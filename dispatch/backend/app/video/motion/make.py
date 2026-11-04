@@ -102,6 +102,7 @@ def create_motion(
             "ref_urls": payload.ref_urls,
             "branded": payload.branded,
             "subtitles": payload.subtitles,
+            "logo_id": payload.logo_id,
         },
         daemon=True,
         name=f"motion-{job.id}",
@@ -177,6 +178,7 @@ def _make(
     ref_urls: list[str] | None = None,
     branded: bool = True,
     subtitles: bool = True,
+    logo_id: int | None = None,
 ) -> None:
     from app.ai.content_ai import ContentAIError
     from app.video.video import _ready_push
@@ -269,7 +271,7 @@ def _make(
             if job.aspect_ratio != script["ratio"]:
                 job.aspect_ratio = script["ratio"]
                 db.commit()
-            by_product, order, logo = _brand_pictures(db, brand.id) if branded else ({}, [], None)
+            by_product, order, logo = _brand_pictures(db, brand.id, logo_id) if branded else ({}, [], None)
             ref_shot = (
                 _shot_from_blob(read_media(ref_url) or b"", "reference") if ref_url else None
             )  # screenshot 1, as planned

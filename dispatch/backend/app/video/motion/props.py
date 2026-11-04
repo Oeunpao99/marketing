@@ -12,6 +12,7 @@ from PIL import Image
 from app.storage.media import read_media
 from app.models import Brand, BrandAsset, Product
 from app.images.poster import brand_rgb
+from app.images.brand_kit import main_logo
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -40,9 +41,12 @@ def _data_uri(blob: bytes, max_side: int, keep_alpha: bool = False) -> str | Non
         return None
 
 
-def _brand_pictures(db: Session, brand_id: int) -> tuple[dict[int, str], list[str], str | None]:
+def _brand_pictures(
+    db: Session, brand_id: int, logo_id: int | None = None
+) -> tuple[dict[int, str], list[str], str | None]:
     """The brand kit's product photos — by product id, and all of them newest
-    first — and its logo, ready to embed."""
+    first — and its logo, ready to embed: the one the video picked (``logo_id``),
+    else the brand's main one."""
     assets = db.scalars(
         select(BrandAsset).where(
             BrandAsset.brand_id == brand_id, BrandAsset.kind.in_(("product", "logo"))
@@ -56,7 +60,7 @@ def _brand_pictures(db: Session, brand_id: int) -> tuple[dict[int, str], list[st
             order.append(uri)
             if a.product_id is not None:
                 by_product.setdefault(a.product_id, uri)
-    logo = next((a for a in assets if a.kind == "logo"), None)
+    logo = next((a for a in assets if a.kind == "logo" and a.id == logo_id), None) or main_logo(db, brand_id)
     logo_uri = _data_uri(read_media(logo.url) or b"", 512, keep_alpha=True) if logo else None
     return by_product, order, logo_uri
 

@@ -3,7 +3,7 @@
 // and the brand's own voice for its videos (BrandVoice). Managed on the Products page; picked
 // from in the AI Agent's image composer and Auto-generate's image settings.
 import { useEffect, useRef, useState } from 'react'
-import { FiCamera, FiCheck, FiImage, FiPlus, FiTrash2, FiUploadCloud } from 'react-icons/fi'
+import { FiCamera, FiCheck, FiImage, FiPlus, FiTrash2, FiUploadCloud, FiX } from 'react-icons/fi'
 import { api } from '../../api/client'
 import { useStore } from '../../store'
 import AutoTextarea from '../ui/AutoTextarea'
@@ -12,6 +12,7 @@ import BrandVoice from './BrandVoice'
 export const kitSrc = (url) => (!url ? '' : /^https?:/i.test(url) ? url : `${window.location.port === '5173' ? 'http://localhost:8000' : ''}${url}`)
 
 const IMAGE_TYPES = 'image/png,image/jpeg,image/webp'
+const MAX_LOGOS = 4 // backend brand_kit.MAX_LOGOS
 
 /** Upload one brand-kit file; returns the saved asset. */
 export async function uploadKitAsset(file, { brandId, kind, productId, name = '', note = '' }) {
@@ -182,7 +183,7 @@ function BrandColors({ brand, logoId, showToast }) {
 }
 
 const CHIP_MODES = [
-  { id: 'auto', label: 'Auto', hint: 'A see-through PNG logo sits right on light videos; a white card elsewhere' },
+  { id: 'auto', label: 'Auto', hint: 'A see-through PNG logo sits right on the video; a logo with its own background gets a white card' },
   { id: 'card', label: 'White card', hint: 'Always on a small white card' },
   { id: 'none', label: 'No background', hint: 'Always the logo alone — best with a see-through PNG' },
 ]
@@ -227,7 +228,9 @@ function LogoChip({ brand, mode, onSaved, showToast }) {
 
 /** The Brand kit tab: logo + poster templates for one brand. */
 export function BrandKitPanel({ brand, assets, setAssets, showToast }) {
-  const logo = assets.find((a) => a.kind === 'logo' && a.brand_id === brand.id)
+  // up to MAX_LOGOS logos (backend brand_kit.MAX_LOGOS); the main one is what posters use and videos start with
+  const logos = assets.filter((a) => a.kind === 'logo' && a.brand_id === brand.id)
+  const logo = logos.find((a) => a.main) || logos[0]
   const templates = assets.filter((a) => a.kind === 'template' && a.brand_id === brand.id)
   const screens = assets.filter((a) => a.kind === 'screenshot' && a.brand_id === brand.id)
   // the sidebar's brand switcher shows the logo — reload the brands when it changes
@@ -237,7 +240,7 @@ export function BrandKitPanel({ brand, assets, setAssets, showToast }) {
     for (const file of files) {
       try {
         const saved = await uploadKitAsset(file, { brandId: brand.id, kind, name: file.name.replace(/\.[^.]+$/, '') })
-        setAssets((xs) => [...xs.filter((x) => !(kind === 'logo' && x.kind === 'logo' && x.brand_id === brand.id)), saved])
+        setAssets((xs) => [...xs, saved])
       } catch (e) {
         showToast(`Couldn’t upload ${file.name} — ${e.message}`)
         return
@@ -245,13 +248,32 @@ export function BrandKitPanel({ brand, assets, setAssets, showToast }) {
     }
     if (kind === 'logo') refreshChannels?.()
     const what = kind === 'screenshot' ? 'screenshot' : 'template'
-    showToast(kind === 'logo' ? 'Logo saved' : files.length > 1 ? `${files.length} ${what}s added` : `${what[0].toUpperCase()}${what.slice(1)} added`)
+    showToast(kind === 'logo' ? 'Logo added' : files.length > 1 ? `${files.length} ${what}s added` : `${what[0].toUpperCase()}${what.slice(1)} added`)
+  }
+
+  // the brand's logos with ``mainId`` marked main
+  const markMain = (xs, mainId) => xs.map((x) => (x.kind === 'logo' && x.brand_id === brand.id ? { ...x, main: x.id === mainId } : x))
+
+  const makeMain = async (a) => {
+    try {
+      await api.put(`/brand-kit/${a.id}/main`)
+      setAssets((xs) => markMain(xs, a.id))
+      refreshChannels?.()
+      showToast('Main logo set')
+    } catch (e) {
+      showToast(`Couldn’t save — ${e.message}`)
+    }
   }
 
   const remove = async (a) => {
     try {
       await api.del(`/brand-kit/${a.id}`)
-      setAssets((xs) => xs.filter((x) => x.id !== a.id))
+      setAssets((xs) => {
+        const left = xs.filter((x) => x.id !== a.id)
+        // the main one gone: the oldest left takes over (backend brand_kit.main_logo)
+        const next = a.kind === 'logo' && a.main ? left.filter((x) => x.kind === 'logo' && x.brand_id === brand.id).sort((p, q) => p.id - q.id)[0] : null
+        return next ? markMain(left, next.id) : left
+      })
       if (a.kind === 'logo') refreshChannels?.()
     } catch (e) {
       showToast(`Couldn’t remove — ${e.message}`)
@@ -273,44 +295,84 @@ export function BrandKitPanel({ brand, assets, setAssets, showToast }) {
       <section className="card p-5">
         <h2 className="text-[14.5px] font-semibold text-ink-900">Logo</h2>
         <p className="mt-0.5 text-[12px] leading-relaxed text-ink-500">
-          Placed on posters exactly as it is. A PNG with a transparent background works best.
+          Placed on posters exactly as it is. A PNG with a transparent background works best. Keep up to {MAX_LOGOS} (a white one, a
+          Khmer one…) — the main one is used unless a video picks another.
         </p>
-        <FilePick onFiles={(f) => add(f.slice(0, 1), 'logo')}>
-          {(open, busy, drop) => (
-            <button
-              type="button"
-              onClick={open}
-              disabled={busy}
-              {...drop.props}
-              className={`group relative mt-4 grid aspect-[4/3] w-full place-items-center overflow-hidden rounded-xl border-2 border-dashed bg-[repeating-conic-gradient(rgb(var(--ink-100))_0_25%,transparent_0_50%)] bg-[length:16px_16px] transition-colors ${
-                drop.over ? 'border-brand bg-brand-soft' : 'border-ink-200 hover:border-brand-line'
-              }`}
-            >
-              {logo ? (
-                <img src={kitSrc(logo.url)} alt={`${brand.name} logo`} className="max-h-[70%] max-w-[80%] object-contain" />
-              ) : (
+        {logo ? (
+          <div className="mt-4 grid aspect-[4/3] w-full place-items-center overflow-hidden rounded-xl border border-ink-200 bg-[repeating-conic-gradient(rgb(var(--ink-100))_0_25%,transparent_0_50%)] bg-[length:16px_16px]">
+            <img src={kitSrc(logo.url)} alt={`${brand.name} logo`} className="max-h-[70%] max-w-[80%] object-contain" />
+          </div>
+        ) : (
+          <FilePick onFiles={(f) => add(f.slice(0, 1), 'logo')}>
+            {(open, busy, drop) => (
+              <button
+                type="button"
+                onClick={open}
+                disabled={busy}
+                {...drop.props}
+                className={`mt-4 grid aspect-[4/3] w-full place-items-center rounded-xl border-2 border-dashed transition-colors ${
+                  drop.over ? 'border-brand bg-brand-soft' : 'border-ink-200 hover:border-brand-line'
+                }`}
+              >
                 <span className="flex flex-col items-center gap-1.5 text-[12px] font-semibold text-ink-500">
                   <FiUploadCloud size={22} className={drop.over ? 'text-brand' : ''} />
                   {busy ? 'Uploading…' : drop.over ? 'Drop to upload' : 'Upload logo'}
                   {!busy && !drop.over && <span className="text-[11px] font-normal text-ink-400">or drag a PNG / JPG here</span>}
                 </span>
-              )}
-              {logo && (
-                <span
-                  className={`absolute inset-x-0 bottom-0 bg-night-900/60 py-1.5 text-[11.5px] font-semibold text-white transition-opacity group-hover:opacity-100 ${
-                    drop.over || busy ? 'opacity-100' : 'opacity-0'
+              </button>
+            )}
+          </FilePick>
+        )}
+        {logo && (
+          <div className="mt-3 grid grid-cols-4 gap-2">
+            {logos.map((a) => (
+              <div key={a.id} className="group relative">
+                <button
+                  type="button"
+                  onClick={() => !a.main && makeMain(a)}
+                  title={a.main ? 'The main logo' : 'Make this the main logo'}
+                  className={`grid aspect-square w-full place-items-center overflow-hidden rounded-lg border-2 bg-[repeating-conic-gradient(rgb(var(--ink-100))_0_25%,transparent_0_50%)] bg-[length:10px_10px] ${
+                    a.main ? 'border-brand' : 'border-ink-200 hover:border-brand-line'
                   }`}
                 >
-                  {busy ? 'Uploading…' : drop.over ? 'Drop to replace' : 'Replace · or drag a new one here'}
+                  <img src={kitSrc(a.url)} alt={a.name || 'Logo'} className="max-h-[78%] max-w-[82%] object-contain" />
+                </button>
+                <span
+                  className={`pointer-events-none absolute inset-x-1 bottom-1 rounded py-0.5 text-center text-[10px] font-semibold ${
+                    a.main ? 'bg-brand text-white' : 'bg-night-900/70 text-white opacity-0 transition-opacity group-hover:opacity-100'
+                  }`}
+                >
+                  {a.main ? 'Main' : 'Make main'}
                 </span>
-              )}
-            </button>
-          )}
-        </FilePick>
-        {logo && (
-          <button type="button" onClick={() => remove(logo)} className="mt-2 text-[11.5px] font-semibold text-ink-400 hover:text-red-600">
-            Remove logo
-          </button>
+                <button
+                  type="button"
+                  onClick={() => remove(a)}
+                  aria-label="Remove this logo"
+                  className="absolute -right-1.5 -top-1.5 grid h-5 w-5 place-items-center rounded-full bg-white text-ink-500 opacity-0 shadow ring-1 ring-ink-200 transition-opacity hover:text-red-600 group-hover:opacity-100"
+                >
+                  <FiX size={11} />
+                </button>
+              </div>
+            ))}
+            {logos.length < MAX_LOGOS && (
+              <FilePick onFiles={(f) => add(f.slice(0, MAX_LOGOS - logos.length), 'logo')}>
+                {(open, busy, drop) => (
+                  <button
+                    type="button"
+                    onClick={open}
+                    disabled={busy}
+                    {...drop.props}
+                    title="Add another logo"
+                    className={`grid aspect-square w-full place-items-center rounded-lg border-2 border-dashed text-ink-400 transition-colors ${
+                      drop.over ? 'border-brand bg-brand-soft text-brand' : 'border-ink-200 hover:border-brand-line hover:text-ink-600'
+                    }`}
+                  >
+                    {busy ? <span className="text-[10px] font-semibold">…</span> : <FiPlus size={16} />}
+                  </button>
+                )}
+              </FilePick>
+            )}
+          </div>
         )}
         <BrandColors brand={brand} logoId={logo?.id} showToast={showToast} />
       </section>

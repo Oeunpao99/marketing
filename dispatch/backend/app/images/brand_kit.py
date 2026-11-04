@@ -35,6 +35,7 @@ MAX_BYTES = 20 * 1024 * 1024
 MAX_TEMPLATES = 12
 MAX_PRODUCT_PHOTOS = 30
 MAX_SCREENSHOTS = 12  # app / website screens the Remotion videos show (app/video/motion/)
+MAX_LOGOS = 4  # the main logo, a white one, a Khmer one… — a video can pick which (the user, 2026-11-04)
 
 
 class AssetOut(BaseModel):
@@ -45,6 +46,7 @@ class AssetOut(BaseModel):
     name: str
     note: str
     product_id: int | None
+    main: bool = False  # the brand's main logo
 
 
 class AssetPatch(BaseModel):
@@ -53,8 +55,21 @@ class AssetPatch(BaseModel):
     product_id: int | None = None
 
 
-def _out(a: BrandAsset) -> AssetOut:
-    return AssetOut(id=a.id, brand_id=a.brand_id, kind=a.kind, url=a.url, name=a.name, note=a.note, product_id=a.product_id)
+def _out(a: BrandAsset, main_id: int | None = None) -> AssetOut:
+    return AssetOut(
+        id=a.id, brand_id=a.brand_id, kind=a.kind, url=a.url, name=a.name, note=a.note, product_id=a.product_id,
+        main=a.id == main_id,
+    )
+
+
+def main_logo(db: Session, brand_id: int) -> BrandAsset | None:
+    """The brand's main logo: the one picked (Brand.main_logo_id), else its oldest."""
+    logos = db.scalars(
+        select(BrandAsset).where(BrandAsset.brand_id == brand_id, BrandAsset.kind == "logo").order_by(BrandAsset.id)
+    ).all()
+    brand = db.get(Brand, brand_id)
+    picked = brand.main_logo_id if brand is not None else None
+    return next((a for a in logos if a.id == picked), logos[0] if logos else None)
 
 
 @router.get("", response_model=list[AssetOut])
@@ -64,7 +79,22 @@ def list_assets(
     q = select(BrandAsset).join(Brand, Brand.id == BrandAsset.brand_id).where(Brand.workspace_id == ws)
     if brand_id is not None:
         q = q.where(BrandAsset.brand_id == brand_id)
-    return [_out(a) for a in db.scalars(q.order_by(BrandAsset.kind, BrandAsset.id)).all()]
+    rows = db.scalars(q.order_by(BrandAsset.kind, BrandAsset.id)).all()
+    mains = {b: lg.id for b in {a.brand_id for a in rows if a.kind == "logo"} if (lg := main_logo(db, b))}
+    # each brand's main logo first among its logos — the pages that show "the logo" take the first one
+    rows = sorted(rows, key=lambda a: (a.kind, a.id != mains.get(a.brand_id), a.id))
+    return [_out(a, mains.get(a.brand_id)) for a in rows]
+
+
+@router.put("/{asset_id}/main", response_model=AssetOut)
+def set_main_logo(asset_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    """Make this logo the brand's main one."""
+    asset = owned(db, BrandAsset, asset_id, ws, "Brand-kit item")
+    if asset.kind != "logo":
+        raise HTTPException(400, "Only a logo can be the main logo.")
+    db.get(Brand, asset.brand_id).main_logo_id = asset.id
+    db.commit()
+    return _out(asset, asset.id)
 
 
 # ── the brand's colours (Brand kit → Colours; videos and posters use them) ──
@@ -111,7 +141,7 @@ def set_colors(brand_id: int, body: ColorsIn, db: Session = Depends(get_db), ws:
 def detect_from_logo(brand_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
     """Read the colours from the brand's logo again (replacing what's set)."""
     brand = owned(db, Brand, brand_id, ws)
-    logo = db.scalar(select(BrandAsset).where(BrandAsset.brand_id == brand.id, BrandAsset.kind == "logo"))
+    logo = main_logo(db, brand.id)
     if logo is None:
         raise HTTPException(400, "Upload the logo first.")
     found = detect_colors(read_media(logo.url) or b"")
@@ -156,6 +186,8 @@ def add_asset(
         raise HTTPException(400, f"A brand can keep up to {MAX_SCREENSHOTS} screenshots — remove one first.")
     if kind == "product" and len(existing) >= MAX_PRODUCT_PHOTOS:
         raise HTTPException(400, f"A brand can keep up to {MAX_PRODUCT_PHOTOS} product photos — remove one first.")
+    if kind == "logo" and len(existing) >= MAX_LOGOS:
+        raise HTTPException(400, f"A brand can keep up to {MAX_LOGOS} logos — remove one first.")
 
     data = bytearray()
     while chunk := file.file.read(1024 * 1024):
@@ -165,11 +197,8 @@ def add_asset(
     if not data:
         raise HTTPException(400, "The file is empty.")
 
-    # One logo per brand: a new upload replaces the old one.
+    # Logos add up (MAX_LOGOS); the first stays the main one until another is made main.
     if kind == "logo":
-        for old in existing:
-            delete_media(db, old.url)
-            db.delete(old)
         # its colours become the brand's, unless the person already set them
         brand = db.get(Brand, brand_id)
         if brand is not None and not brand.colors:
@@ -199,7 +228,7 @@ def add_asset(
     db.add(asset)
     db.commit()
     db.refresh(asset)
-    return _out(asset)
+    return _out(asset, (lg := main_logo(db, brand_id)) and lg.id)
 
 
 @router.patch("/{asset_id}", response_model=AssetOut)
@@ -213,7 +242,7 @@ def edit_asset(
         asset.note = payload.note.strip()
     db.commit()
     db.refresh(asset)
-    return _out(asset)
+    return _out(asset, (lg := main_logo(db, asset.brand_id)) and lg.id)
 
 
 @router.delete("/{asset_id}", status_code=204)
@@ -301,8 +330,7 @@ def gather(
             images.append(b)
             parts.append(_product_part(len(images), product.name if product else ""))
     if brand_id is not None and logo:
-        lg = db.scalar(select(BrandAsset).where(BrandAsset.brand_id == brand_id, BrandAsset.kind == "logo"))
-        if b := load(lg):
+        if b := load(main_logo(db, brand_id)):
             images.append(b)
             parts.append(_logo_part(len(images)))
     own = [e for e in (extra if isinstance(extra, list) else [extra]) if e]
@@ -344,8 +372,8 @@ def product_photo(db: Session, brand_id: int, product_id: int) -> bytes | None:
 
 
 def logo_image(db: Session, brand_id: int) -> bytes | None:
-    """The brand's logo file — pasted onto memes and topic posters as is."""
-    lg = db.scalar(select(BrandAsset).where(BrandAsset.brand_id == brand_id, BrandAsset.kind == "logo"))
+    """The brand's main logo file — pasted onto memes and topic posters as is."""
+    lg = main_logo(db, brand_id)
     return read_media(lg.url) if lg is not None else None
 
 

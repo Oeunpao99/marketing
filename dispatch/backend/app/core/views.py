@@ -507,17 +507,17 @@ def fill_tiktok_names(db: Session, channels: list, plats: dict, cap: int = 3) ->
 def channels_view(db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
     plats = _platform_map(db)
     brands = db.scalars(select(Brand).where(scope(Brand, ws)).order_by(Brand.name)).all()
-    # each brand's own logo (Brand kit), for the brand switcher's badge
-    logos = (
-        {
-            a.brand_id: a.url
-            for a in db.scalars(
-                select(BrandAsset).where(BrandAsset.brand_id.in_([b.id for b in brands]), BrandAsset.kind == "logo")
-            )
-        }
-        if brands
-        else {}
-    )
+    # each brand's own logo (Brand kit), for the brand switcher's badge — its main one, else its oldest
+    logos: dict[int, str] = {}
+    mains = {b.id: b.main_logo_id for b in brands}
+    if brands:
+        for a in db.scalars(
+            select(BrandAsset)
+            .where(BrandAsset.brand_id.in_([b.id for b in brands]), BrandAsset.kind == "logo")
+            .order_by(BrandAsset.id)
+        ):
+            if a.brand_id not in logos or a.id == mains[a.brand_id]:
+                logos[a.brand_id] = a.url
     chans = _scoped(db, Channel, ws)
     # A brand can hold several accounts per platform. Once one is connected,
     # its other "not connected" rows (old Pages, kept for their post history)

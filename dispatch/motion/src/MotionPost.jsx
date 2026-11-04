@@ -657,8 +657,8 @@ function Chrome({ scenes, brand }) {
           gap: 16,
           borderRadius: 10,
           // a light (white) logo vanished on the white chip — it gets a dark one (app/video/motion/ logo_is_light);
-          // a dark template keeps the card unless the brand picked "No background" (shared.jsx chipPlain)
-          ...chipBox(chipPlain(brand, false), {
+          // a see-through PNG goes on the video itself unless the brand picked "Card" (shared.jsx chipPlain)
+          ...chipBox(chipPlain(brand), {
             background: brand.logoLight ? 'rgba(10,14,22,0.82)' : 'rgba(255,255,255,0.92)',
             border: brand.logoLight ? '1px solid rgba(255,255,255,0.14)' : 0,
             padding: brand.logo ? '10px 14px' : '14px 28px',

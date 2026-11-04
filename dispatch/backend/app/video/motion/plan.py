@@ -75,6 +75,8 @@ class MotionIn(BaseModel):
     # False = "No logo": a video without the brand — no logo, name, colours,
     # photos or products (Unbranded), e.g. a script about another product
     branded: bool = True
+    # Which of the brand's logos (a brand-kit logo id) — None = its main logo
+    logo_id: int | None = None
 
 
 class PlanIn(BaseModel):

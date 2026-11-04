@@ -42,8 +42,11 @@ export default function ProductsPage() {
   const kitBrand = scopeBrand
   const thisBrandCount = items?.filter((p) => p.brand_id === scopeBrand?.id).length ?? 0
   const photoFor = (p) => assets.find((a) => a.kind === 'product' && a.product_id === p.id)
-  // a brand's own logo from its brand kit, where it uploaded one
-  const logoOf = (brandId) => assets.find((a) => a.kind === 'logo' && a.brand_id === brandId)?.url
+  // a brand's own logo from its brand kit, where it uploaded one — its main one
+  const logoOf = (brandId) => {
+    const logos = assets.filter((a) => a.kind === 'logo' && a.brand_id === brandId)
+    return (logos.find((a) => a.main) || logos[0])?.url
+  }
   const savePhoto = (saved) =>
     setAssets((xs) => [...xs.filter((x) => !(x.kind === 'product' && x.product_id === saved.product_id)), saved])
 
