@@ -1,5 +1,5 @@
 """activity_plans — a brand's weekly goals + the team's day-by-day to-do list
-(app/activity.py)."""
+(app/planning/activity.py)."""
 
 import sqlalchemy as sa
 from alembic import op

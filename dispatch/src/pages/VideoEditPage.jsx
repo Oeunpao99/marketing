@@ -225,7 +225,7 @@ export default function VideoEditPage() {
     }
   }
 
-  // their own recording of the script — cut to the scenes on the server (app/own_voice.py)
+  // their own recording of the script — cut to the scenes on the server (app/voice/own_voice.py)
   const recInput = useRef(null)
   const spokenCount = (src?.scenes || []).filter((s) => plain(s.say)).length
   const takeRecording = async (file) => {

@@ -4,7 +4,7 @@
  * real app rising in a device frame, chips orbiting the thing that matters,
  * notifications flying in from every side. Drawn on saas.jsx's "rings" background.
  *
- * Its own scenes (app/motion.py CLARITY_PROMPT):
+ * Its own scenes (app/video/motion/ CLARITY_PROMPT):
  *
  *   { type: "platform", text, image?, imgW?, imgH? }                logo bubble, the line, the app rising in a frame
  *   { type: "orbit", text?, center: { icon, title, sub? }, tags: [{ icon, label }] }   chips pop in round one item

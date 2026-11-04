@@ -1,0 +1,595 @@
+"""Facebook Pages + Instagram — OAuth connect (Facebook Login) and publishing
+via the Meta Graph API.
+
+Setup: create an app at https://developers.facebook.com, add the "Facebook
+Login for Business" product, and register ``META_REDIRECT_URI`` (must be a
+static https url — for local dev, tunnel this backend and point the tunnel's
+callback there) as a valid OAuth redirect. Put ``META_APP_ID`` /
+``META_APP_SECRET`` / ``META_REDIRECT_URI`` in ``.env``. While the app is in
+Development mode you can only post to Pages your own Meta account
+administers — posting to a client's Page needs them added as a tester, or App
+Review for ``pages_manage_posts`` / ``instagram_content_publish``.
+
+Facebook Pages accept a direct byte upload (this module posts bytes straight
+to Graph). Instagram's Content Publishing API does not — it always fetches
+the media from a public url, so Instagram posting needs ``PUBLIC_BASE_URL``
+set to this backend's own public https address.
+
+Flow (see ``app/core/views.py``'s ``/oauth/meta/*`` endpoints):
+  1. ``authorize_url()`` — the user logs into Facebook and picks which Pages
+     to grant the app.
+  2. ``exchange_code()`` -> short-lived user token -> ``long_lived_token()``
+     -> a ~60 day user token.
+  3. ``list_pages()`` — every Page the user manages, each with its own
+     (effectively non-expiring, per Meta) Page access token and linked
+     Instagram Business Account if any.
+  4. The user picks one Page (and optionally its Instagram) in the UI; the
+     confirm endpoint stores that Page's token on the brand's Channel(s).
+"""
+
+from __future__ import annotations
+
+import time
+import uuid
+from datetime import datetime
+from urllib.parse import urlencode
+
+import httpx
+
+from app.core.config import get_settings
+
+AUTH_HOST = "https://www.facebook.com"
+GRAPH_HOST = "https://graph.facebook.com"
+
+# business_management: Meta requires it for Instagram-with-Facebook-login, and
+# without it Pages owned by a Business portfolio can be missing from /me/accounts.
+# Every scope here must also be added to the app (Use cases → Customize →
+# Permissions), or Facebook's dialog reports it as an "Invalid Scope".
+# pages_read_user_content: reactions + comment counts on a Page post (Graph
+# v26 refuses both without it, and refuses the old `likes` field outright).
+# read_insights: a post's views and clicks (/insights).
+SCOPES = (
+    "pages_show_list,pages_read_engagement,pages_manage_posts,"
+    "pages_manage_metadata,pages_read_user_content,read_insights,"
+    "instagram_basic,instagram_content_publish,business_management"
+)
+
+# In-memory holding pen between the OAuth callback and the "pick a Page"
+# confirm step. Raw Page tokens live only here and in the database — never in
+# a url or the browser. Single-process app, so plain process memory is fine;
+# it's lost (harmlessly — the user just reconnects) on a restart.
+_PENDING_TTL_SECONDS = 600
+_pending: dict[str, dict] = {}
+
+
+class MetaError(RuntimeError):
+    pass
+
+
+def _conf() -> tuple[str, str, str, str]:
+    s = get_settings()
+    if not s.meta_app_id or not s.meta_app_secret or not s.meta_redirect_uri:
+        raise MetaError(
+            "Facebook/Instagram is not configured (META_APP_ID / META_APP_SECRET / "
+            "META_REDIRECT_URI missing)."
+        )
+    return s.meta_app_id, s.meta_app_secret, s.meta_redirect_uri, s.meta_graph_version
+
+
+def _explain(resp: httpx.Response) -> str:
+    try:
+        err = resp.json().get("error") or {}
+        if isinstance(err, dict):
+            return err.get("message") or err.get("type") or resp.text[:300]
+        return str(err)[:300]
+    except ValueError:
+        return resp.text[:300] or f"HTTP {resp.status_code}"
+
+
+def authorize_url(state: str) -> str:
+    app_id, _secret, redirect_uri, version = _conf()
+    params = {
+        "client_id": app_id,
+        "redirect_uri": redirect_uri,
+        "state": state,
+        "response_type": "code",
+        "scope": SCOPES,
+        # Ask again for any permission declined or skipped on an earlier
+        # connect — without this Facebook silently leaves it out forever, so
+        # reconnecting never fixes e.g. a missing pages_read_engagement.
+        "auth_type": "rerequest",
+    }
+    return f"{AUTH_HOST}/{version}/dialog/oauth?{urlencode(params)}"
+
+
+def missing_permissions(user_token: str) -> list[str]:
+    """Which of SCOPES Facebook did NOT grant this login — declined in the
+    dialog, or withheld because the permission only has Standard Access and
+    this person has no role on the app. Empty when the check itself fails."""
+    _app_id, _secret, _redirect, version = _conf()
+    try:
+        resp = httpx.get(
+            f"{GRAPH_HOST}/{version}/me/permissions", params={"access_token": user_token}, timeout=20.0
+        )
+        if resp.status_code >= 400:
+            return []
+        rows = resp.json().get("data") or []
+    except (httpx.HTTPError, ValueError):
+        return []
+    granted = {r.get("permission") for r in rows if r.get("status") == "granted"}
+    return [s for s in SCOPES.split(",") if s not in granted]
+
+
+def exchange_code(code: str) -> str:
+    """Trade an OAuth code for a short-lived user access token."""
+    app_id, secret, redirect_uri, version = _conf()
+    try:
+        resp = httpx.get(
+            f"{GRAPH_HOST}/{version}/oauth/access_token",
+            params={
+                "client_id": app_id,
+                "redirect_uri": redirect_uri,
+                "client_secret": secret,
+                "code": code,
+            },
+            timeout=30.0,
+        )
+    except httpx.HTTPError as exc:
+        raise MetaError(f"Could not reach Facebook: {exc}") from exc
+    if resp.status_code >= 400:
+        raise MetaError(f"Facebook rejected the code: {_explain(resp)}")
+    token = resp.json().get("access_token")
+    if not token:
+        raise MetaError("Facebook did not return an access token.")
+    return token
+
+
+def long_lived_token(short_token: str) -> str:
+    app_id, secret, _redirect, version = _conf()
+    try:
+        resp = httpx.get(
+            f"{GRAPH_HOST}/{version}/oauth/access_token",
+            params={
+                "grant_type": "fb_exchange_token",
+                "client_id": app_id,
+                "client_secret": secret,
+                "fb_exchange_token": short_token,
+            },
+            timeout=30.0,
+        )
+    except httpx.HTTPError as exc:
+        raise MetaError(f"Could not reach Facebook: {exc}") from exc
+    if resp.status_code >= 400:
+        raise MetaError(f"Could not get a long-lived token: {_explain(resp)}")
+    token = resp.json().get("access_token")
+    if not token:
+        raise MetaError("Facebook did not return a long-lived token.")
+    return token
+
+
+def list_pages(user_token: str) -> list[dict]:
+    """Every Page this user manages, with its own Page token + linked IG account."""
+    _app_id, _secret, _redirect, version = _conf()
+    try:
+        resp = httpx.get(
+            f"{GRAPH_HOST}/{version}/me/accounts",
+            params={
+                "fields": "id,name,access_token,instagram_business_account{id,username}",
+                "access_token": user_token,
+                "limit": 100,
+            },
+            timeout=30.0,
+        )
+    except httpx.HTTPError as exc:
+        raise MetaError(f"Could not reach Facebook: {exc}") from exc
+    if resp.status_code >= 400:
+        raise MetaError(f"Could not list Pages: {_explain(resp)}")
+    out = []
+    for row in resp.json().get("data") or []:
+        ig = row.get("instagram_business_account") or {}
+        out.append(
+            {
+                "id": row["id"],
+                "name": row.get("name") or row["id"],
+                "access_token": row.get("access_token"),
+                "ig_user_id": ig.get("id"),
+                "ig_username": ig.get("username"),
+            }
+        )
+    return out
+
+
+def stash_pending(brand_id: int, intent: str, pages: list[dict], missing: list[str] | None = None) -> str:
+    """Hold a fetched Page list server-side; returns the opaque id the
+    frontend uses to fetch and later confirm — raw tokens never leave here."""
+    pending_id = uuid.uuid4().hex
+    _pending[pending_id] = {
+        "brand_id": brand_id,
+        "intent": intent,
+        "pages": pages,
+        "missing": missing or [],
+        "expires": time.time() + _PENDING_TTL_SECONDS,
+    }
+    _gc_pending()
+    return pending_id
+
+
+def _gc_pending() -> None:
+    now = time.time()
+    for key in [k for k, v in _pending.items() if v["expires"] < now]:
+        _pending.pop(key, None)
+
+
+def peek_pending(pending_id: str) -> dict | None:
+    _gc_pending()
+    return _pending.get(pending_id)
+
+
+def pop_pending(pending_id: str) -> dict | None:
+    _gc_pending()
+    return _pending.pop(pending_id, None)
+
+
+def publish_to_page(
+    token: str, page_id: str, caption: str, media: bytes | None, kind: str | None
+) -> str:
+    """Post to a Facebook Page — text-only feed post, or a photo/video upload."""
+    _app_id, _secret, _redirect, version = _conf()
+    if media is None:
+        url = f"{GRAPH_HOST}/{version}/{page_id}/feed"
+        data = {"message": caption, "access_token": token}
+        files = None
+    elif kind == "image":
+        url = f"{GRAPH_HOST}/{version}/{page_id}/photos"
+        data = {"caption": caption, "access_token": token}
+        files = {"source": ("media.jpg", media)}
+    else:
+        url = f"{GRAPH_HOST}/{version}/{page_id}/videos"
+        data = {"description": caption, "access_token": token}
+        files = {"source": ("media.mp4", media)}
+    try:
+        resp = httpx.post(url, data=data, files=files, timeout=180.0)
+    except httpx.HTTPError as exc:
+        raise MetaError(f"Could not reach Facebook: {exc}") from exc
+    if resp.status_code >= 400:
+        raise MetaError(f"Facebook rejected the post: {_explain(resp)}")
+    body = resp.json()
+    return body.get("post_id") or body.get("id") or ""
+
+
+def delete_page_post(token: str, post_id: str) -> None:
+    """Delete a Page post (feed post, photo or video) from Facebook. Raises
+    MetaError on any failure — including "does not exist", which Facebook
+    also returns for a missing permission, so it's never taken as "already
+    gone" (the person can remove it from ContentFlow only, after checking)."""
+    _app_id, _secret, _redirect, version = _conf()
+    try:
+        resp = httpx.delete(f"{GRAPH_HOST}/{version}/{post_id}", params={"access_token": token}, timeout=30.0)
+    except httpx.HTTPError as exc:
+        raise MetaError(f"Could not reach Facebook: {exc}") from exc
+    if resp.status_code >= 400:
+        raise MetaError(f"Facebook couldn't delete the post: {_explain(resp)}")
+
+
+_IG_POLL_TRIES = 20
+_IG_POLL_DELAY = 3.0
+
+
+def publish_to_instagram(token: str, ig_user_id: str, caption: str, media_url: str, kind: str) -> str:
+    """Create a media container from a public url, wait it out if it's a
+    video, then publish it. Returns the published media id."""
+    _app_id, _secret, _redirect, version = _conf()
+    params = {"access_token": token, "caption": caption}
+    if kind == "image":
+        params["image_url"] = media_url
+    else:
+        params["video_url"] = media_url
+        params["media_type"] = "REELS"
+    try:
+        resp = httpx.post(f"{GRAPH_HOST}/{version}/{ig_user_id}/media", data=params, timeout=60.0)
+    except httpx.HTTPError as exc:
+        raise MetaError(f"Could not reach Instagram: {exc}") from exc
+    if resp.status_code >= 400:
+        raise MetaError(f"Instagram rejected the post: {_explain(resp)}")
+    creation_id = resp.json().get("id")
+    if not creation_id:
+        raise MetaError("Instagram did not return a container id.")
+
+    if kind != "image":
+        for _ in range(_IG_POLL_TRIES):
+            try:
+                status_resp = httpx.get(
+                    f"{GRAPH_HOST}/{version}/{creation_id}",
+                    params={"fields": "status_code", "access_token": token},
+                    timeout=30.0,
+                )
+            except httpx.HTTPError as exc:
+                raise MetaError(f"Could not reach Instagram: {exc}") from exc
+            status = (status_resp.json() or {}).get("status_code")
+            if status == "FINISHED":
+                break
+            if status in {"ERROR", "EXPIRED"}:
+                raise MetaError(f"Instagram could not process the video (status: {status}).")
+            time.sleep(_IG_POLL_DELAY)
+        else:
+            raise MetaError("Instagram is still processing the video — try publishing again shortly.")
+
+    try:
+        pub_resp = httpx.post(
+            f"{GRAPH_HOST}/{version}/{ig_user_id}/media_publish",
+            data={"creation_id": creation_id, "access_token": token},
+            timeout=60.0,
+        )
+    except httpx.HTTPError as exc:
+        raise MetaError(f"Could not reach Instagram: {exc}") from exc
+    if pub_resp.status_code >= 400:
+        raise MetaError(f"Instagram rejected the publish: {_explain(pub_resp)}")
+    return pub_resp.json().get("id") or ""
+
+
+# ── past posts — made on the platform itself (app/channels/importer.py) ───────────
+def _graph_time(value: str | None) -> datetime | None:
+    try:
+        return datetime.strptime(value or "", "%Y-%m-%dT%H:%M:%S%z")
+    except ValueError:
+        return None
+
+
+def _paged(url: str, params: dict | None, limit: int, what: str):
+    """Yield items across Graph's cursor pages until ``limit`` or the end."""
+    seen = 0
+    while url and seen < limit:
+        try:
+            resp = httpx.get(url, params=params, timeout=30.0)
+        except httpx.HTTPError as exc:
+            raise MetaError(f"Could not reach Facebook: {exc}") from exc
+        if resp.status_code >= 400:
+            raise MetaError(f"Facebook wouldn't list {what}: {_explain(resp)}")
+        body = resp.json()
+        for item in body.get("data") or []:
+            seen += 1
+            yield item
+            if seen >= limit:
+                return
+        url = (body.get("paging") or {}).get("next")
+        params = None  # the "next" url already carries every parameter
+
+
+def list_page_posts(token: str, page_id: str, since: datetime, limit: int) -> list[dict]:
+    """A Page's published posts since ``since``, newest first. ``alt_id`` is
+    the attached object's id — for a video that's the Video id, which is what
+    ContentFlow stores for its own video posts (so they aren't re-imported)."""
+    _app_id, _secret, _redirect, version = _conf()
+    params = {
+        "fields": "id,message,created_time,full_picture,permalink_url,attachments{media_type,target{id}}",
+        "since": int(since.timestamp()),
+        "limit": 50,
+        "access_token": token,
+    }
+    out = []
+    for p in _paged(f"{GRAPH_HOST}/{version}/{page_id}/published_posts", params, limit, "this Page's posts"):
+        att = ((p.get("attachments") or {}).get("data") or [{}])[0]
+        media = (att.get("media_type") or "").lower()
+        out.append(
+            {
+                "id": p.get("id") or "",
+                "alt_id": ((att.get("target") or {}).get("id")) or "",
+                "caption": p.get("message") or "",
+                "published_at": _graph_time(p.get("created_time")),
+                "picture": p.get("full_picture") or "",
+                "url": p.get("permalink_url") or "",
+                "kind": "video" if "video" in media else "image" if p.get("full_picture") else "text",
+            }
+        )
+    return [p for p in out if p["id"] and p["published_at"]]
+
+
+def list_instagram_media(token: str, ig_user_id: str, since: datetime, limit: int) -> list[dict]:
+    """An Instagram account's posts since ``since``, newest first."""
+    _app_id, _secret, _redirect, version = _conf()
+    params = {
+        "fields": "id,caption,media_type,media_url,thumbnail_url,permalink,timestamp",
+        "limit": 50,
+        "access_token": token,
+    }
+    out = []
+    for m in _paged(f"{GRAPH_HOST}/{version}/{ig_user_id}/media", params, limit, "this Instagram account's posts"):
+        at = _graph_time(m.get("timestamp"))
+        if at is None:
+            continue
+        if at < since:
+            break  # newest first — everything after this is older
+        video = (m.get("media_type") or "").upper() == "VIDEO"
+        out.append(
+            {
+                "id": m.get("id") or "",
+                "alt_id": "",
+                "caption": m.get("caption") or "",
+                "published_at": at,
+                "picture": (m.get("thumbnail_url") if video else m.get("media_url")) or "",
+                "url": m.get("permalink") or "",
+                "kind": "video" if video else "image",
+            }
+        )
+    return [m for m in out if m["id"]]
+
+
+# ── insights — per-post numbers for the Insights page ────────────────────
+def _graph_get(version: str, path: str, params: dict) -> dict | None:
+    """One read; None when Graph refuses it (e.g. a permission this Page's
+    token wasn't granted), so the other numbers can still be shown."""
+    try:
+        resp = httpx.get(f"{GRAPH_HOST}/{version}/{path}", params=params, timeout=30.0)
+    except httpx.HTTPError as exc:
+        raise MetaError(f"Could not reach Facebook: {exc}") from exc
+    return resp.json() if resp.status_code < 400 else None
+
+
+def _graph_read(version: str, path: str, params: dict) -> tuple[dict | None, dict]:
+    """Like ``_graph_get``, but also hands back Graph's error when it refuses."""
+    try:
+        resp = httpx.get(f"{GRAPH_HOST}/{version}/{path}", params=params, timeout=30.0)
+    except httpx.HTTPError as exc:
+        raise MetaError(f"Could not reach Facebook: {exc}") from exc
+    if resp.status_code < 400:
+        return resp.json(), {}
+    try:
+        err = resp.json().get("error") or {}
+    except ValueError:
+        err = {}
+    return None, err if isinstance(err, dict) else {"message": str(err)}
+
+
+def _post_read_error(err: dict) -> str:
+    """Why Facebook wouldn't give us a post — in words that say what to do."""
+    code, msg = err.get("code"), (err.get("message") or "").strip()
+    if code == 190:
+        return "Facebook signed this Page out (the access token expired or was revoked) — reconnect the Facebook channel."
+    if code == 100 and ("does not exist" in msg or err.get("error_subcode") == 33):
+        return "This post no longer exists on Facebook — it was deleted, or hidden from the Page."
+    if code in (10, 200) or "permission" in msg.lower():
+        return f"Facebook needs a permission to read this post's stats ({msg})."
+    return f"Facebook wouldn't share this post's stats: {msg or 'no reason given'}."
+
+
+def page_post_insights(token: str, post_id: str) -> dict:
+    """Reactions / comments / shares / views / clicks for one Facebook Page
+    post (or the video node when it was posted as a video).
+
+    Graph v26: the old ``likes`` field is refused; reactions + comment counts
+    need pages_read_user_content; views (post_media_view) + clicks need
+    read_insights. Each read is separate and a refused one reports None ("not
+    reported") instead of failing the whole post — a Page connected before
+    those permissions were added still gets shares and its link."""
+    _app_id, _secret, _redirect, version = _conf()
+    base, err = _graph_read(version, post_id, {"fields": "shares,permalink_url", "access_token": token})
+    if base is None:
+        # Posted as a video, the id is a Video node — it has no `shares` field,
+        # so ask for what a video does have before giving up.
+        base, err2 = _graph_read(version, post_id, {"fields": "permalink_url", "access_token": token})
+        if base is None:
+            raise MetaError(_post_read_error(err2 or err))
+    counts, counts_err = _graph_read(
+        version,
+        post_id,
+        {"fields": "reactions.summary(total_count).limit(0),comments.summary(true).limit(0)", "access_token": token},
+    )
+    likes = comments = None
+    if counts is not None:
+        likes = ((counts.get("reactions") or {}).get("summary") or {}).get("total_count", 0)
+        comments = ((counts.get("comments") or {}).get("summary") or {}).get("total_count", 0)
+    else:
+        # A VIDEO node has no `reactions` / `comments` FIELD ((#100) "nonexisting field") but
+        # does have them as lists: read each one's total from its own edge
+        likes = _edge_total(version, post_id, token, ("reactions", "likes"))
+        comments = _edge_total(version, post_id, token, ("comments",))
+        if likes is not None or comments is not None:
+            counts_err = {}
+    stats = _graph_get(version, f"{post_id}/insights", {"metric": "post_media_view,post_clicks", "access_token": token})
+    metric = {
+        m.get("name"): ((m.get("values") or [{}])[0].get("value"))
+        for m in ((stats or {}).get("data") or [])
+    }
+
+    return {
+        "likes": likes,  # Facebook "likes" = all reactions (👍❤️😆…)
+        "comments": comments,
+        "shares": (base.get("shares") or {}).get("count", 0),
+        "views": metric.get("post_media_view"),
+        "clicks": metric.get("post_clicks"),
+        "url": base.get("permalink_url"),
+        # why reactions / comments are missing (None above), in Facebook's own terms — shown on Analytics
+        "counts_error": None if (likes is not None or comments is not None) else _post_read_error(counts_err),
+    }
+
+
+def _edge_total(version: str, node_id: str, token: str, edges: tuple[str, ...]) -> int | None:
+    """The total of one list on a post / video (reactions, comments), read as its own
+    edge — the first of ``edges`` Facebook answers; None when none does."""
+    for edge in edges:
+        body = _graph_get(version, f"{node_id}/{edge}", {"summary": "total_count", "limit": 0, "access_token": token})
+        if body is not None:
+            total = (body.get("summary") or {}).get("total_count")
+            if total is not None:
+                return int(total)
+    return None
+
+
+_FEED_FIELDS = (
+    "id,created_time,permalink_url,shares,"
+    "reactions.summary(total_count).limit(0),comments.summary(true).limit(0)"
+)
+
+
+def page_feed_metrics(token: str, page_id: str, since: datetime, limit: int = 150) -> list[dict]:
+    """Numbers for a Page's recent posts, read from the Page's post list
+    instead of each post — the fallback when Facebook refuses a single post
+    (error #10 on posts made in Business Suite, boosted, or whose id changed
+    when boosted) even though the list, read with the same Page token, has them.
+    Views / clicks come too when Facebook allows the insights field."""
+    _app_id, _secret, _redirect, version = _conf()
+    url = f"{GRAPH_HOST}/{version}/{page_id}/published_posts"
+    base = {"since": int(since.timestamp()), "limit": 50, "access_token": token}
+    items = None
+    for fields in (_FEED_FIELDS + ",insights.metric(post_media_view,post_clicks)", _FEED_FIELDS):
+        try:
+            items = list(_paged(url, {**base, "fields": fields}, limit, "this Page's posts"))
+            break
+        except MetaError:
+            continue  # the insights field was refused — read without it
+    out = []
+    for p in items or []:
+        metric = {m.get("name"): ((m.get("values") or [{}])[0].get("value")) for m in ((p.get("insights") or {}).get("data") or [])}
+        out.append(
+            {
+                "id": p.get("id") or "",
+                "created": _graph_time(p.get("created_time")),
+                "likes": ((p.get("reactions") or {}).get("summary") or {}).get("total_count", 0),
+                "comments": ((p.get("comments") or {}).get("summary") or {}).get("total_count", 0),
+                "shares": (p.get("shares") or {}).get("count", 0),
+                "views": metric.get("post_media_view"),
+                "clicks": metric.get("post_clicks"),
+                "url": p.get("permalink_url"),
+            }
+        )
+    return out
+
+
+def instagram_media_insights(token: str, media_id: str) -> dict:
+    """Likes / comments for one Instagram media item."""
+    _app_id, _secret, _redirect, version = _conf()
+    try:
+        resp = httpx.get(
+            f"{GRAPH_HOST}/{version}/{media_id}",
+            params={"fields": "like_count,comments_count,permalink", "access_token": token},
+            timeout=30.0,
+        )
+    except httpx.HTTPError as exc:
+        raise MetaError(f"Could not reach Instagram: {exc}") from exc
+    if resp.status_code >= 400:
+        raise MetaError(f"Could not read that post's numbers: {_explain(resp)}")
+    body = resp.json()
+    return {
+        "likes": body.get("like_count", 0),
+        "comments": body.get("comments_count", 0),
+        "url": body.get("permalink"),
+    }
+
+
+def page_follower_count(token: str, page_id: str) -> int | None:
+    """How many people follow a Facebook Page now (None when Facebook won't say)."""
+    _app_id, _secret, _redirect, version = _conf()
+    body = _graph_get(version, page_id, {"fields": "followers_count,fan_count", "access_token": token})
+    if not body:
+        return None
+    n = body.get("followers_count")
+    if n is None:
+        n = body.get("fan_count")
+    return int(n) if n is not None else None  # 0 is a real answer (a brand-new Page)
+
+
+def instagram_follower_count(token: str, ig_user_id: str) -> int | None:
+    """How many people follow an Instagram Business account now."""
+    _app_id, _secret, _redirect, version = _conf()
+    body = _graph_get(version, ig_user_id, {"fields": "followers_count", "access_token": token})
+    return int(body["followers_count"]) if body and body.get("followers_count") is not None else None

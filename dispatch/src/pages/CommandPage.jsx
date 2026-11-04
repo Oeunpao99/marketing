@@ -6,7 +6,7 @@ import { useStore } from '../store'
 import Select from '../components/ui/Select'
 import { useBrandMarks } from '../lib/brandMarks'
 
-// Command center (backend app/command.py): what the AI is doing, and the few
+// Command center (backend app/planning/command.py): what the AI is doing, and the few
 // things that need a person. One read, refreshed every minute; rows link to
 // the page that acts on them, and today's ideas can be approved right here.
 
@@ -173,7 +173,7 @@ function Kpis({ k }) {
           note: `of ${k.channels.total} connected`,
         },
     {
-      // this month's videos (app/usage.py) — customers count videos, not credits
+      // this month's videos (app/billing/usage.py) — customers count videos, not credits
       label: 'Videos left',
       value: k.month ? `${k.month.videos.left}` : '—',
       note: k.month ? `of ${k.month.videos.limit} this month · unlimited images` : 'This month',

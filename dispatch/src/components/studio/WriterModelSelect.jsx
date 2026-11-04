@@ -4,7 +4,7 @@ import CostTier from '../ui/CostTier'
 import Select from '../ui/Select'
 
 // The AI that writes (captions, ideas, storyboards, the Khmer narration) —
-// backend app/ai_models.py. The pick is kept on this device and sent with every
+// backend app/ai/ai_models.py. The pick is kept on this device and sent with every
 // request (X-AI-Model); "Workspace default" sends nothing and the server uses
 // the default set in Settings → AI model. Only models the workspace may use
 // are listed, each with its cost tier ($ cheapest … $$$ priciest), under our own

@@ -1,4 +1,4 @@
-// "Improve with AI" for one published post (backend app/improve.py): why it
+// "Improve with AI" for one published post (backend app/ai/improve.py): why it
 // likely underperformed — from its own numbers and what has worked for the
 // brand — and a better version to edit and repost on the same channel at the
 // brand's best time.

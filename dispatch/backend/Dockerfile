@@ -9,12 +9,12 @@ FROM python:3.12-slim
 RUN pip install --no-cache-dir uv
 
 # libraqm (+ harfbuzz / fribidi): complex-script text shaping for Pillow, so
-# the Khmer text on meme posters (app/meme.py) renders correctly.
+# the Khmer text on meme posters (app/images/meme.py) renders correctly.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libraqm0 \
     && rm -rf /var/lib/apt/lists/*
 
-# Remotion videos (app/motion.py → /motion): Node 22, the libraries Chrome
+# Remotion videos (app/video/motion/ → /motion): Node 22, the libraries Chrome
 # Headless Shell needs on Debian 13 (trixie), and a colour-emoji font for the
 # scene icons. The Khmer font ships with the motion project itself.
 RUN apt-get update \
@@ -35,14 +35,14 @@ COPY --from=motion package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund && npx remotion browser ensure
 COPY --from=motion src ./src
 COPY --from=motion public/fonts ./public/fonts
-# Background music by mood (public/music/<mood>/*.mp3 — app/motion.py music_tracks).
+# Background music by mood (public/music/<mood>/*.mp3 — app/video/motion/ music_tracks).
 COPY --from=motion public/music ./public/music
 COPY --from=motion public/sfx ./public/sfx
 # Collage · Studio's vines / leaves / column / clouds (motion/src/studio.jsx) —
 # before the bundle below, which packs public/ with the template.
 COPY --from=motion public/decor ./public/decor
 COPY --from=motion sample.json ./
-# Pack the template once now, not before every video (app/motion.py _entry).
+# Pack the template once now, not before every video (app/video/motion/ _entry).
 RUN npx remotion bundle src/index.jsx --out-dir build --log=error
 
 WORKDIR /app
@@ -59,7 +59,7 @@ ENV PATH="/app/.venv/bin:$PATH" \
 
 EXPOSE 8000
 
-# The local Khmer voice's model (app/local_voice.py, KHMER_TTS_MODEL) is
+# The local Khmer voice's model (app/voice/local_voice.py, KHMER_TTS_MODEL) is
 # downloaded here on first use — a volume in docker-compose.prod.yml keeps it
 # across rebuilds.
 ENV HF_HOME=/models

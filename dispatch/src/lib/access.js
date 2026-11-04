@@ -1,4 +1,4 @@
-// Per-member feature access (backend app/access.py). Owners and admins can use
+// Per-member feature access (backend app/auth/access.py). Owners and admins can use
 // everything; an editor's `user.access` is null (everything) or a list of
 // feature keys. The server refuses the API calls behind a missing feature —
 // this only keeps the menus and pages honest about it.

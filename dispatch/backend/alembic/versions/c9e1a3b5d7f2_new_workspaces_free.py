@@ -1,5 +1,5 @@
 """New workspaces start on the Free plan (was Pro) — paid plans are bought with
-KHQR now (app/payments.py). Only the column's default changes: existing
+KHQR now (app/billing/payments.py). Only the column's default changes: existing
 workspaces keep the plan they have."""
 
 import sqlalchemy as sa

@@ -76,4 +76,4 @@ Add generic routes:
 `DataRecordPage`: build a form from `m.fields` (skip `id`/`created_at`/`updated_at`),
 POST for new / PATCH `/api/{resource}/{id}` to save, DELETE to remove.
 
-Every model in `app/registry.py` therefore shows up in the sidebar automatically.
+Every model in `app/core/registry.py` therefore shows up in the sidebar automatically.

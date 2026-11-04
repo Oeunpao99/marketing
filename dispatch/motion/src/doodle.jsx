@@ -4,10 +4,10 @@
  * orange, and under it a hand-drawn ink sketch (a person lying awake, a head
  * full of scribbles…) that draws itself in and then wobbles a little like a
  * pen drawing. The sketches are made per scene by the image model and turned
- * transparent by the server (app/doodle.py → scene.image); without one, the
+ * transparent by the server (app/images/doodle.py → scene.image); without one, the
  * scene's icon is drawn in ink with a few scribbled strokes round it.
  * 9:16 and 16:9. Scene types: hook · doodle · list · quote · cta
- * (app/motion.py DOODLE_TYPES).
+ * (app/video/motion/ DOODLE_TYPES).
  */
 import { AbsoluteFill, Img, interpolate, random, spring, useCurrentFrame, useVideoConfig } from 'remotion'
 import { EM_CLOSE, EM_OPEN, FONT, Icon, NeatGrid, ZWSP, clean, fitSize, srcOf } from './shared'

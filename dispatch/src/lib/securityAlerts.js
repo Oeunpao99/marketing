@@ -1,5 +1,5 @@
 // New devices that signed in to your account and wait for "Was this you?"
-// (app/sessions.py — GET /auth/security/alerts). Shared by the bell's list and
+// (app/auth/sessions.py — GET /auth/security/alerts). Shared by the bell's list and
 // its count; checked every minute and when the window comes back.
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'

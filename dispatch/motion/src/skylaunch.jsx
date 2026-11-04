@@ -8,7 +8,7 @@
  * the brand's colour.
  *
  * No scene types of its own — the ones the story AI already writes
- * (app/motion.py SKYLAUNCH_PROMPT):
+ * (app/video/motion/ SKYLAUNCH_PROMPT):
  *   hook   "Introducing", then the promise            {text, badge?}
  *   field  the prompt box types the request           {label?, value, button?}
  *   screen the screenshot in a browser window         {image, imgW, imgH, title?, focus?, action?, result?}

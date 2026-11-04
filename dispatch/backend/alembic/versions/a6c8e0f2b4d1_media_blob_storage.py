@@ -1,5 +1,5 @@
 """media_blobs.stored + data nullable — a file can live in Azure Blob Storage
-(stored = "azure", data emptied) instead of the database (app/blobstore.py)."""
+(stored = "azure", data emptied) instead of the database (app/storage/blobstore.py)."""
 
 import sqlalchemy as sa
 from alembic import op
@@ -16,6 +16,6 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # files moved to Blob Storage have no bytes here — bring them back first (python -m app.move_media --back)
+    # files moved to Blob Storage have no bytes here — bring them back first (python -m app.storage.move_media --back)
     op.alter_column("media_blobs", "data", existing_type=sa.LargeBinary(), nullable=False)
     op.drop_column("media_blobs", "stored")

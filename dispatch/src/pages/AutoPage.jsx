@@ -125,13 +125,13 @@ function modeOf(a) {
 }
 
 // Weekly plan = the 7 days from Monday, written Sunday evening; daily plan =
-// tomorrow, written every evening (backend app/weekly.py, Automation.plan_every).
+// tomorrow, written every evening (backend app/planning/weekly.py, Automation.plan_every).
 const PLAN_EVERY = [
   { v: 'week', l: 'Weekly' },
   { v: 'day', l: 'Daily' },
 ]
 
-// the posts a day the plan allows (app/plan_features.py; a weekly plan holds 3 at most)
+// the posts a day the plan allows (app/billing/plan_features.py; a weekly plan holds 3 at most)
 const dayCap = (features) => Math.max(1, Math.min(3, features?.posts_per_day ?? 2))
 
 export default function AutoPage() {
@@ -698,7 +698,7 @@ function SettingsDrawer({ a, channels, onUpdate, onBrandUpdate, onOpenPlan, onCl
   )
 }
 
-/** Brand.pronunciations (app/khmer_speech.py): words the Khmer voice reads
+/** Brand.pronunciations (app/voice/khmer_speech.py): words the Khmer voice reads
  *  wrong — brand and English names — and how to say them. Numbers are read
  *  as Khmer words without a row. ▶ plays a row as the video would say it. */
 function PronunciationList({ brandId, language, value, onSave }) {
@@ -790,7 +790,7 @@ function PronunciationList({ brandId, language, value, onSave }) {
   )
 }
 
-/** What app/learning.py found for this brand — each rule with its evidence,
+/** What app/ai/learning.py found for this brand — each rule with its evidence,
  *  or why there's nothing yet. */
 function Learned({ learnings }) {
   const rules = learnings?.rules || []
@@ -829,7 +829,7 @@ const WHY = {
   moved: { label: 'Set another way', cls: 'bg-ink-50 text-ink-600' },
 }
 
-/** Each platform's best day + time slots (app/learning.py best_slots) and
+/** Each platform's best day + time slots (app/ai/learning.py best_slots) and
  *  the next auto-posts with the reason for their time. */
 function PostingTimes({ a }) {
   const slots = a.learn_from_results ? Object.entries(a.learnings?.best_slots || {}) : []

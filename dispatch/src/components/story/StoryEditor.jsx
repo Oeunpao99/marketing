@@ -22,7 +22,7 @@ import AutoTextarea from '../ui/AutoTextarea'
 import GeneratingCanvas from '../ui/GeneratingCanvas'
 import JoiningCanvas from './JoiningCanvas'
 
-// One video story (app/story.py), loaded by id: edit the storyboard, approve
+// One video story (app/video/story.py), loaded by id: edit the storyboard, approve
 // it, watch the scenes render, redo any scene, join them, use the result.
 // Used full-page on /story?id= and inline in an AI Agent chat (compact).
 
@@ -514,7 +514,7 @@ export default function StoryEditor({ storyId, compact = false, onDeleted, onSto
 }
 
 // ── the studio layout's parts ─────────────────────────────────────────────
-// Each clip's job in the story. The AI names it (app/story.py); older stories
+// Each clip's job in the story. The AI names it (app/video/story.py); older stories
 // get one by position.
 const ROLE_NAMES = { hook: 'Hook', problem: 'Problem', solution: 'Solution', proof: 'Proof', cta: 'Call to action' }
 const MIDDLE_ROLES = ['problem', 'solution', 'proof']

@@ -1,5 +1,5 @@
 """App-wide settings set in the admin portal (2026-11-03) — first one: who on the team
-gets the Telegram alert for every new sign-up (app/team_alerts.py)."""
+gets the Telegram alert for every new sign-up (app/notify/team_alerts.py)."""
 
 import sqlalchemy as sa
 from alembic import op

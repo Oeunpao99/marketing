@@ -1,12 +1,12 @@
 /**
  * "Product showcase" — the customer's REAL product photo, its background taken
- * away (app/cutout.py), floating over shape effects drawn in the brand's colours:
+ * away (app/images/cutout.py), floating over shape effects drawn in the brand's colours:
  * a colour blob that keeps changing shape behind it, rings and paint-like splashes
  * bursting as it lands, callout lines drawing out to its features, a spinning
  * price badge, rings pulsing round the call to action. The photo itself is never
  * redrawn — the label and the logo on the product stay exactly as they are.
  *
- * Same scenes as Offer (app/motion.py PRODUCTFX_PROMPT / OFFER_TYPES):
+ * Same scenes as Offer (app/video/motion/ PRODUCTFX_PROMPT / OFFER_TYPES):
  *   { type: "hook",  text, icon, image?, cut? }              the product drops in, the burst
  *   { type: "list",  title, items: [{ icon, text }], image? } callouts from the product to 3 features
  *   { type: "offer", plan, price, period, was, badge, features, image? }   the price badge beside it
@@ -116,7 +116,7 @@ function Burst({ cx, cy, r, color, at = 0.35 }) {
   )
 }
 
-/** A software product's screenshot (app/cutout.py screen_kind) in a device:
+/** A software product's screenshot (app/images/cutout.py screen_kind) in a device:
  * "laptop" for a wide screen, "phone" for a tall one — the screen shows its top. */
 function Device({ kind, src, size, tallest }) {
   const { W, u, wide } = useStage()

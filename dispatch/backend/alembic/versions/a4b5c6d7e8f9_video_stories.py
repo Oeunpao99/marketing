@@ -1,4 +1,4 @@
-"""video_stories — longer videos made scene by scene and joined (app/story.py)."""
+"""video_stories — longer videos made scene by scene and joined (app/video/story.py)."""
 
 import sqlalchemy as sa
 from alembic import op

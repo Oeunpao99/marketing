@@ -1,5 +1,5 @@
 """brands.pronunciations — how the voice-over says words a Khmer voice gets
-wrong (brand and English names): [{"word", "say"}], app/khmer_speech.py."""
+wrong (brand and English names): [{"word", "say"}], app/voice/khmer_speech.py."""
 
 import sqlalchemy as sa
 from alembic import op

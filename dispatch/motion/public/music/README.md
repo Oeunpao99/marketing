@@ -27,6 +27,6 @@ chimes, an offer rings the till and drops coins, an event cheers its close, a la
 drops the bass on its reveal.
 
 The AI picks the mood for each video from the folders that have tracks
-(backend app/motion.py `music_tracks`); a track at least as long as the video is
+(backend app/video/motion/ `music_tracks`); a track at least as long as the video is
 picked when the mood has one (`track_for`), else the longest. Keep each
 file under ~5 MB. Keep a note of where each track came from and its licence.

@@ -1,7 +1,7 @@
 """drafts.subject + posts.subject — which of the person's "Subjects to write
 about" (Automation.subjects) an AI idea was written on, so learning.py can
 tell which subjects get engagement and content_ai.pick_subjects can favour them.
-Plus drafts.poster — the text for an idea's topic poster (app/poster.py)."""
+Plus drafts.poster — the text for an idea's topic poster (app/images/poster.py)."""
 
 import sqlalchemy as sa
 from alembic import op

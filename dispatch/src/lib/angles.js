@@ -1,5 +1,5 @@
 // Labels for the content pillar / marketing angle / goal an AI caption was
-// written with — mirrors PILLARS, ANGLES and GOALS in backend/app/content_ai.py
+// written with — mirrors PILLARS, ANGLES and GOALS in backend/app/ai/content_ai.py
 // (keys must match).
 export const PILLAR_LABELS = {
   educate: 'Education',

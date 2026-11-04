@@ -7,11 +7,11 @@
  *   6.0 s  the real logo fills in from the middle (a whoosh), the guides fade back
  *   7.2 s  the brand's name and tagline rise under it (a chime and a deep hit), a light sweep
  *
- * The lines come from the uploaded logo picture (app/logo_draw.py line_art → scene.art: the
+ * The lines come from the uploaded logo picture (app/images/logo_draw.py line_art → scene.art: the
  * line drawing and the logo, cropped to the same box, and the guides measured from its shapes —
  * each part's outer and inner circle, its axis, its outermost points). No logo → the brand's name is drawn
  * (its letters outlined, then filled). Sounds: logodrawCues, on the same frames (sfx.jsx).
- * Scenes (app/motion.py LOGODRAW_TYPES): draw {name, tagline, art}. 9:16 and 16:9.
+ * Scenes (app/video/motion/ LOGODRAW_TYPES): draw {name, tagline, art}. 9:16 and 16:9.
  */
 import { AbsoluteFill, Img, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion'
 import { FONT, KHMER_RE, clean, srcOf } from './shared'
@@ -80,7 +80,7 @@ function Draft({ scene, brand }) {
     [cx, cy - R], [cx, cy + R], [cx - R, cy], [cx + R, cy], [cx, cy],
   ]
   const g = (i) => F.guides + i * 7 // each guide starts a little after the one before
-  // the logo's own construction (app/logo_draw.py guides), in its pixels → on screen
+  // the logo's own construction (app/images/logo_draw.py guides), in its pixels → on screen
   const own = art?.guides?.circles?.length ? art.guides : null
   const X = (x) => cx - bw / 2 + x * k
   const Y = (y) => cy - bh / 2 + y * k
@@ -104,7 +104,7 @@ function Draft({ scene, brand }) {
           {/* the construction, fading back once the logo is filled */}
           <g opacity={guideOpacity}>
             {own ? (
-              // THIS logo's construction (app/logo_draw.py guides): the circle round it all, then part by
+              // THIS logo's construction (app/images/logo_draw.py guides): the circle round it all, then part by
               // part its outer circle, the largest circle inside it and the axis it leans along, then nodes
               <>
                 {own.circles.map(([x, y, r, kind], i) => (

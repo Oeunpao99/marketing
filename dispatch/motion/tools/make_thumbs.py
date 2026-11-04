@@ -3,7 +3,7 @@
     cd dispatch/backend
     uv run --no-sync python ../motion/tools/make_thumbs.py [lesson-id ...] [--redraw]
 
-Each one = an AI illustration of the lesson (gpt-image via app/video.py, no text
+Each one = an AI illustration of the lesson (gpt-image via app/video/video.py, no text
 in it: image AI garbles Khmer) + the Khmer title drawn by the TutorialThumb
 composition (motion/src/tutorial.jsx). Pictures are kept in
 motion/public/run-thumbs/ (gitignored) and only drawn again with --redraw —
@@ -19,8 +19,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path.cwd()))  # run from dispatch/backend
 
-from app import video as video_gen  # noqa: E402
-from app.imaging import shrink  # noqa: E402
+from app.video import video as video_gen  # noqa: E402
+from app.images.imaging import shrink  # noqa: E402
 
 MOTION = Path(__file__).resolve().parent.parent
 OUT = MOTION.parent / "public" / "tutorials"

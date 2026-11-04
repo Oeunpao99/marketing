@@ -7,7 +7,7 @@
  *   demo   (Solution)         the product shown working in an app window, step by step
  *   offer  (Conversion)       a glowing pricing card, what you get, a clear CTA
  *
- * Script fields come from app/motion.py (TREND_PROMPT, POV_PROMPT,
+ * Script fields come from app/video/motion/ (TREND_PROMPT, POV_PROMPT,
  * DEMO_PROMPT, OFFER_PROMPT):
  *
  *   { type: "news",   tag?, headline, text? }                   trend

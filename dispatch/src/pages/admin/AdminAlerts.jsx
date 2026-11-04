@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { FiCheck, FiExternalLink, FiSend, FiTrash2, FiUser, FiUserPlus, FiUsers } from 'react-icons/fi'
 
-// Team alerts (backend app/team_alerts.py, routes /admin-mkt/team-alerts): who on our
+// Team alerts (backend app/notify/team_alerts.py, routes /admin-mkt/team-alerts): who on our
 // team gets a Telegram message for every new sign-up. The bot is added once (its
 // token from @BotFather); each person or group then connects with a one-time link —
 // a bot can't message anyone by @username until they've opened it.

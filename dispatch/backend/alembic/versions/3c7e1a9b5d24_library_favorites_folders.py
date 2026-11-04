@@ -1,5 +1,5 @@
 """Library favorites + folders: videos.favorite, videos.folder_id and the
-library_folders table (app/views.py library endpoints)."""
+library_folders table (app/core/views.py library endpoints)."""
 
 import sqlalchemy as sa
 from alembic import op

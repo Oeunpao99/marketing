@@ -1,5 +1,5 @@
 // Brand kit — the logo, product photos and poster templates the image AI
-// builds on, the app screenshots the Remotion videos show (backend app/brand_kit.py),
+// builds on, the app screenshots the Remotion videos show (backend app/images/brand_kit.py),
 // and the brand's own voice for its videos (BrandVoice). Managed on the Products page; picked
 // from in the AI Agent's image composer and Auto-generate's image settings.
 import { useEffect, useRef, useState } from 'react'
@@ -73,7 +73,7 @@ function FilePick({ multiple = false, onFiles, children }) {
 const HEX = /^#?[0-9a-f]{6}$/i
 
 /** The brand's colours (main first, up to 3) — read from the logo when it's
- *  uploaded (backend app/colors.py), changed here; videos and posters use them. */
+ *  uploaded (backend app/images/colors.py), changed here; videos and posters use them. */
 function BrandColors({ brand, logoId, showToast }) {
   const [data, setData] = useState(null) // { colors, has_logo }
   const [busy, setBusy] = useState(false)

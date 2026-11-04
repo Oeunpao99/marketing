@@ -1,4 +1,4 @@
-"""weekly_plans — the AI weekly report + one-tap-approve plan (app/weekly.py)."""
+"""weekly_plans — the AI weekly report + one-tap-approve plan (app/planning/weekly.py)."""
 
 import sqlalchemy as sa
 from alembic import op

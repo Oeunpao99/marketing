@@ -1,4 +1,4 @@
-// What the workspace's plan unlocks (backend app/plan_features.py — sent with GET /usage as
+// What the workspace's plan unlocks (backend app/billing/plan_features.py — sent with GET /usage as
 // `features`). The server refuses what the plan doesn't include (a 402 with the reason);
 // this keeps the pages honest about it: a lock and an Upgrade instead of a button that fails.
 import { useUsage } from './usage'

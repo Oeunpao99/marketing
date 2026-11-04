@@ -6,13 +6,13 @@
  * out for 9:16 and 16:9. Words on screen all come from the script (Khmer or
  * English) — the template itself draws icons, never fixed English.
  *
- * Scenes (app/motion.py AITEAM_PROMPT):
+ * Scenes (app/video/motion/ AITEAM_PROMPT):
  *   { type: "hook", text, icon, sub? }                                the AI core pulsing, the line
  *   { type: "overload", text, tasks: [label] }                        to-dos piling up, a red counter
  *   { type: "crew", text, agents: [{ role, task, icon }] }            AI workers typing their task, ✓
  *   { type: "pipeline", text, input: { icon, label }, outputs: [{ icon, label }], image?, poster? }   one in, many out
  *   { type: "approve", text, post, button?, channels: [name], image? }   a phone, one tap, out to every page
- * Pictures (app/motion.py): the post's picture is the product's photo, else one the image
+ * Pictures (app/video/motion/): the post's picture is the product's photo, else one the image
  * AI painted from the scene's `draw`; the pipeline shows the photo in its input and the
  * painted post on its picture output (`poster`).
  *   { type: "gains", text, metrics: [{ label, value, prefix, suffix }] }   numbers counting up

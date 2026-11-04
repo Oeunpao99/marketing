@@ -1,5 +1,5 @@
 """Extra videos / images the team gives a workspace for its month (the admin portal's
-"Give extra videos & images") — on the grant's own credit entry (app/usage.py extra)."""
+"Give extra videos & images") — on the grant's own credit entry (app/billing/usage.py extra)."""
 
 import sqlalchemy as sa
 from alembic import op

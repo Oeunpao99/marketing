@@ -6,9 +6,9 @@
  *
  * The animals are our own — drawn once per film by the image model as a
  * two-panel sheet (mouth closed | mouth open) on chroma green; the server
- * keys the green out and splits it (app/doodle.py draw_cast_meme) →
+ * keys the green out and splits it (app/images/doodle.py draw_cast_meme) →
  * props.cast = [{ who, closed, open }]. Without them a big emoji face stands in.
- * 9:16. Scene types: hook · react · punch · cta (app/motion.py REACTION_TYPES) — the
+ * 9:16. Scene types: hook · react · punch · cta (app/video/motion/ REACTION_TYPES) — the
  * hook is the first meme moment, drawn like a react scene.
  */
 import { AbsoluteFill, Img, interpolate, random, spring, useCurrentFrame, useVideoConfig } from 'remotion'

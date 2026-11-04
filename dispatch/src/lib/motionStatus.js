@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 
-// Can this server render Remotion videos (backend app/motion.py — needs Node
+// Can this server render Remotion videos (backend app/video/motion/ — needs Node
 // and the motion project)? Asked once per page load and shared.
 let cached = null
 let pending = null

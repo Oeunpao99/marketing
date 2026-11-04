@@ -12,7 +12,7 @@ import CustomersTab from '../components/leads/CustomersTab'
 import { useAuth } from '../auth'
 import { useBrandMarks } from '../lib/brandMarks'
 
-// Leads & hand-off (backend app/leads.py): qualified chatbot leads, the rep
+// Leads & hand-off (backend app/crm/leads.py): qualified chatbot leads, the rep
 // the hand-off rules pick for each, and the sales team's load. Leads arrive by
 // hand, by import, or from POST /leads (what a chatbot integration calls).
 

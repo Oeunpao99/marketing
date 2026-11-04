@@ -1,4 +1,4 @@
-"""AI credit: workspaces.plan + credit_entries ledger (app/billing.py)."""
+"""AI credit: workspaces.plan + credit_entries ledger (app/billing/billing.py)."""
 
 import sqlalchemy as sa
 from alembic import op

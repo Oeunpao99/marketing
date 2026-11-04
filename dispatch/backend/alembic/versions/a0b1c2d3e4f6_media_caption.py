@@ -1,5 +1,5 @@
 """videos.caption / caption_angle / caption_status — a ready-to-post caption
-the AI writes for each generated image or video (app/media_caption.py)."""
+the AI writes for each generated image or video (app/images/media_caption.py)."""
 
 import sqlalchemy as sa
 from alembic import op

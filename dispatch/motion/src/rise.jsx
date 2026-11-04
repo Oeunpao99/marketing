@@ -5,7 +5,7 @@
  * moment, never a gradient. Old me vs new me side by side, a seed growing into
  * a plant, the lesson at the summit with a flag. Big bold words, key words in
  * gold (dark sky) or orange (light sky). All drawn in code. 9:16 and 16:9.
- * Scene types: hook · climb · mirror · grow · summit · cta (app/motion.py
+ * Scene types: hook · climb · mirror · grow · summit · cta (app/video/motion/
  * RISE_TYPES); build_props numbers them (n / of) so the climb and the sky
  * move on through the video.
  */

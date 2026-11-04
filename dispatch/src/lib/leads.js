@@ -1,4 +1,4 @@
-// Shared bits of the Leads & hand-off screens (backend app/leads.py).
+// Shared bits of the Leads & hand-off screens (backend app/crm/leads.py).
 
 export const TEMP = {
   hot: { label: 'Hot', cls: 'bg-orange-600 text-white' },

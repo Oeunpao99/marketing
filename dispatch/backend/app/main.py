@@ -5,47 +5,49 @@ from fastapi import APIRouter, Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app import content_scheduler, scheduler, video
-from app.advisor import router as advisor_router
-from app.ai import router as ai_router
-from app.auth import router as auth_router
-from app.google_login import router as google_login_router
-from app import billing, plan_features, sessions
-from app.payments import public_router as payments_public_router
-from app.payments import router as payments_router
-from app.brand_kit import router as brand_kit_router
-from app.brand_voice import router as brand_voice_router
-from app.improve import router as improve_router
-from app.story import router as story_router
-from app.chats import router as chats_router
-from app.config import get_settings
-from app.crud_router import build_router
-from app.editor import router as editor_router
-from app.media import router as media_router
-from app.media import serve_router as media_serve_router
-from app.push import router as push_router
-from app.registry import REGISTRY, registry_meta
-from app.tenancy import get_current_user
-from app.video import router as video_gen_router
-from app.motion import router as motion_router
-from app.motion import sketch_router as motion_sketch_router
-from app.gemini_keys import router as gemini_keys_router
-from app.views import public_router as views_public_router
-from app.views import router as views_router
-from app.weekly import router as weekly_router
-from app.website import router as website_router
-from app.activity import router as activity_router
-from app.command import router as command_router
-from app.admin import router as admin_router
-from app.account_close import router as account_close_router
-from app.api_keys import router as api_keys_router
-from app.usage import router as usage_router
-from app.mcp_server import router as mcp_router
-from app.leads import intake_router as leads_intake_router
-from app.leads import router as leads_router
-from app.boosts import router as boosts_router
-from app.sales_alerts import router as sales_alerts_router
-from app.ai_models_api import router as ai_models_router
+from app.planning import content_scheduler, scheduler
+from app.video import video
+from app.ai.advisor import router as advisor_router
+from app.ai.ai import router as ai_router
+from app.auth.auth import router as auth_router
+from app.auth.google_login import router as google_login_router
+from app.billing import billing, plan_features
+from app.auth import sessions
+from app.billing.payments import public_router as payments_public_router
+from app.billing.payments import router as payments_router
+from app.images.brand_kit import router as brand_kit_router
+from app.voice.brand_voice import router as brand_voice_router
+from app.ai.improve import router as improve_router
+from app.video.story import router as story_router
+from app.ai.chats import router as chats_router
+from app.core.config import get_settings
+from app.core.crud_router import build_router
+from app.video.editor import router as editor_router
+from app.storage.media import router as media_router
+from app.storage.media import serve_router as media_serve_router
+from app.notify.push import router as push_router
+from app.core.registry import REGISTRY, registry_meta
+from app.core.tenancy import get_current_user
+from app.video.video import router as video_gen_router
+from app.video.motion import router as motion_router
+from app.video.motion import sketch_router as motion_sketch_router
+from app.ai.gemini_keys import router as gemini_keys_router
+from app.core.views import public_router as views_public_router
+from app.core.views import router as views_router
+from app.planning.weekly import router as weekly_router
+from app.website.website import router as website_router
+from app.planning.activity import router as activity_router
+from app.planning.command import router as command_router
+from app.admin.admin import router as admin_router
+from app.auth.account_close import router as account_close_router
+from app.auth.api_keys import router as api_keys_router
+from app.billing.usage import router as usage_router
+from app.ai.mcp_server import router as mcp_router
+from app.crm.leads import intake_router as leads_intake_router
+from app.crm.leads import router as leads_router
+from app.channels.boosts import router as boosts_router
+from app.crm.sales_alerts import router as sales_alerts_router
+from app.ai.ai_models_api import router as ai_models_router
 
 logging.basicConfig(level=logging.INFO)
 # httpx logs every request's full url — and some carry secrets in it (Meta's
@@ -87,7 +89,7 @@ MAINTENANCE_DEFAULT = "Marketing ឆ្លាតវៃ is down for scheduled mai
 
 @app.middleware("http")
 async def billing_payer(request: Request, call_next):
-    """Open this request's "who pays for AI" holder (app/billing.py)."""
+    """Open this request's "who pays for AI" holder (app/billing/billing.py)."""
     billing.begin_request(request.headers.get("x-ai-model", ""))
     return await call_next(request)
 
@@ -138,7 +140,7 @@ def meta_models():
 
 
 # Everything below needs a signed-in user; each route then scopes itself to
-# that user's workspace (app/tenancy.py). Only /auth (login / sign-up), the
+# that user's workspace (app/core/tenancy.py). Only /auth (login / sign-up), the
 # OAuth callbacks and /media/<name> (platforms fetch those urls) stay public.
 authed = [Depends(get_current_user)]
 for resource in REGISTRY:
@@ -147,7 +149,7 @@ for resource in REGISTRY:
 api.include_router(auth_router)
 api.include_router(google_login_router)  # public: "Continue with Google" on the login page
 api.include_router(billing.router, dependencies=authed)
-api.include_router(usage_router, dependencies=authed)  # the plan's videos / images left (app/usage.py)
+api.include_router(usage_router, dependencies=authed)  # the plan's videos / images left (app/billing/usage.py)
 api.include_router(payments_router, dependencies=authed)  # plans paid by KHQR (Bakong)
 api.include_router(sessions.router, dependencies=authed)
 api.include_router(account_close_router, dependencies=authed)  # close my account / leave the workspace

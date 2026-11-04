@@ -4,7 +4,7 @@ import { api } from '../../api/client'
 import { useStore } from '../../store'
 
 // Setup → "Sales alerts": the sales team's Telegram group that every lead
-// hand-off is posted to, mentioning the rep (app/sales_alerts.py). Linked with
+// hand-off is posted to, mentioning the rep (app/crm/sales_alerts.py). Linked with
 // a one-time "/connect CODE" sent in the group.
 
 export default function SalesAlertsCard({ canManage }) {

@@ -1,5 +1,5 @@
 // Images/videos the person started in the AI Agent that are still rendering.
-// Rendering happens on the server (app/video.py) and a phone push says when
+// Rendering happens on the server (app/video/video.py) and a phone push says when
 // it's done; this keeps an eye on them from anywhere in the app too, so if
 // they've wandered off to another page they get a toast when it's ready.
 import { useEffect, useRef } from 'react'

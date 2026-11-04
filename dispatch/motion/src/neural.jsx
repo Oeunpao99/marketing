@@ -5,7 +5,7 @@
  * by side, a slow-zoom quote. Ported from the "AI with Pao" template; the
  * brand's own logo chip stays (MotionPost Chrome). 9:16 and 16:9.
  *
- * Scenes (app/motion.py NEURAL_TYPES — the fields their cleaners keep):
+ * Scenes (app/video/motion/ NEURAL_TYPES — the fields their cleaners keep):
  *   hook {text, icon} · list {title, items[{icon, text}]} · beforeafter {title, before, after}
  *   timeline {title, steps[{when, text}]} · compare {title, left/right {name, mood, value, tone}}
  *   quote {text, author, role} · stat {value, prefix, suffix, label, icon} · cta {text, button}

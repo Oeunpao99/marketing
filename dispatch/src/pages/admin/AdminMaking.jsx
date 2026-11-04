@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { FiClock, FiFilm, FiImage, FiRefreshCw, FiVideo } from 'react-icons/fi'
 import { templateById } from '../../lib/motionTemplates'
 
-// Admin portal → Making now (backend app/admin.py GET /making): every video and
+// Admin portal → Making now (backend app/admin/admin.py GET /making): every video and
 // picture being made right now, in every account — queued or running, not
 // finished yet. A template video shows its stage (story, pictures, voice,
 // render) and how far along it is, live; the page refreshes itself every few

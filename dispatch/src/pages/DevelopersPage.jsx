@@ -2,8 +2,8 @@ import { useState } from 'react'
 import CodeBlock, { CopyButton as CopyBtn } from '../components/ui/CodeBlock'
 import { FiArrowRight, FiBookOpen, FiCheck, FiCode, FiCopy, FiCpu, FiFilm, FiImage, FiKey, FiLayers, FiLock, FiSearch, FiShield, FiZap } from 'react-icons/fi'
 
-// /developers — the public docs for the API and the MCP connector (app/mcp_server.py,
-// keys: app/api_keys.py, Settings → API & MCP). Shown inside the landing page's
+// /developers — the public docs for the API and the MCP connector (app/ai/mcp_server.py,
+// keys: app/auth/api_keys.py, Settings → API & MCP). Shown inside the landing page's
 // header and footer (LandingPage page="developers"), like /mkt-tutorial. Every
 // example calls the same endpoint: JSON-RPC 2.0 over HTTPS, POST /api/mcp.
 

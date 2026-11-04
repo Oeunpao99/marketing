@@ -2,7 +2,7 @@
  * Testimonial (Trust): a customer's story — who they are, life before, life
  * after, the result in a number, and (only with their real words in the
  * brief) their review. Warm cream and gold. Script fields come from
- * app/motion.py TESTIMONIAL_PROMPT.
+ * app/video/motion/ TESTIMONIAL_PROMPT.
  *
  *   { type: "hook",        text, icon? }
  *   { type: "customer",    name, business, text, mood? }   who they are

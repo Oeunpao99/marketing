@@ -1,6 +1,6 @@
 // What the bell shows, in one place — used by the Notifications panel and the
 // Topbar / Sidebar counts, filtered by Settings → Notifications. (Phone and
-// desktop pop-ups are server-sent Web Push — see lib/push.js, app/push.py.)
+// desktop pop-ups are server-sent Web Push — see lib/push.js, app/notify/push.py.)
 import { useEffect, useMemo, useState } from 'react'
 import { FiAlertTriangle, FiAward, FiCheckCircle, FiFilm, FiInbox, FiShield, FiUserPlus } from 'react-icons/fi'
 import { notificationStamp, readDismissed, saveDismissed } from './notificationDismissals'

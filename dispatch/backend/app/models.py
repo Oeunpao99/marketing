@@ -1,6 +1,6 @@
 """SQLAlchemy models.
 
-Every model here is registered in ``app/registry.py`` and therefore gets its own
+Every model here is registered in ``app/core/registry.py`` and therefore gets its own
 REST resource and its own entry in the portal sidebar.
 """
 
@@ -29,7 +29,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.database import Base
+from app.core.database import Base
 
 
 class TimestampMixin:
@@ -49,19 +49,19 @@ class Workspace(Base, TimestampMixin):
 
     Every brand, uploaded or generated asset, and login belongs to exactly one
     workspace; everything else (channels, posts, drafts, products,
-    automations) is scoped through its brand. See app/tenancy.py for the
+    automations) is scoped through its brand. See app/core/tenancy.py for the
     checks every endpoint runs against this."""
 
     __tablename__ = "workspaces"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(120))
-    # Billing plan (app/billing.py): "pro" gets PLAN_CREDIT["pro"] of AI credit
+    # Billing plan (app/billing/billing.py): "pro" gets PLAN_CREDIT["pro"] of AI credit
     # a month. New accounts start on "free"; a paid plan comes from Billing →
-    # Upgrade (KHQR, app/payments.py) or the admin portal.
+    # Upgrade (KHQR, app/billing/payments.py) or the admin portal.
     plan: Mapped[str] = mapped_column(String(20), default="free", server_default="free")
     # The month ("2026-11") the "your monthly credits are ready" push last went
-    # out (app/billing.py remind_claims) — once a month.
+    # out (app/billing/billing.py remind_claims) — once a month.
     credit_notice_month: Mapped[str | None] = mapped_column(String(7), nullable=True)
     # Settings → Billing → "Clear older history": activity before this is hidden
     # from the workspace (the ledger rows stay, for the admin portal).
@@ -69,36 +69,36 @@ class Workspace(Base, TimestampMixin):
     # Billing → Transfer credits: the account's number, like a bank account's —
     # 10 random digits (not the id, so numbers can't be guessed in order).
     account_no: Mapped[str | None] = mapped_column(String(10), nullable=True, unique=True)
-    # Suspended by the platform admin (/admin-mkt, app/admin.py): nobody in it
+    # Suspended by the platform admin (/admin-mkt, app/admin/admin.py): nobody in it
     # can sign in or use the app, and no AI is charged to it. Null = active.
     suspended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     suspended_reason: Mapped[str] = mapped_column(String(300), default="", server_default="")
-    # The owner closed the account (Settings → Workspace, app/account_close.py): it's
+    # The owner closed the account (Settings → Workspace, app/auth/account_close.py): it's
     # suspended from then, and deleted for good 14 days later unless the owner signs
     # in again (which restores it). Null = not closing.
     closing_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    # A plan paid for with KHQR (app/payments.py) runs until this moment, then the
+    # A plan paid for with KHQR (app/billing/payments.py) runs until this moment, then the
     # workspace goes back to Free. Null = not a paid period (Free, or a plan the
     # team set in the admin portal) — never expires by itself.
     plan_paid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    # Chatbot lead intake (app/leads.py, POST /api/intake/leads): only a hash of
+    # Chatbot lead intake (app/crm/leads.py, POST /api/intake/leads): only a hash of
     # the secret key is kept — the key is shown once, when it is made — plus its
     # last 4 characters so Setup can tell keys apart, and when a bot last sent a lead.
     lead_intake_key_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True)
     lead_intake_key_hint: Mapped[str] = mapped_column(String(8), default="", server_default="")
     lead_intake_last_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    # Sales alerts (app/sales_alerts.py): the Telegram group hand-offs are posted
+    # Sales alerts (app/crm/sales_alerts.py): the Telegram group hand-offs are posted
     # to, its title for Setup, and the one-time "/connect CODE" while linking it.
     sales_tg_chat_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
     sales_tg_title: Mapped[str] = mapped_column(String(200), default="", server_default="")
     sales_tg_code: Mapped[str | None] = mapped_column(String(12), nullable=True)
-    # The AI that writes for this workspace (app/ai_models.py): a model key, ""
+    # The AI that writes for this workspace (app/ai/ai_models.py): a model key, ""
     # = the platform default. A request may still pick another allowed one.
     ai_model: Mapped[str] = mapped_column(String(40), default="", server_default="")
     # Which writing models the platform admin lets this workspace use — null =
     # every enabled model (/admin-mkt sets it).
     ai_models_allowed: Mapped[list | None] = mapped_column(JSONB, nullable=True)
-    # Its own Gemini API key (app/gemini_keys.py): the Khmer voice's second
+    # Its own Gemini API key (app/ai/gemini_keys.py): the Khmer voice's second
     # chance when the platform's key is out — kept encrypted, never shown back
     # (only its last 4 characters).
     gemini_key_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -106,7 +106,7 @@ class Workspace(Base, TimestampMixin):
 
 
 class AiModel(Base):
-    """A writing model customers may pick (app/ai_models.py has the catalog):
+    """A writing model customers may pick (app/ai/ai_models.py has the catalog):
     the platform admin turns it on and off, and sets what it costs us per 1M
     tokens and the markup a workspace's credit is charged at."""
 
@@ -122,7 +122,7 @@ class AiModel(Base):
 
 class PlanPrice(Base, TimestampMixin):
     """What a plan costs a month, set in the admin portal (Prices). A row wins over
-    PLAN_PRICES in .env / the built-in prices (app/payments.py prices); a currency
+    PLAN_PRICES in .env / the built-in prices (app/billing/payments.py prices); a currency
     left empty isn't sold in that currency. The website shows the same
     (GET /api/public/prices)."""
 
@@ -135,7 +135,7 @@ class PlanPrice(Base, TimestampMixin):
 
 class PlanLimit(Base, TimestampMixin):
     """What a plan makes a month, set in the admin portal (Plans): AI videos, AI
-    images and the longest video. A plan with no row uses app/usage.py DEFAULTS."""
+    images and the longest video. A plan with no row uses app/billing/usage.py DEFAULTS."""
 
     __tablename__ = "plan_limits"
 
@@ -147,7 +147,7 @@ class PlanLimit(Base, TimestampMixin):
 
 class AppSetting(Base, TimestampMixin):
     """An app-wide setting the admin portal changes, by name (key → JSON) — e.g.
-    "team_alerts": who on the team hears about new sign-ups (app/team_alerts.py)."""
+    "team_alerts": who on the team hears about new sign-ups (app/notify/team_alerts.py)."""
 
     __tablename__ = "app_settings"
 
@@ -157,7 +157,7 @@ class AppSetting(Base, TimestampMixin):
 
 class CreditPack(Base, TimestampMixin):
     """A pack of extra AI credits a customer on a paid plan can buy with KHQR
-    (app/payments.py; the Upgrade page's "Top up credits"). Set in the admin
+    (app/billing/payments.py; the Upgrade page's "Top up credits"). Set in the admin
     portal (Prices); a currency left empty isn't sold in it; ``active`` off =
     hidden. Bought credits last the month they're bought in, like the plan's own."""
 
@@ -165,7 +165,7 @@ class CreditPack(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     credits: Mapped[int] = mapped_column(Integer)
-    # what the customer sees and gets: extra videos / images this month (app/usage.py);
+    # what the customer sees and gets: extra videos / images this month (app/billing/usage.py);
     # the credits stay underneath as the hidden fair-use allowance
     videos: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     images: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
@@ -175,7 +175,7 @@ class CreditPack(Base, TimestampMixin):
 
 
 class Payment(Base, TimestampMixin):
-    """One plan payment by KHQR (app/payments.py): the code shown to the
+    """One plan payment by KHQR (app/billing/payments.py): the code shown to the
     customer, its md5 (Bakong finds the transaction by it), and what Bakong
     reported once it was paid. The receipt in Settings → Billing and the admin
     portal's payments list read these rows. Kept when the account is deleted
@@ -206,17 +206,17 @@ class Payment(Base, TimestampMixin):
     period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # a credit top-up (plan = "credits"): how many credits it buys; None for a plan
     credits: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    # a pack's extra videos / images for the month it's paid in (app/usage.py)
+    # a pack's extra videos / images for the month it's paid in (app/billing/usage.py)
     videos: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     images: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
 
 class CreditEntry(Base):
-    """One line of a workspace's AI-credit ledger (app/billing.py): a spend
+    """One line of a workspace's AI-credit ledger (app/billing/billing.py): a spend
     (negative ``amount_usd``, estimated from the provider's tokens / seconds)
     or a grant (positive). The balance is the plan's monthly credit plus the
     sum of this month's entries, so it refills on the 1st with no cron job.
-    Deliberately not in app/registry.py — nobody edits credit over the API."""
+    Deliberately not in app/core/registry.py — nobody edits credit over the API."""
 
     __tablename__ = "credit_entries"
 
@@ -239,7 +239,7 @@ class CreditEntry(Base):
     cost_usd: Mapped[float] = mapped_column(Numeric(12, 6), default=0, server_default="0")
     seconds: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     # a "grant" from the team (admin portal): the extra videos / images it gives for its month
-    # (app/usage.py extra) — its amount is the hidden allowance behind them
+    # (app/billing/usage.py extra) — its amount is the hidden allowance behind them
     videos: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     images: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     note: Mapped[str] = mapped_column(String(300), default="", server_default="")
@@ -272,9 +272,9 @@ class Brand(Base, TimestampMixin):
     chat_messenger: Mapped[str] = mapped_column(String(100), default="", server_default="")
     chat_label: Mapped[str] = mapped_column(String(80), default="", server_default="")
     # How the voice-over should say words a Khmer voice gets wrong — brand and
-    # English names: [{"word": "Chumnouykar", "say": "ជំនួយការ"}] (app/khmer_speech.py).
+    # English names: [{"word": "Chumnouykar", "say": "ជំនួយការ"}] (app/voice/khmer_speech.py).
     pronunciations: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]", nullable=False)
-    # The brand's own voice for its videos (app/voice_clone.py): {"status":
+    # The brand's own voice for its videos (app/voice/voice_clone.py): {"status":
     # "learning" | "ready" | "failed", "sample": its recording's url,
     # "fingerprint": the tone-colour embedding's url, "base": "male" |
     # "female" (which reader's voice it's converted from), "seconds",
@@ -352,7 +352,7 @@ class Video(Base, TimestampMixin):
     tag: Mapped[str] = mapped_column(String(80), default="")
     # Publicly reachable URL — when set, Telegram posts send the video itself.
     url: Mapped[str] = mapped_column(String(500), default="", server_default="")
-    # A ready-to-post caption for this image / video (app/media_caption.py) —
+    # A ready-to-post caption for this image / video (app/images/media_caption.py) —
     # "Use" in the Library carries it into Compose. caption_status: "" (none),
     # "writing", "ready" or "failed"; caption_angle is a content_ai.ANGLES key.
     caption: Mapped[str] = mapped_column(Text, default="", server_default="")
@@ -377,7 +377,7 @@ class LibraryFolder(Base, TimestampMixin):
 
 
 class EditProject(Base, TimestampMixin):
-    """A video editor project (Content studio → Video editor, app/editor.py):
+    """A video editor project (Content studio → Video editor, app/video/editor.py):
     the timeline — tracks and clips, as JSON (motion/src/timeline.jsx) —
     saved as people edit. Exporting it renders a new Library video."""
 
@@ -400,7 +400,7 @@ class MediaBlob(Base, TimestampMixin):
     """The raw bytes behind a ``/media/<name>`` url.
 
     Kept in the database so uploaded and AI-generated assets survive a redeploy
-    or a wiped disk. Written by ``app/media.py`` and ``app/video.py``; served by
+    or a wiped disk. Written by ``app/storage/media.py`` and ``app/video/video.py``; served by
     ``GET /media/<name>``.
     """
 
@@ -413,7 +413,7 @@ class MediaBlob(Base, TimestampMixin):
         server_default="application/octet-stream",
     )
     size_bytes: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
-    # the bytes — empty once the file lives in Azure Blob Storage (``stored`` = "azure", app/blobstore.py)
+    # the bytes — empty once the file lives in Azure Blob Storage (``stored`` = "azure", app/storage/blobstore.py)
     data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     stored: Mapped[str] = mapped_column(String(8), default="", server_default="")
 
@@ -430,7 +430,7 @@ class Post(Base, TimestampMixin):
     # draft | scheduled | posted
     status: Mapped[str] = mapped_column(String(12), default="draft")
     # The marketing angle of the AI caption it came from (content_ai.ANGLES,
-    # copied off its Draft) — "" for hand-written posts. app/learning.py
+    # copied off its Draft) — "" for hand-written posts. app/ai/learning.py
     # compares angles to learn which ones work for the brand.
     angle: Mapped[str] = mapped_column(String(30), default="", server_default="")
     # Its content pillar (content_ai.PILLARS, e.g. "educate"), same source and
@@ -439,10 +439,10 @@ class Post(Base, TimestampMixin):
     # Which of Automation.subjects it was written on — same source and purpose.
     subject: Mapped[str] = mapped_column(String(80), default="", server_default="")
     # Where it was made: "contentflow" (here) or "native" — posted straight on
-    # the platform and imported from a connected Page (app/importer.py), so
+    # the platform and imported from a connected Page (app/channels/importer.py), so
     # Analytics can badge it and still count it.
     origin: Mapped[str] = mapped_column(String(20), default="contentflow", server_default="contentflow")
-    # What the post is about, read by the AI once it is published (app/post_tags.py):
+    # What the post is about, read by the AI once it is published (app/ai/post_tags.py):
     # {"summary", "topic", "audience", "pain_point", "cta"}. Null until tagged.
     content_tags: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
@@ -482,7 +482,7 @@ class PostTarget(Base, TimestampMixin):
     # "disable_duet": false, "disable_comment": false, "disable_stitch": false,
     # "brand_content_toggle": false, "brand_organic_toggle": false}}. Ignored
     # entirely by every platform except TikTok's Direct Post path
-    # (app/publishers.py); harmless if absent (Upload-flow TikTok, and every
+    # (app/channels/publishers.py); harmless if absent (Upload-flow TikTok, and every
     # other platform, don't read it).
     platform_options: Mapped[dict[str, Any]] = mapped_column(
         JSONB, default=dict, server_default="{}", nullable=False
@@ -503,7 +503,7 @@ class Draft(Base, TimestampMixin):
     body: Mapped[str] = mapped_column(Text, default="")
     # Why this angle — the AI's reasoning, shown alongside the caption on review.
     insight: Mapped[str] = mapped_column(Text, default="", server_default="")
-    # The calendar day this idea is slotted for (app/content_scheduler.py sets
+    # The calendar day this idea is slotted for (app/planning/content_scheduler.py sets
     # this to the Phnom Penh day it was written for; null for hand-made drafts).
     planned_for: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
     # "HH:MM" Phnom Penh time the weekly plan showed for it — scheduling uses
@@ -534,10 +534,10 @@ class Draft(Base, TimestampMixin):
     # The subject (one of Automation.subjects) the idea was written on, or "".
     subject: Mapped[str] = mapped_column(String(80), default="", server_default="")
     # Relatable ideas: {"top": setup text, "scene": the funny photo} — their
-    # image is made as a meme poster (app/meme.py). Null otherwise.
+    # image is made as a meme poster (app/images/meme.py). Null otherwise.
     meme: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     # Educate / benefit / comparison / trend / quote / community ideas: the
-    # text for their topic poster (app/poster.py, content_ai.py "poster").
+    # text for their topic poster (app/images/poster.py, content_ai.py "poster").
     poster: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     # Claims the automatic fact-check couldn't find in the brand's product
     # info (content_ai.fact_check). Empty list = checked, nothing flagged;
@@ -580,16 +580,16 @@ class GenerationJob(Base, TimestampMixin):
     provider: Mapped[str] = mapped_column(String(40), default="", server_default="")
     provider_job_id: Mapped[str] = mapped_column(String(120), default="", server_default="")
     # The model / deployment that rendered it ("" = the provider's default) —
-    # app/billing.py prices by it (auto-generate videos use a cheaper model).
+    # app/billing/billing.py prices by it (auto-generate videos use a cheaper model).
     model: Mapped[str] = mapped_column(String(80), default="", server_default="")
     # queued | running | succeeded | failed
     status: Mapped[str] = mapped_column(String(12), default="queued")
     error: Mapped[str] = mapped_column(Text, default="", server_default="")
-    # A Remotion video's "How it was made" (JSON, app/motion.py making_of):
+    # A Remotion video's "How it was made" (JSON, app/video/motion/ making_of):
     # the template, voice and each scene's words, spoken line, start time and
     # narration clip. "" for everything else and for videos made before it.
     making: Mapped[str] = mapped_column(Text, default="", server_default="")
-    # How many of the month's videos (or images) this job uses (app/usage.py): a
+    # How many of the month's videos (or images) this job uses (app/billing/usage.py): a
     # template video by its length, an AI-filmed clip 3, a picture 1; 0 for a
     # re-shape, an edit, an editor export, a Story's single scenes, and jobs made
     # before counting began.
@@ -614,7 +614,7 @@ class Automation(Base, TimestampMixin):
     topic_source: Mapped[str] = mapped_column(String(120), default="")
     require_approval: Mapped[bool] = mapped_column(Boolean, default=True)
     # Phnom Penh calendar day this automation last generated its batch —
-    # app/content_scheduler.py's guard against writing the same day twice.
+    # app/planning/content_scheduler.py's guard against writing the same day twice.
     last_run_on: Mapped[date | None] = mapped_column(Date, nullable=True)
     # Opt-in: also auto-generate media for each idea that passes its fit-score
     # check, and (once approved) schedule it as a real post automatically.
@@ -628,11 +628,11 @@ class Automation(Base, TimestampMixin):
     # per-platform defaults (19:30 Facebook / 20:00 TikTok / 20:30 else — see
     # content_scheduler.py's _default_time_for). Null = keep those defaults.
     post_at: Mapped[time | None] = mapped_column(Time, nullable=True)
-    # Learn from results (app/learning.py): feed what has worked for this
+    # Learn from results (app/ai/learning.py): feed what has worked for this
     # brand into the idea brief, and auto-schedule at its best-performing
     # hour when post_at isn't set. On by default; the page has a switch.
     learn_from_results: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
-    # Brand kit for auto-made images (app/brand_kit.py): {"template_ids": [..],
+    # Brand kit for auto-made images (app/images/brand_kit.py): {"template_ids": [..],
     # "logo": bool, "product_photos": bool}. Templates rotate one per image;
     # empty = images are made from the text brief only, as before.
     poster_kit: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, server_default="{}", nullable=False)
@@ -640,10 +640,10 @@ class Automation(Base, TimestampMixin):
     # explained", …) — preset or typed by the person. Each day's / batch's
     # ideas get the next few (content_ai.pick_subjects). Empty = the AI picks.
     subjects: Mapped[list[str]] = mapped_column(JSONB, default=list, server_default="[]", nullable=False)
-    # Percent per content goal (app/goals.py GOALS, e.g. {"reach": 15, ...}) the
+    # Percent per content goal (app/ai/goals.py GOALS, e.g. {"reach": 15, ...}) the
     # weekly plan fills; null = the AI's default mix (goals.DEFAULT_MIX).
     goal_mix: Mapped[dict[str, int] | None] = mapped_column(JSONB, nullable=True)
-    # How far ahead the AI plans (app/weekly.py): "week" = the 7 days from
+    # How far ahead the AI plans (app/planning/weekly.py): "week" = the 7 days from
     # Monday, written Sunday evening; "day" = tomorrow only, written every evening.
     plan_every: Mapped[str] = mapped_column(String(8), default="week", server_default="week", nullable=False)
 
@@ -653,7 +653,7 @@ def _create_automation_for_new_brand(mapper, connection, target: Brand) -> None:
     """Every brand needs exactly one Automation row (the Auto-generate page
     reads Automation rows directly, with no fallback) — this keeps that true
     no matter how the Brand got created (the generic /brands POST endpoint,
-    app/seed.py, a script, ...), instead of relying on every call site to
+    app/core/seed.py, a script, ...), instead of relying on every call site to
     remember it. Starts disabled — someone still has to opt in and set a
     schedule on the Auto-generate page."""
     connection.execute(
@@ -663,7 +663,7 @@ def _create_automation_for_new_brand(mapper, connection, target: Brand) -> None:
 
 class Product(Base, TimestampMixin):
     """A product/service/offer for a brand — what the daily content AI reads to
-    write on-topic ideas (app/content_ai.py)."""
+    write on-topic ideas (app/ai/content_ai.py)."""
 
     __tablename__ = "products"
 
@@ -676,7 +676,7 @@ class Product(Base, TimestampMixin):
 
 
 class BrandAsset(Base, TimestampMixin):
-    """A brand-kit file the image AI builds on (app/brand_kit.py):
+    """A brand-kit file the image AI builds on (app/images/brand_kit.py):
 
     - ``logo``     — the brand's logo (one per brand), placed on posters as-is.
     - ``product``  — a real photo of one of its products (``product_id``), so a
@@ -702,7 +702,7 @@ class BrandAsset(Base, TimestampMixin):
 
 
 class AgentChat(Base, TimestampMixin):
-    """One saved AI Agent conversation (app/chats.py) — private to the person
+    """One saved AI Agent conversation (app/ai/chats.py) — private to the person
     who had it. ``turns`` is the page's own thread (questions + answers,
     prompts + the generated media refs) stored as-is, so reopening it from
     History restores exactly what they saw."""
@@ -724,7 +724,7 @@ class AgentChat(Base, TimestampMixin):
 
 class PushSubscription(Base, TimestampMixin):
     """One browser / installed app that turned on push notifications
-    (app/push.py). ``endpoint`` is the push service URL the browser gave us."""
+    (app/notify/push.py). ``endpoint`` is the push service URL the browser gave us."""
 
     __tablename__ = "push_subscriptions"
 
@@ -742,10 +742,10 @@ class PushSubscription(Base, TimestampMixin):
 
 
 class UserSession(Base):
-    """One signed-in device (app/sessions.py) — Settings → Security → Active
+    """One signed-in device (app/auth/sessions.py) — Settings → Security → Active
     sessions. Keyed by a SHA-256 of the session token (never the token
     itself); a row with ``revoked_at`` set turns that token away, which is how
-    "Sign out" on another device works. Not in app/registry.py."""
+    "Sign out" on another device works. Not in app/core/registry.py."""
 
     __tablename__ = "user_sessions"
 
@@ -777,11 +777,11 @@ class UserSession(Base):
 
 
 class LoginEvent(Base):
-    """One sign-in attempt (app/auth.py) — the Settings → Security login
+    """One sign-in attempt (app/auth/auth.py) — the Settings → Security login
     history. Never stores the password, right or wrong. ``workspace_id`` /
     ``user_id`` are set only when the typed email belongs to an account, so an
     attempt on an unknown email is recorded but shown to no workspace.
-    Deliberately not in app/registry.py: no generic CRUD endpoint."""
+    Deliberately not in app/core/registry.py: no generic CRUD endpoint."""
 
     __tablename__ = "login_events"
 
@@ -807,9 +807,9 @@ class MetricSnapshot(Base):
     "now", so saving readings over time is what lets Analytics chart how a post
     grew. ``target_id`` set = one post's metrics (likes/comments/shares/views/
     clicks); ``target_id`` null = channel-wide numbers (Telegram's member
-    count). Written by app/views.py's record_snapshots (when Analytics loads,
-    and every few hours by the background collector in app/scheduler.py).
-    Not in app/registry.py: no generic CRUD endpoint."""
+    count). Written by app/core/views.py's record_snapshots (when Analytics loads,
+    and every few hours by the background collector in app/planning/scheduler.py).
+    Not in app/core/registry.py: no generic CRUD endpoint."""
 
     __tablename__ = "metric_snapshots"
     __table_args__ = (
@@ -831,11 +831,11 @@ class MetricSnapshot(Base):
 
 
 class WeeklyPlan(Base, TimestampMixin):
-    """One brand's AI weekly report + plan (app/weekly.py) — last week's
+    """One brand's AI weekly report + plan (app/planning/weekly.py) — last week's
     numbers vs the week before, and a day-by-day set of post ideas for the
     coming week that the person approves in one tap. ``report`` and ``items``
-    are written by app/weekly.py and read as-is by the Weekly plan page.
-    Not in app/registry.py: no generic CRUD endpoint."""
+    are written by app/planning/weekly.py and read as-is by the Weekly plan page.
+    Not in app/core/registry.py: no generic CRUD endpoint."""
 
     __tablename__ = "weekly_plans"
 
@@ -856,10 +856,10 @@ class WeeklyPlan(Base, TimestampMixin):
 
 
 class ActivityPlan(Base, TimestampMixin):
-    """A brand's weekly activity plan (app/activity.py): the 1-3 goals the AI
+    """A brand's weekly activity plan (app/planning/activity.py): the 1-3 goals the AI
     picked for the week and the team's day-by-day to-do list to reach them —
     a shared checklist everyone in the workspace ticks. One per brand per
-    week (Monday-Sunday, Phnom Penh). Not in app/registry.py: no generic CRUD."""
+    week (Monday-Sunday, Phnom Penh). Not in app/core/registry.py: no generic CRUD."""
 
     __tablename__ = "activity_plans"
     __table_args__ = (UniqueConstraint("brand_id", "week_start", name="uq_activity_plan_brand_week"),)
@@ -879,14 +879,14 @@ class ActivityPlan(Base, TimestampMixin):
 
 
 class VideoStory(Base, TimestampMixin):
-    """A longer video (15-60s) made scene by scene (app/story.py): the AI
+    """A longer video (15-60s) made scene by scene (app/video/story.py): the AI
     writes a storyboard, each scene renders as its own short clip (a
     GenerationJob of kind "scene" — the video model only makes 4-12s), and
     the clips are joined into one MP4 once the person approves.
 
     ``scenes``: [{"key", "seconds", "visual", "voiceover", "on_screen",
     "job_id": int | null, "state": "draft" | "pending" | "rendering" |
-    "done" | "failed", "error"}]. Not in app/registry.py."""
+    "done" | "failed", "error"}]. Not in app/core/registry.py."""
 
     __tablename__ = "video_stories"
 
@@ -909,7 +909,7 @@ class VideoStory(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(String(12), default="draft")
     scenes: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list, server_default="[]", nullable=False)
     # Join the clips by itself once every scene is done — a weekly plan's
-    # video (app/weekly.py), approved once as a storyboard and once finished.
+    # video (app/planning/weekly.py), approved once as a storyboard and once finished.
     auto_join: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
     final_video_id: Mapped[int | None] = mapped_column(
         ForeignKey("videos.id", ondelete="SET NULL"), nullable=True
@@ -928,7 +928,7 @@ class TeamMember(Base, TimestampMixin):
     initials: Mapped[str] = mapped_column(String(4), default="")
     email: Mapped[str] = mapped_column(String(160), default="", index=True)
     # So our team can call to help them start — asked at sign-up (and once from
-    # account owners who signed up before, or with Google). "+855…" (app/auth.py clean_phone).
+    # account owners who signed up before, or with Google). "+855…" (app/auth/auth.py clean_phone).
     phone: Mapped[str] = mapped_column(String(32), default="", server_default="")
     location: Mapped[str] = mapped_column(String(120), default="")
     timezone: Mapped[str] = mapped_column(String(40), default="UTC+7")
@@ -949,26 +949,26 @@ class TeamMember(Base, TimestampMixin):
     is_active: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default="true", nullable=False
     )
-    # Email confirmation (app/auth.py verify-email): null = not confirmed yet. The
+    # Email confirmation (app/auth/auth.py verify-email): null = not confirmed yet. The
     # 6-digit code is kept hashed, for 15 minutes, 5 tries; resent at most once a minute.
     email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     email_code_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
     email_code_expires: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     email_code_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     email_code_tries: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
-    # "Forgot password" (app/auth.py password-reset): the same kind of 6-digit code, kept apart
+    # "Forgot password" (app/auth/auth.py password-reset): the same kind of 6-digit code, kept apart
     reset_code_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
     reset_code_expires: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     reset_code_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     reset_code_tries: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
-    # Which features an editor may use (app/access.py FEATURES keys); null =
+    # Which features an editor may use (app/auth/access.py FEATURES keys); null =
     # everything. Owners and admins always have everything.
     access: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
 
 
 class ApiKey(Base):
-    """A customer's own key for the API and the MCP connector (app/api_keys.py,
-    app/mcp_server.py): it acts as the person who made it, in their workspace,
+    """A customer's own key for the API and the MCP connector (app/auth/api_keys.py,
+    app/ai/mcp_server.py): it acts as the person who made it, in their workspace,
     and spends its credits. Only the key's SHA-256 is kept — the key itself is
     shown once. Revoking deletes the row."""
 
@@ -989,7 +989,7 @@ class ApiKey(Base):
 
 
 class ApiRequest(Base):
-    """One tool call through the connector (app/mcp_server.py) or the API page's
+    """One tool call through the connector (app/ai/mcp_server.py) or the API page's
     Playground — the API page's numbers and Request Logs. Never the arguments
     (they may hold a customer's story); only which tool, how it went, how long."""
 
@@ -1008,7 +1008,7 @@ class ApiRequest(Base):
 
 
 class WorkspaceInvite(Base, TimestampMixin):
-    """A join link (app/auth.py): whoever opens it sets their own name, email
+    """A join link (app/auth/auth.py): whoever opens it sets their own name, email
     and password and joins the workspace with this role and access. Only a
     hash of the token is stored — the link is shown once, when it's made."""
 
@@ -1029,13 +1029,13 @@ class WorkspaceInvite(Base, TimestampMixin):
     uses: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     revoked: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
     # Set when it was made from a sales rep's "Invite to portal": joining links
-    # the new login to that rep (app/auth.py join).
+    # the new login to that rep (app/auth/auth.py join).
     sales_rep_id: Mapped[int | None] = mapped_column(ForeignKey("sales_reps.id", ondelete="SET NULL"), nullable=True)
 
 
 class Website(Base, TimestampMixin):
     """A brand's website, checked for health, SEO, share preview, Google
-    speed scores and domain / email safety (app/website.py) — on demand and
+    speed scores and domain / email safety (app/website/website.py) — on demand and
     weekly, with a push when something breaks. One per brand."""
 
     __tablename__ = "websites"
@@ -1055,7 +1055,7 @@ class Website(Base, TimestampMixin):
 
 
 class SalesRep(Base, TimestampMixin):
-    """A salesperson leads are handed to (app/leads.py): which industries they
+    """A salesperson leads are handed to (app/crm/leads.py): which industries they
     own, whether they are senior (regulated industries go to a senior rep) and
     how many open leads they can carry. Shared across the workspace's brands."""
 
@@ -1099,7 +1099,7 @@ class LeadAccount(Base, TimestampMixin):
 class Lead(Base, TimestampMixin):
     """A lead a chatbot (or a person) captured for a brand: who they are, what
     they need, a score, the last chat messages and, once handed over, the rep
-    and the routing decision that picked them. See app/leads.py."""
+    and the routing decision that picked them. See app/crm/leads.py."""
 
     __tablename__ = "leads"
     __table_args__ = (
@@ -1145,7 +1145,7 @@ class Lead(Base, TimestampMixin):
 
 
 class AdAccount(Base, TimestampMixin):
-    """A brand's Facebook ad account that boosts are paid from (app/boosts.py).
+    """A brand's Facebook ad account that boosts are paid from (app/channels/boosts.py).
     The Facebook login's token (ads_management) is kept encrypted, never sent
     to the browser."""
 
@@ -1195,7 +1195,7 @@ class Boost(Base, TimestampMixin):
 
 
 class BoostBudget(Base, TimestampMixin):
-    """What an owner / admin approved to spend on a brand's boosts each month (app/boosts.py).
+    """What an owner / admin approved to spend on a brand's boosts each month (app/channels/boosts.py).
     No row = no cap (every boost still needs its own yes)."""
 
     __tablename__ = "boost_budgets"

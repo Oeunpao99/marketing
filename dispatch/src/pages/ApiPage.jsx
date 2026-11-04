@@ -7,13 +7,13 @@ import { useStore } from '../store'
 import Select from '../components/ui/Select'
 import CodeBlock from '../components/ui/CodeBlock'
 
-// API & MCP (/developer): the workspace's own API keys (app/api_keys.py), the
+// API & MCP (/developer): the workspace's own API keys (app/auth/api_keys.py), the
 // Request Logs and the
 // numbers above them (GET /api-keys/usage), and the Quick Start to connect an AI
-// assistant or code (app/mcp_server.py). The public docs: /developers.
+// assistant or code (app/ai/mcp_server.py). The public docs: /developers.
 
 const BASE = `${window.location.origin}/api/mcp`
-const MAX_KEYS = 10 // per workspace — app/api_keys.py MAX_KEYS
+const MAX_KEYS = 10 // per workspace — app/auth/api_keys.py MAX_KEYS
 const when = (iso) => (iso ? new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—')
 function ago(iso) {
   if (!iso) return 'Never'

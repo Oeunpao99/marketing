@@ -1,4 +1,4 @@
-"""API keys — a customer's own keys for the API and the MCP connector (app/api_keys.py)."""
+"""API keys — a customer's own keys for the API and the MCP connector (app/auth/api_keys.py)."""
 
 import sqlalchemy as sa
 from alembic import op

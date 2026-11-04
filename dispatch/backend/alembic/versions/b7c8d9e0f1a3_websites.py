@@ -1,5 +1,5 @@
 """websites — a brand's website and its latest health / SEO report
-(app/website.py)."""
+(app/website/website.py)."""
 
 import sqlalchemy as sa
 from alembic import op

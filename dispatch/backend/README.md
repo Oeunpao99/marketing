@@ -2,7 +2,7 @@
 
 FastAPI + SQLAlchemy 2.0 + Alembic + PostgreSQL. Dependency management with `uv`.
 
-Every model in `app/models.py` is listed in `app/registry.py`, which:
+Every model in `app/models.py` is listed in `app/core/registry.py`, which:
 
 - generates a full REST resource at `/api/<name>` (list / get / create / patch / delete), and
 - is serialized by `GET /api/meta/models` — the frontend builds its sidebar **Data**
@@ -24,7 +24,7 @@ uv sync
 uv run python -m alembic upgrade head
 
 # 4. load demo data (mirrors the React prototype fixtures)
-uv run python -m app.seed
+uv run python -m app.core.seed
 
 # 5. serve — http://localhost:8000/docs
 uv run python -m uvicorn app.main:app --reload --port 8000
@@ -49,13 +49,13 @@ uv run python -m alembic downgrade -1
 | --- | --- |
 | `app/models.py` | SQLAlchemy models (12 tables) |
 | `app/schemas.py` | Pydantic Read / Create / Update per model |
-| `app/registry.py` | model → resource metadata; single source of truth for the sidebar |
-| `app/crud_router.py` | generic CRUD `APIRouter` factory |
-| `app/views.py` | pre-joined read models + actions for the app's screens |
-| `app/content_ai.py` | writes a brand's daily batch of post ideas from its Products |
-| `app/content_scheduler.py` | in-process worker that runs each Automation on schedule |
-| `app/publishers.py` | delivery adapters — Telegram is live, others simulated |
-| `app/seed.py` | idempotent demo data |
+| `app/core/registry.py` | model → resource metadata; single source of truth for the sidebar |
+| `app/core/crud_router.py` | generic CRUD `APIRouter` factory |
+| `app/core/views.py` | pre-joined read models + actions for the app's screens |
+| `app/ai/content_ai.py` | writes a brand's daily batch of post ideas from its Products |
+| `app/planning/content_scheduler.py` | in-process worker that runs each Automation on schedule |
+| `app/channels/publishers.py` | delivery adapters — Telegram is live, others simulated |
+| `app/core/seed.py` | idempotent demo data |
 | `docker-compose.dev.yml` | Postgres + Adminer for local dev |
 
 ## Key endpoints
@@ -97,10 +97,10 @@ The engine behind the **Auto-generate** page: per brand, on a schedule, the AI
 reads that brand's **Products** (what it sells/offers — `app/models.py`'s
 `Product`, managed on the Products page) and writes a batch of post ideas —
 title, insight (why this angle), and a ready-to-edit caption — via
-`app/content_ai.py` (one Azure OpenAI chat call, JSON mode).
+`app/ai/content_ai.py` (one Azure OpenAI chat call, JSON mode).
 
-`app/content_scheduler.py` is an in-process worker (mirrors the delivery
-worker in `app/scheduler.py`) that checks every minute for an enabled
+`app/planning/content_scheduler.py` is an in-process worker (mirrors the delivery
+worker in `app/planning/scheduler.py`) that checks every minute for an enabled
 `Automation` whose "write at" time has passed today and hasn't run yet today,
 and calls `run_automation()` — row-locks the automation so a same-second
 "Generate now" click and the worker tick can't double-write, then persists the
@@ -122,10 +122,10 @@ rest of the AI agent — this reuses the same chat deployment.
 
 ## AI agent — prompt → image / video
 
-`app/ai.py` turns a brief into one generation prompt (Azure OpenAI chat). Send
+`app/ai/ai.py` turns a brief into one generation prompt (Azure OpenAI chat). Send
 `prior_prompt` + `feedback` to the same endpoint to iterate on a prompt.
 
-`app/video.py` generates the media **inside the portal** and stores the result
+`app/video/video.py` generates the media **inside the portal** and stores the result
 as a `Video` row (`source="ai"`) ready to drop onto a post, plus a
 `GenerationJob` record.
 
@@ -142,7 +142,7 @@ returns 503 and the UI offers "bring your own file". Image generation runs on th
 ## Telegram
 
 Telegram is the first platform with a **real** delivery integration
-(`app/publishers.py`). The others are marked posted without a network call
+(`app/channels/publishers.py`). The others are marked posted without a network call
 (toggle with `SIMULATE_UNIMPLEMENTED_PLATFORMS`).
 
 **One-time setup**
@@ -169,7 +169,7 @@ curl -X POST localhost:8000/api/views/channels \
 A `bot_token` in `.env` (`TELEGRAM_BOT_TOKEN`) is used as a fallback when a
 channel has none.
 
-**Publish** — schedule as normal. An in-process worker (`app/scheduler.py`) runs
+**Publish** — schedule as normal. An in-process worker (`app/planning/scheduler.py`) runs
 every `PUBLISH_WORKER_INTERVAL_SECONDS` (default 60) and delivers each queued
 target once its `scheduled_for` time passes — no cron needed. Set
 `PUBLISH_WORKER_ENABLED=false` to turn it off and drive delivery yourself:
@@ -194,13 +194,13 @@ the current status per target; the React store polls it every few seconds.
 ## TikTok
 
 TikTok is the second platform with a **real** delivery integration
-(`app/tiktok.py` + the `_publish_tiktok` branch in `app/publishers.py`), via
+(`app/channels/tiktok.py` + the `_publish_tiktok` branch in `app/channels/publishers.py`), via
 TikTok's Content Posting API. Unlike Telegram (a bot token you paste in), this
 is a proper OAuth connect — the user logs into TikTok and approves the app.
 
-**Two flows, chosen automatically per channel** — `app/tiktok.py` implements
+**Two flows, chosen automatically per channel** — `app/channels/tiktok.py` implements
 both **Upload** (default) and **Direct Post**; `_publish_tiktok` in
-`app/publishers.py` picks between them by checking what scope the channel's
+`app/channels/publishers.py` picks between them by checking what scope the channel's
 own token actually carries (`"video.publish" in channel.config["scope"]`),
 not just a setting — so this is safe to leave alone per-channel.
 
@@ -227,7 +227,7 @@ not just a setting — so this is safe to leave alone per-channel.
    same Sandbox tab.
 3. Set `TIKTOK_REQUEST_DIRECT_POST=true` in `.env` and restart the backend —
    this makes future `/oauth/tiktok/start` calls also request the
-   `video.publish` scope (see `app/tiktok.py`'s `_scope()`). Existing
+   `video.publish` scope (see `app/channels/tiktok.py`'s `_scope()`). Existing
    Upload-only connections are unaffected; only channels connected/
    reconnected after flipping this pick up Direct Post.
 4. Reconnect that channel (Channels → TikTok → Connect again for that brand).
@@ -271,9 +271,9 @@ access/refresh token pair, stores them on the channel's `config` (redacted in
 every read response, same as Telegram's bot token), and bounces the browser
 back to `/channels` in the React app.
 
-**Publish** — same worker as Telegram (`app/scheduler.py` /
+**Publish** — same worker as Telegram (`app/planning/scheduler.py` /
 `POST /api/views/publish-due`). `_publish_tiktok` reads the post's video bytes
-via `app/media.py`, refreshes the access token first if it's near expiry, and
+via `app/storage/media.py`, refreshes the access token first if it's near expiry, and
 uploads in one chunk (TikTok allows up to 64 MB that way — plenty for this
 portal's short AI-generated clips; a much larger file would need real chunked
 upload, which isn't implemented). The `PostTarget` is marked `posted` once
@@ -283,8 +283,8 @@ video is actually public yet.
 ## Facebook & Instagram
 
 Both run through one Meta developer app and one OAuth login
-(`app/meta.py` + the `_publish_facebook` / `_publish_instagram` branches in
-`app/publishers.py`), since Instagram posting is done via the Facebook Page
+(`app/channels/meta.py` + the `_publish_facebook` / `_publish_instagram` branches in
+`app/channels/publishers.py`), since Instagram posting is done via the Facebook Page
 its Business account is linked to.
 
 **One-time setup**
@@ -302,7 +302,7 @@ its Business account is linked to.
 
 **Connect** — Channels → Add platform → Facebook *or* Instagram → pick a
 brand; both kick off the same Facebook login (`GET /oauth/meta/start`) with
-every relevant scope (`app/meta.py`'s `SCOPES`). Unlike Telegram/TikTok, one
+every relevant scope (`app/channels/meta.py`'s `SCOPES`). Unlike Telegram/TikTok, one
 login can return several Pages, so there's an extra step: the callback
 exchanges the code for a short-lived token, upgrades it to a ~60-day one,
 calls `me/accounts` for every Page the user manages plus each Page's linked
@@ -342,7 +342,7 @@ Per platform:
 - **Facebook** — likes/comments/shares straight off the Page post.
 - **Instagram** — likes/comments off the media item.
 - **TikTok** — needs the `video.list` scope (added alongside `video.publish`
-  in `app/tiktok.py`'s `SCOPE` — a channel connected before this was added
+  in `app/channels/tiktok.py`'s `SCOPE` — a channel connected before this was added
   needs reconnecting once). Resolves the async publish's real video id via
   `post/publish/status/fetch/` first, so a just-published video briefly shows
   as "processing" until TikTok finishes it.

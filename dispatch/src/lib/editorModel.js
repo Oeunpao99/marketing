@@ -1,5 +1,5 @@
 // The video editor's timeline as data (pages/EditorPage.jsx) — the same shape
-// motion/src/timeline.jsx plays and app/editor.py saves:
+// motion/src/timeline.jsx plays and app/video/editor.py saves:
 //   { tracks: [{ id, kind: video|text|audio, muted?, hidden? }],
 //     clips:  [{ id, track, kind: video|image|audio|text, start, dur, from, srcDur, src, … }] }
 // Times are seconds. Every change here returns a NEW timeline (undo keeps the old one).

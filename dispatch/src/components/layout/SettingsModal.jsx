@@ -41,7 +41,7 @@ import { useNavigate } from 'react-router-dom'
 import { DISPLAY_SIZES, displaySize, setDisplaySize } from '../../lib/zoom'
 
 // Settings — every control here is real and saves to the backend
-// (app/auth.py): profile, password, workspace name, and the team (add people
+// (app/auth/auth.py): profile, password, workspace name, and the team (add people
 // with a temporary password, change roles, deactivate, remove). Workspace and
 // Team edits are owner/admin only; editors see them read-only.
 
@@ -524,7 +524,7 @@ function NotificationsTab({ showToast }) {
   )
 }
 
-// Phone lock-screen / desktop notifications via Web Push (app/push.py).
+// Phone lock-screen / desktop notifications via Web Push (app/notify/push.py).
 const PUSH_HELP = {
   'ios-install':
     'On iPhone, add Marketing ឆ្លាតវៃ to your Home Screen first (Share → Add to Home Screen), open it from there, then turn this on.',
@@ -650,7 +650,7 @@ function SecurityTab({ showToast, onClose }) {
   )
 }
 
-// Signed-in devices (app/sessions.py): this one first, then the rest by last
+// Signed-in devices (app/auth/sessions.py): this one first, then the rest by last
 // activity; any other device can be signed out from here.
 const sessionTime = (iso) =>
   new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
@@ -1022,7 +1022,7 @@ function WorkspaceTab({ showToast }) {
 }
 
 /** The owner closes the account (deleted for good in 14 days unless they sign in
- *  again); anyone else leaves the workspace (app/account_close.py). */
+ *  again); anyone else leaves the workspace (app/auth/account_close.py). */
 function CloseAccountSection() {
   const { user, logout } = useAuth()
   const owner = user?.role === 'owner'
@@ -1160,7 +1160,7 @@ function CloseAccountSection() {
 }
 
 // ── AI model ──────────────────────────────────────────────────────────────
-// Which AI writes for this workspace (backend app/ai_models.py): the models the
+// Which AI writes for this workspace (backend app/ai/ai_models.py): the models the
 // platform lets it use; the default
 // (owner / admin); and the last 30 days of AI writing by model and person.
 function AiModelSection({ canManage, showToast }) {
@@ -1260,7 +1260,7 @@ function AiModelSection({ canManage, showToast }) {
 }
 
 // ── Billing ───────────────────────────────────────────────────────────────
-// The plan and this month's videos / images (app/usage.py — GET /usage): what's
+// The plan and this month's videos / images (app/billing/usage.py — GET /usage): what's
 // left, the longest video, when it refills, Upgrade / Get more videos (the /upgrade
 // page — KHQR, the invoices). Customers see videos and images, never credits.
 const ON_CARD = (alpha) => ({ background: `rgba(255, 255, 255, ${alpha})` })

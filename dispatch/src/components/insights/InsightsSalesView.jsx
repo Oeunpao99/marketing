@@ -29,7 +29,7 @@ import { has, NEEDS, usePlanFeatures } from '../../lib/planFeatures'
 import { downloadCsv, insightsCsv } from '../../lib/insightsCsv'
 import { useBrandMarks } from '../../lib/brandMarks'
 
-// The 9 goals in 3 stages corresponding to backend app/goals.py and src/lib/goals.js
+// The 9 goals in 3 stages corresponding to backend app/ai/goals.py and src/lib/goals.js
 const GOAL_SPECS = [
   {
     id: 'reach',
@@ -141,7 +141,7 @@ export default function InsightsSalesView({
   const [boostAmounts, setBoostAmounts] = useState({}) // post id → chosen budget
   const [skippedBoosts, setSkippedBoosts] = useState({})
 
-  // Real boosts (app/boosts.py): the ad accounts, the boosts sent, and the drawers
+  // Real boosts (app/channels/boosts.py): the ad accounts, the boosts sent, and the drawers
   const { user } = useAuth() || {}
   const canManage = user?.role === 'owner' || user?.role === 'admin'
   const [searchParams, setSearchParams] = useSearchParams()
@@ -342,7 +342,7 @@ export default function InsightsSalesView({
 
   // Nobody has to press anything: the first time the page shows unread posts (per brand
   // choice) the AI starts reading them. The server also reads new posts in the background
-  // every few hours (app/post_tags.py auto_tag_all), so this only catches the backlog up.
+  // every few hours (app/ai/post_tags.py auto_tag_all), so this only catches the backlog up.
   const autoRead = useRef({})
   useEffect(() => {
     if (!has(features, 'boost') || tagging || !boosts.untagged || autoRead.current[brandId]) return

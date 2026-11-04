@@ -5,7 +5,7 @@
  * figure with a mood, objects with price tags, line charts that grow, two
  * people compared — and the narration as subtitles in a black pill.
  *
- * Scenes (script fields — written by app/motion.py):
+ * Scenes (script fields — written by app/video/motion/):
  *   hook      { text, icon? }
  *   character { title, mood, icon?, tag? }        a person (+ an object with a tag)
  *   compare   { title, left: {name, mood, value, tone}, right: {…} }
@@ -157,7 +157,7 @@ function Tag({ text, x, y, color = EX.yellow, delay = 10, size = 64, anchor = 'c
 
 /** The narration as subtitles: a dark pill showing a phrase at a time.
  *
- * With ``words`` (app/speech.py speak_timed — when Azure says each word) a
+ * With ``words`` (app/voice/speech.py speak_timed — when Azure says each word) a
  * phrase appears the moment its first word is spoken; without them the
  * phrases are spread over the line (``seconds``) by how long they take to
  * say. The pill fades in and out; inside it each new phrase fades up. */
@@ -320,7 +320,7 @@ function fromText(text, seconds, fps, max, pauses = []) {
   const span = Math.max(1, (seconds || 3) * fps)
   const total = chunks.reduce((n, c) => n + weight(c), 0) || 1
   // where each phrase would start by its length — then moved onto the voice's
-  // own pause nearest to it (app/motion.py _pauses), when there is one close by
+  // own pause nearest to it (app/video/motion/ _pauses), when there is one close by
   const starts = [0]
   let at = 0
   chunks.slice(0, -1).forEach((c) => {

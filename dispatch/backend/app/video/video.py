@@ -1,0 +1,1164 @@
+"""In-portal media generation for the AI agent.
+
+Video (``POST /ai/video`` + poll ``GET /ai/video/{id}``) is async: ``start_job``
+kicks off a render, the frontend polls until ``succeeded``, and the MP4 is saved
+as a ``Video`` row. Image (``POST /ai/image``) is synchronous. Both land as a
+``Video`` row (``source="ai"``) ready to drop onto a post, and record a
+``GenerationJob``.
+
+Providers:
+  - video: ``VIDEO_PROVIDER`` = ``azure_sora`` | ``gemini_veo``
+  - image: ``IMAGE_PROVIDER`` = ``azure_openai`` (gpt-image-1 / dall-e-3) | ``gemini_imagen``
+
+If a provider is not configured its endpoint returns 503 and the UI falls back
+to "bring your own file".
+"""
+
+from __future__ import annotations
+
+import asyncio
+import base64
+import logging
+import threading
+import time
+from contextlib import contextmanager
+from datetime import UTC, datetime, timedelta
+
+import httpx
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
+from sqlalchemy import func, select, update
+from sqlalchemy.orm import Session
+
+from app.billing import billing
+from app.images import text_overlay
+from app.core.config import gemini_url, get_settings
+from app.ai.content_ai import ContentAIError
+from app.core.database import SessionLocal, get_db
+from app.storage.media import read_media, store_blob
+from app.images.meme import _has_khmer
+from app.models import Brand, GenerationJob, TeamMember, Video
+from app.images.poster import brand_rgb
+from app.core.tenancy import current_workspace_id, get_current_user, owned
+
+log = logging.getLogger("app.video")
+
+router = APIRouter(prefix="/ai", tags=["AI"])
+
+# aspect ratio -> (width, height) for the Video row's `resolution` field.
+_DIMS = {
+    "9:16": (720, 1280),
+    "16:9": (1280, 720),
+    "1:1": (720, 720),
+}
+
+
+class VideoGenError(RuntimeError):
+    pass
+
+
+def _explain(resp: httpx.Response) -> str:
+    try:
+        body = resp.json()
+        # Some providers answer with a list of errors instead of an object.
+        if isinstance(body, list):
+            body = body[0] if body else {}
+        err = body.get("error", body) if isinstance(body, dict) else body
+        if isinstance(err, dict):
+            return err.get("message") or err.get("code") or resp.text[:300]
+        return str(err)[:300]
+    except ValueError:
+        return resp.text[:300] or f"HTTP {resp.status_code}"
+
+
+# ── Azure OpenAI Sora 2 ──────────────────────────────────────────────────
+# Sora 2 speaks the OpenAI v1 Videos API: POST /openai/v1/videos, poll
+# GET /openai/v1/videos/{id} (queued → in_progress → completed | failed),
+# download GET /openai/v1/videos/{id}/content. Only 720x1280 / 1280x720 and
+# 4 / 8 / 12-second clips are accepted.
+_SORA_SIZES = {"9:16": "720x1280", "16:9": "1280x720"}
+
+
+def _azure_conf():
+    s = get_settings()
+    if not s.video_api_key or not s.video_endpoint:
+        raise VideoGenError("Azure video is not configured (endpoint / key missing).")
+    # Accept any form of the resource url (".../openai/v1/", a Foundry project
+    # url ".../api/projects/<name>", ...) — only the host matters.
+    host = httpx.URL(s.video_endpoint.strip()).host
+    return f"https://{host}/openai/v1/videos", s.video_api_key, s.azure_openai_video_deployment
+
+
+def _first_frame(reference: bytes, aspect_ratio: str) -> bytes:
+    """The reference image cropped to the clip's exact size (Sora insists)."""
+    from app.images.imaging import ImageError, fit_cover
+
+    width, height = _DIMS.get(aspect_ratio, _DIMS["9:16"])
+    try:
+        return fit_cover(reference, width, height)
+    except ImageError as exc:
+        raise VideoGenError(str(exc)) from exc
+
+
+def _azure_start(
+    prompt: str, aspect_ratio: str, seconds: int, reference: bytes | None = None, model: str | None = None
+) -> str:
+    # ``model`` is ignored: Sora renders with its Azure deployment.
+    url, key, deployment = _azure_conf()
+    size = _SORA_SIZES.get(aspect_ratio, _SORA_SIZES["9:16"])
+    body = {
+        "model": deployment,
+        "prompt": prompt,
+        "size": size,
+        "seconds": "12" if seconds >= 10 else ("8" if seconds >= 6 else "4"),
+    }
+    try:
+        if reference is not None:
+            # Image-to-video: multipart, the image as the opening frame.
+            frame = _first_frame(reference, aspect_ratio if aspect_ratio in _SORA_SIZES else "9:16")
+            resp = httpx.post(
+                url,
+                headers={"api-key": key},
+                data=body,
+                files={"input_reference": ("first-frame.png", frame, "image/png")},
+                timeout=90.0,
+            )
+        else:
+            resp = httpx.post(url, headers={"api-key": key}, json=body, timeout=60.0)
+    except httpx.HTTPError as exc:
+        raise VideoGenError(f"Could not reach the video service: {exc}") from exc
+    if resp.status_code >= 400:
+        raise VideoGenError(f"Video service rejected the request: {_explain(resp)}")
+    job_id = resp.json().get("id")
+    if not job_id:
+        raise VideoGenError("Video service did not return a job id.")
+    return job_id
+
+
+def _azure_poll(provider_job_id: str) -> dict:
+    url, key, _dep = _azure_conf()
+    try:
+        resp = httpx.get(f"{url}/{provider_job_id}", headers={"api-key": key}, timeout=30.0)
+    except httpx.HTTPError as exc:
+        raise VideoGenError(f"Could not reach the video service: {exc}") from exc
+    if resp.status_code >= 400:
+        raise VideoGenError(f"Video service error: {_explain(resp)}")
+    data = resp.json()
+    raw = (data.get("status") or "").lower()
+    if raw == "completed":
+        return {"status": "succeeded", "ref": provider_job_id, "error": None, "usage": _usage(data.get("usage"))}
+    if raw in {"failed", "cancelled", "expired"}:
+        err = data.get("error")
+        msg = (err.get("message") or err.get("code")) if isinstance(err, dict) else err
+        return {"status": "failed", "ref": None, "error": msg or f"Render {raw}."}
+    if raw == "in_progress":
+        return {"status": "running", "ref": None, "error": None}
+    return {"status": "queued", "ref": None, "error": None}
+
+
+def _azure_fetch(ref: str) -> bytes:
+    url, key, _dep = _azure_conf()
+    try:
+        resp = httpx.get(f"{url}/{ref}/content", headers={"api-key": key}, timeout=180.0, follow_redirects=True)
+    except httpx.HTTPError as exc:
+        raise VideoGenError(f"Could not download the video: {exc}") from exc
+    if resp.status_code >= 400:
+        raise VideoGenError(f"Could not download the video: {_explain(resp)}")
+    return resp.content
+
+
+# ── Google Gemini API (Veo) ──────────────────────────────────────────────
+def _gemini_base() -> str:
+    return gemini_url("/v1beta")
+
+
+def _gemini_key() -> str:
+    key = get_settings().gemini_api_key
+    if not key:
+        raise VideoGenError("Gemini video is not configured (GEMINI_API_KEY missing).")
+    return key
+
+
+def _gemini_start(
+    prompt: str, aspect_ratio: str, seconds: int, reference: bytes | None = None, model: str | None = None
+) -> str:
+    key = _gemini_key()
+    model = model or get_settings().gemini_video_model
+    ratio = aspect_ratio if aspect_ratio in {"16:9", "9:16"} else "9:16"
+    # No personGeneration: Veo 3.1 text-to-video only accepts "allow_all"
+    # outside the EU/UK/CH/MENA and only "allow_adult" inside — its default
+    # already picks the right one for the region. Clips are 4/6/8s.
+    duration = 8 if seconds >= 7 else (6 if seconds >= 5 else 4)
+    body = {
+        "instances": [{"prompt": prompt}],
+        "parameters": {"aspectRatio": ratio, "durationSeconds": duration},
+    }
+    # Sharper than the 720p default — Google only allows it on 8s clips, and
+    # Lite has no 4k (it gets 1080p instead).
+    resolution = get_settings().gemini_video_resolution.strip().lower()
+    if resolution == "4k" and "lite" in model:
+        resolution = "1080p"
+    if resolution in ("1080p", "4k") and duration == 8:
+        body["parameters"]["resolution"] = resolution
+    if reference is not None:
+        # Image-to-video: Veo animates from this image as the first frame.
+        frame = _first_frame(reference, ratio)
+        body["instances"][0]["image"] = {"bytesBase64Encoded": base64.b64encode(frame).decode(), "mimeType": "image/png"}
+    url = f"{_gemini_base()}/models/{model}:predictLongRunning"
+    try:
+        resp = httpx.post(url, headers={"x-goog-api-key": key}, json=body, timeout=60.0)
+    except httpx.HTTPError as exc:
+        raise VideoGenError(f"Could not reach the video service: {exc}") from exc
+    if resp.status_code >= 400:
+        raise VideoGenError(f"Video service rejected the request: {_explain(resp)}")
+    name = resp.json().get("name")
+    if not name:
+        raise VideoGenError("Video service did not return an operation name.")
+    return name
+
+
+def _gemini_video_uri(response: dict) -> str | None:
+    gvr = response.get("generateVideoResponse") or response
+    samples = (
+        gvr.get("generatedSamples")
+        or gvr.get("samples")
+        or gvr.get("videos")
+        or []
+    )
+    if not samples:
+        return None
+    first = samples[0]
+    video = first.get("video") or first
+    return video.get("uri") or video.get("videoUri")
+
+
+def _gemini_poll(provider_job_id: str) -> dict:
+    key = _gemini_key()
+    url = f"{_gemini_base()}/{provider_job_id}"
+    try:
+        resp = httpx.get(url, headers={"x-goog-api-key": key}, timeout=30.0)
+    except httpx.HTTPError as exc:
+        raise VideoGenError(f"Could not reach the video service: {exc}") from exc
+    if resp.status_code >= 400:
+        raise VideoGenError(f"Video service error: {_explain(resp)}")
+    data = resp.json()
+    if not data.get("done"):
+        return {"status": "running", "ref": None, "error": None}
+    if data.get("error"):
+        err = data["error"]
+        msg = err.get("message") if isinstance(err, dict) else str(err)
+        return {"status": "failed", "ref": None, "error": msg or "Render failed."}
+    uri = _gemini_video_uri(data.get("response") or {})
+    if not uri:
+        return {"status": "failed", "ref": None, "error": "Render returned no video."}
+    resp_obj = data.get("response") or {}
+    meta = resp_obj.get("usageMetadata") or (
+        resp_obj.get("generateVideoResponse") or {}
+    ).get("usageMetadata")
+    return {"status": "succeeded", "ref": uri, "error": None, "usage": _usage(meta)}
+
+
+def _gemini_fetch(ref: str) -> bytes:
+    key = _gemini_key()
+    try:
+        resp = httpx.get(gemini_url(ref), headers={"x-goog-api-key": key}, timeout=180.0,
+                         follow_redirects=True)
+    except httpx.HTTPError as exc:
+        raise VideoGenError(f"Could not download the video: {exc}") from exc
+    if resp.status_code >= 400:
+        raise VideoGenError(f"Could not download the video: {_explain(resp)}")
+    return resp.content
+
+
+# ── Google Gemini Omni Flash (Interactions API) ──────────────────────────
+# Veo 3.1 preview was shut down on 2026-10-22; Google's video model is now
+# gemini-omni-1.1-flash, called through /v1beta/interactions (not
+# predictLongRunning). Run in the background (background: true) and polled by
+# its interaction id; the finished step "model_output" holds the MP4 — inline
+# base64, or a uri for big files. Clips are 3–10 s; there's no duration field,
+# so the length is asked for in the prompt. ~$0.10/s at 720p (5,792 output
+# tokens a second).
+OMNI_TOKENS_PER_SECOND = 5792
+
+
+def _omni_model(model: str | None) -> str:
+    # an old Veo id (the AI Agent's auto_video_model) doesn't run here
+    return model if model and model.startswith("gemini-omni") else get_settings().gemini_omni_model
+
+
+def _omni_start(
+    prompt: str, aspect_ratio: str, seconds: int, reference: bytes | None = None, model: str | None = None
+) -> str:
+    key = _gemini_key()
+    ratio = aspect_ratio if aspect_ratio in {"16:9", "9:16"} else "9:16"
+    length = max(3, min(10, int(seconds or 8)))
+    text = f"{prompt.strip()}\n\nThe video lasts about {length} seconds."
+    resolution = get_settings().gemini_video_resolution.strip().lower()
+    body = {
+        "model": _omni_model(model),
+        "input": text,
+        "response_format": {"type": "video", "aspect_ratio": ratio, "resolution": resolution if resolution in ("360p", "720p", "1080p", "4k") else "1080p"},
+        "background": True,
+    }
+    if reference is not None:
+        # Image-to-video: the picture is the first frame
+        frame = _first_frame(reference, ratio)
+        body["input"] = [{"type": "image", "data": base64.b64encode(frame).decode(), "mime_type": "image/png"}, {"type": "text", "text": text}]
+        body["generation_config"] = {"video_config": {"task": "image_to_video"}}
+    try:
+        resp = httpx.post(f"{_gemini_base()}/interactions", headers={"x-goog-api-key": key}, json=body, timeout=90.0)
+    except httpx.HTTPError as exc:
+        raise VideoGenError(f"Could not reach the video service: {exc}") from exc
+    if resp.status_code >= 400:
+        raise VideoGenError(f"Video service rejected the request: {_explain(resp)}")
+    interaction = resp.json().get("id")
+    if not interaction:
+        raise VideoGenError("Video service did not return an interaction id.")
+    return interaction
+
+
+def _omni_get(interaction: str, timeout: float = 60.0) -> dict:
+    try:
+        resp = httpx.get(f"{_gemini_base()}/interactions/{interaction}", headers={"x-goog-api-key": _gemini_key()}, timeout=timeout)
+    except httpx.HTTPError as exc:
+        raise VideoGenError(f"Could not reach the video service: {exc}") from exc
+    if resp.status_code >= 400:
+        raise VideoGenError(f"Video service error: {_explain(resp)}")
+    return resp.json()
+
+
+def _omni_video(data: dict) -> dict | None:
+    """The finished video item ({data | uri, mime_type}) in an interaction."""
+    for step in data.get("steps") or data.get("outputs") or []:
+        if step.get("type") not in (None, "model_output"):
+            continue
+        for item in step.get("content") or [step]:
+            if item.get("type") == "video" and (item.get("data") or item.get("uri")):
+                return item
+    return None
+
+
+def _omni_poll(interaction: str) -> dict:
+    data = _omni_get(interaction)
+    status = data.get("status") or ""
+    if status in ("in_progress", "requires_action", ""):
+        return {"status": "running", "ref": None, "error": None}
+    if status in ("failed", "cancelled"):
+        err = data.get("error") or {}
+        msg = err.get("message") if isinstance(err, dict) else str(err)
+        return {"status": "failed", "ref": None, "error": msg or "Render failed."}
+    if _omni_video(data) is None:
+        return {"status": "failed", "ref": None, "error": "Render returned no video."}
+    u = data.get("usage") or {}
+    out = int(u.get("total_output_tokens") or u.get("output_tokens") or 0)
+    usage = {"input": int(u.get("total_input_tokens") or u.get("input_tokens") or 0), "output": out}
+    if out:
+        usage["seconds"] = round(out / OMNI_TOKENS_PER_SECOND)
+    return {"status": "succeeded", "ref": interaction, "error": None, "usage": usage}
+
+
+def _omni_fetch(interaction: str) -> bytes:
+    item = _omni_video(_omni_get(interaction, timeout=180.0))
+    if item is None:
+        raise VideoGenError("Render returned no video.")
+    if item.get("data"):
+        return base64.b64decode(item["data"])
+    return _gemini_fetch(item["uri"])
+
+
+# ── provider dispatch ────────────────────────────────────────────────────
+_PROVIDERS = {
+    "azure_sora": (_azure_start, _azure_poll, _azure_fetch),
+    "gemini_veo": (_gemini_start, _gemini_poll, _gemini_fetch),  # old jobs only — Veo 3.1 preview is shut down
+    "gemini_omni": (_omni_start, _omni_poll, _omni_fetch),
+}
+
+
+def _provider():
+    s = get_settings()
+    if not s.video_generation_enabled:
+        raise VideoGenError("Video generation is turned off (VIDEO_GENERATION_ENABLED=false).")
+    name = s.video_provider
+    if name == "gemini_veo":
+        name = "gemini_omni"  # Google shut Veo 3.1 preview down (2026-10-22): its successor
+    impl = _PROVIDERS.get(name)
+    if impl is None:
+        raise VideoGenError(f"Unknown VIDEO_PROVIDER '{s.video_provider}'.")
+    return name, impl
+
+
+def friendly_error(exc: Exception | str, job_id: int | None = None) -> str:
+    """What a customer sees when a filmed video can't be made — never the provider's
+    own words (keys, model names, API links); those go to the log."""
+    raw = str(exc)
+    log.warning("video %s: %s", job_id or "-", raw)
+    low = raw.lower()
+    if any(w in low for w in ("safety", "policy", "blocked", "violat", "prohibited", "responsible ai")):
+        return "The video service won't make this one — try describing it differently."
+    if any(w in low for w in ("429", "quota", "rate limit", "resource exhausted", "busy", "overloaded")):
+        return "The video service is busy right now — please try again in a few minutes."
+    return "The video couldn't be made just now — please try again in a few minutes. If it keeps happening, contact us."
+
+
+def start_job(
+    prompt: str, aspect_ratio: str, seconds: int, reference: bytes | None = None, model: str | None = None
+) -> tuple[str, str]:
+    """Start a render; ``reference`` (image bytes) becomes the first frame;
+    ``model`` overrides the provider's default model (Veo only)."""
+    name, (start, _poll, _fetch) = _provider()
+    return name, start(prompt, aspect_ratio, seconds, reference, model)
+
+
+def _impl_for(provider: str):
+    impl = _PROVIDERS.get(provider)
+    if impl is None:
+        raise VideoGenError(f"This job used provider '{provider}', which is not available.")
+    return impl
+
+
+def poll_job(provider: str, provider_job_id: str) -> dict:
+    return _impl_for(provider)[1](provider_job_id)
+
+
+def fetch_video(provider: str, ref: str) -> bytes:
+    return _impl_for(provider)[2](ref)
+
+
+# ── image generation (synchronous) ───────────────────────────────────────
+# gpt-image only supports 1:1 / 2:3 / 3:2, so "9:16" and "16:9" render as the
+# nearest portrait / landscape.
+_IMG_SIZES = {"1:1": "1024x1024", "9:16": "1024x1536", "16:9": "1536x1024"}
+_IMG_DIMS = {"1:1": (1024, 1024), "9:16": (1024, 1536), "16:9": (1536, 1024)}
+
+# App-wide cap on how many provider image calls run at once. Every render —
+# the agent's "Generate image" button and the auto-media batches — does its
+# provider call inside image_slot(), so a burst of requests (say 500 users at
+# once) queues behind the cap instead of hammering the provider and turning
+# into a wall of 429s + retry. A job's status is "queued" while it waits.
+_IMAGE_SLOTS = threading.BoundedSemaphore(get_settings().image_max_concurrency)
+
+
+BUSY_MESSAGE = "Lots of people are creating right now — please try again in a moment."
+_BUSY_WINDOW = timedelta(minutes=30)  # an older job still "running" is a leftover, not a line
+
+
+def refuse_if_busy(db: Session, kind: str) -> None:
+    """Turn a new image / template video away (429) while too many are already
+    waiting or being made across the app — a friendly "try again in a moment"
+    instead of a wait of many minutes (settings image_busy_at / motion_busy_at)."""
+    s = get_settings()
+    limit = s.image_busy_at if kind == "image" else s.motion_busy_at
+    if limit <= 0:
+        return
+    since = datetime.now(UTC) - _BUSY_WINDOW
+    waiting = db.scalar(
+        select(func.count())
+        .select_from(GenerationJob)
+        .where(GenerationJob.kind == kind, GenerationJob.status.in_(("queued", "running")), GenerationJob.created_at >= since)
+    ) or 0
+    if waiting >= limit:
+        log.warning("busy: %s %s jobs in line (limit %s) — turned one away", waiting, kind, limit)
+        raise HTTPException(429, BUSY_MESSAGE)
+
+
+@contextmanager
+def image_slot():
+    """Hold one of the global image-render slots for the duration of the `with`."""
+    _IMAGE_SLOTS.acquire()
+    try:
+        yield
+    finally:
+        _IMAGE_SLOTS.release()
+
+
+def _post_with_retry(url: str, headers: dict, tries: int = 3, **kw) -> httpx.Response:
+    """POST that waits out a 429 (low-tier image quotas rate-limit hard).
+
+    Pass ``json=`` for a JSON body or ``data=``/``files=`` for multipart.
+    """
+    for attempt in range(max(1, tries)):
+        try:
+            resp = httpx.post(url, headers=headers, timeout=180.0, **kw)
+        except httpx.HTTPError as exc:
+            raise VideoGenError(f"Could not reach the image service: {exc}") from exc
+        if resp.status_code != 429 or attempt == tries - 1:
+            return resp
+        wait = resp.headers.get("retry-after")
+        time.sleep(min(float(wait) if wait else 6.0, 15.0))
+    raise VideoGenError("Image service stayed rate-limited.")
+
+
+def _usage(u: dict | None) -> dict:
+    u = u or {}
+    return {
+        "input": u.get("input_tokens") or u.get("prompt_tokens") or 0,
+        "output": u.get("output_tokens") or u.get("completion_tokens") or 0,
+        "total": u.get("total_tokens") or 0,
+    }
+
+
+def _image_bytes(data: dict) -> bytes:
+    item = (data.get("data") or [{}])[0]
+    if item.get("b64_json"):
+        return base64.b64decode(item["b64_json"])
+    if item.get("url"):
+        got = httpx.get(item["url"], timeout=120.0)
+        got.raise_for_status()
+        return got.content
+    raise VideoGenError("Image service returned no image.")
+
+
+def _image_file(data: bytes, n: int) -> tuple[str, bytes, str]:
+    """A multipart file tuple named by the image's real type (sniffed)."""
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        ext, mime = "png", "image/png"
+    elif data[:3] == b"\xff\xd8\xff":
+        ext, mime = "jpg", "image/jpeg"
+    elif data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        ext, mime = "webp", "image/webp"
+    else:
+        ext, mime = "png", "image/png"
+    return (f"reference-{n}.{ext}", data, mime)
+
+
+def _azure_image(
+    prompt: str, aspect_ratio: str, reference: bytes | list[bytes] | None = None
+) -> tuple[bytes, dict]:
+    s = get_settings()
+    # Uses the dedicated image resource if set, else falls back to the chat one.
+    if not s.image_api_key or not s.image_endpoint:
+        raise VideoGenError("Azure image is not configured (endpoint / key missing).")
+    base = s.image_endpoint.rstrip("/")
+    key = s.image_api_key
+    deployment = s.azure_openai_image_deployment
+    size = _IMG_SIZES.get(aspect_ratio, "1024x1024")
+    auth = {"api-key": key, "Authorization": f"Bearer {key}"}
+
+    refs = [r for r in (reference if isinstance(reference, list) else [reference]) if r]
+    if refs:
+        # Edit / build on the reference image(s) — several go up as image[]
+        # (brand kit: template, product photo, logo; app/images/brand_kit.py).
+        field = "image" if len(refs) == 1 else "image[]"
+        resp = _post_with_retry(
+            f"{base}/images/edits",
+            auth,
+            data={"model": deployment, "prompt": prompt, "size": size, "n": "1"},
+            files=[(field, _image_file(r, i + 1)) for i, r in enumerate(refs)],
+        )
+    else:
+        resp = _post_with_retry(
+            f"{base}/images/generations",
+            auth,  # httpx sets Content-Type: application/json for json=
+            json={"model": deployment, "prompt": prompt, "size": size, "n": 1},
+        )
+
+    if resp.status_code >= 400:
+        raise VideoGenError(f"Image service rejected the request: {_explain(resp)}")
+    data = resp.json()
+    return _image_bytes(data), _usage(data.get("usage"))
+
+
+def _gemini_image(
+    prompt: str, aspect_ratio: str, reference: bytes | list[bytes] | None = None
+) -> tuple[bytes, dict]:
+    if reference:
+        raise VideoGenError("Reference images need IMAGE_PROVIDER=azure_openai.")
+    key = _gemini_key()
+    model = get_settings().gemini_image_model
+    ratio = aspect_ratio if aspect_ratio in {"1:1", "9:16", "16:9", "3:4", "4:3"} else "1:1"
+    body = {
+        "instances": [{"prompt": prompt}],
+        "parameters": {"sampleCount": 1, "aspectRatio": ratio},
+    }
+    url = f"{_gemini_base()}/models/{model}:predict"
+    try:
+        resp = httpx.post(url, headers={"x-goog-api-key": key}, json=body, timeout=120.0)
+    except httpx.HTTPError as exc:
+        raise VideoGenError(f"Could not reach the image service: {exc}") from exc
+    if resp.status_code >= 400:
+        raise VideoGenError(f"Image service rejected the request: {_explain(resp)}")
+    preds = resp.json().get("predictions") or []
+    if not preds or not preds[0].get("bytesBase64Encoded"):
+        raise VideoGenError("Image service returned no image.")
+    return base64.b64decode(preds[0]["bytesBase64Encoded"]), _usage(None)
+
+
+_IMAGE_PROVIDERS = {"azure_openai": _azure_image, "gemini_imagen": _gemini_image}
+
+
+def generate_image(
+    prompt: str, aspect_ratio: str, reference: bytes | list[bytes] | None = None
+) -> tuple[str, bytes, dict]:
+    s = get_settings()
+    if not s.image_generation_enabled:
+        raise VideoGenError("Image generation is turned off (IMAGE_GENERATION_ENABLED=false).")
+    impl = _IMAGE_PROVIDERS.get(s.image_provider)
+    if impl is None:
+        raise VideoGenError(f"Unknown IMAGE_PROVIDER '{s.image_provider}'.")
+    blob, usage = impl(prompt, aspect_ratio, reference)
+    return s.image_provider, blob, usage
+
+
+# ── API ──────────────────────────────────────────────────────────────────
+class VideoJobIn(BaseModel):
+    prompt: str = Field(min_length=10)
+    aspect_ratio: str = "9:16"
+    seconds: int = 8
+    brand_id: int | None = None
+    # A "/media/..." image the user uploaded — the video starts from it.
+    reference_url: str = ""
+    # A product whose brand-kit photo the video starts from (when no
+    # reference_url) — so the clip shows the real product, not an invented one.
+    product_id: int | None = None
+
+
+class VideoRef(BaseModel):
+    id: int
+    url: str
+    filename: str
+
+
+class VideoJobOut(BaseModel):
+    id: int
+    status: str
+    error: str = ""
+    aspect_ratio: str
+    seconds: int
+    prompt: str
+    input_tokens: int = 0
+    output_tokens: int = 0
+    total_tokens: int = 0
+    # Real progress signals while a job renders (images don't get a % from the
+    # provider, so the page shows these instead of guessing):
+    #   queued_ahead — how many image jobs are queued in front of this one.
+    #   rendered_at  — ISO time the provider call actually started (running only).
+    queued_ahead: int = 0
+    rendered_at: str | None = None
+    video: VideoRef | None = None
+    # Estimated cost (USD) of this job — charged to the workspace's AI credit.
+    cost_usd: float = 0.0
+    # A Remotion video's live storyboard while it's made (app/video/motion/ _progress).
+    progress: dict | None = None
+
+
+def _out(job: GenerationJob, video: Video | None, queued_ahead: int = 0) -> VideoJobOut:
+    return VideoJobOut(
+        id=job.id,
+        status=job.status,
+        error=job.error or "",
+        aspect_ratio=job.aspect_ratio,
+        seconds=job.seconds,
+        prompt=job.prompt,
+        input_tokens=job.input_tokens or 0,
+        output_tokens=job.output_tokens or 0,
+        total_tokens=job.total_tokens or 0,
+        queued_ahead=queued_ahead,
+        rendered_at=(
+            job.updated_at.isoformat()
+            if job.kind == "image" and job.status == "running"
+            else None
+        ),
+        video=VideoRef(id=video.id, url=video.url, filename=video.filename) if video else None,
+        cost_usd=round(billing.job_cost(job), 4) if job.status == "succeeded" else 0.0,
+        progress=_motion_progress(job),
+    )
+
+
+def _motion_progress(job: GenerationJob) -> dict | None:
+    if job.kind != "motion" or job.status not in ("queued", "running"):
+        return None
+    from app.video.motion import progress_of  # app.motion imports this module
+
+    p = progress_of(job.id)
+    return {k: v for k, v in p.items() if k != "_at"} if p else p  # "_at" is the stale check's, not the page's
+
+
+def _clip(text: str, n: int = 110) -> str:
+    text = " ".join((text or "").split())
+    return text if len(text) <= n else text[: n - 1] + "…"
+
+
+def _ready_push(job: GenerationJob) -> None:
+    """Tell the person who asked that their image/video finished (or failed)
+    — shows in the phone's notification bar even with the app closed."""
+    from app.notify.push import notify_user
+
+    if job.kind == "scene":
+        return  # one clip of a longer video — app/video/story.py tells them when all are done
+    what = "image" if job.kind == "image" else "video"
+    if job.status == "succeeded":
+        notify_user(job.user_id, "generated", f"Your {what} is ready ✨", _clip(job.prompt), "/ai", f"gen-{job.id}")
+    elif job.status == "failed":
+        notify_user(
+            job.user_id, "generated", f"Your {what} couldn’t be made", _clip(job.error or "Try again."), "/ai", f"gen-{job.id}"
+        )
+
+
+def advance_video(db: Session, job_id: int) -> GenerationJob | None:
+    """Move a running video job forward: ask the provider, and once it's done
+    download it, store it as a Video and notify the requester. Shared by the
+    page's polling (GET /ai/video/{id}) and the background worker below, so a
+    video finishes even if nobody is watching. Row-locked — whoever gets there
+    first does the work; the other just skips (returns None)."""
+    job = db.execute(
+        select(GenerationJob).where(GenerationJob.id == job_id).with_for_update(skip_locked=True)
+    ).scalar_one_or_none()
+    if job is None:
+        db.rollback()
+        return None
+    if job.kind not in ("video", "scene") or job.status in {"succeeded", "failed"}:
+        db.commit()
+        return job
+
+    try:
+        state = poll_job(job.provider, job.provider_job_id)
+    except VideoGenError as exc:
+        job.error = friendly_error(exc, job.id)  # transient — keep the job open
+        db.commit()
+        return job
+
+    if state["status"] in {"queued", "running"}:
+        job.status = state["status"]
+        db.commit()
+        return job
+
+    if state["status"] == "failed":
+        job.status = "failed"
+        job.error = friendly_error(state["error"] or "Render failed.", job.id)
+        db.commit()
+        _ready_push(job)
+        return job
+
+    try:
+        blob = fetch_video(job.provider, state["ref"])
+    except VideoGenError as exc:
+        job.error = friendly_error(exc, job.id)
+        db.commit()
+        return job
+
+    url = store_blob(db, blob, ".mp4", "video/mp4")
+    width, height = _DIMS.get(job.aspect_ratio, _DIMS["9:16"])
+    video = Video(
+        workspace_id=job.workspace_id,
+        brand_id=job.brand_id,
+        filename=f"ai-{job.id}.mp4",
+        duration_seconds=job.seconds,
+        resolution=f"{width}x{height}",
+        size_bytes=len(blob),
+        source="ai",
+        tag="ai-scene" if job.kind == "scene" else "ai-video",
+        url=url,
+    )
+    db.add(video)
+    db.flush()
+    usage = state.get("usage") or {}
+    job.video_id = video.id
+    job.status = "succeeded"
+    job.error = ""
+    job.input_tokens = usage.get("input", 0)
+    job.output_tokens = usage.get("output", 0)
+    job.total_tokens = usage.get("total", 0)
+    db.commit()
+    billing.charge_job(job)
+    _ready_push(job)
+    if job.kind == "video" and job.user_id:  # a person's video, not a story scene / Auto-generate
+        from app.images.media_caption import write_in_background
+
+        write_in_background(video.id, job.prompt)
+    return job
+
+
+@router.post("/video", response_model=VideoJobOut, status_code=201)
+def create_video(
+    payload: VideoJobIn,
+    db: Session = Depends(get_db),
+    ws: int = Depends(current_workspace_id),
+    user: TeamMember = Depends(get_current_user),
+):
+    if payload.brand_id is not None:
+        owned(db, Brand, payload.brand_id, ws)
+    s = get_settings()
+    seconds = max(3, min(payload.seconds, s.video_max_seconds))
+    ratio = payload.aspect_ratio if payload.aspect_ratio in _DIMS else "9:16"
+    billing.require(ws, billing.video_cost(s.video_provider, seconds), db)
+    from app.billing import usage
+
+    usage.require_video(db, ws, usage.FILMED_UNITS)  # an AI-filmed clip: 3 of the month's videos
+    reference: bytes | None = None
+    if payload.reference_url:
+        reference = read_media(payload.reference_url)
+        if reference is None:
+            raise HTTPException(400, "Reference image not found.")
+    elif payload.product_id is not None and payload.brand_id is not None:
+        from app.images.brand_kit import product_photo
+
+        reference = product_photo(db, payload.brand_id, payload.product_id)
+        if reference is None:
+            raise HTTPException(400, "That product has no photo in the brand kit.")
+    try:
+        provider, provider_job_id = start_job(payload.prompt, ratio, seconds, reference)
+    except VideoGenError as exc:
+        raise HTTPException(503, friendly_error(exc)) from exc
+
+    job = GenerationJob(
+        workspace_id=ws,
+        user_id=user.id,
+        brand_id=payload.brand_id,
+        kind="video",
+        prompt=payload.prompt,
+        aspect_ratio=ratio,
+        seconds=seconds,
+        provider=provider,
+        provider_job_id=provider_job_id,
+        model=billing.video_model(provider),
+        status="running",
+        units=usage.FILMED_UNITS,
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    return _out(job, None)
+
+
+@router.get("/video/{job_id}", response_model=VideoJobOut)
+def get_video(job_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    """Status of any generation job (image or video) — the page polls this."""
+    job = owned(db, GenerationJob, job_id, ws, "Generation job")
+    if job.kind == "video" and job.status not in {"succeeded", "failed"}:
+        advance_video(db, job.id)
+        db.expire_all()
+        job = db.get(GenerationJob, job_id)
+    queued_ahead = 0
+    if job.kind == "image" and job.status == "queued":
+        queued_ahead = (
+            db.scalar(
+                select(func.count())
+                .select_from(GenerationJob)
+                .where(
+                    GenerationJob.kind == "image",
+                    GenerationJob.status == "queued",
+                    GenerationJob.id < job_id,
+                )
+            )
+            or 0
+        )
+    return _out(job, db.get(Video, job.video_id) if job.video_id else None, queued_ahead)
+
+
+@router.post("/video/{job_id}/stop", response_model=VideoJobOut)
+def stop_job(job_id: int, db: Session = Depends(get_db), ws: int = Depends(current_workspace_id)):
+    """Stop waiting for a generation (the chat's Stop button). A motion video's
+    render is killed for real (app/video/motion/); an image or filmed clip can't be
+    called back from the provider — the job is marked stopped, and if it still
+    finishes it simply lands in the Library."""
+    job = owned(db, GenerationJob, job_id, ws, "Generation job")
+    if job.status not in {"succeeded", "failed"}:
+        if job.kind == "motion":
+            from app.video import motion
+
+            motion.stop(job.id)
+        job.status, job.error = "failed", "Stopped"
+        db.commit()
+    return _out(job, db.get(Video, job.video_id) if job.video_id else None)
+
+
+class ImageIn(BaseModel):
+    prompt: str = Field(min_length=10)
+    aspect_ratio: str = "1:1"
+    brand_id: int | None = None
+    # A "/media/..." url the user already uploaded — the model edits / builds on it.
+    reference_url: str = ""
+    # More images attached with it (up to 4 in all) — IMAGE 2, 3, 4 in the brief.
+    reference_urls: list[str] = Field(default_factory=list, max_length=4)
+    # Brand kit (app/images/brand_kit.py): a poster template to follow, a product whose
+    # photo to feature, and whether to put the brand's logo on it.
+    template_id: int | None = None
+    product_id: int | None = None
+    use_logo: bool = False
+
+
+@router.post("/image", response_model=VideoJobOut, status_code=201)
+def create_image(
+    payload: ImageIn,
+    db: Session = Depends(get_db),
+    ws: int = Depends(current_workspace_id),
+    user: TeamMember = Depends(get_current_user),
+):
+    """Start an image in the background and return its job at once — the
+    page polls GET /ai/video/{id}; the image finishes (and the requester gets a
+    push) even if they leave the page or close the app."""
+    if payload.brand_id is not None:
+        owned(db, Brand, payload.brand_id, ws)
+    ratio = payload.aspect_ratio if payload.aspect_ratio in _DIMS else "1:1"
+    s = get_settings()
+    if not s.image_generation_enabled:
+        raise HTTPException(503, "Image generation is turned off (IMAGE_GENERATION_ENABLED=false).")
+
+    billing.require(ws, billing.IMAGE_HOLD, db)
+    from app.billing import usage
+
+    usage.require_image(db, ws)
+    refuse_if_busy(db, "image")
+    own: list[bytes] = []
+    for url in [u for u in dict.fromkeys([payload.reference_url, *payload.reference_urls]) if u][:4]:
+        blob = read_media(url)
+        if blob is None:
+            raise HTTPException(400, "One of the attached images couldn't be found — attach it again.")
+        own.append(blob)
+    from app.images.brand_kit import own_guide
+
+    references: bytes | list[bytes] | None = (own[0] if len(own) == 1 else own) or None
+    guide = own_guide(len(own))
+    logo = None
+    if payload.brand_id is not None and payload.use_logo:  # stamped top-left after the AI draws (meme.stamp_logo)
+        from app.images.brand_kit import logo_image
+
+        logo = logo_image(db, payload.brand_id)
+    if payload.brand_id is not None and (payload.template_id or payload.product_id):
+        from app.images.brand_kit import gather
+
+        references, guide = gather(
+            db,
+            payload.brand_id,
+            template_id=payload.template_id,
+            product_id=payload.product_id,
+            extra=own,
+        )
+    if logo:
+        from app.images.brand_kit import LOGO_CORNER_RULE
+
+        guide = (guide or "") + LOGO_CORNER_RULE
+
+    job = GenerationJob(
+        workspace_id=ws,
+        user_id=user.id,
+        brand_id=payload.brand_id,
+        kind="image",
+        prompt=payload.prompt,
+        aspect_ratio=ratio,
+        seconds=0,
+        provider=s.image_provider,
+        status="queued",
+        units=1,
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    threading.Thread(
+        target=_render_image, args=(job.id, references, guide, logo), daemon=True, name=f"image-{job.id}"
+    ).start()
+    return _out(job, None)
+
+
+def _khmer_overlay_text(job: GenerationJob) -> dict | None:
+    """The Khmer words this image should carry (app/images/text_overlay.py) — the
+    model then draws the picture only and the server typesets the words,
+    since image models garble Khmer. None = render as usual (no Khmer on it,
+    no libraqm on this server, or the text couldn't be read)."""
+    if not text_overlay.wanted() or not _has_khmer(job.prompt):
+        return None
+    billing.bind(job.workspace_id, job.user_id)  # the extraction call is AI too
+    try:
+        return text_overlay.extract_text(job.prompt)
+    except ContentAIError as exc:
+        log.warning("Khmer text extraction failed for job %s: %s — model draws the text", job.id, exc)
+        return None
+
+
+def _render_image(job_id: int, reference: bytes | list[bytes] | None, guide: str = "", logo: bytes | None = None) -> None:
+    """``guide`` (brand-kit instructions naming each reference image) goes in
+    front of the prompt for the model only — the job keeps the person's own
+    prompt, which the Library shows and the caption writer reads."""
+    db = SessionLocal()
+    try:
+        job = db.get(GenerationJob, job_id)
+        if job is None:
+            return
+        overlay = _khmer_overlay_text(job)
+        prompt = guide + job.prompt + (text_overlay.picture_rule(overlay) if overlay else "")
+        ratio = job.aspect_ratio
+        # Hand the database connection back while this waits for a slot and the
+        # provider draws (30-60 s): a burst of images each holding one ran the
+        # pool dry — the rest failed and every page waited (30 at once, 2026-10-22).
+        db.rollback()
+        try:
+            with image_slot():
+                db.execute(update(GenerationJob).where(GenerationJob.id == job_id).values(status="running", updated_at=func.now()))
+                db.commit()  # updated_at = render start (the stale-job check); the connection goes back
+                provider, blob, usage = generate_image(prompt, ratio, reference)
+            job = db.get(GenerationJob, job_id)
+        except VideoGenError as exc:
+            job.status, job.error = "failed", friendly_error(exc, job.id)
+            db.commit()
+            _ready_push(job)
+            return
+        except Exception:  # noqa: BLE001 - surface it on the job, not just the log
+            log.exception("image generation crashed for job %s", job_id)
+            job.status, job.error = "failed", "Unexpected error while generating — try again."
+            db.commit()
+            _ready_push(job)
+            return
+
+        stamped = False
+        if overlay:
+            brand = db.get(Brand, job.brand_id) if job.brand_id else None
+            try:
+                blob = text_overlay.render(blob, overlay, brand_rgb(brand), logo=logo)
+                stamped = bool(logo)
+            except Exception:  # noqa: BLE001 — the clean picture beats losing the image
+                log.exception("Khmer text overlay failed for job %s — keeping the picture alone", job_id)
+        if logo and not stamped:  # the brand's real logo, top-left — the same place on every picture
+            from app.images.meme import stamp_logo
+
+            try:
+                blob = stamp_logo(blob, logo)
+            except Exception:  # noqa: BLE001 — the picture without a logo beats none
+                log.exception("logo stamp failed for job %s", job_id)
+
+        url = store_blob(db, blob, ".png", "image/png")
+        width, height = _IMG_DIMS.get(job.aspect_ratio, _IMG_DIMS["1:1"])
+        video = Video(
+            workspace_id=job.workspace_id,
+            brand_id=job.brand_id,
+            filename=f"ai-{job.id}.png",
+            resolution=f"{width}x{height}",
+            size_bytes=len(blob),
+            source="ai",
+            tag="ai-image",
+            url=url,
+        )
+        db.add(video)
+        db.flush()
+        job.video_id = video.id
+        job.provider = provider
+        job.status = "succeeded"
+        job.error = ""
+        job.input_tokens, job.output_tokens, job.total_tokens = usage["input"], usage["output"], usage["total"]
+        db.commit()
+        billing.charge_job(job)
+        _ready_push(job)
+        if job.user_id:  # made by a person (not Auto-generate, which brings its own caption)
+            from app.images.media_caption import write_in_background
+
+            write_in_background(video.id, job.prompt)
+    finally:
+        db.close()
+
+
+# ── background worker ─────────────────────────────────────────────────────
+# Finishes videos nobody is watching, and cleans up jobs a server restart
+# orphaned (an image thread dies with the process).
+_WORKER_EVERY = 15
+# A render that has actually been in flight this long is hung. Measured from
+# updated_at (set when the slot is acquired and the provider call starts), so a
+# job waiting in the image_slot() queue is never failed just for being slow.
+_IMAGE_STALE = timedelta(minutes=8)
+_VIDEO_STALE = timedelta(hours=3)
+_MOTION_STALE = timedelta(minutes=45)  # since its render started…
+_MOTION_STALL_S = 600  # …unless its progress (app/video/motion/ _report) moved in the last 10 minutes
+_MOTION_ORPHAN = timedelta(minutes=2)  # running, but not in this process (see _tick)
+
+
+def _tick() -> None:
+    db = SessionLocal()
+    try:
+        now = datetime.now(UTC)
+        open_jobs = db.scalars(
+            select(GenerationJob).where(GenerationJob.status.in_(("queued", "running")))
+        ).all()
+        for job in open_jobs:
+            if job.kind == "image":
+                if job.status == "running" and now - job.updated_at > _IMAGE_STALE:
+                    job.status = "failed"
+                    job.error = "The image service never finished this render — try again."
+                    db.commit()
+                    _ready_push(job)
+                continue
+            if job.kind == "motion":
+                # Rendered in this process (app/video/motion/) — a restart kills it.
+                # A running job this process has no live progress for was left
+                # behind by a restart: fail it now, not after the full timeout.
+                from app.video.motion import progress_of
+
+                live = progress_of(job.id)
+                orphan = job.status == "running" and live is None and now - job.updated_at > _MOTION_ORPHAN
+                # still moving (a long video renders well past _MOTION_STALE): leave it be
+                moving = live is not None and time.monotonic() - live.get("_at", 0) < _MOTION_STALL_S
+                if orphan or (now - job.updated_at > _MOTION_STALE and not moving):
+                    job.status = "failed"
+                    job.error = "The video stopped rendering (the server restarted?) — try again."
+                    db.commit()
+                    _ready_push(job)
+                continue
+            age = now - job.created_at
+            if age > _VIDEO_STALE:
+                job.status = "failed"
+                job.error = "The video service never finished this render — try again."
+                db.commit()
+                _ready_push(job)
+            else:
+                try:
+                    advance_video(db, job.id)
+                except Exception:  # noqa: BLE001 - one bad job mustn't stop the rest
+                    db.rollback()
+                    log.exception("advancing video job %s failed", job.id)
+        from app.video.story import tick_stories  # local import: story imports this module
+
+        tick_stories(db)
+    finally:
+        db.close()
+
+
+async def _run() -> None:
+    while True:
+        try:
+            await asyncio.to_thread(_tick)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001 - keep the loop alive
+            log.exception("generation worker tick failed")
+        await asyncio.sleep(_WORKER_EVERY)
+
+
+def fail_orphaned_images() -> int:
+    """Images render in a thread of *this* process, so any image still
+    "running" when the server starts was cut off by the restart (a deploy, or
+    auto-reload in dev) and can never finish — fail it now with a clear reason
+    instead of leaving the page spinning until the stale check."""
+    db = SessionLocal()
+    try:
+        orphans = db.scalars(
+            select(GenerationJob).where(
+                GenerationJob.kind == "image", GenerationJob.status.in_(("queued", "running"))
+            )
+        ).all()
+        for job in orphans:
+            job.status = "failed"
+            job.error = "Interrupted — the server restarted while this was rendering. Try again."
+        db.commit()
+        for job in orphans:
+            _ready_push(job)
+        return len(orphans)
+    finally:
+        db.close()
+
+
+def start_worker(app) -> None:
+    try:
+        n = fail_orphaned_images()
+        if n:
+            log.info("marked %d interrupted image job(s) as failed", n)
+    except Exception:  # noqa: BLE001 - never block startup on this
+        log.exception("orphaned image cleanup failed")
+    app.state.generation_worker = asyncio.create_task(_run())
+
+
+async def stop_worker(app) -> None:
+    task = getattr(app.state, "generation_worker", None)
+    if task is None:
+        return
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass

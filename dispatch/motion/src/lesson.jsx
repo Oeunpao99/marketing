@@ -6,7 +6,7 @@
  * explained is ringed in orange. Every person is drawn in code
  * (characters.jsx), so they look the same all video. A plain classroom, no
  * AI pictures. 9:16 and 16:9.
- * Scene types: hook · whiteboard · example · remember · cta (app/motion.py LESSON_TYPES).
+ * Scene types: hook · whiteboard · example · remember · cta (app/video/motion/ LESSON_TYPES).
  */
 import { AbsoluteFill, Easing, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion'
 import { FONT, Icon, NeatGrid, clean, fitSize } from './shared'

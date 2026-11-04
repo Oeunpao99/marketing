@@ -9,7 +9,7 @@
  * Pure CSS 3D (perspective + rotate + translateZ) — no WebGL, so it renders as
  * fast as any other template and Khmer text on the cards is always right.
  *
- * Scenes (app/motion.py APPDEMO_PROMPT) — the same types Clarity / Offer use:
+ * Scenes (app/video/motion/ APPDEMO_PROMPT) — the same types Clarity / Offer use:
  *   { type: "hook",     text, icon?, image? }                 the phone flies in over layered pages; the headline lands
  *   { type: "list",     title, items: [{ icon, text }] }      the app's features as glass cards fanned in 3D
  *   { type: "platform", text, image? }                        the phone, big, turning slowly with a screenshot on it

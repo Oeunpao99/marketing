@@ -1,4 +1,4 @@
-"""posts.content_tags — what a published post is about, read by the AI (app/post_tags.py)."""
+"""posts.content_tags — what a published post is about, read by the AI (app/ai/post_tags.py)."""
 
 import sqlalchemy as sa
 from alembic import op

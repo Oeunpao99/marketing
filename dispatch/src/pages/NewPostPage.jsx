@@ -95,7 +95,7 @@ export default function NewPostPage() {
   }, []);
 
   // Media from the AI Agent / Video Story: its caption is written in the
-  // background right after the render (app/media_caption.py) — fetch it, and
+  // background right after the render (app/images/media_caption.py) — fetch it, and
   // keep checking while it's still being written. It only fills captions that
   // are still empty, never over something already typed.
   const mediaId = video?.videoId ?? null;

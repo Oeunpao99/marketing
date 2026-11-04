@@ -1,7 +1,7 @@
 import { RiClaudeFill, RiGeminiFill, RiOpenaiFill } from 'react-icons/ri'
 import { FiCpu } from 'react-icons/fi'
 
-// Each AI model's maker logo, in its own colour (backend app/ai_models.py
+// Each AI model's maker logo, in its own colour (backend app/ai/ai_models.py
 // CATALOG keys / vendors). OpenAI's mark is black — it follows the text colour
 // so it stays visible in dark mode.
 const LOGOS = {

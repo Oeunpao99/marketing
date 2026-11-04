@@ -1,5 +1,5 @@
 """user_sessions.new_device / confirmed_at — the "new device signed in, was
-this you?" alert (app/sessions.py)."""
+this you?" alert (app/auth/sessions.py)."""
 
 import sqlalchemy as sa
 from alembic import op

@@ -4,7 +4,7 @@
  * (2026-10-14): app icons floating in white bubbles, the product's table view
  * in a window, a word that rolls like a slot machine and lands.
  *
- * Its own scenes (app/motion.py SHOWCASE_PROMPT):
+ * Its own scenes (app/video/motion/ SHOWCASE_PROMPT):
  *
  *   { type: "hook",  text, apps?: [{ name, icon? }] }                bubbles float round the line
  *   { type: "apps",  title?, apps: [{ name, icon? }] }                the tools it works with, joined to the brand

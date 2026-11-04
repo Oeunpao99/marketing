@@ -1,4 +1,4 @@
-"""Plan payments by KHQR (app/payments.py): the payments table, and
+"""Plan payments by KHQR (app/billing/payments.py): the payments table, and
 workspaces.plan_paid_until — when a paid plan goes back to Free."""
 
 import sqlalchemy as sa

@@ -6,7 +6,7 @@ import { useStore } from '../../store'
 
 // KiriTTS's Khmer voices, picked by name under Female / Male (GET
 // /ai/motion/voice-status "kiri"). The setting is "female" / "male" for the
-// default voice, "kiri:Neary" for one picked — app/voice_clone.py narrator_for.
+// default voice, "kiri:Neary" for one picked — app/voice/voice_clone.py narrator_for.
 // ▶ reads a short line in that voice (POST /ai/motion/say — a few credits).
 
 const SAMPLE = 'សួស្តី! នេះជាសំឡេងរបស់ខ្ញុំ សម្រាប់វីដេអូរបស់អ្នក។'

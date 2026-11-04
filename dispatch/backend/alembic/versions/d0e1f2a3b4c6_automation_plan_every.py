@@ -1,5 +1,5 @@
 """automations.plan_every — the AI plans the next week ("week") or just
-tomorrow ("day"), app/weekly.py."""
+tomorrow ("day"), app/planning/weekly.py."""
 
 import sqlalchemy as sa
 from alembic import op

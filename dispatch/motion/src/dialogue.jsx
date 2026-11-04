@@ -1,6 +1,6 @@
 /**
  * "Dialogue · Two voices" — two people really talking: each has their own
- * voice (app/motion.py dialogue_voices — a man and a woman, or two different
+ * voice (app/video/motion/ dialogue_voices — a man and a woman, or two different
  * voices of the same kind), their mouth moves while they speak, and what they
  * say pops up in a speech bubble over them (a thought cloud for an inner
  * voice). The same two villagers and Cambodian places as Parable · Two paths

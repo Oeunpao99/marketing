@@ -135,7 +135,7 @@ export function useDashboardStats(queue, channels) {
       })
     }
     // Best time to post: average engagement per post by weekday × time of day
-    // (Phnom Penh). Same rules as the AI's (app/learning.py): the last
+    // (Phnom Penh). Same rules as the AI's (app/ai/learning.py): the last
     // LOOKBACK_DAYS only, newer posts counting more (HALF_LIFE_DAYS), and a
     // post only once it's SETTLE_HOURS old — before that it's still
     // collecting likes and would make its slot look weak.
@@ -212,7 +212,7 @@ export function useDashboardStats(queue, channels) {
 
 // ── Best time to post ─────────────────────────────────────────────────────
 const ENG_KEYS = ['likes', 'comments', 'shares']
-// Mirrors app/learning.py LOOKBACK_DAYS / HALF_LIFE_DAYS / SETTLE.
+// Mirrors app/ai/learning.py LOOKBACK_DAYS / HALF_LIFE_DAYS / SETTLE.
 const LOOKBACK_DAYS = 90
 const HALF_LIFE_DAYS = 30
 const SETTLE_HOURS = 48

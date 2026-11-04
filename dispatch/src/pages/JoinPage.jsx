@@ -1,6 +1,6 @@
 // /join/<token> — someone opened an invite link (Settings → Team → Invite
 // with a link). They choose their own name, email and password and land in
-// the workspace with the role and access the invite carries (app/auth.py).
+// the workspace with the role and access the invite carries (app/auth/auth.py).
 import { useEffect, useState } from 'react'
 import { FiCheck, FiLock, FiUsers } from 'react-icons/fi'
 import { api } from '../api/client'

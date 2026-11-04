@@ -6,7 +6,7 @@
  * and a glossy check with confetti falling through the depth of field.
  * Drawn on its own "mist" background (Mist, also saas.jsx's AiBg "mist").
  *
- * Its own scenes (app/motion.py UNVEIL_PROMPT):
+ * Its own scenes (app/video/motion/ UNVEIL_PROMPT):
  *
  *   { type: "word", word, title?, action?, text?, rows?: [{ name, sub? }] }   the big word sharpens in, the card comes into focus
  *   { type: "field", label?, value, button? }                                  the field types itself, the button is pressed

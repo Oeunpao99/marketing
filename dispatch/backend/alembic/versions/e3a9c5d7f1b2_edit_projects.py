@@ -1,4 +1,4 @@
-"""edit_projects — the video editor's saved timelines (app/editor.py)."""
+"""edit_projects — the video editor's saved timelines (app/video/editor.py)."""
 
 import sqlalchemy as sa
 from alembic import op

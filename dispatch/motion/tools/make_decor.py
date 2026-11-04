@@ -11,7 +11,7 @@ import sys
 
 from PIL import Image, ImageChops, ImageFilter
 
-from app import doodle
+from app.images import doodle
 
 OUT = pathlib.Path(__file__).resolve().parents[1] / "public" / "decor" / "studio"
 GREEN, MAGENTA = "pure chroma-key green (#00FF00)", "pure flat magenta (#FF00FF)"

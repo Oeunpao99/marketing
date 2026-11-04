@@ -3,7 +3,7 @@ import { FiCheck, FiRefreshCw } from 'react-icons/fi'
 import ModelLogo from '../../components/ui/ModelLogo'
 import { AccountBars, ModelDonut, SpendLine } from './AdminCharts'
 
-// Admin portal → AI usage (backend app/admin.py /ai/*): every writing model's
+// Admin portal → AI usage (backend app/admin/admin.py /ai/*): every writing model's
 // price per 1M tokens, markup and on/off; what each model and each tenant used
 // over a period — tokens in / out, what it cost us, what their credit was
 // charged and the margin. AccountAiSection is the same per tenant, in the

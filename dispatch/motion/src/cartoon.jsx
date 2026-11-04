@@ -2,13 +2,13 @@
  * "Story · Characters" — the Khmer cartoon-story Reel: two simple characters
  * (round heads, stick bodies, a cap or an apron) in one place — a shop, a
  * market, an office — drawn once per video by the image model
- * (app/doodle.py draw_place → props.place.image), talking in speech bubbles,
+ * (app/images/doodle.py draw_place → props.place.image), talking in speech bubbles,
  * thinking in clouds with an icon, the thing they talk about popping up next
  * to them, a clipboard list ticking itself off. The characters are drawn
  * here, so they stay the same people in every scene; the camera moves to who
  * is speaking. The story's question stays on top, key words in red.
  * 9:16 and 16:9. Scene types: hook · talk · note · cta
- * (app/motion.py CARTOON_TYPES); props.cast = the two characters.
+ * (app/video/motion/ CARTOON_TYPES); props.cast = the two characters.
  */
 import { createContext, useContext } from 'react'
 import { AbsoluteFill, Img, interpolate, random, spring, useCurrentFrame, useVideoConfig } from 'remotion'

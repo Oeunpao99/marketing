@@ -1,4 +1,4 @@
-// This month's videos and images — made, left, the plan's longest video (app/usage.py —
+// This month's videos and images — made, left, the plan's longest video (app/billing/usage.py —
 // GET /usage). What customers see instead of credits: the top bar's chip and account
 // menu, the Plans page and the storyboard's estimate share it, so one refresh updates
 // them all. Fresh every minute, when the window comes back, and on

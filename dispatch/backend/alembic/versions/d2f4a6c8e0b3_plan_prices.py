@@ -1,4 +1,4 @@
-"""Plan prices set in the admin portal (app/payments.py prices) — one row per plan,
+"""Plan prices set in the admin portal (app/billing/payments.py prices) — one row per plan,
 USD and KHR a month. Empty table = the built-in / .env prices, as before."""
 
 import sqlalchemy as sa

@@ -1,5 +1,5 @@
 """Customers close their own account (2026-11-03): when the owner closed it — it's
-deleted for good 14 days later unless they sign in again (app/account_close.py)."""
+deleted for good 14 days later unless they sign in again (app/auth/account_close.py)."""
 
 import sqlalchemy as sa
 from alembic import op

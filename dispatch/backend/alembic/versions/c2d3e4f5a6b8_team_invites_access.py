@@ -1,5 +1,5 @@
 """team_members.access (per-editor feature access) and workspace_invites
-(join links) — app/access.py, app/auth.py."""
+(join links) — app/auth/access.py, app/auth/auth.py."""
 
 import sqlalchemy as sa
 from alembic import op

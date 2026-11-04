@@ -18,7 +18,7 @@ dependencies = [
     "imageio-ffmpeg>=0.6.0",
     "pillow>=11",
     "azure-cognitiveservices-speech>=1.40",
-    # The local Khmer voice (app/local_voice.py, KHMER_TTS_MODEL): a small
+    # The local Khmer voice (app/voice/local_voice.py, KHMER_TTS_MODEL): a small
     # open-source TTS model run on the server's CPU.
     "torch>=2.4",
     "transformers>=4.44",
@@ -28,7 +28,7 @@ dependencies = [
     "python-docx>=1.2.0",
     "python-pptx>=1.0.2",
     "azure-storage-blob>=12.31.0",
-    # The English voice (app/kokoro_voice.py): Kokoro, open source (Apache 2.0),
+    # The English voice (app/voice/kokoro_voice.py): Kokoro, open source (Apache 2.0),
     # run on the server's CPU — free, no account.
     "kokoro-onnx>=0.4",
 ]
@@ -54,7 +54,7 @@ explicit = true
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-# OpenVoice's model code, copied as it is (app/openvoice/__init__.py)
+# OpenVoice's model code, copied as it is (app/voice/openvoice/__init__.py)
 extend-exclude = ["app/openvoice"]
 
 [tool.ruff.lint]

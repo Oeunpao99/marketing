@@ -1,5 +1,5 @@
 """drafts.meme — a relatable idea's meme text + photo brief, so its image is
-made as a meme poster (app/meme.py) whenever the draft gets its media."""
+made as a meme poster (app/images/meme.py) whenever the draft gets its media."""
 
 import sqlalchemy as sa
 from alembic import op

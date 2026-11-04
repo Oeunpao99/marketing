@@ -1,0 +1,605 @@
+"""Delivery adapters — turn a queued PostTarget into a real published post.
+
+Only Telegram is wired to a live API. The other platforms are marked posted
+without a network call unless ``SIMULATE_UNIMPLEMENTED_PLATFORMS=false``, in which
+case they raise ``PublishError`` so nothing is silently "sent".
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+import logging
+import re
+
+import httpx
+
+from app.core.config import get_settings
+from app.models import Channel, PostTarget, Video
+
+log = logging.getLogger(__name__)
+
+TELEGRAM_API = "https://api.telegram.org"
+TELEGRAM_TEXT_LIMIT = 4096
+TELEGRAM_CAPTION_LIMIT = 1024
+
+
+class PublishError(RuntimeError):
+    """Raised when a target cannot be delivered."""
+
+
+@dataclass
+class PublishResult:
+    external_id: str = ""
+    detail: dict | None = None
+
+
+def _telegram_call(token: str, method: str, params: dict) -> dict:
+    try:
+        resp = httpx.get(f"{TELEGRAM_API}/bot{token}/{method}", params=params, timeout=15.0)
+    except httpx.HTTPError as exc:
+        raise PublishError(f"Could not reach Telegram: {exc}") from exc
+    ctype = resp.headers.get("content-type", "")
+    data = resp.json() if ctype.startswith("application/json") else {}
+    if not data.get("ok"):
+        raise PublishError(f"Telegram: {data.get('description') or f'HTTP {resp.status_code}'}")
+    return data.get("result", {})
+
+
+def verify_telegram(bot_token: str, chat_id: str) -> dict:
+    """Check the token is valid and the bot can see the chat. Raises PublishError."""
+    if not bot_token:
+        raise PublishError("A bot token is required.")
+    if not chat_id:
+        raise PublishError("A channel @username or numeric id is required.")
+    bot = _telegram_call(bot_token, "getMe", {})
+    chat = _telegram_call(bot_token, "getChat", {"chat_id": chat_id})
+    return {
+        "bot_username": bot.get("username"),
+        "chat_title": chat.get("title") or chat.get("username"),
+        "chat_type": chat.get("type"),
+        "chat_id": chat.get("id"),
+    }
+
+
+def telegram_subscriber_count(bot_token: str, chat_id: str) -> int:
+    """The channel's current member/subscriber count. Raises PublishError.
+
+    This is the one number Telegram's Bot API gives cleanly — per-post views
+    and reactions have no equivalent on-demand call (views only ever appear
+    on a `Message` object the bot already has in hand; reactions only ever
+    arrive as live update events the bot would have to sit and listen for),
+    so neither is attempted here. See app/core/views.py's `_post_metrics`.
+    """
+    if not bot_token or not chat_id:
+        raise PublishError("Missing bot token or channel id.")
+    return int(_telegram_call(bot_token, "getChatMemberCount", {"chat_id": chat_id}))
+
+
+# ── chat link with the post's code ────────────────────────────────────────
+# Where a link in a caption can be tapped. Instagram and TikTok captions show
+# links as plain text, so they get none.
+_LINK_PLATFORMS = {"telegram", "facebook", "linkedin"}
+DEFAULT_CHAT_LABEL = "👉 Chat with us:"
+
+
+def _handle(value: str) -> str:
+    """A username as stored: no @, no t.me/ m.me/ or facebook.com/ prefix."""
+    value = re.sub(r"^(https?://)?(www\.)?(t\.me/|telegram\.me/|m\.me/|facebook\.com/)", "", (value or "").strip(), flags=re.I)
+    return value.lstrip("@").strip("/ ")
+
+
+def chat_link_line(target: PostTarget, channel: Channel, slug: str) -> str:
+    """The line added to this post's caption — the brand's chat link carrying
+    the post's code (P<post id>), so the chatbot can tell which post brought a
+    customer. "" when the brand has none set or the platform can't show links."""
+    brand = channel.brand
+    if brand is None or slug not in _LINK_PLATFORMS or not target.post_id:
+        return ""
+    tg, fb = _handle(brand.chat_telegram), _handle(brand.chat_messenger)
+    code = f"P{target.post_id}"
+    # Each platform gets the chat its readers are already in, falling back to the other.
+    if slug == "facebook":
+        url = f"https://m.me/{fb}?ref={code}" if fb else (f"https://t.me/{tg}?start={code}" if tg else "")
+    else:
+        url = f"https://t.me/{tg}?start={code}" if tg else (f"https://m.me/{fb}?ref={code}" if fb else "")
+    if not url:
+        return ""
+    return f"{(brand.chat_label or '').strip() or DEFAULT_CHAT_LABEL} {url}"
+
+
+def _with_chat_link(target: PostTarget, channel: Channel, slug: str) -> None:
+    """Add the chat link to the caption once (a retry doesn't add it twice);
+    the caption is saved with it, so the app shows what was really posted."""
+    line = chat_link_line(target, channel, slug)
+    caption = target.caption or ""
+    if line and f"=P{target.post_id}" not in caption:
+        target.caption = f"{caption.rstrip()}\n\n{line}" if caption.strip() else line
+
+
+def publish(target: PostTarget, channel: Channel, video: Video | None) -> PublishResult:
+    slug = channel.platform.slug if channel.platform else ""
+    _with_chat_link(target, channel, slug)
+    if slug == "telegram":
+        return _publish_telegram(target, channel, video)
+    if slug == "tiktok" and (channel.config or {}).get("access_token"):
+        return _publish_tiktok(target, channel, video)
+    if slug == "facebook" and (channel.config or {}).get("access_token"):
+        return _publish_facebook(target, channel, video)
+    if slug == "instagram" and (channel.config or {}).get("access_token"):
+        return _publish_instagram(target, channel, video)
+    if slug == "linkedin" and (channel.config or {}).get("access_token"):
+        return _publish_linkedin(target, channel, video)
+    if slug == "youtube" and (channel.config or {}).get("refresh_token"):
+        return _publish_youtube(target, channel, video)
+    if get_settings().simulate_unimplemented_platforms:
+        return PublishResult(detail={"simulated": True, "platform": slug})
+    raise PublishError(f"No delivery integration for platform '{slug}'.")
+
+
+class CannotUnpublish(PublishError):
+    """The platform gives apps no way to delete a post — do it in its app."""
+
+
+# Platforms whose API has no delete for a published post.
+_NO_DELETE = {
+    "instagram": "Instagram doesn't let apps delete posts — delete it in the Instagram app.",
+    "tiktok": "TikTok doesn't let apps delete videos — delete it in the TikTok app.",
+    "youtube": "Delete this video in YouTube Studio.",
+}
+
+
+def unpublish(target: PostTarget, channel: Channel) -> str:
+    """Take a published post down on its platform. Returns "removed", or
+    "not_on_platform" when there's nothing live to remove (simulated delivery,
+    or already deleted there). Raises CannotUnpublish when the platform has no
+    delete API, PublishError when the delete failed — the post may still be up."""
+    slug = channel.platform.slug if channel.platform else ""
+    ext = (target.external_id or "").strip()
+    cfg = channel.config or {}
+    if not ext:
+        # Delivered without a platform id: a simulated platform, nothing live.
+        return "not_on_platform"
+    if slug in _NO_DELETE:
+        raise CannotUnpublish(_NO_DELETE[slug])
+    if slug == "facebook":
+        from app.channels import meta
+
+        if not cfg.get("access_token"):
+            raise PublishError("Facebook channel is missing its Page connection — reconnect it.")
+        try:
+            meta.delete_page_post(cfg["access_token"], ext)
+        except meta.MetaError as exc:
+            raise PublishError(str(exc)) from exc
+        return "removed"
+    if slug == "linkedin":
+        from app.channels import linkedin
+
+        try:
+            token, updated_config = linkedin.ensure_access_token(cfg)
+            if updated_config is not None:
+                channel.config = updated_config
+            return "removed" if linkedin.delete_post(token, ext) else "not_on_platform"
+        except linkedin.LinkedInError as exc:
+            raise PublishError(str(exc)) from exc
+    if slug == "telegram":
+        token = cfg.get("bot_token") or get_settings().telegram_bot_token
+        chat_id = cfg.get("chat_id") or channel.handle
+        if not token or not chat_id:
+            raise PublishError("Telegram channel is missing its bot token or chat — reconnect it.")
+        try:
+            _telegram_call(token, "deleteMessage", {"chat_id": chat_id, "message_id": ext})
+        except PublishError as exc:
+            if "message to delete not found" in str(exc).lower():
+                return "not_on_platform"
+            if "can't be deleted" in str(exc).lower():
+                raise PublishError(
+                    "Telegram won't let the bot delete this message (too old, or the bot lost its "
+                    "admin rights) — delete it in Telegram."
+                ) from exc
+            raise
+        return "removed"
+    raise CannotUnpublish(f"Can't delete posts on '{slug}' from here — delete it on the platform.")
+
+
+def _publish_facebook(target: PostTarget, channel: Channel, video: Video | None) -> PublishResult:
+    from app.channels import meta
+    from app.storage.media import kind_for, read_media
+
+    cfg = channel.config or {}
+    token, page_id = cfg.get("access_token"), cfg.get("page_id")
+    if not token or not page_id:
+        raise PublishError("Facebook channel is missing its Page connection — reconnect it.")
+
+    caption = target.caption or target.title or ""
+    data = read_media(video.url) if video and video.url else None
+    if video and video.url and data is None:
+        raise PublishError("Could not read the media file to upload.")
+    kind = kind_for(video.url, None) if video and video.url else None
+
+    try:
+        post_id = meta.publish_to_page(token, page_id, caption, data, kind)
+    except meta.MetaError as exc:
+        raise PublishError(str(exc)) from exc
+    return PublishResult(external_id=post_id, detail={"platform": "facebook"})
+
+
+def _publish_instagram(target: PostTarget, channel: Channel, video: Video | None) -> PublishResult:
+    if video is None or not video.url:
+        raise PublishError("This post has no image/video attached — Instagram requires one.")
+
+    from app.channels import meta
+    from app.storage.media import kind_for
+
+    cfg = channel.config or {}
+    token, ig_user_id = cfg.get("access_token"), cfg.get("ig_user_id")
+    if not token or not ig_user_id:
+        raise PublishError("Instagram channel is missing its account link — reconnect it.")
+
+    base = get_settings().public_base_url.rstrip("/")
+    if not base:
+        raise PublishError(
+            "Instagram publishing needs PUBLIC_BASE_URL set in .env — Instagram fetches "
+            "media from a public url, it can't take a direct upload."
+        )
+
+    caption = target.caption or target.title or ""
+    kind = kind_for(video.url, None)
+    media_url = f"{base}{video.url}"
+    try:
+        media_id = meta.publish_to_instagram(token, ig_user_id, caption, media_url, kind)
+    except meta.MetaError as exc:
+        raise PublishError(str(exc)) from exc
+    return PublishResult(external_id=media_id, detail={"platform": "instagram"})
+
+
+def _publish_linkedin(target: PostTarget, channel: Channel, video: Video | None) -> PublishResult:
+    from app.channels import linkedin
+    from app.storage.media import kind_for, read_media
+
+    try:
+        token, updated_config = linkedin.ensure_access_token(channel.config or {})
+        author = linkedin.author_urn(channel.config or {})
+    except linkedin.LinkedInError as exc:
+        raise PublishError(str(exc)) from exc
+    if updated_config is not None:
+        channel.config = updated_config  # rides the caller's commit
+
+    caption = target.caption or target.title or ""
+    data = read_media(video.url) if video and video.url else None
+    if video and video.url and data is None:
+        raise PublishError("Could not read the media file to upload.")
+    kind = kind_for(video.url, None) if video and video.url else None
+
+    try:
+        post_urn = linkedin.publish_post(token, author, caption, data, kind)
+    except linkedin.LinkedInError as exc:
+        raise PublishError(str(exc)) from exc
+    return PublishResult(external_id=post_urn, detail={"platform": "linkedin"})
+
+
+def _publish_youtube(target: PostTarget, channel: Channel, video: Video | None) -> PublishResult:
+    """Upload the post's video to the connected YouTube channel — a Short when
+    it's vertical and up to 3 minutes. The title: the post's own, else the
+    caption's first line; the caption is the description."""
+    if video is None or not video.url:
+        raise PublishError("This post has no video attached — YouTube needs one.")
+
+    from app.channels import youtube
+    from app.storage.media import kind_for, read_media
+
+    if kind_for(video.url, None) != "video":
+        raise PublishError("YouTube only takes videos — this post has an image attached, not a video.")
+    data = read_media(video.url)
+    if data is None:
+        raise PublishError("Could not read the video file to upload.")
+    try:
+        access_token, updated_config = youtube.ensure_access_token(channel.config or {})
+    except youtube.YouTubeError as exc:
+        raise PublishError(str(exc)) from exc
+    if updated_config is not None:
+        channel.config = updated_config  # rides the caller's commit
+    width, _, height = (video.resolution or "").partition("x")
+    try:
+        tall = int(height) > int(width)
+    except ValueError:
+        tall = True  # our motion videos are vertical unless told otherwise
+    fits_short = tall and 0 < (video.duration_seconds or 0) <= youtube.SHORT_MAX_SECONDS
+    # The composer's choice (platform_options["youtube"]): "short" / "video" / "auto".
+    # YouTube itself files any vertical clip up to 3 minutes under Shorts, so
+    # "video" only drops our #Shorts tag, and "short" needs a clip that fits.
+    opts = (target.platform_options or {}).get("youtube") or {}
+    fmt = opts.get("format") or "auto"
+    short = fits_short if fmt == "auto" else (fmt == "short" and fits_short)
+    try:
+        video_id = youtube.upload_video(
+            access_token, data, youtube.title_for(target.title, target.caption), target.caption or "", short=short
+        )
+    except youtube.YouTubeError as exc:
+        raise PublishError(str(exc)) from exc
+
+    # Until Google audits the project, YouTube locks every upload to Private.
+    notes = ["Uploaded to YouTube. Until Google approves the app, it stays Private — make it Public in YouTube Studio."]
+    if fmt == "short" and not fits_short:
+        notes.append("It went up as a normal video — a Short has to be vertical and 3 minutes or less.")
+    thumb_url = opts.get("thumbnail_url") or ""
+    thumb_set = False
+    if thumb_url:
+        # the video is up — a thumbnail that can't be set is a note, not a failed post
+        if short:
+            notes.append("YouTube doesn't take custom thumbnails for Shorts — pick its cover in the YouTube app.")
+        else:
+            image = read_media(thumb_url)
+            try:
+                if image is None:
+                    raise youtube.YouTubeError("The thumbnail picture couldn't be found.")
+                youtube.set_thumbnail(access_token, video_id, image)
+                thumb_set = True
+            except youtube.YouTubeError as exc:
+                notes.append(f"The thumbnail wasn't set: {exc}")
+            except Exception as exc:  # noqa: BLE001 — a picture PIL can't read
+                log.warning("youtube thumbnail for %s failed: %s", video_id, exc)
+                notes.append("The thumbnail wasn't set — that picture couldn't be read.")
+    # The file is up, but YouTube isn't done: it still processes the video (a
+    # longer one takes minutes), and it isn't watchable until then. Say "processing",
+    # not "posted" — views.settle_processing_targets moves it to posted when
+    # YouTube says it is ready (or failed).
+    try:
+        processing = youtube.video_state(access_token, video_id)["state"] != "ready"
+    except youtube.YouTubeError as exc:
+        log.warning("youtube %s: couldn't ask whether it is processed yet: %s", video_id, exc)
+        processing = True  # unknown → the background check finds out
+    return PublishResult(
+        external_id=video_id,
+        detail={
+            "platform": "youtube",
+            "url": youtube.video_url(video_id, short),
+            "short": short,
+            "thumbnail": thumb_set,
+            "processing": processing,
+            "note": " ".join(notes),
+        },
+    )
+
+
+def _publish_tiktok(target: PostTarget, channel: Channel, video: Video | None) -> PublishResult:
+    if video is None or not video.url:
+        raise PublishError("This post has no video attached — TikTok requires one.")
+
+    from app.channels import tiktok
+    from app.storage.media import kind_for, read_media
+
+    if kind_for(video.url, None) != "video":
+        raise PublishError(
+            "TikTok only accepts video — this post has an image attached, not a video."
+        )
+
+    data = read_media(video.url)
+    if data is None:
+        raise PublishError("Could not read the video file to upload.")
+
+    try:
+        access_token, updated_config = tiktok.ensure_access_token(channel.config or {})
+    except tiktok.TikTokError as exc:
+        raise PublishError(str(exc)) from exc
+    if updated_config is not None:
+        # `channel` is attached to the caller's session — this rides its commit.
+        channel.config = updated_config
+
+    cfg = updated_config or channel.config or {}
+    granted_scope = cfg.get("scope", "")
+    # A channel can carry video.publish (Direct Post) and still prefer Upload
+    # for now — e.g. Direct Post is only usable while the connected account
+    # stays private pre-audit; toggle Channel.config["prefer_upload"] to
+    # switch back without reconnecting (which would drop the video.publish
+    # grant entirely).
+    # Direct Post only with the settings the person picked in the composer
+    # (TikTok's guidelines: who can see it is always their choice) — a post
+    # without them (the weekly plan, a re-post) goes to the inbox as a draft
+    opts = (target.platform_options or {}).get("tiktok") or {}
+    if "video.publish" in granted_scope.split(",") and not cfg.get("prefer_upload") and opts.get("privacy_level"):
+        return _publish_tiktok_direct(target, access_token, data)
+
+    try:
+        publish_id = tiktok.upload_video_draft(access_token, data)
+    except tiktok.TikTokError as exc:
+        raise PublishError(str(exc)) from exc
+    # Upload flow, not Direct Post (see app/channels/tiktok.py) — this lands as a draft
+    # in the connected account's TikTok inbox; a person still opens TikTok and
+    # taps Post to actually publish it, adding the caption there by hand.
+    return PublishResult(
+        external_id=publish_id,
+        detail={
+            "platform": "tiktok",
+            "publish_id": publish_id,
+            "note": "Uploaded to TikTok as a draft — open TikTok to add the caption and post it.",
+        },
+    )
+
+
+def _publish_tiktok_direct(target: PostTarget, access_token: str, data: bytes) -> PublishResult:
+    """This channel's token actually carries ``video.publish`` (Sandbox
+    testing, or a passed audit) — use Direct Post instead of Upload. Settings
+    come from ``target.platform_options["tiktok"]``, chosen in the composer;
+    defaults are the safe/conservative choice (private, nothing disabled, no
+    branded-content claim) if that's missing."""
+    from app.channels import tiktok
+
+    opts = (target.platform_options or {}).get("tiktok") or {}
+    caption = target.caption or target.title or ""
+    # Enforced here too, not just left to the composer picker: an unaudited
+    # app's Direct Post calls are outright rejected for any privacy_level
+    # other than SELF_ONLY (not just forced private) — TikTok's own
+    # content-sharing-guidelines error if you send anything else.
+    privacy_level = opts.get("privacy_level") or "SELF_ONLY"
+    if not get_settings().tiktok_app_audited:
+        privacy_level = "SELF_ONLY"
+    try:
+        publish_id = tiktok.publish_video_direct(
+            access_token,
+            data,
+            caption,
+            privacy_level=privacy_level,
+            disable_duet=bool(opts.get("disable_duet", False)),
+            disable_comment=bool(opts.get("disable_comment", False)),
+            disable_stitch=bool(opts.get("disable_stitch", False)),
+            # a disclosure counts only while its switch is on (the composer's "disclose")
+            brand_content_toggle=bool(opts.get("brand_content_toggle", False)) and opts.get("disclose", True) is not False,
+            brand_organic_toggle=bool(opts.get("brand_organic_toggle", False)) and opts.get("disclose", True) is not False,
+        )
+    except tiktok.TikTokError as exc:
+        if not tiktok.unaudited_public(exc):
+            raise PublishError(str(exc)) from exc
+        # Until the app passes TikTok's audit, Direct Post only works on
+        # private accounts — send it to the account's inbox as a draft instead
+        log.warning("TikTok Direct Post refused (%s, %s) — sending as an inbox draft", exc.code, exc)
+        try:
+            publish_id = tiktok.upload_video_draft(access_token, data)
+        except tiktok.TikTokError as exc2:
+            raise PublishError(str(exc2)) from exc2
+        return PublishResult(
+            external_id=publish_id,
+            detail={
+                "platform": "tiktok",
+                "publish_id": publish_id,
+                "note": "Sent to your TikTok inbox as a draft — TikTok only lets apps post straight to private accounts for now. "
+                "Open TikTok, add the caption and tap Post.",
+            },
+        )
+    return PublishResult(
+        external_id=publish_id,
+        detail={"platform": "tiktok", "publish_id": publish_id, "mode": "direct_post"},
+    )
+
+
+TELEGRAM_UPLOAD_LIMIT = 50 * 1024 * 1024  # a bot's upload cap — above it: 413 "Request Entity Too Large"
+TELEGRAM_UPLOAD_AIM = 47 * 1024 * 1024  # what a shrunk video aims for (room for the form around it)
+
+
+def fit_video(data: bytes, aim: int, seconds: float | None = None) -> bytes:
+    """``data`` (an MP4) re-encoded to about ``aim`` bytes: the bitrate its length
+    allows (H.264 + AAC 96k, the same size and length; 720p when that bitrate is
+    low — a long video). Tried once more, smaller, if it's still over. The
+    original is untouched; raises PublishError when it can't be made to fit."""
+    import subprocess
+    import tempfile
+    from pathlib import Path
+
+    import imageio_ffmpeg
+
+    ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+    with tempfile.TemporaryDirectory() as tmp:
+        src, out = Path(tmp) / "in.mp4", Path(tmp) / "out.mp4"
+        src.write_bytes(data)
+        if not seconds:
+            try:
+                seconds = imageio_ffmpeg.count_frames_and_secs(str(src))[1]
+            except Exception:  # noqa: BLE001 — can't tell its length: can't size it
+                seconds = 0
+        if not seconds:
+            raise PublishError("The video is too large for Telegram (50 MB), and its length couldn't be read to shrink it.")
+        for share in (0.92, 0.75):
+            kbps = max(150, int(aim * share * 8 / seconds / 1000) - 96)
+            scale = ["-vf", "scale=-2:'min(720,ih)'"] if kbps < 1500 else []
+            done = subprocess.run(
+                [ffmpeg, "-y", "-loglevel", "error", "-i", str(src), *scale,
+                 "-c:v", "libx264", "-preset", "veryfast", "-b:v", f"{kbps}k", "-maxrate", f"{int(kbps * 1.3)}k", "-bufsize", f"{kbps * 2}k",
+                 "-c:a", "aac", "-b:a", "96k", "-movflags", "+faststart", str(out)],
+                capture_output=True,
+                timeout=900,
+            )
+            if done.returncode == 0 and out.exists() and 0 < out.stat().st_size <= aim:
+                return out.read_bytes()
+    raise PublishError("The video is too large for Telegram (50 MB) and couldn't be made small enough — try a shorter video.")
+
+
+def _publish_telegram(
+    target: PostTarget, channel: Channel, video: Video | None
+) -> PublishResult:
+    cfg = channel.config or {}
+    token = cfg.get("bot_token") or get_settings().telegram_bot_token
+    chat_id = cfg.get("chat_id") or channel.handle
+    if not token:
+        raise PublishError(
+            "Telegram channel has no bot_token (set it in the channel config "
+            "or TELEGRAM_BOT_TOKEN in .env)."
+        )
+    if not chat_id:
+        raise PublishError("Telegram channel has no chat_id / @username.")
+
+    parse_mode = cfg.get("parse_mode")  # e.g. "HTML" or "MarkdownV2"; optional
+    caption = target.caption or target.title or ""
+    asset_url = (video.url if video else "") or ""
+
+    from app.storage.media import kind_for, read_media
+
+    # read_media checks the media_blobs table first, then the legacy on-disk
+    # media/ folder — local_path_for() (disk-only) used to be called here
+    # directly, which silently fell back to a text-only message for any
+    # asset generated after storage moved into the database.
+    is_remote = asset_url.startswith(("http://", "https://"))
+    media_bytes = read_media(asset_url) if asset_url and not is_remote else None
+    kind = kind_for(asset_url, None) if asset_url else "video"
+
+    # over a bot's 50 MB upload cap (a long video): sent as a smaller copy — Telegram
+    # refused the original with 413 "Request Entity Too Large"
+    if media_bytes is not None and kind != "image" and len(media_bytes) > TELEGRAM_UPLOAD_AIM:
+        before = len(media_bytes)
+        media_bytes = fit_video(media_bytes, TELEGRAM_UPLOAD_AIM, video.duration_seconds if video else None)
+        log.info("telegram: video %s shrunk %.1f MB → %.1f MB to fit the 50 MB upload cap", asset_url, before / 1e6, len(media_bytes) / 1e6)
+
+    send_media = (media_bytes is not None or is_remote) and len(caption) <= TELEGRAM_CAPTION_LIMIT
+    if send_media:
+        method = "sendPhoto" if kind == "image" else "sendVideo"
+        field = "photo" if kind == "image" else "video"
+    else:
+        method = "sendMessage"
+
+    # A video's real size and length: without them Telegram often shows a
+    # vertical video squeezed into a square with black bars on phones.
+    shape: dict = {}
+    if send_media and kind != "image" and video is not None:
+        w, _, h = (video.resolution or "").partition("x")
+        if w.isdigit() and h.isdigit():
+            shape = {"width": int(w), "height": int(h)}
+        if video.duration_seconds:
+            shape["duration"] = int(video.duration_seconds)
+        shape["supports_streaming"] = True
+
+    def _do_request() -> httpx.Response:
+        base = {"chat_id": chat_id}
+        if parse_mode:
+            base["parse_mode"] = parse_mode
+        endpoint = f"{TELEGRAM_API}/bot{token}/{method}"
+        try:
+            if send_media and media_bytes is not None:
+                filename = asset_url.rsplit("/", 1)[-1] or "media"
+                return httpx.post(
+                    endpoint,
+                    data={**base, **{k: str(v).lower() if isinstance(v, bool) else str(v) for k, v in shape.items()}, "caption": caption},
+                    files={field: (filename, media_bytes)},
+                    timeout=120.0,
+                )
+            if send_media:
+                return httpx.post(
+                    endpoint, json={**base, **shape, field: asset_url, "caption": caption}, timeout=30.0
+                )
+            text = f"{caption}\n\n{asset_url}".strip() if is_remote else caption
+            if len(text) > TELEGRAM_TEXT_LIMIT:
+                raise PublishError(
+                    f"Message is {len(text)} chars; Telegram allows {TELEGRAM_TEXT_LIMIT}."
+                )
+            return httpx.post(endpoint, json={**base, "text": text}, timeout=30.0)
+        except httpx.HTTPError as exc:
+            raise PublishError(f"Could not reach Telegram: {exc}") from exc
+
+    resp = _do_request()
+
+    ctype = resp.headers.get("content-type", "")
+    data = resp.json() if ctype.startswith("application/json") else {}
+    if not data.get("ok"):
+        desc = data.get("description") or f"HTTP {resp.status_code}"
+        raise PublishError(f"Telegram rejected the post: {desc}")
+
+    message_id = str(data.get("result", {}).get("message_id", ""))
+    return PublishResult(external_id=message_id, detail={"method": method})

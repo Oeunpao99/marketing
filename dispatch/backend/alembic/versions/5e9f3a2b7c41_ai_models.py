@@ -1,6 +1,6 @@
 """Multi-model writing: ai_models (what each model costs us and its markup,
 on/off), workspaces.ai_model / ai_models_allowed, and credit_entries split
-into input / output tokens with the provider cost — app/ai_models.py."""
+into input / output tokens with the provider cost — app/ai/ai_models.py."""
 
 import sqlalchemy as sa
 from alembic import op

@@ -5,7 +5,7 @@
  * tilted lime sticker, and karaoke subtitles (MotionPost → Caption look).
  * For a product or service that solves an everyday problem.
  *
- * Its own scenes (app/motion.py GRID_PROMPT):
+ * Its own scenes (app/video/motion/ GRID_PROMPT):
  *
  *   { type: "tasks", title?, items: [{ icon, text }], sticker? }      the repetitive work, cards with a turning ↻, the sticker
  *   { type: "fanout", title?, image? | icon, outputs: [{ kind, value? }], checks?: [text] }

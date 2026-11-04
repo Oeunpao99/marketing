@@ -1,4 +1,4 @@
-"""brands.voice_clone — the brand's own voice for its videos (app/voice_clone.py):
+"""brands.voice_clone — the brand's own voice for its videos (app/voice/voice_clone.py):
 its recording, voice fingerprint and status, as JSON."""
 
 import sqlalchemy as sa

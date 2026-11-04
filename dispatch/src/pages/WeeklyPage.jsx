@@ -17,7 +17,7 @@ import ContentGoals from '../components/weekly/ContentGoals'
 import PlanBoard, { formatOf, pictureBusy } from '../components/weekly/PlanBoard'
 import { useBrandMarks } from '../lib/brandMarks'
 
-// The plan habit (backend app/weekly.py): how the last 7 days went, what the
+// The plan habit (backend app/planning/weekly.py): how the last 7 days went, what the
 // AI learned, and the coming posts — next week's, or tomorrow's for a brand
 // set to plan daily — trimmed here and approved in one tap.
 

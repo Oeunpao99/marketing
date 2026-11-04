@@ -43,7 +43,7 @@ uv sync
 uv run python -m alembic upgrade head
 
 # e. load demo data (safe to skip; re-runnable, does nothing if data exists)
-uv run python -m app.seed
+uv run python -m app.core.seed
 
 # f. run the API — http://localhost:8000/docs
 uv run python -m uvicorn app.main:app --reload --port 8000
@@ -106,7 +106,7 @@ npm run preview        # serve the build locally
 | New migration after editing `app/models.py` | `uv run python -m alembic revision --autogenerate -m "message"` |
 | Apply migrations | `uv run python -m alembic upgrade head` |
 | Roll back one migration | `uv run python -m alembic downgrade -1` |
-| Re-seed from scratch | `alembic downgrade base && alembic upgrade head && python -m app.seed` (each `uv run python -m …`) |
+| Re-seed from scratch | `alembic downgrade base && alembic upgrade head && python -m app.core.seed` (each `uv run python -m …`) |
 | Lint backend | `uv run ruff check app` |
 
 > **Changing a column:** every change to `app/models.py` ships with its own

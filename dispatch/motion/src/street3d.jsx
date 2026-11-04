@@ -12,7 +12,7 @@
  * IN the world (signs, the board, chat bubbles) drawn on canvases once the
  * fonts are in, and titles / captions as page text over the canvas.
  *
- * Scenes (app/motion.py STREET_TYPES): hook · shops (sides: the two shops) ·
+ * Scenes (app/video/motion/ STREET_TYPES): hook · shops (sides: the two shops) ·
  * crowd (a number counting on the board) · chatter (messages) · cta. Any scene
  * may float a `hero` in front of the shop: a thing (props3d.jsx — a coffee, a
  * book, a scooter…) or "product", the brand kit's photo (scene.image) on a 3D
@@ -304,7 +304,7 @@ function Lamp({ x, z, on }) {
   )
 }
 
-// kinds of people: clothes, hair and what they wear (app/motion.py STREET_PEOPLE says the same)
+// kinds of people: clothes, hair and what they wear (app/video/motion/ STREET_PEOPLE says the same)
 const KINDS = {
   student: { shirt: '#F4F4F2', pants: '#2E3F73', extra: 'backpack' },
   worker: { shirt: '#A9C8EC', pants: '#2F3A44', extra: 'tie' },

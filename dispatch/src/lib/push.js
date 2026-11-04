@@ -1,5 +1,5 @@
 // Web Push on this device — subscribe / unsubscribe with the browser's push
-// service and register the subscription with the backend (app/push.py).
+// service and register the subscription with the backend (app/notify/push.py).
 import { api } from '../api/client'
 import { isIOS, isStandalone } from './pwa'
 

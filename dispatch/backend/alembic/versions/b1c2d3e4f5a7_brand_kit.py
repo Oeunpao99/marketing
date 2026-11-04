@@ -1,5 +1,5 @@
 """brand_assets (logo / product photos / poster templates) and
-automations.poster_kit — the brand kit the image AI builds on (app/brand_kit.py)."""
+automations.poster_kit — the brand kit the image AI builds on (app/images/brand_kit.py)."""
 
 import sqlalchemy as sa
 from alembic import op

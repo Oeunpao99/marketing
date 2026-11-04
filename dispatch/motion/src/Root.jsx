@@ -44,7 +44,7 @@ export const Root = () => (
       return { durationInFrames: total - TRANSITION * (props.scenes.length - 1), width: wide ? 1920 : 1080, height: wide ? 1080 : 1920 }
     }}
   />
-  {/* Slides · Presentation's PDF: frame n = slide n at rest (deck.jsx; app/motion.py deck_pdf) */}
+  {/* Slides · Presentation's PDF: frame n = slide n at rest (deck.jsx; app/video/motion/ deck_pdf) */}
   <Composition
     id="DeckPages"
     component={DeckPages}
@@ -55,7 +55,7 @@ export const Root = () => (
     defaultProps={{ brand: { name: '', color: '#2563EB' }, scenes: [] }}
     calculateMetadata={({ props }) => ({ durationInFrames: Math.max(1, (props.scenes || []).length) })}
   />
-  {/* the video editor's export (timeline.jsx; app/editor.py) */}
+  {/* the video editor's export (timeline.jsx; app/video/editor.py) */}
   <Composition
     id="Timeline"
     component={Timeline}

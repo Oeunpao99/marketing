@@ -71,7 +71,7 @@ class BrandBase(BaseModel):
     chat_label: str = Field(default="", max_length=80)
     # The brand's own colours, main first (Brand kit; read from the logo)
     colors: HexColors = Field(default_factory=list, max_length=6)
-    # How the voice-over says words (app/khmer_speech.py): [{word, say}]
+    # How the voice-over says words (app/voice/khmer_speech.py): [{word, say}]
     pronunciations: list[Pronunciation] = Field(default_factory=list, max_length=200)
 
 
@@ -289,7 +289,7 @@ class DraftBase(BaseModel):
     # post instead of just flipping its status. Null for a text-only draft.
     video_id: int | None = None
     # The AI's own 0-100 self-check of how well this idea is grounded in the
-    # brand's real product facts (app/content_ai.py) — null for hand-made drafts.
+    # brand's real product facts (app/ai/content_ai.py) — null for hand-made drafts.
     fit_score: int | None = None
     # Content pillar / marketing angle / goal the AI wrote the caption with
     # ("" = hand-made).
@@ -332,7 +332,7 @@ class AutomationBase(BaseModel):
     # Opt-in: after an idea passes its own fit-score check, also generate an
     # image for it and (once approved, or immediately if require_approval is
     # off) schedule it as a real post on the brand's connected channels —
-    # see app/content_scheduler.py. Off by default since it spends real image
+    # see app/planning/content_scheduler.py. Off by default since it spends real image
     # generation budget every run.
     auto_media: bool = False
     # Channel ids auto-scheduling may post to. None/empty = every connected
@@ -341,16 +341,16 @@ class AutomationBase(BaseModel):
     # Custom time auto-scheduled posts go out at. None = the built-in
     # per-platform defaults.
     post_at: time | None = None
-    # Use what has worked for this brand (app/learning.py) when writing and
+    # Use what has worked for this brand (app/ai/learning.py) when writing and
     # scheduling.
     learn_from_results: bool = True
     # Brand kit for auto-made images: {"template_ids": [..], "logo": bool,
-    # "product_photos": bool} (app/brand_kit.py). Ids from another brand are
+    # "product_photos": bool} (app/images/brand_kit.py). Ids from another brand are
     # ignored at generation time.
     poster_kit: dict = {}
     # Subjects the AI rotates through (content_ai.pick_subjects).
     subjects: list[str] = []
-    # How far ahead the AI plans: the next week, or just tomorrow (app/weekly.py).
+    # How far ahead the AI plans: the next week, or just tomorrow (app/planning/weekly.py).
     plan_every: Literal["week", "day"] = "week"
 
 
@@ -436,7 +436,7 @@ class RegisterIn(BaseModel):
     workspace_name: str = Field(default="", max_length=120)
     email: str = Field(min_length=3, max_length=160)
     password: str = Field(min_length=8, max_length=128)
-    # required — so our team can call to help them start (app/auth.py clean_phone)
+    # required — so our team can call to help them start (app/auth/auth.py clean_phone)
     phone: str = Field(default="", max_length=40)
 
 
@@ -461,9 +461,9 @@ class UserOut(ORMModel):
     role: str = "editor"
     is_active: bool = True
     preferences: dict[str, Any] = Field(default_factory=dict)
-    # Features this person may use (app/access.py); null = everything.
+    # Features this person may use (app/auth/access.py); null = everything.
     access: list[str] | None = None
-    # False until a new account enters the code emailed to it (app/auth.py verify-email)
+    # False until a new account enters the code emailed to it (app/auth/auth.py verify-email)
     email_verified: bool = True
     # False for an account made with Google that never set a password (closing it asks for an email code)
     has_password: bool = True

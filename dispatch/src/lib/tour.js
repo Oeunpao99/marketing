@@ -1,7 +1,7 @@
 // The first-run spotlight tour (components/layout/OnboardingTour.jsx).
 //
 // "Has this person seen it" lives in their own preferences, the same place
-// `library_seen_at` goes (backend/app/views.py) — so it follows them to a new
+// `library_seen_at` goes (backend/app/core/views.py) — so it follows them to a new
 // device, and every member of a workspace gets their own. The flag is only
 // written when they finish or skip, so a reload mid-tour starts it again
 // rather than losing them halfway.

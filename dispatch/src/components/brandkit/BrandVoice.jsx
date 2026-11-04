@@ -9,7 +9,7 @@ import { has, usePlanFeatures } from '../../lib/planFeatures'
 // The brand's own voice (Content studio → Voice, and Products → Brand kit):
 // the owner records in the browser — or drops / picks a recording — of about a
 // minute of their speaking; the server learns the voice's fingerprint
-// (backend app/brand_voice.py, app/voice_clone.py) and videos can then pick
+// (backend app/voice/brand_voice.py, app/voice/voice_clone.py) and videos can then pick
 // "Brand". A text to read is shown — it starts with a spoken consent. Once
 // it's ready, one line is played by the Female reader, the Male reader and
 // the brand voice side by side.

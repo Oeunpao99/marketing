@@ -27,7 +27,7 @@ export function tiktokMissing(value) {
 
 /** TikTok Direct Post's required picker (TikTok's content-sharing guidelines,
  * which its audit checks) — only for a channel whose token carries
- * video.publish (app/views.py `tiktok_direct_post`). The account it posts to
+ * video.publish (app/core/views.py `tiktok_direct_post`). The account it posts to
  * (avatar, name), who can see it (no default — the person picks), comments /
  * duet / stitch (off until turned on; greyed when the account has them off),
  * the commercial-content disclosure, and TikTok's consent line. */

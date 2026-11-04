@@ -1,5 +1,5 @@
 /**
- * One template per content goal (app/goals.py) — phase 1:
+ * One template per content goal (app/ai/goals.py) — phase 1:
  *
  *   versus  (Authority)   old way vs new way, myth vs fact, a verdict
  *   poll    (Engagement)  a question, A/B/C options with a countdown, "comment"
@@ -7,7 +7,7 @@
  *
  * Each exports its scenes, its root colours and which chrome / subtitle spot
  * it uses; MotionPost.jsx picks them by props.style. The script fields are
- * written by app/motion.py (VERSUS_PROMPT, POLL_PROMPT, QUOTE_PROMPT).
+ * written by app/video/motion/ (VERSUS_PROMPT, POLL_PROMPT, QUOTE_PROMPT).
  */
 import { AbsoluteFill, Img, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion'
 import { FONT, Icon, NeatGrid, Words, clean, fitSize, srcOf } from './shared'

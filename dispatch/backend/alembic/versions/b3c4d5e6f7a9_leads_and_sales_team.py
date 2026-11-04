@@ -1,4 +1,4 @@
-"""leads and hand-off (app/leads.py): sales_reps, lead_accounts, leads."""
+"""leads and hand-off (app/crm/leads.py): sales_reps, lead_accounts, leads."""
 
 import sqlalchemy as sa
 from alembic import op

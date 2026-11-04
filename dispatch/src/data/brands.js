@@ -1,4 +1,4 @@
-// Platform reference config — mirrors backend/app/seed.py's PLATFORMS (and the
+// Platform reference config — mirrors backend/app/core/seed.py's PLATFORMS (and the
 // Platform DB model's own fields). Static because adding a real new platform
 // always requires a backend integration + code deploy anyway, not just a DB row.
 export const PLAT = {

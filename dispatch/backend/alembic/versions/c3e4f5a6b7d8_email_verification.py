@@ -1,6 +1,6 @@
 """Email confirmation and "Forgot password" (2026-11-03): a new account confirms its email
-with a 6-digit code, and a forgotten password is reset with another one (app/mailer.py,
-app/auth.py). Everyone who already has an account counts as confirmed."""
+with a 6-digit code, and a forgotten password is reset with another one (app/notify/mailer.py,
+app/auth/auth.py). Everyone who already has an account counts as confirmed."""
 
 import sqlalchemy as sa
 from alembic import op

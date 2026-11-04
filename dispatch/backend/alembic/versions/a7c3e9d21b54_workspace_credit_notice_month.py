@@ -1,6 +1,6 @@
 """workspaces.credit_notice_month — the month ("2026-11") the "your monthly
 credits are ready to claim" push last went to this workspace, so it goes once
-a month (app/billing.py remind_claims)."""
+a month (app/billing/billing.py remind_claims)."""
 
 import sqlalchemy as sa
 from alembic import op

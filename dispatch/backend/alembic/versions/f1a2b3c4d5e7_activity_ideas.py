@@ -1,4 +1,4 @@
-"""activity_plans.ideas — the week's product content ideas (app/activity.py):
+"""activity_plans.ideas — the week's product content ideas (app/planning/activity.py):
 the plan is built around making the brand's products spread."""
 
 import sqlalchemy as sa

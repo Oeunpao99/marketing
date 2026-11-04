@@ -5,7 +5,7 @@ question for ContentFlow or its customers.
     uv run python ../motion/tools/make_music.py      (from dispatch/backend — needs numpy + imageio-ffmpeg)
 
 Writes two seamless ~32 s loops per mood into public/music/<mood>/ (the folders
-app/motion.py music_tracks() reads). Each mood has its own tempo, key, chord
+app/video/motion/ music_tracks() reads). Each mood has its own tempo, key, chord
 progression and instruments; the second track of a mood uses another key,
 progression and melody seed. Re-running overwrites them (same seeds → same music).
 """

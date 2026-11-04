@@ -10,9 +10,9 @@
  * matters (an ATM, a phone, money, a paper, a stall, a laptop).
  *
  * The world is a 2400 × 1080 panorama the camera pans across; a tall frame
- * shows a band of it with sky above and ground below. Scenes (app/motion.py
+ * shows a band of it with sky above and ground below. Scenes (app/video/motion/
  * ILLUSTRATED_TYPES): hook · wide · closeup · fact · cta. props.cast = [the
- * main person] (app/motion.py clean_lead). 9:16 and 16:9.
+ * main person] (app/video/motion/ clean_lead). 9:16 and 16:9.
  */
 import { useMemo } from 'react'
 import { AbsoluteFill, Easing, interpolate, random, spring, useCurrentFrame, useVideoConfig } from 'remotion'

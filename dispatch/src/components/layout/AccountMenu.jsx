@@ -5,7 +5,7 @@ import { useAuth } from "../../auth";
 import { lengthText, useUsage, useUsageRefresh } from "../../lib/usage";
 
 // The top bar's right end: this month's videos left and the account avatar. Either
-// opens one panel — who you are, the month's videos and images (app/usage.py,
+// opens one panel — who you are, the month's videos and images (app/billing/usage.py,
 // lib/usage.js), the plan, extra videos, Settings, inviting the team, signing out.
 // Customers see videos and images, never credits.
 

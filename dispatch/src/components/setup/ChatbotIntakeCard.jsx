@@ -4,7 +4,7 @@ import { api } from '../../api/client'
 import { useStore } from '../../store'
 
 // Setup → "Chatbots → leads": the secret key a chatbot uses to send leads in
-// (POST /api/intake/leads, app/leads.py), whether one has arrived lately, and
+// (POST /api/intake/leads, app/crm/leads.py), whether one has arrived lately, and
 // what the chatbot team needs. The key is shown once, when it is made.
 
 const apiBase = window.location.port === '5173' ? 'http://localhost:8000' : window.location.origin

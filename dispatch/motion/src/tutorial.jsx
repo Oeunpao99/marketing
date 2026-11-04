@@ -27,7 +27,7 @@ const XFADE = 12
 export const tutorialFrames = (s, fps = 30) => Math.round((s.seconds || 4) * fps)
 
 /** Subtitles for a wide frame: phrases of up to ~46 characters, each shown when
- * its first word is spoken (words from app/speech.py speak_timed). */
+ * its first word is spoken (words from app/voice/speech.py speak_timed). */
 function phrasesOf(words, fps, max = 46) {
   const out = []
   let cur = null

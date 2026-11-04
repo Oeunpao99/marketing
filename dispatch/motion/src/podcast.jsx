@@ -7,9 +7,9 @@
  * woman's voice), the brand's T-shirt with its logo, jeans, sneakers — so he /
  * she is the same person in every scene and every video.
  * The studio room ships with the app (public/decor/podcast/studio.jpg,
- * tools/make_podcast_set.py); the places are props.places (app/doodle.py
+ * tools/make_podcast_set.py); the places are props.places (app/images/doodle.py
  * BACKDROP_STYLE, at most 2 a video).
- * Scene types: hook · onair · visit · list · cta (app/motion.py PODCAST_TYPES).
+ * Scene types: hook · onair · visit · list · cta (app/video/motion/ PODCAST_TYPES).
  */
 import { AbsoluteFill, Img, spring, staticFile, useCurrentFrame, useVideoConfig } from 'remotion'
 import { FONT, Icon, NeatGrid, Words, clean, fitSize, srcOf, tint } from './shared'

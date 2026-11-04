@@ -4,9 +4,9 @@ import CodeBoxes from '../components/ui/CodeBoxes'
 import { takeVerifyCode } from '../lib/emailLink'
 import { BrandLockup, BrandPanel } from './LoginPage'
 
-const WAIT = 60 // seconds before a new code can be sent (app/auth.py _RESEND_AFTER)
+const WAIT = 60 // seconds before a new code can be sent (app/auth/auth.py _RESEND_AFTER)
 
-/** A new account confirms its email: the 6-digit code we emailed (app/auth.py
+/** A new account confirms its email: the 6-digit code we emailed (app/auth/auth.py
  *  verify-email). Six boxes — typing or pasting fills them and sends the code by
  *  itself; "Send a new code" once a minute. Then the app opens (and the
  *  welcome email goes out). */

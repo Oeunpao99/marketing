@@ -62,7 +62,7 @@ self.addEventListener('fetch', (event) => {
   }
 })
 
-// ── Push notifications (app/push.py) ──────────────────────────────────────
+// ── Push notifications (app/notify/push.py) ──────────────────────────────────────
 // Shown on the lock screen / notification centre even when ContentFlow is
 // closed. Payload: { title, body, url, tag }.
 self.addEventListener('push', (event) => {

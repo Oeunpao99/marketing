@@ -7,7 +7,7 @@
  * with the voice (word timings when there are some), she waves, presents with
  * an open hand, points at the panel beside her, gives a thumbs-up. Drawn in
  * code — no AI pictures — so she is the same host in every video.
- * Scene types: hook · speak · list · stat · qa · cta (app/motion.py PRESENTER_TYPES).
+ * Scene types: hook · speak · list · stat · qa · cta (app/video/motion/ PRESENTER_TYPES).
  * props.host = {name, role, hello, kicker, female, print} (build_props).
  */
 import { AbsoluteFill, Easing, Img, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion'

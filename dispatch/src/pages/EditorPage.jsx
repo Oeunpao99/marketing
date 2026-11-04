@@ -35,7 +35,7 @@ import { useStore } from '../store'
 // Content studio → Video editor: a CapCut-style editor. /editor lists the
 // projects; /editor/:id is the editor — import files, drag them onto the
 // timeline, cut, trim, move, add words, then export a new Library video
-// (app/editor.py). The player plays motion/src/timeline.jsx, the same file
+// (app/video/editor.py). The player plays motion/src/timeline.jsx, the same file
 // the server renders, so the export looks like the preview.
 
 const MAX_BYTES = 200 * 1024 * 1024

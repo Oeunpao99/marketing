@@ -16,7 +16,7 @@ import { MOTION_OFF_TIP, useMotionReady } from '../../lib/motionStatus'
 // to action and the KPI — with Approve & schedule / Skip per post. Each post is
 // an image, text-only or a video; a video shows its storyboard to edit and
 // approve, renders in the background, then is approved again once finished
-// (backend app/weekly.py). Why the plan looks like this and the rules it
+// (backend app/planning/weekly.py). Why the plan looks like this and the rules it
 // follows open in a drawer from the "Why this plan" button, so the posts get
 // the whole width.
 
@@ -25,7 +25,7 @@ export const formatOf = (item) => item.format || (item.video ? 'video' : 'image'
 const FORMATS = [
   { v: 'image', l: 'Image' },
   { v: 'text', l: 'Text' },
-  // animated words + photos + voice, made with the plan (backend app/motion.py)
+  // animated words + photos + voice, made with the plan (backend app/video/motion/)
   { v: 'motion', l: 'Remotion' },
   // people on camera — storyboard first, filmed once approved
   { v: 'video', l: 'AI video · 24 s' },

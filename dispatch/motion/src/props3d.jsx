@@ -1,7 +1,7 @@
 /**
  * Low-poly 3D things for the 3D templates (street3d.jsx): a coffee cup, a book,
  * a pen, a phone, a scooter, a noodle bowl… each about 1 unit tall, standing
- * on y = 0, facing +z. The AI picks them by name (app/motion.py STREET_PROPS —
+ * on y = 0, facing +z. The AI picks them by name (app/video/motion/ STREET_PROPS —
  * keep the two lists the same); an unknown name draws nothing.
  * Built only from basic shapes and flat colours — no model files to load.
  */
@@ -309,7 +309,7 @@ const THINGS = {
   ),
 }
 
-/** The things' names (app/motion.py STREET_PROPS says the same). */
+/** The things' names (app/video/motion/ STREET_PROPS says the same). */
 export const THING_NAMES = Object.keys(THINGS)
 
 /** One thing by name, ``size`` units tall-ish, standing at ``position``. */

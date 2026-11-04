@@ -6,7 +6,7 @@ import { api } from '../../api/client'
 // Content studio → Voice: the workspace's own Gemini API key (optional). The
 // Khmer voice is read with ours first; when ours is used up, with this one;
 // then by Azure (Sreymom / Piseth). Lines read with it aren't charged to the
-// workspace's credit — Google bills the key (backend app/gemini_keys.py).
+// workspace's credit — Google bills the key (backend app/ai/gemini_keys.py).
 // A slim row here; the form opens in a right drawer, like every form.
 export default function GeminiKeyCard({ showToast }) {
   const [state, setState] = useState(null) // { configured, hint }

@@ -1,5 +1,5 @@
 // Extra detail for one post (InsightsPostPage): how its numbers grew over time
-// (saved readings — app/views.py record_snapshots), Telegram channel members
+// (saved readings — app/core/views.py record_snapshots), Telegram channel members
 // over time, and when it went out vs your usual posting hours,
 // and your other recent posts on the same channel.
 //

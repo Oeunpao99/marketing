@@ -4,10 +4,10 @@
  * logo, every slide animating in and settled by SETTLE. The same slides play
  * three ways: the video (MotionPost style "deck", one scene a slide), the
  * presenter in the app (pages/PresentPage.jsx — DeckSlide, one slide at a time)
- * and the PDF (DeckPages: frame n = slide n at rest; app/motion.py deck_pdf).
+ * and the PDF (DeckPages: frame n = slide n at rest; app/video/motion/ deck_pdf).
  * Imports only remotion, react and lucide — it also runs inside the app.
  *
- * Slides (app/motion.py DECK_PROMPT):
+ * Slides (app/video/motion/ DECK_PROMPT):
  *   hook      { text, sub? }                                    the cover
  *   agenda    { title, entries: [text] }                        what's coming, numbered
  *   keypoints { title, blocks: [{ title, text, icon }] }        2-4 cards
@@ -20,7 +20,7 @@
  *   statement { text, sub? }                                    one big sentence
  *   cta       { text, button? }                                 the close
  */
-// only the icons the AI may pick (app/motion.py ICONS) — the presenter in the app stays light
+// only the icons the AI may pick (app/video/motion/ ICONS) — the presenter in the app stays light
 import {
   AlarmClock,
   Award,

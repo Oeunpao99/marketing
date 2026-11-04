@@ -1,5 +1,5 @@
 """team_members.transfer_pin_hash / _fails / _locked_until — the security PIN
-asked for on every credit transfer (app/billing.py)."""
+asked for on every credit transfer (app/billing/billing.py)."""
 
 import sqlalchemy as sa
 from alembic import op

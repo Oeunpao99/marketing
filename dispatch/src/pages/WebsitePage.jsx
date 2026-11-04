@@ -19,7 +19,7 @@ import { useStore } from '../store'
 import Select from '../components/ui/Select'
 import { useBrandMarks } from '../lib/brandMarks'
 
-// Website check (backend app/website.py): is the brand's site working, can
+// Website check (backend app/website/website.py): is the brand's site working, can
 // Google find it, does it look good when shared, how fast is it, and is the
 // domain / email safe — with the AI's top fixes. Re-checked weekly.
 

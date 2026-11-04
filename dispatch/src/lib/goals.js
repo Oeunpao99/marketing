@@ -1,5 +1,5 @@
 // The 9 content goals in 3 stages the Plan & best time page works with —
-// mirrors GOALS / DEFAULT_MIX in backend/app/goals.py (keys must match; every
+// mirrors GOALS / DEFAULT_MIX in backend/app/ai/goals.py (keys must match; every
 // goal is made of AI topics, see PILLAR_LABELS in angles.js).
 
 export const STAGES = {

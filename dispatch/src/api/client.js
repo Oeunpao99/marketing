@@ -3,7 +3,7 @@ const TOKEN_KEY = 'tipsa_token'
 
 // This browser's own id, made once and kept for 2 years (the cf_dev cookie — a
 // cookie, so it also reaches the server on the Google sign-in redirect). The
-// server tells "a new device signed in" by it (app/sessions.py).
+// server tells "a new device signed in" by it (app/auth/sessions.py).
 ;(() => {
   try {
     if (/(?:^|;\s*)cf_dev=/.test(document.cookie)) return
@@ -33,7 +33,7 @@ export const tokenStore = {
   },
 }
 
-// The writing model picked in the composer (backend app/ai_models.py): sent
+// The writing model picked in the composer (backend app/ai/ai_models.py): sent
 // with every request as X-AI-Model; "" = the workspace's default.
 const AI_MODEL_KEY = 'cf_ai_model'
 export const aiModelStore = {

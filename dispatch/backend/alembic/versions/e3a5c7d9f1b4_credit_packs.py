@@ -1,4 +1,4 @@
-"""Credit packs customers buy with KHQR (app/payments.py) — set in the admin portal —
+"""Credit packs customers buy with KHQR (app/billing/payments.py) — set in the admin portal —
 and payments.credits (how many credits a top-up payment buys). Starts with the
 website's three packs (500 / 2,000 / 5,000)."""
 

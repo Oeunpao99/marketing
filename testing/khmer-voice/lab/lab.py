@@ -17,16 +17,16 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 
-from app import speech
-from app.config import get_settings
-from app.khmer_speech import spoken_parts
+from app.voice import speech
+from app.core.config import get_settings
+from app.voice.khmer_speech import spoken_parts
 
 app = FastAPI(title="Khmer Voice Lab")
 HERE = Path(__file__).parent
 
 
 def _mms_finetuned(text: str) -> bytes:
-    from app import local_voice
+    from app.voice import local_voice
 
     name = get_settings().khmer_tts_model
     if not name:
@@ -67,7 +67,7 @@ STYLES = {
 def _azure_styled(text: str, voice: str, style: str = "app") -> bytes:
     """Azure with the Khmer prosody front-end (app/khmer_prosody): breaths at
     linking words and openers, prices stressed, questions rising — or plain."""
-    from app import khmer_prosody
+    from app.voice import khmer_prosody
 
     if style not in khmer_prosody.STYLES:
         return speech._azure(text, voice)
@@ -91,7 +91,7 @@ def _gpt(text: str, voice: str, style: str = "app", custom: str = "") -> bytes:
     """gpt-4o-mini-tts with an acting instruction (the lab's speaking styles)."""
     how = custom.strip() if style == "custom" and custom.strip() else STYLES.get(style)
     if style != "app":
-        from app import khmer_prosody
+        from app.voice import khmer_prosody
 
         text = khmer_prosody.punctuated(text)  # the breaths as commas
     if not how:
@@ -205,7 +205,7 @@ def spoken(payload: SayIn):
 @app.post("/phrasing")
 def phrasing(payload: SayIn):
     """Where the voice will breathe ("|"), sentence ends ("‖"), «stressed» words."""
-    from app import khmer_prosody
+    from app.voice import khmer_prosody
 
     text = "".join(s for _, s in spoken_parts(payload.text)) if payload.numbers else payload.text
     return {"marked": khmer_prosody.marked(text)}

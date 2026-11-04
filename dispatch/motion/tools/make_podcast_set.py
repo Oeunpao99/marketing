@@ -11,7 +11,7 @@ import pathlib
 
 from PIL import Image
 
-from app import doodle
+from app.images import doodle
 
 OUT = pathlib.Path(__file__).resolve().parents[1] / "public" / "decor" / "podcast"
 ROOM = (

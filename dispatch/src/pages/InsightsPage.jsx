@@ -158,7 +158,7 @@ export function mediaSrc(url) {
 }
 
 /** Where a post was made: through ContentFlow, or straight on the platform
- * (imported from the connected Page — app/importer.py). */
+ * (imported from the connected Page — app/channels/importer.py). */
 export function OriginBadge({ origin, platform }) {
   const native = origin === 'native'
   const name = { facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok', telegram: 'Telegram', linkedin: 'LinkedIn', youtube: 'YouTube' }[platform] || 'the platform'

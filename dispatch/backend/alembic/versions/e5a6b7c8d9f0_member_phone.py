@@ -1,5 +1,5 @@
 """A phone number per person (2026-11-03): asked at sign-up so our team can call
-to help them get started (app/auth.py)."""
+to help them get started (app/auth/auth.py)."""
 
 import sqlalchemy as sa
 from alembic import op

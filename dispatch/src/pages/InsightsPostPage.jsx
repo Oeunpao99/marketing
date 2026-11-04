@@ -279,7 +279,7 @@ export default function InsightsPostPage() {
   // Opening another post from "More from this channel" reuses this page.
   const openPost = (p) => navigate(`/insights/${p.target_id}`)
 
-  // Saved readings over time (app/views.py record_snapshots) for the growth charts.
+  // Saved readings over time (app/core/views.py record_snapshots) for the growth charts.
   useEffect(() => {
     window.scrollTo(0, 0)
     setHistory(null)

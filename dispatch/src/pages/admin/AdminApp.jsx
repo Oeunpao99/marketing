@@ -26,7 +26,7 @@ import AiUsage, { AccountAiSection } from './AdminAI'
 import TeamAlerts from './AdminAlerts'
 import { AccountBars, ModelDonut, SpendLine } from './AdminCharts'
 
-// The platform admin portal (/admin-mkt — backend app/admin.py): who signed
+// The platform admin portal (/admin-mkt — backend app/admin/admin.py): who signed
 // up, who uses ContentFlow and how much AI they spend, with the controls to
 // suspend an account, switch a user off, change a plan or add AI credit.
 // Its own login (ADMIN_USERNAME / ADMIN_PASSWORD in the backend .env) — not a
@@ -285,7 +285,7 @@ function useLoad(path) {
 // A plan row joins two settings: its monthly price in USD and KHR (GET/PUT /prices — what
 // KHQR checkout charges and the website shows; empty = not sold in that currency, "Use
 // built-in" = back to the standard price) and what it makes a month (GET/PUT /plan-limits,
-// app/usage.py). Packs (GET/PUT /credit-packs) are extra videos / images a customer on a paid
+// app/billing/usage.py). Packs (GET/PUT /credit-packs) are extra videos / images a customer on a paid
 // plan buys, on top of the plan's, until the month ends.
 const inputCls = 'h-10 w-full rounded-xl border border-ink-200 bg-white px-3 text-[14px] tabular-nums text-ink-900 focus:border-brand focus:outline-none'
 const numOrNull = (v) => (v === '' || v == null ? null : Number(String(v).replace(/,/g, '')))
@@ -791,7 +791,7 @@ function Overview({ onOpen, onAll }) {
         </section>
       </div>
 
-      {/* what the AI went on, by kind of work (app/admin.py activity_kind) — over time, this
+      {/* what the AI went on, by kind of work (app/admin/admin.py activity_kind) — over time, this
           month's split, and who spent most */}
       {data.ai_kinds && (
         <>
@@ -922,7 +922,7 @@ function Accounts({ onOpen }) {
 }
 
 // ── one account: details + controls (right slide-over) ────────────────────
-// app/billing.py PLAN_CREDITS — the pricing page's plans
+// app/billing/billing.py PLAN_CREDITS — the pricing page's plans
 const PLAN_OPTIONS = [
   { value: 'free', label: 'Free' },
   { value: 'starter', label: 'Starter' },
@@ -996,7 +996,7 @@ function AccountDrawer({ id, onClose, onChanged }) {
     }
   }
 
-  const u = w?.usage // this month's videos / images (app/usage.py summary)
+  const u = w?.usage // this month's videos / images (app/billing/usage.py summary)
 
   return createPortal(
     <div className="fixed inset-0 z-[95]">
@@ -1235,7 +1235,7 @@ function AccountDrawer({ id, onClose, onChanged }) {
 
               {/* the ledger behind the counts: AI cost in dollars (team only), gifts as the videos / images they gave */}
               <Section title="AI activity">
-                {/* this month by kind of work — what the AI cost went on, in words (app/admin.py activity_kind) */}
+                {/* this month by kind of work — what the AI cost went on, in words (app/admin/admin.py activity_kind) */}
                 {w.ai_month?.length > 0 && (
                   <div className="mb-4">
                     <div className="mb-2 flex items-baseline justify-between">

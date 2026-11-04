@@ -5,7 +5,7 @@
  * tech icons floating around the text, dots and sparkles, a red line drawing
  * itself — and, faint behind it all, AI maths (σ(wx+b), ∑, ∂L/∂w, softmax…)
  * and a network. 9:16 and 16:9. Same scene types as AI explainer · Neural
- * (app/motion.py NEURAL_TYPES): hook · list · beforeafter · timeline ·
+ * (app/video/motion/ NEURAL_TYPES): hook · list · beforeafter · timeline ·
  * compare · quote · stat · cta.
  */
 import { AbsoluteFill, Easing, interpolate, random, spring, useCurrentFrame, useVideoConfig } from 'remotion'

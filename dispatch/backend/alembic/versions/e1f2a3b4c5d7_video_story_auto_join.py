@@ -1,5 +1,5 @@
 """video_stories.auto_join — a weekly plan's video joins its clips by itself
-once every scene is done (app/story.py, app/weekly.py).
+once every scene is done (app/video/story.py, app/planning/weekly.py).
 
 IF NOT EXISTS: an earlier version of d0e1f2a3b4c6 added this column too, and
 some databases (production) ran that version — this must work on both."""

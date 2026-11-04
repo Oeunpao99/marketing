@@ -1,5 +1,5 @@
 """Plan limits (videos / images / longest video a month), each job's units, and the
-videos / images a pack adds (app/usage.py)."""
+videos / images a pack adds (app/billing/usage.py)."""
 
 import sqlalchemy as sa
 from alembic import op

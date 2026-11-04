@@ -4,7 +4,7 @@
  * pushing in on one button and a cartoon hand clicking it. Drawn on
  * saas.jsx's "launch" background.
  *
- * Its own scenes (app/motion.py LAUNCH_PROMPT):
+ * Its own scenes (app/video/motion/ LAUNCH_PROMPT):
  *
  *   { type: "launch", name, text?, badge? }                     "Introducing" + the product, a "Now live" badge
  *   { type: "button", title?, text?, button, result? }          the card, the push-in, the hand clicks, the result

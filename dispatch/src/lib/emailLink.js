@@ -1,4 +1,4 @@
-// The "Open & use code" button in our code emails (backend app/mailer.py) opens
+// The "Open & use code" button in our code emails (backend app/notify/mailer.py) opens
 //   /?verify=123456                     — confirm a new account's email
 //   /?reset=you%40mail.com&code=123456  — "Forgot password", straight to the new password
 // Read once when the app loads and taken off the address bar (the code

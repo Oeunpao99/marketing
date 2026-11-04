@@ -1,5 +1,5 @@
 """workspaces.suspended_at / suspended_reason — the platform admin portal
-(/admin-mkt, app/admin.py) can suspend an account."""
+(/admin-mkt, app/admin/admin.py) can suspend an account."""
 
 import sqlalchemy as sa
 from alembic import op

@@ -11,7 +11,7 @@
  * under the feet. Scenes: hook (title card on rays) · tale (the story moment)
  * · tally (a chalkboard counting a number) · fork (a diagonal split — one path
  * vs the other) · moral (the lesson on a palm-leaf manuscript) · cta.
- * props.cast = the two people (app/motion.py clean_duo). 9:16 and 16:9.
+ * props.cast = the two people (app/video/motion/ clean_duo). 9:16 and 16:9.
  */
 import { AbsoluteFill, Easing, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion'
 import { EM_CLOSE, EM_OPEN, FONT, Icon, ZWSP, clean, fitSize } from './shared'
@@ -25,7 +25,7 @@ const HAIR = '#231C18'
 const clamp = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
 const KHMER = /[ក-៿]/
 
-// the two people when the storyboard has none (app/motion.py clean_duo says the same)
+// the two people when the storyboard has none (app/video/motion/ clean_duo says the same)
 const DUO = [
   { name: '', gender: 'male', skin: 'tan', hair: 'short', shirt: 'blue', extra: 'krama' },
   { name: '', gender: 'female', skin: 'light', hair: 'bun', shirt: 'pink', extra: 'none' },
@@ -176,7 +176,7 @@ export function shade(hex, k) {
 
 /**
  * Is the scene's speaker saying a word at this frame? Their voice line starts
- * at ``voiceAt`` (MotionPost.jsx); with word timings (app/speech.py) the mouth
+ * at ``voiceAt`` (MotionPost.jsx); with word timings (app/voice/speech.py) the mouth
  * moves on the words and rests between them, else for the line's length.
  */
 export function useTalking(scene, voiceAt = 0) {

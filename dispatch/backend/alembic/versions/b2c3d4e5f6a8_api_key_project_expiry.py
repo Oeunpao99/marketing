@@ -1,4 +1,4 @@
-"""API keys: the project a key is for, and when it expires (app/api_keys.py)."""
+"""API keys: the project a key is for, and when it expires (app/auth/api_keys.py)."""
 
 import sqlalchemy as sa
 from alembic import op

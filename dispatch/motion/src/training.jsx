@@ -4,7 +4,7 @@
  * points, checklists, a big quote, "instead of → do this", a recap and a
  * closing card. In the brand's colour on a light page. Every scene lays out
  * for 16:9 (1920×1080, a meeting-room screen / YouTube / LMS) or 9:16.
- * Script fields come from app/motion.py TRAINING_PROMPT:
+ * Script fields come from app/video/motion/ TRAINING_PROMPT:
  *
  *   { type: "hook",        text, icon? , sub? }              the title card
  *   { type: "chapter",     n, of, title, text? }             "Part n of …"

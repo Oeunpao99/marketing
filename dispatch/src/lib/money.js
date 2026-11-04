@@ -1,4 +1,4 @@
-// Customers see CREDITS (app/billing.py CREDITS_PER_USD says the same): the
+// Customers see CREDITS (app/billing/billing.py CREDITS_PER_USD says the same): the
 // API sends dollars of AI charge, and fmtCredits turns them into credits.
 export const CREDITS_PER_USD = 200
 
@@ -11,7 +11,7 @@ export function fmtCredits(usd, unit = true) {
   return unit ? `${text} ${abs === 1 ? 'credit' : 'credits'}` : text
 }
 
-// USD for AI credit (app/billing.py) — the admin portal's real money. Tiny spends (a caption is a fraction of
+// USD for AI credit (app/billing/billing.py) — the admin portal's real money. Tiny spends (a caption is a fraction of
 // a cent) keep 4 decimals so they don't all read "$0.00".
 export function fmtUSD(n) {
   const v = Number(n) || 0

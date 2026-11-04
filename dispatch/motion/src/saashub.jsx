@@ -7,7 +7,7 @@
  * emerald success (#10B981), and clean white text.
  * Responsive for both 9:16 (vertical Reels/TikTok) and 16:9 (horizontal presentation/YouTube).
  *
- * Scenes (app/motion.py SAASHUB_PROMPT):
+ * Scenes (app/video/motion/ SAASHUB_PROMPT):
  *   { type: "hook", text, badge?, sub?, icon? }
  *   { type: "chaos", text, tools: [name] }
  *   { type: "hub", text, apps: [{ name, icon, desc }] }

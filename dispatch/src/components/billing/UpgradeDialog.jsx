@@ -1,10 +1,10 @@
-// Upgrade / renew a plan, paid with KHQR (Bakong) — app/payments.py.
+// Upgrade / renew a plan, paid with KHQR (Bakong) — app/billing/payments.py.
 //   1. pick USD or KHR and a plan
 //   2. a KHQR card (any Cambodian bank app scans it) with the amount and a
 //      countdown; the page asks every few seconds whether it's paid
 //   3. paid → the robot says thank you, the plan's end date, done
 // Also "Extra videos & images": a pack (admin portal) paid the same way, for a paid plan.
-// Customers see videos and images, never credits (app/usage.py).
+// Customers see videos and images, never credits (app/billing/usage.py).
 // Expired → make a new code; "mismatch" (paid, but not what we asked) → the
 // team checks it. Closing while unpaid cancels the code (the server checks once
 // more first, so a payment made just before closing still counts).
@@ -14,9 +14,9 @@ import { FiArrowLeft, FiBriefcase, FiCheck, FiDownload, FiFilm, FiImage, FiStar,
 
 // each plan's mark on its card
 const PLAN_ICONS = { starter: FiZap, pro: FiStar, business: FiBriefcase }
-const PAY_SECONDS = 10 * 60 // a KHQR is good for 10 minutes (app/payments.py PAY_MINUTES)
+const PAY_SECONDS = 10 * 60 // a KHQR is good for 10 minutes (app/billing/payments.py PAY_MINUTES)
 
-// INV-2026-000012 — as app/invoice.py numbers it
+// INV-2026-000012 — as app/billing/invoice.py numbers it
 const invoiceName = (p) => `INV-${new Date(p.paid_at || Date.now()).getUTCFullYear()}-${String(p.id).padStart(6, '0')}`
 
 /** The paid payment's invoice as a PDF file (POST /billing/payments/{id}/invoice). */

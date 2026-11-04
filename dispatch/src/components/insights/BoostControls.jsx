@@ -4,7 +4,7 @@ import { FiFileText, FiPlay, FiX } from 'react-icons/fi'
 import { mediaSrc } from './BoostCard'
 import { fmtNum } from './Overview'
 
-/** Real boosts (app/boosts.py): the brand's Facebook ad account, the confirm
+/** Real boosts (app/channels/boosts.py): the brand's Facebook ad account, the confirm
  *  drawer that sends a boost, and the list of boosts with their spend. Only
  *  owners and admins connect, boost or stop — it spends money. */
 

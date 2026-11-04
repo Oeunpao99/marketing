@@ -5,7 +5,7 @@ import { markHello } from './lib/hello'
 
 const AuthContext = createContext(null)
 
-// "Continue with Google" comes back to /#google_token=… (app/google_login.py —
+// "Continue with Google" comes back to /#google_token=… (app/auth/google_login.py —
 // in the fragment, so it never reaches a server log): keep the token, clean the
 // address bar, and the normal /auth/me load below signs the person in.
 const fromGoogle = /[#&]google_token=([^&]+)/.exec(window.location.hash)

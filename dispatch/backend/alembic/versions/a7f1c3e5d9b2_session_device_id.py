@@ -1,5 +1,5 @@
 """Each browser's own id on its sessions (2026-11-03): "new device signed in" now
-also catches another computer with the same browser and system (app/sessions.py)."""
+also catches another computer with the same browser and system (app/auth/sessions.py)."""
 
 import sqlalchemy as sa
 from alembic import op

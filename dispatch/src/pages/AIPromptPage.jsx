@@ -50,7 +50,7 @@ import { useBrandMarks } from '../lib/brandMarks'
 
 // AI Agent — one chat for both asking and creating. A message that reads
 // like a question ("how is my engagement?", "what should I post next?") goes
-// to the marketing advisor (app/advisor.py), which answers from the
+// to the marketing advisor (app/ai/advisor.py), which answers from the
 // workspace's own data and suggests posts; anything else is a prompt and is
 // generated as an image/video. The composer shows which one it will do, and
 // one click flips it. The page is a thread of turns and one composer;
@@ -58,7 +58,7 @@ import { useBrandMarks } from '../lib/brandMarks'
 // button, and ✦ "Write it for me" turns a short idea into a full prompt
 // grounded in the brand's products (the old guided brief, in one click).
 // Video has two modes: an instant clip (one 4-12s render), or a storyboard
-// (app/story.py) — a 16-64s video the AI scripts scene by scene, shown in the
+// (app/video/story.py) — a 16-64s video the AI scripts scene by scene, shown in the
 // chat to edit, render, redo and join into one MP4.
 
 const mediaBase = window.location.port === '5173' ? 'http://localhost:8000' : ''
@@ -123,7 +123,7 @@ const QUESTION_START =
   /^(how|what|why|which|who|when|where|should|could|can you|can i|can we|do |does |did |is |are |was |will |would |tell me|give me (some )?(advice|ideas|tips|suggestions|feedback)|suggest|analy[sz]e|review my|help me (decide|understand|plan|improve|grow)|compare|explain|recommend|any (idea|tip|advice))/i
 const KHMER_QUESTION = /(ទេ|អ្វី|យ៉ាងម៉េច|យ៉ាងដូចម្តេច|ដូចម្តេច|ហេតុអ្វី|គួរ|ប៉ុន្មាន|មែនទេ)/
 // A request to WRITE something (a caption, a script, ideas, topics…) is for Ask — it
-// writes it (app/advisor.py drafts). Create would have made a picture of the sentence.
+// writes it (app/ai/advisor.py drafts). Create would have made a picture of the sentence.
 const WRITE_VERB = /^(please )?(write|draft|rewrite|re-write|translate|brainstorm|outline|summari[sz]e)\b/i
 const WRITE_ASK =
   /^(please )?(give me|list|suggest|come up with|help me (write|with)|make (me )?(a |an )?(script|caption|post|plan|outline|list)|create (a |an )?(script|caption|post copy|content plan|outline))/i
@@ -141,7 +141,7 @@ function looksLikeQuestion(raw) {
 const fmtTok = (n) => (n || 0).toLocaleString()
 const IMG_ETA = 30
 const VID_ETA = 150
-// Motion videos (app/motion.py): script + photos + render, about a minute.
+// Motion videos (app/video/motion/): script + photos + render, about a minute.
 const MOTION_ETA = 240 // ~60 s stories with a voice-over — 2–4 minutes
 const MOTION_LANGS = ['Khmer', 'English']
 // Narrator for motion videos (Azure Speech): Sreymom / Piseth in Khmer, Ava / Andrew in English.
@@ -150,14 +150,14 @@ const MOTION_VOICES = [
   ['male', 'Male'],
   ['none', 'Off'],
 ]
-const MAX_REFS = 6 // screenshots one Remotion video can take (app/motion.py MAX_ATTACHED)
-const MAX_IMAGE_REFS = 4 // pictures one image can build on (app/video.py ImageIn.reference_urls)
+const MAX_REFS = 6 // screenshots one Remotion video can take (app/video/motion/ MAX_ATTACHED)
+const MAX_IMAGE_REFS = 4 // pictures one image can build on (app/video/video.py ImageIn.reference_urls)
 const isImageUrl = (url) => /\.(png|jpe?g|webp|gif)$/i.test(url || '')
 
 let turnSeq = 0
 const OPEN_CHAT = 'contentflow.openChat'
 
-// What gets saved per turn (app/chats.py stores it as-is). Blob previews
+// What gets saved per turn (app/ai/chats.py stores it as-is). Blob previews
 // can't outlive the page, so a reference image is kept by its /media url.
 function serializeTurn(t) {
   return {
@@ -213,7 +213,7 @@ function restoreTurn(t) {
   return { ...t, status: 'failed', error: 'Interrupted when the page closed — try again.' }
 }
 
-// Remotion templates — one per kind of post (app/motion.py style_for). The
+// Remotion templates — one per kind of post (app/video/motion/ style_for). The
 // weekly plan picks them from each post's content goal.
 const MOTION_STORIES = [
   { value: 'auto', label: 'Auto · AI picks', hint: 'The AI reads your brief and picks the template — SaaS, training, a story with people, a promo…' },
@@ -675,7 +675,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
     turnsRef.current = turns
   })
 
-  // Poll running image/video jobs (they render on the server — app/video.py).
+  // Poll running image/video jobs (they render on the server — app/video/video.py).
   // This must keep checking until every job is done: a one-shot timeout armed
   // on `turns` change dies after its first response (a still-running job makes
   // no state change, so nothing re-arms it and the finished image is never
@@ -1341,7 +1341,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
               <div className="mt-6 grid grid-cols-2 gap-2 sm:flex sm:flex-nowrap sm:justify-center">
                 {[
                   { label: 'How’s my engagement?', text: QUESTIONS[0], pick: 'ask' },
-                  // Ask writes too: a full script / prompt with "Use in Create" (app/advisor.py drafts)
+                  // Ask writes too: a full script / prompt with "Use in Create" (app/ai/advisor.py drafts)
                   { label: 'Write a video script', text: SCRIPT_ASK, pick: 'ask' },
                   { label: isImage ? 'Product hero shot' : 'Product intro video', text: SUGGESTIONS[type][0], pick: 'create' },
                   { label: isImage ? 'Weekend sale banner' : 'Cinematic B-roll', text: SUGGESTIONS[type][1], pick: 'create' },
@@ -1957,7 +1957,7 @@ const ASK_STAGES = [
   [Infinity, 'Writing your advice…'],
 ]
 
-// What each Ask draft is made with (app/advisor.py DRAFT_KINDS)
+// What each Ask draft is made with (app/ai/advisor.py DRAFT_KINDS)
 const DRAFT_KIND_LABEL = { motion: 'Animated video script', story: 'Filmed story', clip: 'Instant video prompt', image: 'Image prompt', post: 'Post caption' }
 
 /** One script / prompt Ask wrote: the first lines, "Show all", Copy and Use in Create. */
@@ -2971,7 +2971,7 @@ function SettingsPopover({
             hint={motionLength === 'auto' ? 'As long as your story needs — 30 s to 10 min' : Number(motionLength) >= 300 ? 'About this long — a long video takes a while to make' : 'About this long'}
           >
             <Segmented>
-              {/* every template may run to 10 minutes (app/motion.py MAX_STORY_SCENES) */}
+              {/* every template may run to 10 minutes (app/video/motion/ MAX_STORY_SCENES) */}
               {[
                 ['auto', 'Auto'],
                 ['60', '1 min'],

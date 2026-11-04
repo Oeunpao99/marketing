@@ -8,7 +8,7 @@
  * in the brand's colour.
  *
  * No scene types of its own — the ones the story AI already writes
- * (app/motion.py FINTECH_PROMPT):
+ * (app/video/motion/ FINTECH_PROMPT):
  *   hook       the card in the burst of light, the promise      {text, badge?}
  *   dashboard  the wallet, its balances rising out              {title?, metrics: [{label, value, prefix, suffix, delta}]}
  *   list       the features as tilted cards, white over black   {title?, items: [{icon, text}]}

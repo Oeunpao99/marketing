@@ -26,7 +26,7 @@ const inputClass =
  * openCreateBrand(), so it never takes you off the page you're on. */
 export default function CreateBrandDrawer() {
   const { brands, setBrands, switchBrand, refreshChannels, refreshAuto, showToast } = useStore();
-  // the plan's brands (app/plan_features.py): full = say so here, not a refusal on save
+  // the plan's brands (app/billing/plan_features.py): full = say so here, not a refusal on save
   const features = usePlanFeatures();
   const { usage } = useUsage();
   const full = features?.brands != null && brands.length >= features.brands;

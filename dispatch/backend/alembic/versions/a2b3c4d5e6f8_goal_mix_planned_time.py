@@ -1,4 +1,4 @@
-"""automations.goal_mix (the brand's content-goal mix, app/goals.py) and
+"""automations.goal_mix (the brand's content-goal mix, app/ai/goals.py) and
 drafts.planned_time (the time a weekly plan item was shown for)."""
 
 import sqlalchemy as sa

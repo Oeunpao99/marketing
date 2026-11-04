@@ -4,7 +4,7 @@ import { BrandLockup, BrandPanel, Field, inputCls } from './LoginPage'
 
 /** Once, for an account owner with no phone number yet (signed up with Google,
  *  or before sign-up asked for it): our team calls to help them get started.
- *  Saved with PATCH /auth/me; the team's Telegram hears (app/team_alerts.py). */
+ *  Saved with PATCH /auth/me; the team's Telegram hears (app/notify/team_alerts.py). */
 export default function AddPhonePage() {
   const { user, updateMe, logout } = useAuth()
   const [phone, setPhone] = useState('')

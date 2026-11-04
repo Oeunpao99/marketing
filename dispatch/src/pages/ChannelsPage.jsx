@@ -41,7 +41,7 @@ export default function ChannelsPage() {
   const setView = (v) => (setViewState(v), writePref("channels_view", v));
   // "Add platform" / "Connect": the connect flow in a panel over this page — { brandSlug, platformSlug? }
   const [connectFor, setConnectFor] = useState(null);
-  // the plan's channels per brand (app/plan_features.py): a full brand says so here, before any sign-in
+  // the plan's channels per brand (app/billing/plan_features.py): a full brand says so here, before any sign-in
   const features = usePlanFeatures();
   const tryConnect = (target) => {
     const live = channels.filter((c) => c.b === target.brandSlug && c.s !== "off").length;

@@ -18,7 +18,7 @@ import { useStore } from '../store'
 import Select from '../components/ui/Select'
 import { useBrandMarks } from '../lib/brandMarks'
 
-// Activity plan (backend app/activity.py): the goals the AI picked for the
+// Activity plan (backend app/planning/activity.py): the goals the AI picked for the
 // brand's week and the team's day-by-day to-do list — a shared checklist.
 
 const card = 'bg-white rounded-2xl border border-ink-200/60 shadow-[0_1px_2px_rgba(16,24,40,0.04)]'

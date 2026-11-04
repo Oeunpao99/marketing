@@ -27,10 +27,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path.cwd()))  # run from dispatch/backend
 
-from app import speech  # noqa: E402
-from app.khmer_speech import remap_words  # noqa: E402
-from app.motion import spoken_text  # noqa: E402
-from app.story import _probe  # noqa: E402
+from app.voice import speech  # noqa: E402
+from app.voice.khmer_speech import remap_words  # noqa: E402
+from app.video.motion import spoken_text  # noqa: E402
+from app.video.story import _probe  # noqa: E402
 
 MOTION = Path(__file__).resolve().parent.parent
 FPS = 30

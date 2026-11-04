@@ -5,7 +5,7 @@
  * price and spins once for the close. The words are page text over the 3D
  * (never drawn into it), so Khmer always renders right.
  *
- * Same scenes as Offer (app/motion.py SPOTLIGHT_PROMPT / OFFER_TYPES):
+ * Same scenes as Offer (app/video/motion/ SPOTLIGHT_PROMPT / OFFER_TYPES):
  *   { type: "hook",  text, icon, image? }                     the box flies in under the light
  *   { type: "list",  title, items: [{ icon, text }] }        the box turns at the side, 3 cards land
  *   { type: "offer", plan, price, period, was, badge, features, image? }   the price card beside the box

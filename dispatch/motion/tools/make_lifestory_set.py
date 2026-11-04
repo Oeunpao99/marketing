@@ -1,6 +1,6 @@
 """The "Life story · One person" template's sample rooms (motion/src/lifestory.jsx)
 for its preview picture and clip only: painted ONCE by the image model with the
-template's own style (app/doodle.py LIFE_STYLE) and saved to
+template's own style (app/images/doodle.py LIFE_STYLE) and saved to
 public/decor/lifestory/ (customers' videos paint their own rooms). Run from
 dispatch/backend:
 
@@ -11,7 +11,7 @@ import pathlib
 
 from PIL import Image
 
-from app import doodle
+from app.images import doodle
 
 OUT = pathlib.Path(__file__).resolve().parents[1] / "public" / "decor" / "lifestory"
 ROOMS = {

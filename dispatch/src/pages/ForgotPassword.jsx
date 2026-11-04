@@ -6,10 +6,10 @@ import CodeBoxes from '../components/ui/CodeBoxes'
 import { takeResetLink } from '../lib/emailLink'
 import { BrandLockup, BrandPanel, Field, inputCls } from './LoginPage'
 
-const WAIT = 60 // seconds before another code can be sent (app/auth.py _RESEND_AFTER)
+const WAIT = 60 // seconds before another code can be sent (app/auth/auth.py _RESEND_AFTER)
 const STEPS = ['email', 'code', 'password']
 
-/** "Forgot password?" (app/auth.py password-reset), three steps: the email →
+/** "Forgot password?" (app/auth/auth.py password-reset), three steps: the email →
  *  the 6-digit code from the inbox (checked on its own) → the new password
  *  typed twice → signed in. The page never says whether an email has an account. */
 export default function ForgotPassword({ email: start = '', onBack }) {

@@ -5,7 +5,7 @@
  * data packets (Packet) travelling between network nodes (NetworkNode),
  * emerald for success, amber for a warning.
  *
- * Its own scenes (app/motion.py TECHFLOW_PROMPT):
+ * Its own scenes (app/video/motion/ TECHFLOW_PROMPT):
  *
  *   { type: "hook", text, device? }                                   the device pops in, its screen glows
  *   { type: "send", from: { device, label }, to: { device, label }, text }   packets travel from one to the other

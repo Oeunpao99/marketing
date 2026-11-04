@@ -1,5 +1,5 @@
 """A monthly boost budget per brand (2026-10-31): the amount a workspace owner / admin approves for a
-brand's Facebook boosts each month; every new boost counts against it (app/boosts.py)."""
+brand's Facebook boosts each month; every new boost counts against it (app/channels/boosts.py)."""
 
 import sqlalchemy as sa
 from alembic import op

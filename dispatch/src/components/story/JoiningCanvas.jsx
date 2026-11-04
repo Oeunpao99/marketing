@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-// Shown while a video story's clips are joined (app/story.py → ffmpeg): a
+// Shown while a video story's clips are joined (app/video/story.py → ffmpeg): a
 // little video editor. The real scene clips, their voiceover (as waveforms)
 // and on-screen captions fly into a three-track timeline, a playhead sweeps
 // across, and the monitor plays through the scenes. Keyframes: index.css

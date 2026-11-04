@@ -4,7 +4,7 @@ import { api } from '../../api/client'
 import GeneratingCanvas from '../ui/GeneratingCanvas'
 
 // The composer's YouTube choices, saved as platform_options.youtube and used by
-// app/publishers.py _publish_youtube:
+// app/channels/publishers.py _publish_youtube:
 //   format        "auto" | "short" | "video" — Short or a normal (feed) video
 //   thumbnail_url a "/media/…" picture set as the video's thumbnail (not for
 //                 Shorts — YouTube doesn't take custom thumbnails on those)

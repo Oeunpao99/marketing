@@ -5,9 +5,9 @@
  * depth from cut-out decorations — vines framing the edges, loose leaves
  * drifting past blurred in front, a stone column as a pedestal, clouds. The
  * decorations are drawn once and ship with the app (tools/make_decor.py →
- * public/decor/studio); the pictures are the brand kit's (app/motion.py
+ * public/decor/studio); the pictures are the brand kit's (app/video/motion/
  * pick_pictures), else icon cards.
- * 9:16. Scene types: hook · collage · statement · pedestal · cta (app/motion.py STUDIO_TYPES).
+ * 9:16. Scene types: hook · collage · statement · pedestal · cta (app/video/motion/ STUDIO_TYPES).
  */
 import { AbsoluteFill, Img, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from 'remotion'
 import { FONT, Icon, Words, clean, srcOf } from './shared'
