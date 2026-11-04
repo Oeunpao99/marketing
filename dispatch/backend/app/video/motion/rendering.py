@@ -219,10 +219,16 @@ def render(
     reason = not_ready()
     if reason:
         raise RuntimeError(reason)
+    # render_step — what the Animate step is doing before / around the frames, for the
+    # page's live line (MotionBoard motionStage): queue (another video is being drawn),
+    # start (opening the drawing tool), frames (render = the share drawn), finish (joining the MP4)
+    if not preview:  # (a re-render of the same job starts over, not at the last one's "finish")
+        _report(job_id, render_step="queue" if _render_lock.locked() else "start")
     with _render_lock, tempfile.TemporaryDirectory() as tmp:
         _check(job_id)
         if job_id is not None and not preview:
             _render_started(job_id)
+            _report(job_id, render_step="start")
         entry, public = _entry()
         rel = f"run-{uuid.uuid4().hex[:12]}"
         assets = public / rel  # served to the render as staticFile(rel/…)
@@ -275,9 +281,9 @@ def render(
                     if preview:
                         continue  # the self-check's preview isn't the video's progress
                     if m and int(m[2]):
-                        _report(job_id, render=round(int(m[1]) / int(m[2]), 3))
+                        _report(job_id, render=round(int(m[1]) / int(m[2]), 3), render_step="frames")
                     elif "Encoded" in line or "Stitch" in line:
-                        _report(job_id, render=1.0)
+                        _report(job_id, render=1.0, render_step="finish")
 
             reader = threading.Thread(target=follow, daemon=True)
             reader.start()

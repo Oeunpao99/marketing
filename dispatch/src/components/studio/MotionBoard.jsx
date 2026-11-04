@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { FiCheck, FiChevronDown, FiFeather, FiMic, FiMicOff, FiMonitor } from 'react-icons/fi'
+import { FiCheck, FiChevronDown, FiEdit2, FiFeather, FiMic, FiMicOff, FiMonitor } from 'react-icons/fi'
 import { kitSrc } from '../brandkit/BrandKit'
 
 // The live storyboard of a Remotion video while it's made — what the AI is
@@ -146,6 +146,35 @@ export function motionPercent(progress, elapsed) {
   }
 }
 
+/** The scene being drawn in the Animate step — from the share of frames done
+ * (progress.render) and each scene's length; -1 before the first frame. */
+export function drawingAt(progress) {
+  const scenes = progress?.scenes || []
+  if (!scenes.length || progress?.render_step !== 'frames') return progress?.render >= 1 ? scenes.length : -1
+  const secs = scenes.map((s) => Number(s.seconds) || 0)
+  const total = secs.reduce((a, b) => a + b, 0)
+  const r = progress.render || 0
+  if (!total) return Math.min(scenes.length - 1, Math.floor(r * scenes.length))
+  let t = r * total
+  for (let i = 0; i < secs.length; i++) {
+    if (t < secs[i]) return i
+    t -= secs[i]
+  }
+  return scenes.length - 1
+}
+
+/** The Animate step's live line (app/video/motion/rendering.py render_step). */
+function renderLine(progress) {
+  const step = progress.render_step
+  const pct = Math.round(100 * (progress.render || 0))
+  const n = (progress.scenes || []).length
+  if (step === 'finish' || progress.render >= 1) return 'Putting the video together — almost done…'
+  if (step === 'queue') return 'Waiting its turn — another video is being drawn first…'
+  if (step !== 'frames') return 'Opening the drawing tool — the first frames take a moment…'
+  const at = drawingAt(progress)
+  return n ? `Drawing scene ${at + 1} of ${n} · ${pct}%` : `Drawing the scenes · ${pct}%`
+}
+
 export function motionStage(progress) {
   if (!progress) return null
   const scenes = progress.scenes || []
@@ -166,7 +195,7 @@ export function motionStage(progress) {
     case 'voice':
       return speaking >= 0 ? `Recording the voice · scene ${speaking + 1} of ${scenes.length}` : 'Recording the voice…'
     case 'render':
-      return `Animating the scenes · ${Math.round(100 * (progress.render || 0))}%`
+      return renderLine(progress)
     default:
       return null
   }
@@ -385,6 +414,8 @@ export function MotionMaking({ progress, pct, stage, elapsed, onStop, request = 
   const scenes = progress?.scenes || []
   const step = stepOf(progress?.stage)
   const rendering = progress?.stage === 'render'
+  // the Animate step: scenes before this one are drawn, this one is being drawn (-1: not started)
+  const drawing = rendering ? drawingAt(progress) : -1
   // pictures the image AI paints (Picture story, Doodle, Presenter…): each row shows its
   // picture once painted, a moving feather while it's being painted (app/video/motion/ _start_doodles)
   const pics = progress?.pictures || []
@@ -489,12 +520,14 @@ export function MotionMaking({ progress, pct, stage, elapsed, onStop, request = 
           <ol className="divide-y divide-ink-100">
             {scenes.map((s, i) => {
               const speaking = s.voice === 'speaking'
-              const done = rendering || s.voice === 'done'
+              const drawingNow = i === drawing
+              // while animating, a tick means "drawn"; before that, "voiced"
+              const done = rendering ? i < drawing : s.voice === 'done'
               // what's opened under the row: the step's view, or this row alone
               const showScreen = (view === 'story' || (opened.has(i) && view !== 'voice')) && (s.screen || s.text)
               const showSay = (view === 'story' || view === 'voice' || opened.has(i)) && s.say
               return (
-                <li key={i} className={`transition-colors ${speaking ? 'bg-brand-soft/60' : ''}`}>
+                <li key={i} className={`transition-colors ${speaking || drawingNow ? 'bg-brand-soft/60' : ''}`}>
                 <button
                   type="button"
                   onClick={() => toggleRow(i)}
@@ -503,10 +536,10 @@ export function MotionMaking({ progress, pct, stage, elapsed, onStop, request = 
                 >
                   <span
                     className={`grid h-5 w-5 flex-none place-items-center rounded-md text-[10.5px] font-bold tabular-nums ${
-                      done ? 'bg-brand text-white' : speaking ? 'bg-brand/20 text-brand' : 'bg-ink-100 text-ink-500'
+                      done ? 'bg-brand text-white' : speaking || drawingNow ? 'bg-brand/20 text-brand' : 'bg-ink-100 text-ink-500'
                     }`}
                   >
-                    {done ? <FiCheck size={11} strokeWidth={3} /> : i + 1}
+                    {done ? <FiCheck size={11} strokeWidth={3} /> : drawingNow ? <FiEdit2 size={10} className="animate-pulse" /> : i + 1}
                   </span>
                   <span className="w-[92px] flex-none truncate text-[10.5px] font-semibold uppercase tracking-wide text-ink-400">
                     {SCENE_LABELS[s.type] || s.type}
@@ -515,6 +548,7 @@ export function MotionMaking({ progress, pct, stage, elapsed, onStop, request = 
                     {s.text || '—'}
                   </span>
                   <span className="flex flex-none items-center gap-1 text-[10.5px] text-ink-400">
+                    {drawingNow && <span className="mr-1 font-semibold text-brand">Drawing</span>}
                     {pics[i] ? (
                       <img src={kitSrc(pics[i])} alt={`Scene ${i + 1}'s picture`} className="mr-1 h-7 w-12 rounded-md object-cover ring-1 ring-ink-200 animate-fadein" />
                     ) : painting.has(i) ? (

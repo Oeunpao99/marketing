@@ -875,6 +875,9 @@ class ImageIn(BaseModel):
     template_id: int | None = None
     product_id: int | None = None
     use_logo: bool = False
+    # False = "No brand — no logo" (the Brand menu): no logo, brand kit or brand colours on it;
+    # it's still saved under the brand (the Library, the count)
+    branded: bool = True
 
 
 @router.post("/image", response_model=VideoJobOut, status_code=201)
@@ -910,6 +913,8 @@ def create_image(
     references: bytes | list[bytes] | None = (own[0] if len(own) == 1 else own) or None
     guide = own_guide(len(own))
     logo = None
+    if not payload.branded:
+        payload.use_logo, payload.template_id, payload.product_id = False, None, None
     if payload.brand_id is not None and payload.use_logo:  # stamped top-left after the AI draws (meme.stamp_logo)
         from app.images.brand_kit import logo_image
 
@@ -945,7 +950,7 @@ def create_image(
     db.commit()
     db.refresh(job)
     threading.Thread(
-        target=_render_image, args=(job.id, references, guide, logo), daemon=True, name=f"image-{job.id}"
+        target=_render_image, args=(job.id, references, guide, logo, payload.branded), daemon=True, name=f"image-{job.id}"
     ).start()
     return _out(job, None)
 
@@ -965,10 +970,13 @@ def _khmer_overlay_text(job: GenerationJob) -> dict | None:
         return None
 
 
-def _render_image(job_id: int, reference: bytes | list[bytes] | None, guide: str = "", logo: bytes | None = None) -> None:
+def _render_image(
+    job_id: int, reference: bytes | list[bytes] | None, guide: str = "", logo: bytes | None = None, branded: bool = True
+) -> None:
     """``guide`` (brand-kit instructions naming each reference image) goes in
     front of the prompt for the model only — the job keeps the person's own
-    prompt, which the Library shows and the caption writer reads."""
+    prompt, which the Library shows and the caption writer reads. ``branded``
+    False: the Khmer words aren't in the brand's colours either."""
     db = SessionLocal()
     try:
         job = db.get(GenerationJob, job_id)
@@ -1001,7 +1009,7 @@ def _render_image(job_id: int, reference: bytes | list[bytes] | None, guide: str
 
         stamped = False
         if overlay:
-            brand = db.get(Brand, job.brand_id) if job.brand_id else None
+            brand = db.get(Brand, job.brand_id) if job.brand_id and branded else None
             try:
                 blob = text_overlay.render(blob, overlay, brand_rgb(brand), logo=logo)
                 stamped = bool(logo)

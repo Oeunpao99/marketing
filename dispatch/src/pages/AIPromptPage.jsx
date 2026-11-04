@@ -323,7 +323,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
   const [motionVoice, setMotionVoice] = useState(saved.motionVoice ?? 'female')
   const [motionMusic, setMotionMusic] = useState(saved.motionMusic ?? true)
   const [motionSubs, setMotionSubs] = useState(saved.motionSubs ?? true)
-  const [motionLogo, setMotionLogo] = useState(saved.motionLogo ?? true) // false = "No logo": a video without the brand
+  const [motionLogo, setMotionLogo] = useState(saved.motionLogo ?? true) // false = "No brand — no logo": a video or image without the brand
   // Remotion story: teach (Explainer style) or sell (Tech style); auto = sell when a product is chosen
   const [motionGoal, setMotionGoal] = useState(saved.motionGoal ?? 'auto')
   const [readingDoc, setReadingDoc] = useState(false) // a document being read into the prompt box (Slides)
@@ -415,7 +415,8 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
   const kitPhotos = kitAssets.filter((a) => a.kind === 'product')
   const kitTemplate = kitTemplates.find((t) => t.id === kit.templateId)
   const kitProduct = kitProducts.find((p) => p.id === kit.productId)
-  const kitOn = isImage && !!(kitTemplate || kitProduct || (kit.logo && kitLogo))
+  // "No brand — no logo" (the Brand menu, images and Remotion): nothing from the brand kit on the image
+  const kitOn = isImage && motionLogo && !!(kitTemplate || kitProduct || (kit.logo && kitLogo))
   // Instant video: the chosen product photo becomes the clip's first frame
   // (an attached image takes its place).
   const isClip = type === 'video' && !isStory && !isMotion
@@ -801,6 +802,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
           template_id: turn.kit?.templateId ?? null,
           product_id: turn.kit?.productId ?? null,
           use_logo: !!turn.kit?.logo,
+          branded: turn.branded !== false, // "No brand — no logo": no brand colours either
         })
         usageChanged() // the top bar: one image fewer this month
         if (res.video) {
@@ -1012,13 +1014,13 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
       voice: isMotion ? motionVoice : undefined,
       music: isMotion ? motionMusic : undefined,
       subtitles: isMotion ? motionSubs : undefined,
-      branded: isMotion ? motionLogo : undefined,
+      branded: isMotion || isImage ? motionLogo : undefined,
       logoId: isMotion ? pickedLogoId : undefined,
       goal: isMotion ? motionGoal : undefined,
       reviewFirst: isMotion && motionReview,
       length: isMotion && motionReview ? motionLength : undefined,
       brandId: brandObj?.id ?? null,
-      brandName: isMotion && !motionLogo ? 'No brand' : brandObj?.name || '',
+      brandName: (isMotion || isImage) && !motionLogo ? 'No brand' : brandObj?.name || '',
       refUrl: refImg?.url || '',
       refUrls: maxRefs > 1 ? refImgs.map((i) => i.url).filter(Boolean).slice(0, maxRefs) : [],
       refPreview: refImg?.previewUrl || '',
@@ -1038,7 +1040,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
     // with one product that has a photo sends that photo, so the real product
     // is in the picture. Longer prompts go exactly as typed.
     const words = prompt.split(/\s+/).filter(Boolean).length
-    const short = turn.kind === 'image' && brandObj && !turn.refUrl && !turn.refUrls.length && !turn.kit?.productId && !turn.kit?.templateId && words <= 8
+    const short = turn.kind === 'image' && brandObj && turn.branded !== false && !turn.refUrl && !turn.refUrls.length && !turn.kit?.productId && !turn.kit?.templateId && words <= 8
     if (short && kitProducts.length) {
       const only = kitProducts.length === 1 ? kitProducts[0] : null
       const pid = only && kitPhotos.some((a) => a.product_id === only.id) ? only.id : null
@@ -1695,7 +1697,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
               </label>
             )}
 
-            {intent === 'create' && (isImage || isClip) && (
+            {intent === 'create' && ((isImage && motionLogo) || isClip) && (
               // Phones: not `relative`, so the panel anchors to the whole
               // composer box (full width) instead of running off the right edge.
               <div className="sm:relative" ref={kitRef}>
@@ -2694,6 +2696,7 @@ function SettingsPopover({
   const writers = useWriterModels()
   const story = type === 'video' && videoMode === 'story'
   const motion = type === 'video' && videoMode === 'motion'
+  const noBrandOk = motion || type === 'image' // the Brand menu's "No brand — no logo"
   const motionLang = /english/i.test(voice || '') && !/khmer/i.test(voice || '') ? 'English' : 'Khmer'
   const seg = (on) =>
     `h-8 min-w-0 flex-1 rounded-lg px-2 text-[12px] font-semibold inline-flex items-center justify-center gap-1.5 whitespace-nowrap transition-colors ${
@@ -2922,11 +2925,20 @@ function SettingsPopover({
         {/* Remotion: "No brand" last — the video carries no logo, name, colours or
             photos (a script about something else); it is still saved under the
             brand picked before, for the Library and the credit */}
-        <Row label="Brand" hint={motion && !motionLogo ? 'No logo, name, colours or brand photos in the video' : undefined}>
+        <Row
+          label="Brand"
+          hint={
+            noBrandOk && !motionLogo
+              ? motion
+                ? 'No logo, name, colours or brand photos in the video'
+                : 'No logo, brand kit or brand colours on the image'
+              : undefined
+          }
+        >
           <Select
             size="sm"
             align="right"
-            value={motion && !motionLogo ? NO_BRAND : brand || ''}
+            value={noBrandOk && !motionLogo ? NO_BRAND : brand || ''}
             onChange={(v) => {
               if (v === NO_BRAND) return setMotionLogo(false)
               setMotionLogo(true)
@@ -2934,7 +2946,7 @@ function SettingsPopover({
             }}
             options={[
               ...brands.map((b) => ({ value: b.slug, label: b.name, ...markOf(b) })),
-              ...(motion ? [{ value: NO_BRAND, label: 'No brand — no logo' }] : []),
+              ...(noBrandOk ? [{ value: NO_BRAND, label: 'No brand — no logo' }] : []),
             ]}
           />
         </Row>
