@@ -814,6 +814,7 @@ GEMINI_ACT = {
     "parable": "Warm and lively, like a grandparent telling a fable with a twinkle — a little playful, a small pause before the turn and the lesson.",
     "rise": "Warm and encouraging, building gently towards the end — like someone who believes in the listener.",
     "studio": "Calm, warm and elegant, like a premium brand film — confident, inviting.",
+    "lifestory": "Warm and caring, like telling a friend the true story of someone they know — let each amount land, a small smile at the happy turn.",
     "podcast": "Relaxed, honest and warm, like a podcast host telling a personal story to a friend — natural pauses, a little smile in the voice.",
     "presenter": "Bright, warm and confident, like a favourite content creator talking to camera — friendly, lively, clear.",
     "reaction": "Deadpan and playful, like a meme page admin — short, dry, a little dramatic on the punchline.",

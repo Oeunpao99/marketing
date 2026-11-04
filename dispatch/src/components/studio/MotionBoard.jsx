@@ -3,7 +3,7 @@ import { FiCheck, FiChevronDown, FiFeather, FiMic, FiMicOff, FiMonitor } from 'r
 import { kitSrc } from '../brandkit/BrandKit'
 
 // The live storyboard of a Remotion video while it's made — what the AI is
-// doing right now, scene by scene (app/motion.py _progress, polled with the
+// doing right now, scene by scene (app/video/motion/ _progress, polled with the
 // job): the story being written, each scene as it's planned, each voice line
 // as it's spoken, then the frames being drawn.
 
@@ -80,6 +80,14 @@ export const SCENE_LABELS = {
   speak: 'The host explains',
   onair: 'At the mic',
   visit: 'In the story',
+  acronym: 'The term explained',
+  guard: 'Watched 24/7',
+  sectors: 'Who it’s for',
+  breach: 'The attack at night',
+  ransom: 'Files locked',
+  moment: 'A moment',
+  ledger: 'Written down',
+  takeaway: 'The lesson',
   line: 'Someone speaks',
   agenda: 'Agenda',
   keypoints: 'Key points',
@@ -114,7 +122,7 @@ export const SCENE_LABELS = {
   donut: 'Percent',
 }
 
-export const STYLE_LABELS = { tech: 'Sell', explainer: 'Teach', versus: 'Compare', poll: 'Poll', quote: 'Quote', testimonial: 'Testimonial', trend: 'AI News', pov: 'POV', demo: 'Product demo', offer: 'Offer', spotlight: '3D · Spotlight', productfx: 'Product showcase', skylaunch: 'SaaS launch · Sky', logodraw: 'Logo · Drawing', fintech: 'Fintech · Wallet & Card', cyber: 'Cybersecurity · SOC', stickman: 'Stick figures', appdemo: '3D · App demo', showcase: 'Showcase', launch: 'Product launch', unveil: 'Unveil', gridcards: 'How it works · Grid', techflow: 'Tech explainer', canvas: 'AI design', neural: 'AI explainer · Neural', paper: 'AI notes · Paper', doodle: 'Doodle notes', cartoon: 'Story · Characters', lesson: 'Lesson · Teacher', rise: 'Rise · Mindset', reaction: 'Reaction meme', studio: 'Collage · Studio', presenter: 'Presenter · Brand host', podcast: 'Podcast · Story talk', parable: 'Parable · Two paths', dialogue: 'Dialogue · Two voices', street3d: '3D · Street', illustrated: 'Illustrated · Everyday Cambodia', aiteam: 'AI service · Your AI team', saashub: 'SaaS Hub · Connect & Automate', picture: 'Picture story', deck: 'Slides · Presentation', clarity: 'SaaS explainer', countdown: 'Top 5', thisorthat: 'This or that', reviews: 'Review wall', tips: 'Tip cards', hottake: 'Hot take', casestudy: 'Case study', faq: 'FAQ', report: 'Data report', custom: 'Designed for you', training: 'Training' }
+export const STYLE_LABELS = { tech: 'Sell', explainer: 'Teach', versus: 'Compare', poll: 'Poll', quote: 'Quote', testimonial: 'Testimonial', trend: 'AI News', pov: 'POV', demo: 'Product demo', offer: 'Offer', spotlight: '3D · Spotlight', productfx: 'Product showcase', skylaunch: 'SaaS launch · Sky', logodraw: 'Logo · Drawing', fintech: 'Fintech · Wallet & Card', cyber: 'Cybersecurity · SOC', stickman: 'Stick figures', stickcolor: 'Stick figures · Colour',appdemo: '3D · App demo', showcase: 'Showcase', launch: 'Product launch', unveil: 'Unveil', gridcards: 'How it works · Grid', techflow: 'Tech explainer', canvas: 'AI design', neural: 'AI explainer · Neural', paper: 'AI notes · Paper', doodle: 'Doodle notes', cartoon: 'Story · Characters', lesson: 'Lesson · Teacher', rise: 'Rise · Mindset', reaction: 'Reaction meme', studio: 'Collage · Studio', presenter: 'Presenter · Brand host', podcast: 'Podcast · Story talk', lifestory: 'Life story · One person', parable: 'Parable · Two paths', dialogue: 'Dialogue · Two voices', street3d: '3D · Street', illustrated: 'Illustrated · Everyday Cambodia', aiteam: 'AI service · Your AI team', saashub: 'SaaS Hub · Connect & Automate', picture: 'Picture story', deck: 'Slides · Presentation', clarity: 'SaaS explainer', countdown: 'Top 5', thisorthat: 'This or that', reviews: 'Review wall', tips: 'Tip cards', hottake: 'Hot take', casestudy: 'Case study', faq: 'FAQ', report: 'Data report', custom: 'Designed for you', training: 'Training' }
 
 /** 0-99 from the real steps: the story is the only part without a count, so
  * it creeps up with time; the voice counts lines, the render counts frames. */
@@ -188,7 +196,7 @@ const clock = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStar
 const BACKGROUNDS = { grid: 'grid', glow: 'soft glow', dots: 'dots', clean: 'clean' }
 
 /** The look the AI picked for a "Designed for you" video: its three colours
- * as swatches, light / dark and the background (app/motion.py clean_look). */
+ * as swatches, light / dark and the background (app/video/motion/ clean_look). */
 function LookChip({ look }) {
   const label = [look.kicker, look.mode === 'light' ? 'Light' : 'Dark', BACKGROUNDS[look.background]].filter(Boolean).join(' · ')
   return (
@@ -238,7 +246,7 @@ function LongText({ text }) {
  * request, it knows the brand and settings, it picked a template (and why),
  * it's writing the story — so the wait shows work, not just a percentage. */
 function Thinking({ request, meta, style, why, elapsed, step = '', n = 0, total = 0 }) {
-  // the server's live line (app/motion.py write_script): "Writing scene 12 of about 40", then the polish steps
+  // the server's live line (app/video/motion/ write_script): "Writing scene 12 of about 40", then the polish steps
   const after = !!step && !step.startsWith('Writing')
   const lines = [
     { done: true, label: 'Read your request', body: request ? `“${request}”` : 'Make one for me — the AI picks the topic' },
@@ -378,7 +386,7 @@ export function MotionMaking({ progress, pct, stage, elapsed, onStop, request = 
   const step = stepOf(progress?.stage)
   const rendering = progress?.stage === 'render'
   // pictures the image AI paints (Picture story, Doodle, Presenter…): each row shows its
-  // picture once painted, a moving feather while it's being painted (app/motion.py _start_doodles)
+  // picture once painted, a moving feather while it's being painted (app/video/motion/ _start_doodles)
   const pics = progress?.pictures || []
   const painting = new Set(progress?.painting || [])
   const waiting = new Set(progress?.waiting || [])

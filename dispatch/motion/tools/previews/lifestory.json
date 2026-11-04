@@ -1,0 +1,112 @@
+{
+  "brand": {
+    "name": "Smart Marketing",
+    "color": "#2F6FD6",
+    "logo": "ours/smart-marketing.png",
+    "slug": "smart-marketing"
+  },
+  "style": "lifestory",
+  "frame": 75,
+  "host": {
+    "name": "បូរ៉ា",
+    "female": false
+  },
+  "places": [
+    "decor/lifestory/sample-home.jpg",
+    "decor/lifestory/sample-market.jpg"
+  ],
+  "scenes": [
+    {
+      "type": "moment",
+      "place": 1,
+      "pose": "stand",
+      "mood": "worried",
+      "text": "ថ្ងៃ​​បើក ⟦ប្រាក់ខែ⟧",
+      "prop": {
+        "kind": "envelope",
+        "label": "ប្រាក់ខែ",
+        "amount": "$350"
+      }
+    }
+  ],
+  "clip": [
+    {
+      "type": "hook",
+      "text": "បូរ៉ា សង​​បំណុល ⟦$1,200⟧ យ៉ាងម៉េច?",
+      "icon": "Wallet",
+      "mood": "thinking"
+    },
+    {
+      "type": "moment",
+      "place": 1,
+      "pose": "stand",
+      "mood": "worried",
+      "text": "ថ្ងៃ​​បើក ⟦ប្រាក់ខែ⟧",
+      "prop": {
+        "kind": "envelope",
+        "label": "ប្រាក់ខែ",
+        "amount": "$350"
+      }
+    },
+    {
+      "type": "ledger",
+      "title": "សរសេរ​​គ្រប់​​ដុល្លារ",
+      "lines": [
+        {
+          "label": "ថ្លៃ​​ផ្ទះ",
+          "amount": "$120"
+        },
+        {
+          "label": "ម្ហូប",
+          "amount": "$90"
+        },
+        {
+          "label": "ធ្វើដំណើរ",
+          "amount": "$40"
+        }
+      ],
+      "total": {
+        "label": "សង​​បំណុល",
+        "amount": "$100"
+      }
+    },
+    {
+      "type": "moment",
+      "place": 2,
+      "pose": "count",
+      "mood": "happy",
+      "text": "សង​​រៀងរាល់​​ខែ",
+      "prop": {
+        "kind": "bill",
+        "label": "បំណុល",
+        "amount": "$1,200",
+        "paid": true
+      }
+    },
+    {
+      "type": "moment",
+      "place": 1,
+      "pose": "cheer",
+      "mood": "proud",
+      "text": "ខែ​​ទី ៧ — ⟦សល់ $500⟧",
+      "prop": {
+        "kind": "calendar",
+        "label": "ខែ​​ទី ៧",
+        "done": 12
+      }
+    },
+    {
+      "type": "takeaway",
+      "title": "មេរៀន",
+      "checks": [
+        "សរសេរ​​ចំណាយ​​ទាំងអស់",
+        "សង​​បន្តិចៗ​​រៀងរាល់​​ខែ"
+      ]
+    },
+    {
+      "type": "cta",
+      "text": "ចែករំលែក​​រឿង ⟦បូរ៉ា⟧",
+      "button": "Share"
+    }
+  ]
+}

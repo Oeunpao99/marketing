@@ -29,6 +29,14 @@ export const FIELDS = {
   speak: [['text', 'On the panel']],
   onair: [['text', 'On the card']],
   visit: [['text', 'Caption']],
+  acronym: [['text', 'What it means']], // Cybersecurity's long-script scenes
+  guard: [['title', 'Title']],
+  sectors: [['title', 'Title']],
+  breach: [['title', 'Title'], ['text', 'Under it']],
+  ransom: [['title', 'Title']],
+  moment: [['text', 'Caption']], // Life story (its prop's amounts stay as the story wrote them)
+  ledger: [['title', 'Title']],
+  takeaway: [['title', 'Title']],
   line: [['text', 'In the bubble']],
   agenda: [['title', 'Title']],
   keypoints: [['title', 'Title']],
@@ -319,10 +327,10 @@ function extras(s) {
   return ''
 }
 
-// Seconds a scene runs — mirrors app/motion.py estimate_seconds.
+// Seconds a scene runs — mirrors app/video/motion/ estimate_seconds.
 const KHMER = /[ក-៿]/g
 const spokenSeconds = (say = '') => (say.match(KHMER) || []).length / 11 + (say.match(/[A-Za-z0-9]+/g) || []).length / 2.6
-const MIN_SECONDS = { draw: 10, chart: 5.2, compare: 4.2, character: 3.8, cta: 3.8, product: 3.6, myth: 5, quote: 5.6, options: 9.8, split: 8, beforeafter: 5.4, result: 4.2, review: 6, customer: 4.4, news: 5, notify: 7, step: 4.8, offer: 5.6, screen: 5, dashboard: 5.2, flow: 6.4, chapter: 3.2, checklist: 5.8, recap: 6, apps: 5, table: 5.1, board: 4.6, roll: 4.8, launch: 4.2, button: 4.6, form: 5.2, word: 4.2, field: 4.8, done: 3.4, tasks: 5.3, fanout: 6.4, canvas: 5, send: 4.2, address: 4.4, lookup: 5.2, hops: 6.2, assemble: 4.6, stack: 4.9, platform: 4.4, orbit: 5, chaos: 5, phones: 5, gallery: 4.6, pair: 3.8, rank: 4.2, tip: 4.6, doodle: 4.2, talk: 3.4, react: 4.2, punch: 3.2, collage: 4, statement: 4.4, pedestal: 4.6, speak: 4.2, onair: 4.2, visit: 4.4, wide: 4.4, closeup: 4.2, fact: 4.6, line: 3.6, shops: 4.6, crowd: 5, chatter: 5, tale: 4.2, tally: 4.6, fork: 4.8, moral: 4.6, note: 4, climb: 4, mirror: 4.8, grow: 4.8, summit: 5.2, whiteboard: 5, example: 6.5, remember: 4.4, choice: 5, reviews: 5.8, logos: 4, save: 3.4, take: 5.2, meme: 4.6, client: 5, metrics: 5.2, timeline: 5.2, qa: 4.5, bars: 5, donut: 4.6, shot: 5 }
+const MIN_SECONDS = { draw: 10, chart: 5.2, compare: 4.2, character: 3.8, cta: 3.8, product: 3.6, myth: 5, quote: 5.6, options: 9.8, split: 8, beforeafter: 5.4, result: 4.2, review: 6, customer: 4.4, news: 5, notify: 7, step: 4.8, offer: 5.6, screen: 5, dashboard: 5.2, flow: 6.4, chapter: 3.2, checklist: 5.8, recap: 6, apps: 5, table: 5.1, board: 4.6, roll: 4.8, launch: 4.2, button: 4.6, form: 5.2, word: 4.2, field: 4.8, done: 3.4, tasks: 5.3, fanout: 6.4, canvas: 5, send: 4.2, address: 4.4, lookup: 5.2, hops: 6.2, assemble: 4.6, stack: 4.9, platform: 4.4, orbit: 5, chaos: 5, phones: 5, gallery: 4.6, pair: 3.8, rank: 4.2, tip: 4.6, doodle: 4.2, talk: 3.4, react: 4.2, punch: 3.2, collage: 4, statement: 4.4, pedestal: 4.6, speak: 4.2, onair: 4.2, visit: 4.4, moment: 4.4, ledger: 5.4, takeaway: 4.2, acronym: 5.4, guard: 4.8, sectors: 4.8, breach: 5.6, ransom: 5.7, wide: 4.4, closeup: 4.2, fact: 4.6, line: 3.6, shops: 4.6, crowd: 5, chatter: 5, tale: 4.2, tally: 4.6, fork: 4.8, moral: 4.6, note: 4, climb: 4, mirror: 4.8, grow: 4.8, summit: 5.2, whiteboard: 5, example: 6.5, remember: 4.4, choice: 5, reviews: 5.8, logos: 4, save: 3.4, take: 5.2, meme: 4.6, client: 5, metrics: 5.2, timeline: 5.2, qa: 4.5, bars: 5, donut: 4.6, shot: 5 }
 
 export function estimateSeconds(scenes) {
   const total = scenes.reduce((n, s) => n + Math.max(MIN_SECONDS[s.type] || 3.4, spokenSeconds(s.say) + 1.3), 0)
@@ -332,7 +340,7 @@ export function estimateSeconds(scenes) {
 const fmtLength = (sec) => (sec >= 60 ? `${Math.floor(sec / 60)} min ${String(sec % 60).padStart(2, '0')} s` : `${sec} s`)
 
 // Picture story (motion/src/picture.jsx): how its pictures are painted and the
-// colours of the words on them (app/motion.py PICTURE_ARTS / clean_ink) — picked
+// colours of the words on them (app/video/motion/ PICTURE_ARTS / clean_ink) — picked
 // as cards
 const ARTS = [
   { id: 'film', label: 'Film still', note: 'Real-looking, like a movie', Icon: FiCamera },
@@ -340,6 +348,7 @@ const ARTS = [
   { id: 'illustration', label: 'Illustration', note: 'Clean flat drawing', Icon: FiPenTool },
   { id: '3d', label: '3D film', note: 'Like an animated movie', Icon: FiBox },
   { id: 'stickman', label: 'Stick figures', note: 'Black ink on a white page', Icon: FiFeather },
+  { id: 'stickcolor', label: 'Stick figures · Colour', note: 'Colour cartoon rooms', Icon: FiPenTool },
 ]
 // ready-made word colours: [name, text, highlight ('' = the brand's colour)]
 const INKS = [
@@ -608,12 +617,12 @@ export default function StoryboardEditor({ plan, onChange, onMake, onRewrite, vo
       </div>
     </div>
   )
-  // a template with no voice (Logo · Drawing — app/motion.py SILENT_STYLES): no voice boxes, one scene is a video
+  // a template with no voice (Logo · Drawing — app/video/motion/ SILENT_STYLES): no voice boxes, one scene is a video
   const silent = SILENT_STYLES.has(plan?.style)
   const speaks = voice && !silent
   const fewest = silent ? 1 : 2
   const seconds = estimateSeconds(scenes)
-  // the month's videos this one uses: up to 1 min 1, up to 3 min 2, longer 1 per 3 min (app/usage.py)
+  // the month's videos this one uses: up to 1 min 1, up to 3 min 2, longer 1 per 3 min (app/billing/usage.py)
   const units = seconds <= 60 ? 1 : seconds <= 180 ? 2 : Math.ceil(seconds / 180)
   const tooLong = !!month?.longest_seconds && seconds > month.longest_seconds + 5
   const style = STYLE_LABELS[plan?.style]
@@ -763,7 +772,7 @@ export default function StoryboardEditor({ plan, onChange, onMake, onRewrite, vo
         </div>
       )}
 
-      {/* what "Make the video" uses of the month (app/usage.py video_units): by its length */}
+      {/* what "Make the video" uses of the month (app/billing/usage.py video_units): by its length */}
       {month?.videos && (
         <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 border-t px-4 py-2.5 text-[12px] ${tooLong || units > month.videos.left ? 'border-red-200 bg-red-50 text-red-700' : 'border-ink-200/70 bg-ink-50 text-ink-600'}`}>
           <span className="flex items-center gap-1.5 font-semibold text-ink-900">

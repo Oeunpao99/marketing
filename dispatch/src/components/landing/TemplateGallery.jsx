@@ -17,7 +17,7 @@ const CATEGORIES = [
   ['saas', ['SaaS & apps', 'SaaS និងកម្មវិធី'], ['skylaunch', 'saashub', 'clarity', 'aiteam', 'appdemo', 'custom', 'techflow', 'gridcards', 'fintech', 'launch', 'cyber']],
   ['product', ['Product demo', 'បង្ហាញផលិតផល'], ['logodraw', 'productfx', 'demo', 'sell', 'offer', 'launch', 'unveil', 'showcase', 'spotlight', 'appdemo', 'studio']],
   ['3d', ['3D animation', 'ចលនា 3D'], ['spotlight', 'appdemo', 'street3d', 'fintech', 'skylaunch']],
-  ['story', ['Stories & characters', 'រឿង និងតួអង្គ'], ['cartoon', 'parable', 'dialogue', 'podcast', 'picture', 'stickman', 'illustrated', 'presenter', 'rise']],
+  ['story', ['Stories & characters', 'រឿង និងតួអង្គ'], ['lifestory', 'cartoon', 'parable', 'dialogue', 'podcast', 'picture', 'stickcolor', 'stickman', 'illustrated', 'presenter', 'rise']],
   ['teach', ['Teach & explain', 'បង្រៀន និងពន្យល់'], ['teach', 'training', 'lesson', 'neural', 'paper', 'doodle', 'deck', 'faq', 'tips', 'techflow', 'stickman']],
   ['social', ['Social & trends', 'សង្គម និងនិន្នាការ'], ['reaction', 'pov', 'trend', 'hottake', 'poll', 'thisorthat', 'countdown', 'quote', 'studio']],
   ['proof', ['Reviews & results', 'មតិ និងលទ្ធផល'], ['report', 'casestudy', 'reviews', 'testimonial', 'versus']],

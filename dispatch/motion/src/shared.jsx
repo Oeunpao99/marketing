@@ -11,7 +11,7 @@ export const FONT = "'CFLatin', 'Kantumruy', sans-serif" // English first, Khmer
 export const INK = '#0b1020'
 
 /** Each scene's length when it has no voice-over (the backend mirrors this —
- * app/motion.py default_seconds). */
+ * app/video/motion/ default_seconds). */
 export function defaultSeconds(s) {
   switch (s.type) {
     case 'draw': // Logo · Drawing (logodraw.jsx): the whole 10-second intro, no voice
@@ -28,7 +28,7 @@ export function defaultSeconds(s) {
       return 4.2
     case 'take':
       return s.before ? 5.2 : 4.2
-    case 'meme': // app/motion.py default_seconds says the same
+    case 'meme': // app/video/motion/ default_seconds says the same
       return 4.6
     case 'client':
       return 5.0
@@ -50,7 +50,7 @@ export function defaultSeconds(s) {
       return 3.4 + 0.6 * Math.min(4, (s.cards || []).length)
     case 'logos':
       return 4.0
-    case 'climb': // app/motion.py default_seconds says the same
+    case 'climb': // app/video/motion/ default_seconds says the same
       return s.text ? 4.6 : 4.0
     case 'mirror':
       return 4.8
@@ -68,18 +68,34 @@ export function defaultSeconds(s) {
       return 2.8 + Math.min(2.4, String(s.text || '').length / 30) + (s.item ? 0.6 : 0)
     case 'note':
       return 2.6 + 0.6 * Math.min(5, (s.checks || []).length)
-    case 'collage': // app/motion.py default_seconds says the same
+    case 'collage': // app/video/motion/ default_seconds says the same
       return 2.8 + 0.4 * Math.min(5, Math.max((s.tiles || []).length, (s.images || []).length))
     case 'statement':
       return 4.4
     case 'pedestal':
       return 4.6
-    case 'speak': // app/motion.py default_seconds says the same
+    case 'speak': // app/video/motion/ default_seconds says the same
     case 'onair':
       return 4.2
     case 'visit':
       return 4.4
-    case 'agenda': // Slides · Presentation — app/motion.py default_seconds says the same
+    case 'acronym': // Cybersecurity · SOC's long-script scenes — app/video/motion/ default_seconds says the same
+      return 3.0 + 0.6 * Math.min(6, String(s.term || '').length)
+    case 'guard':
+      return 4.8
+    case 'sectors':
+      return 2.8 + 0.5 * Math.min(6, (s.sectors || []).length)
+    case 'breach':
+      return 5.6
+    case 'ransom':
+      return 3.6 + 0.7 * Math.min(4, (s.losses || []).length)
+    case 'moment': // Life story · One person — app/video/motion/ default_seconds says the same
+      return s.prop ? 4.8 : 4.0
+    case 'ledger':
+      return 2.6 + 0.8 * Math.min(5, (s.lines || []).length) + (s.total ? 0.8 : 0)
+    case 'takeaway':
+      return 2.4 + 0.9 * Math.min(3, (s.checks || []).length)
+    case 'agenda': // Slides · Presentation — app/video/motion/ default_seconds says the same
     case 'keypoints':
     case 'twocol':
     case 'roadmap':
@@ -89,7 +105,7 @@ export function defaultSeconds(s) {
     case 'pullquote':
     case 'picture':
       return 5.5
-    case 'overload': // AI service · Your AI team — app/motion.py default_seconds says the same
+    case 'overload': // AI service · Your AI team — app/video/motion/ default_seconds says the same
       return 4.4
     case 'crew':
       return 5.6
@@ -101,23 +117,23 @@ export function defaultSeconds(s) {
       return 4.6
     case 'plans':
       return 4.8
-    case 'shot': // Picture story — app/motion.py default_seconds says the same
+    case 'shot': // Picture story — app/video/motion/ default_seconds says the same
       return 5.0
-    case 'wide': // Illustrated · Everyday Cambodia — app/motion.py default_seconds says the same
+    case 'wide': // Illustrated · Everyday Cambodia — app/video/motion/ default_seconds says the same
       return 4.4
     case 'closeup':
       return 4.2
     case 'fact':
       return 4.6
-    case 'shops': // 3D · Street — app/motion.py default_seconds says the same
+    case 'shops': // 3D · Street — app/video/motion/ default_seconds says the same
       return 4.6
     case 'crowd':
       return 5.0
     case 'chatter':
       return 2.0 + 1.0 * Math.min(3, (s.messages || []).length)
-    case 'line': // Dialogue · Two voices — app/motion.py default_seconds says the same
+    case 'line': // Dialogue · Two voices — app/video/motion/ default_seconds says the same
       return 3.6
-    case 'tale': // Parable · Two paths — app/motion.py default_seconds says the same
+    case 'tale': // Parable · Two paths — app/video/motion/ default_seconds says the same
       return 4.2
     case 'tally':
       return 4.6
@@ -125,11 +141,11 @@ export function defaultSeconds(s) {
       return 4.8
     case 'moral':
       return 4.6
-    case 'react': // app/motion.py default_seconds says the same
+    case 'react': // app/video/motion/ default_seconds says the same
       return 4.2
     case 'punch':
       return 3.2
-    case 'doodle': // app/motion.py default_seconds says the same
+    case 'doodle': // app/video/motion/ default_seconds says the same
       return s.text ? 4.8 : 4.2
     case 'tip':
       return 4.6
@@ -153,13 +169,13 @@ export function defaultSeconds(s) {
       return 4.6
     case 'form':
       return 2.6 + 0.9 * Math.min(3, (s.fields || []).length) + (s.toggle ? 1.4 : 0)
-    // Unveil (unveil.jsx) — app/motion.py default_seconds says the same
+    // Unveil (unveil.jsx) — app/video/motion/ default_seconds says the same
     case 'word':
       return 3.0 + 0.6 * Math.min(3, (s.rows || []).length)
-    // AI design (canvas.jsx): as long as the AI planned it (app/motion.py says the same)
+    // AI design (canvas.jsx): as long as the AI planned it (app/video/motion/ says the same)
     case 'canvas': // + the breath before a reveal (canvas.jsx scene.pause)
       return Math.min(9, Math.max(2.5, Number(s.seconds) || 5)) + Math.min(1.5, Math.max(0, Number(s.pause) || 0))
-    // Tech explainer (techflow.jsx) — app/motion.py default_seconds says the same
+    // Tech explainer (techflow.jsx) — app/video/motion/ default_seconds says the same
     case 'hops':
       return 3.0 + 0.8 * Math.min(5, (s.nodes || []).length)
     case 'send':
@@ -283,18 +299,19 @@ export function chipOpacity(scenes, frame) {
   return 1 - hide
 }
 
-// Two fonts, picked letter by letter: English letters, digits and signs in
-// Plus Jakarta Sans (strong, modern — public/fonts, SIL OFL); it has no Khmer
-// letters, so those fall through to Kantumruy Pro (made for Khmer). A mixed
-// line ("កញ្ចប់ Pro $29") gets both. The render waits for both.
-// TEXT_SCALE draws every letter of both a little smaller, in every template —
+// The app's own font in every video (the user, 2026-11-04): Google Sans — English and Khmer
+// alike, as the app shows them (public/fonts/GoogleSans.ttf, SIL OFL; weights 400-700, a
+// heavier weight asked draws at 700). The family names stay 'CFLatin' / 'Kantumruy' so every
+// template's FONT stack keeps working; both are the one Google Sans file. The render waits for it.
+// TEXT_SCALE draws every letter a little smaller, in every template —
 // one place instead of each scene's sizes (the layouts fit as they are).
 const TEXT_SCALE = '88%'
+const APP_FONT = 'fonts/GoogleSans.ttf'
 const fontWait = delayRender('Loading the fonts')
-// resolved once both fonts are in — text drawn on a canvas (3D · Street's signs) waits for it
+// resolved once the fonts are in — text drawn on a canvas (3D · Street's signs) waits for it
 export const fontsReady = Promise.all([
-  new FontFace('CFLatin', `url(${staticFile('fonts/PlusJakartaSans.ttf')})`, { weight: '200 800', sizeAdjust: TEXT_SCALE }).load(),
-  new FontFace('Kantumruy', `url(${staticFile('fonts/KantumruyPro.ttf')})`, { weight: '100 700', sizeAdjust: TEXT_SCALE }).load(),
+  new FontFace('CFLatin', `url(${staticFile(APP_FONT)})`, { weight: '400 700', sizeAdjust: TEXT_SCALE }).load(),
+  new FontFace('Kantumruy', `url(${staticFile(APP_FONT)})`, { weight: '400 700', sizeAdjust: TEXT_SCALE }).load(),
 ])
   .then((faces) => {
     faces.forEach((f) => document.fonts.add(f))

@@ -233,6 +233,14 @@ PICTURE_ARTS = {
     "thin black line arms and legs, a few simple props and furniture drawn in the same clean black "
     "line (a desk, a chair, a thought bubble, a light bulb, a phone…). Black lines only — no colour, "
     "no grey shading, no background scenery, a clean white background.",
+    # Stick figures · Colour (app/motion.py STYLE_ALIASES "stickcolor"): the life-skills story look
+    "stickcolor": "A flat 2D colour stick-figure cartoon frame for a life-skills story video: "
+    "characters with big round white heads, simple dot eyes, small expressive eyebrows and mouth, thick "
+    "clean dark outlines, thin dark line arms and legs with round white hands, one simple solid-colour "
+    "piece of clothing each (a shirt, a cap, a scarf); a full simple room or place behind them in soft "
+    "flat colours with clean outlines and gentle flat shading (a table, a chair, a window, a lamp "
+    "throwing a warm pool of light, shelves, a plant), props drawn big and clear. Charming, tidy and "
+    "easy to read on a phone, like a popular animated life-lessons channel.",
 }
 PICTURE_RULES = (
     " One clear moment, composed for a video frame, with calm space near the top for a line of "
@@ -303,6 +311,20 @@ BACKDROP_STYLE = (
     "front with nothing standing on it, where one character will stand. Everyday life in "
     "Cambodia when it fits. ABSOLUTELY NO text, letters, numbers, words or logos anywhere — "
     "signs, screens and papers are left blank.\n\nThe place: "
+)
+
+
+# Life story · One person (motion/src/lifestory.jsx): the warm rooms its person lives
+# in — flat cartoon backgrounds; our coded person and props stand in front.
+LIFE_STYLE = (
+    "A flat 2D cartoon background for an animated story video: clean dark-brown outlines, flat "
+    "colour fills with soft simple shading, a warm palette of cream, terracotta, mustard yellow, "
+    "sage green and warm wood, cosy golden lamp or late-afternoon light. Seen straight on at eye "
+    "level, a wide calm view. EMPTY of people and animals. The lower middle of the picture is "
+    "open floor in front with nothing standing on it, where one character will stand, and the "
+    "right third is calm and uncluttered. Everyday life in Cambodia. ABSOLUTELY NO text, letters, "
+    "numbers, words or logos anywhere — papers, signs, calendars and screens are left blank.\n\n"
+    "The place: "
 )
 
 

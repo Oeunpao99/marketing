@@ -11,8 +11,9 @@ let loading = null
 export function loadFonts() {
   if (!loading) {
     loading = Promise.all([
-      new FontFace('CFLatin', `url(${staticFile('fonts/PlusJakartaSans.ttf')})`, { weight: '200 800' }).load(),
-      new FontFace('Kantumruy', `url(${staticFile('fonts/KantumruyPro.ttf')})`, { weight: '100 700' }).load(),
+      // the app's Google Sans for English and Khmer alike (shared.jsx says why)
+      new FontFace('CFLatin', `url(${staticFile('fonts/GoogleSans.ttf')})`, { weight: '400 700' }).load(),
+      new FontFace('Kantumruy', `url(${staticFile('fonts/GoogleSans.ttf')})`, { weight: '400 700' }).load(),
     ])
       .then((faces) => faces.forEach((f) => document.fonts.add(f)))
       .catch(() => {}) // a missing font falls back to the system's — the slide still draws

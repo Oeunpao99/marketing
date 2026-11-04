@@ -5,7 +5,7 @@ import { AbsoluteFill, Audio, Img, OffthreadVideo, Sequence, continueRender, del
 // tracks — videos, pictures, words and sounds — each with a start, a length,
 // where it starts inside its file (a cut), its volume, place, size and fades.
 // The same file plays in the editor (@remotion/player in the app) and renders
-// the export on the server (app/editor.py → motion.render "Timeline"), so what
+// the export on the server (app/video/editor.py → motion.render "Timeline"), so what
 // people see while editing is what they download.
 //
 // props: { ratio, tracks: [{ id, kind: video|text|audio, muted?, hidden? }],
@@ -31,8 +31,9 @@ let fontsLoading = null
 const loadFonts = () => {
   if (!fontsLoading) {
     fontsLoading = Promise.all([
-      new FontFace('CFLatin', `url(${staticFile('fonts/PlusJakartaSans.ttf')})`, { weight: '200 800' }).load(),
-      new FontFace('Kantumruy', `url(${staticFile('fonts/KantumruyPro.ttf')})`, { weight: '100 700' }).load(),
+      // the app's Google Sans for English and Khmer alike (shared.jsx says why)
+      new FontFace('CFLatin', `url(${staticFile('fonts/GoogleSans.ttf')})`, { weight: '400 700' }).load(),
+      new FontFace('Kantumruy', `url(${staticFile('fonts/GoogleSans.ttf')})`, { weight: '400 700' }).load(),
     ])
       .then((faces) => faces.forEach((f) => document.fonts.add(f)))
       .catch(() => {}) // a missing font falls back to the system's — the video still draws
@@ -42,7 +43,7 @@ const loadFonts = () => {
 const FONT = 'CFLatin, Kantumruy, sans-serif'
 
 // a stored file ("/media/…" while editing) as it plays here; the server swaps
-// those for files next to the render (app/motion.py render)
+// those for files next to the render (app/video/motion/ render)
 const srcOf = (src) => (/^(\/media\/|https?:|blob:|data:)/.test(src || '') ? src : staticFile(src || ''))
 
 /** 0 → 1 over the fade in, 1 → 0 over the fade out (frames inside the clip). */

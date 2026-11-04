@@ -3,7 +3,7 @@
  * app-style graphics — a hook, the problem, the solution shown working (a chat
  * on a phone, the product), the proof (a list, a number) and a call to action.
  * Driven by the script JSON (see ../sample.json), written by the backend
- * (app/motion.py):
+ * (app/video/motion/):
  *
  *   { brand: { name, color, logo },
  *     scenes: [
@@ -17,7 +17,7 @@
  *     ] }   — each scene may also carry seconds and audio (its voice-over line)
  *
  * Icons are Lucide names. Khmer comes split into words with zero-width spaces
- * (app/khmer_words.py), so words animate one by one and lines break only
+ * (app/voice/khmer_words.py), so words animate one by one and lines break only
  * between words; ⟦…⟧ marks the words to highlight in the brand colour.
  */
 import {
@@ -71,6 +71,7 @@ import { REACTION } from './reaction'
 import { STUDIO } from './studio'
 import { PRESENTER } from './presenter'
 import { PODCAST } from './podcast'
+import { LIFESTORY } from './lifestory'
 import { PARABLE } from './parable'
 import { DIALOGUE } from './dialogue'
 import { STREET } from './street3d'
@@ -655,7 +656,7 @@ function Chrome({ scenes, brand }) {
           alignItems: 'center',
           gap: 16,
           borderRadius: 10,
-          // a light (white) logo vanished on the white chip — it gets a dark one (app/motion.py logo_is_light);
+          // a light (white) logo vanished on the white chip — it gets a dark one (app/video/motion/ logo_is_light);
           // a dark template keeps the card unless the brand picked "No background" (shared.jsx chipPlain)
           ...chipBox(chipPlain(brand, false), {
             background: brand.logoLight ? 'rgba(10,14,22,0.82)' : 'rgba(255,255,255,0.92)',
@@ -764,7 +765,7 @@ const SCENES = {
   cta: CtaScene,
 }
 
-// The templates — one per kind of story (app/motion.py style_for picks it from
+// The templates — one per kind of story (app/video/motion/ style_for picks it from
 // the post's content goal). Tech is the default.
 const TEMPLATES = {
   tech: { scenes: SCENES, root: { backgroundColor: INK }, light: false, captionTop: 1660 },
@@ -797,6 +798,7 @@ const TEMPLATES = {
   studio: { ...STUDIO, scenes: { ...SCENES, ...STUDIO.scenes } },
   presenter: { ...PRESENTER, scenes: { ...SCENES, ...PRESENTER.scenes } },
   podcast: { ...PODCAST, scenes: { ...SCENES, ...PODCAST.scenes } },
+  lifestory: { ...LIFESTORY, scenes: { ...SCENES, ...LIFESTORY.scenes } }, // Life story · One person
   parable: { ...PARABLE, scenes: { ...SCENES, ...PARABLE.scenes } }, // Parable · Two paths
   dialogue: { ...DIALOGUE, scenes: { ...SCENES, ...DIALOGUE.scenes } }, // Dialogue · Two voices
   street3d: { ...STREET, scenes: { ...SCENES, ...STREET.scenes } }, // 3D · Street (three.js)
@@ -820,7 +822,7 @@ const TEMPLATES = {
   training: { ...TRAINING, scenes: { ...SCENES, ...TRAINING.scenes } },
 }
 
-/** A Free plan's mark (app/plan_features.py no_watermark): small and quiet, top-right — across
+/** A Free plan's mark (app/billing/plan_features.py no_watermark): small and quiet, top-right — across
  * from the brand's own logo, clear of the subtitles; Starter and up have none. */
 function Watermark() {
   const { width, height } = useVideoConfig()
@@ -866,7 +868,7 @@ export const MotionPost = ({ brand, scenes, music, musicList, style, look, cast,
   const captionTop = height > width ? Math.min(wanted ?? 1225, FEED_BOTTOM - 145) : wanted
   return (
     <AbsoluteFill style={{ ...t.root, '--brand': brand.color }}>
-      {/* the video editor (app/motion.py edit_video) may turn the music and the voice up or down */}
+      {/* the video editor (app/video/motion/ edit_video) may turn the music and the voice up or down */}
       {musicList?.length > 1 ? <ChapterMusic list={musicList} scenes={scenes} gain={musicVolume} /> : music && <BackgroundMusic src={music} scenes={scenes} gain={musicVolume} />}
       <TransitionSeries>
         {scenes.flatMap((scene, i) => {
@@ -879,7 +881,7 @@ export const MotionPost = ({ brand, scenes, music, musicList, style, look, cast,
               {body}
               {/* whoosh / pop / blop … on the scene's moves (sfx.jsx) */}
               {sfx && <SceneSfx scene={scene} style={style} frames={sceneFrames(scene)} first={i === 0} mood={mood} index={i} next={scenes[i + 1]} />}
-              {/* The voice-over line (app/motion.py add_voice) and its subtitles start together, once
+              {/* The voice-over line (app/video/motion/ add_voice) and its subtitles start together, once
                   the scene has slid in + 6 frames breathing room so the visual title is registered right as or slightly before the voice speaks.
                   An AI design scene's pause (canvas.jsx) comes first: the voice waits for the reveal. */}
               <Sequence from={voiceAt} layout="none">
@@ -904,7 +906,7 @@ export const MotionPost = ({ brand, scenes, music, musicList, style, look, cast,
           return out
         })}
       </TransitionSeries>
-      {/* "No logo" (app/motion.py Unbranded): no corner chip */}
+      {/* "No logo" (app/video/motion/ Unbranded): no corner chip */}
       {!brand.logo && !brand.name ? null : t.chrome ? <t.chrome scenes={scenes} brand={brand} /> : t.light ? <ExplainerChrome scenes={scenes} brand={brand} /> : <Chrome scenes={scenes} brand={brand} />}
       {watermark && <Watermark />}
     </AbsoluteFill>

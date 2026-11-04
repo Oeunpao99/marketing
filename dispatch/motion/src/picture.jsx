@@ -1,13 +1,13 @@
 /**
  * "Picture story" — a narrated story told over full-screen AI pictures: one
- * picture per scene (app/doodle.py picture_style, in the art style picked),
+ * picture per scene (app/images/doodle.py picture_style, in the art style picked),
  * a slow camera move on each (in, out, or a drift — never the same twice in a
  * row), soft crossfades between them, and a short line of text on every
  * picture in the colours the person picked (scene.ink: text + highlight,
  * ⟦words⟧ in the highlight), the subtitles below. A picture that couldn't be
  * painted leaves a calm dark frame with the words.
  *
- * Scenes (app/motion.py PICTURE_TYPES): shot {title, image, ink}. 9:16 and 16:9.
+ * Scenes (app/video/motion/ PICTURE_TYPES): shot {title, image, ink}. 9:16 and 16:9.
  */
 import { AbsoluteFill, Img, interpolate, random, spring, useCurrentFrame, useVideoConfig } from 'remotion'
 import { fade } from '@remotion/transitions/fade'
@@ -62,8 +62,19 @@ function Picture({ src, seed, page = false, side = null }) {
   )
 }
 
+// an outline drawn from text shadows (8 directions at two widths) in ``color``, then a soft drop shadow
+const outline = (color) =>
+  [
+    ...[0, 45, 90, 135, 180, 225, 270, 315].flatMap((a) => {
+      const x = Math.cos((a * Math.PI) / 180)
+      const y = Math.sin((a * Math.PI) / 180)
+      return [`${(x * 0.07).toFixed(3)}em ${(y * 0.07).toFixed(3)}em 0 ${color}`, `${(x * 0.045).toFixed(3)}em ${(y * 0.045).toFixed(3)}em 0 ${color}`]
+    }),
+    '0 0.12em 0.18em rgba(0,0,0,0.45)',
+  ].join(', ')
+
 /** The line on the picture, word by word; ⟦marked⟧ words in the highlight colour. */
-function Title({ text, ink, wide, page = false, side = null }) {
+function Title({ text, ink, wide, page = false, side = null, card = false }) {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
   const pieces = []
@@ -83,18 +94,19 @@ function Title({ text, ink, wide, page = false, side = null }) {
   // like a YouTube thumbnail: as big as two lines across the free side allow
   // (Khmer marks stack on their letters, so a Khmer character is narrower)
   // a stick-figure page: one centred title across the top, under the logo — or, wide, beside the drawing
-  const box = side ? 760 : page && wide ? 1600 : wide ? 800 : 940
+  // a colour stick-figure card (the user, 2026-11-04: "a bit smaller"): a label, not a thumbnail
+  const box = card ? (wide ? 640 : 820) : side ? 760 : page && wide ? 1600 : wide ? 800 : 940
   const len = Math.max(6, [...clean(text)].filter((ch) => !/[ា-៓៝]/.test(ch)).length)
   // a tall video's two lines stay inside the picture's calm top (y 250–610 of 1920),
   // off the person below: 112 px tops (two Khmer lines with the bigger key word ≈ 355 px)
   // (a tall video: a Khmer letter ≈ 0.9 em with its marks, gaps and the bigger key word, measured — 0.62
   // let long titles wrap to three over the person; a wide one has the side free, three big lines are fine)
   // a wide stick-figure page: two lines in its white top band (WIDE_PAGE_TOP), measured like a tall one
-  const per = khmer ? (wide && !page ? 0.62 : 0.9) : 0.68
+  const per = khmer ? (wide && !page && !card ? 0.62 : 0.9) : 0.68
   // a stick-figure page's title a little smaller than a photo's: it reads under the logo, the drawing is the hero
   // …but beside the drawing it's the half the drawing left: big, one or two lines
-  const most = side ? 140 : page ? (wide ? 76 : 100) : wide ? 150 : 112
-  const size = Math.max(side ? 64 : page ? (wide ? 48 : 58) : wide ? 70 : 64, Math.min(most, (box * 2) / (len * per)))
+  const most = card ? (wide ? 84 : 76) : side ? 140 : page ? (wide ? 76 : 100) : wide ? 150 : 112
+  const size = Math.max(card ? (wide ? 50 : 46) : side ? 64 : page ? (wide ? 48 : 58) : wide ? 70 : 64, Math.min(most, (box * 2) / (len * per)))
   const align = side ? (side === 'right' ? 'flex-end' : 'flex-start') : 'center'
   return (
     <div
@@ -107,10 +119,13 @@ function Title({ text, ink, wide, page = false, side = null }) {
         color: ink.text,
         textWrap: 'balance', // two even lines, not one long and one word
         // readable on any picture: a soft dark halo, no box (none on a white stick-figure page)
-        textShadow: page ? 'none' : '0 4px 24px rgba(0,0,0,0.6), 0 2px 4px rgba(0,0,0,0.55)',
-        textAlign: page ? (side || 'center') : undefined,
+        // a colour stick-figure title: a thick dark outline round each letter, cartoon-caption style,
+        // readable on a pale wall, a sky or a night window alike — no box behind it
+        // (a dark outline round light words, a white one round dark words)
+        textShadow: page ? 'none' : card ? outline(lightness(ink.text) > 0.5 ? '#211A14' : '#FFFFFF') : '0 4px 24px rgba(0,0,0,0.6), 0 2px 4px rgba(0,0,0,0.55)',
+        textAlign: page ? (side || 'center') : card ? 'center' : undefined,
         // a page's title always wraps between its words — a long Khmer line never runs off the edges
-        ...(page ? { display: 'flex', flexWrap: 'wrap', justifyContent: align, alignItems: 'baseline' } : {}),
+        ...(page || card ? { display: 'flex', flexWrap: 'wrap', justifyContent: card ? 'center' : align, alignItems: 'baseline' } : {}),
       }}
     >
       {pieces.map(({ p, gap, em: hi }, n) => {
@@ -124,6 +139,8 @@ function Title({ text, ink, wide, page = false, side = null }) {
               opacity: s,
               transform: `translateY(${(1 - s) * 34}px)`,
               color: hi ? ink.accent : undefined,
+              // a colour stick-figure title: a dark brand colour keeps its exact colour, outlined in white
+              ...(hi && card && lightness(ink.accent) < 0.3 ? { textShadow: outline('#FFFFFF') } : {}),
               fontSize: hi ? '1.18em' : undefined, // the key word, bigger — the thumbnail look
             }}
           >
@@ -215,6 +232,32 @@ function Shot({ scene, brand }) {
       </AbsoluteFill>
     )
   }
+  if (scene.art === 'stickcolor') {
+    // Colour stick figures (the user, 2026-11-04: smaller words, in the best place, no box, the
+    // brand's colours): the words in the text colour picked (white by default) with a cartoon
+    // outline, the key words in the highlight picked — the brand's own colour unless they chose
+    // another (app/video/motion/ build_props) — exactly that colour; a dark one (navy) gets a white
+    // outline instead of the dark one (Title). In the calm top centre of a tall picture (under the
+    // logo, over the people), on the calm half of a wide one (app/video/motion/ picture_room keeps
+    // those parts free). No dark shade.
+    const cardInk = { text: ink.text, accent: scene.ink?.accent || brand?.color || '#FFD400' }
+    const label = scene.title && (
+      <div style={{ maxWidth: '100%' }}>
+        <Title text={scene.title} ink={cardInk} wide={wide} card />
+      </div>
+    )
+    return (
+      <AbsoluteFill>
+        <Picture src={scene.image} seed={seed} />
+        {label &&
+          (wide ? (
+            <div style={{ position: 'absolute', top: 205, [right ? 'right' : 'left']: 90, width: 760, display: 'flex', justifyContent: right ? 'flex-end' : 'flex-start' }}>{label}</div>
+          ) : (
+            <div style={{ position: 'absolute', left: 60, right: 60, top: 270, display: 'flex', justifyContent: 'center' }}>{label}</div>
+          ))}
+      </AbsoluteFill>
+    )
+  }
   return (
     <AbsoluteFill>
       <Picture src={scene.image} seed={seed} />
@@ -228,7 +271,7 @@ function Shot({ scene, brand }) {
           }}
         />
       )}
-      {/* the words on the side the picture left calm (app/motion.py picture_room):
+      {/* the words on the side the picture left calm (app/video/motion/ picture_room):
           left or right, in the middle, in a wide video — at the top in a tall one */}
       {scene.title &&
         (wide ? (

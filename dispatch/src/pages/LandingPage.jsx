@@ -206,8 +206,8 @@ const SHOWCASE = [
   ...MOTION_TEMPLATES.map((x) => x.id),
 ].filter((id, i, all) => all.indexOf(id) === i)
 const isNew = (tp) => !!tp?.added && Date.now() - Date.parse(tp.added) < NEW_DAYS * 86400000
-// a template's id → the style its videos are recorded under (app/motion.py STYLES)
-const STYLE_OF = { sell: 'tech', teach: 'explainer', stickman: 'picture' }
+// a template's id → the style its videos are recorded under (app/video/motion/ STYLES)
+const STYLE_OF = { sell: 'tech', teach: 'explainer', stickman: 'picture', stickcolor: 'picture' }
 
 /** How many videos were made with each template (GET /api/public/template-usage) — not businesses:
  * one business can make many (the owner, 2026-10-29). */
@@ -820,7 +820,7 @@ function Faq() {
 // the popular one dark; then the full comparison. Visitors never see the word credit
 // (the owner, 2026-10-28): plans say videos and images; credits stay in the app's ledger.
 // Monthly plan prices are confirmed (2026-10-23, the pricing proposal) and paid
-// in the app with KHQR (Settings → Billing → Upgrade; app/payments.py PLAN_PRICES
+// in the app with KHQR (Settings → Billing → Upgrade; app/billing/payments.py PLAN_PRICES
 // — keep the two in step). true = paid prices show "Coming soon"; false since 2026-10-28 (the packages are out).
 const PRICES_SOON = false
 // What the app can't sell yet: yearly billing (the Yearly switch is hidden) until

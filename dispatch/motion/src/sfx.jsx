@@ -12,6 +12,8 @@ import { hitFrames } from './canvas'
 import { mouthBeats } from './reaction'
 import { presenterCues } from './presenter'
 import { podcastCues } from './podcast'
+import { lifestoryCues } from './lifestory'
+import { cyberCues } from './cyber'
 import { parableCues } from './parable'
 import { dialogueCues } from './dialogue'
 import { streetCues } from './street3d'
@@ -94,6 +96,14 @@ function cuesOf(scene, style, frames, first, index, kind) {
   }
   if (style === 'podcast') {
     podcastCues(scene).forEach(([at, s]) => add(at, s)) // podcast.jsx
+    return cues
+  }
+  if (style === 'cyber' && cyberCues(scene)) {
+    cyberCues(scene).forEach(([at, s]) => add(at, s)) // cyber.jsx — its long-script scenes
+    return cues
+  }
+  if (style === 'lifestory') {
+    lifestoryCues(scene).forEach(([at, s]) => add(at, s)) // lifestory.jsx
     return cues
   }
   if (style === 'logodraw') {

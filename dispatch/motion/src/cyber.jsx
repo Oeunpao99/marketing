@@ -5,7 +5,7 @@
  * red pulses break on the brand's shield, a live threat-monitoring console, the SOC wall
  * with its counters and threat level, a padlock closing. Original design, in the brand's colour.
  *
- * No scene types of its own — the ones the story AI already writes (app/motion.py CYBER_PROMPT):
+ * No scene types of its own — the ones the story AI already writes (app/video/motion/ CYBER_PROMPT):
  *   hook       the radar sweeps, a threat blinks red              {text, badge?}
  *   flow       the network: nodes, glowing links, packets         {title?, nodes: [{icon, label, sub?}]}
  *   step       the attack: pulses from the attacker break on the shield, "Blocked"   {title, text?, result?}
@@ -15,6 +15,12 @@
  *   stat       one true number in the radar                       {value, prefix?, suffix?, label}
  *   reveal     the padlock closes, the network turns calm         {text, icon?}
  *   cta        the logo, the line, the button                     {text, button}
+ * …and its own, so a long script (2 minutes) doesn't keep repeating those:
+ *   acronym    the letters light up, each grows into its word      {term, expand: [words], text?}
+ *   guard      watched 24/7: the clock ring, sun and moon, analysts {title?}
+ *   sectors    who it's for: businesses linked to the shield        {title?, sectors: [{icon, label}]}
+ *   breach     a stick-figure worker asleep at night, the attacker takes the screen, files fly out {title?, text?, time?}
+ *   ransom     files locked, a countdown, the losses cracking       {title?, losses: [{icon, label}]}
  * 9:16 and 16:9; nothing in the subtitle band (captionTop).
  */
 import { AbsoluteFill, Img, interpolate, random, spring, useCurrentFrame, useVideoConfig } from 'remotion'
@@ -384,7 +390,9 @@ function Monitor({ scene }) {
                 <span style={{ fontFamily: MONO, fontSize: wide ? 22 : 24, color: SUB, flex: 'none' }}>{`${hh}:${mm}:${sec}`}</span>
                 <span style={{ flex: 'none', width: wide ? 82 : 92, textAlign: 'center', padding: '5px 0', borderRadius: 6, background: tint(col, 0.16), border: `1.5px solid ${col}`, color: col, fontFamily: MONO, fontWeight: 700, fontSize: wide ? 19 : 21 }}>{lvl}</span>
                 <span style={{ flex: 'none', fontFamily: MONO, fontWeight: 700, fontSize: wide ? 22 : 24, color: '#FFFFFF' }}>{clean(n.app)}</span>
-                <span style={{ flex: 1, minWidth: 0, fontFamily: FONT, fontSize: wide ? 26 : 28, color: '#D7E3F4', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{clean(n.text)}</span>
+                {/* the alert's words: big and firm enough for Khmer on a phone (the user, 2026-11-04 —
+                    26 px regular looked thin and scratchy), two lines before they're cut, never one cut short */}
+                <span style={{ flex: 1, minWidth: 0, fontFamily: FONT, fontWeight: 600, fontSize: wide ? 32 : 34, lineHeight: KHMER_RE.test(n.text || '') ? 1.5 : 1.25, color: '#E4EDF9', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{clean(n.text)}</span>
               </div>
             )
           })}
@@ -597,6 +605,360 @@ function Cta({ scene, brand }) {
   )
 }
 
+// ── more scenes for a long script (the user, 2026-11-04: a 2-minute script repeated the same few) ──
+
+/** A small headline across the top (all the new scenes share it). */
+function TopTitle({ text, hot = CYAN, size }) {
+  const { width, height } = useVideoConfig()
+  const wide = width > height
+  if (!text) return null
+  return (
+    <div style={{ position: 'absolute', left: 80, right: 80, top: wide ? 56 : 270 }}>
+      <Headline text={text} size={fitSize(text, size || (wide ? 64 : 72))} delay={2} hot={hot} />
+    </div>
+  )
+}
+
+// acronym: the letters light up one by one, each growing into its word; what it means under them
+const ACRO_AT = (i) => 8 + i * 11
+function Acronym({ scene, brand }) {
+  const frame = useCurrentFrame()
+  const { fps, width, height } = useVideoConfig()
+  const wide = width > height
+  const a = accent(brand)
+  const letters = [...String(scene.term || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase()].slice(0, 6)
+  const words = scene.expand || []
+  const tile = wide ? 112 : 124
+  const doneAt = ACRO_AT(letters.length) + 6
+  return (
+    <Stage>
+      <Globe cx={wide ? width * 0.78 : width / 2} cy={height * (wide ? 0.5 : 0.36)} r={wide ? 380 : 430} spin={frame * 0.008} opacity={0.3} />
+      <div style={{ position: 'absolute', ...(wide ? { left: 150, width: 860, top: 0, bottom: 150 } : { left: 90, right: 90, top: 300, height: 860 }), display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: wide ? 18 : 22 }}>
+        {letters.map((L, i) => {
+          const s = spring({ frame: frame - ACRO_AT(i), fps, config: { damping: 11 } })
+          const w = interpolate(frame, [ACRO_AT(i) + 5, ACRO_AT(i) + 16], [0, 1], clamp)
+          const word = clean(words[i] || '')
+          const rest = word.toUpperCase().startsWith(L) ? word.slice(1) : word ? ` ${word}` : ''
+          return (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 28 }}>
+              <div style={{ flex: 'none', width: tile, height: tile, borderRadius: 22, display: 'grid', placeItems: 'center', border: `3px solid ${i === 0 ? a : CYAN}`, background: tint(i === 0 ? a : CYAN, 0.14), boxShadow: `0 0 ${34 * s}px ${tint(i === 0 ? a : CYAN, 0.5)}`, fontFamily: FONT, fontWeight: 700, fontSize: tile * 0.62, color: '#FFFFFF', transform: `scale(${s})`, opacity: Math.min(1, s * 1.5) }}>{L}</div>
+              {word && (
+                <div style={{ fontFamily: FONT, fontWeight: 700, fontSize: wide ? 60 : 64, color: '#FFFFFF', whiteSpace: 'nowrap', clipPath: `inset(0 ${(1 - w) * 100}% 0 0)` }}>
+                  <span style={{ color: i === 0 ? a : CYAN, textShadow: `0 0 18px ${tint(CYAN, 0.6)}` }}>{L}</span>
+                  {rest}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+      {scene.text && (
+        <div style={{ position: 'absolute', ...(wide ? { left: width * 0.56, right: 110, top: 0, bottom: 150 } : { left: 70, right: 70, top: 1200, height: 260 }), display: 'flex', alignItems: 'center', opacity: interpolate(frame, [doneAt, doneAt + 10], [0, 1], clamp) }}>
+          <div style={{ width: '100%', padding: wide ? '34px 40px' : '28px 34px', borderRadius: 22, border: `2px solid ${tint(CYAN, 0.4)}`, background: 'rgba(4,14,32,0.82)', boxShadow: `0 0 40px ${tint(CYAN, 0.15)}` }}>
+            <Headline text={scene.text} size={fitSize(scene.text, wide ? 50 : 52)} align={wide ? 'left' : 'center'} delay={doneAt} />
+          </div>
+        </div>
+      )}
+    </Stage>
+  )
+}
+
+/** A SOC analyst seen from behind at a glowing monitor: a head with a headset, shoulders. */
+function Analyst({ x, y, s, frame, seed = 0 }) {
+  const look = Math.sin(frame / 30 + seed) * 2
+  return (
+    <svg style={{ position: 'absolute', left: x - 110 * s, top: y - 150 * s, overflow: 'visible' }} width={220 * s} height={230 * s} viewBox="0 0 220 230">
+      <rect x="30" y="0" width="160" height="104" rx="10" fill="#071A33" stroke={CYAN} strokeWidth="3" style={{ filter: `drop-shadow(0 0 12px ${tint(CYAN, 0.6)})` }} />
+      <polyline points={[...Array(12)].map((_, i) => `${42 + i * 12},${70 - 24 * Math.abs(Math.sin(i * 0.9 + frame / 9 + seed))}`).join(' ')} fill="none" stroke={CYAN} strokeWidth="2.5" />
+      <rect x="42" y="16" width="60" height="7" rx="3" fill={tint(CYAN, 0.6)} />
+      <rect x="100" y="104" width="20" height="18" fill="#0B2342" />
+      <g transform={`rotate(${look} 110 150)`}>
+        <path d="M58 230 C58 186 80 170 110 170 C140 170 162 186 162 230 Z" fill="#0B1A30" stroke={tint(CYAN, 0.55)} strokeWidth="2.5" />
+        <circle cx="110" cy="146" r="28" fill="#0B1A30" stroke={tint(CYAN, 0.55)} strokeWidth="2.5" />
+        <path d="M80 146 C80 112 140 112 140 146" fill="none" stroke={CYAN} strokeWidth="5" strokeLinecap="round" />
+        <rect x="74" y="140" width="10" height="20" rx="4" fill={CYAN} />
+        <rect x="136" y="140" width="10" height="20" rx="4" fill={CYAN} />
+      </g>
+    </svg>
+  )
+}
+
+// guard: watched around the clock — a 24-hour ring lit by a running sweep, the sun and moon going
+// round, "24/7" in the middle, analysts at their screens
+function Guard({ scene, brand }) {
+  const frame = useCurrentFrame()
+  const { fps, width, height } = useVideoConfig()
+  const wide = width > height
+  const a = accent(brand)
+  const R = wide ? 230 : 270
+  const cx = width / 2
+  const cy = wide ? height * 0.47 : height * 0.4
+  const head = (frame * 0.45) % 24
+  const inn = spring({ frame, fps, config: { damping: 14 } })
+  const orbit = (frame * 0.02) % (Math.PI * 2)
+  return (
+    <Stage>
+      <TopTitle text={scene.title} />
+      <div style={{ position: 'absolute', left: cx - R - 60, top: cy - R - 60, width: 2 * R + 120, height: 2 * R + 120, transform: `scale(${0.7 + 0.3 * inn})`, opacity: inn }}>
+        <svg width={2 * R + 120} height={2 * R + 120} style={{ overflow: 'visible' }}>
+          {[...Array(24)].map((_, i) => {
+            const ang = (i / 24) * Math.PI * 2 - Math.PI / 2
+            const behind = (head - i + 24) % 24
+            const lit = behind < 6 ? 1 - behind / 6 : 0.12
+            const c = R + 60
+            return <line key={i} x1={c + Math.cos(ang) * (R - 26)} y1={c + Math.sin(ang) * (R - 26)} x2={c + Math.cos(ang) * R} y2={c + Math.sin(ang) * R} stroke={i % 6 === 0 ? a : CYAN} strokeWidth={i % 6 === 0 ? 9 : 6} strokeLinecap="round" opacity={0.2 + 0.8 * lit} style={{ filter: lit > 0.5 ? `drop-shadow(0 0 8px ${CYAN})` : 'none' }} />
+          })}
+          <circle cx={R + 60} cy={R + 60} r={R + 34} fill="none" stroke={tint(CYAN, 0.2)} strokeWidth={2} strokeDasharray="3 9" />
+        </svg>
+        {/* the sun and the moon going round — day and night alike */}
+        {[['Sun', AMBER, 0], ['Moon', '#C7D2FE', Math.PI]].map(([icon, col, off]) => (
+          <div key={icon} style={{ position: 'absolute', left: R + 60 + Math.cos(orbit + off) * (R + 34) - 30, top: R + 60 + Math.sin(orbit + off) * (R + 34) - 30, width: 60, height: 60, borderRadius: 30, display: 'grid', placeItems: 'center', background: BG, border: `2px solid ${col}`, filter: glow(col, 10) }}>
+            <Icon name={icon} size={32} color={col} stroke={2.2} />
+          </div>
+        ))}
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <span style={{ fontFamily: FONT, fontWeight: 700, fontSize: wide ? 120 : 136, lineHeight: 1, color: '#FFFFFF', textShadow: `0 0 34px ${tint(CYAN, 0.8)}` }}>24/7</span>
+          <span style={{ marginTop: 10, fontFamily: MONO, fontSize: wide ? 22 : 24, letterSpacing: '0.2em', color: CYAN }}>MONITORING</span>
+        </div>
+      </div>
+      {(wide ? [[width * 0.15, height * 0.72], [width * 0.85, height * 0.72]] : [[width * 0.28, height * 0.72], [width * 0.72, height * 0.72]]).map(([x, y], i) => (
+        <div key={i} style={{ opacity: spring({ frame: frame - 14 - i * 6, fps, config: { damping: 14 } }) }}>
+          <Analyst x={x} y={y} s={wide ? 1.05 : 1.15} frame={frame} seed={i * 2} />
+        </div>
+      ))}
+    </Stage>
+  )
+}
+
+// sectors: who it's for — the brand's shield in the middle, each kind of business linked in and lit
+const SECTOR_AT = (i) => 12 + i * 8
+function Sectors({ scene, brand }) {
+  const frame = useCurrentFrame()
+  const { fps, width, height } = useVideoConfig()
+  const wide = width > height
+  const a = accent(brand)
+  const list = (scene.sectors || []).slice(0, 6)
+  const cx = width / 2
+  const cy = wide ? height * 0.54 : height * 0.5
+  const rx = wide ? 560 : 360
+  const ry = wide ? 290 : 470
+  const pts = list.map((_, i) => {
+    const ang = (i / list.length) * Math.PI * 2 - Math.PI / 2 + (list.length % 2 ? 0 : Math.PI / list.length)
+    return [cx + Math.cos(ang) * rx, cy + Math.sin(ang) * ry]
+  })
+  const SW = wide ? 190 : 210
+  const inn = spring({ frame, fps, config: { damping: 13 } })
+  return (
+    <Stage>
+      <TopTitle text={scene.title} />
+      <svg style={{ position: 'absolute', inset: 0 }} width={width} height={height}>
+        {pts.map((p, i) => (
+          <Link key={i} a={[cx, cy]} b={p} t={interpolate(frame, [SECTOR_AT(i) - 6, SECTOR_AT(i) + 4], [0, 1], { ...clamp, easing: ease })} frame={frame} color={i % 2 ? a : CYAN} packets={1} bend={0.06} />
+        ))}
+      </svg>
+      <div style={{ position: 'absolute', left: cx - SW / 2, top: cy - SW * 0.58, transform: `scale(${inn})` }}>
+        <Shield size={SW} color={a}>
+          {brand.logo ? <Img src={srcOf(brand.logo)} style={{ width: SW * 0.44, height: SW * 0.32, objectFit: 'contain', filter: 'brightness(0) invert(1)' }} /> : <Icon name="ShieldCheck" size={SW * 0.34} color="#FFFFFF" stroke={2} />}
+        </Shield>
+      </div>
+      {list.map((x, i) => {
+        const s = spring({ frame: frame - SECTOR_AT(i), fps, config: { damping: 11 } })
+        const W = wide ? 230 : 250
+        return (
+          <div key={i} style={{ position: 'absolute', left: pts[i][0] - W / 2, top: pts[i][1] - 80, width: W, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, transform: `scale(${s})`, opacity: Math.min(1, s * 1.5) }}>
+            <div style={{ position: 'relative', width: wide ? 104 : 116, height: wide ? 104 : 116, borderRadius: 28, display: 'grid', placeItems: 'center', background: 'rgba(6,20,43,0.92)', border: `3px solid ${CYAN}`, boxShadow: `0 0 28px ${tint(CYAN, 0.45)}` }}>
+              <Icon name={x.icon || 'Building2'} size={wide ? 50 : 56} color="#FFFFFF" stroke={2} />
+              <div style={{ position: 'absolute', right: -10, top: -10, width: 38, height: 38, borderRadius: 19, background: GREEN, display: 'grid', placeItems: 'center', boxShadow: `0 0 14px ${GREEN}`, transform: `scale(${spring({ frame: frame - SECTOR_AT(i) - 8, fps, config: { damping: 10 } })})` }}>
+                <Icon name="Check" size={24} color="#04121F" stroke={3.4} />
+              </div>
+            </div>
+            <div style={{ fontFamily: FONT, fontWeight: 700, fontSize: wide ? 34 : 36, color: '#FFFFFF', textAlign: 'center', lineHeight: 1.35, textShadow: `0 0 12px ${tint(CYAN, 0.5)}` }}>{clean(x.label)}</div>
+          </div>
+        )
+      })}
+    </Stage>
+  )
+}
+
+// breach: the attack nobody sees — a stick-figure worker asleep at the desk at night, the hooded
+// attacker takes over the screen, files fly out; the worker wakes too late
+const BREACH_AT = 22
+const FILES_AT = (i) => 34 + i * 7
+const WAKE_AT = 84
+function Breach({ scene }) {
+  const frame = useCurrentFrame()
+  const { width, height } = useVideoConfig()
+  const wide = width > height
+  const hacked = frame >= BREACH_AT
+  const awake = frame >= WAKE_AT
+  const W = wide ? 880 : 980 // wide: the desk ends ~y 780, its line under it, clear of the subtitles
+  const k = W / 800
+  const left = (width - W) / 2
+  const top = wide ? height * 0.19 : height * 0.36
+  const ink = '#CFE3FF'
+  const line = { stroke: ink, strokeWidth: 6, strokeLinecap: 'round', strokeLinejoin: 'round', fill: 'none' }
+  const shake = awake ? Math.sin(frame * 2.4) * Math.max(0, 1 - (frame - WAKE_AT) / 14) * 6 : 0
+  const scr = [372, 150, 266, 172] // the monitor's screen: x, y, w, h (in the 800 × 520 drawing)
+  return (
+    <Stage alarm={hacked ? 0.55 * (0.6 + 0.4 * Math.sin(frame / 4)) : 0}>
+      <TopTitle text={scene.title} hot={RED} />
+      <div style={{ position: 'absolute', left, top, width: W, height: 520 * k }}>
+        <svg width={W} height={520 * k} viewBox="0 0 800 520" style={{ position: 'absolute', inset: 0, overflow: 'visible' }}>
+          {/* the window: night, a moon */}
+          <rect x="40" y="20" width="200" height="150" rx="8" fill="#06122A" stroke={tint(CYAN, 0.4)} strokeWidth="3" />
+          <line x1="140" y1="20" x2="140" y2="170" stroke={tint(CYAN, 0.3)} strokeWidth="3" />
+          <path d="M200 52 a26 26 0 1 0 14 42 a20 20 0 1 1 -14 -42 Z" fill="#E7ECFF" opacity="0.9" />
+          {/* the desk, the monitor, the keyboard */}
+          <line x1="60" y1="362" x2="760" y2="362" stroke={tint(CYAN, 0.7)} strokeWidth="8" strokeLinecap="round" />
+          <line x1="100" y1="366" x2="100" y2="510" stroke={tint(CYAN, 0.45)} strokeWidth="6" />
+          <line x1="720" y1="366" x2="720" y2="510" stroke={tint(CYAN, 0.45)} strokeWidth="6" />
+          <rect x={scr[0] - 8} y={scr[1] - 8} width={scr[2] + 16} height={scr[3] + 16} rx="12" fill="#0A1426" stroke={hacked ? RED : CYAN} strokeWidth="4" style={{ filter: `drop-shadow(0 0 16px ${hacked ? RED : CYAN})` }} />
+          <rect x={scr[0]} y={scr[1]} width={scr[2]} height={scr[3]} rx="6" fill={hacked ? '#2A0710' : '#06213D'} />
+          {!hacked && [0, 1, 2, 3].map((i) => <rect key={i} x={scr[0] + 20} y={scr[1] + 24 + i * 34} width={60 + ((i * 53) % 150)} height="12" rx="6" fill={tint(CYAN, 0.55)} />)}
+          <rect x="495" y="330" width="20" height="32" fill="#0B2342" />
+          <rect x="460" y="352" width="90" height="10" rx="4" fill="#0B2342" />
+          <rect x="580" y="350" width="120" height="10" rx="4" fill={tint(CYAN, 0.35)} />
+          {/* the chair */}
+          <path d="M150 300 L160 428 L250 428" {...line} stroke={tint(ink, 0.5)} />
+          <line x1="205" y1="428" x2="205" y2="500" stroke={tint(ink, 0.5)} strokeWidth="6" />
+          <line x1="165" y1="500" x2="245" y2="500" stroke={tint(ink, 0.5)} strokeWidth="6" strokeLinecap="round" />
+          {/* the worker — asleep on folded arms; then up with a start */}
+          <g transform={`translate(${shake} 0)`}>
+            <path d="M215 420 L285 424 L290 500 L315 500" {...line} />
+            {awake ? (
+              <g>
+                <path d="M215 420 L222 316" {...line} />
+                <path d="M222 336 L300 354 M222 336 L262 380 L300 360" {...line} />
+                <circle cx="226" cy="284" r="30" fill={BG} stroke={ink} strokeWidth="6" />
+                <circle cx="236" cy="280" r="4" fill={ink} />
+                <ellipse cx="240" cy="296" rx="6" ry="8" fill="none" stroke={ink} strokeWidth="3.5" />
+                <text x="270" y="250" fill={RED} fontFamily="'CFLatin', sans-serif" fontWeight="700" fontSize="56">!</text>
+              </g>
+            ) : (
+              <g>
+                <path d="M215 420 L290 340" {...line} />
+                <path d="M262 352 L352 352" {...line} />
+                <circle cx="318" cy="326" r="30" fill={BG} stroke={ink} strokeWidth="6" />
+                <path d="M308 322 q6 5 12 0" {...line} strokeWidth="3.5" />
+              </g>
+            )}
+          </g>
+          {/* z z z while asleep */}
+          {!awake && [0, 1, 2].map((i) => {
+            const p = ((frame + i * 16) % 48) / 48
+            return <text key={i} x={330 + p * 40 + i * 6} y={286 - p * 90} fill={tint(ink, 0.9)} opacity={1 - p} fontFamily={MONO} fontWeight="700" fontSize={22 + i * 8}>z</text>
+          })}
+        </svg>
+        {/* the attacker on the screen */}
+        {hacked && (
+          <div style={{ position: 'absolute', left: (scr[0] + scr[2] / 2) * k - 70 * k, top: (scr[1] + 6) * k, transform: `scale(${Math.min(1, (frame - BREACH_AT) / 6)})` }}>
+            <Attacker size={140 * k} frame={frame} />
+          </div>
+        )}
+        {/* the files flying out to the attacker */}
+        {[0, 1, 2, 3, 4].map((i) => {
+          const u = interpolate(frame, [FILES_AT(i), FILES_AT(i) + 22], [0, 1], clamp)
+          if (u <= 0 || u >= 1) return null
+          const sx = (scr[0] + scr[2] / 2) * k
+          const sy = (scr[1] + scr[3] / 2) * k
+          return (
+            <div key={i} style={{ position: 'absolute', left: sx + u * (W * 0.55 - sx + i * 30), top: sy - u * (240 + i * 26) * k + Math.sin(u * Math.PI) * -60, opacity: 1 - u * 0.7, transform: `rotate(${u * 40 * (i % 2 ? 1 : -1)}deg)`, filter: glow(RED, 10) }}>
+              <Icon name={['FileText', 'FileSpreadsheet', 'Image', 'Database', 'FileLock'][i]} size={56 * k} color="#FFD7DE" stroke={2} />
+            </div>
+          )
+        })}
+        {/* the time and the alarm */}
+        <div style={{ position: 'absolute', left: 40 * k, top: 186 * k, fontFamily: MONO, fontWeight: 700, fontSize: 30 * k, color: hacked ? RED : SUB, letterSpacing: '0.08em' }}>{clean(scene.time) || '02:13'}</div>
+        {hacked && (
+          <div style={{ position: 'absolute', left: scr[0] * k, width: scr[2] * k, top: (scr[1] + scr[3] + 50) * k, display: 'flex', justifyContent: 'center' }}>
+            <Tag text="BREACH" color={RED} blink size={wide ? 24 : 26} />
+          </div>
+        )}
+      </div>
+      {scene.text && (
+        <div style={{ position: 'absolute', left: 90, right: 90, top: wide ? top + 520 * k + 10 : top + 520 * k + 40, textAlign: 'center', fontFamily: FONT, fontWeight: 600, fontSize: wide ? 34 : 38, color: '#E4EDF9', lineHeight: 1.45, opacity: interpolate(frame, [30, 42], [0, 1], clamp) }}>{clean(scene.text)}</div>
+      )}
+    </Stage>
+  )
+}
+
+// ransom: files locked on a laptop with a countdown, then what's lost cracking one by one
+const LOSS_AT = (i) => 40 + i * 12
+function Ransom({ scene }) {
+  const frame = useCurrentFrame()
+  const { fps, width, height } = useVideoConfig()
+  const wide = width > height
+  const losses = (scene.losses || []).slice(0, 4)
+  const LW = wide ? 760 : 880
+  const lx = wide ? width * 0.08 + 40 : (width - LW) / 2
+  const ly = wide ? height * 0.24 : height * 0.25
+  const SH = LW * 0.58
+  const left = 47 * 3600 + 59 * 60 + 59 - Math.floor(frame / 30)
+  const clock = [Math.floor(left / 3600), Math.floor((left % 3600) / 60), left % 60].map((n) => String(n).padStart(2, '0')).join(':')
+  const lock = spring({ frame: frame - 26, fps, config: { damping: 9 } })
+  return (
+    <Stage alarm={0.4 * (0.6 + 0.4 * Math.sin(frame / 5))}>
+      <TopTitle text={scene.title} hot={RED} />
+      {/* the laptop */}
+      <div style={{ position: 'absolute', left: lx, top: ly, width: LW }}>
+        <div style={{ height: SH, borderRadius: 18, border: `4px solid ${RED}`, background: '#1A0409', boxShadow: `0 0 50px ${tint(RED, 0.4)}`, overflow: 'hidden', position: 'relative' }}>
+          {/* the files, each turning into a lock */}
+          <div style={{ position: 'absolute', inset: 24, display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 12, opacity: 0.55 }}>
+            {[...Array(18)].map((_, i) => (
+              <div key={i} style={{ display: 'grid', placeItems: 'center' }}>
+                <Icon name={frame > 8 + i * 1.5 ? 'FileLock' : 'FileText'} size={LW * 0.06} color={frame > 8 + i * 1.5 ? RED : '#8FA3BF'} stroke={2} />
+              </div>
+            ))}
+          </div>
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, background: `radial-gradient(circle, rgba(26,4,9,0.92) 30%, rgba(26,4,9,0.5))` }}>
+            <div style={{ transform: `scale(${lock})`, filter: glow(RED, 18) }}>
+              <Icon name="LockKeyhole" size={LW * 0.14} color={RED} stroke={2.2} />
+            </div>
+            <span style={{ fontFamily: MONO, fontWeight: 700, fontSize: LW * 0.04, color: '#FFD7DE', letterSpacing: '0.1em' }}>FILES ENCRYPTED</span>
+            <span style={{ fontFamily: MONO, fontWeight: 700, fontSize: LW * 0.07, color: RED, textShadow: `0 0 18px ${RED}`, fontVariantNumeric: 'tabular-nums' }}>{clock}</span>
+          </div>
+        </div>
+        <div style={{ height: 22, margin: '0 -40px', borderRadius: '0 0 18px 18px', background: '#1C2433', borderTop: `3px solid ${tint(RED, 0.5)}` }} />
+      </div>
+      {/* what's lost */}
+      <div style={{ position: 'absolute', ...(wide ? { left: width * 0.6, right: 90, top: 0, bottom: 150, flexDirection: 'column', justifyContent: 'center' } : { left: 70, right: 70, top: ly + SH + 90, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' }), display: 'flex', gap: 20 }}>
+        {losses.map((x, i) => {
+          const s = spring({ frame: frame - LOSS_AT(i), fps, config: { damping: 12 } })
+          const crack = interpolate(frame, [LOSS_AT(i) + 8, LOSS_AT(i) + 16], [0, 1], clamp)
+          const jolt = crack > 0 && crack < 1 ? Math.sin(frame * 3) * 5 : 0
+          return (
+            <div key={i} style={{ position: 'relative', width: wide ? '100%' : 440, display: 'flex', alignItems: 'center', gap: 20, padding: '18px 24px', borderRadius: 18, border: `2px solid ${RED}`, background: 'rgba(42,7,16,0.85)', boxShadow: `0 0 26px ${tint(RED, 0.3)}`, transform: `translateX(${(1 - s) * 120 + jolt}px)`, opacity: s, overflow: 'hidden' }}>
+              <Icon name={x.icon || 'TriangleAlert'} size={wide ? 44 : 48} color={RED} stroke={2.2} />
+              <span style={{ fontFamily: FONT, fontWeight: 700, fontSize: wide ? 38 : 40, color: '#FFFFFF', lineHeight: 1.35 }}>{clean(x.label)}</span>
+              <svg style={{ position: 'absolute', inset: 0 }} width="100%" height="100%" viewBox="0 0 100 40" preserveAspectRatio="none">
+                <path d="M62 0 L58 14 L66 20 L60 40 M58 14 L48 18 M66 20 L76 24" fill="none" stroke="#FFD7DE" strokeWidth="0.8" pathLength={1} strokeDasharray={1} strokeDashoffset={1 - crack} vectorEffect="non-scaling-stroke" />
+              </svg>
+            </div>
+          )
+        })}
+      </div>
+    </Stage>
+  )
+}
+
+/** [frame, sound] for the long-script scenes (sfx.jsx); the first nine use the shared cues. */
+export function cyberCues(scene) {
+  switch (scene.type) {
+    case 'acronym':
+      return [...String(scene.term || '').replace(/[^A-Za-z0-9]/g, '')].slice(0, 6).map((_, i) => [ACRO_AT(i), 'pop'])
+    case 'guard':
+      return [[6, 'shimmer'], [14, 'blop'], [20, 'blop']]
+    case 'sectors':
+      return (scene.sectors || []).slice(0, 6).map((_, i) => [SECTOR_AT(i), 'pop'])
+    case 'breach':
+      return [[BREACH_AT, 'impact'], ...[0, 1, 2, 3, 4].map((i) => [FILES_AT(i), 'swish']), [WAKE_AT, 'drop']]
+    case 'ransom':
+      return [[26, 'impact'], ...(scene.losses || []).slice(0, 4).map((_, i) => [LOSS_AT(i) + 8, 'click'])]
+    default:
+      return null
+  }
+}
+
 /** The scene change: a short glitch — the frame tears into slices, splits red / cyan and settles. */
 function Glitch({ children, presentationDirection, presentationProgress }) {
   const p = presentationProgress
@@ -614,7 +976,10 @@ function Glitch({ children, presentationDirection, presentationProgress }) {
 }
 
 export const CYBER = {
-  scenes: { hook: Hook, flow: Network, step: Attack, notify: Monitor, dashboard: Soc, list: Protections, stat: Stat, reveal: Reveal, cta: Cta },
+  scenes: {
+    hook: Hook, flow: Network, step: Attack, notify: Monitor, dashboard: Soc, list: Protections, stat: Stat, reveal: Reveal, cta: Cta,
+    acronym: Acronym, guard: Guard, sectors: Sectors, breach: Breach, ransom: Ransom, // for long scripts
+  },
   root: { backgroundColor: BG },
   transitions: [() => ({ component: Glitch, props: {} })],
   linearTransitions: true,

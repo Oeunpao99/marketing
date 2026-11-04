@@ -1,6 +1,6 @@
 // The Remotion video templates (motion/src — MotionPost.jsx, explainer.jsx,
 // goaltemplates.jsx) and which content goal uses which. Mirrors the backend:
-// app/motion.py STYLES / GOAL_STYLES. `story` is the chat's Story value
+// app/video/motion/ STYLES / GOAL_STYLES. `story` is the chat's Story value
 // (AIPromptPage MOTION_STORIES); the preview pictures are made by
 // motion/tools/make_previews.sh into public/templates/.
 //
@@ -203,7 +203,19 @@ export const MOTION_TEMPLATES = [
     goals: [],
   },
   {
-    // a Picture story drawn as black-ink stick figures (app/motion.py STYLE_ALIASES "stickman")
+    // a Picture story painted as colour stick-figure cartoons (app/video/motion/ STYLE_ALIASES "stickcolor")
+    id: 'stickcolor',
+    story: 'stickcolor',
+    added: '2026-11-04T10:30:00+07:00',
+    name: 'Stick figures · Colour',
+    bestFor: 'money and life-skills stories — budgeting, paying off debt, saving, habits — told scene by scene',
+    look: 'An AI-painted colour cartoon for every scene — round-headed stick figures in cosy rooms with a warm lamp, a market, a bank; each person keeps their own colour in every picture. The key words and amounts appear as big text on each picture, read out by the voice-over',
+    steps: ['The hook', 'The story, picture by picture', 'The turn', 'The lesson'],
+    note: 'Paste your whole script (up to 10 minutes) or just the idea. Every picture is painted by the image AI; amounts and words are put on as real text, so they are never misspelled',
+    goals: ['education', 'awareness', 'followers', 'reach'],
+  },
+  {
+    // a Picture story drawn as black-ink stick figures (app/video/motion/ STYLE_ALIASES "stickman")
     id: 'stickman',
     story: 'stickman',
     added: '2026-10-29T16:00:00+07:00',
@@ -272,6 +284,17 @@ export const MOTION_TEMPLATES = [
     look: 'A little story with a lesson: two cartoon villagers start the same — the same job, the same shop — and choose differently. A Cambodian village with sugar palms, rice fields, a river, a market or a city street, morning to night; a chalkboard counting their numbers, a split “poor vs rich” moment, the moral on a palm-leaf book',
     steps: ['Two people, the same start', 'What each one does, day by day', 'The numbers change', 'The turn: one path vs the other', 'The lesson', 'Which one are you?'],
     note: 'For money, work, business and marketing lessons — or your product as the smarter choice. All drawn, no pictures to pay for; the titles are in your brand colour',
+    goals: ['education', 'reach', 'followers'],
+  },
+  {
+    id: 'lifestory',
+    story: 'lifestory',
+    added: '2026-11-04T09:45:00+07:00',
+    name: 'Life story · One person',
+    look: 'One person’s money or life journey as a warm cartoon — our own character in a krama in cosy painted Cambodian rooms, holding the things that tell the story: the salary envelope opening, debts written in a notebook, a bill stamped PAID, a calendar crossing off the month, savings filling a jar',
+    steps: ['The question', 'Their situation', 'Written down', 'Month by month', 'The happy turn', 'The lesson', 'Share / follow'],
+    note: 'Paste their story with the real amounts — every number on screen is exactly the story’s, never made up. 1-3 rooms are painted for each video',
+    bestFor: 'money and life stories — budgeting a salary, paying off debt, saving, a small business, a habit that changed things',
     goals: ['education', 'reach', 'followers'],
   },
   {
@@ -505,7 +528,7 @@ export const MOTION_TEMPLATES = [
 ]
 
 // Each goal's templates — the weekly plan takes one of them at random per
-// video (app/motion.py GOAL_STYLES).
+// video (app/video/motion/ GOAL_STYLES).
 export const GOAL_TEMPLATES = {
   reach: ['pov', 'teach', 'countdown', 'thisorthat', 'hottake'],
   followers: ['quote', 'teach', 'tips', 'countdown', 'hottake'],

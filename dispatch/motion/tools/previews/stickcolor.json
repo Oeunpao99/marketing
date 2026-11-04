@@ -1,0 +1,62 @@
+{
+  "brand": {
+    "name": "Smart Marketing",
+    "color": "#2F6FD6",
+    "logo": "ours/smart-marketing.png",
+    "slug": "smart-marketing"
+  },
+  "style": "picture",
+  "frame": 75,
+  "scenes": [
+    {
+      "type": "shot",
+      "title": "ប្រាក់ខែ ⟦$350⟧ តែ​​ជំពាក់ ⟦$1,200⟧",
+      "image": "decor/stickcolor/sample-1.jpg",
+      "ink": {
+        "text": "#FFFFFF",
+        "accent": "#2f6fd6"
+      },
+      "side": "left",
+      "art": "stickcolor",
+      "seconds": 5
+    }
+  ],
+  "clip": [
+    {
+      "type": "shot",
+      "title": "ប្រាក់ខែ ⟦$350⟧ តែ​​ជំពាក់ ⟦$1,200⟧",
+      "image": "decor/stickcolor/sample-1.jpg",
+      "ink": {
+        "text": "#FFFFFF",
+        "accent": "#2f6fd6"
+      },
+      "side": "left",
+      "art": "stickcolor",
+      "seconds": 3.6
+    },
+    {
+      "type": "shot",
+      "title": "សង​​បន្តិចៗ ⟦រៀងរាល់​​ខែ⟧",
+      "image": "decor/stickcolor/sample-2.jpg",
+      "ink": {
+        "text": "#FFFFFF",
+        "accent": "#2f6fd6"
+      },
+      "side": "right",
+      "art": "stickcolor",
+      "seconds": 3.6
+    },
+    {
+      "type": "shot",
+      "title": "ខែ​​ទី ៧ — ⟦សល់ $500⟧",
+      "image": "decor/stickcolor/sample-3.jpg",
+      "ink": {
+        "text": "#FFFFFF",
+        "accent": "#2f6fd6"
+      },
+      "side": "left",
+      "art": "stickcolor",
+      "seconds": 3.6
+    }
+  ]
+}
