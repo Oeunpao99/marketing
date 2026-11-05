@@ -24,6 +24,7 @@ import {
   FiTrash2,
   FiVideo,
   FiX,
+  FiShare2,
 } from 'react-icons/fi'
 import { useStore } from '../store'
 import { api } from '../api/client'
@@ -44,6 +45,7 @@ import WriterModelSelect, { useWriterModels, writerHint, writerModelNow } from '
 import { aiModelStore } from '../api/client'
 import { MOTION_TEMPLATES, previewSrc } from '../lib/motionTemplates'
 import MakingDrawer from '../components/studio/MakingDrawer'
+import ShareDrawer from '../components/studio/ShareDrawer'
 import { backupName, useVoiceStatus } from '../lib/voiceStatus'
 import KiriVoicePicker, { kiriGender } from '../components/studio/KiriVoicePicker'
 import { BrandMark, useBrandLogos, useBrandMarks } from '../lib/brandMarks'
@@ -524,6 +526,16 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
     const s = location.state
     if (!s) return
     if (s.brandSlug) setBrand(s.brandSlug)
+    // Making now → "Open": the chat holding that video, scrolled to its progress card
+    if (s.openJob) {
+      api
+        .get(`/ai/chats/by-job/${s.openJob}`)
+        .then(async ({ chat_id }) => {
+          await openChat(chat_id)
+          setTimeout(() => document.querySelector(`[data-job="${s.openJob}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 400)
+        })
+        .catch(() => showToast('That video isn’t in your chats — it shows in your Library when it’s done'))
+    }
     // A template picked in Content studio → Templates: Remotion, with that story.
     if (s.motionStory) {
       setType('video')
@@ -2136,7 +2148,7 @@ function AskTurn({ t, onRetry, onGenerate, onEdit, onUseDraft }) {
   }
 
   return (
-    <div className="space-y-4 animate-fadein">
+    <div className="space-y-4 animate-fadein" data-job={t.jobId || undefined}>
       <div className="flex flex-col items-end">
         <div className={`max-w-[70%] rounded-2xl rounded-br-md bg-brand-soft/70 px-4 py-2.5 text-[13px] leading-relaxed text-ink-900 whitespace-pre-wrap ${khmer(t.prompt)}`}>
           {t.refPreview && (
@@ -2363,6 +2375,7 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary, onPlanChange, onMake,
   const [expanded, setExpanded] = useState(false)
   const [viewing, setViewing] = useState(false)
   const [making, setMaking] = useState(false) // a Remotion video's "How it was made"
+  const [sharing, setSharing] = useState(false) // Share for approval (the boss's link)
   // A Remotion video that just finished: 'in' = the card shows it complete,
   // 'out' = it fades, then false = the video reveals itself (animate-media-reveal)
   const [finishing, setFinishing] = useState(false)
@@ -2435,7 +2448,7 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary, onPlanChange, onMake,
   }
 
   return (
-    <div className="space-y-4 animate-fadein">
+    <div className="space-y-4 animate-fadein" data-job={t.jobId || undefined}>
       {/* your prompt */}
       <div className="flex flex-col items-end">
         <div className="max-w-[70%] rounded-2xl rounded-br-md bg-brand-soft/70 px-4 py-2.5 text-[13px] leading-relaxed text-ink-900 whitespace-pre-wrap">
@@ -2586,6 +2599,7 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary, onPlanChange, onMake,
               </div>
             )}
             {making && <MakingDrawer jobId={t.jobId} onClose={() => setMaking(false)} />}
+            {sharing && t.video?.id && <ShareDrawer videoId={t.video.id} onClose={() => setSharing(false)} />}
             {viewing && (
               <MediaViewer
                 url={url}
@@ -2609,6 +2623,11 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary, onPlanChange, onMake,
               <IconBtn title="Regenerate" onClick={onRegenerate}>
                 <FiRefreshCw size={14} />
               </IconBtn>
+              {t.video?.id && (
+                <IconBtn title="Share for approval — a link your boss opens, no download" onClick={() => setSharing(true)}>
+                  <FiShare2 size={14} />
+                </IconBtn>
+              )}
               {motion && t.jobId && (
                 <IconBtn title="How it was made — script, voice and scenes" onClick={() => setMaking(true)}>
                   <FiLayers size={14} />
@@ -2704,7 +2723,7 @@ function MediaViewer({ url, isImage, filename, onUse, onClose }) {
 
 function StoryTurn({ t, onEdit, onRetry, onDeleted }) {
   return (
-    <div className="space-y-4 animate-fadein">
+    <div className="space-y-4 animate-fadein" data-job={t.jobId || undefined}>
       <div className="flex flex-col items-end">
         <div className="max-w-[70%] rounded-2xl rounded-br-md bg-brand-soft/70 px-4 py-2.5 text-[13px] leading-relaxed text-ink-900 whitespace-pre-wrap">
           {t.prompt}

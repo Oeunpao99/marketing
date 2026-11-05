@@ -26,7 +26,9 @@ import {
   FiSmartphone,
   FiTrash2,
   FiX,
+  FiShare2,
 } from 'react-icons/fi'
+import ShareDrawer from '../components/studio/ShareDrawer'
 import { api } from '../api/client'
 import AutoTextarea from '../components/ui/AutoTextarea'
 import MarkdownText from '../components/ui/MarkdownText'
@@ -1217,6 +1219,7 @@ function DetailPanel({ it, busy, folders, onClose, onUse, onDelete, onRewrite, o
   const target = ratioOf(it) > 1 ? '9:16' : '16:9'
   const [shape, setShape] = useState(null) // { id, redraw, pct } while it's being made
   const [saving, setSaving] = useState(false)
+  const [sharing, setSharing] = useState(false) // Share for approval
   const [angle, setAngle] = useState('')
   const [goal, setGoal] = useState('')
   const [showPrompt, setShowPrompt] = useState(false)
@@ -1462,9 +1465,13 @@ function DetailPanel({ it, busy, folders, onClose, onUse, onDelete, onRewrite, o
             <button type="button" onClick={() => onUse(text)} className="btn-primary">
               <FiSend size={13} /> Use in post
             </button>
+            <button type="button" onClick={() => setSharing(true)} title="A link your boss opens to approve it — no download" className="btn-outline">
+              <FiShare2 size={13} /> Share for approval
+            </button>
             <a href={abs(it.url)} download={it.filename} className="btn-outline">
               <FiDownload size={13} /> Download
             </a>
+            {sharing && <ShareDrawer videoId={it.id} caption={text} onClose={() => setSharing(false)} />}
             {it.editable && (
               <button type="button" onClick={() => navigate(`/library/edit/${it.id}`)} title="Change the words, the voice lines, the order and the sound — saved as a new video" className="btn-outline">
                 <FiEdit3 size={13} /> Edit video

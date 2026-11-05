@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { FiClock, FiFilm, FiImage, FiRefreshCw, FiVideo } from 'react-icons/fi'
+import { FiArrowRight, FiClock, FiFilm, FiImage, FiRefreshCw, FiVideo } from 'react-icons/fi'
 import { templateById } from '../../lib/motionTemplates'
 
 // Admin portal → Making now (backend app/admin/admin.py GET /making): every video and
@@ -57,7 +57,7 @@ function ProgressIcon({ job }) {
   )
 }
 
-function JobRow({ job, onOpen, team }) {
+function JobRow({ job, onOpen, team, meId, onOpenJob }) {
   const kind = KIND[job.kind] || KIND.motion
   const template = job.template ? templateById(job.template)?.name || job.template : ''
   const waiting = job.status === 'queued'
@@ -96,11 +96,17 @@ function JobRow({ job, onOpen, team }) {
         </div>
         {job.prompt && <p className="mt-2 truncate text-[12px] text-ink-500" title={job.prompt}>“{job.prompt}”</p>}
       </div>
+      {/* your own: straight to its progress card in Quick content */}
+      {team && onOpenJob && meId != null && job.user_id === meId && (
+        <button type="button" onClick={() => onOpenJob(job.id)} className="inline-flex h-9 flex-none items-center gap-1.5 rounded-xl border border-ink-200 px-3 text-[12.5px] font-semibold text-ink-700 hover:border-brand hover:text-brand">
+          Open <FiArrowRight size={14} />
+        </button>
+      )}
     </div>
   )
 }
 
-export default function MakingNow({ api, onOpen = () => {}, team = false }) {
+export default function MakingNow({ api, onOpen = () => {}, team = false, meId = null, onOpenJob = null }) {
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
   const load = useCallback(async () => {
@@ -150,7 +156,7 @@ export default function MakingNow({ api, onOpen = () => {}, team = false }) {
         {!data && !error ? (
           [0, 1].map((i) => <div key={i} className={`${card} h-[104px] skeleton`} />)
         ) : jobs.length ? (
-          jobs.map((j) => <JobRow key={j.id} job={j} onOpen={onOpen} team={team} />)
+          jobs.map((j) => <JobRow key={j.id} job={j} onOpen={onOpen} team={team} meId={meId} onOpenJob={onOpenJob} />)
         ) : (
           <div className={`${card} px-6 py-14 text-center`}>
             <FiFilm size={26} className="mx-auto text-ink-300" />

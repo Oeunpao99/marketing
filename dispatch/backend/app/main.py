@@ -33,6 +33,8 @@ from app.video.motion import router as motion_router
 from app.video.motion import sketch_router as motion_sketch_router
 from app.ai.gemini_keys import router as gemini_keys_router
 from app.core.views import public_router as views_public_router
+from app.planning.approvals import public_router as approvals_public_router
+from app.planning.approvals import router as approvals_router
 from app.core.views import router as views_router
 from app.planning.weekly import router as weekly_router
 from app.website.website import router as website_router
@@ -176,6 +178,8 @@ api.include_router(sales_alerts_router, dependencies=authed)
 api.include_router(boosts_router, dependencies=[*authed, Depends(plan_features.needs("boost"))])  # Growth and up
 api.include_router(ai_models_router, dependencies=authed)
 api.include_router(views_public_router)
+api.include_router(approvals_router, dependencies=authed)  # Share for approval (the team's side)
+api.include_router(approvals_public_router)  # public: the boss's approval page — the unguessable token is the key
 api.include_router(payments_public_router)  # public: the website's plan prices (no sign-in)
 api.include_router(motion_sketch_router)  # scene pictures behind an unguessable code (an <img> has no login)
 api.include_router(leads_intake_router)  # chatbots: X-ContentFlow-Key, no login

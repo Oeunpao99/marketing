@@ -286,6 +286,7 @@ def making_now(db: Session, workspace_id: int | None = None) -> dict:
                 "workspace_id": j.workspace_id,
                 "brand": brands.get(j.brand_id, ""),
                 "user": users.get(j.user_id, ""),
+                "user_id": j.user_id,
                 "template": p.get("style") or "",
                 "stage": _STAGE_LABEL.get(p.get("stage"), "Waiting its turn" if waiting else "Working"),
                 "percent": _job_percent(p) if p else None,

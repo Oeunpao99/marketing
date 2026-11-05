@@ -79,6 +79,21 @@ def list_chats(
     return [_summary(c) for c in rows]
 
 
+@router.get("/by-job/{job_id}")
+def chat_of_job(job_id: int, db: Session = Depends(get_db), user: TeamMember = Depends(get_current_user)):
+    """The chat of mine whose thread holds this video / picture (Content studio →
+    Making now's "Open": straight to its progress card). 404 = not one of mine."""
+    for chat in db.scalars(
+        select(AgentChat)
+        .where(AgentChat.user_id == user.id, AgentChat.workspace_id == user.workspace_id)
+        .order_by(AgentChat.updated_at.desc())
+        .limit(200)
+    ):
+        if any(isinstance(t, dict) and t.get("jobId") == job_id for t in chat.turns or []):
+            return {"chat_id": chat.id}
+    raise HTTPException(404, "That one isn't in your chats.")
+
+
 @router.get("/{chat_id}")
 def get_chat(chat_id: int, db: Session = Depends(get_db), user: TeamMember = Depends(get_current_user)):
     chat = _own(db, user, chat_id)

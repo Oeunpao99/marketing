@@ -16,6 +16,7 @@ import InsightsPage from "./pages/InsightsPage";
 import InsightsPostPage from "./pages/InsightsPostPage";
 import JoinPage from "./pages/JoinPage";
 import LegalPage from "./pages/LegalPage";
+import ApprovePage from "./pages/ApprovePage";
 import LibraryPage from "./pages/LibraryPage";
 import VideoEditPage from './pages/VideoEditPage'
 import EditorPage from './pages/EditorPage'
@@ -177,6 +178,9 @@ export default function App() {
   // the how-to videos for training sessions — anyone can watch, no sign-in;
   // the landing page's header and footer, "Log in" / "Start free" go to the sign-in
   // the developer docs for the API and MCP connector (pages/DevelopersPage.jsx) — public, like the tutorials
+  // Share for approval: the boss's page — no sign-in, the unguessable link is the key
+  const approve = path.match(/^\/approve\/([A-Za-z0-9_-]{20,60})$/);
+  if (approve) return <Public><ApprovePage token={approve[1]} /></Public>;
   if (path === "/developers")
     return (
       <Public>

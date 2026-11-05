@@ -1211,3 +1211,26 @@ class BoostBudget(Base, TimestampMixin):
     monthly_usd: Mapped[float] = mapped_column(Numeric(10, 2))
     approved_by: Mapped[int | None] = mapped_column(ForeignKey("team_members.id", ondelete="SET NULL"), nullable=True)
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class ApprovalLink(Base, TimestampMixin):
+    """A finished video / picture shared for approval (app/planning/approvals.py): an
+    unguessable link the team sends their boss — no account, no download. The boss
+    watches it and approves or asks for changes; a revised video goes on the same
+    link as the next version. Ends at ``expires_at`` or when turned off (``revoked``)."""
+
+    __tablename__ = "approval_links"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
+    brand_id: Mapped[int | None] = mapped_column(ForeignKey("brands.id", ondelete="SET NULL"), nullable=True)
+    video_id: Mapped[int | None] = mapped_column(ForeignKey("videos.id", ondelete="SET NULL"), nullable=True, index=True)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("team_members.id", ondelete="SET NULL"), nullable=True)
+    token: Mapped[str] = mapped_column(String(48), unique=True, index=True)
+    caption: Mapped[str] = mapped_column(Text, default="", server_default="")
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    status: Mapped[str] = mapped_column(String(12), default="pending", server_default="pending")  # pending | approved | changes
+    comment: Mapped[str] = mapped_column(Text, default="", server_default="")
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    revoked: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
