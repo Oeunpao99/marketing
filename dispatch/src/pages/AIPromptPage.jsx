@@ -1034,16 +1034,16 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
       status: 'working',
       startedAt: Date.now(),
     }
-    // A short image idea ("create me an image for my shop") with no product,
-    // template or picture of its own: the prompt writer (✦ Write it for me)
-    // turns it into a full brief from the brand's real products — and a brand
-    // with one product that has a photo sends that photo, so the real product
-    // is in the picture. Longer prompts go exactly as typed.
+    // A short image idea ("create me an image for my shop") with no template or
+    // picture of its own: the prompt writer (✦ Write it for me) turns it into a
+    // full brief from the brand's real products — about the product picked in
+    // Brand kit only (its photo goes along), else a brand with one product that
+    // has a photo sends that one. Longer prompts go exactly as typed.
     const words = prompt.split(/\s+/).filter(Boolean).length
-    const short = turn.kind === 'image' && brandObj && turn.branded !== false && !turn.refUrl && !turn.refUrls.length && !turn.kit?.productId && !turn.kit?.templateId && words <= 8
+    const short = turn.kind === 'image' && brandObj && turn.branded !== false && !turn.refUrl && !turn.refUrls.length && !turn.kit?.templateId && words <= 8
     if (short && kitProducts.length) {
       const only = kitProducts.length === 1 ? kitProducts[0] : null
-      const pid = only && kitPhotos.some((a) => a.product_id === only.id) ? only.id : null
+      const pid = turn.kit?.productId ?? (only && kitPhotos.some((a) => a.product_id === only.id) ? only.id : null)
       const auto = pid ? { ...turn, kit: { templateId: null, logo: false, ...(turn.kit || {}), productId: pid } } : turn
       setTurns((list) => [...list, auto])
       setText('')
