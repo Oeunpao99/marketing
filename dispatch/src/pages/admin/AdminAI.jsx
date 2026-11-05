@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { FiCheck, FiRefreshCw } from 'react-icons/fi'
+import { FiRefreshCw } from 'react-icons/fi'
 import ModelLogo from '../../components/ui/ModelLogo'
 import { AccountBars, ModelDonut, SpendLine } from './AdminCharts'
 
@@ -357,29 +357,27 @@ export function AccountAiSection({ id, api }) {
   const label = (k) => data.catalog.find((c) => c.key === k)?.label || k || 'Other'
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => save(all ? data.catalog.map((c) => c.key) : null)}
-          className={`rounded-full px-3 py-1.5 text-[12px] font-semibold ${all ? 'bg-brand text-white' : 'bg-ink-100 text-ink-600'}`}
-        >
-          {all ? 'All models' : 'Allow all'}
-        </button>
+      {/* one row per model with an on / off switch; "All models" on top = every model the platform offers (null) */}
+      <div className="divide-y divide-ink-100 overflow-hidden rounded-2xl border border-ink-200">
+        <div className="flex items-center gap-3 bg-ink-50 px-3.5 py-2.5">
+          <div className="min-w-0 flex-1">
+            <div className="text-[12.5px] font-semibold text-ink-900">All models</div>
+            <div className="text-[11px] text-ink-500">{all ? 'Every model the platform offers — new ones too' : 'Only the models switched on below'}</div>
+          </div>
+          <Switch on={all} disabled={busy} onChange={(v) => save(v ? null : data.catalog.map((c) => c.key))} label="All models" />
+        </div>
         {data.catalog.map((c) => {
           const on = allowed.includes(c.key)
           return (
-            <button
-              key={c.key}
-              type="button"
-              disabled={busy}
-              onClick={() => toggle(c.key)}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-semibold ${on ? 'border-brand bg-brand-soft text-brand' : 'border-ink-200 text-ink-500'}`}
-            >
-              {on ? <FiCheck size={12} /> : <ModelLogo model={c.key} size={13} />}
-              {c.label}
-              {data.default === c.key && <span className="text-[10.5px] font-medium">· default</span>}
-            </button>
+            <div key={c.key} className={`flex items-center gap-3 px-3.5 py-2.5 ${all ? 'opacity-60' : ''}`}>
+              <ModelLogo model={c.key} size={16} />
+              <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-ink-800">
+                {c.label}
+                {data.default === c.key && <span className="ml-1.5 rounded-full bg-brand-soft px-1.5 py-px text-[10.5px] font-semibold text-brand">default</span>}
+              </span>
+              {/* while "All models" is on every model is allowed — switch that off to pick */}
+              <Switch on={on} disabled={busy || all} onChange={() => toggle(c.key)} label={c.label} />
+            </div>
           )
         })}
       </div>
@@ -417,5 +415,22 @@ export function AccountAiSection({ id, api }) {
         </table>
       )}
     </div>
+  )
+}
+
+/** An on / off switch (the same look as Autopilot's). */
+function Switch({ on, onChange, disabled = false, label = '' }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      disabled={disabled}
+      onClick={() => onChange(!on)}
+      className={`relative h-[19px] w-[34px] flex-none rounded-full transition-colors duration-150 disabled:cursor-not-allowed ${on ? 'bg-brand' : 'bg-ink-300'}`}
+    >
+      <span className={`absolute left-[2px] top-[2px] h-[15px] w-[15px] rounded-full bg-white shadow transition-transform duration-150 ${on ? 'translate-x-[15px]' : ''}`} />
+    </button>
   )
 }

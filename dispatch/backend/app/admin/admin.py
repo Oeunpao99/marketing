@@ -1011,8 +1011,8 @@ def admin_workspace_ai(ws_id: int, days: int = 30, db: Session = Depends(get_db)
     for r in users:
         r["user"] = names.get(r.pop("who"), "Automations")
     return {
-        "default": w.ai_model,
-        "allowed": w.ai_models_allowed,  # null = every enabled model
+        "default": ai_models.RENAMED.get(w.ai_model, w.ai_model),
+        "allowed": _known_models(w.ai_models_allowed),  # null = every enabled model
         "catalog": [{"key": k, "label": v["label"]} for k, v in ai_models.CATALOG.items()],
         "usage": users,
     }
@@ -1022,19 +1022,34 @@ class AllowedIn(BaseModel):
     allowed: list[str] | None = None  # null = every enabled model
 
 
+def _known_models(keys: list[str] | None) -> list[str] | None:
+    """A saved allowed list in today's catalog: a renamed model as its successor (Opus → Sonnet), one
+    that left the catalog dropped — a list saved before the change came back and was refused as
+    "Unknown model: claude-opus-5-5" (the user, 2026-11-05)."""
+    from app.ai import ai_models
+
+    if keys is None:
+        return None
+    out: list[str] = []
+    for k in keys:
+        k = ai_models.RENAMED.get(k, k)
+        if k in ai_models.CATALOG and k not in out:
+            out.append(k)
+    return out
+
+
 @router.post("/workspaces/{ws_id}/ai-models", dependencies=[Depends(require_admin)])
 def admin_set_workspace_models(ws_id: int, payload: AllowedIn, db: Session = Depends(get_db)):
     from app.ai import ai_models
 
     w = _workspace(db, ws_id)
-    if payload.allowed is not None:
-        unknown = [k for k in payload.allowed if k not in ai_models.CATALOG]
-        if unknown:
-            raise HTTPException(422, f"Unknown model: {', '.join(unknown)}")
-        if w.ai_model and w.ai_model not in payload.allowed:
+    allowed = _known_models(payload.allowed)
+    if allowed is not None:
+        w.ai_model = ai_models.RENAMED.get(w.ai_model, w.ai_model)
+        if w.ai_model and w.ai_model not in allowed:
             w.ai_model = ""  # their default isn't allowed any more — back to the platform's
-    w.ai_models_allowed = payload.allowed
+    w.ai_models_allowed = allowed
     db.commit()
     ai_models.forget_workspace(ws_id)
-    log.warning("admin portal: workspace %s AI models -> %s", ws_id, payload.allowed)
+    log.warning("admin portal: workspace %s AI models -> %s", ws_id, allowed)
     return {"allowed": w.ai_models_allowed, "default": w.ai_model}
