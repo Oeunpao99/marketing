@@ -916,8 +916,8 @@ function AutopilotWriter() {
   const models = data.models || []
   const platform = models.find((m) => m.key === data.platform_default)
   const options = [
-    { value: '', label: `Platform default${platform ? ` · ${platform.label}` : ''}`, hint: 'Chosen by Marketing ឆ្លាតវៃ', icon: <CostTier tier={platform?.tier} /> },
-    ...models.map((m) => ({ value: m.key, label: m.label, hint: m.blurb, icon: <CostTier tier={m.tier} /> })),
+    { value: '', label: `Platform default${platform ? ` · ${platform.label}` : ''}`, hint: 'Chosen by Marketing ឆ្លាតវៃ', icon: <CostTier tier={platform?.tier} model={platform?.key} /> },
+    ...models.map((m) => ({ value: m.key, label: m.label, hint: m.blurb, icon: <CostTier tier={m.tier} model={m.key} /> })),
   ]
   const pick = async (key) => {
     setSaving(true)

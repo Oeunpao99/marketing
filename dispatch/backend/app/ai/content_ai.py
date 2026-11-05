@@ -652,10 +652,20 @@ def writer_model(khmer: bool = False) -> str:
     return ai_models.choose(platform)
 
 
+def ai_models_catalog() -> dict:
+    from app.ai import ai_models
+
+    return ai_models.CATALOG
+
+
 def _endpoint_for(model: str) -> tuple[str, str]:
     """(endpoint, key) for a model — the writer may sit on its own resource."""
     cfg = get_settings()
-    if model and model == cfg.azure_openai_writer_deployment and cfg.azure_openai_writer_endpoint and cfg.azure_openai_writer_api_key:
+    # every writing model (the writer and the others a customer may pick — gpt-5, gpt-6.1-sol) sits on the
+    # writer's resource; AZURE_OPENAI_ENDPOINT ends in /responses, so "/chat/completions" after it is no URL
+    if model and cfg.azure_openai_writer_endpoint and cfg.azure_openai_writer_api_key and (
+        model == cfg.azure_openai_writer_deployment or model in ai_models_catalog()
+    ):
         return cfg.azure_openai_writer_endpoint, cfg.azure_openai_writer_api_key
     return cfg.azure_openai_endpoint, cfg.azure_openai_api_key
 

@@ -1215,7 +1215,7 @@ function AiModelSection({ canManage, showToast }) {
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="inline-flex items-center gap-2 text-[13px] font-semibold text-ink-900">
-                  <CostTier tier={m.tier} size="md" />
+                  <CostTier tier={m.tier} model={m.key} size="md" />
                   {m.label}
                 </span>
                 <span className="text-[11px] font-bold text-ink-400">{saving === (m.key || 'default') ? 'Saving…' : on ? 'Default' : ''}</span>
@@ -1243,7 +1243,7 @@ function AiModelSection({ canManage, showToast }) {
                   <td className="px-3.5 py-1.5">{r.user}</td>
                   <td className="px-2 py-1.5">
                     <span className="inline-flex items-center gap-1.5">
-                      <CostTier />
+                      <CostTier model={r.model} />
                       {r.label || label(r.model)}
                     </span>
                   </td>

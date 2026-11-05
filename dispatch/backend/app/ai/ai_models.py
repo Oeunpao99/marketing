@@ -32,7 +32,8 @@ from app.models import AiModel, Workspace
 # key → the model; the key is also the deployment / model name. "label" and
 # "vendor" are for the admin portal only — customers see "name" (no maker).
 CATALOG: dict[str, dict] = {
-    "gpt-5": {"label": "GPT-5", "name": "Default model", "vendor": "OpenAI", "provider": "azure_openai", "blurb": "Strong planner, follows every rule — the default"},
+    "gpt-6.1-sol": {"label": "GPT-6.1 Sol", "name": "Pro model", "vendor": "OpenAI", "provider": "azure_openai", "blurb": "Newest — sharper Khmer, fast, the best value"},
+    "gpt-5": {"label": "GPT-5", "name": "Standard model", "vendor": "OpenAI", "provider": "azure_openai", "blurb": "Strong planner, follows every rule"},
     "gpt-5-mini": {"label": "GPT-5 mini", "name": "Fast model", "vendor": "OpenAI", "provider": "azure_openai", "blurb": "Fastest and cheapest — quick drafts"},
     "claude-sonnet-5-5": {"label": "Claude Sonnet 5.5", "name": "Advanced model", "vendor": "Anthropic", "provider": "azure_claude", "blurb": "Most natural Khmer storytelling — uses up your plan faster"},
     "gemini-4-argon": {"label": "Gemini 4 Argon", "name": "Quick Khmer model", "vendor": "Google", "provider": "gemini", "blurb": "Very fast, natural Khmer"},

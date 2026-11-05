@@ -69,6 +69,7 @@ def to_credits(usd: float) -> float:
 # Text: per 1M tokens (input, output). Matched by the longest prefix of the
 # model / deployment name; unknown models use DEFAULT_TEXT.
 TEXT_PRICES = {
+    "gpt-6.1-sol": (2.00, 10.00),  # Azure Global Standard, short context (retail price list, 2026-11-05)
     "gpt-5-nano": (0.05, 0.40),
     "gpt-5-mini": (0.25, 2.00),
     "gpt-5": (1.25, 10.00),

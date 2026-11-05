@@ -54,13 +54,13 @@ export default function WriterModelSelect({ size = 'sm', className = 'min-w-0 fl
       value: '',
       label: `Workspace default${fallback ? ` · ${fallback.label}` : ''}`,
       hint: 'Set in Settings → AI model',
-      icon: <CostTier tier={fallback?.tier} />,
+      icon: <CostTier tier={fallback?.tier} model={fallback?.key} />,
     },
     ...models.map((m) => ({
       value: m.key,
       label: m.label,
       hint: m.blurb,
-      icon: <CostTier tier={m.tier} />,
+      icon: <CostTier tier={m.tier} model={m.key} />,
     })),
   ]
   return (
