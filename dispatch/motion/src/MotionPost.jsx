@@ -663,7 +663,7 @@ function Chrome({ scenes, brand }) {
             border: brand.logoLight ? '1px solid rgba(255,255,255,0.14)' : 0,
             padding: brand.logo ? '10px 14px' : '14px 28px',
             boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
-          }, true),
+          }, brand.logoDark),
         }}
       >
         {/* The logo alone — it already says who we are; the name only when there's no logo. */}

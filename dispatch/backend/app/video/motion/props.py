@@ -232,11 +232,11 @@ def logo_prints(logo: str | None) -> bool:
         return False
 
 
-def logo_is_light(logo: str | None) -> bool:
-    """A light logo on a see-through ground (a white logo) — it vanishes on the
-    white brand chip, so the video puts it on a dark one."""
-    if not logo_prints(logo):  # a logo with its own solid ground shows on any chip
-        return False
+def _logo_ink(logo: str | None) -> tuple[float, float] | None:
+    """A see-through logo's drawn part: (mean brightness 0 black – 255 white, share of it
+    that is dark); None for a logo with its own solid ground, or one that can't be read."""
+    if not logo_prints(logo):
+        return None
     try:
         from PIL import Image, ImageStat
 
@@ -244,10 +244,27 @@ def logo_is_light(logo: str | None) -> bool:
         im.thumbnail((200, 200))
         ink = im.getchannel("A").point(lambda a: 255 if a > 128 else 0)  # its drawn part only
         if not ink.getbbox():
-            return False
-        return ImageStat.Stat(im.convert("L"), mask=ink).mean[0] > 185
-    except Exception:  # noqa: BLE001 — the usual white chip
-        return False
+            return None
+        grey = im.convert("L")
+        drawn = [g for g, a in zip(grey.getdata(), ink.getdata()) if a]
+        return ImageStat.Stat(grey, mask=ink).mean[0], sum(1 for g in drawn if g < 70) / len(drawn)
+    except Exception:  # noqa: BLE001 — the usual chip
+        return None
+
+
+def logo_is_light(logo: str | None) -> bool:
+    """A light logo on a see-through ground (a white logo) — it vanishes on the
+    white brand chip, so the video puts it on a dark one."""
+    ink = _logo_ink(logo)
+    return ink is not None and ink[0] > 185
+
+
+def logo_is_dark(logo: str | None) -> bool:
+    """A see-through logo with black / navy parts (a red mark + black name too) — on a dark
+    video they need a thin light edge; an all-colour logo gets none (a white glow round every
+    PNG looked cheap, the user 2026-11-04)."""
+    ink = _logo_ink(logo)
+    return ink is not None and ink[1] > 0.15
 
 
 def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> dict:
@@ -480,13 +497,14 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
                 scene["art"] = art
         scenes.append(scene)
     props = {
-        # logoLight: a white logo → a dark corner chip; logoSolid: a logo with its own ground → a rounded tile (canvas.jsx);
+        # logoLight: a white logo → a dark corner chip; logoDark: a black logo → a faint light edge; logoSolid: a logo with its own ground → a rounded tile (canvas.jsx);
         # logoChip: the brand's choice for the corner — auto / card / none (shared.jsx chipPlain)
         "brand": {
             "name": brand.name,
             "color": f"#{r:02x}{g:02x}{b:02x}",
             "logo": logo,
             "logoLight": logo_is_light(logo),
+            "logoDark": logo_is_dark(logo),
             "logoSolid": bool(logo) and not logo_prints(logo),
             "logoChip": getattr(brand, "logo_chip", None) or "auto",
         },

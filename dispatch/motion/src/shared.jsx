@@ -281,10 +281,12 @@ export const chipPlain = (brand) => {
   if (mode === 'card') return false
   return !brand.logoSolid && !brand.logoLight
 }
-/** The card round the logo, or nothing but a soft shadow that keeps it readable. */
-export const chipBox = (plain, card, dark = false) =>
+/** The card round the logo, or nothing but a soft shadow that keeps it readable. ``darkInk``: a black
+ * logo (props logoDark) gets a faint light edge so a dark video doesn't swallow it — no big white glow
+ * round a colourful logo any more (the user, 2026-11-04). */
+export const chipBox = (plain, card, darkInk = false) =>
   plain
-    ? { background: 'transparent', border: 0, boxShadow: 'none', padding: 0, filter: dark ? 'drop-shadow(0 0 2px rgba(255,255,255,0.9)) drop-shadow(0 0 12px rgba(255,255,255,0.55))' : 'drop-shadow(0 2px 10px rgba(0,0,0,0.18))' }
+    ? { background: 'transparent', border: 0, boxShadow: 'none', padding: 0, filter: darkInk ? 'drop-shadow(0 0 1px rgba(255,255,255,0.75)) drop-shadow(0 0 5px rgba(255,255,255,0.22))' : 'drop-shadow(0 2px 6px rgba(0,0,0,0.35))' }
     : card
 
 /** The corner logo chip's opacity at ``frame``: it fades out over a scene that shows the logo itself. */
