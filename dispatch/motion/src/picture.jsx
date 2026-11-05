@@ -95,7 +95,13 @@ function Title({ text, ink, wide, page = false, side = null, card = false }) {
   // a stick-figure page's title a little smaller than a photo's: it reads under the logo, the drawing is the hero
   // …but beside the drawing it's the half the drawing left: big, one or two lines
   const most = card ? (wide ? 124 : 104) : side ? 140 : page ? (wide ? 76 : 100) : wide ? 150 : 112
-  const size = Math.max(card ? (wide ? 64 : 56) : side ? 64 : page ? (wide ? 48 : 58) : wide ? 70 : 64, Math.min(most, (box * 2) / (len * per)))
+  const rows = card ? twoRows(pieces) : null
+  // a card: as big as its WIDEST row fits across the box — a long second row never wraps to a third
+  // ("…ត្រឹម មួយ ចុច" did, 2026-11-05); the key word counts 1.18× (it's drawn bigger), each gap ~⅓ letter
+  const widest = rows ? Math.max(...rows.map((row) => row.reduce((a, x) => a + glyphCount(x.p) * (x.em ? 1.18 : 1) + (x.gap ? 0.35 : 0), 0))) : 0
+  const size = card
+    ? Math.round(Math.max(40, Math.min(most, box / (Math.max(4, widest) * (khmer ? 0.7 : 0.6)))))
+    : Math.max(side ? 64 : page ? (wide ? 48 : 58) : wide ? 70 : 64, Math.min(most, (box * 2) / (len * per)))
   const align = side ? (side === 'right' ? 'flex-end' : 'flex-start') : 'center'
   return (
     <div
@@ -123,7 +129,7 @@ function Title({ text, ink, wide, page = false, side = null, card = false }) {
       }}
     >
       {card
-        ? twoRows(pieces).map((row, r) => (
+        ? rows.map((row, r) => (
             <div key={r} style={{ display: 'flex', flexWrap: 'wrap', justifyContent: align, alignItems: 'baseline' }}>
               {row.map((piece) => word(piece))}
             </div>
@@ -155,9 +161,12 @@ function Title({ text, ink, wide, page = false, side = null, card = false }) {
 
 /** A card's words in two rows of about the same length, broken between words
  * (a short title stays one row). Each piece keeps its place ``n`` for the word-by-word entrance. */
+// letters that take room on the line (Khmer vowel signs and subscripts sit on their letter)
+const glyphCount = (t) => [...t].filter((ch) => !/[ា-៓៝]/.test(ch)).length
+
 function twoRows(pieces) {
   const all = pieces.map((x, n) => ({ ...x, n }))
-  const glyphs = (x) => [...x.p].filter((ch) => !/[ា-៓៝]/.test(ch)).length * (x.em ? 1.18 : 1)
+  const glyphs = (x) => glyphCount(x.p) * (x.em ? 1.18 : 1)
   const total = all.reduce((a, x) => a + glyphs(x), 0)
   if (total < 9) return [all]
   let best = -1
