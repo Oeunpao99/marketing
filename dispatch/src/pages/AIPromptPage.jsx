@@ -93,6 +93,19 @@ function saveSettings(key, value) {
 }
 
 const STYLES = ['Photorealistic', 'Illustration', '3D / CGI', 'Anime / Manga']
+// An image in the look of a Remotion template people like (backend app/images/art_styles.py) —
+// '' = the picture as the prompt says
+const ARTS = [
+  { value: '', label: 'As you write it', hint: 'No set look — the picture follows your prompt' },
+  { value: 'stickman', label: 'Stick figures', hint: 'Black ink stick figures on white — like the Stick figures video' },
+  { value: 'stickcolor', label: 'Stick figures · Colour', hint: 'Colour stick figures in a warm cartoon room — the life-lessons look' },
+  { value: 'doodle', label: 'Doodle sketch', hint: 'A quick black-ink notebook sketch — like Doodle notes' },
+  { value: 'painted', label: 'Painted anime', hint: 'A hand-painted anime film frame, warm light' },
+  { value: 'film', label: 'Film still', hint: 'Photo-real, like a scene from a drama film' },
+  { value: 'illustration', label: 'Flat illustration', hint: 'Clean flat 2D shapes and colours' },
+  { value: '3d', label: '3D animated', hint: 'A frame from a 3D animated film' },
+]
+const artLabel = (v) => (v ? ARTS.find((a) => a.value === v)?.label || '' : '')
 const TEMPLATES = {
   image: ['Product hero shot', 'Promo / sale banner', 'Story / Reels cover', 'Tip / quote card'],
   video: ['Talking-head intro', 'Screen demo tutorial', 'Motion graphic (text)', 'Cinematic B-roll'],
@@ -181,6 +194,7 @@ function TurnStamp({ t }) {
   const voice = t.kind === 'motion' ? voiceLabel(t.voice) : ''
   return (
     <>
+      {t.art ? ` · ${artLabel(t.art)}` : ''}
       {model ? ` · ${model}` : ''}
       {voice ? ` · ${voice}` : ''}
       {sent ? (
@@ -253,6 +267,7 @@ function serializeTurn(t) {
     sentAt: t.sentAt,
     model: t.model || '',
     finishedAt: t.finishedAt || null,
+    art: t.art || '',
   }
 }
 
@@ -388,11 +403,12 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
   const [voice, setVoice] = useState(saved.voice !== undefined ? saved.voice : null) // null = the brand's language; '' = no voiceover
   const [brand, setBrand] = useState(null)
   const [style, setStyle] = useState(STYLES.includes(saved.style) ? saved.style : STYLES[0])
+  const [art, setArt] = useState(ARTS.some((a) => a.value === saved.art) ? saved.art : '')
   const [template, setTemplate] = useState(saved.template ?? TEMPLATES.image[0])
   // …and every change is remembered for next time
   useEffect(() => {
-    saveSettings(settingsKey, { type, ratio, seconds, videoMode, motionVoice, motionMusic, motionSubs, motionLogo, motionGoal, motionReview, motionLength, motionRatio, storySeconds, voice, style, template, brand })
-  }, [settingsKey, type, ratio, seconds, videoMode, motionVoice, motionMusic, motionSubs, motionLogo, motionGoal, motionReview, motionLength, motionRatio, storySeconds, voice, style, template, brand])
+    saveSettings(settingsKey, { type, ratio, seconds, videoMode, motionVoice, motionMusic, motionSubs, motionLogo, motionGoal, motionReview, motionLength, motionRatio, storySeconds, voice, style, art, template, brand })
+  }, [settingsKey, type, ratio, seconds, videoMode, motionVoice, motionMusic, motionSubs, motionLogo, motionGoal, motionReview, motionLength, motionRatio, storySeconds, voice, style, art, template, brand])
   const [settingsOpen, setSettingsOpen] = useState(false)
   // Brand kit (Products → Brand kit): a poster template to follow, a product
   // photo to feature and the logo — sent along with image requests.
@@ -858,6 +874,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
           product_id: turn.kit?.productId ?? null,
           use_logo: !!turn.kit?.logo,
           branded: turn.branded !== false, // "No brand — no logo": no brand colours either
+          art: turn.art || '', // a video template's look (Settings → Look)
         })
         usageChanged() // the top bar: one image fewer this month
         if (res.video) {
@@ -1011,6 +1028,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
       brandId: brandObj?.id ?? null,
       brandName: brandObj?.name || '',
       kit: productId ? { templateId: null, productId, logo: false } : null,
+      art: kind === 'image' ? art : undefined,
       status: 'working',
       startedAt: Date.now(),
     }
@@ -1024,7 +1042,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
         type: kind,
         aspect_ratio: turn.ratio,
         seconds,
-        style,
+        style: (kind === 'image' && artLabel(art)) || style,
         topic: sug.brief,
         has_reference: kind === 'video' && !!productId,
         brand_kit: kind === 'image' && !!productId,
@@ -1070,6 +1088,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
       music: isMotion ? motionMusic : undefined,
       subtitles: isMotion ? motionSubs : undefined,
       branded: isMotion || isImage ? motionLogo : undefined,
+      art: isImage ? art : undefined,
       logoId: isMotion ? pickedLogoId : undefined,
       goal: isMotion ? motionGoal : undefined,
       reviewFirst: isMotion && motionReview,
@@ -1110,7 +1129,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
           brand_id: brandObj.id,
           type: 'image',
           aspect_ratio: auto.ratio,
-          style,
+          style: artLabel(auto.art) || style,
           topic: prompt,
           brand_kit: !!pid,
           product_id: pid,
@@ -1174,7 +1193,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
         template,
         aspect_ratio: ratio,
         seconds,
-        style,
+        style: (isImage && artLabel(art)) || style, // a picked Look is the brief's style too
         topic: idea,
         // Video: an attached image or product photo is the clip's first frame.
         has_reference: isImage ? !!refImg && !kitOn : !!refImg || videoFrame,
@@ -1689,6 +1708,8 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
                   setBrand={setBrand}
                   style={style}
                   setStyle={setStyle}
+                  art={art}
+                  setArt={setArt}
                   template={template}
                   setTemplate={setTemplate}
                   products={kitProducts}
@@ -2741,7 +2762,7 @@ function SettingsPopover({
   motionGoal = 'auto', setMotionGoal = () => {},
   motionReview = true, setMotionReview = () => {}, motionLength = 'auto', setMotionLength = () => {},
   motionRatio = '16:9', setMotionRatio = () => {},
-  voice, setVoice, brands, brand, setBrand, style, setStyle, template, setTemplate,
+  voice, setVoice, brands, brand, setBrand, style, setStyle, art, setArt, template, setTemplate,
   products = [], product, setProduct, onClose,
 }) {
   const markOf = useBrandMarks()
@@ -3145,6 +3166,11 @@ function SettingsPopover({
               <Row label="Style">
                 <Select size="sm" value={style} onChange={setStyle} options={STYLES.map((x) => ({ value: x }))} />
               </Row>
+              {type === 'image' && (
+                <Row label="Look" hint="The look of a video template — every image you make comes out in it">
+                  <Select size="sm" value={art} onChange={setArt} options={ARTS} />
+                </Row>
+              )}
             </>
           )}
         </div>

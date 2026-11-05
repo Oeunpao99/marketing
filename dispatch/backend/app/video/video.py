@@ -878,6 +878,9 @@ class ImageIn(BaseModel):
     # False = "No brand — no logo" (the Brand menu): no logo, brand kit or brand colours on it;
     # it's still saved under the brand (the Library, the count)
     branded: bool = True
+    # A Remotion template's look for the picture (app/images/art_styles.py): "stickman",
+    # "stickcolor", "doodle", "painted", "film", "illustration", "3d" — "" = as the prompt says
+    art: str = ""
 
 
 @router.post("/image", response_model=VideoJobOut, status_code=201)
@@ -933,6 +936,10 @@ def create_image(
         from app.images.brand_kit import LOGO_CORNER_RULE
 
         guide = (guide or "") + LOGO_CORNER_RULE
+    if payload.art:
+        from app.images.art_styles import guide as art_guide
+
+        guide = (guide or "") + art_guide(payload.art)
 
     job = GenerationJob(
         workspace_id=ws,

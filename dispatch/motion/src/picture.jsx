@@ -62,17 +62,6 @@ function Picture({ src, seed, page = false, side = null }) {
   )
 }
 
-// an outline drawn from text shadows (8 directions at two widths) in ``color``, then a soft drop shadow
-const outline = (color) =>
-  [
-    ...[0, 45, 90, 135, 180, 225, 270, 315].flatMap((a) => {
-      const x = Math.cos((a * Math.PI) / 180)
-      const y = Math.sin((a * Math.PI) / 180)
-      return [`${(x * 0.07).toFixed(3)}em ${(y * 0.07).toFixed(3)}em 0 ${color}`, `${(x * 0.045).toFixed(3)}em ${(y * 0.045).toFixed(3)}em 0 ${color}`]
-    }),
-    '0 0.12em 0.18em rgba(0,0,0,0.45)',
-  ].join(', ')
-
 /** The line on the picture, word by word; ⟦marked⟧ words in the highlight colour. */
 function Title({ text, ink, wide, page = false, side = null, card = false }) {
   const frame = useCurrentFrame()
@@ -95,7 +84,7 @@ function Title({ text, ink, wide, page = false, side = null, card = false }) {
   // (Khmer marks stack on their letters, so a Khmer character is narrower)
   // a stick-figure page: one centred title across the top, under the logo — or, wide, beside the drawing
   // a colour stick-figure card (the user, 2026-11-04: "a bit smaller"): a label, not a thumbnail
-  const box = card ? (wide ? 640 : 820) : side ? 760 : page && wide ? 1600 : wide ? 800 : 940
+  const box = card ? (wide ? 760 : 900) : side ? 760 : page && wide ? 1600 : wide ? 800 : 940
   const len = Math.max(6, [...clean(text)].filter((ch) => !/[ា-៓៝]/.test(ch)).length)
   // a tall video's two lines stay inside the picture's calm top (y 250–610 of 1920),
   // off the person below: 112 px tops (two Khmer lines with the bigger key word ≈ 355 px)
@@ -105,8 +94,8 @@ function Title({ text, ink, wide, page = false, side = null, card = false }) {
   const per = khmer ? (wide && !page && !card ? 0.62 : 0.9) : 0.68
   // a stick-figure page's title a little smaller than a photo's: it reads under the logo, the drawing is the hero
   // …but beside the drawing it's the half the drawing left: big, one or two lines
-  const most = card ? (wide ? 84 : 76) : side ? 140 : page ? (wide ? 76 : 100) : wide ? 150 : 112
-  const size = Math.max(card ? (wide ? 50 : 46) : side ? 64 : page ? (wide ? 48 : 58) : wide ? 70 : 64, Math.min(most, (box * 2) / (len * per)))
+  const most = card ? (wide ? 124 : 104) : side ? 140 : page ? (wide ? 76 : 100) : wide ? 150 : 112
+  const size = Math.max(card ? (wide ? 64 : 56) : side ? 64 : page ? (wide ? 48 : 58) : wide ? 70 : 64, Math.min(most, (box * 2) / (len * per)))
   const align = side ? (side === 'right' ? 'flex-end' : 'flex-start') : 'center'
   return (
     <div
@@ -115,41 +104,73 @@ function Title({ text, ink, wide, page = false, side = null, card = false }) {
         fontWeight: khmer ? 700 : 800,
         letterSpacing: khmer ? 0 : '-0.015em',
         fontSize: size,
-        lineHeight: khmer ? 1.45 : 1.08,
+        // a card's rows set very close (the user, 2026-11-05), still room for the Khmer marks above and feet below (ម្ចាស់, ឬ);
+        // a soft light glow, not an outline, keeps the dark words clear on a busy corner
+        lineHeight: khmer ? (card ? 1.12 : 1.45) : card ? 1.02 : 1.08,
         color: ink.text,
         textWrap: 'balance', // two even lines, not one long and one word
         // readable on any picture: a soft dark halo, no box (none on a white stick-figure page)
         // a colour stick-figure title: a thick dark outline round each letter, cartoon-caption style,
         // readable on a pale wall, a sky or a night window alike — no box behind it
         // (a dark outline round light words, a white one round dark words)
-        textShadow: page ? 'none' : card ? outline(lightness(ink.text) > 0.5 ? '#211A14' : '#FFFFFF') : '0 4px 24px rgba(0,0,0,0.6), 0 2px 4px rgba(0,0,0,0.55)',
-        textAlign: page ? (side || 'center') : card ? 'center' : undefined,
+        // (a colour stick-figure card: no outline any more — the user, 2026-11-05 — dark words, Shot)
+        textShadow: page ? 'none' : card ? '0 0 22px rgba(255,250,240,0.9), 0 0 6px rgba(255,250,240,0.7)' : '0 4px 24px rgba(0,0,0,0.6), 0 2px 4px rgba(0,0,0,0.55)',
+        textAlign: page ? (side || 'center') : card ? side || 'center' : undefined,
         // a page's title always wraps between its words — a long Khmer line never runs off the edges
-        ...(page || card ? { display: 'flex', flexWrap: 'wrap', justifyContent: card ? 'center' : align, alignItems: 'baseline' } : {}),
+        ...(page ? { display: 'flex', flexWrap: 'wrap', justifyContent: align, alignItems: 'baseline' } : {}),
+        // a card: its two rows stacked, lined up on its side (or centred)
+        ...(card ? { display: 'flex', flexDirection: 'column', alignItems: align } : {}),
       }}
     >
-      {pieces.map(({ p, gap, em: hi }, n) => {
-        const s = spring({ frame: frame - 10 - n * 2, fps, config: { damping: 40, mass: 0.5 } })
-        return (
-          <span
-            key={n}
-            style={{
-              display: 'inline-block',
-              marginRight: gap ? '0.24em' : 0,
-              opacity: s,
-              transform: `translateY(${(1 - s) * 34}px)`,
-              color: hi ? ink.accent : undefined,
-              // a colour stick-figure title: a dark brand colour keeps its exact colour, outlined in white
-              ...(hi && card && lightness(ink.accent) < 0.3 ? { textShadow: outline('#FFFFFF') } : {}),
-              fontSize: hi ? '1.18em' : undefined, // the key word, bigger — the thumbnail look
-            }}
-          >
-            {p}
-          </span>
-        )
-      })}
+      {card
+        ? twoRows(pieces).map((row, r) => (
+            <div key={r} style={{ display: 'flex', flexWrap: 'wrap', justifyContent: align, alignItems: 'baseline' }}>
+              {row.map((piece) => word(piece))}
+            </div>
+          ))
+        : pieces.map((piece, n) => word({ ...piece, n }))}
     </div>
   )
+
+  function word({ p, gap, em: hi, n }) {
+    const s = spring({ frame: frame - 10 - n * 2, fps, config: { damping: 40, mass: 0.5 } })
+    return (
+      <span
+        key={n}
+        style={{
+          display: 'inline-block',
+          marginRight: gap ? '0.24em' : 0,
+          opacity: s,
+          transform: `translateY(${(1 - s) * 34}px)`,
+          color: hi ? ink.accent : undefined,
+          fontSize: hi ? '1.18em' : undefined, // the key word, bigger — the thumbnail look
+          ...(hi && card ? { lineHeight: 1 } : {}), // …without pushing its row away from the other
+        }}
+      >
+        {p}
+      </span>
+    )
+  }
+}
+
+/** A card's words in two rows of about the same length, broken between words
+ * (a short title stays one row). Each piece keeps its place ``n`` for the word-by-word entrance. */
+function twoRows(pieces) {
+  const all = pieces.map((x, n) => ({ ...x, n }))
+  const glyphs = (x) => [...x.p].filter((ch) => !/[ា-៓៝]/.test(ch)).length * (x.em ? 1.18 : 1)
+  const total = all.reduce((a, x) => a + glyphs(x), 0)
+  if (total < 9) return [all]
+  let best = -1
+  let gapBest = Infinity
+  let run = 0
+  all.forEach((x, i) => {
+    run += glyphs(x)
+    if (x.gap && i < all.length - 1 && Math.abs(total / 2 - run) < gapBest) {
+      gapBest = Math.abs(total / 2 - run)
+      best = i
+    }
+  })
+  return best < 0 ? [all] : [all.slice(0, best + 1), all.slice(best + 1)]
 }
 
 /** A wide stick-figure page's title, like a YouTube thumbnail (the user's sample, 2026-10-30):
@@ -240,20 +261,29 @@ function Shot({ scene, brand }) {
     // outline instead of the dark one (Title). In the calm top centre of a tall picture (under the
     // logo, over the people), on the calm half of a wide one (app/video/motion/ picture_room keeps
     // those parts free). No dark shade.
-    const cardInk = { text: ink.text, accent: scene.ink?.accent || brand?.color || '#FFD400' }
-    const label = scene.title && (
-      <div style={{ maxWidth: '100%' }}>
-        <Title text={scene.title} ink={cardInk} wide={wide} card />
-      </div>
-    )
+    // No outline (the user, 2026-11-05: "remove the black border"): the rooms are soft and light,
+    // so light words (the white default) turn the deep ink, and a light highlight (yellow) a deeper
+    // shade of itself — both read on the wall without a border. Dark colours picked stay exact.
+    const accent = scene.ink?.accent || brand?.color || '#FFD400'
+    const cardInk = {
+      text: lightness(ink.text) > 0.6 ? '#2A211B' : ink.text,
+      accent: lightness(accent) > 0.6 ? `color-mix(in srgb, ${accent} 62%, #3A2410)` : accent,
+    }
+    const side = right ? 'right' : 'left'
     return (
       <AbsoluteFill>
         <Picture src={scene.image} seed={seed} />
-        {label &&
+        {scene.title &&
           (wide ? (
-            <div style={{ position: 'absolute', top: 205, [right ? 'right' : 'left']: 90, width: 760, display: 'flex', justifyContent: right ? 'flex-end' : 'flex-start' }}>{label}</div>
+            // two big rows, in the middle of the calm side (app/video/motion/ picture_room keeps it free),
+            // above the subtitle band
+            <div style={{ position: 'absolute', top: 150, bottom: 190, [side]: 110, width: 760, display: 'flex', alignItems: 'center', justifyContent: right ? 'flex-end' : 'flex-start' }}>
+              <Title text={scene.title} ink={cardInk} wide card side={side} />
+            </div>
           ) : (
-            <div style={{ position: 'absolute', left: 60, right: 60, top: 270, display: 'flex', justifyContent: 'center' }}>{label}</div>
+            <div style={{ position: 'absolute', left: 60, right: 60, top: 270, display: 'flex', justifyContent: 'center' }}>
+              <Title text={scene.title} ink={cardInk} card />
+            </div>
           ))}
       </AbsoluteFill>
     )
