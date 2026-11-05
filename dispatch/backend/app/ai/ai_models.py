@@ -34,7 +34,7 @@ from app.models import AiModel, Workspace
 CATALOG: dict[str, dict] = {
     "gpt-5": {"label": "GPT-5", "name": "Default model", "vendor": "OpenAI", "provider": "azure_openai", "blurb": "Strong planner, follows every rule — the default"},
     "gpt-5-mini": {"label": "GPT-5 mini", "name": "Fast model", "vendor": "OpenAI", "provider": "azure_openai", "blurb": "Fastest and cheapest — quick drafts"},
-    "claude-opus-5-5": {"label": "Claude Opus 5.5", "name": "Advanced model", "vendor": "Anthropic", "provider": "azure_claude", "blurb": "Most natural Khmer storytelling — uses up your plan faster"},
+    "claude-sonnet-5-5": {"label": "Claude Sonnet 5.5", "name": "Advanced model", "vendor": "Anthropic", "provider": "azure_claude", "blurb": "Most natural Khmer storytelling — uses up your plan faster"},
     "gemini-4-argon": {"label": "Gemini 4 Argon", "name": "Quick Khmer model", "vendor": "Google", "provider": "gemini", "blurb": "Very fast, natural Khmer"},
 }
 
@@ -121,7 +121,8 @@ def allowed_for(ws: Workspace | None) -> list[str]:
     """The models this workspace may pick, in catalog order."""
     keys = [k for k in CATALOG if usable(k)]
     if ws is not None and ws.ai_models_allowed is not None:
-        keys = [k for k in keys if k in ws.ai_models_allowed]
+        allowed = {RENAMED.get(k, k) for k in ws.ai_models_allowed}
+        keys = [k for k in keys if k in allowed]
     return keys
 
 
@@ -157,10 +158,19 @@ def choose(fallback: str) -> str:
     ws, _user = billing.payer()
     requested = billing.requested_model()
     default, allowed = _workspace_choice(ws) if ws else ("", None)
+    if allowed is not None:
+        allowed = [RENAMED.get(k, k) for k in allowed]
     for key in (requested, default):
+        key = RENAMED.get(key, key)
         if key and usable(key) and (allowed is None or key in allowed):
             return key
     return fallback
+
+
+# A model that left the catalog → the one that took its place, so a saved pick
+# (the composer, a workspace default, an allowed list) keeps working: the Opus
+# deployment was deleted for cost, Sonnet took over (the user, 2026-11-05).
+RENAMED = {"claude-opus-5-5": "claude-sonnet-5-5"}
 
 
 # ── the calls ─────────────────────────────────────────────────────────────
@@ -184,8 +194,16 @@ def _claude():
         from anthropic import AnthropicFoundry
 
         s = get_settings()
-        _claude_client = AnthropicFoundry(api_key=s.azure_claude_api_key, resource=s.azure_claude_resource, max_retries=2, timeout=600.0)
+        _claude_client = AnthropicFoundry(api_key=s.azure_claude_api_key, resource=claude_resource(s.azure_claude_resource), max_retries=2, timeout=600.0)
     return _claude_client
+
+
+def claude_resource(value: str) -> str:
+    """The Foundry resource NAME from AZURE_CLAUDE_RESOURCE — the full endpoint pasted from the portal
+    ("https://x.services.ai.azure.com/anthropic/v1/messages") made the SDK build "https://https//x…"
+    and every call failed with "Connection error" (the user, 2026-11-05)."""
+    host = re.sub(r"^[a-z]+://", "", (value or "").strip(), flags=re.I).split("/", 1)[0]
+    return host.split(".", 1)[0]
 
 
 def _json_from(text: str) -> dict:
