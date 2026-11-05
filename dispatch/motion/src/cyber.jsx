@@ -34,7 +34,9 @@ const RED = '#FF3B5C'
 const GREEN = '#34D399'
 const AMBER = '#FBBF24'
 const SUB = '#8FA3BF'
-const MONO = "'JetBrains Mono', 'Consolas', 'Courier New', monospace"
+// Khmer in a mono label falls back to the app font (Google Sans, shared.jsx) — the mono fonts have no
+// Khmer letters, so it drew as empty boxes (the user, 2026-11-04)
+const MONO = "'JetBrains Mono', 'Consolas', 'Courier New', 'Kantumruy', monospace"
 
 /** The brand's colour for the shield — a dark one is lifted so it glows on navy. */
 const accent = (brand) => {
@@ -100,8 +102,9 @@ function Headline({ text, size, align = 'center', delay = 6, hot = CYAN }) {
 function Tag({ text, color = CYAN, blink = false, size = 26 }) {
   const frame = useCurrentFrame()
   const on = !blink || Math.sin(frame / 4) > -0.4
+  const km = KHMER_RE.test(String(text || '')) // Khmer: the app font, no letter spacing (it splits the vowel signs off)
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12, padding: `${size * 0.4}px ${size * 0.8}px`, borderRadius: 8, border: `2px solid ${color}`, background: tint(color, 0.12), color, fontFamily: MONO, fontWeight: 700, fontSize: size, letterSpacing: '0.12em', boxShadow: `0 0 24px ${tint(color, 0.35)}, inset 0 0 18px ${tint(color, 0.15)}`, opacity: on ? 1 : 0.35, whiteSpace: 'nowrap' }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12, padding: `${size * 0.4}px ${size * 0.8}px`, borderRadius: 8, border: `2px solid ${color}`, background: tint(color, 0.12), color, fontFamily: km ? FONT : MONO, fontWeight: 700, fontSize: size, letterSpacing: km ? 0 : '0.12em', lineHeight: km ? 1.5 : 'normal', boxShadow: `0 0 24px ${tint(color, 0.35)}, inset 0 0 18px ${tint(color, 0.15)}`, opacity: on ? 1 : 0.35, whiteSpace: 'nowrap' }}>
       <span style={{ width: size * 0.42, height: size * 0.42, borderRadius: 99, background: color, boxShadow: `0 0 12px ${color}` }} />
       {text}
     </span>
