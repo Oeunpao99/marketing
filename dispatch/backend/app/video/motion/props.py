@@ -17,7 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.video.motion.common import MUSIC_NEIGHBOURS, TRANSITION_S, _km_words, music_tracks, track_for
-from app.video.motion.templates.picture import clean_ink, picture_side
+from app.video.motion.templates.picture import clean_ink, picture_side, title_tone
 from app.video.motion.templates.lifestory import clean_hero
 from app.video.motion.templates.presenter import clean_host, possessive
 from app.video.motion.templates.parable import clean_duo
@@ -531,6 +531,9 @@ def build_props(brand: Brand, script: dict, logo: str | None, khmer: bool) -> di
                 n
             )  # where its words go — the picture was painted with room there
             sc["art"] = script.get("art") or "film"
+            if sc["art"] == "stickcolor" and sc.get("image"):
+                # how dark the picture is where its words go: light words on a dark one (a night room)
+                sc["tone"] = title_tone(sc["image"], sc["side"])
     if script.get("style") == "illustrated":  # Illustrated: the main person
         props["cast"] = [
             {**c, "name": t(c["name"]) if c.get("name") else ""}

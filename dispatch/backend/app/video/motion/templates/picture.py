@@ -140,6 +140,37 @@ def picture_side(n: int) -> str:
     return "left" if n % 2 == 0 else "right"
 
 
+def title_tone(image: str, side: str) -> str:
+    """"dark" when the part of a picture its title sits on is dark (a night room,
+    a dark wall) — picture.jsx then sets the words light; else "light" (dark words).
+    That part: the middle of the title's half of a wide picture, the top third of
+    a tall one. ``image``: a data URI or a stored /media/ file."""
+    import base64
+    import io
+
+    from PIL import Image
+
+    try:
+        if image.startswith("data:"):
+            raw = base64.b64decode(image.split(",", 1)[1])
+        else:
+            from app.storage.media import read_media
+
+            raw = read_media(image)
+            if raw is None:
+                return "light"
+        im = Image.open(io.BytesIO(raw)).convert("L")
+        w, h = im.size
+        if w > h:
+            box = (0, int(h * 0.15), w // 2, int(h * 0.8)) if side != "right" else (w // 2, int(h * 0.15), w, int(h * 0.8))
+        else:
+            box = (0, int(h * 0.1), w, int(h * 0.36))
+        part = im.crop(box).resize((48, 32))
+        return "dark" if sum(part.getdata()) / (48 * 32) < 115 else "light"
+    except Exception:  # noqa: BLE001 — dark words, as before
+        return "light"
+
+
 def picture_room(n: int, wide: bool) -> str:
     """What scene ``n``'s picture is asked to leave free for its words (picture.jsx
     sets them there, two big lines, like a YouTube thumbnail)."""

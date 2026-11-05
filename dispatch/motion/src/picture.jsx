@@ -104,8 +104,7 @@ function Title({ text, ink, wide, page = false, side = null, card = false }) {
         fontWeight: khmer ? 700 : 800,
         letterSpacing: khmer ? 0 : '-0.015em',
         fontSize: size,
-        // a card's rows set very close (the user, 2026-11-05), still room for the Khmer marks above and feet below (ម្ចាស់, ឬ);
-        // a soft light glow, not an outline, keeps the dark words clear on a busy corner
+        // a card's rows set very close (the user, 2026-11-05), still room for the Khmer marks above and feet below (ម្ចាស់, ឬ)
         lineHeight: khmer ? (card ? 1.12 : 1.45) : card ? 1.02 : 1.08,
         color: ink.text,
         textWrap: 'balance', // two even lines, not one long and one word
@@ -113,8 +112,9 @@ function Title({ text, ink, wide, page = false, side = null, card = false }) {
         // a colour stick-figure title: a thick dark outline round each letter, cartoon-caption style,
         // readable on a pale wall, a sky or a night window alike — no box behind it
         // (a dark outline round light words, a white one round dark words)
-        // (a colour stick-figure card: no outline any more — the user, 2026-11-05 — dark words, Shot)
-        textShadow: page ? 'none' : card ? '0 0 22px rgba(255,250,240,0.9), 0 0 6px rgba(255,250,240,0.7)' : '0 4px 24px rgba(0,0,0,0.6), 0 2px 4px rgba(0,0,0,0.55)',
+        // (a colour stick-figure card: clean letters, no outline, glow or shadow — the user, 2026-11-05;
+        // their colour follows the picture behind them, Shot)
+        textShadow: page || card ? 'none' : '0 4px 24px rgba(0,0,0,0.6), 0 2px 4px rgba(0,0,0,0.55)',
         textAlign: page ? (side || 'center') : card ? side || 'center' : undefined,
         // a page's title always wraps between its words — a long Khmer line never runs off the edges
         ...(page ? { display: 'flex', flexWrap: 'wrap', justifyContent: align, alignItems: 'baseline' } : {}),
@@ -264,11 +264,19 @@ function Shot({ scene, brand }) {
     // No outline (the user, 2026-11-05: "remove the black border"): the rooms are soft and light,
     // so light words (the white default) turn the deep ink, and a light highlight (yellow) a deeper
     // shade of itself — both read on the wall without a border. Dark colours picked stay exact.
+    // On a dark picture (scene.tone "dark" — app/video/motion/ title_tone measures where the words go;
+    // no picture = the dark page) it's the other way round: light words, a light highlight.
     const accent = scene.ink?.accent || brand?.color || '#FFD400'
-    const cardInk = {
-      text: lightness(ink.text) > 0.6 ? '#2A211B' : ink.text,
-      accent: lightness(accent) > 0.6 ? `color-mix(in srgb, ${accent} 62%, #3A2410)` : accent,
-    }
+    const dark = scene.tone === 'dark' || !scene.image
+    const cardInk = dark
+      ? {
+          text: lightness(ink.text) < 0.6 ? '#FFF8EE' : ink.text,
+          accent: lightness(accent) < 0.45 ? `color-mix(in srgb, ${accent} 55%, #FFFFFF)` : accent,
+        }
+      : {
+          text: lightness(ink.text) > 0.6 ? '#2A211B' : ink.text,
+          accent: lightness(accent) > 0.6 ? `color-mix(in srgb, ${accent} 62%, #3A2410)` : accent,
+        }
     const side = right ? 'right' : 'left'
     return (
       <AbsoluteFill>
