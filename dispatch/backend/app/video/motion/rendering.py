@@ -12,7 +12,9 @@ import shutil
 import subprocess
 import tempfile
 import threading
+import time
 import uuid
+from contextlib import contextmanager
 from app.core.database import SessionLocal
 from app.models import GenerationJob
 from pathlib import Path
@@ -21,7 +23,7 @@ from sqlalchemy.orm import Session
 
 from app.video.motion.common import MOTION_DIR, _npx, _render_lock, log, not_ready
 from app.video.motion.props import length_of
-from app.video.motion.jobs import _check, _kill_tree, _procs, _report
+from app.video.motion.jobs import _check, _kill_tree, _procs, _report, progress_of
 
 
 def _to_files(props: dict, folder: Path, rel: str) -> dict:
@@ -169,6 +171,51 @@ def _render_started(job_id: int) -> None:
         db.close()
 
 
+_waiting: list[int] = []  # videos waiting for the drawing tool, oldest first
+_waiting_lock = threading.Lock()
+_drawing: dict = {"job": None}  # the video being drawn now (None: a design check / slide PDF, or nothing)
+
+
+@contextmanager
+def _turn(job_id: int | None, preview: bool):
+    """The drawing tool, one video at a time. While a video waits, its page
+    shows a live line (MotionBoard renderLine): its place in line (queue = how
+    many go first, the one drawing now included), how far the one drawing now
+    has got (ahead, 0..1) and how long it has waited — and Stop works while it
+    waits, not only once its turn comes."""
+    if job_id is None or preview:
+        with _render_lock:
+            yield
+        return
+    with _waiting_lock:
+        _waiting.append(job_id)
+    since = time.monotonic()
+    try:
+        while not _render_lock.acquire(timeout=2):
+            _check(job_id)
+            with _waiting_lock:
+                before = _waiting.index(job_id) if job_id in _waiting else 0
+            now = _drawing["job"]
+            share = (progress_of(now) or {}).get("render") if now is not None else None
+            _report(
+                job_id,
+                render_step="queue",
+                queue=before + 1,
+                ahead=round(float(share), 3) if share is not None else None,
+                waited=round(time.monotonic() - since),
+            )
+    finally:
+        with _waiting_lock:
+            if job_id in _waiting:
+                _waiting.remove(job_id)
+    _drawing["job"] = job_id
+    try:
+        yield
+    finally:
+        _drawing["job"] = None
+        _render_lock.release()
+
+
 def _media_to_files(props: dict, folder: Path, rel: str) -> dict:
     """``props`` with every stored file ("/media/<name>" — the video editor's
     clips) copied to ``folder`` and swapped for its path under public/: the
@@ -224,7 +271,7 @@ def render(
     # start (opening the drawing tool), frames (render = the share drawn), finish (joining the MP4)
     if not preview:  # (a re-render of the same job starts over, not at the last one's "finish")
         _report(job_id, render_step="queue" if _render_lock.locked() else "start")
-    with _render_lock, tempfile.TemporaryDirectory() as tmp:
+    with _turn(job_id, preview), tempfile.TemporaryDirectory() as tmp:
         _check(job_id)
         if job_id is not None and not preview:
             _render_started(job_id)

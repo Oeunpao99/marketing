@@ -40,7 +40,7 @@ import { usageChanged } from '../lib/usage'
 import { PILLAR_LABELS, pillarChipClass } from '../lib/angles'
 import { kitSrc, TemplatePicker } from '../components/brandkit/BrandKit'
 import { MOTION_OFF_TIP, useMotionReady } from '../lib/motionStatus'
-import WriterModelSelect, { useWriterModels, writerHint } from '../components/studio/WriterModelSelect'
+import WriterModelSelect, { useWriterModels, writerHint, writerModelNow } from '../components/studio/WriterModelSelect'
 import { aiModelStore } from '../api/client'
 import { MOTION_TEMPLATES, previewSrc } from '../lib/motionTemplates'
 import MakingDrawer from '../components/studio/MakingDrawer'
@@ -155,6 +155,56 @@ const MAX_IMAGE_REFS = 4 // pictures one image can build on (app/video/video.py 
 const isImageUrl = (url) => /\.(png|jpe?g|webp|gif)$/i.test(url || '')
 
 let turnSeq = 0
+
+// A turn's finish time, for "took 2m 10s" under the prompt: set when it's done,
+// cleared when it runs again.
+const withFinish = (patch) =>
+  patch.status === 'done' ? { finishedAt: Date.now(), ...patch } : patch.status === 'working' ? { finishedAt: null, ...patch } : patch
+
+// "1:57 PM" today, "Nov 4, 1:57 PM" another day (the year too when it isn't this one)
+function sentLabel(ms) {
+  const d = new Date(ms)
+  const now = new Date()
+  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  if (d.toDateString() === now.toDateString()) return time
+  const date = d.toLocaleDateString([], { month: 'short', day: 'numeric', ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}) })
+  return `${date}, ${time}`
+}
+
+// The end of the line under a prompt: " · Standard model · Nov 4, 1:57 PM · took 2m 10s".
+// The model by our own name — never the maker's; turns saved before this have no model.
+function TurnStamp({ t }) {
+  const writers = useWriterModels()
+  const model = t.model ? writers?.models?.find((m) => m.key === t.model)?.label || '' : ''
+  const sent = t.sentAt || t.startedAt
+  const took = t.status === 'done' && t.finishedAt && t.startedAt ? (t.finishedAt - t.startedAt) / 1000 : 0
+  const voice = t.kind === 'motion' ? voiceLabel(t.voice) : ''
+  return (
+    <>
+      {model ? ` · ${model}` : ''}
+      {voice ? ` · ${voice}` : ''}
+      {sent ? (
+        <span title={new Date(sent).toLocaleString()}>{` · ${sentLabel(sent)}`}</span>
+      ) : null}
+      {took ? ` · took ${tookLabel(took)}` : ''}
+    </>
+  )
+}
+
+// A Remotion turn's voice as picked: "Female voice", "Maly voice" (a voice picked by name), "No voice"…
+function voiceLabel(v) {
+  const s = String(v || 'female')
+  if (s.startsWith('kiri:')) return `${s.slice(5)} voice`
+  return { female: 'Female voice', male: 'Male voice', none: 'No voice', brand: 'Brand voice', native: 'Native voice' }[s] || ''
+}
+
+// 42 s → "42s", 130 s → "2m 10s", 3700 s → "1h 1m"
+function tookLabel(sec) {
+  const s = Math.max(1, Math.round(sec))
+  if (s < 60) return `${s}s`
+  if (s < 3600) return `${Math.floor(s / 60)}m${s % 60 ? ` ${s % 60}s` : ''}`
+  return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`
+}
 const OPEN_CHAT = 'contentflow.openChat'
 
 // What gets saved per turn (app/ai/chats.py stores it as-is). Blob previews
@@ -200,6 +250,9 @@ function serializeTurn(t) {
     tokens: t.tokens || 0,
     cost: t.cost || 0,
     startedAt: t.startedAt,
+    sentAt: t.sentAt,
+    model: t.model || '',
+    finishedAt: t.finishedAt || null,
   }
 }
 
@@ -673,7 +726,9 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
     }
   }
 
-  const patchTurn = (id, patch) => setTurns((list) => list.map((t) => (t.id === id ? { ...t, ...patch } : t)))
+  const patchTurn = (id, patch) => setTurns((list) => list.map((t) => (t.id === id ? { ...t, ...withFinish(patch) } : t)))
+  // a new turn: when it was sent and the model writing it (the line under the prompt)
+  const addTurn = (turn) => setTurns((list) => [...list, { ...turn, sentAt: Date.now(), model: writerModelNow(), finishedAt: null }])
   const addTokens = (n) => n && setSessionTokens((t) => t + n)
 
   // Latest turns, read by the poll loop so it doesn't have to restart on every change.
@@ -764,7 +819,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
     const live = () => turnsRef.current.find((x) => x.id === turn.id)?.status === 'working'
     const update = (id, patch) => {
       if (!mountedRef.current) return persistLate(id, patch)
-      if (live()) return setTurns((list) => list.map((t) => (t.id === id ? { ...t, ...patch } : t)))
+      if (live()) return setTurns((list) => list.map((t) => (t.id === id ? { ...t, ...withFinish(patch) } : t)))
       if (patch.jobId) {
         untrackJob(patch.jobId)
         api.post(`/ai/video/${patch.jobId}/stop`).catch(() => {})
@@ -935,7 +990,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
       status: 'working',
       startedAt: Date.now(),
     }
-    setTurns((list) => [...list, turn])
+    addTurn(turn)
     run(turn)
   }
 
@@ -959,7 +1014,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
       status: 'working',
       startedAt: Date.now(),
     }
-    setTurns((list) => [...list, turn])
+    addTurn(turn)
     if (!sug.brief) return run(turn)
     try {
       const res = await api.post('/ai/prompt', {
@@ -1045,7 +1100,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
       const only = kitProducts.length === 1 ? kitProducts[0] : null
       const pid = turn.kit?.productId ?? (only && kitPhotos.some((a) => a.product_id === only.id) ? only.id : null)
       const auto = pid ? { ...turn, kit: { templateId: null, logo: false, ...(turn.kit || {}), productId: pid } } : turn
-      setTurns((list) => [...list, auto])
+      addTurn(auto)
       setText('')
       setRefImg(null)
       api
@@ -1068,7 +1123,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
         .catch(() => run(auto)) // the writer is down: their own words, as typed
       return
     }
-    setTurns((list) => [...list, turn])
+    addTurn(turn)
     setText('')
     setRefImg(null)
     run(turn)
@@ -1102,7 +1157,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
       status: 'working',
       startedAt: Date.now(),
     }
-    setTurns((list) => [...list, turn])
+    addTurn(turn)
     run(turn)
   }
 
@@ -1282,7 +1337,7 @@ export default function AIPromptPage({ embedded = false, preset = null }) {
       brandId: turn.brandId ?? brandObj?.id ?? null,
       brandName: turn.brandName || brandObj?.name || '',
     }
-    setTurns((list) => [...list, again])
+    addTurn(again)
     run(again)
   }
 
@@ -2053,6 +2108,10 @@ function AskTurn({ t, onRetry, onGenerate, onEdit, onUseDraft }) {
           {t.prompt}
         </div>
         <div className="mt-1 flex items-center text-ink-400">
+          <span className="mr-1.5 text-[10.5px]">
+            Ask
+            <TurnStamp t={t} />
+          </span>
           <IconBtn title="Edit question" onClick={onEdit}>
             <FiEdit2 size={13} />
           </IconBtn>
@@ -2357,6 +2416,7 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary, onPlanChange, onMake,
           <span className="mr-1.5 text-[10.5px]">
             {t.kind === 'image' ? 'Image' : motion ? `Remotion · ${t.language || 'Khmer'}` : `Video · ${t.seconds}s`} · {t.ratio}
             {t.brandName ? ` · ${t.brandName}` : ''}
+            <TurnStamp t={t} />
           </span>
           <IconBtn title={copied ? 'Copied' : 'Copy prompt'} onClick={copy}>
             {copied ? <FiCheck size={13} /> : <FiCopy size={13} />}
@@ -2612,6 +2672,7 @@ function StoryTurn({ t, onEdit, onRetry, onDeleted }) {
           <span className="mr-1.5 text-[10.5px]">
             Storyboard · ~{t.seconds}s · {t.ratio} · {t.language || 'No voiceover'}
             {t.brandName ? ` · ${t.brandName}` : ''}
+            <TurnStamp t={t} />
           </span>
           <IconBtn title="Edit idea" onClick={onEdit}>
             <FiEdit2 size={13} />

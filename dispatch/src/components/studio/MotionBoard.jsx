@@ -163,13 +163,25 @@ export function drawingAt(progress) {
   return scenes.length - 1
 }
 
+/** Waiting for the drawing tool (one video at a time — rendering.py _turn): its
+ * place in line, how far the video drawing now has got, how long it has waited. */
+function queueLine(progress) {
+  const n = progress.queue || 1
+  const ahead = progress.ahead
+  const waited = progress.waited || 0
+  const wait = waited >= 60 ? `${Math.floor(waited / 60)}m ${waited % 60}s` : `${waited}s`
+  const who = n > 1 ? `${n} videos are ahead of yours` : 'Another video is being drawn'
+  const how = ahead == null ? '' : ahead >= 1 ? ' — it’s being put together' : ` — it’s ${Math.round(ahead * 100)}% drawn`
+  return `Waiting its turn · ${who}${how}${waited ? ` · waited ${wait}` : ''}`
+}
+
 /** The Animate step's live line (app/video/motion/rendering.py render_step). */
 function renderLine(progress) {
   const step = progress.render_step
   const pct = Math.round(100 * (progress.render || 0))
   const n = (progress.scenes || []).length
   if (step === 'finish' || progress.render >= 1) return 'Putting the video together — almost done…'
-  if (step === 'queue') return 'Waiting its turn — another video is being drawn first…'
+  if (step === 'queue') return queueLine(progress)
   if (step !== 'frames') return 'Opening the drawing tool — the first frames take a moment…'
   const at = drawingAt(progress)
   return n ? `Drawing scene ${at + 1} of ${n} · ${pct}%` : `Drawing the scenes · ${pct}%`

@@ -17,6 +17,11 @@ export function forgetWriterModels() {
   cached = null
 }
 
+/** The model a request sent now is written with: the pick, else the workspace default ("" until the list loaded). */
+export function writerModelNow() {
+  return aiModelStore.get() || cached?.default || cached?.platform_default || ''
+}
+
 export function useWriterModels() {
   const [data, setData] = useState(cached)
   useEffect(() => {
