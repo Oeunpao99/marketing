@@ -364,6 +364,12 @@ def write_script(
         for r in raw.get("scenes") or []:
             if isinstance(r, dict):
                 r["_wide"] = wide
+    if len(allowed) == 1:  # a template with one scene type (Picture story's "shot"): a scene the
+        # writer sent without its "type" is that one (Claude Sonnet left it out, 2026-11-05 — the
+        # whole storyboard was thrown away)
+        for r in raw.get("scenes") or []:
+            if isinstance(r, dict) and not r.get("type"):
+                r["type"] = allowed[0]
     scenes = [
         s
         for s in (_clean_scene(r, names) for r in (raw.get("scenes") or []) if isinstance(r, dict))

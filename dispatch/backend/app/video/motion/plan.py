@@ -488,6 +488,10 @@ def checked_script(raw: dict, products: list[Product]) -> dict:
     style = raw.get("style") if raw.get("style") in STYLES else "explainer"
     _prompt, allowed, _most, _must = STYLES[style]
     names = {p.name.strip().lower(): p.name for p in products}
+    if len(allowed) == 1:  # one scene type (Picture story's "shot"): a scene without its type is that one
+        for r in raw.get("scenes") or []:
+            if isinstance(r, dict) and not r.get("type"):
+                r["type"] = allowed[0]
     scenes = [
         sc
         for sc in (

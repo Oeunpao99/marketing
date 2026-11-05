@@ -46,7 +46,7 @@ import { MOTION_TEMPLATES, previewSrc } from '../lib/motionTemplates'
 import MakingDrawer from '../components/studio/MakingDrawer'
 import { backupName, useVoiceStatus } from '../lib/voiceStatus'
 import KiriVoicePicker, { kiriGender } from '../components/studio/KiriVoicePicker'
-import { useBrandMarks } from '../lib/brandMarks'
+import { BrandMark, useBrandLogos, useBrandMarks } from '../lib/brandMarks'
 
 // AI Agent — one chat for both asking and creating. A message that reads
 // like a question ("how is my engagement?", "what should I post next?") goes
@@ -182,6 +182,26 @@ function sentLabel(ms) {
   if (d.toDateString() === now.toDateString()) return time
   const date = d.toLocaleDateString([], { month: 'short', day: 'numeric', ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}) })
   return `${date}, ${time}`
+}
+
+// The brand on the line under a prompt: " · [logo] Proseth" — its Brand kit logo, else its colour dot
+// ("No brand" stays words only)
+function BrandTag({ t }) {
+  const { brands } = useStore()
+  const logos = useBrandLogos()
+  if (!t.brandName) return null
+  const b = t.brandName !== 'No brand' ? brands.find((x) => x.id === t.brandId) : null
+  return (
+    <>
+      {' · '}
+      {b && (
+        <span className="mr-1 inline-block align-[-4px]">
+          <BrandMark brand={b} logo={logos[b.id]} size={18} />
+        </span>
+      )}
+      {t.brandName}
+    </>
+  )
 }
 
 // The end of the line under a prompt: " · Standard model · Nov 4, 1:57 PM · took 2m 10s".
@@ -2129,7 +2149,7 @@ function AskTurn({ t, onRetry, onGenerate, onEdit, onUseDraft }) {
           {t.prompt}
         </div>
         <div className="mt-1 flex items-center text-ink-400">
-          <span className="mr-1.5 text-[10.5px]">
+          <span className="mr-1.5 text-[12px] font-semibold leading-6 text-ink-500">
             Ask
             <TurnStamp t={t} />
           </span>
@@ -2434,9 +2454,9 @@ function Turn({ t, onUse, onEdit, onRegenerate, onLibrary, onPlanChange, onMake,
           )}
         </div>
         <div className="mt-1 flex items-center gap-0.5 text-ink-400">
-          <span className="mr-1.5 text-[10.5px]">
+          <span className="mr-1.5 text-[12px] font-semibold leading-6 text-ink-500">
             {t.kind === 'image' ? 'Image' : motion ? `Remotion · ${t.language || 'Khmer'}` : `Video · ${t.seconds}s`} · {t.ratio}
-            {t.brandName ? ` · ${t.brandName}` : ''}
+            <BrandTag t={t} />
             <TurnStamp t={t} />
           </span>
           <IconBtn title={copied ? 'Copied' : 'Copy prompt'} onClick={copy}>
@@ -2690,9 +2710,9 @@ function StoryTurn({ t, onEdit, onRetry, onDeleted }) {
           {t.prompt}
         </div>
         <div className="mt-1 flex items-center gap-0.5 text-ink-400">
-          <span className="mr-1.5 text-[10.5px]">
+          <span className="mr-1.5 text-[12px] font-semibold leading-6 text-ink-500">
             Storyboard · ~{t.seconds}s · {t.ratio} · {t.language || 'No voiceover'}
-            {t.brandName ? ` · ${t.brandName}` : ''}
+            <BrandTag t={t} />
             <TurnStamp t={t} />
           </span>
           <IconBtn title="Edit idea" onClick={onEdit}>
