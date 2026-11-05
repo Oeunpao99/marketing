@@ -1,13 +1,15 @@
 // An AI model's icon in the menus: our own logo (customers never see the
 // maker's) tinted in the model family's colour, with a small badge on its
-// top-right corner — "+" GPT-5, "++" GPT-6 (green), "+++" Claude (orange)
-// (the user, 2026-11-05). A model outside these families: the badge counts its
-// cost tier ("$" cheapest … "$$$" priciest — backend ai_models_api.py
-// model_rows) on our brand logo. No model and no tier: the logo alone.
+// top-right corner — "+" GPT-5, "++" GPT-6 (black — the app's ink, so it turns
+// light in dark mode), "+++" Claude (orange) (the user, 2026-11-05). A model
+// outside these families: the badge counts its cost tier ("$" cheapest … "$$$"
+// priciest — backend ai_models_api.py model_rows) on our brand logo. No model
+// and no tier: the logo alone.
+const INK = 'rgb(var(--ink-900))'
 const FAMILIES = [
   [/^claude/, 3, '#D97757'],
-  [/^gpt-6/, 2, '#10A37F'],
-  [/^gpt-5/, 1, '#10A37F'],
+  [/^gpt-6/, 2, INK],
+  [/^gpt-5/, 1, INK],
 ]
 
 export function modelMark(model = '', tier = '') {
@@ -41,7 +43,8 @@ export default function CostTier({ tier = '', model = '', size = 'sm', className
       {n > 0 && (
         <span
           className={`absolute -top-1.5 left-[70%] rounded-full px-[3px] text-[8.5px] font-bold leading-[11px] text-white ${color ? '' : 'bg-brand'}`}
-          style={{ boxShadow: '0 0 0 1.5px rgb(var(--surface))', ...(color ? { background: color } : {}) }}
+          // on the ink badge the "+" takes the surface colour (white in light mode, dark in dark mode)
+          style={{ boxShadow: '0 0 0 1.5px rgb(var(--surface))', ...(color ? { background: color } : {}), ...(color === INK ? { color: 'rgb(var(--surface))' } : {}) }}
           aria-label={`Level ${n} of 3`}
         >
           {'+'.repeat(n)}
