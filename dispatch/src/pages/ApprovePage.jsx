@@ -66,24 +66,30 @@ export default function ApprovePage({ token }) {
 
   return (
     <Frame>
-      <div className="flex items-center gap-2.5">
-        {data.logo && <img src={abs(data.logo)} alt="" className="h-9 w-9 rounded-lg bg-white object-contain ring-1 ring-ink-200" />}
+      <div className="flex items-center gap-3">
+        {data.logo && (
+          <span className="flex h-12 flex-none items-center rounded-xl bg-white px-2.5 ring-1 ring-ink-200">
+            <img src={abs(data.logo)} alt="" className="h-9 w-auto max-w-[160px] object-contain" />
+          </span>
+        )}
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[15px] font-semibold text-ink-900">{data.brand || 'Your team'}</div>
-          <div className="text-[12px] text-ink-500">asks you to check this {data.kind === 'image' ? 'picture' : 'video'}{data.version > 1 ? ` · version ${data.version}` : ''}</div>
+          <div className="truncate text-[17px] font-semibold text-ink-900">{data.brand || 'Your team'}</div>
+          <div className="text-[13px] text-ink-500">asks you to check this {data.kind === 'image' ? 'picture' : 'video'}{data.version > 1 ? ` · version ${data.version}` : ''}</div>
         </div>
       </div>
 
-      <div className="mt-4 overflow-hidden rounded-2xl bg-black">
+      <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(360px,440px)] lg:items-start">
+      <div className="flex items-center justify-center overflow-hidden rounded-2xl bg-night-950">
         {data.kind === 'image' ? (
-          <img src={abs(data.media)} alt="" className="mx-auto max-h-[70vh] w-full object-contain" />
+          <img src={abs(data.media)} alt="" className="max-h-[80vh] w-auto max-w-full object-contain" />
         ) : (
-          <video src={abs(data.media)} controls playsInline preload="metadata" className="mx-auto max-h-[70vh] w-full bg-black" />
+          <video src={abs(data.media)} controls playsInline preload="metadata" className="max-h-[80vh] w-full bg-night-950" />
         )}
       </div>
 
+      <div className="lg:sticky lg:top-6">
       {data.caption && (
-        <div className="mt-4 rounded-2xl border border-ink-100 bg-white p-4">
+        <div className="rounded-2xl border border-ink-100 bg-white p-4">
           <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-ink-400">Caption</div>
           <p className={`whitespace-pre-wrap text-[14px] leading-relaxed text-ink-800 ${khmer(data.caption)}`}>{data.caption}</p>
         </div>
@@ -147,14 +153,16 @@ export default function ApprovePage({ token }) {
         )}
         {error && <p className="mt-3 text-[12.5px] text-red-600">{error}</p>}
       </div>
+      </div>
+      </div>
     </Frame>
   )
 }
 
 function Frame({ children }) {
   return (
-    <div className="min-h-screen bg-canvas px-4 py-6">
-      <div className="mx-auto w-full max-w-[560px]">{children}</div>
+    <div className="min-h-screen bg-canvas px-4 py-6 lg:px-10 lg:py-8">
+      <div className="w-full">{children}</div>
       <p className="mt-8 text-center text-[11px] text-ink-400">Shared with Smart Marketing</p>
     </div>
   )

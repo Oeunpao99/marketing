@@ -670,6 +670,7 @@ export default function LibraryPage() {
 
       {open && (
         <DetailPanel
+          key={open.id} // a fresh panel per item: its caption, share drawer… never carried over
           it={open}
           busy={!!writing[open.id]}
           folders={folders || []}
@@ -1471,7 +1472,8 @@ function DetailPanel({ it, busy, folders, onClose, onUse, onDelete, onRewrite, o
             <a href={abs(it.url)} download={it.filename} className="btn-outline">
               <FiDownload size={13} /> Download
             </a>
-            {sharing && <ShareDrawer videoId={it.id} caption={text} onClose={() => setSharing(false)} />}
+            {/* the VIDEO's id (it.id is the job's — that shared some other file) */}
+            {sharing && it.video_id && <ShareDrawer videoId={it.video_id} caption={text} onClose={() => setSharing(false)} />}
             {it.editable && (
               <button type="button" onClick={() => navigate(`/library/edit/${it.id}`)} title="Change the words, the voice lines, the order and the sound — saved as a new video" className="btn-outline">
                 <FiEdit3 size={13} /> Edit video

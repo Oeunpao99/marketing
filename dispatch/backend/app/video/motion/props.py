@@ -8,7 +8,7 @@ import base64
 import io
 import random
 import re
-from PIL import Image
+from PIL import Image, ImageChops
 from app.storage.media import read_media
 from app.models import Brand, BrandAsset, Product
 from app.images.poster import brand_rgb
@@ -27,9 +27,40 @@ from app.video.motion.scenes import clean_cast
 
 
 # ── pictures (embedded, so the render needs no network) ───────────────────
-def _data_uri(blob: bytes, max_side: int, keep_alpha: bool = False) -> str | None:
+def _trim_logo(im: Image.Image) -> Image.Image:
+    """A logo without the empty border round it — a see-through margin, or a plain
+    white / one-colour one: the video fits the WHOLE picture into the corner (62 px tall
+    in a tall video), so a small mark in a big empty canvas came out tiny (the user,
+    2026-11-06). A thin margin is kept. Anything unreadable: the logo as it came."""
+    try:
+        rgba = im.convert("RGBA")
+        w, h = rgba.size
+        box = rgba.getchannel("A").point(lambda a: 255 if a > 12 else 0).getbbox()
+        if box is None:
+            return im
+        if box == (0, 0, w, h):  # no see-through margin: a plain border of one colour?
+            rgb = rgba.convert("RGB")
+            corners = [rgb.getpixel(p) for p in ((0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1))]
+            if max(max(abs(a - b) for a, b in zip(c, corners[0])) for c in corners) > 24:
+                return im  # the corners differ: a picture to the edges, not a border
+            plain = Image.new("RGB", (w, h), corners[0])
+            box = ImageChops.difference(rgb, plain).convert("L").point(lambda v: 255 if v > 24 else 0).getbbox()
+            if box is None:
+                return im
+        x0, y0, x1, y1 = box
+        if (x1 - x0) * (y1 - y0) > 0.9 * w * h:
+            return im  # hardly any border — leave it be
+        pad = max(2, int(0.04 * max(x1 - x0, y1 - y0)))
+        return im.crop((max(0, x0 - pad), max(0, y0 - pad), min(w, x1 + pad), min(h, y1 + pad)))
+    except Exception:  # noqa: BLE001
+        return im
+
+
+def _data_uri(blob: bytes, max_side: int, keep_alpha: bool = False, trim: bool = False) -> str | None:
     try:
         im = Image.open(io.BytesIO(blob))
+        if trim:  # a logo: its empty border off first, so it fills its place on the video
+            im = _trim_logo(im)
         im.thumbnail((max_side, max_side))
         out = io.BytesIO()
         if keep_alpha:
@@ -61,7 +92,7 @@ def _brand_pictures(
             if a.product_id is not None:
                 by_product.setdefault(a.product_id, uri)
     logo = next((a for a in assets if a.kind == "logo" and a.id == logo_id), None) or main_logo(db, brand_id)
-    logo_uri = _data_uri(read_media(logo.url) or b"", 512, keep_alpha=True) if logo else None
+    logo_uri = _data_uri(read_media(logo.url) or b"", 512, keep_alpha=True, trim=True) if logo else None
     return by_product, order, logo_uri
 
 
